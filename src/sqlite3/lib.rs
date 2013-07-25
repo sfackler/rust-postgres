@@ -78,6 +78,25 @@ impl Connection {
             _ => Err(self.get_error())
         }
     }
+
+    pub fn update(&self, query: &str) -> Result<uint, ~str> {
+        self.prepare(query).chain(|stmt| stmt.update())
+    }
+
+    pub fn query<T>(&self, query: &str, blk: &fn (&mut ResultIterator) -> T)
+            -> Result<T, ~str> {
+        let stmt = match self.prepare(query) {
+            Ok(stmt) => stmt,
+            Err(err) => return Err(err)
+        };
+
+        let mut it = match stmt.query() {
+            Ok(it) => it,
+            Err(err) => return Err(err)
+        };
+
+        Ok(blk(&mut it))
+    }
 }
 
 pub struct PreparedStatement<'self> {
