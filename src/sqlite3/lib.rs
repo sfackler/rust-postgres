@@ -1,5 +1,3 @@
-extern mod sql;
-
 use std::libc::c_int;
 use std::ptr;
 use std::str;
@@ -62,6 +60,24 @@ impl Connection {
     }
 }
 
+macro_rules! ret_err(
+    ($mat:expr { $($p:pat => $blk:expr),+ }) => (
+        match $mat {
+            Err(err) => return Err(err),
+            $(
+                $p => $blk,
+            )+
+        }
+    );
+
+    ($mat:expr) => (
+        match $mat {
+            Err(err) => return Err(err),
+            _ => ()
+        }
+    )
+)
+
 impl Connection {
     pub fn prepare<'a>(&'a self, query: &str)
             -> Result<~PreparedStatement<'a>, ~str> {
@@ -85,17 +101,24 @@ impl Connection {
 
     pub fn query<T>(&self, query: &str, blk: &fn (&mut ResultIterator) -> T)
             -> Result<T, ~str> {
-        let stmt = match self.prepare(query) {
-            Ok(stmt) => stmt,
-            Err(err) => return Err(err)
-        };
-
-        let mut it = match stmt.query() {
-            Ok(it) => it,
-            Err(err) => return Err(err)
-        };
-
+        let stmt = ret_err!(self.prepare(query) { Ok(stmt) => stmt });
+        let mut it = ret_err!(stmt.query() { Ok(it) => it });
         Ok(blk(&mut it))
+    }
+
+    pub fn in_transaction<T>(&self, blk: &fn(&Connection) -> Result<T, ~str>)
+            -> Result<T, ~str> {
+        ret_err!(self.update("BEGIN"));
+
+        let ret = blk(self);
+
+        // TODO: What to do with errors here?
+        match ret {
+            Ok(_) => self.update("COMMIT"),
+            Err(_) => self.update("ROLLBACK")
+        };
+
+        ret
     }
 }
 
@@ -124,7 +147,7 @@ impl<'self> PreparedStatement<'self> {
         }
     }
 
-    pub fn query<'a>(&'a self) -> Result<ResultIterator<'a>, ~str> {
+    pub fn query(&'self self) -> Result<ResultIterator<'self>, ~str> {
         unsafe { ffi::sqlite3_reset(self.stmt); }
         Ok(ResultIterator {stmt: self})
     }
