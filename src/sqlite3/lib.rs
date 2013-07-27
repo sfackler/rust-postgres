@@ -4,6 +4,7 @@ use std::str;
 
 mod ffi {
     use std::libc::{c_char, c_int, c_void};
+    use std::cast;
 
     pub type sqlite3 = c_void;
     pub type sqlite3_stmt = c_void;
@@ -11,6 +12,12 @@ mod ffi {
     pub static SQLITE_OK: c_int = 0;
     pub static SQLITE_ROW: c_int = 100;
     pub static SQLITE_DONE: c_int = 101;
+
+    // A function because Rust doesn't like casting from an int to a function
+    // pointer in a static declaration
+    pub fn SQLITE_TRANSIENT() -> extern "C" fn(*c_void) {
+        unsafe { cast::transmute(-1) }
+    }
 
     #[link_args = "-lsqlite3"]
     extern "C" {
@@ -20,8 +27,10 @@ mod ffi {
         fn sqlite3_changes(db: *sqlite3) -> c_int;
         fn sqlite3_prepare_v2(db: *sqlite3, zSql: *c_char, nByte: c_int,
                               ppStmt: *mut *sqlite3_stmt, pzTail: *mut *c_char)
-            -> c_int;
+                              -> c_int;
         fn sqlite3_reset(pStmt: *sqlite3_stmt) -> c_int;
+        fn sqlite3_bind_text(pStmt: *sqlite3_stmt, idx: c_int, text: *c_char,
+                             n: c_int, free: extern "C" fn(*c_void)) -> c_int;
         fn sqlite3_step(pStmt: *sqlite3_stmt) -> c_int;
         fn sqlite3_column_count(pStmt: *sqlite3_stmt) -> c_int;
         fn sqlite3_column_text(pStmt: *sqlite3_stmt, iCol: c_int) -> *c_char;
@@ -80,7 +89,7 @@ macro_rules! ret_err(
 
 impl Connection {
     pub fn prepare<'a>(&'a self, query: &str)
-            -> Result<~PreparedStatement<'a>, ~str> {
+                       -> Result<~PreparedStatement<'a>, ~str> {
         let mut stmt = ~PreparedStatement {conn: self, stmt: ptr::null()};
         let ret = do query.as_c_str |c_query| {
             unsafe {
@@ -96,18 +105,29 @@ impl Connection {
     }
 
     pub fn update(&self, query: &str) -> Result<uint, ~str> {
-        self.prepare(query).chain(|stmt| stmt.update())
+        self.update_params(query, [])
+    }
+
+    pub fn update_params(&self, query: &str, params: &[@SqlType])
+                         -> Result<uint, ~str> {
+        self.prepare(query).chain(|stmt| stmt.update_params(params))
     }
 
     pub fn query<T>(&self, query: &str, blk: &fn (&mut ResultIterator) -> T)
-            -> Result<T, ~str> {
+                    -> Result<T, ~str> {
+        self.query_params(query, [], blk)
+    }
+
+    pub fn query_params<T>(&self, query: &str, params: &[@SqlType],
+                           blk: &fn (&mut ResultIterator) -> T)
+                           -> Result<T, ~str> {
         let stmt = ret_err!(self.prepare(query) { Ok(stmt) => stmt });
-        let mut it = ret_err!(stmt.query() { Ok(it) => it });
+        let mut it = ret_err!(stmt.query_params(params) { Ok(it) => it });
         Ok(blk(&mut it))
     }
 
     pub fn in_transaction<T>(&self, blk: &fn(&Connection) -> Result<T, ~str>)
-            -> Result<T, ~str> {
+                             -> Result<T, ~str> {
         ret_err!(self.update("BEGIN"));
 
         let ret = blk(self);
@@ -135,8 +155,39 @@ impl<'self> Drop for PreparedStatement<'self> {
 }
 
 impl<'self> PreparedStatement<'self> {
-    pub fn update(&self) -> Result<uint, ~str> {
+    fn reset(&self) {
         unsafe { ffi::sqlite3_reset(self.stmt); }
+    }
+
+    fn bind_params(&self, params: &[@SqlType]) -> Result<(), ~str> {
+        for params.iter().enumerate().advance |(idx, param)| {
+            let ret = do param.to_sql_str().as_c_str |c_param| {
+                unsafe {
+                    ffi::sqlite3_bind_text(self.stmt, (idx+1) as c_int,
+                                           c_param, -1,
+                                           ffi::SQLITE_TRANSIENT())
+                }
+            };
+
+            if ret != ffi::SQLITE_OK {
+                return Err(self.conn.get_error());
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<'self> PreparedStatement<'self> {
+
+    pub fn update(&self) -> Result<uint, ~str> {
+        self.update_params([])
+    }
+
+    pub fn update_params(&self, params: &[@SqlType]) -> Result<uint, ~str> {
+        self.reset();
+        ret_err!(self.bind_params(params));
+
         let ret = unsafe { ffi::sqlite3_step(self.stmt) };
 
         match ret {
@@ -148,7 +199,13 @@ impl<'self> PreparedStatement<'self> {
     }
 
     pub fn query(&'self self) -> Result<ResultIterator<'self>, ~str> {
-        unsafe { ffi::sqlite3_reset(self.stmt); }
+        self.query_params([])
+    }
+
+    pub fn query_params(&'self self, params: &[@SqlType])
+            -> Result<ResultIterator<'self>, ~str> {
+        self.reset();
+        ret_err!(self.bind_params(params));
         Ok(ResultIterator {stmt: self})
     }
 }
@@ -183,7 +240,7 @@ impl<'self> Container for Row<'self> {
 }
 
 impl<'self> Row<'self> {
-    pub fn get<T: FromStr>(&self, idx: uint) -> Option<T> {
+    pub fn get<T: SqlType>(&self, idx: uint) -> Option<T> {
         let raw = unsafe {
             ffi::sqlite3_column_text(self.stmt.stmt, idx as c_int)
         };
@@ -192,6 +249,21 @@ impl<'self> Row<'self> {
             return None;
         }
 
-        FromStr::from_str(unsafe { str::raw::from_c_str(raw) })
+        SqlType::from_sql_str(unsafe { str::raw::from_c_str(raw) })
+    }
+}
+
+pub trait SqlType {
+    fn to_sql_str(&self) -> ~str;
+    fn from_sql_str(sql_str: &str) -> Option<Self>;
+}
+
+impl SqlType for int {
+    fn to_sql_str(&self) -> ~str {
+        self.to_str()
+    }
+
+    fn from_sql_str(sql_str: &str) -> Option<int> {
+        FromStr::from_str(sql_str)
     }
 }
