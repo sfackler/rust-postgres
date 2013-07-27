@@ -237,18 +237,9 @@ impl<'self> Iterator<Row<'self>> for ResultIterator<'self> {
 }
 
 pub struct Row<'self> {
+    // Only here to enforce lifetime restrictions
     priv stmt: &'self PreparedStatement<'self>,
     priv cols: ~[Option<~str>]
-}
-
-impl<'self> Container for Row<'self> {
-    fn len(&self) -> uint {
-        unsafe { ffi::sqlite3_column_count(self.stmt.stmt) as uint }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 impl<'self> Row<'self> {
@@ -280,33 +271,92 @@ impl<'self> Row<'self> {
     }
 }
 
+impl<'self> Container for Row<'self> {
+    fn len(&self) -> uint {
+        self.cols.len()
+    }
+}
+
+impl<'self, T: SqlType> Index<uint, T> for Row<'self> {
+    fn index(&self, idx: &uint) -> T {
+        self.get(*idx)
+    }
+}
+
 pub trait SqlType {
     fn to_sql_str(&self) -> Option<~str>;
     fn from_sql_str(sql_str: &Option<~str>) -> Self;
 }
 
-impl SqlType for int {
+// See #8075
+macro_rules! to_from_str_impl(
+    ($t:ty) => (
+        impl SqlType for $t {
+            fn to_sql_str(&self) -> Option<~str> {
+                Some(self.to_str())
+            }
+
+            fn from_sql_str(sql_str: &Option<~str>) -> $t {
+                FromStr::from_str(*sql_str.get_ref()).get()
+            }
+        }
+    )
+)
+
+macro_rules! option_impl(
+    ($t:ty) => (
+        impl SqlType for Option<$t> {
+            fn to_sql_str(&self) -> Option<~str> {
+                match *self {
+                    None => None,
+                    Some(ref v) => Some(v.to_sql_str().get())
+                }
+            }
+
+            fn from_sql_str(sql_str: &Option<~str>) -> Option<$t> {
+                match *sql_str {
+                    None => None,
+                    Some(_) => Some(SqlType::from_sql_str(sql_str))
+                }
+            }
+        }
+    )
+)
+
+to_from_str_impl!(int)
+option_impl!(int)
+to_from_str_impl!(i8)
+option_impl!(i8)
+to_from_str_impl!(i16)
+option_impl!(i16)
+to_from_str_impl!(i32)
+option_impl!(i32)
+to_from_str_impl!(i64)
+option_impl!(i64)
+to_from_str_impl!(uint)
+option_impl!(uint)
+to_from_str_impl!(u8)
+option_impl!(u8)
+to_from_str_impl!(u16)
+option_impl!(u16)
+to_from_str_impl!(u32)
+option_impl!(u32)
+to_from_str_impl!(u64)
+option_impl!(u64)
+to_from_str_impl!(float)
+option_impl!(float)
+to_from_str_impl!(f32)
+option_impl!(f32)
+to_from_str_impl!(f64)
+option_impl!(f64)
+
+impl SqlType for ~str {
     fn to_sql_str(&self) -> Option<~str> {
-        Some(self.to_str())
+        Some(self.clone())
     }
 
-    fn from_sql_str(sql_str: &Option<~str>) -> int {
-        FromStr::from_str(*sql_str.get_ref()).get()
+    fn from_sql_str(sql_str: &Option<~str>) -> ~str {
+        sql_str.get_ref().clone()
     }
 }
-
-impl SqlType for Option<int> {
-    fn to_sql_str(&self) -> Option<~str> {
-        match *self {
-            None => None,
-            Some(v) => Some(v.to_str())
-        }
-    }
-
-    fn from_sql_str(sql_str: &Option<~str>) -> Option<int> {
-        match *sql_str {
-            None => None,
-            Some(ref s) => Some(FromStr::from_str(*s).get())
-        }
-    }
-}
+option_impl!(~str)

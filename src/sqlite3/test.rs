@@ -21,7 +21,7 @@ fn test_basic() {
 
     do conn.query("SELECT id FROM foo") |it| {
         for it.advance |row| {
-            printfln!("%u %d", row.len(), row.get(0));
+            printfln!("%u %d", row.len(), row[0]);
         }
     };
 }
@@ -37,7 +37,7 @@ fn test_trans() {
         Err::<(), ~str>(~"")
     };
     assert_eq!(0, chk!(conn.query("SELECT COUNT(*) FROM bar", |it| {
-        it.next().get().get(0)
+        it.next().get()[0]
     })));
 
     do conn.in_transaction |conn| {
@@ -46,7 +46,7 @@ fn test_trans() {
     };
 
     assert_eq!(1, chk!(conn.query("SELECT COUNT(*) FROM bar", |it| {
-        it.next().get().get(0)
+        it.next().get()[0]
     })));
 }
 
@@ -60,7 +60,7 @@ fn test_params() {
                           &[@100 as @SqlType, @101 as @SqlType]));
 
     assert_eq!(2, chk!(conn.query("SELECT COUNT(*) FROM foo", |it| {
-        it.next().get().get(0)
+        it.next().get()[0]
     })));
 }
 
@@ -80,6 +80,6 @@ fn test_null() {
     };
 
     do conn.query("SELECT n FROM foo WHERE id = 101") |it| {
-        assert_eq!(Some(1), it.next().get().get(0))
+        assert_eq!(Some(1), it.next().get()[0])
     };
 }
