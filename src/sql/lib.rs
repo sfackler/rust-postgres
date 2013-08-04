@@ -1,44 +1,27 @@
 
-// pub trait Connection<'self, R: Rows<'self>> {
-//     fn query(&self, query: &str, params: &[@ToSqlStr]) -> Result<~R, ~str>;
-// }
+pub trait SqlConnection<'self, S: SqlStatement> {
+    fn new(uri: &str) -> ~Self;
 
-// pub trait Rows<'self, R: Row, I: Iterator<&'self R>>: Container {
-//     fn iter(&self) -> I;
-// }
-
-// pub trait Row: Container {
-//     fn get<T: FromSqlStr>(&self) -> Option<T>;
-// }
-
-pub trait ToSqlStr {
-    fn to_sql_str(&self) -> ~str;
+    fn prepare(&self, query: &str) -> ~S<'self>;
 }
 
-impl ToSqlStr for int {
-    fn to_sql_str(&self) -> ~str {
-        self.to_str()
-    }
+pub trait SqlStatement {
+    fn query<T>(&self, params: &[@SqlType],
+                blk: &fn(&SqlResult) -> Result<T, ~str>)
+                -> Result<T, ~str>;
+
+    fn update(&self, params: &[@SqlType]) -> Result<uint, ~str>;
 }
 
-impl ToSqlStr for uint {
-    fn to_sql_str(&self) -> ~str {
-        self.to_str()
-    }
+pub trait SqlResult<R: SqlRow, I: Iterator<R>>: Container {
+    fn iter(&self) -> I;
 }
 
-pub trait FromSqlStr {
-    fn from_sql_str(&str) -> Option<Self>;
+pub trait SqlRow {
+    fn get<T: SqlType>(&self) -> Option<T>;
 }
 
-impl FromSqlStr for int {
-    fn from_sql_str(s: &str) -> Option<int> {
-        FromStr::from_str(s)
-    }
-}
-
-impl FromSqlStr for uint {
-    fn from_sql_str(s: &str) -> Option<uint> {
-        FromStr::from_str(s)
-    }
+pub enum SqlType {
+    Int(int),
+    Uint(uint),
 }

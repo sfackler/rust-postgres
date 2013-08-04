@@ -62,8 +62,7 @@ pub struct Connection {
 
 impl Drop for Connection {
     fn drop(&self) {
-        let ret = unsafe { ffi::sqlite3_close(self.conn) };
-        assert!(ret == ffi::SQLITE_OK);
+        unsafe { ffi::sqlite3_close(self.conn) };
     }
 }
 
