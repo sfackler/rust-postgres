@@ -1,6 +1,6 @@
 extern mod postgres;
 
-use postgres::{PostgresConnection, PostgresRow};
+use postgres::PostgresConnection;
 
 macro_rules! chk(
     ($e:expr) => (
@@ -21,10 +21,9 @@ fn test_basic() {
 
         let res = chk!(conn.query("SELECT id from basic WHERE id = 101", []));
         assert_eq!(1, res.len());
-        let rows: ~[PostgresRow] = res.iter().collect();
-        assert_eq!(1, rows.len());
-        assert_eq!(1, rows[0].len());
-        assert_eq!(Some(101), rows[0][0]);
+        assert_eq!(1, res.get(0).len());
+        assert_eq!(1, res.get(0).len());
+        assert_eq!(Some(101), res.get(0)[0]);
 
         Err::<(), ~str>(~"")
     };
@@ -40,10 +39,8 @@ fn test_params() {
 
         let res = chk!(conn.query("SELECT id from basic WHERE id = $1", [~"101"]));
         assert_eq!(1, res.len());
-        let rows: ~[PostgresRow] = res.iter().collect();
-        assert_eq!(1, rows.len());
-        assert_eq!(1, rows[0].len());
-        assert_eq!(Some(101), rows[0][0]);
+        assert_eq!(1, res.get(0).len());
+        assert_eq!(Some(101), res.get(0)[0]);
 
         Err::<(), ~str>(~"")
     };

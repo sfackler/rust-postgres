@@ -177,7 +177,7 @@ impl<'self> PostgresConnection<'self> {
         if ret.is_ok() {
             self.update("COMMIT", []);
         } else {
-            self.update("ABORT", []);
+            self.update("ROLLBACK", []);
         }
 
         ret
@@ -370,7 +370,7 @@ impl<'self> PostgresRow<'self> {
 
 fn as_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
     let mut c_array: ~[*c_char] = vec::with_capacity(array.len() + 1);
-    foreach s in array.iter() {
+    for s in array.iter() {
         // DANGER, WILL ROBINSON
         do s.as_c_str |c_s| {
             c_array.push(c_s);
