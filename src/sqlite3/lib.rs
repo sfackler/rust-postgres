@@ -2,7 +2,6 @@ use std::libc::c_int;
 use std::ptr;
 use std::str;
 use std::vec;
-use std::uint;
 
 mod ffi {
     use std::libc::{c_char, c_int, c_void};
@@ -165,7 +164,7 @@ impl<'self> PreparedStatement<'self> {
     }
 
     fn bind_params(&self, params: &[@SqlType]) -> Result<(), ~str> {
-        for params.iter().enumerate().advance |(idx, param)| {
+        for (idx, param) in params.iter().enumerate() {
             let ret = match param.to_sql_str() {
                 Some(val) => do val.as_c_str |c_param| {
                     unsafe {
@@ -246,7 +245,7 @@ impl<'self> Row<'self> {
         let count = unsafe { ffi::sqlite3_column_count(stmt.stmt) as uint};
         let mut row = Row {stmt: stmt, cols: vec::with_capacity(count)};
 
-        for uint::range(0, count) |i| {
+        for i in range(0, count) {
             let typ = unsafe {
                 ffi::sqlite3_column_type(stmt.stmt, i as c_int)
             };

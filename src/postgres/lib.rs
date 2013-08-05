@@ -47,6 +47,8 @@ mod ffi {
         fn PQnfields(result: *PGresult) -> c_int;
         fn PQnparams(result: *PGresult) -> c_int;
         fn PQcmdTuples(result: *PGresult) -> *c_char;
+        fn PQgetisnull(result: *PGresult, row_number: c_int, col_number: c_int)
+                       -> c_int;
         fn PQgetvalue(result: *PGresult, row_number: c_int, col_number: c_int)
                       -> *c_char;
     }
@@ -242,6 +244,18 @@ impl<'self> PostgresStatement<'self> {
     }
 }
 
+fn as_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
+    let mut c_array: ~[*c_char] = vec::with_capacity(array.len() + 1);
+    for s in array.iter() {
+        // DANGER, WILL ROBINSON
+        do s.as_c_str |c_s| {
+            c_array.push(c_s);
+        }
+    }
+    c_array.push(ptr::null());
+    blk(vec::raw::to_ptr(c_array))
+}
+
 pub struct PostgresResult {
     priv result: *ffi::PGresult
 }
@@ -274,6 +288,21 @@ impl PostgresResult {
 
     fn num_params(&self) -> uint {
         unsafe { ffi::PQnparams(self.result) as uint }
+    }
+
+    fn is_null(&self, row: uint, col: uint) -> bool {
+        unsafe {
+            ffi::PQgetisnull(self.result, row as c_int, col as c_int) == 1
+        }
+    }
+
+    fn get_value(&self, row: uint, col: uint) -> ~str {
+        unsafe {
+            let raw_s = ffi::PQgetvalue(self.result,
+                                        row as c_int,
+                                        col as c_int);
+            str::raw::from_c_str(raw_s)
+        }
     }
 }
 
@@ -345,37 +374,84 @@ impl<'self> Container for PostgresRow<'self> {
     }
 }
 
-impl<'self, T: FromStr> Index<uint, Option<T>> for PostgresRow<'self> {
-    fn index(&self, idx: &uint) -> Option<T> {
+impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
+    fn index(&self, idx: &uint) -> T {
         self.get(*idx)
     }
 }
 
 impl<'self> PostgresRow<'self> {
-    pub fn get<T: FromStr>(&self, idx: uint) -> Option<T> {
+    fn is_null(&self, col: uint) -> bool {
+        self.result.is_null(self.row, col)
+    }
+
+    fn get_value(&self, col: uint) -> ~str {
+        self.result.get_value(self.row, col)
+    }
+}
+
+impl<'self> PostgresRow<'self> {
+    pub fn get<T: FromSql>(&self, idx: uint) -> T {
         if idx >= self.len() {
             fail!("Out of bounds access");
         }
-
-        let s = unsafe {
-            let raw_s = ffi::PQgetvalue(self.result.result,
-                                        self.row as c_int,
-                                        idx as c_int);
-            str::raw::from_c_str(raw_s)
-        };
-
-        FromStr::from_str(s)
+        FromSql::from_sql(self, idx)
     }
 }
 
-fn as_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
-    let mut c_array: ~[*c_char] = vec::with_capacity(array.len() + 1);
-    for s in array.iter() {
-        // DANGER, WILL ROBINSON
-        do s.as_c_str |c_s| {
-            c_array.push(c_s);
+pub trait FromSql {
+    fn from_sql(row: &PostgresRow, idx: uint) -> Self;
+}
+
+macro_rules! from_str_impl(
+    ($t:ty) => (
+        impl FromSql for $t {
+            fn from_sql(row: &PostgresRow, idx: uint) -> $t {
+                if row.is_null(idx) {
+                    fail!("Row is NULL");
+                }
+                FromStr::from_str(row.get_value(idx)).get()
+            }
         }
-    }
-    c_array.push(ptr::null());
-    blk(vec::raw::to_ptr(c_array))
-}
+    )
+)
+
+macro_rules! option_impl(
+    ($t:ty) => (
+        impl FromSql for Option<$t> {
+            fn from_sql(row: &PostgresRow, idx: uint) -> Option<$t> {
+                match row.is_null(idx) {
+                    true => None,
+                    false => Some(FromSql::from_sql(row, idx))
+                }
+            }
+        }
+    )
+)
+
+from_str_impl!(int)
+option_impl!(int)
+from_str_impl!(i8)
+option_impl!(i8)
+from_str_impl!(i16)
+option_impl!(i16)
+from_str_impl!(i32)
+option_impl!(i32)
+from_str_impl!(i64)
+option_impl!(i64)
+from_str_impl!(uint)
+option_impl!(uint)
+from_str_impl!(u8)
+option_impl!(u8)
+from_str_impl!(u16)
+option_impl!(u16)
+from_str_impl!(u32)
+option_impl!(u32)
+from_str_impl!(u64)
+option_impl!(u64)
+from_str_impl!(float)
+option_impl!(float)
+from_str_impl!(f32)
+option_impl!(f32)
+from_str_impl!(f64)
+option_impl!(f64)
