@@ -19,11 +19,9 @@ fn test_basic() {
                       )"));
     chk!(conn.update("INSERT INTO foo (id) VALUES (101), (102)"));
 
-    do conn.query("SELECT id FROM foo") |it| {
-        for it.advance |row| {
-            printfln!("%u %d", row.len(), row[0]);
-        }
-    };
+    assert_eq!(2, chk!(conn.query("SELECT COUNT(*) FROM foo", |it| {
+        it.next().unwrap()[0]
+    })));
 }
 
 #[test]
@@ -37,7 +35,7 @@ fn test_trans() {
         Err::<(), ~str>(~"")
     };
     assert_eq!(0, chk!(conn.query("SELECT COUNT(*) FROM bar", |it| {
-        it.next().get()[0]
+        it.next().unwrap()[0]
     })));
 
     do conn.in_transaction |conn| {
@@ -46,7 +44,7 @@ fn test_trans() {
     };
 
     assert_eq!(1, chk!(conn.query("SELECT COUNT(*) FROM bar", |it| {
-        it.next().get()[0]
+        it.next().unwrap()[0]
     })));
 }
 
@@ -60,7 +58,7 @@ fn test_params() {
                           &[@100 as @SqlType, @101 as @SqlType]));
 
     assert_eq!(2, chk!(conn.query("SELECT COUNT(*) FROM foo", |it| {
-        it.next().get()[0]
+        it.next().unwrap()[0]
     })));
 }
 
@@ -76,10 +74,10 @@ fn test_null() {
                               @101 as @SqlType, @Some(1) as @SqlType]));
 
     do conn.query("SELECT n FROM foo WHERE id = 100") |it| {
-        assert!(it.next().get().get::<Option<int>>(0).is_none());
+        assert!(it.next().unwrap().get::<Option<int>>(0).is_none());
     };
 
     do conn.query("SELECT n FROM foo WHERE id = 101") |it| {
-        assert_eq!(Some(1), it.next().get()[0])
+        assert_eq!(Some(1), it.next().unwrap()[0])
     };
 }

@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::c_str::{ToCStr, CString};
 use std::str;
 use std::ptr;
 use std::libc::{c_void, c_char, c_int};
@@ -97,7 +98,7 @@ impl<'self> PostgresConnection<'self> {
 impl<'self> PostgresConnection<'self> {
     pub fn new(uri: &str) -> Result<~PostgresConnection, ~str> {
         unsafe {
-            let conn = ~PostgresConnection {conn: do uri.as_c_str |c_uri| {
+            let conn = ~PostgresConnection {conn: do uri.with_c_str |c_uri| {
                 ffi::PQconnectdb(c_uri)
             }, next_stmt_id: Cell::new(0), notice_handler: log_notice_handler};
             let arg: *PostgresConnection = &*conn;
@@ -122,8 +123,8 @@ impl<'self> PostgresConnection<'self> {
         self.next_stmt_id.put_back(id + 1);
 
         let mut res = unsafe {
-            let raw_res = do query.as_c_str |c_query| {
-                do name.as_c_str |c_name| {
+            let raw_res = do query.with_c_str |c_query| {
+                do name.with_c_str |c_name| {
                     ffi::PQprepare(self.conn, c_name, c_query,
                                    0, ptr::null())
                 }
@@ -136,7 +137,7 @@ impl<'self> PostgresConnection<'self> {
         }
 
         res = unsafe {
-            let raw_res = do name.as_c_str |c_name| {
+            let raw_res = do name.with_c_str |c_name| {
                 ffi::PQdescribePrepared(self.conn, c_name)
             };
             PostgresResult {result: raw_res}
@@ -198,7 +199,7 @@ impl<'self> Drop for PostgresStatement<'self> {
         // We can't do self.conn.update(...) since that will create a statement
         let query = fmt!("DEALLOCATE %s", self.name);
         unsafe {
-            do query.as_c_str |c_query| {
+            do query.with_c_str |c_query| {
                 ffi::PQclear(ffi::PQexec(self.conn.conn, c_query));
             }
         }
@@ -212,8 +213,8 @@ impl<'self> PostgresStatement<'self> {
         }
 
         let res = unsafe {
-            let raw_res = do self.name.as_c_str |c_name| {
-                do as_c_str_array(params) |c_params| {
+            let raw_res = do self.name.with_c_str |c_name| {
+                do with_c_str_array(params) |c_params| {
                     ffi::PQexecPrepared(self.conn.conn, c_name,
                                         self.num_params as c_int,
                                         c_params, ptr::null(), ptr::null(),
@@ -244,12 +245,13 @@ impl<'self> PostgresStatement<'self> {
     }
 }
 
-fn as_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
-    let mut c_array: ~[*c_char] = vec::with_capacity(array.len() + 1);
+fn with_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
+    let mut cstrs: ~[CString] = ~[];
+    let mut c_array: ~[*c_char] = ~[];
     for s in array.iter() {
-        // DANGER, WILL ROBINSON
-        do s.as_c_str |c_s| {
-            c_array.push(c_s);
+        cstrs.push(s.to_c_str());
+        do cstrs.last().with_ref |c_str| {
+            c_array.push(c_str);
         }
     }
     c_array.push(ptr::null());
@@ -290,18 +292,17 @@ impl PostgresResult {
         unsafe { ffi::PQnparams(self.result) as uint }
     }
 
-    fn is_null(&self, row: uint, col: uint) -> bool {
+    fn get_value(&self, row: uint, col: uint) -> Option<~str> {
         unsafe {
-            ffi::PQgetisnull(self.result, row as c_int, col as c_int) == 1
-        }
-    }
-
-    fn get_value(&self, row: uint, col: uint) -> ~str {
-        unsafe {
-            let raw_s = ffi::PQgetvalue(self.result,
-                                        row as c_int,
-                                        col as c_int);
-            str::raw::from_c_str(raw_s)
+            match ffi::PQgetisnull(self.result, row as c_int, col as c_int) {
+                0 => {
+                    let raw_s = ffi::PQgetvalue(self.result,
+                                                row as c_int,
+                                                col as c_int);
+                    Some(str::raw::from_c_str(raw_s))
+                }
+                _ => None
+            }
         }
     }
 }
@@ -322,7 +323,7 @@ impl PostgresResult {
             fail!("Out of bounds access");
         }
 
-        self.iter().idx(idx).get()
+        self.iter().idx(idx).unwrap()
     }
 }
 
@@ -381,11 +382,7 @@ impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
 }
 
 impl<'self> PostgresRow<'self> {
-    fn is_null(&self, col: uint) -> bool {
-        self.result.is_null(self.row, col)
-    }
-
-    fn get_value(&self, col: uint) -> ~str {
+    fn get_value(&self, col: uint) -> Option<~str> {
         self.result.get_value(self.row, col)
     }
 }
@@ -403,55 +400,58 @@ pub trait FromSql {
     fn from_sql(row: &PostgresRow, idx: uint) -> Self;
 }
 
-macro_rules! from_str_impl(
+macro_rules! from_opt_impl(
     ($t:ty) => (
         impl FromSql for $t {
             fn from_sql(row: &PostgresRow, idx: uint) -> $t {
-                if row.is_null(idx) {
-                    fail!("Row is NULL");
-                }
-                FromStr::from_str(row.get_value(idx)).get()
+                FromSql::from_sql::<Option<$t>>(row, idx).unwrap()
             }
         }
     )
 )
 
-macro_rules! option_impl(
+macro_rules! from_str_opt_impl(
     ($t:ty) => (
         impl FromSql for Option<$t> {
             fn from_sql(row: &PostgresRow, idx: uint) -> Option<$t> {
-                match row.is_null(idx) {
-                    true => None,
-                    false => Some(FromSql::from_sql(row, idx))
+                do row.get_value(idx).chain |s| {
+                    Some(FromStr::from_str(s).unwrap())
                 }
             }
         }
     )
 )
 
-from_str_impl!(int)
-option_impl!(int)
-from_str_impl!(i8)
-option_impl!(i8)
-from_str_impl!(i16)
-option_impl!(i16)
-from_str_impl!(i32)
-option_impl!(i32)
-from_str_impl!(i64)
-option_impl!(i64)
-from_str_impl!(uint)
-option_impl!(uint)
-from_str_impl!(u8)
-option_impl!(u8)
-from_str_impl!(u16)
-option_impl!(u16)
-from_str_impl!(u32)
-option_impl!(u32)
-from_str_impl!(u64)
-option_impl!(u64)
-from_str_impl!(float)
-option_impl!(float)
-from_str_impl!(f32)
-option_impl!(f32)
-from_str_impl!(f64)
-option_impl!(f64)
+from_opt_impl!(int)
+from_str_opt_impl!(int)
+from_opt_impl!(i8)
+from_str_opt_impl!(i8)
+from_opt_impl!(i16)
+from_str_opt_impl!(i16)
+from_opt_impl!(i32)
+from_str_opt_impl!(i32)
+from_opt_impl!(i64)
+from_str_opt_impl!(i64)
+from_opt_impl!(uint)
+from_str_opt_impl!(uint)
+from_opt_impl!(u8)
+from_str_opt_impl!(u8)
+from_opt_impl!(u16)
+from_str_opt_impl!(u16)
+from_opt_impl!(u32)
+from_str_opt_impl!(u32)
+from_opt_impl!(u64)
+from_str_opt_impl!(u64)
+from_opt_impl!(float)
+from_str_opt_impl!(float)
+from_opt_impl!(f32)
+from_str_opt_impl!(f32)
+from_opt_impl!(f64)
+from_str_opt_impl!(f64)
+
+impl FromSql for Option<~str> {
+    fn from_sql(row: &PostgresRow, idx: uint) -> Option<~str> {
+        row.get_value(idx)
+    }
+}
+from_opt_impl!(~str)

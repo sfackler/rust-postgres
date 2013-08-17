@@ -1,4 +1,3 @@
 *.so
 *.dummy
-/postgres
-/test*
+check-*

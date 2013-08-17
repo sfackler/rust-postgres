@@ -1,3 +1,4 @@
+use std::c_str::ToCStr;
 use std::libc::c_int;
 use std::ptr;
 use std::str;
@@ -45,7 +46,7 @@ mod ffi {
 
 pub fn open(filename: &str) -> Result<~Connection, ~str> {
     let mut conn = ~Connection {conn: ptr::null()};
-    let ret = do filename.as_c_str |c_filename| {
+    let ret = do filename.with_c_str |c_filename| {
         unsafe { ffi::sqlite3_open(c_filename, &mut conn.conn) }
     };
 
@@ -95,7 +96,7 @@ impl Connection {
     pub fn prepare<'a>(&'a self, query: &str)
                        -> Result<~PreparedStatement<'a>, ~str> {
         let mut stmt = ~PreparedStatement {conn: self, stmt: ptr::null()};
-        let ret = do query.as_c_str |c_query| {
+        let ret = do query.with_c_str |c_query| {
             unsafe {
                 ffi::sqlite3_prepare_v2(self.conn, c_query, -1, &mut stmt.stmt,
                                         ptr::mut_null())
@@ -166,7 +167,7 @@ impl<'self> PreparedStatement<'self> {
     fn bind_params(&self, params: &[@SqlType]) -> Result<(), ~str> {
         for (idx, param) in params.iter().enumerate() {
             let ret = match param.to_sql_str() {
-                Some(val) => do val.as_c_str |c_param| {
+                Some(val) => do val.with_c_str |c_param| {
                     unsafe {
                         ffi::sqlite3_bind_text(self.stmt, (idx+1) as c_int,
                                                c_param, -1,
@@ -295,7 +296,7 @@ macro_rules! to_from_str_impl(
             }
 
             fn from_sql_str(sql_str: &Option<~str>) -> $t {
-                FromStr::from_str(*sql_str.get_ref()).get()
+                FromStr::from_str(*sql_str.get_ref()).unwrap()
             }
         }
     )
@@ -307,7 +308,7 @@ macro_rules! option_impl(
             fn to_sql_str(&self) -> Option<~str> {
                 match *self {
                     None => None,
-                    Some(ref v) => Some(v.to_sql_str().get())
+                    Some(ref v) => Some(v.to_sql_str().unwrap())
                 }
             }
 
