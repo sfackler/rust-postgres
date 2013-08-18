@@ -1,2 +1,2 @@
-rust-sql
-========
+rust-postgres
+=============
