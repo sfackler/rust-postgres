@@ -151,13 +151,13 @@ impl<'self> PostgresConnection<'self> {
                                num_params: res.num_params()})
     }
 
-    pub fn update(&self, query: &str, params: &[~str]) -> Result<uint, ~str> {
+    pub fn update(&self, query: &str, params: &[&ToSql]) -> Result<uint, ~str> {
         do self.prepare(query).chain |stmt| {
             stmt.update(params)
         }
     }
 
-    pub fn query(&self, query: &str, params: &[~str])
+    pub fn query(&self, query: &str, params: &[&ToSql])
                  -> Result<~PostgresResult, ~str> {
         do self.prepare(query).chain |stmt| {
             stmt.query(params)
@@ -207,14 +207,17 @@ impl<'self> Drop for PostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement<'self> {
-    fn exec(&self, params: &[~str]) -> Result<~PostgresResult, ~str> {
+    fn exec(&self, params: &[&ToSql]) -> Result<~PostgresResult, ~str> {
         if params.len() != self.num_params {
             return Err(~"Incorrect number of parameters");
         }
 
         let res = unsafe {
             let raw_res = do self.name.with_c_str |c_name| {
-                do with_c_str_array(params) |c_params| {
+                let str_params: ~[Option<~str>] = do params.map |param| {
+                    param.to_sql()
+                };
+                do with_c_str_array(str_params) |c_params| {
                     ffi::PQexecPrepared(self.conn.conn, c_name,
                                         self.num_params as c_int,
                                         c_params, ptr::null(), ptr::null(),
@@ -232,29 +235,35 @@ impl<'self> PostgresStatement<'self> {
         }
     }
 
-    pub fn update(&self, params: &[~str]) -> Result<uint, ~str> {
+    pub fn update(&self, params: &[&ToSql]) -> Result<uint, ~str> {
         do self.exec(params).chain |res| {
             Ok(res.affected_rows())
         }
     }
 
-    pub fn query(&self, params: &[~str]) -> Result<~PostgresResult, ~str> {
+    pub fn query(&self, params: &[&ToSql]) -> Result<~PostgresResult, ~str> {
         do self.exec(params).chain |res| {
             Ok(res)
         }
     }
 }
 
-fn with_c_str_array<T>(array: &[~str], blk: &fn(**c_char) -> T) -> T {
+fn with_c_str_array<T>(array: &[Option<~str>], blk: &fn(**c_char) -> T) -> T {
     let mut cstrs: ~[CString] = ~[];
     let mut c_array: ~[*c_char] = ~[];
     for s in array.iter() {
-        cstrs.push(s.to_c_str());
-        do cstrs.last().with_ref |c_str| {
-            c_array.push(c_str);
+        match *s {
+            None => {
+                c_array.push(ptr::null())
+            }
+            Some(ref s) => {
+                cstrs.push(s.to_c_str());
+                do cstrs.last().with_ref |c_str| {
+                    c_array.push(c_str);
+                }
+            }
         }
     }
-    c_array.push(ptr::null());
     blk(vec::raw::to_ptr(c_array))
 }
 
@@ -455,3 +464,69 @@ impl FromSql for Option<~str> {
     }
 }
 from_opt_impl!(~str)
+
+pub trait ToSql {
+    fn to_sql(&self) -> Option<~str>;
+}
+
+macro_rules! to_str_impl(
+    ($t:ty) => (
+        impl ToSql for $t {
+            fn to_sql(&self) -> Option<~str> {
+                Some(self.to_str())
+            }
+        }
+    )
+)
+
+macro_rules! to_str_opt_impl(
+    ($t:ty) => (
+        impl ToSql for Option<$t> {
+            fn to_sql(&self) -> Option<~str> {
+                match *self {
+                    Some(ref val) => Some(val.to_sql().unwrap()),
+                    None => None
+                }
+            }
+        }
+    )
+)
+
+to_str_impl!(int)
+to_str_opt_impl!(int)
+to_str_impl!(i8)
+to_str_opt_impl!(i8)
+to_str_impl!(i16)
+to_str_opt_impl!(i16)
+to_str_impl!(i32)
+to_str_opt_impl!(i32)
+to_str_impl!(i64)
+to_str_opt_impl!(i64)
+to_str_impl!(uint)
+to_str_opt_impl!(uint)
+to_str_impl!(u8)
+to_str_opt_impl!(u8)
+to_str_impl!(u16)
+to_str_opt_impl!(u16)
+to_str_impl!(u32)
+to_str_opt_impl!(u32)
+to_str_impl!(u64)
+to_str_opt_impl!(u64)
+to_str_impl!(float)
+to_str_opt_impl!(float)
+to_str_impl!(f32)
+to_str_opt_impl!(f32)
+to_str_impl!(f64)
+to_str_opt_impl!(f64)
+
+impl<'self> ToSql for &'self str {
+    fn to_sql(&self) -> Option<~str> {
+        Some(self.to_str())
+    }
+}
+
+impl ToSql for Option<~str> {
+    fn to_sql(&self) -> Option<~str> {
+        self.clone()
+    }
+}
