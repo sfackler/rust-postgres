@@ -2,29 +2,17 @@ RUSTC ?= rustc
 RUSTFLAGS += -L.
 
 .PHONY: all
-all: sql.dummy postgres.dummy sqlite3.dummy
+all: postgres.dummy
 
-sql.dummy: src/sql/lib.rs
-	$(RUSTC) $(RUSTFLAGS) --lib $< -o $@
-	touch $@
-
-postgres.dummy: src/postgres/lib.rs sql.dummy
-	$(RUSTC) $(RUSTFLAGS) --lib src/postgres/lib.rs -o $@
-	touch $@
-
-sqlite3.dummy: src/sqlite3/lib.rs sql.dummy
-	$(RUSTC) $(RUSTFLAGS) --lib src/sqlite3/lib.rs -o $@
+postgres.dummy: src/lib.rs
+	$(RUSTC) $(RUSTFLAGS) --lib src/lib.rs -o $@
 	touch $@
 
 .PHONY: check
-check: check-postgres check-sqlite3
+check: check-postgres
 
-check-postgres: postgres.dummy src/postgres/test.rs
-	$(RUSTC) $(RUSTFLAGS) --test src/postgres/test.rs -o $@
-	./$@
-
-check-sqlite3: sqlite3.dummy src/sqlite3/test.rs
-	$(RUSTC) $(RUSTFLAGS) --test src/sqlite3/test.rs -o $@
+check-postgres: postgres.dummy src/test.rs
+	$(RUSTC) $(RUSTFLAGS) --test src/test.rs -o $@
 	./$@
 
 .PHONY: clean
