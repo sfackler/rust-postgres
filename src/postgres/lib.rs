@@ -525,6 +525,12 @@ impl<'self> ToSql for &'self str {
     }
 }
 
+impl ToSql for ~str {
+    fn to_sql(&self) -> Option<~str> {
+        Some(self.clone())
+    }
+}
+
 impl ToSql for Option<~str> {
     fn to_sql(&self) -> Option<~str> {
         self.clone()

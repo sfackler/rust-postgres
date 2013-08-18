@@ -71,3 +71,29 @@ fn test_null() {
         Err::<(), ~str>(~"")
     };
 }
+
+#[test]
+fn test_types() {
+    let conn = chk!(PostgresConnection::new("postgres://postgres@localhost"));
+
+    do conn.in_transaction |conn| {
+        chk!(conn.update(
+            "CREATE TABLE foo (
+                id INT PRIMARY KEY,
+                str VARCHAR,
+                float REAL
+             )", []));
+        chk!(conn.update("INSERT INTO foo (id, str, float)
+                          VALUES ($1, $2, $3), ($4, $5, $6)",
+                         params!(&101, & &"foobar", &10.5,
+                                 &102, &None::<~str>, &None::<float>)));
+
+        let res = chk!(conn.query("SELECT str, float from foo ORDER BY id", []));
+        assert_eq!(~"foobar", res.get(0).get::<~str>(0));
+        assert_eq!(10.5, res.get(0).get::<float>(1));
+        assert_eq!(None::<~str>, res.get(1).get::<Option<~str>>(0));
+        assert_eq!(None::<float>, res.get(1).get::<Option<float>>(1));
+
+        Err::<(), ~str>(~"")
+    };
+}
