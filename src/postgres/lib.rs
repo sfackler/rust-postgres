@@ -42,15 +42,15 @@ mod ffi {
         fn PQexecPrepared(conn: *PGconn, stmtName: *c_char, nParams: c_int,
                           paramValues: **c_char, paramLengths: *c_int,
                           paramFormats: *c_int, resultFormat: c_int)
-                          -> *PGresult;
+            -> *PGresult;
         fn PQntuples(result: *PGresult) -> c_int;
         fn PQnfields(result: *PGresult) -> c_int;
         fn PQnparams(result: *PGresult) -> c_int;
         fn PQcmdTuples(result: *PGresult) -> *c_char;
         fn PQgetisnull(result: *PGresult, row_number: c_int, col_number: c_int)
-                       -> c_int;
+            -> c_int;
         fn PQgetvalue(result: *PGresult, row_number: c_int, col_number: c_int)
-                      -> *c_char;
+            -> *c_char;
     }
 }
 
@@ -82,28 +82,40 @@ impl Drop for PostgresConnection {
 }
 
 impl PostgresConnection {
+    fn status(&self) -> c_int {
+        unsafe { ffi::PQstatus(self.conn) }
+    }
+
     fn get_error(&self) -> ~str {
         unsafe { str::raw::from_c_str(ffi::PQerrorMessage(self.conn)) }
+    }
+
+    fn set_notice_processor(&mut self,
+                            handler: *u8 /* extern "C" fn(*c_void, *c_char) */,
+                            arg: *c_void) {
+        unsafe { ffi::PQsetNoticeProcessor(self.conn, handler, arg); }
     }
 }
 
 impl PostgresConnection {
     pub fn new(uri: &str) -> Result<~PostgresConnection, ~str> {
-        unsafe {
-            let conn = ~PostgresConnection {conn: do uri.with_c_str |c_uri| {
-                ffi::PQconnectdb(c_uri)
-            }, next_stmt_id: Cell::new(0)};
-            ffi::PQsetNoticeProcessor(conn.conn, notice_handler, ptr::null());
+        let mut conn = ~PostgresConnection {
+            conn: do uri.with_c_str |c_uri| {
+                unsafe { ffi::PQconnectdb(c_uri) }
+            },
+            next_stmt_id: Cell::new(0)
+        };
 
-            match ffi::PQstatus(conn.conn) {
-                ffi::CONNECTION_OK => Ok(conn),
-                _ => Err(conn.get_error())
-            }
+        conn.set_notice_processor(notice_handler, ptr::null());
+
+        match conn.status() {
+            ffi::CONNECTION_OK => Ok(conn),
+            _ => Err(conn.get_error())
         }
     }
 
     pub fn prepare<'a>(&'a self, query: &str)
-                       -> Result<~PostgresStatement<'a>, ~str> {
+        -> Result<~PostgresStatement<'a>, ~str> {
         let id = self.next_stmt_id.take();
         let name = fmt!("__libpostgres_stmt_%u", id);
         self.next_stmt_id.put_back(id + 1);
@@ -137,14 +149,15 @@ impl PostgresConnection {
                                num_params: res.num_params()})
     }
 
-    pub fn update(&self, query: &str, params: &[&ToSql]) -> Result<uint, ~str> {
+    pub fn update(&self, query: &str, params: &[&ToSql])
+        -> Result<uint, ~str> {
         do self.prepare(query).chain |stmt| {
             stmt.update(params)
         }
     }
 
     pub fn query(&self, query: &str, params: &[&ToSql])
-                 -> Result<~PostgresResult, ~str> {
+        -> Result<~PostgresResult, ~str> {
         do self.prepare(query).chain |stmt| {
             stmt.query(params)
         }
@@ -152,7 +165,7 @@ impl PostgresConnection {
 
     pub fn in_transaction<T>(&self,
                              blk: &fn(&PostgresConnection) -> Result<T, ~str>)
-                             -> Result<T, ~str> {
+        -> Result<T, ~str> {
         match self.update("BEGIN", []) {
             Ok(_) => (),
             Err(err) => return Err(err)
