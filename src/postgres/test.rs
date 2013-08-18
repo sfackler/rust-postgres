@@ -38,6 +38,22 @@ fn test_basic() {
 }
 
 #[test]
+fn test_multiple_stmts() {
+    let conn = chk!(PostgresConnection::new("postgres://postgres@localhost"));
+
+    do conn.in_transaction |conn| {
+        chk!(conn.update("CREATE TABLE foo (id INT PRIMARY KEY)", []));
+        let stmt1 = chk!(conn.prepare("INSERT INTO foo (id) VALUES (101)"));
+        let stmt2 = chk!(conn.prepare("INSERT INTO foo (id) VALUES (102)"));
+
+        chk!(stmt1.update([]));
+        chk!(stmt2.update([]));
+
+        Err::<(), ~str>(~"")
+    };
+}
+
+#[test]
 fn test_params() {
 	let conn = chk!(PostgresConnection::new("postgres://postgres@localhost"));
 

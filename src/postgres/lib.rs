@@ -3,7 +3,6 @@ use std::c_str::{ToCStr, CString};
 use std::str;
 use std::ptr;
 use std::libc::{c_void, c_char, c_int};
-use std::cast;
 use std::iterator::RandomAccessIterator;
 use std::vec;
 
@@ -55,65 +54,52 @@ mod ffi {
     }
 }
 
-pub struct PostgresConnection<'self> {
+pub struct PostgresConnection {
     priv conn: *ffi::PGconn,
     priv next_stmt_id: Cell<uint>,
-    priv notice_handler: &'self fn(~str)
 }
 
-pub fn log_notice_handler(notice: ~str) {
-    if notice.starts_with("DEBUG") {
-        debug!("%s", notice);
-    } else if notice.starts_with("NOTICE") ||
-            notice.starts_with("INFO") ||
-            notice.starts_with("LOG") {
-        info!("%s", notice);
-    } else if notice.starts_with("WARNING") {
-        warn!("%s", notice);
+extern "C" fn notice_handler(_arg: *c_void, message: *c_char) {
+    let message = unsafe { str::raw::from_c_str(message) };
+    if message.starts_with("DEBUG") {
+        debug!("%s", message);
+    } else if message.starts_with("NOTICE") ||
+            message.starts_with("INFO") ||
+            message.starts_with("LOG") {
+        info!("%s", message);
+    } else if message.starts_with("WARNING") {
+        warn!("%s", message);
     } else {
-        error!("%s", notice);
-    }
-}
-
-extern "C" fn notice_handler(arg: *c_void, message: *c_char) {
-    unsafe {
-        let conn: *PostgresConnection = cast::transmute(arg);
-        ((*conn).notice_handler)(str::raw::from_c_str(message));
+        error!("%s", message);
     }
 }
 
 #[unsafe_destructor]
-impl<'self> Drop for PostgresConnection<'self> {
+impl Drop for PostgresConnection {
     fn drop(&self) {
         unsafe { ffi::PQfinish(self.conn) }
     }
 }
 
-impl<'self> PostgresConnection<'self> {
+impl PostgresConnection {
     fn get_error(&self) -> ~str {
         unsafe { str::raw::from_c_str(ffi::PQerrorMessage(self.conn)) }
     }
 }
 
-impl<'self> PostgresConnection<'self> {
+impl PostgresConnection {
     pub fn new(uri: &str) -> Result<~PostgresConnection, ~str> {
         unsafe {
             let conn = ~PostgresConnection {conn: do uri.with_c_str |c_uri| {
                 ffi::PQconnectdb(c_uri)
-            }, next_stmt_id: Cell::new(0), notice_handler: log_notice_handler};
-            let arg: *PostgresConnection = &*conn;
-            ffi::PQsetNoticeProcessor(conn.conn, notice_handler,
-                                      arg as *c_void);
+            }, next_stmt_id: Cell::new(0)};
+            ffi::PQsetNoticeProcessor(conn.conn, notice_handler, ptr::null());
 
             match ffi::PQstatus(conn.conn) {
                 ffi::CONNECTION_OK => Ok(conn),
                 _ => Err(conn.get_error())
             }
         }
-    }
-
-    pub fn set_notice_handler(&mut self, handler: &'self fn(~str)) {
-        self.notice_handler = handler;
     }
 
     pub fn prepare<'a>(&'a self, query: &str)
@@ -188,7 +174,7 @@ impl<'self> PostgresConnection<'self> {
 }
 
 pub struct PostgresStatement<'self> {
-    priv conn: &'self PostgresConnection<'self>,
+    priv conn: &'self PostgresConnection,
     priv name: ~str,
     priv num_params: uint
 }
