@@ -1,10 +1,10 @@
 RUSTC ?= rustc
-RUSTFLAGS += -L.
+RUSTFLAGS += -L. --cfg debug
 
 .PHONY: all
 all: postgres.dummy
 
-postgres.dummy: src/lib.rs
+postgres.dummy: src/lib.rs src/message.rs
 	$(RUSTC) $(RUSTFLAGS) --lib src/lib.rs -o $@
 	touch $@
 
