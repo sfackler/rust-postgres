@@ -38,18 +38,13 @@ impl PostgresConnection {
             next_stmt_id: Cell::new(0)
         };
 
-        do conn.stream.with_mut_ref |s| {
-            let mut args = HashMap::new();
-            args.insert(~"user", username.to_owned());
-            s.write_message(&StartupMessage(args));
-        }
+        let mut args = HashMap::new();
+        args.insert(&"user", username);
+        conn.write_message(&StartupMessage(args));
 
-        let resp = do conn.stream.with_mut_ref |s| {
-            s.read_message()
-        };
-        match resp {
+        match conn.read_message() {
             AuthenticationOk => (),
-            _ => fail!("Bad response: %?", resp)
+            resp => fail!("Bad response: %?", resp)
         }
 
         conn.finish_connect();
@@ -59,47 +54,79 @@ impl PostgresConnection {
 
     fn finish_connect(&self) {
         loop {
-            match self.stream.with_mut_ref(|s| { s.read_message() }) {
+            match self.read_message() {
                 ParameterStatus(param, value) =>
                     printfln!("Param %s = %s", param, value),
-                BackendKeyData(*) => loop,
-                ReadyForQuery(_) => break,
+                BackendKeyData(*) => (),
+                ReadyForQuery(*) => break,
                 resp => fail!("Bad response: %?", resp)
             }
         }
     }
 
+    fn write_message(&self, message: &FrontendMessage) {
+        do self.stream.with_mut_ref |s| {
+            s.write_message(message);
+        }
+    }
+
+    fn read_message(&self) -> BackendMessage {
+        do self.stream.with_mut_ref |s| {
+            s.read_message()
+        }
+    }
+
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
         let id = self.next_stmt_id.take();
-        let query_name = ifmt!("statement_{}", id);
+        let stmt_name = ifmt!("statement_{}", id);
         self.next_stmt_id.put_back(id + 1);
 
-        do self.stream.with_mut_ref |s| {
-            s.write_message(&Parse(query_name.clone(), query.to_owned(), ~[]));
-        }
+        let types = [];
+        self.write_message(&Parse(stmt_name, query, types));
+        self.write_message(&Sync);
 
-        do self.stream.with_mut_ref |s| {
-            s.write_message(&Sync);
-        }
-
-        match self.stream.with_mut_ref(|s| { s.read_message() }) {
+        match self.read_message() {
             ParseComplete => (),
             ErrorResponse(ref data) => fail!("Error: %?", data),
             resp => fail!("Bad response: %?", resp)
         }
 
-        match self.stream.with_mut_ref(|s| { s.read_message() }) {
-            ReadyForQuery(*) => (),
+        self.wait_for_ready();
+
+        self.write_message(&Describe('S' as u8, stmt_name));
+        self.write_message(&Sync);
+
+        let num_params = match self.read_message() {
+            ParameterDescription(ref types) => types.len(),
+            resp => fail!("Bad response: %?", resp)
+        };
+
+        match self.read_message() {
+            RowDescription(*) | NoData => (),
             resp => fail!("Bad response: %?", resp)
         }
 
-        PostgresStatement { conn: self, name: query_name }
+        self.wait_for_ready();
+
+        PostgresStatement {
+            conn: self,
+            name: stmt_name,
+            num_params: num_params
+        }
+    }
+
+    fn wait_for_ready(&self) {
+        match self.read_message() {
+            ReadyForQuery(*) => (),
+            resp => fail!("Bad response: %?", resp)
+        }
     }
 }
 
 pub struct PostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
-    priv name: ~str
+    priv name: ~str,
+    priv num_params: uint
 }
 
 impl<'self> PostgresStatement<'self> {

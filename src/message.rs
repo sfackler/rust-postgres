@@ -5,6 +5,7 @@ use std::rt::io::extensions::{ReaderUtil, ReaderByteConversions,
 use std::rt::io::mem::{MemWriter, MemReader};
 use std::hashmap::HashMap;
 use std::sys;
+use std::vec;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 
@@ -12,16 +13,30 @@ pub enum BackendMessage {
     AuthenticationOk,
     BackendKeyData(i32, i32),
     ErrorResponse(HashMap<u8, ~str>),
+    NoData,
+    ParameterDescription(~[i32]),
     ParameterStatus(~str, ~str),
     ParseComplete,
-    ReadyForQuery(u8)
+    ReadyForQuery(u8),
+    RowDescription(~[RowDescriptionEntry])
 }
 
-pub enum FrontendMessage {
+pub struct RowDescriptionEntry {
+    name: ~str,
+    table_oid: i32,
+    column_id: i16,
+    type_oid: i32,
+    type_size: i16,
+    type_modifier: i32,
+    format: i16
+}
+
+pub enum FrontendMessage<'self> {
+    Describe(u8, &'self str),
     /// name, query, parameter types
-    Parse(~str, ~str, ~[i32]),
-    Query(~str),
-    StartupMessage(HashMap<~str, ~str>),
+    Parse(&'self str, &'self str, &'self [i32]),
+    Query(&'self str),
+    StartupMessage(HashMap<&'self str, &'self str>),
     Sync,
     Terminate
 }
@@ -48,6 +63,11 @@ impl<W: Writer> WriteMessage for W {
         let mut ident = None;
 
         match *message {
+            Describe(variant, ref name) => {
+                ident = Some('D');
+                buf.write_u8_(variant);
+                buf.write_string(*name);
+            }
             Parse(ref name, ref query, ref param_types) => {
                 ident = Some('P');
                 buf.write_string(*name);
@@ -118,7 +138,6 @@ impl<R: Reader> ReadMessage for R {
         debug!("Reading message");
 
         let ident = self.read_u8_();
-        debug!("Ident %?", ident);
         // subtract size of length value
         let len = self.read_be_i32_() as uint - sys::size_of::<i32>();
         let mut buf = MemReader::new(self.read_bytes(len));
@@ -127,8 +146,11 @@ impl<R: Reader> ReadMessage for R {
             '1' => ParseComplete,
             'E' => read_error_message(&mut buf),
             'K' => BackendKeyData(buf.read_be_i32_(), buf.read_be_i32_()),
+            'n' => NoData,
             'R' => read_auth_message(&mut buf),
             'S' => ParameterStatus(buf.read_string(), buf.read_string()),
+            't' => read_parameter_description(&mut buf),
+            'T' => read_row_description(&mut buf),
             'Z' => ReadyForQuery(buf.read_u8_()),
             ident => fail!("Unknown message identifier `%c`", ident)
         };
@@ -157,4 +179,34 @@ fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
         0 => AuthenticationOk,
         val => fail!("Unknown Authentication identifier `%?`", val)
     }
+}
+
+fn read_parameter_description(buf: &mut MemReader) -> BackendMessage {
+    let len = buf.read_be_i16_() as uint;
+    let mut types = vec::with_capacity(len);
+
+    do len.times() {
+        types.push(buf.read_be_i32_());
+    }
+
+    ParameterDescription(types)
+}
+
+fn read_row_description(buf: &mut MemReader) -> BackendMessage {
+    let len = buf.read_be_i16_() as uint;
+    let mut types = vec::with_capacity(len);
+
+    do len.times() {
+        types.push(RowDescriptionEntry {
+            name: buf.read_string(),
+            table_oid: buf.read_be_i32_(),
+            column_id: buf.read_be_i16_(),
+            type_oid: buf.read_be_i32_(),
+            type_size: buf.read_be_i16_(),
+            type_modifier: buf.read_be_i32_(),
+            format: buf.read_be_i16_()
+        });
+    }
+
+    RowDescription(types)
 }
