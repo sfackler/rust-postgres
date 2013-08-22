@@ -8,4 +8,5 @@ fn test_connect() {
                                            "postgres");
 
     let stmt = conn.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)");
+    stmt.query();
 }

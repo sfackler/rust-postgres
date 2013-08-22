@@ -12,6 +12,8 @@ pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 pub enum BackendMessage {
     AuthenticationOk,
     BackendKeyData(i32, i32),
+    BindComplete,
+    CloseComplete,
     ErrorResponse(HashMap<u8, ~str>),
     NoData,
     ParameterDescription(~[i32]),
@@ -32,6 +34,10 @@ pub struct RowDescriptionEntry {
 }
 
 pub enum FrontendMessage<'self> {
+    /// portal, stmt, formats, values, result formats
+    Bind(&'self str, &'self str, &'self [i16], &'self [Option<&'self [u8]>],
+         &'self [i16]),
+    Close(u8, &'self str),
     Describe(u8, &'self str),
     /// name, query, parameter types
     Parse(&'self str, &'self str, &'self [i32]),
@@ -63,23 +69,56 @@ impl<W: Writer> WriteMessage for W {
         let mut ident = None;
 
         match *message {
-            Describe(variant, ref name) => {
+            Bind(portal, stmt, formats, values, result_formats) => {
+                ident = Some('B');
+                buf.write_string(portal);
+                buf.write_string(stmt);
+
+                buf.write_be_i16_(formats.len() as i16);
+                for format in formats.iter() {
+                    buf.write_be_i16_(*format);
+                }
+
+                buf.write_be_i16_(values.len() as i16);
+                for value in values.iter() {
+                    match *value {
+                        None => {
+                            buf.write_be_i16_(-1);
+                        }
+                        Some(value) => {
+                            buf.write_be_i32_(value.len() as i32);
+                            buf.write(value);
+                        }
+                    }
+                }
+
+                buf.write_be_i16_(result_formats.len() as i16);
+                for format in result_formats.iter() {
+                    buf.write_be_i16_(*format);
+                }
+            }
+            Close(variant, name) => {
+                ident = Some('C');
+                buf.write_u8_(variant);
+                buf.write_string(name);
+            }
+            Describe(variant, name) => {
                 ident = Some('D');
                 buf.write_u8_(variant);
-                buf.write_string(*name);
+                buf.write_string(name);
             }
-            Parse(ref name, ref query, ref param_types) => {
+            Parse(name, query, param_types) => {
                 ident = Some('P');
-                buf.write_string(*name);
-                buf.write_string(*query);
+                buf.write_string(name);
+                buf.write_string(query);
                 buf.write_be_i16_(param_types.len() as i16);
                 for ty in param_types.iter() {
                     buf.write_be_i32_(*ty);
                 }
             }
-            Query(ref query) => {
+            Query(query) => {
                 ident = Some('Q');
-                buf.write_string(*query);
+                buf.write_string(query);
             }
             StartupMessage(ref params) => {
                 buf.write_be_i32_(PROTOCOL_VERSION);
@@ -144,6 +183,8 @@ impl<R: Reader> ReadMessage for R {
 
         let ret = match ident as char {
             '1' => ParseComplete,
+            '2' => BindComplete,
+            '3' => CloseComplete,
             'E' => read_error_message(&mut buf),
             'K' => BackendKeyData(buf.read_be_i32_(), buf.read_be_i32_()),
             'n' => NoData,

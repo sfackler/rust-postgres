@@ -18,11 +18,7 @@ pub struct PostgresConnection {
 
 impl Drop for PostgresConnection {
     fn drop(&self) {
-        do io_error::cond.trap(|_| { }).inside {
-            do self.stream.with_mut_ref |s| {
-                s.write_message(&Terminate);
-            }
-        }
+        self.write_message(&Terminate);
     }
 }
 
@@ -111,7 +107,8 @@ impl PostgresConnection {
         PostgresStatement {
             conn: self,
             name: stmt_name,
-            num_params: num_params
+            num_params: num_params,
+            next_portal_id: Cell::new(0)
         }
     }
 
@@ -126,9 +123,44 @@ impl PostgresConnection {
 pub struct PostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
-    priv num_params: uint
+    priv num_params: uint,
+    priv next_portal_id: Cell<uint>
+}
+
+#[unsafe_destructor]
+impl<'self> Drop for PostgresStatement<'self> {
+    fn drop(&self) {
+        self.conn.write_message(&Close('S' as u8, self.name.as_slice()));
+        self.conn.write_message(&Sync);
+        self.conn.read_message(); // CloseComplete or ErrorResponse
+        self.conn.wait_for_ready();
+    }
 }
 
 impl<'self> PostgresStatement<'self> {
+    pub fn num_params(&self) -> uint {
+        self.num_params
+    }
 
+    pub fn query(&self) {
+        let id = self.next_portal_id.take();
+        let portal_name = ifmt!("{:s}_portal_{}", self.name.as_slice(), id);
+        self.next_portal_id.put_back(id + 1);
+
+        let formats = [];
+        let values = [];
+        let result_formats = [];
+
+        self.conn.write_message(&Bind(portal_name, self.name.as_slice(),
+                                      formats, values, result_formats));
+        self.conn.write_message(&Sync);
+
+        match self.conn.read_message() {
+            BindComplete => (),
+            ErrorResponse(ref data) => fail!("Error: %?", data),
+            resp => fail!("Bad response: %?", resp)
+        }
+
+        self.conn.wait_for_ready();
+    }
 }
