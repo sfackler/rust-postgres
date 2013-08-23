@@ -3,9 +3,12 @@ extern mod postgres;
 use postgres::PostgresConnection;
 
 #[test]
-fn test_connect() {
+fn test_basic() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
-    let stmt = conn.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)");
-    stmt.query();
+    do conn.in_transaction |conn| {
+        conn.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update();
+
+        Err::<(), ()>(())
+    };
 }

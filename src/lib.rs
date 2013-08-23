@@ -2,7 +2,6 @@ extern mod extra;
 
 use std::cell::Cell;
 use std::hashmap::HashMap;
-use std::rt::io::io_error;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 use extra::url::Url;
@@ -40,24 +39,20 @@ impl PostgresConnection {
 
         match conn.read_message() {
             AuthenticationOk => (),
-            resp => fail!("Bad response: %?", resp)
+            resp => fail!("Bad response: %?", resp.to_str())
         }
 
-        conn.finish_connect();
-
-        conn
-    }
-
-    fn finish_connect(&self) {
         loop {
-            match self.read_message() {
+            match conn.read_message() {
                 ParameterStatus(param, value) =>
                     printfln!("Param %s = %s", param, value),
                 BackendKeyData(*) => (),
                 ReadyForQuery(*) => break,
-                resp => fail!("Bad response: %?", resp)
+                resp => fail!("Bad response: %?", resp.to_str())
             }
         }
+
+        conn
     }
 
     fn write_message(&self, message: &FrontendMessage) {
@@ -83,8 +78,8 @@ impl PostgresConnection {
 
         match self.read_message() {
             ParseComplete => (),
-            ErrorResponse(ref data) => fail!("Error: %?", data),
-            resp => fail!("Bad response: %?", resp)
+            resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+            resp => fail!("Bad response: %?", resp.to_str())
         }
 
         self.wait_for_ready();
@@ -94,12 +89,12 @@ impl PostgresConnection {
 
         let num_params = match self.read_message() {
             ParameterDescription(ref types) => types.len(),
-            resp => fail!("Bad response: %?", resp)
+            resp => fail!("Bad response: %?", resp.to_str())
         };
 
         match self.read_message() {
             RowDescription(*) | NoData => (),
-            resp => fail!("Bad response: %?", resp)
+            resp => fail!("Bad response: %?", resp.to_str())
         }
 
         self.wait_for_ready();
@@ -112,10 +107,41 @@ impl PostgresConnection {
         }
     }
 
+    fn query(&self, query: &str) {
+        self.write_message(&Query(query));
+
+        loop {
+            match self.read_message() {
+                ReadyForQuery(*) => break,
+                resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+                _ => ()
+            }
+        }
+    }
+
+    pub fn in_transaction<T, E: ToStr>(&self, blk: &fn(&PostgresConnection)
+                                                       -> Result<T, E>)
+                                       -> Result<T, E> {
+        self.query("BEGIN");
+
+        // If this fails, Postgres will rollback when the connection closes
+        let ret = blk(self);
+
+        if ret.is_ok() {
+            self.query("COMMIT");
+        } else {
+            self.query("ROLLBACK");
+        }
+
+        ret
+    }
+
     fn wait_for_ready(&self) {
-        match self.read_message() {
-            ReadyForQuery(*) => (),
-            resp => fail!("Bad response: %?", resp)
+        loop {
+            match self.read_message() {
+                ReadyForQuery(*) => break,
+                resp => fail!("Bad response: %?", resp.to_str())
+            }
         }
     }
 }
@@ -132,8 +158,12 @@ impl<'self> Drop for PostgresStatement<'self> {
     fn drop(&self) {
         self.conn.write_message(&Close('S' as u8, self.name.as_slice()));
         self.conn.write_message(&Sync);
-        self.conn.read_message(); // CloseComplete or ErrorResponse
-        self.conn.wait_for_ready();
+        loop {
+            match self.conn.read_message() {
+                ReadyForQuery(*) => break,
+                _ => ()
+            }
+        }
     }
 }
 
@@ -142,25 +172,46 @@ impl<'self> PostgresStatement<'self> {
         self.num_params
     }
 
-    pub fn query(&self) {
-        let id = self.next_portal_id.take();
-        let portal_name = ifmt!("{:s}_portal_{}", self.name.as_slice(), id);
-        self.next_portal_id.put_back(id + 1);
-
+    fn execute(&self, portal_name: &str) {
         let formats = [];
         let values = [];
         let result_formats = [];
 
         self.conn.write_message(&Bind(portal_name, self.name.as_slice(),
                                       formats, values, result_formats));
+        self.conn.write_message(&Execute(portal_name.as_slice(), 0));
         self.conn.write_message(&Sync);
 
         match self.conn.read_message() {
             BindComplete => (),
-            ErrorResponse(ref data) => fail!("Error: %?", data),
-            resp => fail!("Bad response: %?", resp)
+            resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+            resp => fail!("Bad response: %?", resp.to_str())
         }
+    }
 
+    pub fn update(&self) -> uint {
+        self.execute("");
+
+        let mut num = 0;
+        loop {
+            match self.conn.read_message() {
+                CommandComplete(ret) => {
+                    let s = ret.split_iter(' ').last().unwrap();
+                    match FromStr::from_str(s) {
+                        None => (),
+                        Some(n) => num = n
+                    }
+                    break;
+                }
+                DataRow(*) => (),
+                EmptyQueryResponse => break,
+                NoticeResponse(*) => (),
+                resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+                resp => fail!("Bad response: %?", resp.to_str())
+            }
+        }
         self.conn.wait_for_ready();
+
+        num
     }
 }

@@ -9,13 +9,18 @@ use std::vec;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 
+#[deriving(ToStr)]
 pub enum BackendMessage {
     AuthenticationOk,
     BackendKeyData(i32, i32),
     BindComplete,
     CloseComplete,
+    CommandComplete(~str),
+    DataRow(~[Option<~[u8]>]),
+    EmptyQueryResponse,
     ErrorResponse(HashMap<u8, ~str>),
     NoData,
+    NoticeResponse(HashMap<u8, ~str>),
     ParameterDescription(~[i32]),
     ParameterStatus(~str, ~str),
     ParseComplete,
@@ -23,6 +28,7 @@ pub enum BackendMessage {
     RowDescription(~[RowDescriptionEntry])
 }
 
+#[deriving(ToStr)]
 pub struct RowDescriptionEntry {
     name: ~str,
     table_oid: i32,
@@ -39,6 +45,7 @@ pub enum FrontendMessage<'self> {
          &'self [i16]),
     Close(u8, &'self str),
     Describe(u8, &'self str),
+    Execute(&'self str, i32),
     /// name, query, parameter types
     Parse(&'self str, &'self str, &'self [i32]),
     Query(&'self str),
@@ -106,6 +113,11 @@ impl<W: Writer> WriteMessage for W {
                 ident = Some('D');
                 buf.write_u8_(variant);
                 buf.write_string(name);
+            }
+            Execute(name, num_rows) => {
+                ident = Some('E');
+                buf.write_string(name);
+                buf.write_be_i32_(num_rows);
             }
             Parse(name, query, param_types) => {
                 ident = Some('P');
@@ -185,9 +197,13 @@ impl<R: Reader> ReadMessage for R {
             '1' => ParseComplete,
             '2' => BindComplete,
             '3' => CloseComplete,
-            'E' => read_error_message(&mut buf),
+            'C' => CommandComplete(buf.read_string()),
+            'D' => read_data_row(&mut buf),
+            'E' => ErrorResponse(read_hash(&mut buf)),
+            'I' => EmptyQueryResponse,
             'K' => BackendKeyData(buf.read_be_i32_(), buf.read_be_i32_()),
             'n' => NoData,
+            'N' => NoticeResponse(read_hash(&mut buf)),
             'R' => read_auth_message(&mut buf),
             'S' => ParameterStatus(buf.read_string(), buf.read_string()),
             't' => read_parameter_description(&mut buf),
@@ -201,7 +217,7 @@ impl<R: Reader> ReadMessage for R {
     }
 }
 
-fn read_error_message(buf: &mut MemReader) -> BackendMessage {
+fn read_hash(buf: &mut MemReader) -> HashMap<u8, ~str> {
     let mut fields = HashMap::new();
     loop {
         let ty = buf.read_u8_();
@@ -212,7 +228,22 @@ fn read_error_message(buf: &mut MemReader) -> BackendMessage {
         fields.insert(ty, buf.read_string());
     }
 
-    ErrorResponse(fields)
+    fields
+}
+
+fn read_data_row(buf: &mut MemReader) -> BackendMessage {
+    let len = buf.read_be_i16_() as uint;
+    let mut values = vec::with_capacity(len);
+
+    do len.times() {
+        let val = match buf.read_be_i32_() {
+            -1 => None,
+            len => Some(buf.read_bytes(len as uint))
+        };
+        values.push(val);
+    }
+
+    DataRow(values)
 }
 
 fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
