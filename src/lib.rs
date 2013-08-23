@@ -5,6 +5,7 @@ use std::hashmap::HashMap;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 use extra::url::Url;
+use std::str;
 
 use message::*;
 
@@ -107,7 +108,24 @@ impl PostgresConnection {
         }
     }
 
-    fn query(&self, query: &str) {
+    pub fn in_transaction<T, E: ToStr>(&self, blk: &fn(&PostgresConnection)
+                                                       -> Result<T, E>)
+                                       -> Result<T, E> {
+        self.quick_query("BEGIN");
+
+        // If this fails, Postgres will rollback when the connection closes
+        let ret = blk(self);
+
+        if ret.is_ok() {
+            self.quick_query("COMMIT");
+        } else {
+            self.quick_query("ROLLBACK");
+        }
+
+        ret
+    }
+
+    fn quick_query(&self, query: &str) {
         self.write_message(&Query(query));
 
         loop {
@@ -117,23 +135,6 @@ impl PostgresConnection {
                 _ => ()
             }
         }
-    }
-
-    pub fn in_transaction<T, E: ToStr>(&self, blk: &fn(&PostgresConnection)
-                                                       -> Result<T, E>)
-                                       -> Result<T, E> {
-        self.query("BEGIN");
-
-        // If this fails, Postgres will rollback when the connection closes
-        let ret = blk(self);
-
-        if ret.is_ok() {
-            self.query("COMMIT");
-        } else {
-            self.query("ROLLBACK");
-        }
-
-        ret
     }
 
     fn wait_for_ready(&self) {
@@ -213,5 +214,108 @@ impl<'self> PostgresStatement<'self> {
         self.conn.wait_for_ready();
 
         num
+    }
+
+    pub fn query<'a>(&'a self) -> PostgresResult<'a> {
+        let id = self.next_portal_id.take();
+        let portal_name = ifmt!("{:s}_portal_{}", self.name.as_slice(), id);
+        self.next_portal_id.put_back(id + 1);
+
+        self.execute(portal_name);
+
+        let mut data = ~[];
+        loop {
+            match self.conn.read_message() {
+                EmptyQueryResponse => break,
+                DataRow(row) => data.push(row),
+                CommandComplete(*) => break,
+                NoticeResponse(*) => (),
+                resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+                resp => fail!("Bad response: %?", resp.to_str())
+            }
+        }
+
+        PostgresResult {
+            stmt: self,
+            name: portal_name,
+            data: data
+        }
+    }
+}
+
+pub struct PostgresResult<'self> {
+    priv stmt: &'self PostgresStatement<'self>,
+    priv name: ~str,
+    priv data: ~[~[Option<~[u8]>]]
+}
+
+#[unsafe_destructor]
+impl<'self> Drop for PostgresResult<'self> {
+    fn drop(&self) {
+        self.stmt.conn.write_message(&Close('P' as u8, self.name.as_slice()));
+        self.stmt.conn.write_message(&Sync);
+        loop {
+            match self.stmt.conn.read_message() {
+                ReadyForQuery(*) => break,
+                _ => ()
+            }
+        }
+    }
+}
+
+impl<'self> PostgresResult<'self> {
+    pub fn iter<'a>(&'a self) -> PostgresResultIterator<'a> {
+        PostgresResultIterator { result: self, next_row: 0 }
+    }
+}
+
+pub struct PostgresResultIterator<'self> {
+    priv result: &'self PostgresResult<'self>,
+    priv next_row: uint
+}
+
+impl<'self> Iterator<PostgresRow<'self>> for PostgresResultIterator<'self> {
+    fn next(&mut self) -> Option<PostgresRow<'self>> {
+        if self.next_row == self.result.data.len() {
+            return None;
+        }
+
+        let row = self.next_row;
+        self.next_row += 1;
+        Some(PostgresRow { result: self.result, row: row })
+    }
+}
+
+pub struct PostgresRow<'self> {
+    priv result: &'self PostgresResult<'self>,
+    priv row: uint
+}
+
+impl<'self> Container for PostgresRow<'self> {
+    fn len(&self) -> uint {
+        self.result.data[self.row].len()
+    }
+}
+
+impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
+    fn index(&self, idx: &uint) -> T {
+        self.get(*idx)
+    }
+}
+
+impl<'self> PostgresRow<'self> {
+    pub fn get<T: FromSql>(&self, idx: uint) -> T {
+        FromSql::from_sql(&self.result.data[self.row][idx])
+    }
+}
+
+pub trait FromSql {
+    fn from_sql(raw: &Option<~[u8]>) -> Self;
+}
+
+impl FromSql for int {
+    fn from_sql(raw: &Option<~[u8]>) -> int {
+        FromStr::from_str(str::from_bytes_slice(raw.get_ref().as_slice()))
+            .unwrap()
     }
 }
