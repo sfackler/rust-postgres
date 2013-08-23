@@ -23,11 +23,11 @@ impl Drop for PostgresConnection {
 }
 
 impl PostgresConnection {
-    pub fn connect(url: &str, username: &str) -> PostgresConnection {
+    pub fn connect(url: &str) -> PostgresConnection {
         let parsed_url: Url = FromStr::from_str(url).unwrap();
 
         let socket_url = fmt!("%s:%s", parsed_url.host,
-                              parsed_url.port.unwrap_or_default(~"5432"));
+                              parsed_url.port.get_ref().as_slice());
         let addr: SocketAddr = FromStr::from_str(socket_url).unwrap();
         let conn = PostgresConnection {
             stream: Cell::new(TcpStream::connect(addr).unwrap()),
@@ -35,7 +35,7 @@ impl PostgresConnection {
         };
 
         let mut args = HashMap::new();
-        args.insert(&"user", username);
+        args.insert(&"user", parsed_url.user.get_ref().user.as_slice());
         conn.write_message(&StartupMessage(args));
 
         match conn.read_message() {
