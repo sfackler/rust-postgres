@@ -41,7 +41,7 @@ pub struct RowDescriptionEntry {
 
 pub enum FrontendMessage<'self> {
     /// portal, stmt, formats, values, result formats
-    Bind(&'self str, &'self str, &'self [i16], &'self [Option<&'self [u8]>],
+    Bind(&'self str, &'self str, &'self [i16], &'self [Option<~[u8]>],
          &'self [i16]),
     Close(u8, &'self str),
     Describe(u8, &'self str),
@@ -90,11 +90,11 @@ impl<W: Writer> WriteMessage for W {
                 for value in values.iter() {
                     match *value {
                         None => {
-                            buf.write_be_i16_(-1);
+                            buf.write_be_i32_(-1);
                         }
-                        Some(value) => {
+                        Some(ref value) => {
                             buf.write_be_i32_(value.len() as i32);
-                            buf.write(value);
+                            buf.write(*value);
                         }
                     }
                 }
