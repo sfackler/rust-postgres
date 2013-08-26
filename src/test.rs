@@ -38,7 +38,7 @@ fn test_nulls() {
         conn.prepare("CREATE TABLE foo (
                         id BIGINT PRIMARY KEY,
                         val VARCHAR
-                     )").update([]);
+                      )").update([]);
         conn.prepare("INSERT INTO foo (id, val) VALUES ($1, $2), ($3, $4)")
                 .update([&1 as &ToSql, & &"foobar" as &ToSql,
                          &2 as &ToSql, &None::<~str> as &ToSql]);
@@ -50,4 +50,20 @@ fn test_nulls() {
 
         Err::<(), ()>(())
     };
+}
+
+#[test]
+fn test_plaintext_pass() {
+    PostgresConnection::connect("postgres://pass_user:password@127.0.0.1:5432");
+}
+
+#[test]
+#[should_fail]
+fn test_plaintext_pass_no_pass() {
+    PostgresConnection::connect("postgres://pass_user@127.0.0.1:5432");
+}
+
+#[test]
+fn test_md5_pass() {
+    PostgresConnection::connect("postgres://md5_user:password@127.0.0.1:5432");
 }

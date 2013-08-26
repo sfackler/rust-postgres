@@ -1,5 +1,5 @@
 RUSTC ?= rustc
-RUSTFLAGS += -L. --cfg debug
+RUSTFLAGS += -L. --cfg debug -Z debug-info
 
 .PHONY: all
 all: postgres.dummy

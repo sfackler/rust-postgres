@@ -1,10 +1,11 @@
 extern mod extra;
 
+use extra::digest::Digest;
+use extra::md5::Md5;
+use extra::url::Url;
 use std::cell::Cell;
-use std::hashmap::HashMap;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
-use extra::url::Url;
 use std::str;
 
 use message::*;
@@ -24,29 +25,29 @@ impl Drop for PostgresConnection {
 
 impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
-        let parsed_url: Url = FromStr::from_str(url).unwrap();
+        let url: Url = FromStr::from_str(url).unwrap();
 
-        let socket_url = fmt!("%s:%s", parsed_url.host,
-                              parsed_url.port.get_ref().as_slice());
+        let socket_url = fmt!("%s:%s", url.host,
+                              url.port.get_ref().as_slice());
         let addr: SocketAddr = FromStr::from_str(socket_url).unwrap();
         let conn = PostgresConnection {
             stream: Cell::new(TcpStream::connect(addr).unwrap()),
             next_stmt_id: Cell::new(0)
         };
 
-        let mut args = HashMap::new();
-        args.insert(&"user", parsed_url.user.get_ref().user.as_slice());
-        conn.write_message(&StartupMessage(args));
-
-        match conn.read_message() {
-            AuthenticationOk => (),
-            resp => fail!("Bad response: %?", resp.to_str())
+        let mut args = url.query.clone();
+        args.push((~"user", url.user.get_ref().user.clone()));
+        if !url.path.is_empty() {
+            args.push((~"database", url.path.clone()));
         }
+        conn.write_message(&StartupMessage(args.as_slice()));
+
+        conn.handle_auth(&url);
 
         loop {
             match conn.read_message() {
                 ParameterStatus(param, value) =>
-                    info!("Param %s = %s", param, value),
+                    info!("Parameter %s = %s", param, value),
                 BackendKeyData(*) => (),
                 ReadyForQuery(*) => break,
                 resp => fail!("Bad response: %?", resp.to_str())
@@ -65,6 +66,31 @@ impl PostgresConnection {
     fn read_message(&self) -> BackendMessage {
         do self.stream.with_mut_ref |s| {
             s.read_message()
+        }
+    }
+
+    fn handle_auth(&self, url: &Url) {
+        loop {
+            match self.read_message() {
+                AuthenticationOk => break,
+                AuthenticationCleartextPassword => {
+                    let pass = url.user.get_ref().pass.get_ref().as_slice();
+                    self.write_message(&PasswordMessage(pass));
+                }
+                AuthenticationMD5Password(nonce) => {
+                    let input = url.user.get_ref().pass.get_ref().as_slice() +
+                            url.user.get_ref().user.as_slice();
+                    let mut md5 = Md5::new();
+                    md5.input_str(input);
+                    let output = md5.result_str();
+                    md5.reset();
+                    md5.input_str(output);
+                    md5.input(nonce);
+                    let output = "md5" + md5.result_str();
+                    self.write_message(&PasswordMessage(output.as_slice()));
+                }
+                resp => fail!("Bad response: %?", resp.to_str())
+            }
         }
     }
 

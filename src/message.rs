@@ -3,7 +3,6 @@ use std::rt::io::{Decorator, Reader, Writer};
 use std::rt::io::extensions::{ReaderUtil, ReaderByteConversions,
                               WriterByteConversions};
 use std::rt::io::mem::{MemWriter, MemReader};
-use std::hashmap::HashMap;
 use std::sys;
 use std::vec;
 
@@ -11,6 +10,8 @@ pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 
 #[deriving(ToStr)]
 pub enum BackendMessage {
+    AuthenticationCleartextPassword,
+    AuthenticationMD5Password(~[u8]),
     AuthenticationOk,
     BackendKeyData(i32, i32),
     BindComplete,
@@ -18,9 +19,9 @@ pub enum BackendMessage {
     CommandComplete(~str),
     DataRow(~[Option<~[u8]>]),
     EmptyQueryResponse,
-    ErrorResponse(HashMap<u8, ~str>),
+    ErrorResponse(~[(u8, ~str)]),
     NoData,
-    NoticeResponse(HashMap<u8, ~str>),
+    NoticeResponse(~[(u8, ~str)]),
     ParameterDescription(~[i32]),
     ParameterStatus(~str, ~str),
     ParseComplete,
@@ -48,8 +49,9 @@ pub enum FrontendMessage<'self> {
     Execute(&'self str, i32),
     /// name, query, parameter types
     Parse(&'self str, &'self str, &'self [i32]),
+    PasswordMessage(&'self str),
     Query(&'self str),
-    StartupMessage(HashMap<&'self str, &'self str>),
+    StartupMessage(&'self [(~str, ~str)]),
     Sync,
     Terminate
 }
@@ -128,15 +130,19 @@ impl<W: Writer> WriteMessage for W {
                     buf.write_be_i32_(*ty);
                 }
             }
+            PasswordMessage(password) => {
+                ident = Some('p');
+                buf.write_string(password);
+            }
             Query(query) => {
                 ident = Some('Q');
                 buf.write_string(query);
             }
             StartupMessage(ref params) => {
                 buf.write_be_i32_(PROTOCOL_VERSION);
-                for (k, v) in params.iter() {
-                    buf.write_string(*k);
-                    buf.write_string(*v);
+                for &(ref k, ref v) in params.iter() {
+                    buf.write_string(k.as_slice());
+                    buf.write_string(v.as_slice());
                 }
                 buf.write_u8_(0);
             }
@@ -199,11 +205,11 @@ impl<R: Reader> ReadMessage for R {
             '3' => CloseComplete,
             'C' => CommandComplete(buf.read_string()),
             'D' => read_data_row(&mut buf),
-            'E' => ErrorResponse(read_hash(&mut buf)),
+            'E' => ErrorResponse(read_fields(&mut buf)),
             'I' => EmptyQueryResponse,
             'K' => BackendKeyData(buf.read_be_i32_(), buf.read_be_i32_()),
             'n' => NoData,
-            'N' => NoticeResponse(read_hash(&mut buf)),
+            'N' => NoticeResponse(read_fields(&mut buf)),
             'R' => read_auth_message(&mut buf),
             'S' => ParameterStatus(buf.read_string(), buf.read_string()),
             't' => read_parameter_description(&mut buf),
@@ -217,15 +223,15 @@ impl<R: Reader> ReadMessage for R {
     }
 }
 
-fn read_hash(buf: &mut MemReader) -> HashMap<u8, ~str> {
-    let mut fields = HashMap::new();
+fn read_fields(buf: &mut MemReader) -> ~[(u8, ~str)] {
+    let mut fields = ~[];
     loop {
         let ty = buf.read_u8_();
         if ty == 0 {
             break;
         }
 
-        fields.insert(ty, buf.read_string());
+        fields.push((ty, buf.read_string()));
     }
 
     fields
@@ -249,6 +255,8 @@ fn read_data_row(buf: &mut MemReader) -> BackendMessage {
 fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
     match buf.read_be_i32_() {
         0 => AuthenticationOk,
+        3 => AuthenticationCleartextPassword,
+        5 => AuthenticationMD5Password(buf.read_bytes(4)),
         val => fail!("Unknown Authentication identifier `%?`", val)
     }
 }
