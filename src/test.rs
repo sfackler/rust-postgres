@@ -64,6 +64,24 @@ fn test_plaintext_pass_no_pass() {
 }
 
 #[test]
+#[should_fail]
+fn test_plaintext_pass_wrong_pass() {
+    PostgresConnection::connect("postgres://pass_user:asdf@127.0.0.1:5432");
+}
+
+#[test]
 fn test_md5_pass() {
     PostgresConnection::connect("postgres://md5_user:password@127.0.0.1:5432");
+}
+
+#[test]
+#[should_fail]
+fn test_md5_pass_no_pass() {
+    PostgresConnection::connect("postgres://md5_user@127.0.0.1:5432");
+}
+
+#[test]
+#[should_fail]
+fn test_md5_pass_wrong_pass() {
+    PostgresConnection::connect("postgres://md5_user:asdf@127.0.0.1:5432");
 }

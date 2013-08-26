@@ -4,6 +4,7 @@ use extra::digest::Digest;
 use extra::md5::Md5;
 use extra::url::Url;
 use std::cell::Cell;
+use std::rt::io::io_error;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 use std::str;
@@ -19,7 +20,9 @@ pub struct PostgresConnection {
 
 impl Drop for PostgresConnection {
     fn drop(&self) {
-        self.write_message(&Terminate);
+        do io_error::cond.trap(|_| {}).inside {
+            self.write_message(&Terminate);
+        }
     }
 }
 
@@ -183,12 +186,14 @@ pub struct PostgresStatement<'self> {
 #[unsafe_destructor]
 impl<'self> Drop for PostgresStatement<'self> {
     fn drop(&self) {
-        self.conn.write_message(&Close('S' as u8, self.name.as_slice()));
-        self.conn.write_message(&Sync);
-        loop {
-            match self.conn.read_message() {
-                ReadyForQuery(*) => break,
-                _ => ()
+        do io_error::cond.trap(|_| {}).inside {
+            self.conn.write_message(&Close('S' as u8, self.name.as_slice()));
+            self.conn.write_message(&Sync);
+            loop {
+                match self.conn.read_message() {
+                    ReadyForQuery(*) => break,
+                    _ => ()
+                }
             }
         }
     }
@@ -285,12 +290,15 @@ pub struct PostgresResult<'self> {
 #[unsafe_destructor]
 impl<'self> Drop for PostgresResult<'self> {
     fn drop(&self) {
-        self.stmt.conn.write_message(&Close('P' as u8, self.name.as_slice()));
-        self.stmt.conn.write_message(&Sync);
-        loop {
-            match self.stmt.conn.read_message() {
-                ReadyForQuery(*) => break,
-                _ => ()
+        do io_error::cond.trap(|_| {}).inside {
+            self.stmt.conn.write_message(&Close('P' as u8,
+                                                self.name.as_slice()));
+            self.stmt.conn.write_message(&Sync);
+            loop {
+                match self.stmt.conn.read_message() {
+                    ReadyForQuery(*) => break,
+                    _ => ()
+                }
             }
         }
     }
