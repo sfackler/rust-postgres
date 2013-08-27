@@ -2,7 +2,7 @@ extern mod extra;
 
 use extra::digest::Digest;
 use extra::md5::Md5;
-use extra::url::Url;
+use extra::url::{UserInfo, Url};
 use std::cell::Cell;
 use std::rt::io::io_error;
 use std::rt::io::net::ip::SocketAddr;
@@ -26,26 +26,68 @@ impl Drop for PostgresConnection {
     }
 }
 
+#[deriving(ToStr)]
+pub struct PostgresError;
+
+#[deriving(ToStr)]
+pub enum PostgresConnectError {
+    InvalidUrl,
+    MissingUser,
+    DbError(PostgresError),
+    MissingPassword,
+    UnsupportedAuthentication
+}
+
 impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
-        let url: Url = FromStr::from_str(url).unwrap();
+        match PostgresConnection::try_connect(url) {
+            Ok(conn) => conn,
+            Err(err) => fail!("Failed to connect: %s", err.to_str())
+        }
+    }
 
-        let socket_url = fmt!("%s:%s", url.host,
-                              url.port.get_ref().as_slice());
-        let addr: SocketAddr = FromStr::from_str(socket_url).unwrap();
+    pub fn try_connect(url: &str) -> Result<PostgresConnection,
+                                            PostgresConnectError> {
+        let Url {
+            host,
+            port,
+            user,
+            path,
+            query: args,
+            _
+        }: Url = match FromStr::from_str(url) {
+            Some(url) => url,
+            None => return Err(InvalidUrl)
+        };
+        let user = match user {
+            Some(user) => user,
+            None => return Err(MissingUser)
+        };
+        let mut args = args;
+
+        let socket_url = fmt!("%s:%s", host, port.unwrap_or_default(~"5432"));
+        let addr: SocketAddr = match FromStr::from_str(socket_url) {
+            Some(addr) => addr,
+            None => return Err(InvalidUrl)
+        };
+
         let conn = PostgresConnection {
+            // Need to figure out what to do about unwrap here
             stream: Cell::new(TcpStream::connect(addr).unwrap()),
             next_stmt_id: Cell::new(0)
         };
 
-        let mut args = url.query.clone();
-        args.push((~"user", url.user.get_ref().user.clone()));
-        if !url.path.is_empty() {
-            args.push((~"database", url.path.clone()));
+        // we have to clone here since we need the user again for auth
+        args.push((~"user", user.user.clone()));
+        if !path.is_empty() {
+            args.push((~"database", path));
         }
         conn.write_message(&StartupMessage(args.as_slice()));
 
-        conn.handle_auth(&url);
+        match conn.handle_auth(user) {
+            Some(err) => return Err(err),
+            None => ()
+        }
 
         loop {
             match conn.read_message() {
@@ -57,7 +99,7 @@ impl PostgresConnection {
             }
         }
 
-        conn
+        Ok(conn)
     }
 
     fn write_message(&self, message: &FrontendMessage) {
@@ -72,28 +114,39 @@ impl PostgresConnection {
         }
     }
 
-    fn handle_auth(&self, url: &Url) {
-        loop {
-            match self.read_message() {
-                AuthenticationOk => break,
-                AuthenticationCleartextPassword => {
-                    let pass = url.user.get_ref().pass.get_ref().as_slice();
-                    self.write_message(&PasswordMessage(pass));
-                }
-                AuthenticationMD5Password(nonce) => {
-                    let input = url.user.get_ref().pass.get_ref().as_slice() +
-                            url.user.get_ref().user.as_slice();
-                    let mut md5 = Md5::new();
-                    md5.input_str(input);
-                    let output = md5.result_str();
-                    md5.reset();
-                    md5.input_str(output);
-                    md5.input(nonce);
-                    let output = "md5" + md5.result_str();
-                    self.write_message(&PasswordMessage(output.as_slice()));
-                }
-                resp => fail!("Bad response: %?", resp.to_str())
+    fn handle_auth(&self, user: UserInfo) -> Option<PostgresConnectError> {
+        match self.read_message() {
+            AuthenticationOk => return None,
+            AuthenticationCleartextPassword => {
+                let pass = match user.pass {
+                    Some(pass) => pass,
+                    None => return Some(MissingPassword)
+                };
+                self.write_message(&PasswordMessage(pass));
             }
+            AuthenticationMD5Password(nonce) => {
+                let UserInfo { user, pass } = user;
+                let pass = match pass {
+                    Some(pass) => pass,
+                    None => return Some(MissingPassword)
+                };
+                let input = pass + user;
+                let mut md5 = Md5::new();
+                md5.input_str(input);
+                let output = md5.result_str();
+                md5.reset();
+                md5.input_str(output);
+                md5.input(nonce);
+                let output = "md5" + md5.result_str();
+                self.write_message(&PasswordMessage(output.as_slice()));
+            }
+            resp => fail!("Bad response: %?", resp.to_str())
+        }
+
+        match self.read_message() {
+            AuthenticationOk => None,
+            ErrorResponse(*) => Some(DbError(PostgresError)),
+            resp => fail!("Bad response: %?", resp.to_str())
         }
     }
 
