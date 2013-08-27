@@ -99,7 +99,7 @@ impl PostgresConnection {
 
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
         let id = self.next_stmt_id.take();
-        let stmt_name = ifmt!("statement_{}", id);
+        let stmt_name = format!("statement_{}", id);
         self.next_stmt_id.put_back(id + 1);
 
         let types = [];
@@ -256,7 +256,7 @@ impl<'self> PostgresStatement<'self> {
 
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
         let id = self.next_portal_id.take();
-        let portal_name = ifmt!("{:s}_portal_{}", self.name.as_slice(), id);
+        let portal_name = format!("{:s}_portal_{}", self.name.as_slice(), id);
         self.next_portal_id.put_back(id + 1);
 
         self.execute(portal_name, params);
