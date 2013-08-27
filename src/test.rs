@@ -14,6 +14,12 @@ fn test_basic() {
 }
 
 #[test]
+fn test_prepare_err() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    assert!(conn.try_prepare("invalid sql statment").is_err());
+}
+
+#[test]
 fn test_query() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 

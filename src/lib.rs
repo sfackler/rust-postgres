@@ -27,16 +27,17 @@ impl Drop for PostgresConnection {
 }
 
 #[deriving(ToStr)]
-pub struct PostgresError;
-
-#[deriving(ToStr)]
 pub enum PostgresConnectError {
     InvalidUrl,
     MissingUser,
-    DbError(PostgresError),
+    DbError(PostgresDbError),
     MissingPassword,
     UnsupportedAuthentication
 }
+
+#[deriving(ToStr)]
+// TODO this should have things in it
+pub struct PostgresDbError;
 
 impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
@@ -65,7 +66,9 @@ impl PostgresConnection {
         };
         let mut args = args;
 
-        let socket_url = fmt!("%s:%s", host, port.unwrap_or_default(~"5432"));
+        // This seems silly
+        let socket_url = format!("{:s}:{:s}", host,
+                                 port.unwrap_or_default(~"5432"));
         let addr: SocketAddr = match FromStr::from_str(socket_url) {
             Some(addr) => addr,
             None => return Err(InvalidUrl)
@@ -77,7 +80,7 @@ impl PostgresConnection {
             next_stmt_id: Cell::new(0)
         };
 
-        // we have to clone here since we need the user again for auth
+        // We have to clone here since we need the user again for auth
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
             args.push((~"database", path));
@@ -124,7 +127,7 @@ impl PostgresConnection {
                 };
                 self.write_message(&PasswordMessage(pass));
             }
-            AuthenticationMD5Password(nonce) => {
+            AuthenticationMD5Password(salt) => {
                 let UserInfo { user, pass } = user;
                 let pass = match pass {
                     Some(pass) => pass,
@@ -136,7 +139,7 @@ impl PostgresConnection {
                 let output = md5.result_str();
                 md5.reset();
                 md5.input_str(output);
-                md5.input(nonce);
+                md5.input(salt);
                 let output = "md5" + md5.result_str();
                 self.write_message(&PasswordMessage(output.as_slice()));
             }
@@ -145,12 +148,21 @@ impl PostgresConnection {
 
         match self.read_message() {
             AuthenticationOk => None,
-            ErrorResponse(*) => Some(DbError(PostgresError)),
+            ErrorResponse(*) => Some(DbError(PostgresDbError)),
             resp => fail!("Bad response: %?", resp.to_str())
         }
     }
 
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
+        match self.try_prepare(query) {
+            Ok(stmt) => stmt,
+            Err(err) => fail!("Error preparing \"%s\": %s", query,
+                              err.to_str())
+        }
+    }
+
+    pub fn try_prepare<'a>(&'a self, query: &str)
+                           -> Result<PostgresStatement<'a>, PostgresDbError> {
         let id = self.next_stmt_id.take();
         let stmt_name = format!("statement_{}", id);
         self.next_stmt_id.put_back(id + 1);
@@ -161,7 +173,7 @@ impl PostgresConnection {
 
         match self.read_message() {
             ParseComplete => (),
-            resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+            ErrorResponse(*) => return Err(PostgresDbError),
             resp => fail!("Bad response: %?", resp.to_str())
         }
 
@@ -182,12 +194,12 @@ impl PostgresConnection {
 
         self.wait_for_ready();
 
-        PostgresStatement {
+        Ok(PostgresStatement {
             conn: self,
             name: stmt_name,
             num_params: num_params,
             next_portal_id: Cell::new(0)
-        }
+        })
     }
 
     pub fn in_transaction<T, E: ToStr>(&self, blk: &fn(&PostgresConnection)
@@ -257,7 +269,8 @@ impl<'self> PostgresStatement<'self> {
         self.num_params
     }
 
-    fn execute(&self, portal_name: &str, params: &[&ToSql]) {
+    fn execute(&self, portal_name: &str, params: &[&ToSql])
+               -> Option<PostgresDbError> {
         if self.num_params != params.len() {
             fail!("Expected %u params but got %u", self.num_params,
                   params.len());
@@ -274,15 +287,29 @@ impl<'self> PostgresStatement<'self> {
         self.conn.write_message(&Sync);
 
         match self.conn.read_message() {
-            BindComplete => (),
-            resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+            BindComplete => None,
+            ErrorResponse(*) => Some(PostgresDbError),
             resp => fail!("Bad response: %?", resp.to_str())
         }
     }
 
     pub fn update(&self, params: &[&ToSql]) -> uint {
+        match self.try_update(params) {
+            Ok(count) => count,
+            Err(err) => fail!("Error running update: %s", err.to_str())
+        }
+    }
+
+    pub fn try_update(&self, params: &[&ToSql])
+                      -> Result<uint, PostgresDbError> {
         // The unnamed portal is automatically cleaned up at sync time
-        self.execute("", params);
+        match self.execute("", params) {
+            Some(err) => {
+                self.conn.wait_for_ready();
+                return Err(err);
+            }
+            None => ()
+        }
 
         let mut num = 0;
         loop {
@@ -298,21 +325,38 @@ impl<'self> PostgresStatement<'self> {
                 DataRow(*) => (),
                 EmptyQueryResponse => break,
                 NoticeResponse(*) => (),
-                resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+                ErrorResponse(*) => {
+                    self.conn.wait_for_ready();
+                    return Err(PostgresDbError);
+                }
                 resp => fail!("Bad response: %?", resp.to_str())
             }
         }
         self.conn.wait_for_ready();
 
-        num
+        Ok(num)
     }
 
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
+        match self.try_query(params) {
+            Ok(result) => result,
+            Err(err) => fail!("Error running query: %s", err.to_str())
+        }
+    }
+
+    pub fn try_query<'a>(&'a self, params: &[&ToSql])
+                         -> Result<PostgresResult<'a>, PostgresDbError> {
         let id = self.next_portal_id.take();
         let portal_name = format!("{:s}_portal_{}", self.name.as_slice(), id);
         self.next_portal_id.put_back(id + 1);
 
-        self.execute(portal_name, params);
+        match self.execute(portal_name, params) {
+            Some(err) => {
+                self.conn.wait_for_ready();
+                return Err(err);
+            }
+            None => ()
+        }
 
         let mut data = ~[];
         loop {
@@ -321,16 +365,20 @@ impl<'self> PostgresStatement<'self> {
                 DataRow(row) => data.push(row),
                 CommandComplete(*) => break,
                 NoticeResponse(*) => (),
-                resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
+                ErrorResponse(*) => {
+                    self.conn.wait_for_ready();
+                    return Err(PostgresDbError);
+                }
                 resp => fail!("Bad response: %?", resp.to_str())
             }
         }
+        self.conn.wait_for_ready();
 
-        PostgresResult {
+        Ok(PostgresResult {
             stmt: self,
             name: portal_name,
             data: data
-        }
+        })
     }
 }
 
