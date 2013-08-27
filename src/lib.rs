@@ -202,15 +202,18 @@ impl PostgresConnection {
         })
     }
 
-    pub fn in_transaction<T, E: ToStr>(&self, blk: &fn(&PostgresConnection)
-                                                       -> Result<T, E>)
-                                       -> Result<T, E> {
+    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T)
+                             -> T {
         self.quick_query("BEGIN");
 
+        let trans = PostgresTransaction {
+            conn: self,
+            commit: Cell::new(true)
+        };
         // If this fails, Postgres will rollback when the connection closes
-        let ret = blk(self);
+        let ret = blk(&trans);
 
-        if ret.is_ok() {
+        if trans.commit.take() {
             self.quick_query("COMMIT");
         } else {
             self.quick_query("ROLLBACK");
@@ -238,6 +241,38 @@ impl PostgresConnection {
                 resp => fail!("Bad response: %?", resp.to_str())
             }
         }
+    }
+}
+
+pub struct PostgresTransaction<'self> {
+    priv conn: &'self PostgresConnection,
+    priv commit: Cell<bool>
+}
+
+impl<'self> PostgresTransaction<'self> {
+    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
+        self.conn.prepare(query)
+    }
+
+    pub fn try_prepare<'a>(&'a self, query: &str)
+                           -> Result<PostgresStatement<'a>, PostgresDbError> {
+        self.conn.try_prepare(query)
+    }
+
+    pub fn will_commit(&self) -> bool {
+        let commit = self.commit.take();
+        self.commit.put_back(commit);
+        commit
+    }
+
+    pub fn set_commit(&self) {
+        self.commit.take();
+        self.commit.put_back(true);
+    }
+
+    pub fn set_rollback(&self) {
+        self.commit.take();
+        self.commit.put_back(false);
     }
 }
 

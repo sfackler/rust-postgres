@@ -6,10 +6,10 @@ use postgres::{PostgresConnection, ToSql};
 fn test_basic() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
-    do conn.in_transaction |conn| {
-        conn.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
+    do conn.in_transaction |trans| {
+        trans.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
 
-        Err::<(), ()>(())
+        trans.set_rollback();
     };
 }
 
@@ -23,16 +23,16 @@ fn test_prepare_err() {
 fn test_query() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
-    do conn.in_transaction |conn| {
-        conn.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
-        conn.prepare("INSERT INTO foo (id) VALUES ($1), ($2)")
+    do conn.in_transaction |trans| {
+        trans.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
+        trans.prepare("INSERT INTO foo (id) VALUES ($1), ($2)")
                 .update([&1 as &ToSql, &2 as &ToSql]);
-        let stmt = conn.prepare("SELECT * from foo ORDER BY id");
+        let stmt = trans.prepare("SELECT * from foo ORDER BY id");
         let result = stmt.query([]);
 
         assert_eq!(~[1, 2], result.iter().map(|row| { row[0] }).collect());
 
-        Err::<(), ()>(())
+        trans.set_rollback();
     };
 }
 
@@ -40,7 +40,7 @@ fn test_query() {
 fn test_nulls() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
-    do conn.in_transaction |conn| {
+    do conn.in_transaction |trans| {
         conn.prepare("CREATE TABLE foo (
                         id BIGINT PRIMARY KEY,
                         val VARCHAR
@@ -54,7 +54,7 @@ fn test_nulls() {
         assert_eq!(~[Some(~"foobar"), None],
                    result.iter().map(|row| { row[1] }).collect());
 
-        Err::<(), ()>(())
+        trans.set_rollback();
     };
 }
 
