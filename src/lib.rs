@@ -4,6 +4,7 @@ use extra::digest::Digest;
 use extra::md5::Md5;
 use extra::url::{UserInfo, Url};
 use std::cell::Cell;
+use std::hashmap::HashMap;
 use std::rt::io::io_error;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
@@ -13,6 +14,36 @@ use types::{ToSql, FromSql};
 
 mod message;
 mod types;
+
+macro_rules! match_read_message(
+    ($conn:expr, { $($($p:pat)|+ => $e:expr),+ }) => (
+        match {
+            let ref conn = $conn;
+            let resp;
+            loop {
+                match conn.read_message() {
+                    NoticeResponse(data) => handle_notice_response(data),
+                    msg => {
+                        resp = msg;
+                        break;
+                    }
+                }
+            }
+            resp
+        } {
+            $(
+                $($p)|+ => $e
+            ),+
+        }
+    )
+)
+
+fn handle_notice_response(data: ~[(u8, ~str)]) {
+    // move_rev_iter is more efficient than move_iter
+    let map: HashMap<u8, ~str> = data.move_rev_iter().collect();
+    info!("%s: %s", map.find(&('S' as u8)).unwrap().as_slice(),
+          map.find(&('M' as u8)).unwrap().as_slice());
+}
 
 pub struct PostgresConnection {
     priv stream: Cell<TcpStream>,
@@ -94,13 +125,13 @@ impl PostgresConnection {
         }
 
         loop {
-            match conn.read_message() {
+            match_read_message!(conn, {
                 ParameterStatus(param, value) =>
                     info!("Parameter %s = %s", param, value),
                 BackendKeyData(*) => (),
                 ReadyForQuery(*) => break,
                 resp => fail!("Bad response: %?", resp.to_str())
-            }
+            })
         }
 
         Ok(conn)
@@ -119,7 +150,7 @@ impl PostgresConnection {
     }
 
     fn handle_auth(&self, user: UserInfo) -> Option<PostgresConnectError> {
-        match self.read_message() {
+        match_read_message!(self, {
             AuthenticationOk => return None,
             AuthenticationCleartextPassword => {
                 let pass = match user.pass {
@@ -127,7 +158,7 @@ impl PostgresConnection {
                     None => return Some(MissingPassword)
                 };
                 self.write_message(&PasswordMessage(pass));
-            }
+            },
             AuthenticationMD5Password(salt) => {
                 let UserInfo { user, pass } = user;
                 let pass = match pass {
@@ -143,15 +174,15 @@ impl PostgresConnection {
                 md5.input(salt);
                 let output = "md5" + md5.result_str();
                 self.write_message(&PasswordMessage(output.as_slice()));
-            }
+            },
             resp => fail!("Bad response: %?", resp.to_str())
-        }
+        })
 
-        match self.read_message() {
+        match_read_message!(self, {
             AuthenticationOk => None,
             ErrorResponse(*) => Some(DbError(PostgresDbError)),
             resp => fail!("Bad response: %?", resp.to_str())
-        }
+        })
     }
 
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
@@ -188,10 +219,10 @@ impl PostgresConnection {
             resp => fail!("Bad response: %?", resp.to_str())
         };
 
-        match self.read_message() {
+        match_read_message!(self, {
             RowDescription(*) | NoData => (),
             resp => fail!("Bad response: %?", resp.to_str())
-        }
+        })
 
         self.wait_for_ready();
 
@@ -227,20 +258,20 @@ impl PostgresConnection {
         self.write_message(&Query(query));
 
         loop {
-            match self.read_message() {
+            match_read_message!(self, {
                 ReadyForQuery(*) => break,
                 resp @ ErrorResponse(*) => fail!("Error: %?", resp.to_str()),
                 _ => ()
-            }
+            })
         }
     }
 
     fn wait_for_ready(&self) {
         loop {
-            match self.read_message() {
+            match_read_message!(self, {
                 ReadyForQuery(*) => break,
                 resp => fail!("Bad response: %?", resp.to_str())
-            }
+            })
         }
     }
 }
@@ -291,10 +322,10 @@ impl<'self> Drop for PostgresStatement<'self> {
             self.conn.write_message(&Close('S' as u8, self.name.as_slice()));
             self.conn.write_message(&Sync);
             loop {
-                match self.conn.read_message() {
+                match_read_message!(self.conn, {
                     ReadyForQuery(*) => break,
                     _ => ()
-                }
+                })
             }
         }
     }
@@ -322,11 +353,11 @@ impl<'self> PostgresStatement<'self> {
         self.conn.write_message(&Execute(portal_name.as_slice(), 0));
         self.conn.write_message(&Sync);
 
-        match self.conn.read_message() {
+        match_read_message!(self.conn, {
             BindComplete => None,
             ErrorResponse(*) => Some(PostgresDbError),
             resp => fail!("Bad response: %?", resp.to_str())
-        }
+        })
     }
 
     pub fn update(&self, params: &[&ToSql]) -> uint {
@@ -349,7 +380,7 @@ impl<'self> PostgresStatement<'self> {
 
         let mut num = 0;
         loop {
-            match self.conn.read_message() {
+            match_read_message!(self.conn, {
                 CommandComplete(ret) => {
                     let s = ret.split_iter(' ').last().unwrap();
                     match FromStr::from_str(s) {
@@ -357,16 +388,16 @@ impl<'self> PostgresStatement<'self> {
                         Some(n) => num = n
                     }
                     break;
-                }
+                },
                 DataRow(*) => (),
                 EmptyQueryResponse => break,
                 NoticeResponse(*) => (),
                 ErrorResponse(*) => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError);
-                }
+                },
                 resp => fail!("Bad response: %?", resp.to_str())
-            }
+            })
         }
         self.conn.wait_for_ready();
 
@@ -396,7 +427,7 @@ impl<'self> PostgresStatement<'self> {
 
         let mut data = ~[];
         loop {
-            match self.conn.read_message() {
+            match_read_message!(self.conn, {
                 EmptyQueryResponse => break,
                 DataRow(row) => data.push(row),
                 CommandComplete(*) => break,
@@ -404,9 +435,9 @@ impl<'self> PostgresStatement<'self> {
                 ErrorResponse(*) => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError);
-                }
+                },
                 resp => fail!("Bad response: %?", resp.to_str())
-            }
+            })
         }
         self.conn.wait_for_ready();
 
@@ -432,10 +463,10 @@ impl<'self> Drop for PostgresResult<'self> {
                                                 self.name.as_slice()));
             self.stmt.conn.write_message(&Sync);
             loop {
-                match self.stmt.conn.read_message() {
+                match_read_message!(self.stmt.conn, {
                     ReadyForQuery(*) => break,
                     _ => ()
-                }
+                })
             }
         }
     }
