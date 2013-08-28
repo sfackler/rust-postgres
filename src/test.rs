@@ -1,6 +1,7 @@
 extern mod postgres;
 
-use postgres::{PostgresConnection, ToSql};
+use postgres::{PostgresConnection};
+use postgres::types::ToSql;
 
 #[test]
 fn test_basic() {
