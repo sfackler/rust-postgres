@@ -510,7 +510,9 @@ macro_rules! from_option_impl(
     ($t:ty) => (
         impl FromSql for $t {
             fn from_sql(raw: &Option<~[u8]>) -> $t {
-                FromSql::from_sql::<Option<$t>>(raw).unwrap()
+                // FIXME when you can specify Self types properly
+                let ret: Option<$t> = FromSql::from_sql(raw);
+                ret.unwrap()
             }
         }
     )
