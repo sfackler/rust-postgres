@@ -285,8 +285,7 @@ impl PostgresConnection {
         })
     }
 
-    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T)
-                             -> T {
+    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.quick_query("BEGIN");
 
         let trans = PostgresTransaction {
@@ -431,19 +430,22 @@ impl<'self> PostgresStatement<'self> {
             None => ()
         }
 
-        let mut num = 0;
+        let num;
         loop {
             match_read_message!(self.conn, {
                 CommandComplete { tag } => {
                     let s = tag.split_iter(' ').last().unwrap();
-                    match FromStr::from_str(s) {
-                        None => (),
-                        Some(n) => num = n
-                    }
+                    num = match FromStr::from_str(s) {
+                        None => 0,
+                        Some(n) => n
+                    };
                     break;
                 },
                 DataRow {_} => (),
-                EmptyQueryResponse => break,
+                EmptyQueryResponse => {
+                    num = 0;
+                    break;
+                },
                 NoticeResponse {_} => (),
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
