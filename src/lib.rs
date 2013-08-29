@@ -43,19 +43,6 @@ fn handle_notice_response(fields: ~[(u8, ~str)]) {
     info!("%s: %s", err.severity, err.message);
 }
 
-pub struct PostgresConnection {
-    priv stream: Cell<TcpStream>,
-    priv next_stmt_id: Cell<int>
-}
-
-impl Drop for PostgresConnection {
-    fn drop(&self) {
-        do io_error::cond.trap(|_| {}).inside {
-            self.write_message(&Terminate);
-        }
-    }
-}
-
 #[deriving(ToStr)]
 pub enum PostgresConnectError {
     InvalidUrl,
@@ -110,6 +97,19 @@ impl PostgresDbError {
             file: map.pop(&('F' as u8)).unwrap(),
             line: FromStr::from_str(map.pop(&('L' as u8)).unwrap()).unwrap(),
             routine: map.pop(&('R' as u8)).unwrap()
+        }
+    }
+}
+
+pub struct PostgresConnection {
+    priv stream: Cell<TcpStream>,
+    priv next_stmt_id: Cell<int>
+}
+
+impl Drop for PostgresConnection {
+    fn drop(&self) {
+        do io_error::cond.trap(|_| {}).inside {
+            self.write_message(&Terminate);
         }
     }
 }
