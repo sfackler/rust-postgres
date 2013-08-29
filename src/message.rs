@@ -11,22 +11,44 @@ pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 #[deriving(ToStr)]
 pub enum BackendMessage {
     AuthenticationCleartextPassword,
-    AuthenticationMD5Password(~[u8]),
+    AuthenticationMD5Password {
+        salt: ~[u8]
+    },
     AuthenticationOk,
-    BackendKeyData(i32, i32),
+    BackendKeyData {
+        process_id: i32,
+        secret_key: i32
+    },
     BindComplete,
     CloseComplete,
-    CommandComplete(~str),
-    DataRow(~[Option<~[u8]>]),
+    CommandComplete {
+        tag: ~str
+    },
+    DataRow {
+        row: ~[Option<~[u8]>]
+    },
     EmptyQueryResponse,
-    ErrorResponse(~[(u8, ~str)]),
+    ErrorResponse {
+        fields: ~[(u8, ~str)]
+    },
     NoData,
-    NoticeResponse(~[(u8, ~str)]),
-    ParameterDescription(~[i32]),
-    ParameterStatus(~str, ~str),
+    NoticeResponse {
+        fields: ~[(u8, ~str)]
+    },
+    ParameterDescription {
+        types: ~[i32]
+    },
+    ParameterStatus {
+        parameter: ~str,
+        value: ~str
+    },
     ParseComplete,
-    ReadyForQuery(u8),
-    RowDescription(~[RowDescriptionEntry])
+    ReadyForQuery {
+        state: u8
+    },
+    RowDescription {
+        descriptions: ~[RowDescriptionEntry]
+    }
 }
 
 #[deriving(ToStr)]
@@ -41,17 +63,40 @@ pub struct RowDescriptionEntry {
 }
 
 pub enum FrontendMessage<'self> {
-    /// portal, stmt, formats, values, result formats
-    Bind(&'self str, &'self str, &'self [i16], &'self [Option<~[u8]>],
-         &'self [i16]),
-    Close(u8, &'self str),
-    Describe(u8, &'self str),
-    Execute(&'self str, i32),
-    /// name, query, parameter types
-    Parse(&'self str, &'self str, &'self [i32]),
-    PasswordMessage(&'self str),
-    Query(&'self str),
-    StartupMessage(&'self [(~str, ~str)]),
+    Bind {
+        portal: &'self str,
+        statement: &'self str,
+        formats: &'self [i16],
+        values: &'self [Option<~[u8]>],
+        result_formats: &'self [i16]
+    },
+    Close {
+        variant: u8,
+        name: &'self str
+    },
+    Describe {
+        variant: u8,
+        name: &'self str
+    },
+    Execute {
+        portal: &'self str,
+        max_rows: i32
+    },
+    Parse {
+        name: &'self str,
+        query: &'self str,
+        param_types: &'self [i32]
+    },
+    PasswordMessage {
+        password: &'self str
+    },
+    Query {
+        query: &'self str
+    },
+    StartupMessage {
+        version: i32,
+        parameters: &'self [(~str, ~str)]
+    },
     Sync,
     Terminate
 }
@@ -78,10 +123,10 @@ impl<W: Writer> WriteMessage for W {
         let mut ident = None;
 
         match *message {
-            Bind(portal, stmt, formats, values, result_formats) => {
+            Bind { portal, statement, formats, values, result_formats } => {
                 ident = Some('B');
                 buf.write_string(portal);
-                buf.write_string(stmt);
+                buf.write_string(statement);
 
                 buf.write_be_i16_(formats.len() as i16);
                 for format in formats.iter() {
@@ -106,22 +151,22 @@ impl<W: Writer> WriteMessage for W {
                     buf.write_be_i16_(*format);
                 }
             }
-            Close(variant, name) => {
+            Close { variant, name } => {
                 ident = Some('C');
                 buf.write_u8_(variant);
                 buf.write_string(name);
             }
-            Describe(variant, name) => {
+            Describe { variant, name } => {
                 ident = Some('D');
                 buf.write_u8_(variant);
                 buf.write_string(name);
             }
-            Execute(name, num_rows) => {
+            Execute { portal, max_rows } => {
                 ident = Some('E');
-                buf.write_string(name);
-                buf.write_be_i32_(num_rows);
+                buf.write_string(portal);
+                buf.write_be_i32_(max_rows);
             }
-            Parse(name, query, param_types) => {
+            Parse { name, query, param_types } => {
                 ident = Some('P');
                 buf.write_string(name);
                 buf.write_string(query);
@@ -130,17 +175,17 @@ impl<W: Writer> WriteMessage for W {
                     buf.write_be_i32_(*ty);
                 }
             }
-            PasswordMessage(password) => {
+            PasswordMessage { password } => {
                 ident = Some('p');
                 buf.write_string(password);
             }
-            Query(query) => {
+            Query { query } => {
                 ident = Some('Q');
                 buf.write_string(query);
             }
-            StartupMessage(ref params) => {
-                buf.write_be_i32_(PROTOCOL_VERSION);
-                for &(ref k, ref v) in params.iter() {
+            StartupMessage { version, parameters } => {
+                buf.write_be_i32_(version);
+                for &(ref k, ref v) in parameters.iter() {
                     buf.write_string(k.as_slice());
                     buf.write_string(v.as_slice());
                 }
@@ -203,18 +248,24 @@ impl<R: Reader> ReadMessage for R {
             '1' => ParseComplete,
             '2' => BindComplete,
             '3' => CloseComplete,
-            'C' => CommandComplete(buf.read_string()),
+            'C' => CommandComplete { tag: buf.read_string() },
             'D' => read_data_row(&mut buf),
-            'E' => ErrorResponse(read_fields(&mut buf)),
+            'E' => ErrorResponse { fields: read_fields(&mut buf) },
             'I' => EmptyQueryResponse,
-            'K' => BackendKeyData(buf.read_be_i32_(), buf.read_be_i32_()),
+            'K' => BackendKeyData {
+                process_id: buf.read_be_i32_(),
+                secret_key: buf.read_be_i32_()
+            },
             'n' => NoData,
-            'N' => NoticeResponse(read_fields(&mut buf)),
+            'N' => NoticeResponse { fields: read_fields(&mut buf) },
             'R' => read_auth_message(&mut buf),
-            'S' => ParameterStatus(buf.read_string(), buf.read_string()),
+            'S' => ParameterStatus {
+                parameter: buf.read_string(),
+                value: buf.read_string()
+            },
             't' => read_parameter_description(&mut buf),
             'T' => read_row_description(&mut buf),
-            'Z' => ReadyForQuery(buf.read_u8_()),
+            'Z' => ReadyForQuery { state: buf.read_u8_() },
             ident => fail!("Unknown message identifier `%c`", ident)
         };
         assert!(buf.eof());
@@ -249,14 +300,14 @@ fn read_data_row(buf: &mut MemReader) -> BackendMessage {
         values.push(val);
     }
 
-    DataRow(values)
+    DataRow { row: values }
 }
 
 fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
     match buf.read_be_i32_() {
         0 => AuthenticationOk,
         3 => AuthenticationCleartextPassword,
-        5 => AuthenticationMD5Password(buf.read_bytes(4)),
+        5 => AuthenticationMD5Password { salt: buf.read_bytes(4) },
         val => fail!("Unknown Authentication identifier `%?`", val)
     }
 }
@@ -269,7 +320,7 @@ fn read_parameter_description(buf: &mut MemReader) -> BackendMessage {
         types.push(buf.read_be_i32_());
     }
 
-    ParameterDescription(types)
+    ParameterDescription { types: types }
 }
 
 fn read_row_description(buf: &mut MemReader) -> BackendMessage {
@@ -288,5 +339,5 @@ fn read_row_description(buf: &mut MemReader) -> BackendMessage {
         });
     }
 
-    RowDescription(types)
+    RowDescription { descriptions: types }
 }
