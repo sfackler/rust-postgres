@@ -1,6 +1,6 @@
 extern mod postgres;
 
-use postgres::{PostgresConnection};
+use postgres::*;
 use postgres::types::ToSql;
 
 #[test]
@@ -17,7 +17,16 @@ fn test_basic() {
 #[test]
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
-    assert!(conn.try_prepare("invalid sql statment").is_err());
+    match conn.try_prepare("invalid sql statment") {
+        Err(PostgresDbError { position, code, _ }) => {
+            assert_eq!(code, ~"42601");
+            match position {
+                Some(Position(1)) => (),
+                position => fail!("Unexpected position %?", position)
+            }
+        }
+        resp => fail!("Unexpected result %?", resp)
+    }
 }
 
 #[test]
@@ -65,15 +74,21 @@ fn test_plaintext_pass() {
 }
 
 #[test]
-#[should_fail]
 fn test_plaintext_pass_no_pass() {
-    PostgresConnection::connect("postgres://pass_user@127.0.0.1:5432");
+    let ret = PostgresConnection::try_connect("postgres://pass_user@127.0.0.1:5432");
+    match ret {
+        Err(MissingPassword) => (),
+        ret => fail!("Unexpected result %?", ret)
+    }
 }
 
 #[test]
-#[should_fail]
 fn test_plaintext_pass_wrong_pass() {
-    PostgresConnection::connect("postgres://pass_user:asdf@127.0.0.1:5432");
+    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@127.0.0.1:5432");
+    match ret {
+        Err(DbError(PostgresDbError { code, _ })) => assert_eq!(code, ~"28P01"),
+        ret => fail!("Unexpected result %?", ret)
+    }
 }
 
 #[test]
@@ -82,13 +97,19 @@ fn test_md5_pass() {
 }
 
 #[test]
-#[should_fail]
 fn test_md5_pass_no_pass() {
-    PostgresConnection::connect("postgres://md5_user@127.0.0.1:5432");
+    let ret = PostgresConnection::try_connect("postgres://md5_user@127.0.0.1:5432");
+    match ret {
+        Err(MissingPassword) => (),
+        ret => fail!("Unexpected result %?", ret)
+    }
 }
 
 #[test]
-#[should_fail]
 fn test_md5_pass_wrong_pass() {
-    PostgresConnection::connect("postgres://md5_user:asdf@127.0.0.1:5432");
+    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@127.0.0.1:5432");
+    match ret {
+        Err(DbError(PostgresDbError { code, _ })) => assert_eq!(code, ~"28P01"),
+        ret => fail!("Unexpected result %?", ret)
+    }
 }

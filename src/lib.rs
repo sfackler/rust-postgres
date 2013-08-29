@@ -39,10 +39,8 @@ macro_rules! match_read_message(
 )
 
 fn handle_notice_response(fields: ~[(u8, ~str)]) {
-    // move_rev_iter is more efficient than move_iter
-    let map: HashMap<u8, ~str> = fields.move_rev_iter().collect();
-    info!("%s: %s", map.find(&('S' as u8)).unwrap().as_slice(),
-          map.find(&('M' as u8)).unwrap().as_slice());
+    let err = PostgresDbError::new(fields);
+    info!("%s: %s", err.severity, err.message);
 }
 
 pub struct PostgresConnection {
@@ -68,8 +66,53 @@ pub enum PostgresConnectError {
 }
 
 #[deriving(ToStr)]
-// TODO this should have things in it
-pub struct PostgresDbError;
+pub enum PostgresErrorPosition {
+    Position(uint),
+    InternalPosition {
+        position: uint,
+        query: ~str
+    }
+}
+
+#[deriving(ToStr)]
+pub struct PostgresDbError {
+    // This could almost be an enum, except the values can be localized :(
+    severity: ~str,
+    // Should probably end up as an enum
+    code: ~str,
+    message: ~str,
+    position: Option<PostgresErrorPosition>,
+    where: Option<~str>,
+    file: ~str,
+    line: uint,
+    routine: ~str
+}
+
+impl PostgresDbError {
+    fn new(fields: ~[(u8, ~str)]) -> PostgresDbError {
+        // move_rev_iter is more efficient than move_iter
+        let mut map: HashMap<u8, ~str> = fields.move_rev_iter().collect();
+        PostgresDbError {
+            severity: map.pop(&('S' as u8)).unwrap(),
+            code: map.pop(&('C' as u8)).unwrap(),
+            message: map.pop(&('M' as u8)).unwrap(),
+            position: match map.pop(&('P' as u8)) {
+                Some(pos) => Some(Position(FromStr::from_str(pos).unwrap())),
+                None => match map.pop(&('p' as u8)) {
+                    Some(pos) => Some(InternalPosition {
+                        position: FromStr::from_str(pos).unwrap(),
+                        query: map.pop(&('q' as u8)).unwrap()
+                    }),
+                    None => None
+                }
+            },
+            where: map.pop(&('W' as u8)),
+            file: map.pop(&('F' as u8)).unwrap(),
+            line: FromStr::from_str(map.pop(&('L' as u8)).unwrap()).unwrap(),
+            routine: map.pop(&('R' as u8)).unwrap()
+        }
+    }
+}
 
 impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
@@ -131,8 +174,8 @@ impl PostgresConnection {
             match_read_message!(conn, {
                 ParameterStatus { parameter, value } =>
                     info!("Parameter %s = %s", parameter, value),
-                BackendKeyData { _ } => (),
-                ReadyForQuery { _ } => break,
+                BackendKeyData {_} => (),
+                ReadyForQuery {_} => break,
                 resp => fail!("Bad response: %?", resp.to_str())
             })
         }
@@ -185,7 +228,8 @@ impl PostgresConnection {
 
         match_read_message!(self, {
             AuthenticationOk => None,
-            ErrorResponse {_} => Some(DbError(PostgresDbError)),
+            ErrorResponse { fields } =>
+                Some(DbError(PostgresDbError::new(fields))),
             resp => fail!("Bad response: %?", resp.to_str())
         })
     }
@@ -214,7 +258,8 @@ impl PostgresConnection {
 
         match self.read_message() {
             ParseComplete => (),
-            ErrorResponse {_} => return Err(PostgresDbError),
+            ErrorResponse { fields } =>
+                return Err(PostgresDbError::new(fields)),
             resp => fail!("Bad response: %?", resp.to_str())
         }
 
@@ -269,7 +314,8 @@ impl PostgresConnection {
         loop {
             match_read_message!(self, {
                 ReadyForQuery {_} => break,
-                resp @ ErrorResponse {_} => fail!("Error: %?", resp.to_str()),
+                ErrorResponse { fields } =>
+                    fail!("Error: %s", PostgresDbError::new(fields).to_str()),
                 _ => ()
             })
         }
@@ -375,7 +421,7 @@ impl<'self> PostgresStatement<'self> {
 
         match_read_message!(self.conn, {
             BindComplete => None,
-            ErrorResponse {_} => Some(PostgresDbError),
+            ErrorResponse { fields } => Some(PostgresDbError::new(fields)),
             resp => fail!("Bad response: %?", resp.to_str())
         })
     }
@@ -412,9 +458,9 @@ impl<'self> PostgresStatement<'self> {
                 DataRow {_} => (),
                 EmptyQueryResponse => break,
                 NoticeResponse {_} => (),
-                ErrorResponse {_} => {
+                ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
-                    return Err(PostgresDbError);
+                    return Err(PostgresDbError::new(fields));
                 },
                 resp => fail!("Bad response: %?", resp.to_str())
             })
@@ -452,9 +498,9 @@ impl<'self> PostgresStatement<'self> {
                 DataRow { row } => data.push(row),
                 CommandComplete {_} => break,
                 NoticeResponse {_} => (),
-                ErrorResponse {_} => {
+                ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
-                    return Err(PostgresDbError);
+                    return Err(PostgresDbError::new(fields));
                 },
                 resp => fail!("Bad response: %?", resp.to_str())
             })
