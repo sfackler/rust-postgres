@@ -69,6 +69,26 @@ fn test_nulls() {
 }
 
 #[test]
+fn test_wrong_num_params() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+
+    do conn.in_transaction |trans| {
+        trans.prepare("CREATE TABLE foo (
+                        id BIGINT PRIMARY KEY,
+                        val VARCHAR
+                      )").update([]);
+        let res = trans.prepare("INSERT INTO foo (id, val) VALUES ($1, $2), ($3, $4)")
+                .try_update([&1 as &ToSql, & &"foobar" as &ToSql]);
+        match res {
+            Err(PostgresDbError { code: ~"08P01", _ }) => (),
+            resp => fail!("Unexpected response: %?", resp)
+        }
+
+        trans.set_rollback();
+    }
+}
+
+#[test]
 fn test_plaintext_pass() {
     PostgresConnection::connect("postgres://pass_user:password@127.0.0.1:5432");
 }
@@ -86,7 +106,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@127.0.0.1:5432");
     match ret {
-        Err(DbError(PostgresDbError { code, _ })) => assert_eq!(code, ~"28P01"),
+        Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
         ret => fail!("Unexpected result %?", ret)
     }
 }
@@ -109,7 +129,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@127.0.0.1:5432");
     match ret {
-        Err(DbError(PostgresDbError { code, _ })) => assert_eq!(code, ~"28P01"),
+        Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
         ret => fail!("Unexpected result %?", ret)
     }
 }

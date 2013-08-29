@@ -254,24 +254,22 @@ impl PostgresConnection {
             query: query,
             param_types: types
         });
-        self.write_message(&Sync);
-
-        match self.read_message() {
-            ParseComplete => (),
-            ErrorResponse { fields } =>
-                return Err(PostgresDbError::new(fields)),
-            resp => fail!("Bad response: %?", resp.to_str())
-        }
-
-        self.wait_for_ready();
-
         self.write_message(&Describe { variant: 'S' as u8, name: stmt_name });
         self.write_message(&Sync);
 
-        let num_params = match self.read_message() {
-            ParameterDescription { types } => types.len(),
+        match_read_message!(self, {
+            ParseComplete => (),
+            ErrorResponse { fields } => {
+                self.wait_for_ready();
+                return Err(PostgresDbError::new(fields));
+            },
             resp => fail!("Bad response: %?", resp.to_str())
-        };
+        })
+
+        match_read_message!(self, {
+            ParameterDescription {_} => (),
+            resp => fail!("Bad response: %?", resp.to_str())
+        })
 
         match_read_message!(self, {
             RowDescription {_} | NoData => (),
@@ -283,7 +281,6 @@ impl PostgresConnection {
         Ok(PostgresStatement {
             conn: self,
             name: stmt_name,
-            num_params: num_params,
             next_portal_id: Cell::new(0)
         })
     }
@@ -366,7 +363,6 @@ impl<'self> PostgresTransaction<'self> {
 pub struct PostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
-    priv num_params: uint,
     priv next_portal_id: Cell<uint>
 }
 
@@ -390,17 +386,8 @@ impl<'self> Drop for PostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement<'self> {
-    pub fn num_params(&self) -> uint {
-        self.num_params
-    }
-
     fn execute(&self, portal_name: &str, params: &[&ToSql])
                -> Option<PostgresDbError> {
-        if self.num_params != params.len() {
-            fail!("Expected %u params but got %u", self.num_params,
-                  params.len());
-        }
-
         let formats = [];
         let values: ~[Option<~[u8]>] = params.iter().map(|val| val.to_sql())
                 .collect();
