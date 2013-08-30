@@ -2,6 +2,9 @@ use std::str;
 
 pub type Oid = i32;
 
+// Values from pg_type.h
+static BOOLOID: Oid = 16;
+
 pub enum Format {
     Text = 0,
     Binary = 1
@@ -38,6 +41,23 @@ macro_rules! from_option_impl(
         }
     )
 )
+
+impl FromSql for Option<bool> {
+    fn from_sql(raw: &Option<~[u8]>) -> Option<bool> {
+        match *raw {
+            None => None,
+            Some(ref buf) => {
+                assert_eq!(1, buf.len());
+                match buf[0] as char {
+                    't' => Some(true),
+                    'f' => Some(false),
+                    byte => fail!("Invalid byte: %?", byte)
+                }
+            }
+        }
+    }
+}
+from_option_impl!(bool)
 
 from_str_impl!(int)
 from_option_impl!(int)
@@ -101,6 +121,17 @@ macro_rules! to_option_impl(
         }
     )
 )
+
+impl ToSql for bool {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        if ty == BOOLOID {
+            (Binary, Some(~[*self as u8]))
+        } else {
+            (Text, Some(self.to_str().into_bytes()))
+        }
+    }
+}
+to_option_impl!(bool)
 
 to_str_impl!(int)
 to_option_impl!(int)

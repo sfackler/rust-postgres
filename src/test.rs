@@ -69,6 +69,30 @@ fn test_nulls() {
 }
 
 #[test]
+fn test_binary_bool_params() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+
+    do conn.in_transaction |trans| {
+        trans.prepare("CREATE TABLE foo (
+                        id BIGINT PRIMARY KEY,
+                        b BOOL
+                       )").update([]);
+        trans.prepare("INSERT INTO foo (id, b) VALUES
+                        ($1, $2), ($3, $4), ($5, $6)")
+                .update([&1 as &ToSql, &true as &ToSql,
+                         &2 as &ToSql, &false as &ToSql,
+                         &3 as &ToSql, &None::<bool> as &ToSql]);
+        let stmt = trans.prepare("SELECT b FROM foo ORDER BY id");
+        let result = stmt.query([]);
+
+        assert_eq!(~[Some(true), Some(false), None],
+                   result.iter().map(|row| { row[0] }).collect());
+
+        trans.set_rollback();
+    }
+}
+
+#[test]
 fn test_wrong_num_params() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
