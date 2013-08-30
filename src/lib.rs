@@ -10,7 +10,7 @@ use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
 use message::*;
-use types::{ToSql, FromSql};
+use types::{Oid, ToSql, FromSql};
 
 mod message;
 mod types;
@@ -266,10 +266,10 @@ impl PostgresConnection {
             resp => fail!("Bad response: %?", resp.to_str())
         })
 
-        match_read_message!(self, {
-            ParameterDescription {_} => (),
+        let param_types = match_read_message!(self, {
+            ParameterDescription { types } => types,
             resp => fail!("Bad response: %?", resp.to_str())
-        })
+        });
 
         match_read_message!(self, {
             RowDescription {_} | NoData => (),
@@ -281,6 +281,7 @@ impl PostgresConnection {
         Ok(PostgresStatement {
             conn: self,
             name: stmt_name,
+            param_types: param_types,
             next_portal_id: Cell::new(0)
         })
     }
@@ -362,6 +363,7 @@ impl<'self> PostgresTransaction<'self> {
 pub struct PostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
+    priv param_types: ~[Oid],
     priv next_portal_id: Cell<uint>
 }
 
@@ -387,9 +389,14 @@ impl<'self> Drop for PostgresStatement<'self> {
 impl<'self> PostgresStatement<'self> {
     fn execute(&self, portal_name: &str, params: &[&ToSql])
                -> Option<PostgresDbError> {
-        let formats = [];
-        let values: ~[Option<~[u8]>] = params.iter().map(|val| val.to_sql())
-                .collect();
+        let mut formats = ~[];
+        let mut values = ~[];
+        for (&param, &ty) in params.iter().zip(self.param_types.iter()) {
+            let (format, value) = param.to_sql(ty);
+            formats.push(format as i16);
+            values.push(value);
+        };
+
         let result_formats = [];
 
         self.conn.write_message(&Bind {

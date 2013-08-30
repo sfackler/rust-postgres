@@ -1,5 +1,12 @@
 use std::str;
 
+pub type Oid = i32;
+
+pub enum Format {
+    Text = 0,
+    Binary = 1
+}
+
 pub trait FromSql {
     fn from_sql(raw: &Option<~[u8]>) -> Self;
 }
@@ -69,14 +76,14 @@ impl FromSql for Option<~str> {
 from_option_impl!(~str)
 
 pub trait ToSql {
-    fn to_sql(&self) -> Option<~[u8]>;
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>);
 }
 
 macro_rules! to_str_impl(
     ($t:ty) => (
         impl ToSql for $t {
-            fn to_sql(&self) -> Option<~[u8]> {
-                Some(self.to_str().into_bytes())
+            fn to_sql(&self, _ty: Oid) -> (Format, Option<~[u8]>) {
+                (Text, Some(self.to_str().into_bytes()))
             }
         }
     )
@@ -85,9 +92,10 @@ macro_rules! to_str_impl(
 macro_rules! to_option_impl(
     ($t:ty) => (
         impl ToSql for Option<$t> {
-            fn to_sql(&self) -> Option<~[u8]> {
-                do self.chain |val| {
-                    val.to_sql()
+            fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+                match *self {
+                    None => (Text, None),
+                    Some(val) => val.to_sql(ty)
                 }
             }
         }
@@ -122,23 +130,25 @@ to_str_impl!(f64)
 to_option_impl!(f64)
 
 impl<'self> ToSql for &'self str {
-    fn to_sql(&self) -> Option<~[u8]> {
-        Some(self.as_bytes().to_owned())
+    fn to_sql(&self, _ty: Oid) -> (Format, Option<~[u8]>) {
+        (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
 impl ToSql for Option<~str> {
-    fn to_sql(&self) -> Option<~[u8]> {
-        do self.chain_ref |val| {
-            val.to_sql()
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        match *self {
+            None => (Text, None),
+            Some(ref val) => val.to_sql(ty)
         }
     }
 }
 
 impl<'self> ToSql for Option<&'self str> {
-    fn to_sql(&self) -> Option<~[u8]> {
-        do self.chain |val| {
-            val.to_sql()
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        match *self {
+            None => (Text, None),
+            Some(val) => val.to_sql(ty)
         }
     }
 }

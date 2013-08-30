@@ -6,6 +6,8 @@ use std::rt::io::mem::{MemWriter, MemReader};
 use std::sys;
 use std::vec;
 
+use types::Oid;
+
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 
 #[deriving(ToStr)]
@@ -36,7 +38,7 @@ pub enum BackendMessage {
         fields: ~[(u8, ~str)]
     },
     ParameterDescription {
-        types: ~[i32]
+        types: ~[Oid]
     },
     ParameterStatus {
         parameter: ~str,
@@ -54,9 +56,9 @@ pub enum BackendMessage {
 #[deriving(ToStr)]
 pub struct RowDescriptionEntry {
     name: ~str,
-    table_oid: i32,
+    table_oid: Oid,
     column_id: i16,
-    type_oid: i32,
+    type_oid: Oid,
     type_size: i16,
     type_modifier: i32,
     format: i16
