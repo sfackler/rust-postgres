@@ -1,9 +1,19 @@
+use std::rt::io::Decorator;
+use std::rt::io::extensions::WriterByteConversions;
+use std::rt::io::mem::MemWriter;
 use std::str;
+use std::f32;
+use std::f64;
 
 pub type Oid = i32;
 
 // Values from pg_type.h
 static BOOLOID: Oid = 16;
+static INT8OID: Oid = 20;
+static INT2OID: Oid = 21;
+static INT4OID: Oid = 23;
+static FLOAT4OID: Oid = 700;
+static FLOAT8OID: Oid = 701;
 
 pub enum Format {
     Text = 0,
@@ -79,11 +89,39 @@ from_str_impl!(u32)
 from_option_impl!(u32)
 from_str_impl!(u64)
 from_option_impl!(u64)
-from_str_impl!(float)
-from_option_impl!(float)
-from_str_impl!(f32)
+
+impl FromSql for Option<f32> {
+    fn from_sql(raw: &Option<~[u8]>) -> Option<f32> {
+        match *raw {
+            None => None,
+            Some(ref buf) => {
+                Some(match str::from_bytes_slice(buf.as_slice()) {
+                    "NaN" => f32::NaN,
+                    "Infinity" => f32::infinity,
+                    "-Infinity" => f32::neg_infinity,
+                    str => FromStr::from_str(str).unwrap()
+                })
+            }
+        }
+    }
+}
 from_option_impl!(f32)
-from_str_impl!(f64)
+
+impl FromSql for Option<f64> {
+    fn from_sql(raw: &Option<~[u8]>) -> Option<f64> {
+        match *raw {
+            None => None,
+            Some(ref buf) => {
+                Some(match str::from_bytes_slice(buf.as_slice()) {
+                    "NaN" => f64::NaN,
+                    "Infinity" => f64::infinity,
+                    "-Infinity" => f64::neg_infinity,
+                    str => FromStr::from_str(str).unwrap()
+                })
+            }
+        }
+    }
+}
 from_option_impl!(f64)
 
 impl FromSql for Option<~str> {
@@ -122,6 +160,22 @@ macro_rules! to_option_impl(
     )
 )
 
+macro_rules! to_conversions_impl(
+    ($oid:ident, $t:ty, $f:ident) => (
+        impl ToSql for $t {
+            fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+                if ty == $oid {
+                    let mut writer = MemWriter::new();
+                    writer.$f(*self);
+                    (Binary, Some(writer.inner()))
+                } else {
+                    (Text, Some(self.to_str().into_bytes()))
+                }
+            }
+        }
+    )
+)
+
 impl ToSql for bool {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
         if ty == BOOLOID {
@@ -133,16 +187,21 @@ impl ToSql for bool {
 }
 to_option_impl!(bool)
 
+to_conversions_impl!(INT2OID, i16, write_be_i16_)
+to_option_impl!(i16)
+to_conversions_impl!(INT4OID, i32, write_be_i32_)
+to_option_impl!(i32)
+to_conversions_impl!(INT8OID, i64, write_be_i64_)
+to_option_impl!(i64)
+to_conversions_impl!(FLOAT4OID, f32, write_be_f32_)
+to_option_impl!(f32)
+to_conversions_impl!(FLOAT8OID, f64, write_be_f64_)
+to_option_impl!(f64)
+
 to_str_impl!(int)
 to_option_impl!(int)
 to_str_impl!(i8)
 to_option_impl!(i8)
-to_str_impl!(i16)
-to_option_impl!(i16)
-to_str_impl!(i32)
-to_option_impl!(i32)
-to_str_impl!(i64)
-to_option_impl!(i64)
 to_str_impl!(uint)
 to_option_impl!(uint)
 to_str_impl!(u8)
@@ -155,10 +214,6 @@ to_str_impl!(u64)
 to_option_impl!(u64)
 to_str_impl!(float)
 to_option_impl!(float)
-to_str_impl!(f32)
-to_option_impl!(f32)
-to_str_impl!(f64)
-to_option_impl!(f64)
 
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, _ty: Oid) -> (Format, Option<~[u8]>) {

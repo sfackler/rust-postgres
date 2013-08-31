@@ -17,4 +17,4 @@ check-postgres: postgres.dummy src/test.rs
 
 .PHONY: clean
 clean:
-	rm *.dummy *.so check-*
+	git clean -dfx
