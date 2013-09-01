@@ -489,15 +489,25 @@ impl<'self> PostgresStatement<'self> {
         Ok(num)
     }
 
-    pub fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
-        match self.try_query(params) {
+    pub fn query(&'self self, params: &[&ToSql]) -> PostgresResult<'self> {
+        self.lazy_query(0, params)
+    }
+
+    pub fn try_query(&'self self, params: &[&ToSql])
+                         -> Result<PostgresResult<'self>, PostgresDbError> {
+        self.try_lazy_query(0, params)
+    }
+
+    pub fn lazy_query(&'self self, row_limit: uint, params: &[&ToSql])
+            -> PostgresResult<'self> {
+        match self.try_lazy_query(row_limit, params) {
             Ok(result) => result,
             Err(err) => fail!("Error running query: %s", err.to_str())
         }
     }
 
-    pub fn try_query<'a>(&'a self, params: &[&ToSql])
-                         -> Result<PostgresResult<'a>, PostgresDbError> {
+    pub fn try_lazy_query(&'self self, row_limit: uint, params: &[&ToSql])
+            -> Result<PostgresResult<'self>, PostgresDbError> {
         let id = self.next_portal_id.take();
         let portal_name = format!("{:s}_portal_{}", self.name.as_slice(), id);
         self.next_portal_id.put_back(id + 1);
@@ -514,7 +524,8 @@ impl<'self> PostgresStatement<'self> {
             stmt: self,
             name: portal_name,
             data: ~[],
-            more_rows: true
+            more_rows: true,
+            max_rows: row_limit
         };
         result.execute();
 
@@ -526,6 +537,7 @@ pub struct PostgresResult<'self> {
     priv stmt: &'self PostgresStatement<'self>,
     priv name: ~str,
     priv data: ~[~[Option<~[u8]>]],
+    priv max_rows: uint,
     priv more_rows: bool
 }
 
@@ -551,12 +563,14 @@ impl<'self> Drop for PostgresResult<'self> {
 
 impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
     fn next(&mut self) -> Option<PostgresRow> {
+        // FIXME this logic is a bit screwy
+        if self.data.is_empty() && self.more_rows {
+            self.execute();
+        }
+
+        // The execute may not end up giving us any rows, so check again
         if self.data.is_empty() {
-            if self.more_rows {
-                self.execute();
-            } else {
-                return None;
-            }
+            return None;
         }
 
         Some(PostgresRow { data: self.data.pop() })
@@ -570,7 +584,7 @@ impl<'self> PostgresResult<'self> {
         self.stmt.conn.write_messages([
             &Execute {
                 portal: self.name,
-                max_rows: 0
+                max_rows: self.max_rows as i32
             },
             &Sync]);
 

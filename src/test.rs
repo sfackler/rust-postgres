@@ -72,6 +72,27 @@ fn test_nulls() {
     }
 }
 
+#[test]
+fn test_lazy_query() {
+    do test_in_transaction |trans| {
+        trans.prepare("CREATE TABLE foo (
+                        id SERIAL PRIMARY KEY,
+                        val BIGINT
+                       )").update([]);
+        let stmt = trans.prepare("INSERT INTO foo (val) VALUES ($1)");
+        let data = ~[1i64, 2, 3, 4, 5, 6];
+        for datum in data.iter() {
+            stmt.update([datum as &ToSql]);
+        }
+
+        let stmt = trans.prepare("SELECT val FROM foo ORDER BY id");
+        let result = stmt.lazy_query(2, []);
+
+        assert_eq!(data,
+                   result.map(|row| { row[0] }).collect());
+    }
+}
+
 fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
     do test_in_transaction |trans| {
         trans.prepare("CREATE TABLE foo (
