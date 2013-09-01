@@ -48,7 +48,7 @@ fn test_query() {
         let stmt = trans.prepare("SELECT * from foo ORDER BY id");
         let result = stmt.query([]);
 
-        assert_eq!(~[1, 2], result.iter().map(|row| { row[0] }).collect());
+        assert_eq!(~[1, 2], result.map(|row| { row[0] }).collect());
     }
 }
 
@@ -66,7 +66,7 @@ fn test_nulls() {
         let result = stmt.query([]);
 
         assert_eq!(~[Some(~"foobar"), None],
-                   result.iter().map(|row| { row[0] }).collect());
+                   result.map(|row| { row[0] }).collect());
 
         trans.set_rollback();
     }
@@ -86,7 +86,7 @@ fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
         let stmt = trans.prepare("SELECT b FROM foo ORDER BY id");
         let result = stmt.query([]);
 
-        let actual_values: ~[T] = result.iter().map(|row| { row[0] }).collect();
+        let actual_values: ~[T] = result.map(|row| { row[0] }).collect();
         assert_eq!(values, actual_values.as_slice());
     }
 }
@@ -136,8 +136,8 @@ fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
                 .update([&nan as &ToSql]);
 
         let stmt = trans.prepare("SELECT b FROM foo");
-        let result = stmt.query([]);
-        let val: T = result.iter().next().unwrap()[0];
+        let mut result = stmt.query([]);
+        let val: T = result.next().unwrap()[0];
         assert!(val.is_NaN());
     }
 }

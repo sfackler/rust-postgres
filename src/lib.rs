@@ -520,6 +520,8 @@ impl<'self> PostgresStatement<'self> {
         }
         self.conn.wait_for_ready();
 
+        // we're going to be popping rows off
+        data.reverse();
         Ok(PostgresResult {
             stmt: self,
             name: portal_name,
@@ -554,48 +556,34 @@ impl<'self> Drop for PostgresResult<'self> {
     }
 }
 
-impl<'self> PostgresResult<'self> {
-    pub fn iter<'a>(&'a self) -> PostgresResultIterator<'a> {
-        PostgresResultIterator { result: self, next_row: 0 }
-    }
-}
-
-pub struct PostgresResultIterator<'self> {
-    priv result: &'self PostgresResult<'self>,
-    priv next_row: uint
-}
-
-impl<'self> Iterator<PostgresRow<'self>> for PostgresResultIterator<'self> {
-    fn next(&mut self) -> Option<PostgresRow<'self>> {
-        if self.next_row == self.result.data.len() {
+impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
+    fn next(&mut self) -> Option<PostgresRow> {
+        if self.data.is_empty() {
             return None;
         }
 
-        let row = self.next_row;
-        self.next_row += 1;
-        Some(PostgresRow { result: self.result, row: row })
+        Some(PostgresRow { data: self.data.pop() })
     }
 }
 
-pub struct PostgresRow<'self> {
-    priv result: &'self PostgresResult<'self>,
-    priv row: uint
+pub struct PostgresRow {
+    priv data: ~[Option<~[u8]>]
 }
 
-impl<'self> Container for PostgresRow<'self> {
+impl<'self> Container for PostgresRow {
     fn len(&self) -> uint {
-        self.result.data[self.row].len()
+        self.data.len()
     }
 }
 
-impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
+impl<T: FromSql> Index<uint, T> for PostgresRow {
     fn index(&self, idx: &uint) -> T {
         self.get(*idx)
     }
 }
 
-impl<'self> PostgresRow<'self> {
+impl PostgresRow {
     pub fn get<T: FromSql>(&self, idx: uint) -> T {
-        FromSql::from_sql(&self.result.data[self.row][idx])
+        FromSql::from_sql(&self.data[idx])
     }
 }
