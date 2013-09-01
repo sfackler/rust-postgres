@@ -288,10 +288,11 @@ impl PostgresConnection {
             resp => fail!("Bad response: %?", resp.to_str())
         });
 
-        match_read_message!(self, {
-            RowDescription {_} | NoData => (),
+        let result_desc = match_read_message!(self, {
+            RowDescription { descriptions } => descriptions,
+            NoData => ~[],
             resp => fail!("Bad response: %?", resp.to_str())
-        })
+        });
 
         self.wait_for_ready();
 
@@ -299,6 +300,7 @@ impl PostgresConnection {
             conn: self,
             name: stmt_name,
             param_types: param_types,
+            result_desc: result_desc,
             next_portal_id: Cell::new(0)
         })
     }
@@ -350,12 +352,10 @@ impl PostgresConnection {
     }
 
     fn wait_for_ready(&self) {
-        loop {
-            match_read_message!(self, {
-                ReadyForQuery {_} => break,
-                resp => fail!("Bad response: %?", resp.to_str())
-            })
-        }
+        match_read_message!(self, {
+            ReadyForQuery {_} => (),
+            resp => fail!("Bad response: %?", resp.to_str())
+        })
     }
 }
 
@@ -404,6 +404,7 @@ pub struct PostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
     priv param_types: ~[Oid],
+    priv result_desc: ~[RowDescriptionEntry],
     priv next_portal_id: Cell<uint>
 }
 
@@ -594,8 +595,8 @@ impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
             self.execute();
         }
 
-        do self.data.pop_front().chain |row| {
-            Some(PostgresRow { data: row })
+        do self.data.pop_front().map_move |row| {
+            PostgresRow { data: row }
         }
     }
 }
