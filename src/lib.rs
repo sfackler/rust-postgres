@@ -1,8 +1,10 @@
 extern mod extra;
 
+use extra::container::Deque;
 use extra::digest::Digest;
 use extra::md5::Md5;
 use extra::url::{UserInfo, Url};
+use extra::ringbuf::RingBuf;
 use std::cell::Cell;
 use std::hashmap::HashMap;
 use std::rt::io::{io_error, Decorator};
@@ -523,7 +525,7 @@ impl<'self> PostgresStatement<'self> {
         let mut result = PostgresResult {
             stmt: self,
             name: portal_name,
-            data: ~[],
+            data: RingBuf::new(),
             more_rows: true,
             max_rows: row_limit
         };
@@ -536,7 +538,7 @@ impl<'self> PostgresStatement<'self> {
 pub struct PostgresResult<'self> {
     priv stmt: &'self PostgresStatement<'self>,
     priv name: ~str,
-    priv data: ~[~[Option<~[u8]>]],
+    priv data: RingBuf<~[Option<~[u8]>]>,
     priv max_rows: uint,
     priv more_rows: bool
 }
@@ -563,24 +565,18 @@ impl<'self> Drop for PostgresResult<'self> {
 
 impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
     fn next(&mut self) -> Option<PostgresRow> {
-        // FIXME this logic is a bit screwy
         if self.data.is_empty() && self.more_rows {
             self.execute();
         }
 
-        // The execute may not end up giving us any rows, so check again
-        if self.data.is_empty() {
-            return None;
+        do self.data.pop_front().chain |row| {
+            Some(PostgresRow { data: row })
         }
-
-        Some(PostgresRow { data: self.data.pop() })
     }
 }
 
 impl<'self> PostgresResult<'self> {
     fn execute(&mut self) {
-        assert!(self.data.is_empty());
-
         self.stmt.conn.write_messages([
             &Execute {
                 portal: self.name,
@@ -595,7 +591,7 @@ impl<'self> PostgresResult<'self> {
                     self.more_rows = false;
                     break;
                 },
-                DataRow { row } => self.data.push(row),
+                DataRow { row } => self.data.push_back(row),
                 PortalSuspended => {
                     self.more_rows = true;
                     break;
@@ -604,9 +600,6 @@ impl<'self> PostgresResult<'self> {
             })
         }
         self.stmt.conn.wait_for_ready();
-
-        // we're going to be popping rows off
-        self.data.reverse();
     }
 }
 
