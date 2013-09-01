@@ -42,9 +42,9 @@ fn test_in_transaction(blk: &fn(&PostgresTransaction)) {
 #[test]
 fn test_query() {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
-        trans.prepare("INSERT INTO foo (id) VALUES ($1), ($2)")
-                .update([&1 as &ToSql, &2 as &ToSql]);
+        trans.update("CREATE TABLE foo (id BIGINT PRIMARY KEY)", []);
+        trans.update("INSERT INTO foo (id) VALUES ($1), ($2)",
+                     [&1 as &ToSql, &2 as &ToSql]);
         let stmt = trans.prepare("SELECT * from foo ORDER BY id");
         let result = stmt.query([]);
 
@@ -55,13 +55,12 @@ fn test_query() {
 #[test]
 fn test_nulls() {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (
+        trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
                         val VARCHAR
-                      )").update([]);
-        trans.prepare("INSERT INTO foo (val) VALUES ($1), ($2)")
-                .update([& &"foobar" as &ToSql,
-                         &None::<~str> as &ToSql]);
+                      )", []);
+        trans.update("INSERT INTO foo (val) VALUES ($1), ($2)",
+                     [& &"foobar" as &ToSql, &None::<~str> as &ToSql]);
         let stmt = trans.prepare("SELECT val FROM foo ORDER BY id");
         let result = stmt.query([]);
 
@@ -75,10 +74,10 @@ fn test_nulls() {
 #[test]
 fn test_lazy_query() {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (
+        trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
                         val BIGINT
-                       )").update([]);
+                      )", []);
         let stmt = trans.prepare("INSERT INTO foo (val) VALUES ($1)");
         let data = ~[1i64, 2, 3, 4, 5, 6];
         for datum in data.iter() {
@@ -95,10 +94,10 @@ fn test_lazy_query() {
 
 fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (
+        trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
                         b " + sql_type +
-                      ")").update([]);
+                     ")", []);
         let stmt = trans.prepare("INSERT INTO foo (b) VALUES ($1)");
         for value in values.iter() {
             stmt.update([value as &ToSql]);
@@ -148,13 +147,12 @@ fn test_binary_f64_params() {
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (
+        trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
                         b " + sql_type +
-                      ")").update([]);
+                     ")", []);
         let nan: T = Float::NaN();
-        trans.prepare("INSERT INTO foo (b) VALUES ($1)")
-                .update([&nan as &ToSql]);
+        trans.update("INSERT INTO foo (b) VALUES ($1)", [&nan as &ToSql]);
 
         let stmt = trans.prepare("SELECT b FROM foo");
         let mut result = stmt.query([]);
@@ -176,12 +174,12 @@ fn test_f64_nan_param() {
 #[test]
 fn test_wrong_num_params() {
     do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (
+        trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
                         val VARCHAR
-                      )").update([]);
-        let res = trans.prepare("INSERT INTO foo (val) VALUES ($1), ($2)")
-                .try_update([& &"foobar" as &ToSql]);
+                     )", []);
+        let res = trans.try_update("INSERT INTO foo (val) VALUES ($1), ($2)",
+                                   [& &"foobar" as &ToSql]);
         match res {
             Err(PostgresDbError { code: ~"08P01", _ }) => (),
             resp => fail!("Unexpected response: %?", resp)

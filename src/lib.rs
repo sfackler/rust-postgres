@@ -322,6 +322,20 @@ impl PostgresConnection {
         ret
     }
 
+    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
+        match self.try_update(query, params) {
+            Ok(res) => res,
+            Err(err) => fail!("Error running update: %s", err.to_str())
+        }
+    }
+
+    pub fn try_update(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresDbError> {
+        do self.try_prepare(query).chain |stmt| {
+            stmt.try_update(params)
+        }
+    }
+
     fn quick_query(&self, query: &str) {
         self.write_message(&Query { query: query });
 
@@ -358,6 +372,15 @@ impl<'self> PostgresTransaction<'self> {
     pub fn try_prepare<'a>(&'a self, query: &str)
                            -> Result<PostgresStatement<'a>, PostgresDbError> {
         self.conn.try_prepare(query)
+    }
+
+    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
+        self.conn.update(query, params)
+    }
+
+    pub fn try_update(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresDbError> {
+        self.conn.try_update(query, params)
     }
 
     pub fn will_commit(&self) -> bool {
@@ -529,6 +552,8 @@ impl<'self> PostgresStatement<'self> {
             more_rows: true,
             max_rows: row_limit
         };
+        // We have to make sure to execute the result at least once since it
+        // may have side effects (e.g. INSERT ... RETURNING ...)
         result.execute();
 
         Ok(result)
