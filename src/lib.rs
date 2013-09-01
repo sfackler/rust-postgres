@@ -387,11 +387,11 @@ impl<'self> Drop for PostgresStatement<'self> {
     fn drop(&self) {
         do io_error::cond.trap(|_| {}).inside {
             self.conn.write_messages([
-                    &Close {
-                        variant: 'S' as u8,
-                        name: self.name.as_slice()
-                    },
-                    &Sync]);
+                &Close {
+                    variant: 'S' as u8,
+                    name: self.name.as_slice()
+                },
+                &Sync]);
             loop {
                 match_read_message!(self.conn, {
                     ReadyForQuery {_} => break,
@@ -403,8 +403,8 @@ impl<'self> Drop for PostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement<'self> {
-    fn execute(&self, portal_name: &str, params: &[&ToSql])
-               -> Option<PostgresDbError> {
+    fn bind(&self, portal_name: &str, params: &[&ToSql])
+            -> Option<PostgresDbError> {
         let mut formats = ~[];
         let mut values = ~[];
         for (&param, &ty) in params.iter().zip(self.param_types.iter()) {
@@ -416,24 +416,24 @@ impl<'self> PostgresStatement<'self> {
         let result_formats = [];
 
         self.conn.write_messages([
-                &Bind {
-                    portal: portal_name,
-                    statement: self.name.as_slice(),
-                    formats: formats,
-                    values: values,
-                    result_formats: result_formats
-                },
-                &Execute {
-                    portal: portal_name.as_slice(),
-                    max_rows: 0
-                },
-                &Sync]);
+            &Bind {
+                portal: portal_name,
+                statement: self.name.as_slice(),
+                formats: formats,
+                values: values,
+                result_formats: result_formats
+            },
+            &Sync]);
 
-        match_read_message!(self.conn, {
+        let ret = match_read_message!(self.conn, {
             BindComplete => None,
             ErrorResponse { fields } => Some(PostgresDbError::new(fields)),
             resp => fail!("Bad response: %?", resp.to_str())
-        })
+        });
+
+        self.conn.wait_for_ready();
+
+        ret
     }
 
     pub fn update(&self, params: &[&ToSql]) -> uint {
@@ -446,13 +446,19 @@ impl<'self> PostgresStatement<'self> {
     pub fn try_update(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
         // The unnamed portal is automatically cleaned up at sync time
-        match self.execute("", params) {
+        match self.bind("", params) {
             Some(err) => {
-                self.conn.wait_for_ready();
                 return Err(err);
             }
             None => ()
         }
+
+        self.conn.write_messages([
+            &Execute {
+                portal: &"",
+                max_rows: 0
+            },
+            &Sync]);
 
         let num;
         loop {
@@ -496,7 +502,7 @@ impl<'self> PostgresStatement<'self> {
         let portal_name = format!("{:s}_portal_{}", self.name.as_slice(), id);
         self.next_portal_id.put_back(id + 1);
 
-        match self.execute(portal_name, params) {
+        match self.bind(portal_name, params) {
             Some(err) => {
                 self.conn.wait_for_ready();
                 return Err(err);
@@ -504,36 +510,23 @@ impl<'self> PostgresStatement<'self> {
             None => ()
         }
 
-        let mut data = ~[];
-        loop {
-            match_read_message!(self.conn, {
-                EmptyQueryResponse => break,
-                DataRow { row } => data.push(row),
-                CommandComplete {_} => break,
-                NoticeResponse {_} => (),
-                ErrorResponse { fields } => {
-                    self.conn.wait_for_ready();
-                    return Err(PostgresDbError::new(fields));
-                },
-                resp => fail!("Bad response: %?", resp.to_str())
-            })
-        }
-        self.conn.wait_for_ready();
-
-        // we're going to be popping rows off
-        data.reverse();
-        Ok(PostgresResult {
+        let mut result = PostgresResult {
             stmt: self,
             name: portal_name,
-            data: data
-        })
+            data: ~[],
+            more_rows: true
+        };
+        result.execute();
+
+        Ok(result)
     }
 }
 
 pub struct PostgresResult<'self> {
     priv stmt: &'self PostgresStatement<'self>,
     priv name: ~str,
-    priv data: ~[~[Option<~[u8]>]]
+    priv data: ~[~[Option<~[u8]>]],
+    priv more_rows: bool
 }
 
 #[unsafe_destructor]
@@ -541,11 +534,11 @@ impl<'self> Drop for PostgresResult<'self> {
     fn drop(&self) {
         do io_error::cond.trap(|_| {}).inside {
             self.stmt.conn.write_messages([
-                    &Close {
-                        variant: 'P' as u8,
-                        name: self.name.as_slice()
-                    },
-                    &Sync]);
+                &Close {
+                    variant: 'P' as u8,
+                    name: self.name.as_slice()
+                },
+                &Sync]);
             loop {
                 match_read_message!(self.stmt.conn, {
                     ReadyForQuery {_} => break,
@@ -559,10 +552,47 @@ impl<'self> Drop for PostgresResult<'self> {
 impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
     fn next(&mut self) -> Option<PostgresRow> {
         if self.data.is_empty() {
-            return None;
+            if self.more_rows {
+                self.execute();
+            } else {
+                return None;
+            }
         }
 
         Some(PostgresRow { data: self.data.pop() })
+    }
+}
+
+impl<'self> PostgresResult<'self> {
+    fn execute(&mut self) {
+        assert!(self.data.is_empty());
+
+        self.stmt.conn.write_messages([
+            &Execute {
+                portal: self.name,
+                max_rows: 0
+            },
+            &Sync]);
+
+        loop {
+            match_read_message!(self.stmt.conn, {
+                EmptyQueryResponse |
+                CommandComplete {_} => {
+                    self.more_rows = false;
+                    break;
+                },
+                DataRow { row } => self.data.push(row),
+                PortalSuspended => {
+                    self.more_rows = true;
+                    break;
+                },
+                resp => fail!("Bad response: %?", resp.to_str())
+            })
+        }
+        self.stmt.conn.wait_for_ready();
+
+        // we're going to be popping rows off
+        self.data.reverse();
     }
 }
 
