@@ -14,6 +14,7 @@ static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
+static VARCHAROID: Oid = 1043;
 
 pub enum Format {
     Text = 0,
@@ -137,23 +138,24 @@ pub trait ToSql {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>);
 }
 
-macro_rules! to_str_impl(
-    ($t:ty) => (
-        impl ToSql for $t {
-            fn to_sql(&self, _ty: Oid) -> (Format, Option<~[u8]>) {
-                (Text, Some(self.to_str().into_bytes()))
-            }
+macro_rules! check_oid(
+    ($expected:ident, $actual:ident) => (
+        if $expected != $actual {
+            fail!("Attempted to bind an invalid type. Expected Oid %? but got \
+                   Oid %?", $expected, $actual);
         }
     )
 )
 
 macro_rules! to_option_impl(
-    ($t:ty) => (
+    ($oid:ident, $t:ty) => (
         impl ToSql for Option<$t> {
             fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+                check_oid!($oid, ty)
+
                 match *self {
                     None => (Text, None),
-                    Some(val) => val.to_sql(ty)
+                    Some(ref val) => val.to_sql(ty)
                 }
             }
         }
@@ -164,13 +166,11 @@ macro_rules! to_conversions_impl(
     ($oid:ident, $t:ty, $f:ident) => (
         impl ToSql for $t {
             fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-                if ty == $oid {
-                    let mut writer = MemWriter::new();
-                    writer.$f(*self);
-                    (Binary, Some(writer.inner()))
-                } else {
-                    (Text, Some(self.to_str().into_bytes()))
-                }
+                check_oid!($oid, ty)
+
+                let mut writer = MemWriter::new();
+                writer.$f(*self);
+                (Binary, Some(writer.inner()))
             }
         }
     )
@@ -178,60 +178,35 @@ macro_rules! to_conversions_impl(
 
 impl ToSql for bool {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        if ty == BOOLOID {
-            (Binary, Some(~[*self as u8]))
-        } else {
-            (Text, Some(self.to_str().into_bytes()))
-        }
+        check_oid!(BOOLOID, ty)
+        (Binary, Some(~[*self as u8]))
     }
 }
-to_option_impl!(bool)
+to_option_impl!(BOOLOID, bool)
 
 to_conversions_impl!(INT2OID, i16, write_be_i16_)
-to_option_impl!(i16)
+to_option_impl!(INT2OID, i16)
 to_conversions_impl!(INT4OID, i32, write_be_i32_)
-to_option_impl!(i32)
+to_option_impl!(INT4OID, i32)
 to_conversions_impl!(INT8OID, i64, write_be_i64_)
-to_option_impl!(i64)
+to_option_impl!(INT8OID, i64)
 to_conversions_impl!(FLOAT4OID, f32, write_be_f32_)
-to_option_impl!(f32)
+to_option_impl!(FLOAT4OID, f32)
 to_conversions_impl!(FLOAT8OID, f64, write_be_f64_)
-to_option_impl!(f64)
-
-to_str_impl!(int)
-to_option_impl!(int)
-to_str_impl!(i8)
-to_option_impl!(i8)
-to_str_impl!(uint)
-to_option_impl!(uint)
-to_str_impl!(u8)
-to_option_impl!(u8)
-to_str_impl!(u16)
-to_option_impl!(u16)
-to_str_impl!(u32)
-to_option_impl!(u32)
-to_str_impl!(u64)
-to_option_impl!(u64)
-to_str_impl!(float)
-to_option_impl!(float)
+to_option_impl!(FLOAT8OID, f64)
 
 impl<'self> ToSql for &'self str {
-    fn to_sql(&self, _ty: Oid) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(VARCHAROID, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
-impl ToSql for Option<~str> {
-    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        match *self {
-            None => (Text, None),
-            Some(ref val) => val.to_sql(ty)
-        }
-    }
-}
+to_option_impl!(VARCHAROID, ~str)
 
 impl<'self> ToSql for Option<&'self str> {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(VARCHAROID, ty)
         match *self {
             None => (Text, None),
             Some(val) => val.to_sql(ty)

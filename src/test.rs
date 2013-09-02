@@ -44,7 +44,7 @@ fn test_query() {
     do test_in_transaction |trans| {
         trans.update("CREATE TABLE foo (id BIGINT PRIMARY KEY)", []);
         trans.update("INSERT INTO foo (id) VALUES ($1), ($2)",
-                     [&1 as &ToSql, &2 as &ToSql]);
+                     [&1i64 as &ToSql, &2i64 as &ToSql]);
         let stmt = trans.prepare("SELECT * from foo ORDER BY id");
         let result = stmt.query([]);
 
@@ -118,12 +118,12 @@ fn test_binary_bool_params() {
 
 #[test]
 fn test_binary_i16_params() {
-    test_param_type("SMALLINT", [Some(0x0011), Some(-0x0011), None]);
+    test_param_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
 }
 
 #[test]
 fn test_binary_i32_params() {
-    test_param_type("INT", [Some(0x00112233), Some(-0x00112233), None]);
+    test_param_type("INT", [Some(0x00112233i32), Some(-0x00112233i32), None]);
 }
 
 #[test]
@@ -184,8 +184,19 @@ fn test_wrong_num_params() {
             Err(PostgresDbError { code: ~"08P01", _ }) => (),
             resp => fail!("Unexpected response: %?", resp)
         }
+    }
+}
 
-        trans.set_rollback();
+#[test]
+#[should_fail]
+fn test_wrong_param_type() {
+    do test_in_transaction |trans| {
+        trans.update("CREATE TABLE foo (
+                        id SERIAL PRIMARY KEY,
+                        val BOOL
+                      )", []);
+        trans.try_update("INSERT INTO foo (val) VALUES ($1)",
+                         [&1i32 as &ToSql]);
     }
 }
 

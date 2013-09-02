@@ -263,16 +263,16 @@ impl PostgresConnection {
 
         let types = [];
         self.write_messages([
-                &Parse {
-                    name: stmt_name,
-                    query: query,
-                    param_types: types
-                },
-                &Describe {
-                    variant: 'S' as u8,
-                    name: stmt_name
-                },
-                &Sync]);
+            &Parse {
+                name: stmt_name,
+                query: query,
+                param_types: types
+            },
+            &Describe {
+                variant: 'S' as u8,
+                name: stmt_name
+            },
+            &Sync]);
 
         match_read_message!(self, {
             ParseComplete => (),
@@ -429,6 +429,10 @@ impl<'self> Drop for PostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement<'self> {
+    pub fn num_params(&self) -> uint {
+        self.param_types.len()
+    }
+
     fn bind(&self, portal_name: &str, params: &[&ToSql])
             -> Option<PostgresDbError> {
         let mut formats = ~[];
