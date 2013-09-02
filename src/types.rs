@@ -1,14 +1,13 @@
 use std::rt::io::Decorator;
-use std::rt::io::extensions::WriterByteConversions;
-use std::rt::io::mem::MemWriter;
+use std::rt::io::extensions::{WriterByteConversions, ReaderByteConversions};
+use std::rt::io::mem::{MemWriter, MemReader};
 use std::str;
-use std::f32;
-use std::f64;
 
 pub type Oid = i32;
 
 // Values from pg_type.h
 static BOOLOID: Oid = 16;
+static BYTEAOID: Oid = 17;
 static INT8OID: Oid = 20;
 static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
@@ -21,20 +20,40 @@ pub enum Format {
     Binary = 1
 }
 
-pub trait FromSql {
-    fn from_sql(raw: &Option<~[u8]>) -> Self;
+pub fn result_format(ty: Oid) -> Format {
+    match ty {
+        BOOLOID |
+        BYTEAOID |
+        INT8OID |
+        INT2OID |
+        INT4OID |
+        FLOAT4OID |
+        FLOAT8OID => Binary,
+        _ => Text
+    }
 }
 
-macro_rules! from_str_impl(
-    ($t:ty) => (
+macro_rules! check_oid(
+    ($expected:ident, $actual:ident) => (
+        if $expected != $actual {
+            fail!("Expected Oid %? but got Oid %?", $expected, $actual);
+        }
+    )
+)
+
+pub trait FromSql {
+    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Self;
+}
+
+macro_rules! from_conversions_impl(
+    ($oid:ident, $t:ty, $f:ident) => (
         impl FromSql for Option<$t> {
-            fn from_sql(raw: &Option<~[u8]>) -> Option<$t> {
-                match *raw {
-                    None => None,
-                    Some(ref buf) => {
-                        let s = str::from_bytes_slice(buf.as_slice());
-                        Some(FromStr::from_str(s).unwrap())
-                    }
+            fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<$t> {
+                check_oid!($oid, ty)
+                do raw.map |buf| {
+                    // TODO change to BufReader when implemented
+                    let mut reader = MemReader::new(buf.to_owned());
+                    reader.$f()
                 }
             }
         }
@@ -44,9 +63,9 @@ macro_rules! from_str_impl(
 macro_rules! from_option_impl(
     ($t:ty) => (
         impl FromSql for $t {
-            fn from_sql(raw: &Option<~[u8]>) -> $t {
+            fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> $t {
                 // FIXME when you can specify Self types properly
-                let ret: Option<$t> = FromSql::from_sql(raw);
+                let ret: Option<$t> = FromSql::from_sql(ty, raw);
                 ret.unwrap()
             }
         }
@@ -54,79 +73,29 @@ macro_rules! from_option_impl(
 )
 
 impl FromSql for Option<bool> {
-    fn from_sql(raw: &Option<~[u8]>) -> Option<bool> {
-        match *raw {
-            None => None,
-            Some(ref buf) => {
-                assert_eq!(1, buf.len());
-                match buf[0] as char {
-                    't' => Some(true),
-                    'f' => Some(false),
-                    byte => fail!("Invalid byte: %?", byte)
-                }
-            }
+    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<bool> {
+        check_oid!(BOOLOID, ty)
+        do raw.map |buf| {
+            buf[0] != 0
         }
     }
 }
 from_option_impl!(bool)
 
-from_str_impl!(int)
-from_option_impl!(int)
-from_str_impl!(i8)
-from_option_impl!(i8)
-from_str_impl!(i16)
+from_conversions_impl!(INT2OID, i16, read_be_i16_)
 from_option_impl!(i16)
-from_str_impl!(i32)
+from_conversions_impl!(INT4OID, i32, read_be_i32_)
 from_option_impl!(i32)
-from_str_impl!(i64)
+from_conversions_impl!(INT8OID, i64, read_be_i64_)
 from_option_impl!(i64)
-from_str_impl!(uint)
-from_option_impl!(uint)
-from_str_impl!(u8)
-from_option_impl!(u8)
-from_str_impl!(u16)
-from_option_impl!(u16)
-from_str_impl!(u32)
-from_option_impl!(u32)
-from_str_impl!(u64)
-from_option_impl!(u64)
-
-impl FromSql for Option<f32> {
-    fn from_sql(raw: &Option<~[u8]>) -> Option<f32> {
-        match *raw {
-            None => None,
-            Some(ref buf) => {
-                Some(match str::from_bytes_slice(buf.as_slice()) {
-                    "NaN" => f32::NaN,
-                    "Infinity" => f32::infinity,
-                    "-Infinity" => f32::neg_infinity,
-                    str => FromStr::from_str(str).unwrap()
-                })
-            }
-        }
-    }
-}
+from_conversions_impl!(FLOAT4OID, f32, read_be_f32_)
 from_option_impl!(f32)
-
-impl FromSql for Option<f64> {
-    fn from_sql(raw: &Option<~[u8]>) -> Option<f64> {
-        match *raw {
-            None => None,
-            Some(ref buf) => {
-                Some(match str::from_bytes_slice(buf.as_slice()) {
-                    "NaN" => f64::NaN,
-                    "Infinity" => f64::infinity,
-                    "-Infinity" => f64::neg_infinity,
-                    str => FromStr::from_str(str).unwrap()
-                })
-            }
-        }
-    }
-}
+from_conversions_impl!(FLOAT8OID, f64, read_be_f64_)
 from_option_impl!(f64)
 
 impl FromSql for Option<~str> {
-    fn from_sql(raw: &Option<~[u8]>) -> Option<~str> {
+    fn from_sql(ty:Oid, raw: &Option<~[u8]>) -> Option<~str> {
+        check_oid!(VARCHAROID, ty)
         do raw.chain_ref |buf| {
             Some(str::from_bytes(buf.as_slice()))
         }
@@ -134,18 +103,17 @@ impl FromSql for Option<~str> {
 }
 from_option_impl!(~str)
 
+impl FromSql for Option<~[u8]> {
+    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<~[u8]> {
+        check_oid!(BYTEAOID, ty)
+        raw.clone()
+    }
+}
+from_option_impl!(~[u8])
+
 pub trait ToSql {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>);
 }
-
-macro_rules! check_oid(
-    ($expected:ident, $actual:ident) => (
-        if $expected != $actual {
-            fail!("Attempted to bind an invalid type. Expected Oid %? but got \
-                   Oid %?", $expected, $actual);
-        }
-    )
-)
 
 macro_rules! to_option_impl(
     ($oid:ident, $t:ty) => (
@@ -207,6 +175,25 @@ to_option_impl!(VARCHAROID, ~str)
 impl<'self> ToSql for Option<&'self str> {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
         check_oid!(VARCHAROID, ty)
+        match *self {
+            None => (Text, None),
+            Some(val) => val.to_sql(ty)
+        }
+    }
+}
+
+impl<'self> ToSql for &'self [u8] {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(BYTEAOID, ty)
+        (Binary, Some(self.to_owned()))
+    }
+}
+
+to_option_impl!(BYTEAOID, ~[u8])
+
+impl<'self> ToSql for Option<&'self [u8]> {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(BYTEAOID, ty)
         match *self {
             None => (Text, None),
             Some(val) => val.to_sql(ty)

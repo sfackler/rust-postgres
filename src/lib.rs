@@ -443,7 +443,9 @@ impl<'self> PostgresStatement<'self> {
             values.push(value);
         };
 
-        let result_formats = [];
+        let result_formats: ~[i16] = self.result_desc.iter().map(|desc| {
+            types::result_format(desc.type_oid) as i16
+        }).collect();
 
         self.conn.write_messages([
             &Bind {
@@ -593,14 +595,17 @@ impl<'self> Drop for PostgresResult<'self> {
     }
 }
 
-impl<'self> Iterator<PostgresRow> for PostgresResult<'self> {
-    fn next(&mut self) -> Option<PostgresRow> {
+impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
+    fn next(&mut self) -> Option<PostgresRow<'self>> {
         if self.data.is_empty() && self.more_rows {
             self.execute();
         }
 
         do self.data.pop_front().map_move |row| {
-            PostgresRow { data: row }
+            PostgresRow {
+                stmt: self.stmt,
+                data: row
+            }
         }
     }
 }
@@ -633,24 +638,26 @@ impl<'self> PostgresResult<'self> {
     }
 }
 
-pub struct PostgresRow {
+pub struct PostgresRow<'self> {
+    priv stmt: &'self PostgresStatement<'self>,
     priv data: ~[Option<~[u8]>]
 }
 
-impl<'self> Container for PostgresRow {
+impl<'self> Container for PostgresRow<'self> {
     fn len(&self) -> uint {
         self.data.len()
     }
 }
 
-impl<T: FromSql> Index<uint, T> for PostgresRow {
+impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
     fn index(&self, idx: &uint) -> T {
         self.get(*idx)
     }
 }
 
-impl PostgresRow {
+impl<'self> PostgresRow<'self> {
     pub fn get<T: FromSql>(&self, idx: uint) -> T {
-        FromSql::from_sql(&self.data[idx])
+        FromSql::from_sql(self.stmt.result_desc[idx].type_oid,
+                          &self.data[idx])
     }
 }

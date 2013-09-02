@@ -48,7 +48,7 @@ fn test_query() {
         let stmt = trans.prepare("SELECT * from foo ORDER BY id");
         let result = stmt.query([]);
 
-        assert_eq!(~[1, 2], result.map(|row| { row[0] }).collect());
+        assert_eq!(~[1i64, 2], result.map(|row| { row[0] }).collect());
     }
 }
 
@@ -112,37 +112,48 @@ fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
 }
 
 #[test]
-fn test_binary_bool_params() {
+fn test_bool_params() {
     test_param_type("BOOL", [Some(true), Some(false), None]);
 }
 
 #[test]
-fn test_binary_i16_params() {
+fn test_i16_params() {
     test_param_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
 }
 
 #[test]
-fn test_binary_i32_params() {
+fn test_i32_params() {
     test_param_type("INT", [Some(0x00112233i32), Some(-0x00112233i32), None]);
 }
 
 #[test]
-fn test_binary_i64_params() {
+fn test_i64_params() {
     test_param_type("BIGINT", [Some(0x0011223344556677i64),
                                Some(-0x0011223344556677i64), None]);
 }
 
 #[test]
-fn test_binary_f32_params() {
+fn test_f32_params() {
     test_param_type("REAL", [Some(f32::infinity), Some(f32::neg_infinity),
                              Some(1000.55), None]);
 }
 
 #[test]
-fn test_binary_f64_params() {
+fn test_f64_params() {
     test_param_type("DOUBLE PRECISION", [Some(f64::infinity),
                                          Some(f64::neg_infinity),
                                          Some(10000.55), None]);
+}
+
+#[test]
+fn test_varchar_params() {
+    test_param_type("VARCHAR", [Some(~"hello world"),
+                                Some(~"イロハニホヘト チリヌルヲ"), None]);
+}
+
+#[test]
+fn test_bytea_params() {
+    test_param_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
