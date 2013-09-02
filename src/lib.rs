@@ -145,7 +145,7 @@ impl PostgresConnection {
         let mut args = args;
 
         // This seems silly
-        let socket_url = format!("{:s}:{:s}", host,
+        let socket_url = format!("{}:{}", host,
                                  port.unwrap_or_default(~"5432"));
         let addr: SocketAddr = match FromStr::from_str(socket_url) {
             Some(addr) => addr,
@@ -535,7 +535,7 @@ impl<'self> PostgresStatement<'self> {
     pub fn try_lazy_query(&'self self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'self>, PostgresDbError> {
         let id = self.next_portal_id.take();
-        let portal_name = format!("{:s}_portal_{}", self.name.as_slice(), id);
+        let portal_name = format!("{}_portal_{}", self.name.as_slice(), id);
         self.next_portal_id.put_back(id + 1);
 
         match self.bind(portal_name, params) {
