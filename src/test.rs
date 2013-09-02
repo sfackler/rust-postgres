@@ -120,6 +120,11 @@ fn test_bool_params() {
 }
 
 #[test]
+fn test_i8_params() {
+    test_type("\"char\"", [Some(0i8), Some(127i8), None]);
+}
+
+#[test]
 fn test_i16_params() {
     test_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
 }

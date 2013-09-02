@@ -13,6 +13,7 @@ pub type Oid = i32;
 // Values from pg_type.h
 static BOOLOID: Oid = 16;
 static BYTEAOID: Oid = 17;
+static CHAROID: Oid = 18;
 static INT8OID: Oid = 20;
 static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
@@ -92,6 +93,8 @@ macro_rules! from_option_impl(
 from_map_impl!(BOOLOID, bool, |buf| { buf[0] != 0 })
 from_option_impl!(bool)
 
+from_conversions_impl!(CHAROID, i8, read_i8_)
+from_option_impl!(i8)
 from_conversions_impl!(INT2OID, i16, read_be_i16_)
 from_option_impl!(i16)
 from_conversions_impl!(INT4OID, i32, read_be_i32_)
@@ -179,6 +182,8 @@ impl ToSql for bool {
 }
 to_option_impl!(BOOLOID, bool)
 
+to_conversions_impl!(CHAROID, i8, write_i8_)
+to_option_impl!(CHAROID, i8)
 to_conversions_impl!(INT2OID, i16, write_be_i16_)
 to_option_impl!(INT2OID, i16)
 to_conversions_impl!(INT4OID, i32, write_be_i32_)
