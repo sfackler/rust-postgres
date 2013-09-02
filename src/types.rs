@@ -20,6 +20,7 @@ static TEXTOID: Oid = 25;
 static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
+static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static UUIDOID: Oid = 2950;
 
@@ -102,7 +103,7 @@ from_option_impl!(f32)
 from_conversions_impl!(FLOAT8OID, f64, read_be_f64_)
 from_option_impl!(f64)
 
-from_map_impl!(VARCHAROID | TEXTOID, ~str, |buf| {
+from_map_impl!(VARCHAROID | TEXTOID | BPCHAROID, ~str, |buf| {
     str::from_bytes(buf.as_slice())
 })
 from_option_impl!(~str)
@@ -191,13 +192,13 @@ to_option_impl!(FLOAT8OID, f64)
 
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        check_oid!(VARCHAROID | TEXTOID, ty)
+        check_oid!(VARCHAROID | TEXTOID | BPCHAROID, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
-to_option_impl!(VARCHAROID | TEXTOID, ~str)
-to_option_impl!(self, VARCHAROID | TEXTOID, &'self str)
+to_option_impl!(VARCHAROID | TEXTOID | BPCHAROID, ~str)
+to_option_impl!(self, VARCHAROID | TEXTOID | BPCHAROID, &'self str)
 
 impl<'self> ToSql for &'self [u8] {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {

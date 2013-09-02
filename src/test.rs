@@ -162,6 +162,24 @@ fn test_text_params() {
 }
 
 #[test]
+fn test_bpchar_params() {
+    do test_in_transaction |trans| {
+        trans.update("CREATE TABLE foo (
+                        id SERIAL PRIMARY KEY,
+                        b CHAR(5)
+                      )", []);
+        trans.update("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+                     [&Some("12345") as &ToSql, &Some("123") as &ToSql,
+                      &None::<~str> as &ToSql]);
+        let stmt = trans.prepare("SELECT b FROM foo ORDER BY id");
+        let res = stmt.query([]);
+
+        assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
+                   res.map(|row| { row[0] }).collect());
+    }
+}
+
+#[test]
 fn test_bytea_params() {
     test_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
 }
