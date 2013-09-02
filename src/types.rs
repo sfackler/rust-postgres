@@ -55,18 +55,24 @@ pub trait FromSql {
     fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Self;
 }
 
-macro_rules! from_conversions_impl(
-    ($oid:ident, $t:ty, $f:ident) => (
+macro_rules! from_map_impl(
+    ($($oid:ident)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
             fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<$t> {
-                check_oid!($oid, ty)
-                do raw.map |buf| {
-                    // TODO change to BufReader when implemented
-                    let mut reader = MemReader::new(buf.to_owned());
-                    reader.$f()
-                }
+                check_oid!($($oid)|+, ty)
+                raw.map($blk)
             }
         }
+    )
+)
+
+macro_rules! from_conversions_impl(
+    ($oid:ident, $t:ty, $f:ident) => (
+        from_map_impl!($oid, $t, |buf| {
+            // TODO change to BufReader when implemented
+            let mut reader = MemReader::new(buf.to_owned());
+            reader.$f()
+        })
     )
 )
 
@@ -82,14 +88,7 @@ macro_rules! from_option_impl(
     )
 )
 
-impl FromSql for Option<bool> {
-    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<bool> {
-        check_oid!(BOOLOID, ty)
-        do raw.map |buf| {
-            buf[0] != 0
-        }
-    }
-}
+from_map_impl!(BOOLOID, bool, |buf| { buf[0] != 0 })
 from_option_impl!(bool)
 
 from_conversions_impl!(INT2OID, i16, read_be_i16_)
@@ -103,14 +102,9 @@ from_option_impl!(f32)
 from_conversions_impl!(FLOAT8OID, f64, read_be_f64_)
 from_option_impl!(f64)
 
-impl FromSql for Option<~str> {
-    fn from_sql(ty:Oid, raw: &Option<~[u8]>) -> Option<~str> {
-        check_oid!(VARCHAROID | TEXTOID, ty)
-        do raw.map |buf| {
-            str::from_bytes(buf.as_slice())
-        }
-    }
-}
+from_map_impl!(VARCHAROID | TEXTOID, ~str, |buf| {
+    str::from_bytes(buf.as_slice())
+})
 from_option_impl!(~str)
 
 impl FromSql for Option<~[u8]> {
@@ -121,24 +115,14 @@ impl FromSql for Option<~[u8]> {
 }
 from_option_impl!(~[u8])
 
-impl FromSql for Option<Json> {
-    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<Json> {
-        check_oid!(JSONOID, ty)
-        do raw.map |buf| {
-            json::from_str(str::from_bytes_slice(buf.as_slice())).unwrap()
-        }
-    }
-}
+from_map_impl!(JSONOID, Json, |buf| {
+    json::from_str(str::from_bytes_slice(buf.as_slice())).unwrap()
+})
 from_option_impl!(Json)
 
-impl FromSql for Option<Uuid> {
-    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<Uuid> {
-        check_oid!(UUIDOID, ty)
-        do raw.map |buf| {
-            Uuid::from_bytes(buf.as_slice()).unwrap()
-        }
-    }
-}
+from_map_impl!(UUIDOID, Uuid, |buf| {
+    Uuid::from_bytes(buf.as_slice()).unwrap()
+})
 from_option_impl!(Uuid)
 
 pub trait ToSql {
