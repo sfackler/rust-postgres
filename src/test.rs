@@ -152,6 +152,13 @@ fn test_varchar_params() {
 }
 
 #[test]
+fn test_text_params() {
+    test_param_type("TEXT", [Some(~"hello world"),
+                                Some(~"イロハニホヘト チリヌルヲ"), None]);
+
+}
+
+#[test]
 fn test_bytea_params() {
     test_param_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
 }

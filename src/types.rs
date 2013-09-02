@@ -11,6 +11,7 @@ static BYTEAOID: Oid = 17;
 static INT8OID: Oid = 20;
 static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
+static TEXTOID: Oid = 25;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
 static VARCHAROID: Oid = 1043;
@@ -34,9 +35,10 @@ pub fn result_format(ty: Oid) -> Format {
 }
 
 macro_rules! check_oid(
-    ($expected:ident, $actual:ident) => (
-        if $expected != $actual {
-            fail!("Expected Oid %? but got Oid %?", $expected, $actual);
+    ($($expected:ident)|+, $actual:ident) => (
+        match $actual {
+            $($expected)|+ => (),
+            actual => fail!("Invalid Oid %?", actual)
         }
     )
 )
@@ -95,7 +97,7 @@ from_option_impl!(f64)
 
 impl FromSql for Option<~str> {
     fn from_sql(ty:Oid, raw: &Option<~[u8]>) -> Option<~str> {
-        check_oid!(VARCHAROID, ty)
+        check_oid!(VARCHAROID | TEXTOID, ty)
         do raw.chain_ref |buf| {
             Some(str::from_bytes(buf.as_slice()))
         }
@@ -116,10 +118,10 @@ pub trait ToSql {
 }
 
 macro_rules! to_option_impl(
-    ($oid:ident, $t:ty) => (
+    ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Option<$t> {
             fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-                check_oid!($oid, ty)
+                check_oid!($($oid)|+, ty)
 
                 match *self {
                     None => (Text, None),
@@ -131,10 +133,10 @@ macro_rules! to_option_impl(
 )
 
 macro_rules! to_conversions_impl(
-    ($oid:ident, $t:ty, $f:ident) => (
+    ($($oid:ident)|+, $t:ty, $f:ident) => (
         impl ToSql for $t {
             fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-                check_oid!($oid, ty)
+                check_oid!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
                 writer.$f(*self);
@@ -165,16 +167,16 @@ to_option_impl!(FLOAT8OID, f64)
 
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        check_oid!(VARCHAROID, ty)
+        check_oid!(VARCHAROID | TEXTOID, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
-to_option_impl!(VARCHAROID, ~str)
+to_option_impl!(VARCHAROID | TEXTOID, ~str)
 
 impl<'self> ToSql for Option<&'self str> {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        check_oid!(VARCHAROID, ty)
+        check_oid!(VARCHAROID | TEXTOID, ty)
         match *self {
             None => (Text, None),
             Some(val) => val.to_sql(ty)
