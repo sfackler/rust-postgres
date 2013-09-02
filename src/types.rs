@@ -1,3 +1,8 @@
+extern mod extra;
+
+use extra::json;
+use extra::json::Json;
+use extra::uuid::Uuid;
 use std::rt::io::Decorator;
 use std::rt::io::extensions::{WriterByteConversions, ReaderByteConversions};
 use std::rt::io::mem::{MemWriter, MemReader};
@@ -12,9 +17,11 @@ static INT8OID: Oid = 20;
 static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
 static TEXTOID: Oid = 25;
+static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
 static VARCHAROID: Oid = 1043;
+static UUIDOID: Oid = 2950;
 
 pub enum Format {
     Text = 0,
@@ -29,7 +36,8 @@ pub fn result_format(ty: Oid) -> Format {
         INT2OID |
         INT4OID |
         FLOAT4OID |
-        FLOAT8OID => Binary,
+        FLOAT8OID |
+        UUIDOID => Binary,
         _ => Text
     }
 }
@@ -98,8 +106,8 @@ from_option_impl!(f64)
 impl FromSql for Option<~str> {
     fn from_sql(ty:Oid, raw: &Option<~[u8]>) -> Option<~str> {
         check_oid!(VARCHAROID | TEXTOID, ty)
-        do raw.chain_ref |buf| {
-            Some(str::from_bytes(buf.as_slice()))
+        do raw.map |buf| {
+            str::from_bytes(buf.as_slice())
         }
     }
 }
@@ -113,6 +121,26 @@ impl FromSql for Option<~[u8]> {
 }
 from_option_impl!(~[u8])
 
+impl FromSql for Option<Json> {
+    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<Json> {
+        check_oid!(JSONOID, ty)
+        do raw.map |buf| {
+            json::from_str(str::from_bytes_slice(buf.as_slice())).unwrap()
+        }
+    }
+}
+from_option_impl!(Json)
+
+impl FromSql for Option<Uuid> {
+    fn from_sql(ty: Oid, raw: &Option<~[u8]>) -> Option<Uuid> {
+        check_oid!(UUIDOID, ty)
+        do raw.map |buf| {
+            Uuid::from_bytes(buf.as_slice()).unwrap()
+        }
+    }
+}
+from_option_impl!(Uuid)
+
 pub trait ToSql {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>);
 }
@@ -120,6 +148,18 @@ pub trait ToSql {
 macro_rules! to_option_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Option<$t> {
+            fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+                check_oid!($($oid)|+, ty)
+
+                match *self {
+                    None => (Text, None),
+                    Some(ref val) => val.to_sql(ty)
+                }
+            }
+        }
+    );
+    (self, $($oid:ident)|+, $t:ty) => (
+        impl<'self> ToSql for Option<$t> {
             fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
                 check_oid!($($oid)|+, ty)
 
@@ -173,16 +213,7 @@ impl<'self> ToSql for &'self str {
 }
 
 to_option_impl!(VARCHAROID | TEXTOID, ~str)
-
-impl<'self> ToSql for Option<&'self str> {
-    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        check_oid!(VARCHAROID | TEXTOID, ty)
-        match *self {
-            None => (Text, None),
-            Some(val) => val.to_sql(ty)
-        }
-    }
-}
+to_option_impl!(self, VARCHAROID | TEXTOID, &'self str)
 
 impl<'self> ToSql for &'self [u8] {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
@@ -192,13 +223,22 @@ impl<'self> ToSql for &'self [u8] {
 }
 
 to_option_impl!(BYTEAOID, ~[u8])
+to_option_impl!(self, BYTEAOID, &'self [u8])
 
-impl<'self> ToSql for Option<&'self [u8]> {
+impl ToSql for Json {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
-        check_oid!(BYTEAOID, ty)
-        match *self {
-            None => (Text, None),
-            Some(val) => val.to_sql(ty)
-        }
+        check_oid!(JSONOID, ty)
+        (Text, Some(self.to_str().into_bytes()))
     }
 }
+
+to_option_impl!(JSONOID, Json)
+
+impl ToSql for Uuid {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(UUIDOID, ty)
+        (Binary, Some(self.to_bytes().to_owned()))
+    }
+}
+
+to_option_impl!(UUIDOID, Uuid)

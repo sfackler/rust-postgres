@@ -1,5 +1,8 @@
+extern mod extra;
 extern mod postgres;
 
+use extra::json;
+use extra::uuid::Uuid;
 use std::f32;
 use std::f64;
 
@@ -92,7 +95,7 @@ fn test_lazy_query() {
     }
 }
 
-fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
+fn test_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
     do test_in_transaction |trans| {
         trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
@@ -113,54 +116,67 @@ fn test_param_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
 
 #[test]
 fn test_bool_params() {
-    test_param_type("BOOL", [Some(true), Some(false), None]);
+    test_type("BOOL", [Some(true), Some(false), None]);
 }
 
 #[test]
 fn test_i16_params() {
-    test_param_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
+    test_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
 }
 
 #[test]
 fn test_i32_params() {
-    test_param_type("INT", [Some(0x00112233i32), Some(-0x00112233i32), None]);
+    test_type("INT", [Some(0x00112233i32), Some(-0x00112233i32), None]);
 }
 
 #[test]
 fn test_i64_params() {
-    test_param_type("BIGINT", [Some(0x0011223344556677i64),
-                               Some(-0x0011223344556677i64), None]);
+    test_type("BIGINT", [Some(0x0011223344556677i64),
+                         Some(-0x0011223344556677i64), None]);
 }
 
 #[test]
 fn test_f32_params() {
-    test_param_type("REAL", [Some(f32::infinity), Some(f32::neg_infinity),
-                             Some(1000.55), None]);
+    test_type("REAL", [Some(f32::infinity), Some(f32::neg_infinity),
+                       Some(1000.55), None]);
 }
 
 #[test]
 fn test_f64_params() {
-    test_param_type("DOUBLE PRECISION", [Some(f64::infinity),
-                                         Some(f64::neg_infinity),
-                                         Some(10000.55), None]);
+    test_type("DOUBLE PRECISION", [Some(f64::infinity),
+                                   Some(f64::neg_infinity),
+                                   Some(10000.55), None]);
 }
 
 #[test]
 fn test_varchar_params() {
-    test_param_type("VARCHAR", [Some(~"hello world"),
-                                Some(~"イロハニホヘト チリヌルヲ"), None]);
+    test_type("VARCHAR", [Some(~"hello world"),
+                          Some(~"イロハニホヘト チリヌルヲ"), None]);
 }
 
 #[test]
 fn test_text_params() {
-    test_param_type("TEXT", [Some(~"hello world"),
-                                Some(~"イロハニホヘト チリヌルヲ"), None]);
+    test_type("TEXT", [Some(~"hello world"),
+                       Some(~"イロハニホヘト チリヌルヲ"), None]);
 
 }
 
 #[test]
 fn test_bytea_params() {
-    test_param_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
+    test_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
+}
+
+#[test]
+fn test_json_params() {
+    test_type("JSON", [Some(json::from_str("[10, 11, 12]").unwrap()),
+                       Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
+                       None])
+}
+
+#[test]
+fn test_uuid_params() {
+    test_type("UUID", [Some(Uuid::parse_string("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
+                       None])
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
