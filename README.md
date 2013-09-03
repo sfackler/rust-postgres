@@ -101,7 +101,7 @@ let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
 `query` returns a result iterator. Fields of each row in the result can be
-accessed either by its index or their column name:
+accessed either by their indicies or their column names:
 ```rust
 let stmt = conn.prepare("SELECT bar, baz FROM foo");
 for row in stmt.query([]) {
