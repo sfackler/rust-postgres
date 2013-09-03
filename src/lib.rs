@@ -1,3 +1,7 @@
+#[link(name = "postgres",
+       vers = "0.1",
+       url = "https://github.com/sfackler/rust-postgres")];
+
 extern mod extra;
 
 use extra::container::Deque;
