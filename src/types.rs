@@ -195,6 +195,13 @@ to_option_impl!(FLOAT4OID, f32)
 to_conversions_impl!(FLOAT8OID, f64, write_be_f64_)
 to_option_impl!(FLOAT8OID, f64)
 
+impl ToSql for ~str {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(VARCHAROID | TEXTOID | BPCHAROID, ty)
+        (Text, Some(self.as_bytes().to_owned()))
+    }
+}
+
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
         check_oid!(VARCHAROID | TEXTOID | BPCHAROID, ty)
@@ -204,6 +211,13 @@ impl<'self> ToSql for &'self str {
 
 to_option_impl!(VARCHAROID | TEXTOID | BPCHAROID, ~str)
 to_option_impl!(self, VARCHAROID | TEXTOID | BPCHAROID, &'self str)
+
+impl ToSql for ~[u8] {
+    fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
+        check_oid!(BYTEAOID, ty)
+        (Binary, Some(self.to_owned()))
+    }
+}
 
 impl<'self> ToSql for &'self [u8] {
     fn to_sql(&self, ty: Oid) -> (Format, Option<~[u8]>) {
