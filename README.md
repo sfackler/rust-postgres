@@ -95,7 +95,7 @@ A prepared statement can be executed with the `query` and `update` methods.
 Both methods take an array of parameters to bind to the query represented as
 `&ToSql` trait objects. `update` returns the number of rows affected by the
 query (or 0 if not applicable):
-```
+```rust
 let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
 let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
