@@ -655,23 +655,37 @@ impl<'self> Container for PostgresRow<'self> {
     }
 }
 
-impl<'self, T: FromSql> Index<uint, T> for PostgresRow<'self> {
-    fn index(&self, idx: &uint) -> T {
-        self.get(*idx)
-    }
-}
-
-impl<'self> PostgresRow<'self> {
-    pub fn get<T: FromSql>(&self, idx: uint) -> T {
+impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
+    fn index(&self, idx: &I) -> T {
+        let idx = idx.idx(self.stmt);
         FromSql::from_sql(self.stmt.result_desc[idx].type_oid,
                           &self.data[idx])
     }
+}
 
-    pub fn get_named<T: FromSql>(&self, col: &str) -> T {
-        let idx = match self.stmt.find_col_named(col) {
+pub trait RowIndex {
+    fn idx(&self, stmt: &PostgresStatement) -> uint;
+}
+
+impl RowIndex for uint {
+    fn idx(&self, _stmt: &PostgresStatement) -> uint {
+        *self
+    }
+}
+
+// This is a convenicence as the 0 in get[0] resolves to int :(
+impl RowIndex for int {
+    fn idx(&self, _stmt: &PostgresStatement) -> uint {
+        assert!(*self >= 0);
+        *self as uint
+    }
+}
+
+impl<'self> RowIndex for &'self str {
+    fn idx(&self, stmt: &PostgresStatement) -> uint {
+        match stmt.find_col_named(*self) {
             Some(idx) => idx,
-            None => fail!("No column with name %s", col)
-        };
-        self.get(idx)
+            None => fail!("No column with name %s", *self)
+        }
     }
 }

@@ -272,7 +272,7 @@ fn test_find_col_named() {
 }
 
 #[test]
-fn test_find_get_named() {
+fn test_get_named() {
     do test_in_transaction |trans| {
         trans.update("CREATE TABLE foo (
                         id SERIAL PRIMARY KEY,
@@ -283,7 +283,20 @@ fn test_find_get_named() {
         let result = stmt.query([]);
 
         assert_eq!(~[10i32],
-                   result.map(|row| { row.get_named("val") }).collect());
+                   result.map(|row| { row["val"] }).collect());
+    }
+}
+
+#[test]
+#[should_fail]
+fn test_get_named_fail() {
+    do test_in_transaction |trans| {
+        trans.update("CREATE TABLE foo (id SERIAL PRIMARY KEY)", []);
+        trans.update("INSERT INTO foo DEFAULT VALUES", []);
+        let stmt = trans.prepare("SELECT id FROM foo");
+        let mut result = stmt.query([]);
+
+        let _: i32 = result.next().unwrap()["asdf"];
     }
 }
 
