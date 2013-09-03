@@ -565,6 +565,12 @@ impl<'self> PostgresStatement<'self> {
 
         Ok(result)
     }
+
+    pub fn find_col_named(&self, col: &str) -> Option<uint> {
+        do self.result_desc.iter().position |desc| {
+            desc.name.as_slice() == col
+        }
+    }
 }
 
 pub struct PostgresResult<'self> {
@@ -659,5 +665,13 @@ impl<'self> PostgresRow<'self> {
     pub fn get<T: FromSql>(&self, idx: uint) -> T {
         FromSql::from_sql(self.stmt.result_desc[idx].type_oid,
                           &self.data[idx])
+    }
+
+    pub fn get_named<T: FromSql>(&self, col: &str) -> T {
+        let idx = match self.stmt.find_col_named(col) {
+            Some(idx) => idx,
+            None => fail!("No column with name %s", col)
+        };
+        self.get(idx)
     }
 }

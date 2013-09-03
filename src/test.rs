@@ -121,7 +121,7 @@ fn test_bool_params() {
 
 #[test]
 fn test_i8_params() {
-    test_type("\"char\"", [Some(0i8), Some(127i8), None]);
+    test_type("\"char\"", [Some(-100i8), Some(127i8), None]);
 }
 
 #[test]
@@ -254,6 +254,36 @@ fn test_wrong_param_type() {
                       )", []);
         trans.try_update("INSERT INTO foo (val) VALUES ($1)",
                          [&1i32 as &ToSql]);
+    }
+}
+
+#[test]
+fn test_find_col_named() {
+    do test_in_transaction |trans| {
+        trans.update("CREATE TABLE foo (
+                        id SERIAL PRIMARY KEY,
+                        val BOOL
+                      )", []);
+        let stmt = trans.prepare("SELECT id as my_id, val FROM foo");
+        assert_eq!(Some(0), stmt.find_col_named("my_id"));
+        assert_eq!(Some(1), stmt.find_col_named("val"));
+        assert_eq!(None, stmt.find_col_named("asdf"));
+    }
+}
+
+#[test]
+fn test_find_get_named() {
+    do test_in_transaction |trans| {
+        trans.update("CREATE TABLE foo (
+                        id SERIAL PRIMARY KEY,
+                        val INT
+                      )", []);
+        trans.update("INSERT INTO foo (val) VALUES (10)", []);
+        let stmt = trans.prepare("SELECT id, val FROM foo");
+        let result = stmt.query([]);
+
+        assert_eq!(~[10i32],
+                   result.map(|row| { row.get_named("val") }).collect());
     }
 }
 
