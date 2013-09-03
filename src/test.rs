@@ -33,6 +33,48 @@ fn test_prepare_err() {
     }
 }
 
+#[test]
+fn test_no_transaction() {
+    struct Person {
+        id: i32,
+        name: ~str,
+        awesome: bool,
+        data: Option<~[u8]>
+    }
+
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+
+    conn.update("CREATE TEMPORARY TABLE person (
+                    id      SERIAL PRIMARY KEY,
+                    name    VARCHAR NOT NULL,
+                    awesome BOOL NOT NULL,
+                    data    BYTEA
+                 )", []);
+    let me = Person {
+        id: 0,
+        name: ~"Steven",
+        awesome: true,
+        data: None
+    };
+    conn.update("INSERT INTO person (name, awesome, data)
+                    VALUES ($1, $2, $3)",
+                 [&me.name as &ToSql, &me.awesome as &ToSql,
+                  &me.data as &ToSql]);
+
+    let stmt = conn.prepare("SELECT id, name, awesome, data FROM person");
+    for row in stmt.query([]) {
+        let person = Person {
+            id: row[0],
+            name: row[1],
+            awesome: row[2],
+            data: row[3]
+        };
+        assert_eq!(&me.name, &person.name);
+        assert_eq!(&me.awesome, &person.awesome);
+        assert_eq!(&me.data, &person.data);
+    }
+}
+
 fn test_in_transaction(blk: &fn(&PostgresTransaction)) {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
 
