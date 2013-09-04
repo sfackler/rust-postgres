@@ -4,7 +4,9 @@
 
 extern mod extra;
 
+use extra::container::Deque;
 use extra::digest::Digest;
+use extra::ringbuf::RingBuf;
 use extra::md5::Md5;
 use extra::url::{UserInfo, Url};
 use std::cell::Cell;
@@ -308,6 +310,7 @@ impl PostgresConnection {
             name: stmt_name,
             param_types: param_types,
             result_desc: result_desc,
+            next_portal_id: Cell::new(0)
         })
     }
 
@@ -423,6 +426,7 @@ pub struct NormalPostgresStatement<'self> {
     priv name: ~str,
     priv param_types: ~[Oid],
     priv result_desc: ~[RowDescriptionEntry],
+    priv next_portal_id: Cell<uint>
 }
 
 #[unsafe_destructor]
@@ -446,7 +450,7 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
 }
 
 impl<'self> NormalPostgresStatement<'self> {
-    fn execute(&self, portal_name: &str, params: &[&ToSql])
+    fn execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
             -> Option<PostgresDbError> {
         let mut formats = ~[];
         let mut values = ~[];
@@ -470,7 +474,7 @@ impl<'self> NormalPostgresStatement<'self> {
             },
             &Execute {
                 portal: portal_name,
-                max_rows: 0
+                max_rows: row_limit as i32
             },
             &Sync]);
 
@@ -491,33 +495,29 @@ impl<'self> NormalPostgresStatement<'self> {
         }
     }
 
-    fn try_lazy_query<'a>(&'a self, _row_limit: uint, params: &[&ToSql])
+    fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        match self.execute("", params) {
+        let id = self.next_portal_id.take();
+        let portal_name = format!("{}_portal_{}", self.name, id);
+        self.next_portal_id.put_back(id + 1);
+
+        match self.execute(portal_name, row_limit, params) {
             Some(err) => {
                 return Err(err);
             }
             None => ()
         }
 
-        let mut data = ~[];
-        loop {
-            match_read_message_or_fail!(self.conn, {
-                EmptyQueryResponse |
-                CommandComplete {_} => {
-                    break;
-                },
-                DataRow { row } => data.push(row)
-            })
-        }
-        self.conn.wait_for_ready();
-
-        // we're going to be popping off
-        data.reverse();
-        Ok(PostgresResult {
+        let mut result = PostgresResult {
             stmt: self,
-            data: data,
-        })
+            name: portal_name,
+            data: RingBuf::new(),
+            row_limit: row_limit,
+            more_rows: true
+        };
+        result.load_rows();
+
+        Ok(result)
     }
 }
 
@@ -535,7 +535,7 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
 
     fn try_update(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
-        match self.execute("", params) {
+        match self.execute("", 0, params) {
             Some(err) => {
                 return Err(err);
             }
@@ -632,12 +632,69 @@ impl<'self> TransactionalPostgresStatement<'self> {
 
 pub struct PostgresResult<'self> {
     priv stmt: &'self NormalPostgresStatement<'self>,
-    priv data: ~[~[Option<~[u8]>]]
+    priv name: ~str,
+    priv data: RingBuf<~[Option<~[u8]>]>,
+    priv row_limit: uint,
+    priv more_rows: bool
+}
+
+#[unsafe_destructor]
+impl<'self> Drop for PostgresResult<'self> {
+    fn drop(&self) {
+        do io_error::cond.trap(|_| {}).inside {
+            self.stmt.conn.write_messages([
+                &Close {
+                    variant: 'P' as u8,
+                    name: self.name.as_slice()
+                },
+                &Sync]);
+            loop {
+                match_read_message!(self.stmt.conn, {
+                    ReadyForQuery {_} => break,
+                    _ => ()
+                })
+            }
+        }
+    }
+}
+
+impl<'self> PostgresResult<'self> {
+    fn load_rows(&mut self) {
+        loop {
+            match_read_message_or_fail!(self.stmt.conn, {
+                EmptyQueryResponse |
+                CommandComplete {_} => {
+                    self.more_rows = false;
+                    break;
+                },
+                PortalSuspended => {
+                    self.more_rows = true;
+                    break;
+                },
+                DataRow { row } => self.data.push_back(row)
+            })
+        }
+        self.stmt.conn.wait_for_ready();
+    }
+
+    fn pull_rows(&mut self) {
+        self.stmt.conn.write_messages([
+            &Execute {
+                portal: self.name,
+                max_rows: self.row_limit as i32
+            },
+            &Sync]);
+        self.load_rows();
+    }
 }
 
 impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
     fn next(&mut self) -> Option<PostgresRow<'self>> {
-        do self.data.pop_opt().map_move |row| {
+        if self.data.is_empty() && self.more_rows {
+            self.pull_rows();
+        }
+
+        do self.data.pop_front().map_move |row| {
             PostgresRow {
                 stmt: self.stmt,
                 data: row

@@ -45,6 +45,7 @@ pub enum BackendMessage {
         value: ~str
     },
     ParseComplete,
+    PortalSuspended,
     ReadyForQuery {
         state: u8
     },
@@ -261,6 +262,7 @@ impl<R: Reader> ReadMessage for R {
             'n' => NoData,
             'N' => NoticeResponse { fields: read_fields(&mut buf) },
             'R' => read_auth_message(&mut buf),
+            's' => PortalSuspended,
             'S' => ParameterStatus {
                 parameter: buf.read_string(),
                 value: buf.read_string()
