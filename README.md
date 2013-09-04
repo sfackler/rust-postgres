@@ -140,6 +140,22 @@ do conn.in_transaction |trans| {
 ```
 A transaction will commit by default. Transactions cannot currently be nested.
 
+Lazy Queries
+------------
+Some queries may return a large amount of data. Inside of a transaction,
+prepared statements have an additional method, `lazy_query`. The rows returned
+from a call to `lazy_query` are pulled from the database lazily as needed:
+```rust
+do conn.in_transaction |trans| {
+    let stmt = trans.prepare(query)
+
+    // No more than 100 rows will be stored in memory at any time
+    for row in stmt.lazy_query(100, params) {
+        // do things
+    }
+}
+```
+
 Error Handling
 --------------
 The methods described above will fail if there is an error. For each of these
