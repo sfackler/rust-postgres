@@ -68,6 +68,26 @@ fn test_query() {
     assert_eq!(~[1i64, 2], result.map(|row| { row[0] }).collect());
 }
 
+#[test]
+fn test_lazy_query() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+
+    do conn.in_transaction |trans| {
+        trans.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+        let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
+        let values = ~[0i32, 1, 2, 3, 4, 5];
+        for value in values.iter() {
+            stmt.update([value as &ToSql]);
+        }
+
+        let stmt = trans.prepare("SELECT id FROM foo ORDER BY id");
+        let result = stmt.lazy_query(2, []);
+        assert_eq!(values, result.map(|row| { row[0] }).collect());
+
+        trans.set_rollback();
+    }
+}
+
 fn test_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
     conn.update("CREATE TEMPORARY TABLE foo (

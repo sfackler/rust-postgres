@@ -482,6 +482,43 @@ impl<'self> NormalPostgresStatement<'self> {
             }
         })
     }
+
+    fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+            -> PostgresResult<'a> {
+        match self.try_lazy_query(row_limit, params) {
+            Ok(result) => result,
+            Err(err) => fail2!("Error executing query: {}", err.to_str())
+        }
+    }
+
+    fn try_lazy_query<'a>(&'a self, _row_limit: uint, params: &[&ToSql])
+            -> Result<PostgresResult<'a>, PostgresDbError> {
+        match self.execute("", params) {
+            Some(err) => {
+                return Err(err);
+            }
+            None => ()
+        }
+
+        let mut data = ~[];
+        loop {
+            match_read_message_or_fail!(self.conn, {
+                EmptyQueryResponse |
+                CommandComplete {_} => {
+                    break;
+                },
+                DataRow { row } => data.push(row)
+            })
+        }
+        self.conn.wait_for_ready();
+
+        // we're going to be popping off
+        data.reverse();
+        Ok(PostgresResult {
+            stmt: self,
+            data: data,
+        })
+    }
 }
 
 impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
@@ -535,39 +572,12 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
 
     fn query<'a>(&'a self, params: &[&ToSql])
             -> PostgresResult<'a> {
-        match self.try_query(params) {
-            Ok(result) => result,
-            Err(err) => fail2!("Error running query: {}", err.to_str())
-        }
+        self.lazy_query(0, params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        match self.execute("", params) {
-            Some(err) => {
-                return Err(err);
-            }
-            None => ()
-        }
-
-        let mut data = ~[];
-        loop {
-            match_read_message_or_fail!(self.conn, {
-                EmptyQueryResponse |
-                CommandComplete {_} => {
-                    break;
-                },
-                DataRow { row } => data.push(row)
-            })
-        }
-        self.conn.wait_for_ready();
-
-        // we're going to be popping off
-        data.reverse();
-        Ok(PostgresResult {
-            stmt: self,
-            data: data,
-        })
+        self.try_lazy_query(0, params)
     }
 
     fn find_col_named(&self, col: &str) -> Option<uint> {
@@ -605,6 +615,18 @@ impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
 
     fn find_col_named(&self, col: &str) -> Option<uint> {
         self.stmt.find_col_named(col)
+    }
+}
+
+impl<'self> TransactionalPostgresStatement<'self> {
+    pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+            -> PostgresResult<'a> {
+        self.stmt.lazy_query(row_limit, params)
+    }
+
+    pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+            -> Result<PostgresResult<'a>, PostgresDbError> {
+        self.try_lazy_query(row_limit, params)
     }
 }
 
