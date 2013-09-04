@@ -10,15 +10,6 @@ use postgres::*;
 use postgres::types::{ToSql, FromSql};
 
 #[test]
-fn test_basic() {
-    do test_in_transaction |trans| {
-        trans.prepare("CREATE TABLE foo (id BIGINT PRIMARY KEY)").update([]);
-
-        trans.set_rollback();
-    };
-}
-
-#[test]
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
     match conn.try_prepare("invalid sql statment") {
@@ -34,105 +25,65 @@ fn test_prepare_err() {
 }
 
 #[test]
-fn test_no_transaction() {
-    struct Person {
-        id: i32,
-        name: ~str,
-        awesome: bool,
-        data: Option<~[u8]>
-    }
-
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
-
-    conn.update("CREATE TEMPORARY TABLE person (
-                    id      SERIAL PRIMARY KEY,
-                    name    VARCHAR NOT NULL,
-                    awesome BOOL NOT NULL,
-                    data    BYTEA
-                 )", []);
-    let me = Person {
-        id: 0,
-        name: ~"Steven",
-        awesome: true,
-        data: None
-    };
-    conn.update("INSERT INTO person (name, awesome, data)
-                    VALUES ($1, $2, $3)",
-                 [&me.name as &ToSql, &me.awesome as &ToSql,
-                  &me.data as &ToSql]);
-
-    let stmt = conn.prepare("SELECT id, name, awesome, data FROM person");
-    for row in stmt.query([]) {
-        let person = Person {
-            id: row[0],
-            name: row[1],
-            awesome: row[2],
-            data: row[3]
-        };
-        assert_eq!(&me.name, &person.name);
-        assert_eq!(&me.awesome, &person.awesome);
-        assert_eq!(&me.data, &person.data);
-    }
-}
-
-fn test_in_transaction(blk: &fn(&PostgresTransaction)) {
+fn test_transaction_commit() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     do conn.in_transaction |trans| {
-        blk(trans);
+        trans.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    }
+
+    let stmt = conn.prepare("SELECT * FROM foo");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
+}
+
+#[test]
+fn test_transaction_rollback() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    conn.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    do conn.in_transaction |trans| {
+        trans.update("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
         trans.set_rollback();
     }
+
+    let stmt = conn.prepare("SELECT * FROM foo");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
 }
 
 #[test]
 fn test_query() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (id BIGINT PRIMARY KEY)", []);
-        trans.update("INSERT INTO foo (id) VALUES ($1), ($2)",
-                     [&1i64 as &ToSql, &2i64 as &ToSql]);
-        let stmt = trans.prepare("SELECT * from foo ORDER BY id");
-        let result = stmt.query([]);
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
+    conn.update("INSERT INTO foo (id) VALUES ($1), ($2)",
+                 [&1i64 as &ToSql, &2i64 as &ToSql]);
+    let stmt = conn.prepare("SELECT * from foo ORDER BY id");
+    let result = stmt.query([]);
 
-        assert_eq!(~[1i64, 2], result.map(|row| { row[0] }).collect());
-    }
-}
-
-#[test]
-fn test_nulls() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        val VARCHAR
-                      )", []);
-        trans.update("INSERT INTO foo (val) VALUES ($1), ($2)",
-                     [& &"foobar" as &ToSql, &None::<~str> as &ToSql]);
-        let stmt = trans.prepare("SELECT val FROM foo ORDER BY id");
-        let result = stmt.query([]);
-
-        assert_eq!(~[Some(~"foobar"), None],
-                   result.map(|row| { row[0] }).collect());
-
-        trans.set_rollback();
-    }
+    assert_eq!(~[1i64, 2], result.map(|row| { row[0] }).collect());
 }
 
 fn test_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        b " + sql_type +
-                     ")", []);
-        let stmt = trans.prepare("INSERT INTO foo (b) VALUES ($1)");
-        for value in values.iter() {
-            stmt.update([value as &ToSql]);
-        }
-
-        let stmt = trans.prepare("SELECT b FROM foo ORDER BY id");
-        let result = stmt.query([]);
-
-        let actual_values: ~[T] = result.map(|row| { row[0] }).collect();
-        assert_eq!(values, actual_values.as_slice());
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (
+                    id SERIAL PRIMARY KEY,
+                    b " + sql_type +
+                ")", []);
+    let stmt = conn.prepare("INSERT INTO foo (b) VALUES ($1)");
+    for value in values.iter() {
+        stmt.update([value as &ToSql]);
     }
+
+    let stmt = conn.prepare("SELECT b FROM foo ORDER BY id");
+    let result = stmt.query([]);
+
+    let actual_values: ~[T] = result.map(|row| { row[0] }).collect();
+    assert_eq!(actual_values.as_slice(), values);
 }
 
 #[test]
@@ -189,20 +140,19 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        b CHAR(5)
-                      )", []);
-        trans.update("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                     [&Some("12345") as &ToSql, &Some("123") as &ToSql,
-                      &None::<~str> as &ToSql]);
-        let stmt = trans.prepare("SELECT b FROM foo ORDER BY id");
-        let res = stmt.query([]);
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (
+                    id SERIAL PRIMARY KEY,
+                    b CHAR(5)
+                 )", []);
+    conn.update("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+                [&Some("12345") as &ToSql, &Some("123") as &ToSql,
+                 &None::<~str> as &ToSql]);
+    let stmt = conn.prepare("SELECT b FROM foo ORDER BY id");
+    let res = stmt.query([]);
 
-        assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
-                   res.map(|row| { row[0] }).collect());
-    }
+    assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
+               res.map(|row| { row[0] }).collect());
 }
 
 #[test]
@@ -224,19 +174,12 @@ fn test_uuid_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        b " + sql_type +
-                     ")", []);
-        let nan: T = Float::NaN();
-        trans.update("INSERT INTO foo (b) VALUES ($1)", [&nan as &ToSql]);
-
-        let stmt = trans.prepare("SELECT b FROM foo");
-        let mut result = stmt.query([]);
-        let val: T = result.next().unwrap()[0];
-        assert!(val.is_NaN());
-    }
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let nan: T = Float::NaN();
+    let stmt = conn.prepare("SELECT $1::" + sql_type);
+    let mut result = stmt.query([&nan as &ToSql]);
+    let val: T = result.next().unwrap()[0];
+    assert!(val.is_NaN())
 }
 
 #[test]
@@ -250,75 +193,38 @@ fn test_f64_nan_param() {
 }
 
 #[test]
-fn test_wrong_num_params() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        val VARCHAR
-                     )", []);
-        let res = trans.try_update("INSERT INTO foo (val) VALUES ($1), ($2)",
-                                   [& &"foobar" as &ToSql]);
-        match res {
-            Err(PostgresDbError { code: ~"08P01", _ }) => (),
-            resp => fail!("Unexpected response: %?", resp)
-        }
-    }
-}
-
-#[test]
 #[should_fail]
 fn test_wrong_param_type() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        val BOOL
-                      )", []);
-        trans.try_update("INSERT INTO foo (val) VALUES ($1)",
-                         [&1i32 as &ToSql]);
-    }
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.try_update("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
 }
 
 #[test]
 fn test_find_col_named() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        val BOOL
-                      )", []);
-        let stmt = trans.prepare("SELECT id as my_id, val FROM foo");
-        assert_eq!(Some(0), stmt.find_col_named("my_id"));
-        assert_eq!(Some(1), stmt.find_col_named("val"));
-        assert_eq!(None, stmt.find_col_named("asdf"));
-    }
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let stmt = conn.prepare("SELECT 1 as my_id, 'hi' as val");
+    assert_eq!(Some(0), stmt.find_col_named("my_id"));
+    assert_eq!(Some(1), stmt.find_col_named("val"));
+    assert_eq!(None, stmt.find_col_named("asdf"));
 }
 
 #[test]
 fn test_get_named() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (
-                        id SERIAL PRIMARY KEY,
-                        val INT
-                      )", []);
-        trans.update("INSERT INTO foo (val) VALUES (10)", []);
-        let stmt = trans.prepare("SELECT id, val FROM foo");
-        let result = stmt.query([]);
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let stmt = conn.prepare("SELECT 10::INT as val");
+    let result = stmt.query([]);
 
-        assert_eq!(~[10i32],
-                   result.map(|row| { row["val"] }).collect());
-    }
+    assert_eq!(~[10i32], result.map(|row| { row["val"] }).collect());
 }
 
 #[test]
 #[should_fail]
 fn test_get_named_fail() {
-    do test_in_transaction |trans| {
-        trans.update("CREATE TABLE foo (id SERIAL PRIMARY KEY)", []);
-        trans.update("INSERT INTO foo DEFAULT VALUES", []);
-        let stmt = trans.prepare("SELECT id FROM foo");
-        let mut result = stmt.query([]);
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let stmt = conn.prepare("SELECT 10::INT as id");
+    let mut result = stmt.query([]);
 
-        let _: i32 = result.next().unwrap()["asdf"];
-    }
+    let _: i32 = result.next().unwrap()["asdf"];
 }
 
 #[test]
