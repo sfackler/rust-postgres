@@ -257,7 +257,7 @@ impl PostgresConnection {
         })
     }
 
-    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
+    pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
         match self.try_prepare(query) {
             Ok(stmt) => stmt,
             Err(err) => fail2!("Error preparing \"{}\": {}", query,
@@ -266,7 +266,7 @@ impl PostgresConnection {
     }
 
     pub fn try_prepare<'a>(&'a self, query: &str)
-                           -> Result<PostgresStatement<'a>, PostgresDbError> {
+                -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
         let id = self.next_stmt_id.take();
         let stmt_name = format!("statement_{}", id);
         self.next_stmt_id.put_back(id + 1);
@@ -303,7 +303,7 @@ impl PostgresConnection {
 
         self.wait_for_ready();
 
-        Ok(PostgresStatement {
+        Ok(NormalPostgresStatement {
             conn: self,
             name: stmt_name,
             param_types: param_types,
@@ -370,13 +370,16 @@ pub struct PostgresTransaction<'self> {
 }
 
 impl<'self> PostgresTransaction<'self> {
-    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
-        self.conn.prepare(query)
+    pub fn prepare<'a>(&'a self, query: &str)
+            -> TransactionalPostgresStatement<'a> {
+        TransactionalPostgresStatement { stmt: self.conn.prepare(query) }
     }
 
     pub fn try_prepare<'a>(&'a self, query: &str)
-                           -> Result<PostgresStatement<'a>, PostgresDbError> {
-        self.conn.try_prepare(query)
+            -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
+        do self.conn.try_prepare(query).map_move |stmt| {
+            TransactionalPostgresStatement { stmt: stmt }
+        }
     }
 
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
@@ -405,7 +408,17 @@ impl<'self> PostgresTransaction<'self> {
     }
 }
 
-pub struct PostgresStatement<'self> {
+pub trait PostgresStatement {
+    fn num_params(&self) -> uint;
+    fn update(&self, params: &[&ToSql]) -> uint;
+    fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
+    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a>;
+    fn try_query<'a>(&'a self, params: &[&ToSql])
+            -> Result<PostgresResult<'a>, PostgresDbError>;
+    fn find_col_named(&self, col: &str) -> Option<uint>;
+}
+
+pub struct NormalPostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
     priv param_types: ~[Oid],
@@ -413,7 +426,7 @@ pub struct PostgresStatement<'self> {
 }
 
 #[unsafe_destructor]
-impl<'self> Drop for PostgresStatement<'self> {
+impl<'self> Drop for NormalPostgresStatement<'self> {
     fn drop(&self) {
         do io_error::cond.trap(|_| {}).inside {
             self.conn.write_messages([
@@ -432,11 +445,7 @@ impl<'self> Drop for PostgresStatement<'self> {
     }
 }
 
-impl<'self> PostgresStatement<'self> {
-    pub fn num_params(&self) -> uint {
-        self.param_types.len()
-    }
-
+impl<'self> NormalPostgresStatement<'self> {
     fn execute(&self, portal_name: &str, params: &[&ToSql])
             -> Option<PostgresDbError> {
         let mut formats = ~[];
@@ -473,15 +482,21 @@ impl<'self> PostgresStatement<'self> {
             }
         })
     }
+}
 
-    pub fn update(&self, params: &[&ToSql]) -> uint {
+impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
+    fn num_params(&self) -> uint {
+        self.param_types.len()
+    }
+
+    fn update(&self, params: &[&ToSql]) -> uint {
         match self.try_update(params) {
             Ok(count) => count,
             Err(err) => fail2!("Error running update: {}", err.to_str())
         }
     }
 
-    pub fn try_update(&self, params: &[&ToSql])
+    fn try_update(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
         match self.execute("", params) {
             Some(err) => {
@@ -518,16 +533,16 @@ impl<'self> PostgresStatement<'self> {
         Ok(num)
     }
 
-    pub fn query(&'self self, params: &[&ToSql])
-            -> PostgresResult<'self> {
+    fn query<'a>(&'a self, params: &[&ToSql])
+            -> PostgresResult<'a> {
         match self.try_query(params) {
             Ok(result) => result,
             Err(err) => fail2!("Error running query: {}", err.to_str())
         }
     }
 
-    pub fn try_query(&'self self, params: &[&ToSql])
-            -> Result<PostgresResult<'self>, PostgresDbError> {
+    fn try_query<'a>(&'a self, params: &[&ToSql])
+            -> Result<PostgresResult<'a>, PostgresDbError> {
         match self.execute("", params) {
             Some(err) => {
                 return Err(err);
@@ -555,15 +570,46 @@ impl<'self> PostgresStatement<'self> {
         })
     }
 
-    pub fn find_col_named(&self, col: &str) -> Option<uint> {
+    fn find_col_named(&self, col: &str) -> Option<uint> {
         do self.result_desc.iter().position |desc| {
             desc.name.as_slice() == col
         }
     }
 }
 
+pub struct TransactionalPostgresStatement<'self> {
+    priv stmt: NormalPostgresStatement<'self>
+}
+
+impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
+    fn num_params(&self) -> uint {
+        self.stmt.num_params()
+    }
+
+    fn update(&self, params: &[&ToSql]) -> uint {
+        self.stmt.update(params)
+    }
+
+    fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
+        self.stmt.try_update(params)
+    }
+
+    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
+        self.stmt.query(params)
+    }
+
+    fn try_query<'a>(&'a self, params: &[&ToSql])
+            -> Result<PostgresResult<'a>, PostgresDbError> {
+        self.stmt.try_query(params)
+    }
+
+    fn find_col_named(&self, col: &str) -> Option<uint> {
+        self.stmt.find_col_named(col)
+    }
+}
+
 pub struct PostgresResult<'self> {
-    priv stmt: &'self PostgresStatement<'self>,
+    priv stmt: &'self NormalPostgresStatement<'self>,
     priv data: ~[~[Option<~[u8]>]]
 }
 
@@ -579,7 +625,7 @@ impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
 }
 
 pub struct PostgresRow<'self> {
-    priv stmt: &'self PostgresStatement<'self>,
+    priv stmt: &'self NormalPostgresStatement<'self>,
     priv data: ~[Option<~[u8]>]
 }
 
@@ -598,25 +644,25 @@ impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
 }
 
 pub trait RowIndex {
-    fn idx(&self, stmt: &PostgresStatement) -> uint;
+    fn idx(&self, stmt: &NormalPostgresStatement) -> uint;
 }
 
 impl RowIndex for uint {
-    fn idx(&self, _stmt: &PostgresStatement) -> uint {
+    fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
         *self
     }
 }
 
 // This is a convenicence as the 0 in get[0] resolves to int :(
 impl RowIndex for int {
-    fn idx(&self, _stmt: &PostgresStatement) -> uint {
+    fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
         assert!(*self >= 0);
         *self as uint
     }
 }
 
 impl<'self> RowIndex for &'self str {
-    fn idx(&self, stmt: &PostgresStatement) -> uint {
+    fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
         match stmt.find_col_named(*self) {
             Some(idx) => idx,
             None => fail2!("No column with name {}", *self)
