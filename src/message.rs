@@ -120,7 +120,7 @@ pub trait WriteMessage {
 
 impl<W: Writer> WriteMessage for W {
     fn write_message(&mut self, message: &FrontendMessage) {
-        debug!("Writing message %?", message);
+        debug2!("Writing message {:?}", message);
         let mut buf = MemWriter::new();
         let mut ident = None;
 
@@ -268,10 +268,10 @@ impl<R: Reader> ReadMessage for R {
             't' => read_parameter_description(&mut buf),
             'T' => read_row_description(&mut buf),
             'Z' => ReadyForQuery { state: buf.read_u8_() },
-            ident => fail!("Unknown message identifier `%c`", ident)
+            ident => fail2!("Unknown message identifier `{}`", ident)
         };
         assert!(buf.eof());
-        debug!("Read message %?", ret);
+        debug2!("Read message {:?}", ret);
         ret
     }
 }
@@ -310,7 +310,7 @@ fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
         0 => AuthenticationOk,
         3 => AuthenticationCleartextPassword,
         5 => AuthenticationMD5Password { salt: buf.read_bytes(4) },
-        val => fail!("Unknown Authentication identifier `%?`", val)
+        val => fail2!("Unknown Authentication identifier `{}`", val)
     }
 }
 

@@ -43,9 +43,20 @@ macro_rules! match_read_message(
     )
 )
 
+macro_rules! match_read_message_or_fail(
+    ($conn:expr, { $($($p:pat)|+ => $e:expr),+ }) => (
+        match_read_message!($conn, {
+            $(
+              $($p)|+ => $e
+            ),+ ,
+            resp => fail2!("Bad response: {}", resp.to_str())
+        })
+    )
+)
+
 fn handle_notice_response(fields: ~[(u8, ~str)]) {
     let err = PostgresDbError::new(fields);
-    info!("%s: %s", err.severity, err.message);
+    info2!("{}: {}", err.severity, err.message);
 }
 
 #[deriving(ToStr)]
@@ -123,7 +134,7 @@ impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
         match PostgresConnection::try_connect(url) {
             Ok(conn) => conn,
-            Err(err) => fail!("Failed to connect: %s", err.to_str())
+            Err(err) => fail2!("Failed to connect: {}", err.to_str())
         }
     }
 
@@ -176,12 +187,11 @@ impl PostgresConnection {
         }
 
         loop {
-            match_read_message!(conn, {
+            match_read_message_or_fail!(conn, {
                 ParameterStatus { parameter, value } =>
                     info!("Parameter %s = %s", parameter, value),
                 BackendKeyData {_} => (),
-                ReadyForQuery {_} => break,
-                resp => fail!("Bad response: %?", resp.to_str())
+                ReadyForQuery {_} => break
             })
         }
 
@@ -211,7 +221,7 @@ impl PostgresConnection {
     }
 
     fn handle_auth(&self, user: UserInfo) -> Option<PostgresConnectError> {
-        match_read_message!(self, {
+        match_read_message_or_fail!(self, {
             AuthenticationOk => return None,
             AuthenticationCleartextPassword => {
                 let pass = match user.pass {
@@ -237,23 +247,21 @@ impl PostgresConnection {
                 self.write_message(&PasswordMessage {
                     password: output.as_slice()
                 });
-            },
-            resp => fail!("Bad response: %?", resp.to_str())
+            }
         })
 
-        match_read_message!(self, {
+        match_read_message_or_fail!(self, {
             AuthenticationOk => None,
             ErrorResponse { fields } =>
-                Some(DbError(PostgresDbError::new(fields))),
-            resp => fail!("Bad response: %?", resp.to_str())
+                Some(DbError(PostgresDbError::new(fields)))
         })
     }
 
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
         match self.try_prepare(query) {
             Ok(stmt) => stmt,
-            Err(err) => fail!("Error preparing \"%s\": %s", query,
-                              err.to_str())
+            Err(err) => fail2!("Error preparing \"{}\": {}", query,
+                               err.to_str())
         }
     }
 
@@ -276,24 +284,21 @@ impl PostgresConnection {
             },
             &Sync]);
 
-        match_read_message!(self, {
+        match_read_message_or_fail!(self, {
             ParseComplete => (),
             ErrorResponse { fields } => {
                 self.wait_for_ready();
                 return Err(PostgresDbError::new(fields));
-            },
-            resp => fail!("Bad response: %?", resp.to_str())
+            }
         })
 
-        let param_types = match_read_message!(self, {
-            ParameterDescription { types } => types,
-            resp => fail!("Bad response: %?", resp.to_str())
+        let param_types = match_read_message_or_fail!(self, {
+            ParameterDescription { types } => types
         });
 
-        let result_desc = match_read_message!(self, {
+        let result_desc = match_read_message_or_fail!(self, {
             RowDescription { descriptions } => descriptions,
-            NoData => ~[],
-            resp => fail!("Bad response: %?", resp.to_str())
+            NoData => ~[]
         });
 
         self.wait_for_ready();
@@ -328,7 +333,7 @@ impl PostgresConnection {
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
         match self.try_update(query, params) {
             Ok(res) => res,
-            Err(err) => fail!("Error running update: %s", err.to_str())
+            Err(err) => fail2!("Error running update: {}", err.to_str())
         }
     }
 
@@ -346,16 +351,15 @@ impl PostgresConnection {
             match_read_message!(self, {
                 ReadyForQuery {_} => break,
                 ErrorResponse { fields } =>
-                    fail!("Error: %s", PostgresDbError::new(fields).to_str()),
+                    fail2!("Error: {}", PostgresDbError::new(fields).to_str()),
                 _ => ()
             })
         }
     }
 
     fn wait_for_ready(&self) {
-        match_read_message!(self, {
-            ReadyForQuery {_} => (),
-            resp => fail!("Bad response: %?", resp.to_str())
+        match_read_message_or_fail!(self, {
+            ReadyForQuery {_} => ()
         })
     }
 }
@@ -461,20 +465,19 @@ impl<'self> PostgresStatement<'self> {
             },
             &Sync]);
 
-        match_read_message!(self.conn, {
+        match_read_message_or_fail!(self.conn, {
             BindComplete => None,
             ErrorResponse { fields } => {
                 self.conn.wait_for_ready();
                 Some(PostgresDbError::new(fields))
-            },
-            resp => fail!("Bad response: %?", resp.to_str())
+            }
         })
     }
 
     pub fn update(&self, params: &[&ToSql]) -> uint {
         match self.try_update(params) {
             Ok(count) => count,
-            Err(err) => fail!("Error running update: %s", err.to_str())
+            Err(err) => fail2!("Error running update: {}", err.to_str())
         }
     }
 
@@ -489,7 +492,7 @@ impl<'self> PostgresStatement<'self> {
 
         let num;
         loop {
-            match_read_message!(self.conn, {
+            match_read_message_or_fail!(self.conn, {
                 CommandComplete { tag } => {
                     let s = tag.split_iter(' ').last().unwrap();
                     num = match FromStr::from_str(s) {
@@ -507,8 +510,7 @@ impl<'self> PostgresStatement<'self> {
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError::new(fields));
-                },
-                resp => fail!("Bad response: %?", resp.to_str())
+                }
             })
         }
         self.conn.wait_for_ready();
@@ -520,7 +522,7 @@ impl<'self> PostgresStatement<'self> {
             -> PostgresResult<'self> {
         match self.try_query(params) {
             Ok(result) => result,
-            Err(err) => fail!("Error running query: %s", err.to_str())
+            Err(err) => fail2!("Error running query: {}", err.to_str())
         }
     }
 
@@ -535,13 +537,12 @@ impl<'self> PostgresStatement<'self> {
 
         let mut data = ~[];
         loop {
-            match_read_message!(self.conn, {
+            match_read_message_or_fail!(self.conn, {
                 EmptyQueryResponse |
                 CommandComplete {_} => {
                     break;
                 },
-                DataRow { row } => data.push(row),
-                resp => fail!("Bad response: %?", resp.to_str())
+                DataRow { row } => data.push(row)
             })
         }
         self.conn.wait_for_ready();
@@ -618,7 +619,7 @@ impl<'self> RowIndex for &'self str {
     fn idx(&self, stmt: &PostgresStatement) -> uint {
         match stmt.find_col_named(*self) {
             Some(idx) => idx,
-            None => fail!("No column with name %s", *self)
+            None => fail2!("No column with name {}", *self)
         }
     }
 }
