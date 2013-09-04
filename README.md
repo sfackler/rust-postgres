@@ -146,7 +146,7 @@ The methods described above will fail if there is an error. For each of these
 methods, there is a second variant prefixed with `try_` which returns a
 `Result`:
 ```rust
-match conn.try_update(query) {
+match conn.try_update(query, params) {
     Ok(updates) => println!("{} rows were updated", updates),
     Err(err) => println!("An error occurred: {}", err.to_str())
 }

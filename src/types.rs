@@ -5,7 +5,7 @@ use extra::json::Json;
 use extra::uuid::Uuid;
 use std::rt::io::Decorator;
 use std::rt::io::extensions::{WriterByteConversions, ReaderByteConversions};
-use std::rt::io::mem::{MemWriter, MemReader};
+use std::rt::io::mem::{MemWriter, BufReader};
 use std::str;
 
 pub type Oid = i32;
@@ -71,8 +71,7 @@ macro_rules! from_map_impl(
 macro_rules! from_conversions_impl(
     ($oid:ident, $t:ty, $f:ident) => (
         from_map_impl!($oid, $t, |buf| {
-            // TODO change to BufReader when implemented
-            let mut reader = MemReader::new(buf.to_owned());
+            let mut reader = BufReader::new(buf.as_slice());
             reader.$f()
         })
     )
