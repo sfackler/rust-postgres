@@ -17,7 +17,7 @@ use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
 use message::*;
-use types::{Oid, ToSql, FromSql};
+use types::{PostgresType, ToSql, FromSql};
 
 mod message;
 mod types;
@@ -295,11 +295,20 @@ impl PostgresConnection {
         })
 
         let param_types = match_read_message_or_fail!(self, {
-            ParameterDescription { types } => types
+            ParameterDescription { types } =>
+                types.iter().map(|ty| { PostgresType::from_oid(*ty) })
+                    .collect()
         });
 
         let result_desc = match_read_message_or_fail!(self, {
-            RowDescription { descriptions } => descriptions,
+            RowDescription { descriptions } => {
+                let mut res: ~[ResultDescription] = descriptions
+                    .move_rev_iter().map(|desc| {
+                        ResultDescription::from_row_description_entry(desc)
+                    }).collect();
+                res.reverse();
+                res
+            },
             NoData => ~[]
         });
 
@@ -424,9 +433,26 @@ pub trait PostgresStatement {
 pub struct NormalPostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
-    priv param_types: ~[Oid],
-    priv result_desc: ~[RowDescriptionEntry],
+    priv param_types: ~[PostgresType],
+    priv result_desc: ~[ResultDescription],
     priv next_portal_id: Cell<uint>
+}
+
+pub struct ResultDescription {
+    name: ~str,
+    ty: PostgresType
+}
+
+impl ResultDescription {
+    fn from_row_description_entry(row: RowDescriptionEntry)
+            -> ResultDescription {
+        let RowDescriptionEntry { name, type_oid, _ } = row;
+
+        ResultDescription {
+            name: name,
+            ty: PostgresType::from_oid(type_oid)
+        }
+    }
 }
 
 #[unsafe_destructor]
@@ -461,7 +487,7 @@ impl<'self> NormalPostgresStatement<'self> {
         };
 
         let result_formats: ~[i16] = self.result_desc.iter().map(|desc| {
-            types::result_format(desc.type_oid) as i16
+            desc.ty.result_format() as i16
         }).collect();
 
         self.conn.write_messages([
@@ -717,7 +743,7 @@ impl<'self> Container for PostgresRow<'self> {
 impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
-        FromSql::from_sql(self.stmt.result_desc[idx].type_oid,
+        FromSql::from_sql(self.stmt.result_desc[idx].ty,
                           &self.data[idx])
     }
 }
