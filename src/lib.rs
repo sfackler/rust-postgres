@@ -421,7 +421,8 @@ impl<'self> PostgresTransaction<'self> {
 }
 
 pub trait PostgresStatement {
-    fn num_params(&self) -> uint;
+    fn param_types<'a>(&'a self) -> &'a [PostgresType];
+    fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription];
     fn update(&self, params: &[&ToSql]) -> uint;
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
     fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a>;
@@ -438,6 +439,7 @@ pub struct NormalPostgresStatement<'self> {
     priv next_portal_id: Cell<uint>
 }
 
+#[deriving(Eq)]
 pub struct ResultDescription {
     name: ~str,
     ty: PostgresType
@@ -548,8 +550,12 @@ impl<'self> NormalPostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
-    fn num_params(&self) -> uint {
-        self.param_types.len()
+    fn param_types<'a>(&'a self) -> &'a [PostgresType] {
+        self.param_types.as_slice()
+    }
+
+    fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription] {
+        self.result_desc.as_slice()
     }
 
     fn update(&self, params: &[&ToSql]) -> uint {
@@ -618,8 +624,12 @@ pub struct TransactionalPostgresStatement<'self> {
 }
 
 impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
-    fn num_params(&self) -> uint {
-        self.stmt.num_params()
+    fn param_types<'a>(&'a self) -> &'a [PostgresType] {
+        self.stmt.param_types()
+    }
+
+    fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription] {
+        self.stmt.result_descriptions()
     }
 
     fn update(&self, params: &[&ToSql]) -> uint {

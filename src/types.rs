@@ -25,6 +25,7 @@ static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static UUIDOID: Oid = 2950;
 
+#[deriving(Eq)]
 pub enum PostgresType {
     PgBool,
     PgByteA,

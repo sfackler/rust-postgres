@@ -7,7 +7,7 @@ use std::f32;
 use std::f64;
 
 use postgres::*;
-use postgres::types::{ToSql, FromSql};
+use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
 
 #[test]
 fn test_prepare_err() {
@@ -86,6 +86,22 @@ fn test_lazy_query() {
 
         trans.set_rollback();
     }
+}
+
+#[test]
+fn test_param_types() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let stmt = conn.prepare("SELECT $1::INT, $2::VARCHAR");
+    assert_eq!(stmt.param_types(), [PgInt4, PgVarchar]);
+}
+
+#[test]
+fn test_result_descriptions() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    let stmt = conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b");
+    assert_eq!(stmt.result_descriptions(),
+               [ResultDescription { name: ~"a", ty: PgInt4},
+                ResultDescription { name: ~"b", ty: PgVarchar}]);
 }
 
 fn test_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
