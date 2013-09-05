@@ -682,7 +682,7 @@ impl<'self> TransactionalPostgresStatement<'self> {
 
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        self.try_lazy_query(row_limit, params)
+        self.stmt.try_lazy_query(row_limit, params)
     }
 }
 
