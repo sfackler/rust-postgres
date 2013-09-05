@@ -138,7 +138,8 @@ do conn.in_transaction |trans| {
     }
 }
 ```
-A transaction will commit by default. Transactions cannot currently be nested.
+A transaction will commit by default. Nested transactions are supported via
+savepoints.
 
 Lazy Queries
 ------------

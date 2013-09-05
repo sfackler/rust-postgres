@@ -57,6 +57,48 @@ fn test_transaction_rollback() {
 }
 
 #[test]
+fn test_nested_transactions() {
+    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
+    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    conn.update("INSERT INTO foo (id) VALUES (1)", []);
+
+    do conn.in_transaction |trans1| {
+        trans1.update("INSERT INTO foo (id) VALUES (2)", []);
+
+        do trans1.in_transaction |trans2| {
+            trans2.update("INSERT INTO foo (id) VALUES (3)", []);
+            trans2.set_rollback();
+        }
+
+        do trans1.in_transaction |trans2| {
+            trans2.update("INSERT INTO foo (id) VALUES (4)", []);
+
+            do trans2.in_transaction |trans3| {
+                trans3.update("INSERT INTO foo (id) VALUES (5)", []);
+                trans3.set_rollback();
+            }
+
+            do trans2.in_transaction |trans3| {
+                trans3.update("INSERT INTO foo (id) VALUES (6)", []);
+            }
+        }
+
+        let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
+        let result = stmt.query([]);
+
+        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| { row[0] }).collect());
+
+        trans1.set_rollback();
+    }
+
+    let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
+}
+
+#[test]
 fn test_query() {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1:5432");
     conn.update("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
