@@ -328,7 +328,7 @@ impl PostgresConnection {
 
         let trans = PostgresTransaction {
             conn: self,
-            next_savepoint_id: Cell::new(0),
+            savepoint_id: 0,
             commit: Cell::new(true)
         };
         // If this fails, Postgres will rollback when the connection closes
@@ -379,7 +379,7 @@ impl PostgresConnection {
 
 pub struct PostgresTransaction<'self> {
     priv conn: &'self PostgresConnection,
-    priv next_savepoint_id: Cell<uint>,
+    priv savepoint_id: uint,
     priv commit: Cell<bool>
 }
 
@@ -406,15 +406,13 @@ impl<'self> PostgresTransaction<'self> {
     }
 
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
-        let id = self.next_savepoint_id.take();
-        let savepoint = fmt!("savepoint_%u", id);
-        self.next_savepoint_id.put_back(id + 1);
+        let savepoint = fmt!("savepoint_%u", self.savepoint_id);
 
         self.conn.quick_query(fmt!("SAVEPOINT %s", savepoint));
 
         let nested_trans = PostgresTransaction {
             conn: self.conn,
-            next_savepoint_id: Cell::new(id + 1),
+            savepoint_id: self.savepoint_id + 1,
             commit: Cell::new(true)
         };
 
