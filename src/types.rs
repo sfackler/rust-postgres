@@ -82,11 +82,11 @@ pub enum Format {
     Binary = 1
 }
 
-macro_rules! check_oid(
-    ($($expected:ident)|+, $actual:ident) => (
+macro_rules! check_types(
+    ($($expected:pat)|+, $actual:ident) => (
         match $actual {
             $($expected)|+ => (),
-            actual => fail!("Invalid Oid %?", actual)
+            actual => fail2!("Invalid Postgres type {:?}", actual)
         }
     )
 )
@@ -96,10 +96,10 @@ pub trait FromSql {
 }
 
 macro_rules! from_map_impl(
-    ($($oid:ident)|+, $t:ty, $blk:expr) => (
+    ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
             fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Option<$t> {
-                check_oid!($($oid)|+, ty)
+                check_types!($($expected)|+, ty)
                 raw.map($blk)
             }
         }
@@ -107,8 +107,8 @@ macro_rules! from_map_impl(
 )
 
 macro_rules! from_conversions_impl(
-    ($oid:ident, $t:ty, $f:ident) => (
-        from_map_impl!($oid, $t, |buf| {
+    ($expected:pat, $t:ty, $f:ident) => (
+        from_map_impl!($expected, $t, |buf| {
             let mut reader = BufReader::new(buf.as_slice());
             reader.$f()
         })
@@ -150,7 +150,7 @@ from_option_impl!(~str)
 
 impl FromSql for Option<~[u8]> {
     fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Option<~[u8]> {
-        check_oid!(PgByteA, ty)
+        check_types!(PgByteA, ty)
         raw.clone()
     }
 }
@@ -174,7 +174,7 @@ macro_rules! to_option_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Option<$t> {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-                check_oid!($($oid)|+, ty)
+                check_types!($($oid)|+, ty)
 
                 match *self {
                     None => (Text, None),
@@ -186,7 +186,7 @@ macro_rules! to_option_impl(
     (self, $($oid:ident)|+, $t:ty) => (
         impl<'self> ToSql for Option<$t> {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-                check_oid!($($oid)|+, ty)
+                check_types!($($oid)|+, ty)
 
                 match *self {
                     None => (Text, None),
@@ -201,7 +201,7 @@ macro_rules! to_conversions_impl(
     ($($oid:ident)|+, $t:ty, $f:ident) => (
         impl ToSql for $t {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-                check_oid!($($oid)|+, ty)
+                check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
                 writer.$f(*self);
@@ -213,7 +213,7 @@ macro_rules! to_conversions_impl(
 
 impl ToSql for bool {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgBool, ty)
+        check_types!(PgBool, ty)
         (Binary, Some(~[*self as u8]))
     }
 }
@@ -234,14 +234,14 @@ to_option_impl!(PgFloat8, f64)
 
 impl ToSql for ~str {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgVarchar | PgText | PgCharN, ty)
+        check_types!(PgVarchar | PgText | PgCharN, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgVarchar | PgText | PgCharN, ty)
+        check_types!(PgVarchar | PgText | PgCharN, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
@@ -251,14 +251,14 @@ to_option_impl!(self, PgVarchar | PgText | PgCharN, &'self str)
 
 impl ToSql for ~[u8] {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgByteA, ty)
+        check_types!(PgByteA, ty)
         (Binary, Some(self.to_owned()))
     }
 }
 
 impl<'self> ToSql for &'self [u8] {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgByteA, ty)
+        check_types!(PgByteA, ty)
         (Binary, Some(self.to_owned()))
     }
 }
@@ -268,7 +268,7 @@ to_option_impl!(self, PgByteA, &'self [u8])
 
 impl ToSql for Json {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgJson, ty)
+        check_types!(PgJson, ty)
         (Text, Some(self.to_str().into_bytes()))
     }
 }
@@ -277,7 +277,7 @@ to_option_impl!(PgJson, Json)
 
 impl ToSql for Uuid {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_oid!(PgUuid, ty)
+        check_types!(PgUuid, ty)
         (Binary, Some(self.to_bytes().to_owned()))
     }
 }
