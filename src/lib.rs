@@ -173,6 +173,7 @@ impl PostgresConnection {
             next_stmt_id: Cell::new(0)
         };
 
+        args.push((~"client_encoding", ~"UTF8"));
         // We have to clone here since we need the user again for auth
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
@@ -788,7 +789,7 @@ impl RowIndex for uint {
     }
 }
 
-// This is a convenicence as the 0 in get[0] resolves to int :(
+// This is a convenience as the 0 in get[0] resolves to int :(
 impl RowIndex for int {
     fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
         assert!(*self >= 0);
