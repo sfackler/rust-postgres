@@ -563,7 +563,7 @@ impl<'self> NormalPostgresStatement<'self> {
             row_limit: row_limit,
             more_rows: true
         };
-        result.load_rows();
+        result.read_rows();
 
         Ok(result)
     }
@@ -715,7 +715,7 @@ impl<'self> Drop for PostgresResult<'self> {
 }
 
 impl<'self> PostgresResult<'self> {
-    fn load_rows(&mut self) {
+    fn read_rows(&mut self) {
         loop {
             match_read_message_or_fail!(self.stmt.conn, {
                 EmptyQueryResponse |
@@ -733,21 +733,21 @@ impl<'self> PostgresResult<'self> {
         self.stmt.conn.wait_for_ready();
     }
 
-    fn pull_rows(&mut self) {
+    fn execute(&mut self) {
         self.stmt.conn.write_messages([
             &Execute {
                 portal: self.name,
                 max_rows: self.row_limit as i32
             },
             &Sync]);
-        self.load_rows();
+        self.read_rows();
     }
 }
 
 impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
     fn next(&mut self) -> Option<PostgresRow<'self>> {
         if self.data.is_empty() && self.more_rows {
-            self.pull_rows();
+            self.execute();
         }
 
         do self.data.pop_front().map_move |row| {
