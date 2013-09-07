@@ -145,7 +145,7 @@ from_conversions_impl!(PgFloat8, f64, read_be_f64_)
 from_option_impl!(f64)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
-    str::from_bytes(buf.as_slice())
+    str::from_utf8(buf.as_slice())
 })
 from_option_impl!(~str)
 
@@ -158,12 +158,12 @@ impl FromSql for Option<~[u8]> {
 from_option_impl!(~[u8])
 
 from_map_impl!(PgJson, Json, |buf| {
-    json::from_str(str::from_bytes_slice(buf.as_slice())).unwrap()
+    json::from_str(str::from_utf8_slice(buf.as_slice())).unwrap()
 })
 from_option_impl!(Json)
 
 from_map_impl!(PgUuid, Uuid, |buf| {
-    Uuid::from_bytes(buf.as_slice()).unwrap()
+    Uuid::from_utf8(buf.as_slice()).unwrap()
 })
 from_option_impl!(Uuid)
 

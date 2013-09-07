@@ -230,7 +230,7 @@ impl<R: Reader> ReadString for R {
             buf.push(byte);
         }
 
-        str::from_bytes_owned(buf)
+        str::from_utf8_owned(buf)
     }
 }
 
