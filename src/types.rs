@@ -163,7 +163,7 @@ from_map_impl!(PgJson, Json, |buf| {
 from_option_impl!(Json)
 
 from_map_impl!(PgUuid, Uuid, |buf| {
-    Uuid::from_utf8(buf.as_slice()).unwrap()
+    Uuid::from_bytes(buf.as_slice()).unwrap()
 })
 from_option_impl!(Uuid)
 
