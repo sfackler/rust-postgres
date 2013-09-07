@@ -30,6 +30,8 @@ macro_rules! match_read_message(
             loop {
                 match conn.read_message() {
                     NoticeResponse { fields } => handle_notice_response(fields),
+                    ParameterStatus { parameter, value } =>
+                        info!("Parameter %s = %s", parameter, value),
                     msg => {
                         resp = msg;
                         break;
@@ -191,8 +193,6 @@ impl PostgresConnection {
 
         loop {
             match_read_message_or_fail!(conn, {
-                ParameterStatus { parameter, value } =>
-                    info!("Parameter %s = %s", parameter, value),
                 BackendKeyData {_} => (),
                 ReadyForQuery {_} => break
             })
