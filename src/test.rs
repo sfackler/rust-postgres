@@ -1,6 +1,8 @@
 extern mod extra;
 extern mod postgres;
 
+use extra::time;
+use extra::time::Timespec;
 use extra::json;
 use extra::uuid::Uuid;
 use std::f32;
@@ -146,73 +148,76 @@ fn test_result_descriptions() {
                 ResultDescription { name: ~"b", ty: PgVarchar}]);
 }
 
-fn test_type<T: Eq+ToSql+FromSql>(sql_type: &str, values: &[T]) {
+fn test_type<T: Eq+FromSql+ToSql>(sql_type: &str, checks: &[(T, &str)]) {
     let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
-    conn.update("CREATE TEMPORARY TABLE foo (
-                    id SERIAL PRIMARY KEY,
-                    b " + sql_type +
-                ")", []);
-    let stmt = conn.prepare("INSERT INTO foo (b) VALUES ($1)");
-    for value in values.iter() {
-        stmt.update([value as &ToSql]);
+    for &(ref val, ref repr) in checks.iter() {
+        let stmt = conn.prepare("SELECT " + *repr + "::" + sql_type);
+        let result = stmt.query([]).next().unwrap()[0];
+        assert_eq!(val, &result);
+
+        let stmt = conn.prepare("SELECT $1::" + sql_type);
+        let result = stmt.query([val as &ToSql]).next().unwrap()[0];
+        assert_eq!(val, &result);
     }
-
-    let stmt = conn.prepare("SELECT b FROM foo ORDER BY id");
-    let result = stmt.query([]);
-
-    let actual_values: ~[T] = result.map(|row| { row[0] }).collect();
-    assert_eq!(actual_values.as_slice(), values);
 }
 
 #[test]
 fn test_bool_params() {
-    test_type("BOOL", [Some(true), Some(false), None]);
+    test_type("BOOL", [(Some(true), "'t'"), (Some(false), "'f'"),
+                       (None, "NULL")]);
 }
 
 #[test]
 fn test_i8_params() {
-    test_type("\"char\"", [Some(-100i8), Some(127i8), None]);
+    test_type("\"char\"", [(Some('a' as i8), "'a'"), (None, "NULL")]);
 }
 
 #[test]
 fn test_i16_params() {
-    test_type("SMALLINT", [Some(0x0011i16), Some(-0x0011i16), None]);
+    test_type("SMALLINT", [(Some(15001i16), "15001"),
+                           (Some(-15001i16), "-15001"), (None, "NULL")]);
 }
 
 #[test]
 fn test_i32_params() {
-    test_type("INT", [Some(0x00112233i32), Some(-0x00112233i32), None]);
+    test_type("INT", [(Some(2147483548i32), "2147483548"),
+                      (Some(-2147483548i32), "-2147483548"), (None, "NULL")]);
 }
 
 #[test]
 fn test_i64_params() {
-    test_type("BIGINT", [Some(0x0011223344556677i64),
-                         Some(-0x0011223344556677i64), None]);
+    test_type("BIGINT", [(Some(9223372036854775708i64), "9223372036854775708"),
+                         (Some(-9223372036854775708i64), "-9223372036854775708"),
+                         (None, "NULL")]);
 }
 
 #[test]
 fn test_f32_params() {
-    test_type("REAL", [Some(f32::infinity), Some(f32::neg_infinity),
-                       Some(1000.55), None]);
+    test_type("REAL", [(Some(f32::infinity), "'infinity'"),
+                       (Some(f32::neg_infinity), "'-infinity'"),
+                       (Some(1000.55), "1000.55"), (None, "NULL")]);
 }
 
 #[test]
 fn test_f64_params() {
-    test_type("DOUBLE PRECISION", [Some(f64::infinity),
-                                   Some(f64::neg_infinity),
-                                   Some(10000.55), None]);
+    test_type("DOUBLE PRECISION", [(Some(f64::infinity), "'infinity'"),
+                                   (Some(f64::neg_infinity), "'-infinity'"),
+                                   (Some(10000.55), "10000.55"),
+                                   (None, "NULL")]);
 }
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", [Some(~"hello world"),
-                          Some(~"イロハニホヘト チリヌルヲ"), None]);
+    test_type("VARCHAR", [(Some(~"hello world"), "'hello world'"),
+                          (Some(~"イロハニホヘト チリヌルヲ"), "'イロハニホヘト チリヌルヲ'"),
+                          (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", [Some(~"hello world"),
-                       Some(~"イロハニホヘト チリヌルヲ"), None]);
+    test_type("TEXT", [(Some(~"hello world"), "'hello world'"),
+                       (Some(~"イロハニホヘト チリヌルヲ"), "'イロハニホヘト チリヌルヲ'"),
+                       (None, "NULL")]);
 
 }
 
@@ -235,20 +240,36 @@ fn test_bpchar_params() {
 
 #[test]
 fn test_bytea_params() {
-    test_type("BYTEA", [Some(~[0u8, 1, 2, 3, 254, 255]), None]);
+    test_type("BYTEA", [(Some(~[0u8, 1, 2, 3, 254, 255]), "'\\x00010203feff'"),
+                        (None, "NULL")]);
 }
 
 #[test]
 fn test_json_params() {
-    test_type("JSON", [Some(json::from_str("[10, 11, 12]").unwrap()),
-                       Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
-                       None])
+    test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
+                        "'[10, 11, 12]'"),
+                       (Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
+                        "'{\"f\": \"asd\"}'"),
+                       (None, "NULL")])
 }
 
 #[test]
 fn test_uuid_params() {
-    test_type("UUID", [Some(Uuid::parse_string("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
-                       None])
+    test_type("UUID", [(Some(Uuid::parse_string("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
+                        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'"),
+                       (None, "NULL")])
+}
+
+#[test]
+fn test_tm_params() {
+    fn make_check<'a>(time: &'a str) -> (Option<Timespec>, &'a str) {
+        (Some(time::strptime(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap().to_timespec()), time)
+    }
+    test_type("TIMESTAMP",
+              [make_check("'1970-01-01 00:00:00.01'"),
+               make_check("'1965-09-25 11:19:33.100314'"),
+               make_check("'2010-02-09 23:11:45.1202'"),
+               (None, "NULL")]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {

@@ -1,5 +1,6 @@
 extern mod extra;
 
+use extra::time::Timespec;
 use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
@@ -21,9 +22,16 @@ static TEXTOID: Oid = 25;
 static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
+static TIMESTAMPOID: Oid = 1114;
 static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static UUIDOID: Oid = 2950;
+
+static USEC_PER_SEC: i64 = 1_000_000;
+static NSEC_PER_USEC: i64 = 1_000;
+
+// Number of seconds from 1970-01-01 to 2000-01-01
+static TIME_SEC_CONVERSION: i64 = 946684800;
 
 #[deriving(Eq)]
 pub enum PostgresType {
@@ -37,6 +45,7 @@ pub enum PostgresType {
     PgJson,
     PgFloat4,
     PgFloat8,
+    PgTimestamp,
     PgCharN,
     PgVarchar,
     PgUuid,
@@ -56,6 +65,7 @@ impl PostgresType {
             JSONOID => PgJson,
             FLOAT4OID => PgFloat4,
             FLOAT8OID => PgFloat8,
+            TIMESTAMPOID => PgTimestamp,
             BPCHAROID => PgCharN,
             VARCHAROID => PgVarchar,
             UUIDOID => PgUuid,
@@ -72,6 +82,7 @@ impl PostgresType {
             | PgInt4
             | PgFloat4
             | PgFloat8
+            | PgTimestamp
             | PgUuid => Binary,
             _ => Text
         }
@@ -166,6 +177,21 @@ from_map_impl!(PgUuid, Uuid, |buf| {
     Uuid::from_bytes(buf.as_slice()).unwrap()
 })
 from_option_impl!(Uuid)
+
+from_map_impl!(PgTimestamp, Timespec, |buf| {
+    let mut rdr = BufReader::new(buf.as_slice());
+    let t = rdr.read_be_i64_();
+    let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
+    let mut usec = t % USEC_PER_SEC;
+
+    if usec < 0 {
+        sec -= 1;
+        usec = USEC_PER_SEC + usec;
+    }
+
+    Timespec::new(sec, (usec * NSEC_PER_USEC) as i32)
+})
+from_option_impl!(Timespec)
 
 pub trait ToSql {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>);
@@ -284,3 +310,16 @@ impl ToSql for Uuid {
 }
 
 to_option_impl!(PgUuid, Uuid)
+
+impl ToSql for Timespec {
+    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+        check_types!(PgTimestamp, ty)
+        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
+            + self.nsec as i64 / NSEC_PER_USEC;
+        let mut buf = MemWriter::new();
+        buf.write_be_i64_(t);
+        (Binary, Some(buf.inner()))
+    }
+}
+
+to_option_impl!(PgTimestamp, Timespec)

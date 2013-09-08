@@ -226,6 +226,10 @@ types. The driver currently natively supports the following conversions:
             <td>extra::uuid::Uuid</td>
             <td>UUID</td>
         </tr>
+        <tr>
+            <td>extra::time::Timespec</td>
+            <td>TIMESTAMP</td>
+        </tr>
     </tbody>
 </table>
 

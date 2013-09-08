@@ -28,8 +28,11 @@ macro_rules! match_read_message(
             let ref conn = $conn;
             let resp;
             loop {
-                match conn.read_message() {
-                    NoticeResponse { fields } => handle_notice_response(fields),
+                let msg = conn.read_message();
+                info2!("{}", msg.to_str());
+                match msg {
+                    NoticeResponse { fields } =>
+                        handle_notice_response(fields),
                     ParameterStatus { parameter, value } =>
                         info!("Parameter %s = %s", parameter, value),
                     msg => {
