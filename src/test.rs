@@ -13,7 +13,7 @@ use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
 
 #[test]
 fn test_prepare_err() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     match conn.try_prepare("invalid sql statment") {
         Err(PostgresDbError { position, code, _ }) => {
             assert_eq!(code, ~"42601");
@@ -28,7 +28,7 @@ fn test_prepare_err() {
 
 #[test]
 fn test_transaction_commit() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     do conn.in_transaction |trans| {
@@ -43,7 +43,7 @@ fn test_transaction_commit() {
 
 #[test]
 fn test_transaction_rollback() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     conn.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
@@ -60,7 +60,7 @@ fn test_transaction_rollback() {
 
 #[test]
 fn test_nested_transactions() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     conn.update("INSERT INTO foo (id) VALUES (1)", []);
@@ -102,7 +102,7 @@ fn test_nested_transactions() {
 
 #[test]
 fn test_query() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
     conn.update("INSERT INTO foo (id) VALUES ($1), ($2)",
                  [&1i64 as &ToSql, &2i64 as &ToSql]);
@@ -114,7 +114,7 @@ fn test_query() {
 
 #[test]
 fn test_lazy_query() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
 
     do conn.in_transaction |trans| {
         trans.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
@@ -134,14 +134,14 @@ fn test_lazy_query() {
 
 #[test]
 fn test_param_types() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT $1::INT, $2::VARCHAR");
     assert_eq!(stmt.param_types(), [PgInt4, PgVarchar]);
 }
 
 #[test]
 fn test_result_descriptions() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b");
     assert_eq!(stmt.result_descriptions(),
                [ResultDescription { name: ~"a", ty: PgInt4},
@@ -149,7 +149,7 @@ fn test_result_descriptions() {
 }
 
 fn test_type<T: Eq+FromSql+ToSql>(sql_type: &str, checks: &[(T, &str)]) {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     for &(ref val, ref repr) in checks.iter() {
         let stmt = conn.prepare("SELECT " + *repr + "::" + sql_type);
         let result = stmt.query([]).next().unwrap()[0];
@@ -223,7 +223,7 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (
                     id SERIAL PRIMARY KEY,
                     b CHAR(5)
@@ -273,7 +273,7 @@ fn test_tm_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let nan: T = Float::NaN();
     let stmt = conn.prepare("SELECT $1::" + sql_type);
     let mut result = stmt.query([&nan as &ToSql]);
@@ -294,13 +294,13 @@ fn test_f64_nan_param() {
 #[test]
 #[should_fail]
 fn test_wrong_param_type() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.try_update("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
 }
 
 #[test]
 fn test_find_col_named() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 1 as my_id, 'hi' as val");
     assert_eq!(Some(0), stmt.find_col_named("my_id"));
     assert_eq!(Some(1), stmt.find_col_named("val"));
@@ -309,7 +309,7 @@ fn test_find_col_named() {
 
 #[test]
 fn test_get_named() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 10::INT as val");
     let result = stmt.query([]);
 
@@ -319,7 +319,7 @@ fn test_get_named() {
 #[test]
 #[should_fail]
 fn test_get_named_fail() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 10::INT as id");
     let mut result = stmt.query([]);
 
@@ -328,12 +328,12 @@ fn test_get_named_fail() {
 
 #[test]
 fn test_plaintext_pass() {
-    PostgresConnection::connect("postgres://pass_user:password@127.0.0.1");
+    PostgresConnection::connect("postgres://pass_user:password@localhost");
 }
 
 #[test]
 fn test_plaintext_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user@127.0.0.1");
+    let ret = PostgresConnection::try_connect("postgres://pass_user@localhost");
     match ret {
         Err(MissingPassword) => (),
         ret => fail!("Unexpected result %?", ret)
@@ -342,7 +342,7 @@ fn test_plaintext_pass_no_pass() {
 
 #[test]
 fn test_plaintext_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@127.0.0.1");
+    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost");
     match ret {
         Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
         ret => fail!("Unexpected result %?", ret)
@@ -351,12 +351,12 @@ fn test_plaintext_pass_wrong_pass() {
 
 #[test]
 fn test_md5_pass() {
-    PostgresConnection::connect("postgres://md5_user:password@127.0.0.1");
+    PostgresConnection::connect("postgres://md5_user:password@localhost");
 }
 
 #[test]
 fn test_md5_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user@127.0.0.1");
+    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost");
     match ret {
         Err(MissingPassword) => (),
         ret => fail!("Unexpected result %?", ret)
@@ -365,9 +365,18 @@ fn test_md5_pass_no_pass() {
 
 #[test]
 fn test_md5_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@127.0.0.1");
+    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost");
     match ret {
         Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
+        ret => fail!("Unexpected result %?", ret)
+    }
+}
+
+#[test]
+fn test_dns_failure() {
+    let ret = PostgresConnection::try_connect("postgres://postgres@asdfasdfasdf");
+    match ret {
+        Err(DnsError) => (),
         ret => fail!("Unexpected result %?", ret)
     }
 }

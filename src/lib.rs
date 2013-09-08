@@ -13,6 +13,8 @@ use std::cell::Cell;
 use std::hashmap::HashMap;
 use std::rt::io::{io_error, Decorator};
 use std::rt::io::mem::MemWriter;
+use std::rt::io::net;
+use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
@@ -70,6 +72,8 @@ fn handle_notice_response(fields: ~[(u8, ~str)]) {
 pub enum PostgresConnectError {
     InvalidUrl,
     MissingUser,
+    DnsError,
+    SocketError,
     DbError(PostgresDbError),
     MissingPassword,
     UnsupportedAuthentication
@@ -164,17 +168,19 @@ impl PostgresConnection {
         };
         let mut args = args;
 
-        // This seems silly
-        let socket_url = format!("{}:{}", host,
-                                 port.unwrap_or_default(~"5432"));
-        let addr: SocketAddr = match FromStr::from_str(socket_url) {
-            Some(addr) => addr,
-            None => return Err(InvalidUrl)
+        let port = match port {
+            Some(port) => FromStr::from_str(port).unwrap(),
+            None => 5432
+        };
+
+        let stream = match PostgresConnection::open_socket(host, port) {
+            Ok(stream) => stream,
+            Err(err) => return Err(err)
         };
 
         let conn = PostgresConnection {
             // Need to figure out what to do about unwrap here
-            stream: Cell::new(TcpStream::connect(addr).unwrap()),
+            stream: Cell::new(stream),
             next_stmt_id: Cell::new(0)
         };
 
@@ -202,6 +208,29 @@ impl PostgresConnection {
         }
 
         Ok(conn)
+    }
+
+    fn open_socket(host: &str, port: ip::Port)
+            -> Result<TcpStream, PostgresConnectError> {
+        let addrs = do io_error::cond.trap(|_| {}).inside {
+            net::get_host_addresses(host)
+        };
+        let addrs = match addrs {
+            Some(addrs) => addrs,
+            None => return Err(DnsError)
+        };
+
+        for addr in addrs.iter() {
+            let socket = do io_error::cond.trap(|_| {}).inside {
+                TcpStream::connect(SocketAddr { ip: *addr, port: port })
+            };
+            match socket {
+                Some(socket) => return Ok(socket),
+                None => ()
+            }
+        }
+
+        Err(SocketError)
     }
 
     fn write_messages(&self, messages: &[&FrontendMessage]) {

@@ -22,7 +22,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = PostgresConnection::connect("postgres://postgres@127.0.0.1");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
 
     conn.update("CREATE TABLE person (
                     id      SERIAL PRIMARY KEY,
@@ -74,9 +74,6 @@ Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2");
 ```
-As the Rust standard library currently lacks DNS lookup functionality, `host`
-must currently be an IP address.
-
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password` and `md5` authentication.
