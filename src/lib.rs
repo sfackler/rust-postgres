@@ -145,6 +145,9 @@ impl PostgresConnection {
         };
 
         args.push((~"client_encoding", ~"UTF8"));
+        // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
+        // WITH TIME ZONE values. Timespec converts to GMT internally.
+        args.push((~"TimeZone", ~"GMT"));
         // We have to clone here since we need the user again for auth
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
