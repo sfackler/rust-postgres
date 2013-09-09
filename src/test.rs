@@ -8,7 +8,14 @@ use extra::uuid::Uuid;
 use std::f32;
 use std::f64;
 
-use postgres::*;
+use postgres::{DbError,
+               DnsError,
+               MissingPassword,
+               Position,
+               PostgresConnection,
+               PostgresDbError,
+               PostgresStatement,
+               ResultDescription};
 use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
 
 #[test]

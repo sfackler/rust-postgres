@@ -11,14 +11,44 @@ use extra::md5::Md5;
 use extra::url::{UserInfo, Url};
 use std::cell::Cell;
 use std::hashmap::HashMap;
-use std::rt::io::{io_error, Decorator};
+use std::rt::io::{Writer, io_error, Decorator};
 use std::rt::io::mem::MemWriter;
 use std::rt::io::net;
 use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
-use message::*;
+use message::{BackendMessage,
+              AuthenticationCleartextPassword,
+              AuthenticationMD5Password,
+              AuthenticationOk,
+              BackendKeyData,
+              BindComplete,
+              CommandComplete,
+              DataRow,
+              EmptyQueryResponse,
+              ErrorResponse,
+              NoData,
+              NoticeResponse,
+              ParameterDescription,
+              ParameterStatus,
+              ParseComplete,
+              PortalSuspended,
+              ReadyForQuery,
+              RowDescription};
+use message::{FrontendMessage,
+              Bind,
+              Close,
+              Describe,
+              Execute,
+              Parse,
+              PasswordMessage,
+              Query,
+              StartupMessage,
+              Sync,
+              Terminate};
+use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
+
 use types::{PostgresType, ToSql, FromSql};
 
 mod message;
@@ -154,7 +184,7 @@ impl PostgresConnection {
             args.push((~"database", path));
         }
         conn.write_message(&StartupMessage {
-            version: PROTOCOL_VERSION,
+            version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
         });
 
