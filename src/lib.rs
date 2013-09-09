@@ -24,45 +24,6 @@ use types::{PostgresType, ToSql, FromSql};
 mod message;
 mod types;
 
-macro_rules! match_read_message(
-    ($conn:expr, { $($($p:pat)|+ => $e:expr),+ }) => (
-        match {
-            let ref conn = $conn;
-            let resp;
-            loop {
-                let msg = conn.read_message();
-                info2!("{}", msg.to_str());
-                match msg {
-                    NoticeResponse { fields } =>
-                        handle_notice_response(fields),
-                    ParameterStatus { parameter, value } =>
-                        info!("Parameter %s = %s", parameter, value),
-                    msg => {
-                        resp = msg;
-                        break;
-                    }
-                }
-            }
-            resp
-        } {
-            $(
-                $($p)|+ => $e
-            ),+
-        }
-    )
-)
-
-macro_rules! match_read_message_or_fail(
-    ($conn:expr, { $($($p:pat)|+ => $e:expr),+ }) => (
-        match_read_message!($conn, {
-            $(
-              $($p)|+ => $e
-            ),+ ,
-            resp => fail2!("Bad response: {}", resp.to_str())
-        })
-    )
-)
-
 fn handle_notice_response(fields: ~[(u8, ~str)]) {
     let err = PostgresDbError::new(fields);
     info2!("{}: {}", err.severity, err.message);
@@ -179,7 +140,6 @@ impl PostgresConnection {
         };
 
         let conn = PostgresConnection {
-            // Need to figure out what to do about unwrap here
             stream: Cell::new(stream),
             next_stmt_id: Cell::new(0)
         };
@@ -201,10 +161,11 @@ impl PostgresConnection {
         }
 
         loop {
-            match_read_message_or_fail!(conn, {
+            match conn.read_message() {
                 BackendKeyData {_} => (),
-                ReadyForQuery {_} => break
-            })
+                ReadyForQuery {_} => break,
+                _ => fail!()
+            }
         }
 
         Ok(conn)
@@ -250,13 +211,23 @@ impl PostgresConnection {
     }
 
     fn read_message(&self) -> BackendMessage {
-        do self.stream.with_mut_ref |s| {
-            s.read_message()
+        loop {
+            let msg = do self.stream.with_mut_ref |s| {
+                s.read_message()
+            };
+
+            match msg {
+                NoticeResponse { fields } =>
+                    handle_notice_response(fields),
+                ParameterStatus { parameter, value } =>
+                    info!("Parameter %s = %s", parameter, value),
+                msg => return msg
+            }
         }
     }
 
     fn handle_auth(&self, user: UserInfo) -> Option<PostgresConnectError> {
-        match_read_message_or_fail!(self, {
+        match self.read_message() {
             AuthenticationOk => return None,
             AuthenticationCleartextPassword => {
                 let pass = match user.pass {
@@ -264,7 +235,7 @@ impl PostgresConnection {
                     None => return Some(MissingPassword)
                 };
                 self.write_message(&PasswordMessage { password: pass });
-            },
+            }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
                 let pass = match pass {
@@ -283,13 +254,15 @@ impl PostgresConnection {
                     password: output.as_slice()
                 });
             }
-        })
+            _ => fail!()
+        }
 
-        match_read_message_or_fail!(self, {
+        match self.read_message() {
             AuthenticationOk => None,
             ErrorResponse { fields } =>
-                Some(DbError(PostgresDbError::new(fields)))
-        })
+                Some(DbError(PostgresDbError::new(fields))),
+            _ => fail!()
+        }
     }
 
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
@@ -319,21 +292,23 @@ impl PostgresConnection {
             },
             &Sync]);
 
-        match_read_message_or_fail!(self, {
+        match self.read_message() {
             ParseComplete => (),
             ErrorResponse { fields } => {
                 self.wait_for_ready();
                 return Err(PostgresDbError::new(fields));
             }
-        })
+            _ => fail!()
+        }
 
-        let param_types = match_read_message_or_fail!(self, {
+        let param_types = match self.read_message() {
             ParameterDescription { types } =>
                 types.iter().map(|ty| { PostgresType::from_oid(*ty) })
-                    .collect()
-        });
+                    .collect(),
+            _ => fail!()
+        };
 
-        let result_desc = match_read_message_or_fail!(self, {
+        let result_desc = match self.read_message() {
             RowDescription { descriptions } => {
                 let mut res: ~[ResultDescription] = descriptions
                     .move_rev_iter().map(|desc| {
@@ -342,8 +317,9 @@ impl PostgresConnection {
                 res.reverse();
                 res
             },
-            NoData => ~[]
-        });
+            NoData => ~[],
+            _ => fail!()
+        };
 
         self.wait_for_ready();
 
@@ -394,19 +370,20 @@ impl PostgresConnection {
         self.write_message(&Query { query: query });
 
         loop {
-            match_read_message!(self, {
+            match self.read_message() {
                 ReadyForQuery {_} => break,
                 ErrorResponse { fields } =>
                     fail2!("Error: {}", PostgresDbError::new(fields).to_str()),
                 _ => ()
-            })
+            }
         }
     }
 
     fn wait_for_ready(&self) {
-        match_read_message_or_fail!(self, {
-            ReadyForQuery {_} => ()
-        })
+        match self.read_message() {
+            ReadyForQuery {_} => (),
+            _ => fail!()
+        }
     }
 }
 
@@ -521,10 +498,10 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
                 },
                 &Sync]);
             loop {
-                match_read_message!(self.conn, {
+                match self.conn.read_message() {
                     ReadyForQuery {_} => break,
                     _ => ()
-                })
+                }
             }
         }
     }
@@ -559,13 +536,14 @@ impl<'self> NormalPostgresStatement<'self> {
             },
             &Sync]);
 
-        match_read_message_or_fail!(self.conn, {
+        match self.conn.read_message() {
             BindComplete => None,
             ErrorResponse { fields } => {
                 self.conn.wait_for_ready();
                 Some(PostgresDbError::new(fields))
             }
-        })
+            _ => fail!()
+        }
     }
 
     fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
@@ -629,7 +607,7 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
 
         let num;
         loop {
-            match_read_message_or_fail!(self.conn, {
+            match self.conn.read_message() {
                 CommandComplete { tag } => {
                     let s = tag.split_iter(' ').last().unwrap();
                     num = match FromStr::from_str(s) {
@@ -637,18 +615,19 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
                         Some(n) => n
                     };
                     break;
-                },
+                }
                 DataRow {_} => (),
                 EmptyQueryResponse => {
                     num = 0;
                     break;
-                },
+                }
                 NoticeResponse {_} => (),
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError::new(fields));
                 }
-            })
+                _ => fail!()
+            }
         }
         self.conn.wait_for_ready();
 
@@ -738,10 +717,10 @@ impl<'self> Drop for PostgresResult<'self> {
                 },
                 &Sync]);
             loop {
-                match_read_message!(self.stmt.conn, {
+                match self.stmt.conn.read_message() {
                     ReadyForQuery {_} => break,
                     _ => ()
-                })
+                }
             }
         }
     }
@@ -750,7 +729,7 @@ impl<'self> Drop for PostgresResult<'self> {
 impl<'self> PostgresResult<'self> {
     fn read_rows(&mut self) {
         loop {
-            match_read_message_or_fail!(self.stmt.conn, {
+            match self.stmt.conn.read_message() {
                 EmptyQueryResponse |
                 CommandComplete {_} => {
                     self.more_rows = false;
@@ -760,8 +739,9 @@ impl<'self> PostgresResult<'self> {
                     self.more_rows = true;
                     break;
                 },
-                DataRow { row } => self.data.push_back(row)
-            })
+                DataRow { row } => self.data.push_back(row),
+                _ => fail!()
+            }
         }
         self.stmt.conn.wait_for_ready();
     }
