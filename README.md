@@ -225,7 +225,7 @@ types. The driver currently natively supports the following conversions:
         </tr>
         <tr>
             <td>extra::time::Timespec</td>
-            <td>TIMESTAMP</td>
+            <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
     </tbody>
 </table>
