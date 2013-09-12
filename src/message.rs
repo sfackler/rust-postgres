@@ -12,11 +12,15 @@ pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 
 #[deriving(ToStr)]
 pub enum BackendMessage {
+    AuthenticationOk,
+    AuthenticationKerberosV5,
     AuthenticationCleartextPassword,
     AuthenticationMD5Password {
         salt: ~[u8]
     },
-    AuthenticationOk,
+    AuthenticationSCMCredential,
+    AuthenticationGSS,
+    AuthenticationSSPI,
     BackendKeyData {
         process_id: i32,
         secret_key: i32
@@ -310,9 +314,13 @@ fn read_data_row(buf: &mut MemReader) -> BackendMessage {
 fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
     match buf.read_be_i32_() {
         0 => AuthenticationOk,
+        2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
         5 => AuthenticationMD5Password { salt: buf.read_bytes(4) },
-        val => fail2!("Unknown Authentication identifier `{}`", val)
+        6 => AuthenticationSCMCredential,
+        7 => AuthenticationGSS,
+        9 => AuthenticationSSPI,
+        val => fail2!("Invalid authentication identifier `{}`", val)
     }
 }
 

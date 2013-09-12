@@ -19,9 +19,13 @@ use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
 use message::{BackendMessage,
+              AuthenticationOk,
+              AuthenticationKerberosV5,
               AuthenticationCleartextPassword,
               AuthenticationMD5Password,
-              AuthenticationOk,
+              AuthenticationSCMCredential,
+              AuthenticationGSS,
+              AuthenticationSSPI,
               BackendKeyData,
               BindComplete,
               CommandComplete,
@@ -180,7 +184,8 @@ impl PostgresConnection {
         let conn = PostgresConnection {
             stream: Cell::new(stream),
             next_stmt_id: Cell::new(0),
-            notice_handler: Cell::new(~DefaultNoticeHandler as ~PostgresNoticeHandler)
+            notice_handler: Cell::new(~DefaultNoticeHandler
+                                      as ~PostgresNoticeHandler)
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -299,6 +304,10 @@ impl PostgresConnection {
                     password: output.as_slice()
                 });
             }
+            AuthenticationKerberosV5
+            | AuthenticationSCMCredential
+            | AuthenticationGSS
+            | AuthenticationSSPI => return Some(UnsupportedAuthentication),
             _ => fail!()
         }
 
