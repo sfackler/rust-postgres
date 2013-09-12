@@ -312,6 +312,22 @@ fn test_wrong_param_type() {
 }
 
 #[test]
+#[should_fail]
+fn test_too_few_params() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    conn.try_update("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
+}
+
+#[test]
+#[should_fail]
+fn test_too_many_params() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    conn.try_update("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
+                                               &2i32 as &ToSql,
+                                               &3i32 as &ToSql]);
+}
+
+#[test]
 fn test_find_col_named() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 1 as my_id, 'hi' as val");

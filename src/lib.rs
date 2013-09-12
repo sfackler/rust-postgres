@@ -573,6 +573,9 @@ impl<'self> NormalPostgresStatement<'self> {
             -> Option<PostgresDbError> {
         let mut formats = ~[];
         let mut values = ~[];
+        assert!(self.param_types.len() == params.len(),
+                "Expected %u parameters but found %u",
+                self.param_types.len(), params.len());
         for (&param, &ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = param.to_sql(ty);
             formats.push(format as i16);
