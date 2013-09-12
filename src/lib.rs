@@ -54,9 +54,16 @@ use types::{PostgresType, ToSql, FromSql};
 mod message;
 mod types;
 
-fn handle_notice_response(fields: ~[(u8, ~str)]) {
-    let err = PostgresDbError::new(fields);
-    info2!("{}: {}", err.severity, err.message);
+pub trait PostgresNoticeHandler {
+    fn handle(&mut self, notice: PostgresDbError);
+}
+
+pub struct DefaultNoticeHandler;
+
+impl PostgresNoticeHandler for DefaultNoticeHandler {
+    fn handle(&mut self, notice: PostgresDbError) {
+        info2!("{}: {}", notice.severity, notice.message);
+    }
 }
 
 #[deriving(ToStr)]
@@ -121,7 +128,8 @@ impl PostgresDbError {
 
 pub struct PostgresConnection {
     priv stream: Cell<TcpStream>,
-    priv next_stmt_id: Cell<int>
+    priv next_stmt_id: Cell<int>,
+    priv notice_handler: Cell<~PostgresNoticeHandler>
 }
 
 impl Drop for PostgresConnection {
@@ -171,7 +179,8 @@ impl PostgresConnection {
 
         let conn = PostgresConnection {
             stream: Cell::new(stream),
-            next_stmt_id: Cell::new(0)
+            next_stmt_id: Cell::new(0),
+            notice_handler: Cell::new(~DefaultNoticeHandler as ~PostgresNoticeHandler)
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -250,10 +259,13 @@ impl PostgresConnection {
             };
 
             match msg {
-                NoticeResponse { fields } =>
-                    handle_notice_response(fields),
+                NoticeResponse { fields } => {
+                    let mut handler = self.notice_handler.take();
+                    handler.handle(PostgresDbError::new(fields));
+                    self.notice_handler.put_back(handler);
+                }
                 ParameterStatus { parameter, value } =>
-                    info!("Parameter %s = %s", parameter, value),
+                    debug!("Parameter %s = %s", parameter, value),
                 msg => return msg
             }
         }
@@ -296,6 +308,13 @@ impl PostgresConnection {
                 Some(DbError(PostgresDbError::new(fields))),
             _ => fail!()
         }
+    }
+
+    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
+            -> ~PostgresNoticeHandler {
+        let old_handler = self.notice_handler.take();
+        self.notice_handler.put_back(handler);
+        old_handler
     }
 
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {

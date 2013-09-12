@@ -8,7 +8,8 @@ use extra::uuid::Uuid;
 use std::f32;
 use std::f64;
 
-use postgres::{DbError,
+use postgres::{PostgresNoticeHandler,
+               DbError,
                DnsError,
                MissingPassword,
                Position,
@@ -336,6 +337,24 @@ fn test_get_named_fail() {
     let mut result = stmt.query([]);
 
     let _: i32 = result.next().unwrap()["asdf"];
+}
+
+#[test]
+fn test_custom_notice_handler() {
+    static mut count: uint = 0;
+    struct Handler;
+
+    impl PostgresNoticeHandler for Handler {
+        fn handle(&mut self, _notice: PostgresDbError) {
+            unsafe { count += 1; }
+        }
+    }
+
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
+    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    assert_eq!(unsafe { count }, 1);
 }
 
 #[test]
