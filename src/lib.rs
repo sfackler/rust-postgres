@@ -12,7 +12,7 @@ use extra::url::{UserInfo, Url};
 use std::cell::Cell;
 use std::hashmap::HashMap;
 use std::rt::io::{Writer, io_error, Decorator};
-use std::rt::io::mem::MemWriter;
+use std::rt::io::buffered::BufferedStream;
 use std::rt::io::net;
 use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
@@ -131,7 +131,7 @@ impl PostgresDbError {
 }
 
 pub struct PostgresConnection {
-    priv stream: Cell<TcpStream>,
+    priv stream: Cell<BufferedStream<TcpStream>>,
     priv next_stmt_id: Cell<int>,
     priv notice_handler: Cell<~PostgresNoticeHandler>
 }
@@ -139,7 +139,7 @@ pub struct PostgresConnection {
 impl Drop for PostgresConnection {
     fn drop(&self) {
         do io_error::cond.trap(|_| {}).inside {
-            self.write_message(&Terminate);
+            self.write_messages([&Terminate]);
         }
     }
 }
@@ -182,7 +182,7 @@ impl PostgresConnection {
         };
 
         let conn = PostgresConnection {
-            stream: Cell::new(stream),
+            stream: Cell::new(BufferedStream::new(stream)),
             next_stmt_id: Cell::new(0),
             notice_handler: Cell::new(~DefaultNoticeHandler
                                       as ~PostgresNoticeHandler)
@@ -197,10 +197,10 @@ impl PostgresConnection {
         if !path.is_empty() {
             args.push((~"database", path));
         }
-        conn.write_message(&StartupMessage {
+        conn.write_messages([&StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
-        });
+        }]);
 
         match conn.handle_auth(user) {
             Some(err) => return Err(err),
@@ -242,18 +242,11 @@ impl PostgresConnection {
     }
 
     fn write_messages(&self, messages: &[&FrontendMessage]) {
-        let mut buf = MemWriter::new();
-        for &message in messages.iter() {
-            buf.write_message(message);
-        }
         do self.stream.with_mut_ref |s| {
-            s.write(buf.inner_ref().as_slice());
-        }
-    }
-
-    fn write_message(&self, message: &FrontendMessage) {
-        do self.stream.with_mut_ref |s| {
-            s.write_message(message);
+            for &message in messages.iter() {
+                s.write_message(message);
+            }
+            s.flush();
         }
     }
 
@@ -284,7 +277,7 @@ impl PostgresConnection {
                     Some(pass) => pass,
                     None => return Some(MissingPassword)
                 };
-                self.write_message(&PasswordMessage { password: pass });
+                self.write_messages([&PasswordMessage { password: pass }]);
             }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
@@ -300,9 +293,9 @@ impl PostgresConnection {
                 md5.input_str(output);
                 md5.input(salt);
                 let output = "md5" + md5.result_str();
-                self.write_message(&PasswordMessage {
+                self.write_messages([&PasswordMessage {
                     password: output.as_slice()
-                });
+                }]);
             }
             AuthenticationKerberosV5
             | AuthenticationSCMCredential
@@ -422,13 +415,13 @@ impl PostgresConnection {
 
     pub fn try_update(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
-        do self.try_prepare(query).chain |stmt| {
+        do self.try_prepare(query).and_then |stmt| {
             stmt.try_update(params)
         }
     }
 
     fn quick_query(&self, query: &str) {
-        self.write_message(&Query { query: query });
+        self.write_messages([&Query { query: query }]);
 
         loop {
             match self.read_message() {
