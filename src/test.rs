@@ -17,19 +17,14 @@ use postgres::{PostgresNoticeHandler,
                PostgresDbError,
                PostgresStatement,
                ResultDescription};
+use postgres::error::hack::{SyntaxError, InvalidPassword};
 use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
 
 #[test]
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     match conn.try_prepare("invalid sql statment") {
-        Err(PostgresDbError { position, code, _ }) => {
-            assert_eq!(code, ~"42601");
-            match position {
-                Some(Position(1)) => (),
-                position => fail!("Unexpected position %?", position)
-            }
-        }
+        Err(PostgresDbError { code: SyntaxError, position: Some(Position(1)), _ }) => (),
         resp => fail!("Unexpected result %?", resp)
     }
 }
@@ -391,7 +386,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost");
     match ret {
-        Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
+        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
         ret => fail!("Unexpected result %?", ret)
     }
 }
@@ -414,7 +409,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost");
     match ret {
-        Err(DbError(PostgresDbError { code: ~"28P01", _ })) => (),
+        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
         ret => fail!("Unexpected result %?", ret)
     }
 }

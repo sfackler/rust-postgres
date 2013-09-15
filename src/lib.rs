@@ -18,6 +18,8 @@ use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
+use error::hack::PostgresSqlState;
+
 use message::{BackendMessage,
               AuthenticationOk,
               AuthenticationKerberosV5,
@@ -55,6 +57,7 @@ use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
 
 use types::{PostgresType, ToSql, FromSql};
 
+mod error;
 mod message;
 mod types;
 
@@ -94,9 +97,10 @@ pub enum PostgresErrorPosition {
 pub struct PostgresDbError {
     // This could almost be an enum, except the values can be localized :(
     severity: ~str,
-    // Should probably end up as an enum
-    code: ~str,
+    code: PostgresSqlState,
     message: ~str,
+    detail: Option<~str>,
+    hint: Option<~str>,
     position: Option<PostgresErrorPosition>,
     where: Option<~str>,
     file: ~str,
@@ -110,8 +114,10 @@ impl PostgresDbError {
         let mut map: HashMap<u8, ~str> = fields.move_rev_iter().collect();
         PostgresDbError {
             severity: map.pop(&('S' as u8)).unwrap(),
-            code: map.pop(&('C' as u8)).unwrap(),
+            code: FromStr::from_str(map.pop(&('C' as u8)).unwrap()).unwrap(),
             message: map.pop(&('M' as u8)).unwrap(),
+            detail: map.pop(&('D' as u8)),
+            hint: map.pop(&('H' as u8)),
             position: match map.pop(&('P' as u8)) {
                 Some(pos) => Some(Position(FromStr::from_str(pos).unwrap())),
                 None => match map.pop(&('p' as u8)) {
@@ -385,7 +391,6 @@ impl PostgresConnection {
             next_portal_id: Cell::new(0)
         })
     }
-
 
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.quick_query("BEGIN");
