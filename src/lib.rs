@@ -17,6 +17,7 @@ use std::rt::io::net;
 use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
+use std::task;
 
 use error::hack::PostgresSqlState;
 use message::{BackendMessage,
@@ -408,21 +409,11 @@ impl PostgresConnection {
 
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.quick_query("BEGIN");
-
-        let trans = PostgresTransaction {
+        blk(&PostgresTransaction {
             conn: self,
-            commit: Cell::new(true)
-        };
-        // If this fails, Postgres will rollback when the connection closes
-        let ret = blk(&trans);
-
-        if trans.commit.take() {
-            self.quick_query("COMMIT");
-        } else {
-            self.quick_query("ROLLBACK");
-        }
-
-        ret
+            commit: Cell::new(true),
+            nested: false
+        })
     }
 
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
@@ -463,7 +454,29 @@ impl PostgresConnection {
 
 pub struct PostgresTransaction<'self> {
     priv conn: &'self PostgresConnection,
-    priv commit: Cell<bool>
+    priv commit: Cell<bool>,
+    priv nested: bool
+}
+
+#[unsafe_destructor]
+impl<'self> Drop for PostgresTransaction<'self> {
+    fn drop(&self) {
+        do io_error::cond.trap(|_| {}).inside {
+            if task::failing() || !self.commit.take() {
+                if self.nested {
+                    self.conn.quick_query("ROLLBACK TO sp");
+                } else {
+                    self.conn.quick_query("ROLLBACK");
+                }
+            } else {
+                if self.nested {
+                    self.conn.quick_query("RELEASE sp");
+                } else {
+                    self.conn.quick_query("COMMIT");
+                }
+            }
+        }
+    }
 }
 
 impl<'self> PostgresTransaction<'self> {
@@ -490,21 +503,11 @@ impl<'self> PostgresTransaction<'self> {
 
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.conn.quick_query("SAVEPOINT sp");
-
-        let nested_trans = PostgresTransaction {
+        blk(&PostgresTransaction {
             conn: self.conn,
-            commit: Cell::new(true)
-        };
-
-        let ret = blk(&nested_trans);
-
-        if nested_trans.commit.take() {
-            self.conn.quick_query("RELEASE sp");
-        } else {
-            self.conn.quick_query("ROLLBACK TO sp");
-        }
-
-        ret
+            commit: Cell::new(true),
+            nested: true
+        })
     }
 
     pub fn will_commit(&self) -> bool {
