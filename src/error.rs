@@ -4,14 +4,14 @@ macro_rules! make_errors(
         mod hack {
             #[deriving(ToStr, Eq)]
             pub enum PostgresSqlState {
-                $($error),+ ,
+                $($error,)+
                 UnknownSqlState(~str)
             }
 
             impl FromStr for PostgresSqlState {
                 fn from_str(s: &str) -> Option<PostgresSqlState> {
                     Some(match s {
-                        $($code => $error),+ ,
+                        $($code => $error,)+
                         state => UnknownSqlState(state.to_owned())
                     })
                 }

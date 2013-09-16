@@ -78,17 +78,8 @@ impl PostgresType {
 
     pub fn result_format(&self) -> Format {
         match *self {
-            PgBool
-            | PgByteA
-            | PgInt8
-            | PgInt2
-            | PgInt4
-            | PgFloat4
-            | PgFloat8
-            | PgTimestamp
-            | PgTimestampZ
-            | PgUuid => Binary,
-            _ => Text
+            PgUnknownType(*) => Text,
+            _ => Binary
         }
     }
 }
