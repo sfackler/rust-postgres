@@ -98,7 +98,8 @@ let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
 `query` returns a result iterator. Fields of each row in the result can be
-accessed either by their indicies or their column names:
+accessed either by their indicies or their column names. Unlike statement
+parameters, result columns are zero-indexed.
 ```rust
 let stmt = conn.prepare("SELECT bar, baz FROM foo");
 for row in stmt.query([]) {
@@ -140,9 +141,9 @@ savepoints.
 
 Lazy Queries
 ------------
-Some queries may return a large amount of data. Inside of a transaction,
-prepared statements have an additional method, `lazy_query`. The rows returned
-from a call to `lazy_query` are pulled from the database lazily as needed:
+Some queries may return a large amount of data. Statements prepared within a
+transaction have an additional method, `lazy_query`. The rows returned from a
+call to `lazy_query` are pulled from the database in batches as needed:
 ```rust
 do conn.in_transaction |trans| {
     let stmt = trans.prepare(query)
@@ -173,7 +174,7 @@ match conn.try_update(query, params) {
 Type Correspondence
 -------------------
 Rust-Postgres enforces a strict correspondence between Rust types and Postgres
-types. The driver currently natively supports the following conversions:
+types. The driver currently supports the following conversions:
 
 <table>
     <thead>
@@ -239,6 +240,6 @@ traits.
 
 Development
 ===========
-Rust-Postgres is still under active development, so don't be surprised if APIs
-change and things break. If something's not working properly, file an issue or
-submit a pull request!
+Rust-Postgres is still in the early stages of development, so don't be
+surprised if APIs change and things break. If something's not working properly,
+file an issue or submit a pull request!
