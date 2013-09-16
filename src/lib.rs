@@ -19,7 +19,6 @@ use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 
 use error::hack::PostgresSqlState;
-
 use message::{BackendMessage,
               AuthenticationOk,
               AuthenticationKerberosV5,
@@ -348,7 +347,7 @@ impl PostgresConnection {
     }
 
     pub fn try_prepare<'a>(&'a self, query: &str)
-                -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
         let id = self.next_stmt_id.take();
         let stmt_name = format!("statement_{}", id);
         self.next_stmt_id.put_back(id + 1);
