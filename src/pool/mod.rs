@@ -46,6 +46,7 @@ impl InnerConnectionPool {
 }
 
 // Should be a newtype, but blocked by mozilla/rust#9155
+#[deriving(Clone)]
 pub struct PostgresConnectionPool {
     pool: MutexArc<InnerConnectionPool>
 }
@@ -77,6 +78,7 @@ impl PostgresConnectionPool {
     pub fn try_with_connection<T>(&mut self,
                                   blk: &fn(&PostgresConnection) -> T)
             -> Result<T, PostgresConnectError> {
+        // Can't use access_cond here since PostgresConnection uses Cell
         let conn = unsafe {
             do self.pool.unsafe_access_cond |pool, cond| {
                 while pool.pool.is_empty() {
