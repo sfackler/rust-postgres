@@ -57,9 +57,10 @@ use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
 
 use types::{PostgresType, ToSql, FromSql};
 
-mod error;
+pub mod error;
+pub mod pool;
 mod message;
-mod types;
+pub mod types;
 
 pub trait PostgresNoticeHandler {
     fn handle(&mut self, notice: PostgresDbError);

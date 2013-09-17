@@ -1,7 +1,7 @@
 macro_rules! make_errors(
     ($($code:pat => $error:ident),+) => (
         // TODO: Get rid of this module when mozilla/rust#4375 is fixed
-        mod hack {
+        pub mod hack {
             #[deriving(ToStr, Eq)]
             pub enum PostgresSqlState {
                 $($error,)+
