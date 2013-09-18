@@ -15,33 +15,31 @@ fn test_pool() {
         min_size: 2,
         max_size: 2
     };
-    let mut pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-                                               config).unwrap();
+    let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
+                                           config).unwrap();
 
     let (stream1, stream2) = DuplexStream::<(), ()>();
 
     let pool1 = Cell::new(pool.clone());
     let mut fut1 = do future::spawn {
-        let mut pool = pool1.take();
+        let pool = pool1.take();
 
-        do pool.with_connection |_conn| {
-            stream1.send(());
-            stream1.recv();
-        }
+        let _conn = pool.get_connection();
+        stream1.send(());
+        stream1.recv();
     };
 
     let pool2 = Cell::new(pool.clone());
     let mut fut2 = do future::spawn {
-        let mut pool = pool2.take();
+        let pool = pool2.take();
 
-        do pool.with_connection |_conn| {
-            stream2.send(());
-            stream2.recv();
-        }
+        let _conn = pool.get_connection();
+        stream2.send(());
+        stream2.recv();
     };
 
     fut1.get();
     fut2.get();
 
-    do pool.with_connection |_conn| { }
+    pool.get_connection();
 }

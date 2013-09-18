@@ -158,7 +158,7 @@ pub struct PostgresConnection {
 }
 
 impl Drop for PostgresConnection {
-    fn drop(&self) {
+    fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.write_messages([&Terminate]);
         }
@@ -461,7 +461,7 @@ pub struct PostgresTransaction<'self> {
 
 #[unsafe_destructor]
 impl<'self> Drop for PostgresTransaction<'self> {
-    fn drop(&self) {
+    fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             if task::failing() || !self.commit.take() {
                 if self.nested {
@@ -568,7 +568,7 @@ impl ResultDescription {
 
 #[unsafe_destructor]
 impl<'self> Drop for NormalPostgresStatement<'self> {
-    fn drop(&self) {
+    fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.conn.write_messages([
                 &Close {
@@ -792,7 +792,7 @@ pub struct PostgresResult<'self> {
 
 #[unsafe_destructor]
 impl<'self> Drop for PostgresResult<'self> {
-    fn drop(&self) {
+    fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.stmt.conn.write_messages([
                 &Close {

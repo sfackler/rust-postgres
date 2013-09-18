@@ -1,9 +1,13 @@
 extern mod extra;
 
 use extra::arc::MutexArc;
-use std::cell::Cell;
 
-use super::{PostgresConnection, PostgresConnectError};
+use super::{PostgresConnection,
+            NormalPostgresStatement,
+            PostgresDbError,
+            PostgresConnectError,
+            PostgresTransaction};
+use super::types::ToSql;
 
 pub struct PostgresConnectionPoolConfig {
     initial_size: uint,
@@ -75,37 +79,69 @@ impl PostgresConnectionPool {
         })
     }
 
-    pub fn try_with_connection<T>(&mut self,
-                                  blk: &fn(&PostgresConnection) -> T)
-            -> Result<T, PostgresConnectError> {
-        // Can't use access_cond here since PostgresConnection uses Cell
+    pub fn try_get_connection(&self) -> Result<PooledPostgresConnection,
+                                               PostgresConnectError> {
         let conn = unsafe {
-            do self.pool.unsafe_access_cond |pool, cond| {
+            do self.pool.unsafe_access_cond |pool, cvar| {
                 while pool.pool.is_empty() {
-                    cond.wait();
+                    cvar.wait();
                 }
 
                 pool.pool.pop()
             }
         };
 
-        let ret = blk(&conn);
-
-        let conn = Cell::new(conn);
-        unsafe {
-            do self.pool.unsafe_access |pool| {
-                pool.pool.push(conn.take());
-            }
-        }
-
-        Ok(ret)
+        Ok(PooledPostgresConnection {
+            pool: self.clone(),
+            conn: Some(conn)
+        })
     }
 
-    pub fn with_connection<T>(&mut self, blk: &fn(&PostgresConnection) -> T)
-            -> T {
-        match self.try_with_connection(blk) {
-            Ok(ret) => ret,
-            Err(err) => fail!("Error getting connection: %s", err.to_str())
+    pub fn get_connection(&self) -> PooledPostgresConnection {
+        match self.try_get_connection() {
+            Ok(conn) => conn,
+            Err(err) => fail!("Unable to get connection: %s", err.to_str())
         }
+    }
+}
+
+// Should be a newtype
+pub struct PooledPostgresConnection {
+    priv pool: PostgresConnectionPool,
+    // Todo remove the Option wrapper when drop takes self by value
+    priv conn: Option<PostgresConnection>
+}
+
+impl Drop for PooledPostgresConnection {
+    fn drop(&mut self) {
+        unsafe {
+            do self.pool.pool.unsafe_access |pool| {
+                pool.pool.push(self.conn.take_unwrap());
+            }
+        }
+    }
+}
+
+impl PooledPostgresConnection {
+    pub fn try_prepare<'a>(&'a self, query: &str)
+            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+        self.conn.get_ref().try_prepare(query)
+    }
+
+    pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
+        self.conn.get_ref().prepare(query)
+    }
+
+    pub fn try_update(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresDbError> {
+        self.conn.get_ref().try_update(query, params)
+    }
+
+    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
+        self.conn.get_ref().update(query, params)
+    }
+
+    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
+        self.conn.get_ref().in_transaction(blk)
     }
 }
