@@ -171,6 +171,23 @@ match conn.try_update(query, params) {
 }
 ```
 
+Connection Pooling
+------------------
+A very basic fixed-size connection pool is provided in the `pool` module. A
+single pool can be shared across tasks and `get_connection` will block until a
+connection is available.
+```rust
+let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 5)
+        .unwrap();
+
+for _ in range(0, 10) {
+    do task::spawn_with(pool.clone()) |pool| {
+        let conn = pool.get_connection();
+        conn.query(...);
+    }
+}
+```
+
 Type Correspondence
 -------------------
 Rust-Postgres enforces a strict correspondence between Rust types and Postgres

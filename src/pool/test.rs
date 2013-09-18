@@ -5,18 +5,12 @@ use std::cell::Cell;
 use extra::comm::DuplexStream;
 use extra::future;
 
-use postgres::pool::{PostgresConnectionPool, PostgresConnectionPoolConfig};
+use postgres::pool::PostgresConnectionPool;
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
-    let config = PostgresConnectionPoolConfig {
-        initial_size: 2,
-        min_size: 2,
-        max_size: 2
-    };
-    let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-                                           config).unwrap();
+    let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 2);
 
     let (stream1, stream2) = DuplexStream::<(), ()>();
 

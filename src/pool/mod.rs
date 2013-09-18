@@ -9,31 +9,9 @@ use super::{PostgresConnection,
             PostgresTransaction};
 use super::types::ToSql;
 
-pub struct PostgresConnectionPoolConfig {
-    initial_size: uint,
-    min_size: uint,
-    max_size: uint
-}
-
-impl PostgresConnectionPoolConfig {
-    fn validate(&self) {
-        assert!(self.initial_size >= self.min_size);
-        assert!(self.initial_size <= self.max_size);
-    }
-}
-
-pub static DEFAULT_CONFIG: PostgresConnectionPoolConfig =
-    PostgresConnectionPoolConfig {
-        initial_size: 3,
-        min_size: 3,
-        max_size: 15
-    };
-
 struct InnerConnectionPool {
     url: ~str,
-    config: PostgresConnectionPoolConfig,
     pool: ~[PostgresConnection],
-    size: uint,
 }
 
 impl InnerConnectionPool {
@@ -41,7 +19,6 @@ impl InnerConnectionPool {
         match PostgresConnection::try_connect(self.url) {
             Ok(conn) => {
                 self.pool.push(conn);
-                self.size += 1;
                 None
             }
             Err(err) => Some(err)
@@ -56,18 +33,14 @@ pub struct PostgresConnectionPool {
 }
 
 impl PostgresConnectionPool {
-    pub fn new(url: &str, config: PostgresConnectionPoolConfig)
+    pub fn try_new(url: &str, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
-        config.validate();
-
         let mut pool = InnerConnectionPool {
             url: url.to_owned(),
-            config: config,
             pool: ~[],
-            size: 0,
         };
 
-        while pool.size < pool.config.initial_size {
+        while pool.pool.len() < pool_size {
             match pool.new_connection() {
                 None => (),
                 Some(err) => return Err(err)
@@ -77,6 +50,13 @@ impl PostgresConnectionPool {
         Ok(PostgresConnectionPool {
             pool: MutexArc::new(pool)
         })
+    }
+
+    pub fn new(url: &str, pool_size: uint) -> PostgresConnectionPool {
+        match PostgresConnectionPool::try_new(url, pool_size) {
+            Ok(pool) => pool,
+            Err(err) => fail!("Unable to initialize pool: %s", err.to_str())
+        }
     }
 
     pub fn try_get_connection(&self) -> Result<PooledPostgresConnection,
@@ -108,7 +88,7 @@ impl PostgresConnectionPool {
 // Should be a newtype
 pub struct PooledPostgresConnection {
     priv pool: PostgresConnectionPool,
-    // Todo remove the Option wrapper when drop takes self by value
+    // TODO remove the Option wrapper when drop takes self by value
     priv conn: Option<PostgresConnection>
 }
 
