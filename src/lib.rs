@@ -400,7 +400,6 @@ impl PostgresConnection {
 
         Ok(NormalPostgresStatement {
             conn: self,
-            query: query.to_owned(),
             name: stmt_name,
             param_types: param_types,
             result_desc: result_desc,
@@ -541,7 +540,6 @@ pub trait PostgresStatement {
 
 pub struct NormalPostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
-    priv query: ~str,
     priv name: ~str,
     priv param_types: ~[PostgresType],
     priv result_desc: ~[ResultDescription],
@@ -632,8 +630,7 @@ impl<'self> NormalPostgresStatement<'self> {
             -> PostgresResult<'a> {
         match self.try_lazy_query(row_limit, params) {
             Ok(result) => result,
-            Err(err) => fail2!("Error executing query:\n{}",
-                               err.pretty_error(self.query))
+            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
         }
     }
 
@@ -675,8 +672,7 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
     fn update(&self, params: &[&ToSql]) -> uint {
         match self.try_update(params) {
             Ok(count) => count,
-            Err(err) => fail2!("Error running update\n{}",
-                               err.pretty_error(self.query))
+            Err(err) => fail2!("Error running update\n{}", err.to_str())
         }
     }
 
