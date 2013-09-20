@@ -85,7 +85,6 @@ impl PostgresConnectionPool {
     }
 }
 
-// Should be a newtype
 pub struct PooledPostgresConnection {
     priv pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value

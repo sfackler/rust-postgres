@@ -18,6 +18,7 @@ use std::rt::io::net::ip;
 use std::rt::io::net::ip::SocketAddr;
 use std::rt::io::net::tcp::TcpStream;
 use std::task;
+use std::util;
 
 use error::hack::PostgresSqlState;
 use message::{BackendMessage,
@@ -151,13 +152,13 @@ impl PostgresDbError {
     }
 }
 
-pub struct PostgresConnection {
-    priv stream: Cell<BufferedStream<TcpStream>>,
-    priv next_stmt_id: Cell<int>,
-    priv notice_handler: Cell<~PostgresNoticeHandler>
+struct InnerPostgresConnection {
+    stream: BufferedStream<TcpStream>,
+    next_stmt_id: int,
+    notice_handler: ~PostgresNoticeHandler
 }
 
-impl Drop for PostgresConnection {
+impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.write_messages([&Terminate]);
@@ -165,16 +166,9 @@ impl Drop for PostgresConnection {
     }
 }
 
-impl PostgresConnection {
-    pub fn connect(url: &str) -> PostgresConnection {
-        match PostgresConnection::try_connect(url) {
-            Ok(conn) => conn,
-            Err(err) => fail2!("Failed to connect: {}", err.to_str())
-        }
-    }
-
-    pub fn try_connect(url: &str) -> Result<PostgresConnection,
-                                            PostgresConnectError> {
+impl InnerPostgresConnection {
+    fn try_connect(url: &str) -> Result<InnerPostgresConnection,
+                                        PostgresConnectError> {
         let Url {
             host,
             port,
@@ -197,16 +191,15 @@ impl PostgresConnection {
             None => 5432
         };
 
-        let stream = match PostgresConnection::open_socket(host, port) {
+        let stream = match InnerPostgresConnection::open_socket(host, port) {
             Ok(stream) => stream,
             Err(err) => return Err(err)
         };
 
-        let conn = PostgresConnection {
-            stream: Cell::new(BufferedStream::new(stream)),
-            next_stmt_id: Cell::new(0),
-            notice_handler: Cell::new(~DefaultNoticeHandler
-                                      as ~PostgresNoticeHandler)
+        let mut conn = InnerPostgresConnection {
+            stream: BufferedStream::new(stream),
+            next_stmt_id: 0,
+            notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -262,27 +255,18 @@ impl PostgresConnection {
         Err(SocketError)
     }
 
-    fn write_messages(&self, messages: &[&FrontendMessage]) {
-        do self.stream.with_mut_ref |s| {
-            for &message in messages.iter() {
-                s.write_message(message);
-            }
-            s.flush();
+    fn write_messages(&mut self, messages: &[&FrontendMessage]) {
+        for &message in messages.iter() {
+            self.stream.write_message(message);
         }
+        self.stream.flush();
     }
 
-    fn read_message(&self) -> BackendMessage {
+    fn read_message(&mut self) -> BackendMessage {
         loop {
-            let msg = do self.stream.with_mut_ref |s| {
-                s.read_message()
-            };
-
-            match msg {
-                NoticeResponse { fields } => {
-                    let mut handler = self.notice_handler.take();
-                    handler.handle(PostgresDbError::new(fields));
-                    self.notice_handler.put_back(handler);
-                }
+            match self.stream.read_message() {
+                NoticeResponse { fields } =>
+                    self.notice_handler.handle(PostgresDbError::new(fields)),
                 ParameterStatus { parameter, value } =>
                     debug!("Parameter %s = %s", parameter, value),
                 msg => return msg
@@ -290,7 +274,7 @@ impl PostgresConnection {
         }
     }
 
-    fn handle_auth(&self, user: UserInfo) -> Option<PostgresConnectError> {
+    fn handle_auth(&mut self, user: UserInfo) -> Option<PostgresConnectError> {
         match self.read_message() {
             AuthenticationOk => return None,
             AuthenticationCleartextPassword => {
@@ -333,26 +317,16 @@ impl PostgresConnection {
         }
     }
 
-    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
+    fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        let old_handler = self.notice_handler.take();
-        self.notice_handler.put_back(handler);
-        old_handler
+        util::replace(&mut self.notice_handler, handler)
     }
 
-    pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
-        match self.try_prepare(query) {
-            Ok(stmt) => stmt,
-            Err(err) => fail2!("Error preparing statement:\n{}",
-                               err.pretty_error(query))
-        }
-    }
-
-    pub fn try_prepare<'a>(&'a self, query: &str)
+    pub fn try_prepare<'a>(&mut self, query: &str,
+                           conn: &'a PostgresConnection)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        let id = self.next_stmt_id.take();
-        let stmt_name = format!("statement_{}", id);
-        self.next_stmt_id.put_back(id + 1);
+        let stmt_name = format!("statement_{}", self.next_stmt_id);
+        self.next_stmt_id += 1;
 
         let types = [];
         self.write_messages([
@@ -399,12 +373,63 @@ impl PostgresConnection {
         self.wait_for_ready();
 
         Ok(NormalPostgresStatement {
-            conn: self,
+            conn: conn,
             name: stmt_name,
             param_types: param_types,
             result_desc: result_desc,
             next_portal_id: Cell::new(0)
         })
+    }
+
+    fn wait_for_ready(&mut self) {
+        match self.read_message() {
+            ReadyForQuery {_} => (),
+            _ => fail!()
+        }
+    }
+}
+
+// FIXME should be a newtype
+pub struct PostgresConnection {
+    priv conn: Cell<InnerPostgresConnection>
+}
+
+impl PostgresConnection {
+    pub fn connect(url: &str) -> PostgresConnection {
+        match PostgresConnection::try_connect(url) {
+            Ok(conn) => conn,
+            Err(err) => fail2!("Failed to connect: {}", err.to_str())
+        }
+    }
+
+    pub fn try_connect(url: &str) -> Result<PostgresConnection,
+                                            PostgresConnectError> {
+        do InnerPostgresConnection::try_connect(url).map_move |conn| {
+            PostgresConnection { conn: Cell::new(conn) }
+        }
+    }
+
+    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
+            -> ~PostgresNoticeHandler {
+        let mut conn = self.conn.take();
+        let handler = conn.set_notice_handler(handler);
+        self.conn.put_back(conn);
+        handler
+    }
+
+    pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
+        match self.try_prepare(query) {
+            Ok(stmt) => stmt,
+            Err(err) => fail2!("Error preparing statement:\n{}",
+                               err.pretty_error(query))
+        }
+    }
+
+    pub fn try_prepare<'a>(&'a self, query: &str)
+            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+        do self.conn.with_mut_ref |conn| {
+            conn.try_prepare(query, self)
+        }
     }
 
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
@@ -432,22 +457,36 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str) {
-        self.write_messages([&Query { query: query }]);
+        do self.conn.with_mut_ref |conn| {
+            conn.write_messages([&Query { query: query }]);
 
-        loop {
-            match self.read_message() {
-                ReadyForQuery {_} => break,
-                ErrorResponse { fields } =>
-                    fail2!("Error: {}", PostgresDbError::new(fields).to_str()),
-                _ => ()
+            loop {
+                match conn.read_message() {
+                    ReadyForQuery {_} => break,
+                    ErrorResponse { fields } =>
+                        fail2!("Error: {}",
+                               PostgresDbError::new(fields).to_str()),
+                    _ => ()
+                }
             }
         }
     }
 
     fn wait_for_ready(&self) {
-        match self.read_message() {
-            ReadyForQuery {_} => (),
-            _ => fail!()
+        do self.conn.with_mut_ref |conn| {
+            conn.wait_for_ready()
+        }
+    }
+
+    fn read_message(&self) -> BackendMessage {
+        do self.conn.with_mut_ref |conn| {
+            conn.read_message()
+        }
+    }
+
+    fn write_messages(&self, messages: &[&FrontendMessage]) {
+        do self.conn.with_mut_ref |conn| {
+            conn.write_messages(messages)
         }
     }
 }
