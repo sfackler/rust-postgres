@@ -282,11 +282,11 @@ fn test_tm_params() {
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
-    let nan: T = Float::NaN();
+    let nan: T = Float::nan();
     let stmt = conn.prepare("SELECT $1::" + sql_type);
     let mut result = stmt.query([&nan as &ToSql]);
     let val: T = result.next().unwrap()[0];
-    assert!(val.is_NaN())
+    assert!(val.is_nan())
 }
 
 #[test]
