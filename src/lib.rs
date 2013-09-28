@@ -14,8 +14,7 @@ use std::hashmap::HashMap;
 use std::rt::io::{Writer, io_error, Decorator};
 use std::rt::io::buffered::BufferedStream;
 use std::rt::io::net;
-use std::rt::io::net::ip;
-use std::rt::io::net::ip::SocketAddr;
+use std::rt::io::net::ip::{Port, SocketAddr};
 use std::rt::io::net::tcp::TcpStream;
 use std::task;
 use std::util;
@@ -232,7 +231,7 @@ impl InnerPostgresConnection {
         Ok(conn)
     }
 
-    fn open_socket(host: &str, port: ip::Port)
+    fn open_socket(host: &str, port: Port)
             -> Result<TcpStream, PostgresConnectError> {
         let addrs = do io_error::cond.trap(|_| {}).inside {
             net::get_host_addresses(host)
