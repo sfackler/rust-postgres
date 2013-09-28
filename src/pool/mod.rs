@@ -29,7 +29,7 @@ impl InnerConnectionPool {
 // Should be a newtype, but blocked by mozilla/rust#9155
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
-    pool: MutexArc<InnerConnectionPool>
+    priv pool: MutexArc<InnerConnectionPool>
 }
 
 impl PostgresConnectionPool {
