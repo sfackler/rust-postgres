@@ -897,6 +897,7 @@ impl<'self> Container for PostgresRow<'self> {
 }
 
 impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
+    #[inline]
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
         FromSql::from_sql(self.stmt.result_desc[idx].ty,
@@ -909,6 +910,7 @@ pub trait RowIndex {
 }
 
 impl RowIndex for uint {
+    #[inline]
     fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
         *self
     }
@@ -916,6 +918,7 @@ impl RowIndex for uint {
 
 // This is a convenience as the 0 in get[0] resolves to int :(
 impl RowIndex for int {
+    #[inline]
     fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
         assert!(*self >= 0);
         *self as uint
@@ -923,6 +926,7 @@ impl RowIndex for int {
 }
 
 impl<'self> RowIndex for &'self str {
+    #[inline]
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
         match stmt.find_col_named(*self) {
             Some(idx) => idx,
