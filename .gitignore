@@ -1,6 +1,4 @@
-*.so
-*.dylib
-*.dylib.dSYM
-*.dummy
-check-*
-
+/.rust/
+/build/
+/bin/
+/lib/

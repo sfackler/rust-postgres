@@ -1,6 +1,5 @@
-#[link(name = "postgres",
-       vers = "0.1",
-       url = "https://github.com/sfackler/rust-postgres")];
+#[desc="A native PostgreSQL driver"];
+#[license="MIT"];
 
 extern mod extra;
 
