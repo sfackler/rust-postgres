@@ -519,14 +519,12 @@ impl<'self> Drop for PostgresTransaction<'self> {
 impl<'self> PostgresTransaction<'self> {
     pub fn prepare<'a>(&'a self, query: &str)
             -> TransactionalPostgresStatement<'a> {
-        TransactionalPostgresStatement { stmt: self.conn.prepare(query) }
+        TransactionalPostgresStatement(self.conn.prepare(query))
     }
 
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.try_prepare(query).map_move |stmt| {
-            TransactionalPostgresStatement { stmt: stmt }
-        }
+        self.conn.try_prepare(query).map_move(TransactionalPostgresStatement)
     }
 
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
@@ -768,50 +766,48 @@ impl ResultDescription {
     }
 }
 
-pub struct TransactionalPostgresStatement<'self> {
-    priv stmt: NormalPostgresStatement<'self>
-}
+pub struct TransactionalPostgresStatement<'self>(NormalPostgresStatement<'self>);
 
 impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
     fn param_types<'a>(&'a self) -> &'a [PostgresType] {
-        self.stmt.param_types()
+        (**self).param_types()
     }
 
     fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription] {
-        self.stmt.result_descriptions()
+        (**self).result_descriptions()
     }
 
     fn update(&self, params: &[&ToSql]) -> uint {
-        self.stmt.update(params)
+        (**self).update(params)
     }
 
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
-        self.stmt.try_update(params)
+        (**self).try_update(params)
     }
 
     fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
-        self.stmt.query(params)
+        (**self).query(params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        self.stmt.try_query(params)
+        (**self).try_query(params)
     }
 
     fn find_col_named(&self, col: &str) -> Option<uint> {
-        self.stmt.find_col_named(col)
+        (**self).find_col_named(col)
     }
 }
 
 impl<'self> TransactionalPostgresStatement<'self> {
     pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> PostgresResult<'a> {
-        self.stmt.lazy_query(row_limit, params)
+        (**self).lazy_query(row_limit, params)
     }
 
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        self.stmt.try_lazy_query(row_limit, params)
+        (**self).try_lazy_query(row_limit, params)
     }
 }
 
