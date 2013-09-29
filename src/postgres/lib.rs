@@ -583,24 +583,6 @@ pub struct NormalPostgresStatement<'self> {
     priv next_portal_id: Cell<uint>
 }
 
-#[deriving(Eq)]
-pub struct ResultDescription {
-    name: ~str,
-    ty: PostgresType
-}
-
-impl ResultDescription {
-    fn from_row_description_entry(row: RowDescriptionEntry)
-            -> ResultDescription {
-        let RowDescriptionEntry { name, type_oid, _ } = row;
-
-        ResultDescription {
-            name: name,
-            ty: PostgresType::from_oid(type_oid)
-        }
-    }
-}
-
 #[unsafe_destructor]
 impl<'self> Drop for NormalPostgresStatement<'self> {
     fn drop(&mut self) {
@@ -764,6 +746,24 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
     fn find_col_named(&self, col: &str) -> Option<uint> {
         do self.result_desc.iter().position |desc| {
             desc.name.as_slice() == col
+        }
+    }
+}
+
+#[deriving(Eq)]
+pub struct ResultDescription {
+    name: ~str,
+    ty: PostgresType
+}
+
+impl ResultDescription {
+    fn from_row_description_entry(row: RowDescriptionEntry)
+            -> ResultDescription {
+        let RowDescriptionEntry { name, type_oid, _ } = row;
+
+        ResultDescription {
+            name: name,
+            ty: PostgresType::from_oid(type_oid)
         }
     }
 }
