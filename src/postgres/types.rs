@@ -119,7 +119,7 @@ macro_rules! check_types(
     )
 )
 
-/// A trait for things that can be created from a Postgres value
+/// A trait for types that can be created from a Postgres value
 pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
     ///

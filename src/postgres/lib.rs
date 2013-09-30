@@ -124,7 +124,7 @@ pub trait PostgresNoticeHandler {
     fn handle(&mut self, notice: PostgresDbError);
 }
 
-/// A struct which handles notices by logging at the info level.
+/// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `PostgresConnection`.
 pub struct DefaultNoticeHandler;
@@ -713,7 +713,7 @@ pub trait PostgresStatement {
     /// the parameters of the statement.
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
 
-    /// A conveience function wrapping `try_update`.
+    /// A convenience function wrapping `try_update`.
     ///
     /// Fails if there was an error executing the statement.
     fn update(&self, params: &[&ToSql]) -> uint;
@@ -1069,12 +1069,21 @@ impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
 }
 
 /// A single result row of a query.
+///
+/// A value can be accessed by the name or index of its column, though access
+/// by index is more efficient.
+///
+/// ```rust
+/// let foo: i32 = row[0];
+/// let bar: ~str = row["bar"];
+/// ```
 pub struct PostgresRow<'self> {
     priv stmt: &'self NormalPostgresStatement<'self>,
     priv data: ~[Option<~[u8]>]
 }
 
 impl<'self> Container for PostgresRow<'self> {
+    #[inline]
     fn len(&self) -> uint {
         self.data.len()
     }
