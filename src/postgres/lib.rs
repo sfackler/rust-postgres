@@ -716,7 +716,12 @@ pub trait PostgresStatement {
     /// A convenience function wrapping `try_update`.
     ///
     /// Fails if there was an error executing the statement.
-    fn update(&self, params: &[&ToSql]) -> uint;
+    fn update(&self, params: &[&ToSql]) -> uint {
+        match self.try_update(params) {
+            Ok(count) => count,
+            Err(err) => fail2!("Error running update\n{}", err.to_str())
+        }
+    }
 
     /// Attempts to execute the prepared statement, returning an iterator over
     /// the resulting rows.
@@ -729,7 +734,12 @@ pub trait PostgresStatement {
     /// A convenience function wrapping `try_query`.
     ///
     /// Fails if there was an error executing the statement.
-    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a>;
+    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
+        match self.try_query(params) {
+            Ok(result) => result,
+            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
+        }
+    }
 
     /// Returns the index of the first result column with the specified name,
     /// or `None` if not found.
@@ -850,13 +860,6 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
         self.result_desc.as_slice()
     }
 
-    fn update(&self, params: &[&ToSql]) -> uint {
-        match self.try_update(params) {
-            Ok(count) => count,
-            Err(err) => fail2!("Error running update\n{}", err.to_str())
-        }
-    }
-
     fn try_update(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
         match self.execute("", 0, params) {
@@ -893,11 +896,6 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
         self.conn.wait_for_ready();
 
         Ok(num)
-    }
-
-    fn query<'a>(&'a self, params: &[&ToSql])
-            -> PostgresResult<'a> {
-        self.lazy_query(0, params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
@@ -947,16 +945,8 @@ impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
         (**self).result_descriptions()
     }
 
-    fn update(&self, params: &[&ToSql]) -> uint {
-        (**self).update(params)
-    }
-
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
         (**self).try_update(params)
-    }
-
-    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
-        (**self).query(params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
