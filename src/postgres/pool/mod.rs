@@ -29,11 +29,8 @@ impl InnerConnectionPool {
 /// A simple fixed-size Postgres connection pool.
 ///
 /// It can be shared across tasks.
-// Should be a newtype, but blocked by mozilla/rust#9155
 #[deriving(Clone)]
-pub struct PostgresConnectionPool {
-    priv pool: MutexArc<InnerConnectionPool>
-}
+pub struct PostgresConnectionPool(MutexArc<InnerConnectionPool>);
 
 impl PostgresConnectionPool {
     /// Attempts to create a new pool with the specified number of connections.
@@ -54,9 +51,7 @@ impl PostgresConnectionPool {
             }
         }
 
-        Ok(PostgresConnectionPool {
-            pool: MutexArc::new(pool)
-        })
+        Ok(PostgresConnectionPool(MutexArc::new(pool)))
     }
 
     /// A convenience function wrapping `try_new`.
@@ -74,7 +69,7 @@ impl PostgresConnectionPool {
     /// If all connections are in use, blocks until one becomes available.
     pub fn get_connection(&self) -> PooledPostgresConnection {
         let conn = unsafe {
-            do self.pool.unsafe_access_cond |pool, cvar| {
+            do self.unsafe_access_cond |pool, cvar| {
                 while pool.pool.is_empty() {
                     cvar.wait();
                 }
@@ -103,7 +98,7 @@ pub struct PooledPostgresConnection {
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         unsafe {
-            do self.pool.pool.unsafe_access |pool| {
+            do self.pool.unsafe_access |pool| {
                 pool.pool.push(self.conn.take_unwrap());
             }
         }

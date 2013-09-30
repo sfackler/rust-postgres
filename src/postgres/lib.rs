@@ -421,10 +421,7 @@ impl InnerPostgresConnection {
 }
 
 /// A connection to a Postgres database.
-// FIXME should be a newtype
-pub struct PostgresConnection {
-    priv conn: Cell<InnerPostgresConnection>
-}
+pub struct PostgresConnection(Cell<InnerPostgresConnection>);
 
 impl PostgresConnection {
     /// Attempts to create a new connection to a Postgres database.
@@ -441,7 +438,7 @@ impl PostgresConnection {
     pub fn try_connect(url: &str) -> Result<PostgresConnection,
                                             PostgresConnectError> {
         do InnerPostgresConnection::try_connect(url).map_move |conn| {
-            PostgresConnection { conn: Cell::new(conn) }
+            PostgresConnection(Cell::new(conn))
         }
     }
 
@@ -458,9 +455,9 @@ impl PostgresConnection {
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        let mut conn = self.conn.take();
+        let mut conn = self.take();
         let handler = conn.set_notice_handler(handler);
-        self.conn.put_back(conn);
+        self.put_back(conn);
         handler
     }
 
@@ -474,7 +471,7 @@ impl PostgresConnection {
     /// not outlive that connection.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.with_mut_ref |conn| {
+        do self.with_mut_ref |conn| {
             conn.try_prepare(query, self)
         }
     }
@@ -530,7 +527,7 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str) {
-        do self.conn.with_mut_ref |conn| {
+        do self.with_mut_ref |conn| {
             conn.write_messages([&Query { query: query }]);
 
             loop {
@@ -546,19 +543,19 @@ impl PostgresConnection {
     }
 
     fn wait_for_ready(&self) {
-        do self.conn.with_mut_ref |conn| {
+        do self.with_mut_ref |conn| {
             conn.wait_for_ready()
         }
     }
 
     fn read_message(&self) -> BackendMessage {
-        do self.conn.with_mut_ref |conn| {
+        do self.with_mut_ref |conn| {
             conn.read_message()
         }
     }
 
     fn write_messages(&self, messages: &[&FrontendMessage]) {
-        do self.conn.with_mut_ref |conn| {
+        do self.with_mut_ref |conn| {
             conn.write_messages(messages)
         }
     }
