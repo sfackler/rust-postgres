@@ -817,14 +817,6 @@ impl<'self> NormalPostgresStatement<'self> {
         }
     }
 
-    fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> PostgresResult<'a> {
-        match self.try_lazy_query(row_limit, params) {
-            Ok(result) => result,
-            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
-        }
-    }
-
     fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
         let id = self.next_portal_id.take();
@@ -979,7 +971,10 @@ impl<'self> TransactionalPostgresStatement<'self> {
     /// Fails if there was an error executing the statement.
     pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> PostgresResult<'a> {
-        (**self).lazy_query(row_limit, params)
+        match self.try_lazy_query(row_limit, params) {
+            Ok(result) => result,
+            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
+        }
     }
 }
 
