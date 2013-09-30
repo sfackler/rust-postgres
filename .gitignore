@@ -1,4 +1,5 @@
 /.rust/
 /build/
 /bin/
+/doc/
 /lib/

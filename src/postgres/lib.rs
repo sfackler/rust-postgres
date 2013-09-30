@@ -1,6 +1,9 @@
 #[desc="A native PostgreSQL driver"];
 #[license="MIT"];
 
+// Needed for rustdoc-ng
+#[link(name="postgres")];
+
 extern mod extra;
 
 use extra::container::Deque;
@@ -53,7 +56,6 @@ use message::{FrontendMessage,
               Sync,
               Terminate};
 use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
-
 use types::{PostgresType, ToSql, FromSql};
 
 pub mod error;
@@ -61,10 +63,15 @@ pub mod pool;
 mod message;
 pub mod types;
 
+/// Trait for types that can handle Postgres notice messages
 pub trait PostgresNoticeHandler {
+    /// Handle a Postgres notice message
     fn handle(&mut self, notice: PostgresDbError);
 }
 
+/// A struct which handles notices by logging at the info level.
+///
+/// This is the default handler used by a `PostgresConnection`.
 pub struct DefaultNoticeHandler;
 
 impl PostgresNoticeHandler for DefaultNoticeHandler {
@@ -73,6 +80,7 @@ impl PostgresNoticeHandler for DefaultNoticeHandler {
     }
 }
 
+/// Reasons a new Postgres connection could fail
 #[deriving(ToStr)]
 pub enum PostgresConnectError {
     InvalidUrl,
@@ -84,27 +92,51 @@ pub enum PostgresConnectError {
     UnsupportedAuthentication
 }
 
+/// Represents the position of an error in a query
 #[deriving(ToStr)]
 pub enum PostgresErrorPosition {
+    /// A position in the original query
     Position(uint),
+    /// A position in an internally generated query
     InternalPosition {
         position: uint,
         query: ~str
     }
 }
 
+/// Encapsulates a Postgres error or notice.
 #[deriving(ToStr)]
 pub struct PostgresDbError {
-    // This could almost be an enum, except the values can be localized :(
+    /// The field contents are ERROR, FATAL, or PANIC (in an error message),
+    /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
+    /// localized translation of one of these.
     severity: ~str,
+    /// The SQLSTATE code for the error.
     code: PostgresSqlState,
+    /// The primary human-readable error message. This should be accurate but
+    /// terse (typically one line).
     message: ~str,
+    /// An optional secondary error message carrying more detail about the
+    /// problem. Might run to multiple lines.
     detail: Option<~str>,
+    /// An optional suggestion what to do about the problem. This is intended
+    /// to differ from Detail in that it offers advice (potentially
+    /// inappropriate) rather than hard facts. Might run to multiple lines.
     hint: Option<~str>,
+    /// An optional error cursor position into either the original query string
+    /// or an internally generated query.
     position: Option<PostgresErrorPosition>,
+    /// An indication of the context in which the error occurred. Presently
+    /// this includes a call stack traceback of active procedural language
+    /// functions and internally-generated queries. The trace is one entry per
+    /// line, most recent first.
     where: Option<~str>,
+    /// The file name of the source-code location where the error was reported.
     file: ~str,
+    /// The line number of the source-code location where the error was
+    /// reported.
     line: uint,
+    /// The name of the source-code routine reporting the error.
     routine: ~str
 }
 
@@ -320,8 +352,7 @@ impl InnerPostgresConnection {
         util::replace(&mut self.notice_handler, handler)
     }
 
-    pub fn try_prepare<'a>(&mut self, query: &str,
-                           conn: &'a PostgresConnection)
+    fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
         let stmt_name = format!("statement_{}", self.next_stmt_id);
         self.next_stmt_id += 1;
@@ -387,19 +418,24 @@ impl InnerPostgresConnection {
     }
 }
 
+/// A connection to a Postgres database.
 // FIXME should be a newtype
 pub struct PostgresConnection {
     priv conn: Cell<InnerPostgresConnection>
 }
 
 impl PostgresConnection {
-    pub fn connect(url: &str) -> PostgresConnection {
-        match PostgresConnection::try_connect(url) {
-            Ok(conn) => conn,
-            Err(err) => fail2!("Failed to connect: {}", err.to_str())
-        }
-    }
-
+    /// Attempts to create a new connection to a Postgres database.
+    ///
+    /// The URL should be provided in the normal format:
+    ///
+    /// ```
+    /// postgres://user[:password]@host[:port][/database][?param1=val1[[&param2=val2]...]]
+    /// ```
+    ///
+    /// The password may be omitted if not required. The default Postgres port
+    /// (5432) is used if none is specified. The database name defaults to the
+    /// username if not specified.
     pub fn try_connect(url: &str) -> Result<PostgresConnection,
                                             PostgresConnectError> {
         do InnerPostgresConnection::try_connect(url).map_move |conn| {
@@ -407,6 +443,17 @@ impl PostgresConnection {
         }
     }
 
+    /// A convenience wrapper around `try_connect`.
+    ///
+    /// Fails if there was an error connecting to the database.
+    pub fn connect(url: &str) -> PostgresConnection {
+        match PostgresConnection::try_connect(url) {
+            Ok(conn) => conn,
+            Err(err) => fail2!("Failed to connect: {}", err.to_str())
+        }
+    }
+
+    /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
         let mut conn = self.conn.take();
@@ -415,6 +462,24 @@ impl PostgresConnection {
         handler
     }
 
+    /// Attempts to create a new prepared statement.
+    ///
+    /// A statement may contain parameters, specified by `$n` where `n` is the
+    /// index of the parameter in the list provided at execution time,
+    /// 1-indexed.
+    ///
+    /// The statement is associated with the connection that created it and may
+    /// not outlive that connection.
+    pub fn try_prepare<'a>(&'a self, query: &str)
+            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+        do self.conn.with_mut_ref |conn| {
+            conn.try_prepare(query, self)
+        }
+    }
+
+    /// A convenience wrapper around `try_prepare`.
+    ///
+    /// Fails if there was an error preparing the statement.
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
         match self.try_prepare(query) {
             Ok(stmt) => stmt,
@@ -423,13 +488,12 @@ impl PostgresConnection {
         }
     }
 
-    pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.with_mut_ref |conn| {
-            conn.try_prepare(query, self)
-        }
-    }
-
+    /// Executes a block inside of a database transaction.
+    ///
+    /// The block is provided with a `PostgresTransaction` object which should
+    /// be used instead of the connection inside of the block. A transaction
+    /// will commit by default unless the task fails or the transaction is set
+    /// to roll back.
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.quick_query("BEGIN");
         blk(&PostgresTransaction {
@@ -439,18 +503,27 @@ impl PostgresConnection {
         })
     }
 
+    /// A convenience function for update queries that are only run once.
+    ///
+    /// If an error is returned, it could have come from either the preparation
+    /// or execution of the statement.
+    ///
+    /// On success, returns the number of rows modified or 0 if not applicable.
+    pub fn try_update(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresDbError> {
+        do self.try_prepare(query).and_then |stmt| {
+            stmt.try_update(params)
+        }
+    }
+
+    /// A convenience wrapper around `try_update`.
+    ///
+    /// Fails if there was an error preparing or executing the statement.
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
         match self.try_update(query, params) {
             Ok(res) => res,
             Err(err) => fail2!("Error running update:\n{}",
                                err.pretty_error(query))
-        }
-    }
-
-    pub fn try_update(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresDbError> {
-        do self.try_prepare(query).and_then |stmt| {
-            stmt.try_update(params)
         }
     }
 
@@ -489,6 +562,7 @@ impl PostgresConnection {
     }
 }
 
+/// Represents a transaction on a database connection
 pub struct PostgresTransaction<'self> {
     priv conn: &'self PostgresConnection,
     priv commit: Cell<bool>,
@@ -517,25 +591,30 @@ impl<'self> Drop for PostgresTransaction<'self> {
 }
 
 impl<'self> PostgresTransaction<'self> {
-    pub fn prepare<'a>(&'a self, query: &str)
-            -> TransactionalPostgresStatement<'a> {
-        TransactionalPostgresStatement(self.conn.prepare(query))
-    }
-
+    /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
         self.conn.try_prepare(query).map_move(TransactionalPostgresStatement)
     }
 
-    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
-        self.conn.update(query, params)
+    /// Like `PostgresConnection::prepare`.
+    pub fn prepare<'a>(&'a self, query: &str)
+            -> TransactionalPostgresStatement<'a> {
+        TransactionalPostgresStatement(self.conn.prepare(query))
     }
 
+    /// Like `PostgresConnection::try_update`.
     pub fn try_update(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
         self.conn.try_update(query, params)
     }
 
+    /// Like `PostgresConnection::update`.
+    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
+        self.conn.update(query, params)
+    }
+
+    /// Like `PostgresConnection::in_transaction`.
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.conn.quick_query("SAVEPOINT sp");
         blk(&PostgresTransaction {
@@ -545,34 +624,67 @@ impl<'self> PostgresTransaction<'self> {
         })
     }
 
+    /// Determines if the transaction is currently set to commit or roll back.
     pub fn will_commit(&self) -> bool {
         let commit = self.commit.take();
         self.commit.put_back(commit);
         commit
     }
 
+    /// Sets the transaction to commit at its completion.
     pub fn set_commit(&self) {
         self.commit.take();
         self.commit.put_back(true);
     }
 
+    /// Sets the transaction to roll back at its completion.
     pub fn set_rollback(&self) {
         self.commit.take();
         self.commit.put_back(false);
     }
 }
 
+/// A trait containing methods that can be called on a prepared statement.
 pub trait PostgresStatement {
+    /// Returns a slice containing the expected parameter types.
     fn param_types<'a>(&'a self) -> &'a [PostgresType];
+
+    /// Returns a slice describing the columns of the result of the query.
     fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription];
-    fn update(&self, params: &[&ToSql]) -> uint;
+
+    /// Attempts to execute the prepared statement, returning the number of
+    /// rows modified.
+    ///
+    /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
+    ///
+    /// Fails if the number or types of the provided parameters do not match
+    /// the parameters of the statement.
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
-    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a>;
+
+    /// A conveience function wrapping `try_update`.
+    ///
+    /// Fails if there was an error executing the statement.
+    fn update(&self, params: &[&ToSql]) -> uint;
+
+    /// Attempts to execute the prepared statement, returning an iterator over
+    /// the resulting rows.
+    ///
+    /// Fails if the number or types of the provided parameters do not match
+    /// the parameters of the statement.
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError>;
+
+    /// A convenience function wrapping `try_query`.
+    ///
+    /// Fails if there was an error executing the statement.
+    fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a>;
+
+    /// Returns the index of the first result column with the specified name,
+    /// or `None` if not found.
     fn find_col_named(&self, col: &str) -> Option<uint>;
 }
 
+/// A statement prepared outside of a transaction.
 pub struct NormalPostgresStatement<'self> {
     priv conn: &'self PostgresConnection,
     priv name: ~str,
@@ -748,9 +860,12 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
     }
 }
 
+/// Information about a column of the result of a query.
 #[deriving(Eq)]
 pub struct ResultDescription {
+    /// The name of the column
     name: ~str,
+    /// The type of the data in the column
     ty: PostgresType
 }
 
@@ -766,6 +881,9 @@ impl ResultDescription {
     }
 }
 
+/// A statement prepared inside of a transaction.
+///
+/// Provides additional functionality over a `NormalPostgresStatement`.
 pub struct TransactionalPostgresStatement<'self>(NormalPostgresStatement<'self>);
 
 impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
@@ -800,17 +918,30 @@ impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
 }
 
 impl<'self> TransactionalPostgresStatement<'self> {
-    pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> PostgresResult<'a> {
-        (**self).lazy_query(row_limit, params)
-    }
-
+    /// Attempts to execute the prepared statement, returning a lazily loaded
+    /// iterator over the resulting rows.
+    ///
+    /// No more than `row_limit` rows will be stored in memory at a time. Rows
+    /// will be pulled from the database in batches of `row_limit` as needed.
+    /// If `row_limit` is 0, `try_lazy_query` is equivalent to `try_query`.
+    ///
+    /// Fails if the number or types of the provided parameters do not match
+    /// the parameters of the statement.
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
         (**self).try_lazy_query(row_limit, params)
     }
+
+    /// A convenience wrapper around `try_lazy_query`.
+    ///
+    /// Fails if there was an error executing the statement.
+    pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+            -> PostgresResult<'a> {
+        (**self).lazy_query(row_limit, params)
+    }
 }
 
+/// An iterator over the resulting rows of a query.
 pub struct PostgresResult<'self> {
     priv stmt: &'self NormalPostgresStatement<'self>,
     priv name: ~str,
@@ -885,6 +1016,7 @@ impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
     }
 }
 
+/// A single result row of a query.
 pub struct PostgresRow<'self> {
     priv stmt: &'self NormalPostgresStatement<'self>,
     priv data: ~[Option<~[u8]>]
@@ -905,7 +1037,11 @@ impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
     }
 }
 
+/// A trait implemented by types that can index into columns of a row.
 pub trait RowIndex {
+    /// Returns the index of the appropriate column.
+    ///
+    /// Fails if there is no corresponding column.
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint;
 }
 
