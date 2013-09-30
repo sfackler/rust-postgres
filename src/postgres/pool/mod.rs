@@ -26,6 +26,9 @@ impl InnerConnectionPool {
     }
 }
 
+/// A simple fixed-size Postgres connection pool.
+///
+/// It can be shared across tasks.
 // Should be a newtype, but blocked by mozilla/rust#9155
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
@@ -33,6 +36,10 @@ pub struct PostgresConnectionPool {
 }
 
 impl PostgresConnectionPool {
+    /// Attempts to create a new pool with the specified number of connections.
+    ///
+    /// Returns an error if the specified number of connections cannot be
+    /// created.
     pub fn try_new(url: &str, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
@@ -52,6 +59,9 @@ impl PostgresConnectionPool {
         })
     }
 
+    /// A convenience function wrapping `try_new`.
+    ///
+    /// Fails if the pool cannot be created.
     pub fn new(url: &str, pool_size: uint) -> PostgresConnectionPool {
         match PostgresConnectionPool::try_new(url, pool_size) {
             Ok(pool) => pool,
@@ -59,8 +69,10 @@ impl PostgresConnectionPool {
         }
     }
 
-    pub fn try_get_connection(&self) -> Result<PooledPostgresConnection,
-                                               PostgresConnectError> {
+    /// Retrieves a connection from the pool.
+    ///
+    /// If all connections are in use, blocks until one becomes available.
+    pub fn get_connection(&self) -> PooledPostgresConnection {
         let conn = unsafe {
             do self.pool.unsafe_access_cond |pool, cvar| {
                 while pool.pool.is_empty() {
@@ -71,20 +83,17 @@ impl PostgresConnectionPool {
             }
         };
 
-        Ok(PooledPostgresConnection {
+        PooledPostgresConnection {
             pool: self.clone(),
             conn: Some(conn)
-        })
-    }
-
-    pub fn get_connection(&self) -> PooledPostgresConnection {
-        match self.try_get_connection() {
-            Ok(conn) => conn,
-            Err(err) => fail!("Unable to get connection: %s", err.to_str())
         }
     }
 }
 
+/// A Postgres connection pulled from a connection pool.
+///
+/// It will be returned to the pool when it falls out of scope, even due to
+/// task failure.
 pub struct PooledPostgresConnection {
     priv pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
@@ -102,24 +111,29 @@ impl Drop for PooledPostgresConnection {
 }
 
 impl PooledPostgresConnection {
+    /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
         self.conn.get_ref().try_prepare(query)
     }
 
+    /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
         self.conn.get_ref().prepare(query)
     }
 
+    /// Like `PostgresConnection::try_update`.
     pub fn try_update(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
         self.conn.get_ref().try_update(query, params)
     }
 
+    /// Like `PostgresConnection::update`.
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
         self.conn.get_ref().update(query, params)
     }
 
+    /// `PostgresConnection::in_transaction`.
     pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
         self.conn.get_ref().in_transaction(blk)
     }

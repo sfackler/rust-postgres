@@ -9,6 +9,7 @@ use std::rt::io::extensions::{WriterByteConversions, ReaderByteConversions};
 use std::rt::io::mem::{MemWriter, BufReader};
 use std::str;
 
+/// A Postgres OID
 pub type Oid = i32;
 
 // Values from pg_type.h
@@ -34,27 +35,45 @@ static NSEC_PER_USEC: i64 = 1_000;
 // Number of seconds from 1970-01-01 to 2000-01-01
 static TIME_SEC_CONVERSION: i64 = 946684800;
 
+/// A Postgres type
 #[deriving(Eq)]
 pub enum PostgresType {
+    /// BOOL
     PgBool,
+    /// BYTEA
     PgByteA,
+    /// "char"
     PgChar,
+    /// INT8/BIGINT
     PgInt8,
+    /// INT2/SMALLINT
     PgInt2,
+    /// INT4/INT
     PgInt4,
+    /// TEXT
     PgText,
+    /// JSON
     PgJson,
+    /// FLOAT4/REAL
     PgFloat4,
+    /// FLOAT8/DOUBLE PRECISION
     PgFloat8,
+    /// TIMESTAMP
     PgTimestamp,
+    /// TIMESTAMP WITH TIME ZONE
     PgTimestampZ,
+    /// CHAR(n)/CHARACTER(n)
     PgCharN,
+    /// VARCHAR/CHARACTER VARYING
     PgVarchar,
+    /// UUID
     PgUuid,
+    /// An unknown type along with its OID
     PgUnknownType(Oid)
 }
 
 impl PostgresType {
+    /// Creates a PostgresType from a Postgres OID.
     pub fn from_oid(oid: Oid) -> PostgresType {
         match oid {
             BOOLOID => PgBool,
@@ -76,6 +95,7 @@ impl PostgresType {
         }
     }
 
+    /// Returns the wire format needed for the value of `self`.
     pub fn result_format(&self) -> Format {
         match *self {
             PgUnknownType(*) => Text,
@@ -84,6 +104,7 @@ impl PostgresType {
     }
 }
 
+/// The wire format of a Postgres value
 pub enum Format {
     Text = 0,
     Binary = 1
@@ -98,7 +119,13 @@ macro_rules! check_types(
     )
 )
 
+/// A trait for things that can be created from a Postgres value
 pub trait FromSql {
+    /// Creates a new value of this type from a buffer of Postgres data.
+    ///
+    /// If the value was `NULL`, the buffer will be `None`.
+    ///
+    /// Fails if this type can not be created from the provided Postgres type.
     fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Self;
 }
 
@@ -188,7 +215,13 @@ from_map_impl!(PgTimestamp | PgTimestampZ, Timespec, |buf| {
 })
 from_option_impl!(Timespec)
 
+/// A trait for types that can be converted into Postgres values
 pub trait ToSql {
+    /// Converts the value of `self` into a format appropriate for the Postgres
+    /// backend.
+    ///
+    /// Fails if this type cannot be converted into the specified Postgres
+    /// type.
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>);
 }
 

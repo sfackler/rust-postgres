@@ -4,6 +4,8 @@
 // Needed for rustdoc-ng
 #[link(name="postgres")];
 
+#[warn(missing_doc)];
+
 extern mod extra;
 
 use extra::container::Deque;
