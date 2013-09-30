@@ -179,8 +179,7 @@ A very basic fixed-size connection pool is provided in the `pool` module. A
 single pool can be shared across tasks and `get_connection` will block until a
 connection is available.
 ```rust
-let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 5)
-        .unwrap();
+let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 5);
 
 for _ in range(0, 10) {
     do task::spawn_with(pool.clone()) |pool| {
