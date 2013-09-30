@@ -2,7 +2,7 @@
 #[license="MIT"];
 
 // Needed for rustdoc-ng
-#[link(name="postgres")];
+#[link(name="postgres", vers="0.1")];
 
 #[warn(missing_doc)];
 
