@@ -2,6 +2,8 @@ Rust-Postgres
 =============
 A native PostgreSQL driver for Rust.
 
+Documentation is available at http://sfackler.com/doc/postgres/index.html.
+
 Overview
 ========
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
