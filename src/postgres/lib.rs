@@ -5,15 +5,18 @@ package.
 
 ```rust
 extern mod postgres;
+extern mod extra;
 
-use postgres::PostgresConnection;
+use extra::time;
+use extra::time::Timespec;
+
+use postgres::{PostgresConnection, PostgresStatement};
 use postgres::types::ToSql;
 
-#[deriving(ToStr)]
 struct Person {
     id: i32,
     name: ~str,
-    awesome: bool,
+    time_created: Timespec,
     data: Option<~[u8]>
 }
 
@@ -21,31 +24,31 @@ fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
 
     conn.update("CREATE TABLE person (
-                    id      SERIAL PRIMARY KEY,
-                    name    VARCHAR NOT NULL,
-                    awesome BOOL NOT NULL,
-                    data    BYTEA
+                    id              SERIAL PRIMARY KEY,
+                    name            VARCHAR NOT NULL,
+                    time_created    TIMESTAMP NOT NULL,
+                    data            BYTEA
                  )", []);
     let me = Person {
         id: 0,
         name: ~"Steven",
-        awesome: true,
+        time_created: time::get_time(),
         data: None
     };
-    conn.update("INSERT INTO person (name, awesome, data)
+    conn.update("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name as &ToSql, &me.awesome as &ToSql,
+                 [&me.name as &ToSql, &me.time_created as &ToSql,
                   &me.data as &ToSql]);
 
-    let stmt = conn.prepare("SELECT id, name, awesome, data FROM person");
+    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
     for row in stmt.query([]) {
         let person = Person {
             id: row[0],
             name: row[1],
-            awesome: row[2],
+            time_created: row[2],
             data: row[3]
         };
-        println!("Found person {}", person.to_str());
+        println!("Found person {}", person.name);
     }
 }
 ```
