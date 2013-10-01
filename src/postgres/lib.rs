@@ -477,7 +477,9 @@ impl InnerPostgresConnection {
 }
 
 /// A connection to a Postgres database.
-pub struct PostgresConnection(Cell<InnerPostgresConnection>);
+pub struct PostgresConnection {
+    priv conn: Cell<InnerPostgresConnection>
+}
 
 impl PostgresConnection {
     /// Attempts to create a new connection to a Postgres database.
@@ -494,7 +496,9 @@ impl PostgresConnection {
     pub fn try_connect(url: &str) -> Result<PostgresConnection,
                                             PostgresConnectError> {
         do InnerPostgresConnection::try_connect(url).map_move |conn| {
-            PostgresConnection(Cell::new(conn))
+            PostgresConnection {
+                conn: Cell::new(conn)
+            }
         }
     }
 
@@ -511,9 +515,9 @@ impl PostgresConnection {
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        let mut conn = self.take();
+        let mut conn = self.conn.take();
         let handler = conn.set_notice_handler(handler);
-        self.put_back(conn);
+        self.conn.put_back(conn);
         handler
     }
 
@@ -527,7 +531,7 @@ impl PostgresConnection {
     /// not outlive that connection.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        do self.with_mut_ref |conn| {
+        do self.conn.with_mut_ref |conn| {
             conn.try_prepare(query, self)
         }
     }
@@ -583,7 +587,7 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str) {
-        do self.with_mut_ref |conn| {
+        do self.conn.with_mut_ref |conn| {
             conn.write_messages([&Query { query: query }]);
 
             loop {
@@ -599,19 +603,19 @@ impl PostgresConnection {
     }
 
     fn wait_for_ready(&self) {
-        do self.with_mut_ref |conn| {
+        do self.conn.with_mut_ref |conn| {
             conn.wait_for_ready()
         }
     }
 
     fn read_message(&self) -> BackendMessage {
-        do self.with_mut_ref |conn| {
+        do self.conn.with_mut_ref |conn| {
             conn.read_message()
         }
     }
 
     fn write_messages(&self, messages: &[&FrontendMessage]) {
-        do self.with_mut_ref |conn| {
+        do self.conn.with_mut_ref |conn| {
             conn.write_messages(messages)
         }
     }
@@ -649,13 +653,19 @@ impl<'self> PostgresTransaction<'self> {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
-        self.conn.try_prepare(query).map_move(TransactionalPostgresStatement)
+        do self.conn.try_prepare(query).map_move |stmt| {
+            TransactionalPostgresStatement {
+                stmt: stmt
+            }
+        }
     }
 
     /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str)
             -> TransactionalPostgresStatement<'a> {
-        TransactionalPostgresStatement(self.conn.prepare(query))
+        TransactionalPostgresStatement {
+            stmt: self.conn.prepare(query)
+        }
     }
 
     /// Like `PostgresConnection::try_update`.
@@ -929,28 +939,30 @@ impl ResultDescription {
 /// A statement prepared inside of a transaction.
 ///
 /// Provides additional functionality over a `NormalPostgresStatement`.
-pub struct TransactionalPostgresStatement<'self>(NormalPostgresStatement<'self>);
+pub struct TransactionalPostgresStatement<'self> {
+    priv stmt: NormalPostgresStatement<'self>
+}
 
 impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
     fn param_types<'a>(&'a self) -> &'a [PostgresType] {
-        (**self).param_types()
+        self.stmt.param_types()
     }
 
     fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription] {
-        (**self).result_descriptions()
+        self.stmt.result_descriptions()
     }
 
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
-        (**self).try_update(params)
+        self.stmt.try_update(params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        (**self).try_query(params)
+        self.stmt.try_query(params)
     }
 
     fn find_col_named(&self, col: &str) -> Option<uint> {
-        (**self).find_col_named(col)
+        self.stmt.find_col_named(col)
     }
 }
 
@@ -966,7 +978,7 @@ impl<'self> TransactionalPostgresStatement<'self> {
     /// the parameters of the statement.
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        (**self).try_lazy_query(row_limit, params)
+        self.stmt.try_lazy_query(row_limit, params)
     }
 
     /// A convenience wrapper around `try_lazy_query`.
