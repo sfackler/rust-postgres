@@ -1,3 +1,6 @@
+// Can't attach docs to enum variants in the macro
+#[allow(missing_doc)];
+
 macro_rules! make_errors(
     ($($code:pat => $error:ident),+) => (
         // TODO: Get rid of this module when mozilla/rust#4375 is fixed

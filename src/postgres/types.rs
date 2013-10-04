@@ -106,7 +106,9 @@ impl PostgresType {
 
 /// The wire format of a Postgres value
 pub enum Format {
+    /// A user-readable string format
     Text = 0,
+    /// A machine-readable binary format
     Binary = 1
 }
 
