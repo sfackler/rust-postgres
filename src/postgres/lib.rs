@@ -60,6 +60,8 @@ fn main() {
 // Needed for rustdoc-ng
 #[link(name="postgres", vers="0.1")];
 
+#[doc(html_root_url="http://docs.octayn.net/postgres")];
+
 #[warn(missing_doc)];
 
 extern mod extra;
