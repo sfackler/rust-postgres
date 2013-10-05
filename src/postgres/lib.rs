@@ -412,6 +412,8 @@ impl InnerPostgresConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Some(UnsupportedAuthentication),
+            ErrorResponse { fields } =>
+                return Some(DbError(PostgresDbError::new(fields))),
             _ => fail!()
         }
 
