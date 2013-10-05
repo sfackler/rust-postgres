@@ -315,7 +315,8 @@ impl InnerPostgresConnection {
         // We have to clone here since we need the user again for auth
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
-            args.push((~"database", path));
+            // path contains the leading /
+            args.push((~"database", path.slice_from(1).to_owned()));
         }
         conn.write_messages([&StartupMessage {
             version: message::PROTOCOL_VERSION,
@@ -331,6 +332,8 @@ impl InnerPostgresConnection {
             match conn.read_message() {
                 BackendKeyData {_} => (),
                 ReadyForQuery {_} => break,
+                ErrorResponse { fields } =>
+                    return Err(DbError(PostgresDbError::new(fields))),
                 _ => fail!()
             }
         }

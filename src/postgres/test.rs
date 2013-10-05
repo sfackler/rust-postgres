@@ -51,6 +51,11 @@ fn test_pool() {
 }
 
 #[test]
+fn test_non_default_database() {
+    PostgresConnection::connect("postgres://postgres@localhost/postgres");
+}
+
+#[test]
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     match conn.try_prepare("invalid sql statment") {
