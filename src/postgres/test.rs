@@ -401,7 +401,7 @@ fn test_custom_notice_handler() {
         }
     }
 
-    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE");
     conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 

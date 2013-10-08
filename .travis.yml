@@ -4,4 +4,7 @@ before_install:
 install:
     - sudo apt-get install rust-nightly
 script:
-    - rustpkg test postgres
+    - rustc --lib --out-dir . src/postgres/lib.rs
+    - rustc --test --out-dir . -L. src/postgres/test.rs
+    - ./test
+#    - rustpkg test postgres
