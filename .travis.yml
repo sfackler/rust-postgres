@@ -1,12 +1,12 @@
 before_install:
-    - yes | sudo add-apt-repository ppa:hansjorg/rust
-    - sudo apt-get update
+  - yes | sudo add-apt-repository ppa:hansjorg/rust
+  - sudo apt-get update
 install:
-    - sudo apt-get install rust-nightly
+  - sudo apt-get install rust-nightly
 before_script:
-    - ./travis/setup.sh
+  - ./travis/setup.sh
 script:
-    - rustc --lib --out-dir . src/postgres/lib.rs
-    - rustc --test --out-dir . -L. --cfg travis src/postgres/test.rs
-    - ./test
-#    - rustpkg test postgres
+  - rustc --lib --out-dir . src/postgres/lib.rs
+  - rustc --test --out-dir . -L. --cfg travis src/postgres/test.rs
+  - ./test
+#  - rustpkg test postgres

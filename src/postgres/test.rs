@@ -5,6 +5,7 @@ use extra::comm::DuplexStream;
 use extra::future::Future;
 use extra::time;
 use extra::time::Timespec;
+#[cfg(not(travis))] // Travis uses Postgres 9.1
 use extra::json;
 use extra::uuid::Uuid;
 use std::f32;
