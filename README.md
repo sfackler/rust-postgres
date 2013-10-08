@@ -4,6 +4,8 @@ A native PostgreSQL driver for Rust.
 
 Documentation is available at http://docs.octayn.net/postgres/.
 
+[![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres)
+
 Overview
 ========
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
