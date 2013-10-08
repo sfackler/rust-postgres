@@ -3,8 +3,10 @@ before_install:
     - sudo apt-get update
 install:
     - sudo apt-get install rust-nightly
+before_script:
+    - ./travis/setup.sh
 script:
     - rustc --lib --out-dir . src/postgres/lib.rs
-    - rustc --test --out-dir . -L. src/postgres/test.rs
+    - rustc --test --out-dir . -L. --cfg travis src/postgres/test.rs
     - ./test
 #    - rustpkg test postgres

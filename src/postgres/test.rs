@@ -283,6 +283,7 @@ fn test_bytea_params() {
 }
 
 #[test]
+#[cfg(not(travis))] // Travis runs Postgres 9.1
 fn test_json_params() {
     test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
@@ -418,7 +419,8 @@ fn test_plaintext_pass_no_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user@localhost");
     match ret {
         Err(MissingPassword) => (),
-        ret => fail!("Unexpected result %?", ret)
+        Err(err) => fail2!("Unexpected error {}", err.to_str()),
+        _ => fail2!("Expected error")
     }
 }
 
@@ -427,7 +429,8 @@ fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
-        ret => fail!("Unexpected result %?", ret)
+        Err(err) => fail2!("Unexpected error {}", err.to_str()),
+        _ => fail2!("Expected error")
     }
 }
 
@@ -441,7 +444,8 @@ fn test_md5_pass_no_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user@localhost");
     match ret {
         Err(MissingPassword) => (),
-        ret => fail!("Unexpected result %?", ret)
+        Err(err) => fail2!("Unexpected error {}", err.to_str()),
+        _ => fail2!("Expected error")
     }
 }
 
@@ -450,7 +454,8 @@ fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
-        ret => fail!("Unexpected result %?", ret)
+        Err(err) => fail2!("Unexpected error {}", err.to_str()),
+        _ => fail2!("Expected error")
     }
 }
 
@@ -459,6 +464,7 @@ fn test_dns_failure() {
     let ret = PostgresConnection::try_connect("postgres://postgres@asdfasdfasdf");
     match ret {
         Err(DnsError) => (),
-        ret => fail!("Unexpected result %?", ret)
+        Err(err) => fail2!("Unexpected error {}", err.to_str()),
+        _ => fail2!("Expected error")
     }
 }
