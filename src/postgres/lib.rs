@@ -64,6 +64,8 @@ fn main() {
 
 #[warn(missing_doc)];
 
+#[feature(macro_rules, struct_variant)];
+
 extern mod extra;
 
 use extra::container::Deque;
