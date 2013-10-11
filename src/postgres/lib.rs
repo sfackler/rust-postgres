@@ -1084,7 +1084,7 @@ impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
             self.execute();
         }
 
-        do self.data.pop_front().map_move |row| {
+        do self.data.pop_front().map |row| {
             PostgresRow {
                 stmt: self.stmt,
                 data: row

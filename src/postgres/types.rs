@@ -136,7 +136,7 @@ macro_rules! from_map_impl(
         impl FromSql for Option<$t> {
             fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Option<$t> {
                 check_types!($($expected)|+, ty)
-                raw.map($blk)
+                raw.as_ref().map($blk)
             }
         }
     )

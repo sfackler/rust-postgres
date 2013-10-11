@@ -412,12 +412,12 @@ fn test_custom_notice_handler() {
 
 #[test]
 fn test_plaintext_pass() {
-    PostgresConnection::connect("postgres://pass_user:password@localhost");
+    PostgresConnection::connect("postgres://pass_user:password@localhost/postgres");
 }
 
 #[test]
 fn test_plaintext_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user@localhost");
+    let ret = PostgresConnection::try_connect("postgres://pass_user@localhost/postgres");
     match ret {
         Err(MissingPassword) => (),
         Err(err) => fail2!("Unexpected error {}", err.to_str()),
@@ -427,7 +427,7 @@ fn test_plaintext_pass_no_pass() {
 
 #[test]
 fn test_plaintext_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost");
+    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost/postgres");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
         Err(err) => fail2!("Unexpected error {}", err.to_str()),
@@ -437,12 +437,12 @@ fn test_plaintext_pass_wrong_pass() {
 
 #[test]
 fn test_md5_pass() {
-    PostgresConnection::connect("postgres://md5_user:password@localhost");
+    PostgresConnection::connect("postgres://md5_user:password@localhost/postgres");
 }
 
 #[test]
 fn test_md5_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost");
+    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost/postgres");
     match ret {
         Err(MissingPassword) => (),
         Err(err) => fail2!("Unexpected error {}", err.to_str()),
@@ -452,7 +452,7 @@ fn test_md5_pass_no_pass() {
 
 #[test]
 fn test_md5_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost");
+    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
         Err(err) => fail2!("Unexpected error {}", err.to_str()),
