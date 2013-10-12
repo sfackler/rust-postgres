@@ -405,13 +405,12 @@ fn test_custom_notice_handler() {
 
     let conn = PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE");
     conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
-    conn.update("CREATE FUNCTION note() RETURNS INT AS $$
+    conn.update("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
                 BEGIN
                     RAISE NOTICE 'note';
                     RETURN 1;
                 END; $$ LANGUAGE plpgsql", []);
-    conn.update("SELECT note()", []);
-    conn.update("DROP FUNCTION note()",[]);
+    conn.update("SELECT pg_temp.note()", []);
 
     assert_eq!(unsafe { count }, 1);
 }
