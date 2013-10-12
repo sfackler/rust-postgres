@@ -209,6 +209,26 @@ pub struct PostgresDbError {
     /// functions and internally-generated queries. The trace is one entry per
     /// line, most recent first.
     where: Option<~str>,
+    /// If the error was associated with a specific database object, the name
+    /// of the schema containing that object, if any. (PostgreSQL 9.3+)
+    schema: Option<~str>,
+    /// If the error was associated with a specific table, the name of the
+    /// table. (Refer to the schema name field for the name of the table's
+    /// schema.) (PostgreSQL 9.3+)
+    table: Option<~str>,
+    /// If the error was associated with a specific table column, the name of
+    /// the column. (Refer to the schema and table name fields to identify the
+    /// table.) (PostgreSQL 9.3+)
+    column: Option<~str>,
+    /// If the error was associated with a specific data type, the name of the
+    /// data type. (Refer to the schema name field for the name of the data
+    /// type's schema.) (PostgreSQL 9.3+)
+    datatype: Option<~str>,
+    /// If the error was associated with a specific constraint, the name of the
+    /// constraint. Refer to fields listed above for the associated table or
+    /// domain. (For this purpose, indexes are treated as constraints, even if
+    /// they weren't created with constraint syntax.) (PostgreSQL 9.3+)
+    constraint: Option<~str>,
     /// The file name of the source-code location where the error was reported.
     file: ~str,
     /// The line number of the source-code location where the error was
@@ -239,6 +259,11 @@ impl PostgresDbError {
                 }
             },
             where: map.pop(&('W' as u8)),
+            schema: map.pop(&('s' as u8)),
+            table: map.pop(&('t' as u8)),
+            column: map.pop(&('c' as u8)),
+            datatype: map.pop(&('d' as u8)),
+            constraint: map.pop(&('n' as u8)),
             file: map.pop(&('F' as u8)).unwrap(),
             line: FromStr::from_str(map.pop(&('L' as u8)).unwrap()).unwrap(),
             routine: map.pop(&('R' as u8)).unwrap()
