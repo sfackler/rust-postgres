@@ -26,7 +26,6 @@ use postgres::pool::PostgresConnectionPool;
 
 
 #[test]
-// TODO move back to pool/test.rs once mozilla/rust#9602 is fixed
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
     let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 2);

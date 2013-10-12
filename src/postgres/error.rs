@@ -1,5 +1,3 @@
-// Can't attach docs to enum variants in the macro
-#[allow(missing_doc)];
 
 macro_rules! make_errors(
     ($($code:pat => $error:ident),+) => (
@@ -7,6 +5,7 @@ macro_rules! make_errors(
         pub mod hack {
             /// SQLSTATE error codes
             #[deriving(ToStr, Eq)]
+            #[allow(missing_doc)]
             pub enum PostgresSqlState {
                 $($error,)+
                 UnknownSqlState(~str)

@@ -1143,8 +1143,7 @@ impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
     #[inline]
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
-        FromSql::from_sql(self.stmt.result_desc[idx].ty,
-                          &self.data[idx])
+        FromSql::from_sql(self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 }
 
