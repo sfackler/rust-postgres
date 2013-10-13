@@ -554,6 +554,8 @@ impl PostgresConnection {
 
     /// A convenience wrapper around `try_connect`.
     ///
+    /// # Failure
+    ///
     /// Fails if there was an error connecting to the database.
     pub fn connect(url: &str) -> PostgresConnection {
         match PostgresConnection::try_connect(url) {
@@ -587,6 +589,8 @@ impl PostgresConnection {
     }
 
     /// A convenience wrapper around `try_prepare`.
+    ///
+    /// # Failure
     ///
     /// Fails if there was an error preparing the statement.
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
@@ -626,6 +630,8 @@ impl PostgresConnection {
     }
 
     /// A convenience wrapper around `try_update`.
+    ///
+    /// # Failure
     ///
     /// Fails if there was an error preparing or executing the statement.
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
@@ -772,11 +778,15 @@ pub trait PostgresStatement {
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
+    /// # Failure
+    ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
     fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
 
     /// A convenience function wrapping `try_update`.
+    ///
+    /// # Failure
     ///
     /// Fails if there was an error executing the statement.
     fn update(&self, params: &[&ToSql]) -> uint {
@@ -789,12 +799,16 @@ pub trait PostgresStatement {
     /// Attempts to execute the prepared statement, returning an iterator over
     /// the resulting rows.
     ///
+    /// # Failure
+    ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError>;
 
     /// A convenience function wrapping `try_query`.
+    ///
+    /// # Failure
     ///
     /// Fails if there was an error executing the statement.
     fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
@@ -1018,6 +1032,8 @@ impl<'self> TransactionalPostgresStatement<'self> {
     /// will be pulled from the database in batches of `row_limit` as needed.
     /// If `row_limit` is 0, `try_lazy_query` is equivalent to `try_query`.
     ///
+    /// # Failure
+    ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
@@ -1026,6 +1042,8 @@ impl<'self> TransactionalPostgresStatement<'self> {
     }
 
     /// A convenience wrapper around `try_lazy_query`.
+    ///
+    /// # Failure
     ///
     /// Fails if there was an error executing the statement.
     pub fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
@@ -1144,6 +1162,8 @@ impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
 /// A trait implemented by types that can index into columns of a row.
 pub trait RowIndex {
     /// Returns the index of the appropriate column.
+    ///
+    /// # Failure
     ///
     /// Fails if there is no corresponding column.
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint;

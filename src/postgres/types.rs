@@ -127,6 +127,8 @@ pub trait FromSql {
     ///
     /// If the value was `NULL`, the buffer will be `None`.
     ///
+    /// # Failure
+    ///
     /// Fails if this type can not be created from the provided Postgres type.
     fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Self;
 }
@@ -221,6 +223,8 @@ from_option_impl!(Timespec)
 pub trait ToSql {
     /// Converts the value of `self` into a format appropriate for the Postgres
     /// backend.
+    ///
+    /// # Failure
     ///
     /// Fails if this type cannot be converted into the specified Postgres
     /// type.
