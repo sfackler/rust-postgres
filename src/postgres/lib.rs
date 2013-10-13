@@ -806,7 +806,11 @@ pub trait PostgresStatement {
 
     /// Returns the index of the first result column with the specified name,
     /// or `None` if not found.
-    fn find_col_named(&self, col: &str) -> Option<uint>;
+    fn find_col_named(&self, col: &str) -> Option<uint> {
+        do self.result_descriptions().iter().position |desc| {
+            desc.name.as_slice() == col
+        }
+    }
 }
 
 /// A statement prepared outside of a transaction.
@@ -957,12 +961,6 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
             -> Result<PostgresResult<'a>, PostgresDbError> {
         self.try_lazy_query(0, params)
     }
-
-    fn find_col_named(&self, col: &str) -> Option<uint> {
-        do self.result_desc.iter().position |desc| {
-            desc.name.as_slice() == col
-        }
-    }
 }
 
 /// Information about a column of the result of a query.
@@ -1009,10 +1007,6 @@ impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
         self.stmt.try_query(params)
-    }
-
-    fn find_col_named(&self, col: &str) -> Option<uint> {
-        self.stmt.find_col_named(col)
     }
 }
 
