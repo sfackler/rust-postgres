@@ -601,19 +601,20 @@ impl PostgresConnection {
         }
     }
 
-    /// Executes a block inside of a database transaction.
+    /// Begins a new transaction.
     ///
-    /// The block is provided with a `PostgresTransaction` object which should
-    /// be used instead of the connection inside of the block. A transaction
-    /// will commit by default unless the task fails or the transaction is set
-    /// to roll back.
-    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
+    /// Returns a `PostgresTransaction` object which should be used instead of
+    /// the connection for the duration of the transaction. The transaction
+    /// be active until the `PostgresTransaction` object falls out of scope.
+    /// A transaction will commit by default unless the task fails or the
+    /// transaction is set to roll back.
+    pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
         self.quick_query("BEGIN");
-        blk(&PostgresTransaction {
+        PostgresTransaction {
             conn: self,
             commit: Cell::new(true),
             nested: false
-        })
+        }
     }
 
     /// A convenience function for update queries that are only run once.
@@ -735,14 +736,14 @@ impl<'self> PostgresTransaction<'self> {
         self.conn.update(query, params)
     }
 
-    /// Like `PostgresConnection::in_transaction`.
-    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
+    /// Like `PostrgresConnection::transaction`.
+    pub fn transaction<'a>(&self) -> PostgresTransaction<'self> {
         self.conn.quick_query("SAVEPOINT sp");
-        blk(&PostgresTransaction {
+        PostgresTransaction {
             conn: self.conn,
             commit: Cell::new(true),
             nested: true
-        })
+        }
     }
 
     /// Determines if the transaction is currently set to commit or roll back.

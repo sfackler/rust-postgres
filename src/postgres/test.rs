@@ -69,7 +69,8 @@ fn test_transaction_commit() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
-    do conn.in_transaction |trans| {
+    {
+        let trans = conn.transaction();
         trans.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
     }
 
@@ -85,7 +86,8 @@ fn test_transaction_rollback() {
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     conn.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
-    do conn.in_transaction |trans| {
+    {
+        let trans = conn.transaction();
         trans.update("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
         trans.set_rollback();
     }
@@ -103,23 +105,28 @@ fn test_nested_transactions() {
 
     conn.update("INSERT INTO foo (id) VALUES (1)", []);
 
-    do conn.in_transaction |trans1| {
+    {
+        let trans1 = conn.transaction();
         trans1.update("INSERT INTO foo (id) VALUES (2)", []);
 
-        do trans1.in_transaction |trans2| {
+        {
+            let trans2 = trans1.transaction();
             trans2.update("INSERT INTO foo (id) VALUES (3)", []);
             trans2.set_rollback();
         }
 
-        do trans1.in_transaction |trans2| {
+        {
+            let trans2 = trans1.transaction();
             trans2.update("INSERT INTO foo (id) VALUES (4)", []);
 
-            do trans2.in_transaction |trans3| {
+            {
+                let trans3 = trans2.transaction();
                 trans3.update("INSERT INTO foo (id) VALUES (5)", []);
                 trans3.set_rollback();
             }
 
-            do trans2.in_transaction |trans3| {
+            {
+                let trans3 = trans2.transaction();
                 trans3.update("INSERT INTO foo (id) VALUES (6)", []);
             }
         }
@@ -154,7 +161,8 @@ fn test_query() {
 fn test_lazy_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
 
-    do conn.in_transaction |trans| {
+    {
+        let trans = conn.transaction();
         trans.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
         let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
         let values = ~[0i32, 1, 2, 3, 4, 5];

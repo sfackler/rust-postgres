@@ -132,8 +132,8 @@ impl PooledPostgresConnection {
         self.conn.get_ref().update(query, params)
     }
 
-    /// Like `PostgresConnection::in_transaction`.
-    pub fn in_transaction<T>(&self, blk: &fn(&PostgresTransaction) -> T) -> T {
-        self.conn.get_ref().in_transaction(blk)
+    /// Like `PostgresConnection::transaction`.
+    pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
+        self.conn.get_ref().transaction()
     }
 }

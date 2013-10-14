@@ -125,12 +125,13 @@ println!("{} rows were updated", updates);
 
 Transactions
 ------------
-Transactions are encapsulated by the `in_transaction` method. `in_transaction`
-takes a closure which is passed a `PostgresTransaction` object which has the
-functionality of a `PostgresConnection` as well as methods to control the
-result of the transaction:
+The `transaction` method will start a new transaction. It returns a
+`PostgresTransaction` object which has the functionality of a
+`PostgresConnection` as well as methods to control the result of the
+transaction:
 ```rust
-do conn.in_transaction |trans| {
+{
+    let trans = conn.transaction();
     trans.update(...);
     let stmt = trans.prepare(...);
 
@@ -143,8 +144,9 @@ do conn.in_transaction |trans| {
     }
 }
 ```
-A transaction will commit by default. Nested transactions are supported via
-savepoints.
+The transaction will be active until the `PostgresTransaction` object falls out
+of scope. A transaction will commit by default. Nested transactions are
+supported via savepoints.
 
 Lazy Queries
 ------------
@@ -152,7 +154,8 @@ Some queries may return a large amount of data. Statements prepared within a
 transaction have an additional method, `lazy_query`. The rows returned from a
 call to `lazy_query` are pulled from the database in batches as needed:
 ```rust
-do conn.in_transaction |trans| {
+{
+    let trans = conn.transaction();
     let stmt = trans.prepare(query)
 
     // No more than 100 rows will be stored in memory at any time
