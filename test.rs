@@ -1,5 +1,4 @@
 extern mod extra;
-extern mod postgres;
 
 use extra::comm::DuplexStream;
 use extra::future::Future;
@@ -11,20 +10,19 @@ use extra::uuid::Uuid;
 use std::f32;
 use std::f64;
 
-use postgres::{PostgresNoticeHandler,
-               PostgresNotification,
-               DbError,
-               DnsError,
-               MissingPassword,
-               Position,
-               PostgresConnection,
-               PostgresDbError,
-               PostgresStatement,
-               ResultDescription};
-use postgres::error::hack::{SyntaxError, InvalidPassword};
-use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
-use postgres::pool::PostgresConnectionPool;
-
+use super::{PostgresNoticeHandler,
+            PostgresNotification,
+            DbError,
+            DnsError,
+            MissingPassword,
+            Position,
+            PostgresConnection,
+            PostgresDbError,
+            PostgresStatement,
+            ResultDescription};
+use super::error::hack::{SyntaxError, InvalidPassword};
+use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
+use super::pool::PostgresConnectionPool;
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
