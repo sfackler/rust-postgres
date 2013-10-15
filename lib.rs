@@ -58,7 +58,7 @@ fn main() {
 #[license="MIT"];
 
 // Needed for rustdoc-ng
-#[link(name="postgres", vers="0.1")];
+#[link(name="rust-postgres", vers="0.1")];
 
 #[doc(html_root_url="http://docs.octayn.net/postgres")];
 
