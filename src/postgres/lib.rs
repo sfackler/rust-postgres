@@ -794,6 +794,11 @@ impl<'self> PostgresTransaction<'self> {
         }
     }
 
+    /// Like `PostgresConnection::notifications`.
+    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
+        self.conn.notifications()
+    }
+
     /// Determines if the transaction is currently set to commit or roll back.
     pub fn will_commit(&self) -> bool {
         let commit = self.commit.take();

@@ -2,7 +2,8 @@ extern mod extra;
 
 use extra::arc::MutexArc;
 
-use super::{PostgresConnection,
+use super::{PostgresNotificationIterator,
+            PostgresConnection,
             NormalPostgresStatement,
             PostgresDbError,
             PostgresConnectError,
@@ -135,5 +136,10 @@ impl PooledPostgresConnection {
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
         self.conn.get_ref().transaction()
+    }
+
+    /// Like `PostgresConnection::notifications`.
+    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
+        self.conn.get_ref().notifications()
     }
 }
