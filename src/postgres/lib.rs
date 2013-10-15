@@ -605,7 +605,7 @@ impl PostgresConnection {
     ///
     /// Returns a `PostgresTransaction` object which should be used instead of
     /// the connection for the duration of the transaction. The transaction
-    /// be active until the `PostgresTransaction` object falls out of scope.
+    /// is active until the `PostgresTransaction` object falls out of scope.
     /// A transaction will commit by default unless the task fails or the
     /// transaction is set to roll back.
     pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
