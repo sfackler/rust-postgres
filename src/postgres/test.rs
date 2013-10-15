@@ -12,6 +12,7 @@ use std::f32;
 use std::f64;
 
 use postgres::{PostgresNoticeHandler,
+               PostgresNotification,
                DbError,
                DnsError,
                MissingPassword,
@@ -420,6 +421,53 @@ fn test_custom_notice_handler() {
     conn.update("SELECT pg_temp.note()", []);
 
     assert_eq!(unsafe { count }, 1);
+}
+
+#[test]
+fn test_notification_iterator_none() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    assert!(conn.notifications().next().is_none());
+}
+
+#[test]
+fn test_notification_iterator_some() {
+    fn check_notification(expected: PostgresNotification,
+                          actual: Option<PostgresNotification>) {
+        match actual {
+            Some(PostgresNotification { channel, payload, _ }) => {
+                assert_eq!(&expected.channel, &channel);
+                assert_eq!(&expected.payload, &payload);
+            }
+            x => fail2!("Expected {:?} but got {:?}", expected, x)
+        }
+    }
+
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    let mut it = conn.notifications();
+    conn.update("LISTEN test_notification_iterator_one_channel", []);
+    conn.update("LISTEN test_notification_iterator_one_channel2", []);
+    conn.update("NOTIFY test_notification_iterator_one_channel, 'hello'", []);
+    conn.update("NOTIFY test_notification_iterator_one_channel2, 'world'", []);
+
+    check_notification(PostgresNotification {
+        pid: 0,
+        channel: ~"test_notification_iterator_one_channel",
+        payload: ~"hello"
+    }, it.next());
+    check_notification(PostgresNotification {
+        pid: 0,
+        channel: ~"test_notification_iterator_one_channel2",
+        payload: ~"world"
+    }, it.next());
+    assert!(it.next().is_none());
+
+    conn.update("NOTIFY test_notification_iterator_one_channel, '!'", []);
+    check_notification(PostgresNotification {
+        pid: 0,
+        channel: ~"test_notification_iterator_one_channel",
+        payload: ~"!"
+    }, it.next());
+    assert!(it.next().is_none());
 }
 
 #[test]

@@ -44,6 +44,11 @@ pub enum BackendMessage {
     NoticeResponse {
         fields: ~[(u8, ~str)]
     },
+    NotificationResponse {
+        pid: i32,
+        channel: ~str,
+        payload: ~str
+    },
     ParameterDescription {
         types: ~[Oid]
     },
@@ -258,6 +263,11 @@ impl<R: Reader> ReadMessage for R {
             '1' => ParseComplete,
             '2' => BindComplete,
             '3' => CloseComplete,
+            'A' => NotificationResponse {
+                pid: buf.read_be_i32_(),
+                channel: buf.read_string(),
+                payload: buf.read_string()
+            },
             'C' => CommandComplete { tag: buf.read_string() },
             'D' => read_data_row(&mut buf),
             'E' => ErrorResponse { fields: read_fields(&mut buf) },

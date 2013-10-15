@@ -100,6 +100,7 @@ use message::{BackendMessage,
               ErrorResponse,
               NoData,
               NoticeResponse,
+              NotificationResponse,
               ParameterDescription,
               ParameterStatus,
               ParseComplete,
@@ -139,6 +140,36 @@ pub struct DefaultNoticeHandler;
 impl PostgresNoticeHandler for DefaultNoticeHandler {
     fn handle(&mut self, notice: PostgresDbError) {
         info2!("{}: {}", notice.severity, notice.message);
+    }
+}
+
+/// An asynchronous notification
+pub struct PostgresNotification {
+    /// The process ID of the notifying backend process
+    pid: i32,
+    /// The name of the channel that the notify has been raised on
+    channel: ~str,
+    /// The "payload" string passed from the notifying process
+    payload: ~str,
+}
+
+/// An iterator over asynchronous notifications
+pub struct PostgresNotificationIterator<'self> {
+    priv conn: &'self PostgresConnection
+}
+
+impl<'self> Iterator<PostgresNotification> for
+        PostgresNotificationIterator<'self> {
+    /// Returns the oldest pending notification or `None` if there are none.
+    ///
+    /// # Note
+    ///
+    /// `next` may return `Some` notification after returning `None` if a new
+    /// notification was received.
+    fn next(&mut self) -> Option<PostgresNotification> {
+        do self.conn.conn.with_mut_ref |conn| {
+            conn.notifications.pop_front()
+        }
     }
 }
 
@@ -288,7 +319,8 @@ impl PostgresDbError {
 struct InnerPostgresConnection {
     stream: BufferedStream<TcpStream>,
     next_stmt_id: int,
-    notice_handler: ~PostgresNoticeHandler
+    notice_handler: ~PostgresNoticeHandler,
+    notifications: RingBuf<PostgresNotification>,
 }
 
 impl Drop for InnerPostgresConnection {
@@ -332,7 +364,8 @@ impl InnerPostgresConnection {
         let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
-            notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler
+            notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
+            notifications: RingBuf::new(),
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -403,6 +436,12 @@ impl InnerPostgresConnection {
             match self.stream.read_message() {
                 NoticeResponse { fields } =>
                     self.notice_handler.handle(PostgresDbError::new(fields)),
+                NotificationResponse { pid, channel, payload } =>
+                    self.notifications.push_back(PostgresNotification {
+                        pid: pid,
+                        channel: channel,
+                        payload: payload
+                    }),
                 ParameterStatus { parameter, value } =>
                     debug!("Parameter %s = %s", parameter, value),
                 msg => return msg
@@ -571,6 +610,15 @@ impl PostgresConnection {
         let handler = conn.set_notice_handler(handler);
         self.conn.put_back(conn);
         handler
+    }
+
+    /// Returns an iterator over asynchronous notification messages.
+    ///
+    /// Use the `LISTEN` command to register this connection for notifications.
+    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
+        PostgresNotificationIterator {
+            conn: self
+        }
     }
 
     /// Attempts to create a new prepared statement.
