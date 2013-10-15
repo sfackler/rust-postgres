@@ -128,7 +128,7 @@ mod message;
 pub mod types;
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 /// Trait for types that can handle Postgres notice messages
 pub trait PostgresNoticeHandler {
