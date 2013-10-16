@@ -4,7 +4,7 @@ exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
 
 ```rust
-extern mod postgres;
+extern mod postgres = "github.com/sfackler/rust-postgres";
 extern mod extra;
 
 use extra::time;
