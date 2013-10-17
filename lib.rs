@@ -61,7 +61,7 @@ fn main() {
 #[link(name="rust-postgres", vers="0.1",
        package_id="github.com/sfackler/rust-postgres")];
 
-#[doc(html_root_url="http://docs.octayn.net/postgres")];
+#[doc(html_root_url="http://sfackler.com/doc/postgres")];
 
 #[warn(missing_doc)];
 
