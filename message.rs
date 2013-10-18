@@ -6,7 +6,7 @@ use std::rt::io::{Decorator, Reader, Writer};
 use std::rt::io::extensions::{ReaderUtil, ReaderByteConversions,
                               WriterByteConversions};
 use std::rt::io::mem::{MemWriter, MemReader};
-use std::sys;
+use std::mem;
 use std::vec;
 
 use types::Oid;
@@ -220,7 +220,7 @@ impl<W: Writer> WriteMessage for W {
         }
 
         // add size of length value
-        self.write_be_i32_((buf.inner_ref().len() + sys::size_of::<i32>())
+        self.write_be_i32_((buf.inner_ref().len() + mem::size_of::<i32>())
                            as i32);
         self.write(buf.inner());
     }
@@ -256,7 +256,7 @@ impl<R: Reader> ReadMessage for R {
 
         let ident = self.read_u8_();
         // subtract size of length value
-        let len = self.read_be_i32_() as uint - sys::size_of::<i32>();
+        let len = self.read_be_i32_() as uint - mem::size_of::<i32>();
         let mut buf = MemReader::new(self.read_bytes(len));
 
         let ret = match ident as char {
