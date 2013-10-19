@@ -59,7 +59,7 @@ fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     match conn.try_prepare("invalid sql statment") {
         Err(PostgresDbError { code: SyntaxError, position: Some(Position(1)), _ }) => (),
-        resp => fail!("Unexpected result %?", resp)
+        resp => fail!("Unexpected result {:?}", resp)
     }
 }
 

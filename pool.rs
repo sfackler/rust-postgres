@@ -65,7 +65,7 @@ impl PostgresConnectionPool {
     pub fn new(url: &str, pool_size: uint) -> PostgresConnectionPool {
         match PostgresConnectionPool::try_new(url, pool_size) {
             Ok(pool) => pool,
-            Err(err) => fail!("Unable to initialize pool: %s", err.to_str())
+            Err(err) => fail!("Unable to initialize pool: {}", err.to_str())
         }
     }
 

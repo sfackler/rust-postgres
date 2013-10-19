@@ -447,7 +447,7 @@ impl InnerPostgresConnection {
                         payload: payload
                     }),
                 ParameterStatus { parameter, value } =>
-                    debug!("Parameter %s = %s", parameter, value),
+                    debug!("Parameter {} = {}", parameter, value),
                 msg => return msg
             }
         }
