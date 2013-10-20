@@ -1,3 +1,5 @@
+//! A simple connection pool
+
 extern mod extra;
 
 use extra::arc::MutexArc;

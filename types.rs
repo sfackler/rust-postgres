@@ -1,3 +1,5 @@
+//! Traits dealing with Postgres data types
+
 extern mod extra;
 
 use extra::time::Timespec;
