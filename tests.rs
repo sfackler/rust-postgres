@@ -471,7 +471,7 @@ fn test_notification_iterator_some() {
 
 #[test]
 // This test is pretty sad, but I don't think there's a better way :(
-fn test_cancel_request() {
+fn test_cancel_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let cancel_data = conn.cancel_data();
 

@@ -848,7 +848,7 @@ impl<'self> PostgresTransaction<'self> {
         self.conn.update(query, params)
     }
 
-    /// Like `PostrgresConnection::transaction`.
+    /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&self) -> PostgresTransaction<'self> {
         self.conn.quick_query("SAVEPOINT sp");
         PostgresTransaction {
