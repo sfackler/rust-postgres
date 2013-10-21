@@ -437,7 +437,7 @@ fn test_notification_iterator_some() {
                 assert_eq!(&expected.channel, &channel);
                 assert_eq!(&expected.payload, &payload);
             }
-            x => fail2!("Expected {:?} but got {:?}", expected, x)
+            x => fail!("Expected {:?} but got {:?}", expected, x)
         }
     }
 
@@ -497,8 +497,8 @@ fn test_plaintext_pass_no_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user@localhost/postgres");
     match ret {
         Err(MissingPassword) => (),
-        Err(err) => fail2!("Unexpected error {}", err.to_str()),
-        _ => fail2!("Expected error")
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
     }
 }
 
@@ -507,8 +507,8 @@ fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost/postgres");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
-        Err(err) => fail2!("Unexpected error {}", err.to_str()),
-        _ => fail2!("Expected error")
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
     }
 }
 
@@ -522,8 +522,8 @@ fn test_md5_pass_no_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user@localhost/postgres");
     match ret {
         Err(MissingPassword) => (),
-        Err(err) => fail2!("Unexpected error {}", err.to_str()),
-        _ => fail2!("Expected error")
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
     }
 }
 
@@ -532,8 +532,8 @@ fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
-        Err(err) => fail2!("Unexpected error {}", err.to_str()),
-        _ => fail2!("Expected error")
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
     }
 }
 
@@ -542,7 +542,7 @@ fn test_dns_failure() {
     let ret = PostgresConnection::try_connect("postgres://postgres@asdfasdfasdf");
     match ret {
         Err(DnsError) => (),
-        Err(err) => fail2!("Unexpected error {}", err.to_str()),
-        _ => fail2!("Expected error")
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
     }
 }

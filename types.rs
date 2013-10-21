@@ -118,7 +118,7 @@ macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
         match $actual {
             $($expected)|+ => (),
-            actual => fail2!("Invalid Postgres type {:?}", actual)
+            actual => fail!("Invalid Postgres type {:?}", actual)
         }
     )
 )

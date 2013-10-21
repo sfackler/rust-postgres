@@ -146,7 +146,7 @@ pub struct DefaultNoticeHandler;
 
 impl PostgresNoticeHandler for DefaultNoticeHandler {
     fn handle(&mut self, notice: PostgresDbError) {
-        info2!("{}: {}", notice.severity, notice.message);
+        info!("{}: {}", notice.severity, notice.message);
     }
 }
 
@@ -653,7 +653,7 @@ impl PostgresConnection {
     pub fn connect(url: &str) -> PostgresConnection {
         match PostgresConnection::try_connect(url) {
             Ok(conn) => conn,
-            Err(err) => fail2!("Failed to connect: {}", err.to_str())
+            Err(err) => fail!("Failed to connect: {}", err.to_str())
         }
     }
 
@@ -698,7 +698,7 @@ impl PostgresConnection {
     pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
         match self.try_prepare(query) {
             Ok(stmt) => stmt,
-            Err(err) => fail2!("Error preparing statement:\n{}",
+            Err(err) => fail!("Error preparing statement:\n{}",
                                err.pretty_error(query))
         }
     }
@@ -740,7 +740,7 @@ impl PostgresConnection {
     pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
         match self.try_update(query, params) {
             Ok(res) => res,
-            Err(err) => fail2!("Error running update:\n{}",
+            Err(err) => fail!("Error running update:\n{}",
                                err.pretty_error(query))
         }
     }
@@ -763,7 +763,7 @@ impl PostgresConnection {
                 match conn.read_message() {
                     ReadyForQuery {_} => break,
                     ErrorResponse { fields } =>
-                        fail2!("Error: {}",
+                        fail!("Error: {}",
                                PostgresDbError::new(fields).to_str()),
                     _ => ()
                 }
@@ -910,7 +910,7 @@ pub trait PostgresStatement {
     fn update(&self, params: &[&ToSql]) -> uint {
         match self.try_update(params) {
             Ok(count) => count,
-            Err(err) => fail2!("Error running update\n{}", err.to_str())
+            Err(err) => fail!("Error running update\n{}", err.to_str())
         }
     }
 
@@ -932,7 +932,7 @@ pub trait PostgresStatement {
     fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
         match self.try_query(params) {
             Ok(result) => result,
-            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
+            Err(err) => fail!("Error executing query:\n{}", err.to_str())
         }
     }
 
@@ -1168,7 +1168,7 @@ impl<'self> TransactionalPostgresStatement<'self> {
             -> PostgresResult<'a> {
         match self.try_lazy_query(row_limit, params) {
             Ok(result) => result,
-            Err(err) => fail2!("Error executing query:\n{}", err.to_str())
+            Err(err) => fail!("Error executing query:\n{}", err.to_str())
         }
     }
 }
@@ -1308,7 +1308,7 @@ impl<'self> RowIndex for &'self str {
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
         match stmt.find_col_named(*self) {
             Some(idx) => idx,
-            None => fail2!("No column with name {}", *self)
+            None => fail!("No column with name {}", *self)
         }
     }
 }
