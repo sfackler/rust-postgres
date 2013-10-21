@@ -9,6 +9,7 @@ use extra::json;
 use extra::uuid::Uuid;
 use std::f32;
 use std::f64;
+use std::rt::io::timer;
 
 use super::{PostgresNoticeHandler,
             PostgresNotification,
@@ -20,7 +21,7 @@ use super::{PostgresNoticeHandler,
             PostgresDbError,
             PostgresStatement,
             ResultDescription};
-use super::error::hack::{SyntaxError, InvalidPassword};
+use super::error::hack::{SyntaxError, InvalidPassword, QueryCanceled};
 use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
 use super::pool::PostgresConnectionPool;
 
@@ -466,6 +467,24 @@ fn test_notification_iterator_some() {
         payload: ~"!"
     }, it.next());
     assert!(it.next().is_none());
+}
+
+#[test]
+// This test is pretty sad, but I don't think there's a better way :(
+fn test_cancel_request() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    let cancel_data = conn.cancel_data();
+
+    do spawn {
+        timer::sleep(500);
+        assert!(super::cancel_query("postgres://postgres@localhost",
+                                    cancel_data).is_none());
+    }
+
+    match conn.try_update("SELECT pg_sleep(10)", []) {
+        Err(PostgresDbError { code: QueryCanceled, _ }) => {}
+        res => fail!("Unexpected result {:?}", res)
+    }
 }
 
 #[test]

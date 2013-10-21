@@ -110,6 +110,7 @@ use message::{BackendMessage,
               RowDescription};
 use message::{FrontendMessage,
               Bind,
+              CancelRequest,
               Close,
               Describe,
               Execute,
@@ -129,6 +130,8 @@ pub mod types;
 
 #[cfg(test)]
 mod tests;
+
+static DEFAULT_PORT: Port = 5432;
 
 /// Trait for types that can handle Postgres notice messages
 pub trait PostgresNoticeHandler {
@@ -320,11 +323,77 @@ impl PostgresDbError {
     }
 }
 
+/// Contains information necessary to cancel queries for a session
+pub struct PostgresCancelData {
+    /// The process ID of the session
+    process_id: i32,
+    /// The secret key for the session
+    secret_key: i32,
+}
+
+/// Attempts to cancel an in-progress query.
+///
+/// The backend provides no information about whether a cancellation attempt
+/// was successful or not. An error will only be returned if the driver was
+/// unable to connect to the database.
+///
+/// A `PostgresCancelData` object can be created via
+/// `PostgresConnection::cancel_data`. The object can cancel any query made on
+/// that connection.
+pub fn cancel_query(url: &str, data: PostgresCancelData)
+        -> Option<PostgresConnectError> {
+    let Url { host, port, _ }: Url = match FromStr::from_str(url) {
+        Some(url) => url,
+        None => return Some(InvalidUrl)
+    };
+    let port = match port {
+        Some(port) => FromStr::from_str(port).unwrap(),
+        None => DEFAULT_PORT
+    };
+
+    let mut socket = match open_socket(host, port) {
+        Ok(socket) => socket,
+        Err(err) => return Some(err)
+    };
+
+    socket.write_message(&CancelRequest {
+        code: message::CANCEL_CODE,
+        process_id: data.process_id,
+        secret_key: data.secret_key
+    });
+
+    None
+}
+
+fn open_socket(host: &str, port: Port)
+        -> Result<TcpStream, PostgresConnectError> {
+    let addrs = do io_error::cond.trap(|_| {}).inside {
+        net::get_host_addresses(host)
+    };
+    let addrs = match addrs {
+        Some(addrs) => addrs,
+        None => return Err(DnsError)
+    };
+
+    for addr in addrs.iter() {
+        let socket = do io_error::cond.trap(|_| {}).inside {
+            TcpStream::connect(SocketAddr { ip: *addr, port: port })
+        };
+        match socket {
+            Some(socket) => return Ok(socket),
+            None => ()
+        }
+    }
+
+    Err(SocketError)
+}
+
 struct InnerPostgresConnection {
     stream: BufferedStream<TcpStream>,
     next_stmt_id: int,
     notice_handler: ~PostgresNoticeHandler,
     notifications: RingBuf<PostgresNotification>,
+    cancel_data: PostgresCancelData
 }
 
 impl Drop for InnerPostgresConnection {
@@ -357,10 +426,10 @@ impl InnerPostgresConnection {
 
         let port = match port {
             Some(port) => FromStr::from_str(port).unwrap(),
-            None => 5432
+            None => DEFAULT_PORT
         };
 
-        let stream = match InnerPostgresConnection::open_socket(host, port) {
+        let stream = match open_socket(host, port) {
             Ok(stream) => stream,
             Err(err) => return Err(err)
         };
@@ -370,6 +439,7 @@ impl InnerPostgresConnection {
             next_stmt_id: 0,
             notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
             notifications: RingBuf::new(),
+            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 }
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -394,7 +464,10 @@ impl InnerPostgresConnection {
 
         loop {
             match conn.read_message() {
-                BackendKeyData {_} => (),
+                BackendKeyData { process_id, secret_key } => {
+                    conn.cancel_data.process_id = process_id;
+                    conn.cancel_data.secret_key = secret_key;
+                }
                 ReadyForQuery {_} => break,
                 ErrorResponse { fields } =>
                     return Err(DbError(PostgresDbError::new(fields))),
@@ -403,29 +476,6 @@ impl InnerPostgresConnection {
         }
 
         Ok(conn)
-    }
-
-    fn open_socket(host: &str, port: Port)
-            -> Result<TcpStream, PostgresConnectError> {
-        let addrs = do io_error::cond.trap(|_| {}).inside {
-            net::get_host_addresses(host)
-        };
-        let addrs = match addrs {
-            Some(addrs) => addrs,
-            None => return Err(DnsError)
-        };
-
-        for addr in addrs.iter() {
-            let socket = do io_error::cond.trap(|_| {}).inside {
-                TcpStream::connect(SocketAddr { ip: *addr, port: port })
-            };
-            match socket {
-                Some(socket) => return Ok(socket),
-                None => ()
-            }
-        }
-
-        Err(SocketError)
     }
 
     fn write_messages(&mut self, messages: &[&FrontendMessage]) {
@@ -692,6 +742,16 @@ impl PostgresConnection {
             Ok(res) => res,
             Err(err) => fail2!("Error running update:\n{}",
                                err.pretty_error(query))
+        }
+    }
+
+    /// Returns information used to cancel pending queries.
+    ///
+    /// Used with the `cancel_query` function. The object returned can be used
+    /// to cancel any query executed by the connection it was created from.
+    pub fn cancel_data(&self) -> PostgresCancelData {
+        do self.conn.with_mut_ref |conn| {
+            conn.cancel_data
         }
     }
 

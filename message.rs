@@ -12,6 +12,7 @@ use std::vec;
 use types::Oid;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
+pub static CANCEL_CODE: i32 = 80877102;
 
 #[deriving(ToStr)]
 pub enum BackendMessage {
@@ -84,6 +85,11 @@ pub enum FrontendMessage<'self> {
         formats: &'self [i16],
         values: &'self [Option<~[u8]>],
         result_formats: &'self [i16]
+    },
+    CancelRequest {
+        code: i32,
+        process_id: i32,
+        secret_key: i32,
     },
     Close {
         variant: u8,
@@ -165,6 +171,11 @@ impl<W: Writer> WriteMessage for W {
                 for format in result_formats.iter() {
                     buf.write_be_i16_(*format);
                 }
+            }
+            CancelRequest { code, process_id, secret_key } => {
+                buf.write_be_i32_(code);
+                buf.write_be_i32_(process_id);
+                buf.write_be_i32_(secret_key);
             }
             Close { variant, name } => {
                 ident = Some('C');
