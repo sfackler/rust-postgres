@@ -21,7 +21,10 @@ use super::{PostgresNoticeHandler,
             PostgresDbError,
             PostgresStatement,
             ResultDescription};
-use super::error::hack::{SyntaxError, InvalidPassword, QueryCanceled};
+use super::error::hack::{SyntaxError,
+                         InvalidPassword,
+                         QueryCanceled,
+                         InvalidCatalogName};
 use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
 use super::pool::PostgresConnectionPool;
 
@@ -56,10 +59,23 @@ fn test_non_default_database() {
 }
 
 #[test]
+fn test_url_terminating_slash() {
+    PostgresConnection::connect("postgres://postgres@localhost/");
+}
+
+#[test]
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     match conn.try_prepare("invalid sql statment") {
         Err(PostgresDbError { code: SyntaxError, position: Some(Position(1)), _ }) => (),
+        resp => fail!("Unexpected result {:?}", resp)
+    }
+}
+
+#[test]
+fn test_unknown_database() {
+    match PostgresConnection::try_connect("postgres://postgres@localhost/asdf") {
+        Err(DbError(PostgresDbError { code: InvalidCatalogName, _ })) => {}
         resp => fail!("Unexpected result {:?}", resp)
     }
 }
