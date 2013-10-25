@@ -185,22 +185,16 @@ impl<'self> Iterator<PostgresNotification> for
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
     InvalidUrl,
-
     /// The URL was missing a user
     MissingUser,
-
     /// DNS lookup failed
     DnsError,
-
     /// There was an error opening a socket to the server
     SocketError,
-
     /// An error from the Postgres server itself
     DbError(PostgresDbError),
-
     /// A password was required but not provided in the URL
     MissingPassword,
-
     /// The Postgres server requested an authentication method not supported
     /// by the driver
     UnsupportedAuthentication
@@ -381,7 +375,7 @@ fn open_socket(host: &str, port: Port)
         };
         match socket {
             Some(socket) => return Ok(socket),
-            None => ()
+            None => {}
         }
     }
 
@@ -459,7 +453,7 @@ impl InnerPostgresConnection {
 
         match conn.handle_auth(user) {
             Some(err) => return Err(err),
-            None => ()
+            None => {}
         }
 
         loop {
@@ -471,7 +465,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery {_} => break,
                 ErrorResponse { fields } =>
                     return Err(DbError(PostgresDbError::new(fields))),
-                _ => fail!()
+                _ => unreachable!()
             }
         }
 
@@ -537,14 +531,14 @@ impl InnerPostgresConnection {
             | AuthenticationSSPI => return Some(UnsupportedAuthentication),
             ErrorResponse { fields } =>
                 return Some(DbError(PostgresDbError::new(fields))),
-            _ => fail!()
+            _ => unreachable!()
         }
 
         match self.read_message() {
             AuthenticationOk => None,
             ErrorResponse { fields } =>
                 Some(DbError(PostgresDbError::new(fields))),
-            _ => fail!()
+            _ => unreachable!()
         }
     }
 
@@ -572,19 +566,19 @@ impl InnerPostgresConnection {
             &Sync]);
 
         match self.read_message() {
-            ParseComplete => (),
+            ParseComplete => {}
             ErrorResponse { fields } => {
                 self.wait_for_ready();
                 return Err(PostgresDbError::new(fields));
             }
-            _ => fail!()
+            _ => unreachable!()
         }
 
         let param_types = match self.read_message() {
             ParameterDescription { types } =>
                 types.iter().map(|ty| { PostgresType::from_oid(*ty) })
                     .collect(),
-            _ => fail!()
+            _ => unreachable!()
         };
 
         let result_desc = match self.read_message() {
@@ -597,7 +591,7 @@ impl InnerPostgresConnection {
                 res
             },
             NoData => ~[],
-            _ => fail!()
+            _ => unreachable!()
         };
 
         self.wait_for_ready();
@@ -613,8 +607,8 @@ impl InnerPostgresConnection {
 
     fn wait_for_ready(&mut self) {
         match self.read_message() {
-            ReadyForQuery {_} => (),
-            _ => fail!()
+            ReadyForQuery {_} => {}
+            _ => unreachable!()
         }
     }
 }
@@ -765,7 +759,7 @@ impl PostgresConnection {
                     ErrorResponse { fields } =>
                         fail!("Error: {}",
                                PostgresDbError::new(fields).to_str()),
-                    _ => ()
+                    _ => {}
                 }
             }
         }
@@ -967,7 +961,7 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
             loop {
                 match self.conn.read_message() {
                     ReadyForQuery {_} => break,
-                    _ => ()
+                    _ => {}
                 }
             }
         }
@@ -1012,7 +1006,7 @@ impl<'self> NormalPostgresStatement<'self> {
                 self.conn.wait_for_ready();
                 Some(PostgresDbError::new(fields))
             }
-            _ => fail!()
+            _ => unreachable!()
         }
     }
 
@@ -1026,7 +1020,7 @@ impl<'self> NormalPostgresStatement<'self> {
             Some(err) => {
                 return Err(err);
             }
-            None => ()
+            None => {}
         }
 
         let mut result = PostgresResult {
@@ -1057,12 +1051,17 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
             Some(err) => {
                 return Err(err);
             }
-            None => ()
+            None => {}
         }
 
         let num;
         loop {
             match self.conn.read_message() {
+                DataRow {_} => {}
+                ErrorResponse { fields } => {
+                    self.conn.wait_for_ready();
+                    return Err(PostgresDbError::new(fields));
+                }
                 CommandComplete { tag } => {
                     let s = tag.split_iter(' ').last().unwrap();
                     num = match FromStr::from_str(s) {
@@ -1071,17 +1070,11 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
                     };
                     break;
                 }
-                DataRow {_} => (),
                 EmptyQueryResponse => {
                     num = 0;
                     break;
                 }
-                NoticeResponse {_} => (),
-                ErrorResponse { fields } => {
-                    self.conn.wait_for_ready();
-                    return Err(PostgresDbError::new(fields));
-                }
-                _ => fail!()
+                _ => unreachable!()
             }
         }
         self.conn.wait_for_ready();
@@ -1195,7 +1188,7 @@ impl<'self> Drop for PostgresResult<'self> {
             loop {
                 match self.stmt.conn.read_message() {
                     ReadyForQuery {_} => break,
-                    _ => ()
+                    _ => {}
                 }
             }
         }
@@ -1216,7 +1209,7 @@ impl<'self> PostgresResult<'self> {
                     break;
                 },
                 DataRow { row } => self.data.push_back(row),
-                _ => fail!()
+                _ => unreachable!()
             }
         }
         self.stmt.conn.wait_for_ready();
