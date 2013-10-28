@@ -70,9 +70,7 @@ fn main() {
 extern mod extra;
 
 use extra::container::Deque;
-use extra::digest::Digest;
 use extra::ringbuf::RingBuf;
-use extra::md5::Md5;
 use extra::url::{UserInfo, Url};
 use std::cell::Cell;
 use std::hashmap::HashMap;
@@ -507,25 +505,8 @@ impl InnerPostgresConnection {
                 };
                 self.write_messages([&PasswordMessage { password: pass }]);
             }
-            AuthenticationMD5Password { salt } => {
-                let UserInfo { user, pass } = user;
-                let pass = match pass {
-                    Some(pass) => pass,
-                    None => return Some(MissingPassword)
-                };
-                let input = pass + user;
-                let mut md5 = Md5::new();
-                md5.input_str(input);
-                let output = md5.result_str();
-                md5.reset();
-                md5.input_str(output);
-                md5.input(salt);
-                let output = "md5" + md5.result_str();
-                self.write_messages([&PasswordMessage {
-                    password: output.as_slice()
-                }]);
-            }
-            AuthenticationKerberosV5
+            AuthenticationMD5Password { _ }
+            | AuthenticationKerberosV5
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Some(UnsupportedAuthentication),

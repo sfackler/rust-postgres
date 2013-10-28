@@ -529,31 +529,6 @@ fn test_plaintext_pass_wrong_pass() {
 }
 
 #[test]
-fn test_md5_pass() {
-    PostgresConnection::connect("postgres://md5_user:password@localhost/postgres");
-}
-
-#[test]
-fn test_md5_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost/postgres");
-    match ret {
-        Err(MissingPassword) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
-        _ => fail!("Expected error")
-    }
-}
-
-#[test]
-fn test_md5_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres");
-    match ret {
-        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
-        _ => fail!("Expected error")
-    }
-}
-
-#[test]
 fn test_dns_failure() {
     let ret = PostgresConnection::try_connect("postgres://postgres@asdfasdfasdf");
     match ret {

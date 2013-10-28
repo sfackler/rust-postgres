@@ -82,8 +82,8 @@ Connect to a Postgres server using the standard URI format:
 let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2");
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
-defaults to the value of `user` if not specified. The driver supports `trust`,
-`password` and `md5` authentication.
+defaults to the value of `user` if not specified. The driver supports `trust`
+and `password` authentication.
 
 Statement Preparation
 ---------------------
