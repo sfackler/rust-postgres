@@ -6,10 +6,11 @@ use extra::time::Timespec;
 use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
-use std::rt::io::Decorator;
-use std::rt::io::extensions::{WriterByteConversions, ReaderByteConversions};
+use std::rt::io::{Reader, Writer, Decorator};
 use std::rt::io::mem::{MemWriter, BufReader};
 use std::str;
+
+pub mod range;
 
 /// A Postgres OID
 pub type Oid = i32;
@@ -170,17 +171,17 @@ macro_rules! from_option_impl(
 from_map_impl!(PgBool, bool, |buf| { buf[0] != 0 })
 from_option_impl!(bool)
 
-from_conversions_impl!(PgChar, i8, read_i8_)
+from_conversions_impl!(PgChar, i8, read_i8)
 from_option_impl!(i8)
-from_conversions_impl!(PgInt2, i16, read_be_i16_)
+from_conversions_impl!(PgInt2, i16, read_be_i16)
 from_option_impl!(i16)
-from_conversions_impl!(PgInt4, i32, read_be_i32_)
+from_conversions_impl!(PgInt4, i32, read_be_i32)
 from_option_impl!(i32)
-from_conversions_impl!(PgInt8, i64, read_be_i64_)
+from_conversions_impl!(PgInt8, i64, read_be_i64)
 from_option_impl!(i64)
-from_conversions_impl!(PgFloat4, f32, read_be_f32_)
+from_conversions_impl!(PgFloat4, f32, read_be_f32)
 from_option_impl!(f32)
-from_conversions_impl!(PgFloat8, f64, read_be_f64_)
+from_conversions_impl!(PgFloat8, f64, read_be_f64)
 from_option_impl!(f64)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
@@ -208,7 +209,7 @@ from_option_impl!(Uuid)
 
 from_map_impl!(PgTimestamp | PgTimestampZ, Timespec, |buf| {
     let mut rdr = BufReader::new(buf.as_slice());
-    let t = rdr.read_be_i64_();
+    let t = rdr.read_be_i64();
     let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
     let mut usec = t % USEC_PER_SEC;
 
@@ -282,17 +283,17 @@ impl ToSql for bool {
 }
 to_option_impl!(PgBool, bool)
 
-to_conversions_impl!(PgChar, i8, write_i8_)
+to_conversions_impl!(PgChar, i8, write_i8)
 to_option_impl!(PgChar, i8)
-to_conversions_impl!(PgInt2, i16, write_be_i16_)
+to_conversions_impl!(PgInt2, i16, write_be_i16)
 to_option_impl!(PgInt2, i16)
-to_conversions_impl!(PgInt4, i32, write_be_i32_)
+to_conversions_impl!(PgInt4, i32, write_be_i32)
 to_option_impl!(PgInt4, i32)
-to_conversions_impl!(PgInt8, i64, write_be_i64_)
+to_conversions_impl!(PgInt8, i64, write_be_i64)
 to_option_impl!(PgInt8, i64)
-to_conversions_impl!(PgFloat4, f32, write_be_f32_)
+to_conversions_impl!(PgFloat4, f32, write_be_f32)
 to_option_impl!(PgFloat4, f32)
-to_conversions_impl!(PgFloat8, f64, write_be_f64_)
+to_conversions_impl!(PgFloat8, f64, write_be_f64)
 to_option_impl!(PgFloat8, f64)
 
 impl ToSql for ~str {
@@ -353,7 +354,7 @@ impl ToSql for Timespec {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
             + self.nsec as i64 / NSEC_PER_USEC;
         let mut buf = MemWriter::new();
-        buf.write_be_i64_(t);
+        buf.write_be_i64(t);
         (Binary, Some(buf.inner()))
     }
 }

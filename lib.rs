@@ -65,7 +65,7 @@ fn main() {
 
 #[warn(missing_doc)];
 
-#[feature(macro_rules, struct_variant)];
+#[feature(macro_rules, struct_variant, globs)];
 
 extern mod extra;
 

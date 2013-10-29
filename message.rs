@@ -3,8 +3,6 @@
 
 use std::str;
 use std::rt::io::{Decorator, Reader, Writer};
-use std::rt::io::extensions::{ReaderUtil, ReaderByteConversions,
-                              WriterByteConversions};
 use std::rt::io::mem::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
@@ -129,7 +127,7 @@ trait WriteString {
 impl<W: Writer> WriteString for W {
     fn write_string(&mut self, s: &str) {
         self.write(s.as_bytes());
-        self.write_u8_(0);
+        self.write_u8(0);
     }
 }
 
@@ -149,56 +147,56 @@ impl<W: Writer> WriteMessage for W {
                 buf.write_string(portal);
                 buf.write_string(statement);
 
-                buf.write_be_i16_(formats.len() as i16);
+                buf.write_be_i16(formats.len() as i16);
                 for format in formats.iter() {
-                    buf.write_be_i16_(*format);
+                    buf.write_be_i16(*format);
                 }
 
-                buf.write_be_i16_(values.len() as i16);
+                buf.write_be_i16(values.len() as i16);
                 for value in values.iter() {
                     match *value {
                         None => {
-                            buf.write_be_i32_(-1);
+                            buf.write_be_i32(-1);
                         }
                         Some(ref value) => {
-                            buf.write_be_i32_(value.len() as i32);
+                            buf.write_be_i32(value.len() as i32);
                             buf.write(*value);
                         }
                     }
                 }
 
-                buf.write_be_i16_(result_formats.len() as i16);
+                buf.write_be_i16(result_formats.len() as i16);
                 for format in result_formats.iter() {
-                    buf.write_be_i16_(*format);
+                    buf.write_be_i16(*format);
                 }
             }
             CancelRequest { code, process_id, secret_key } => {
-                buf.write_be_i32_(code);
-                buf.write_be_i32_(process_id);
-                buf.write_be_i32_(secret_key);
+                buf.write_be_i32(code);
+                buf.write_be_i32(process_id);
+                buf.write_be_i32(secret_key);
             }
             Close { variant, name } => {
                 ident = Some('C');
-                buf.write_u8_(variant);
+                buf.write_u8(variant);
                 buf.write_string(name);
             }
             Describe { variant, name } => {
                 ident = Some('D');
-                buf.write_u8_(variant);
+                buf.write_u8(variant);
                 buf.write_string(name);
             }
             Execute { portal, max_rows } => {
                 ident = Some('E');
                 buf.write_string(portal);
-                buf.write_be_i32_(max_rows);
+                buf.write_be_i32(max_rows);
             }
             Parse { name, query, param_types } => {
                 ident = Some('P');
                 buf.write_string(name);
                 buf.write_string(query);
-                buf.write_be_i16_(param_types.len() as i16);
+                buf.write_be_i16(param_types.len() as i16);
                 for ty in param_types.iter() {
-                    buf.write_be_i32_(*ty);
+                    buf.write_be_i32(*ty);
                 }
             }
             PasswordMessage { password } => {
@@ -210,12 +208,12 @@ impl<W: Writer> WriteMessage for W {
                 buf.write_string(query);
             }
             StartupMessage { version, parameters } => {
-                buf.write_be_i32_(version);
+                buf.write_be_i32(version);
                 for &(ref k, ref v) in parameters.iter() {
                     buf.write_string(k.as_slice());
                     buf.write_string(v.as_slice());
                 }
-                buf.write_u8_(0);
+                buf.write_u8(0);
             }
             Sync => {
                 ident = Some('S');
@@ -226,12 +224,12 @@ impl<W: Writer> WriteMessage for W {
         }
 
         match ident {
-            Some(ident) => self.write_u8_(ident as u8),
+            Some(ident) => self.write_u8(ident as u8),
             None => ()
         }
 
         // add size of length value
-        self.write_be_i32_((buf.inner_ref().len() + mem::size_of::<i32>())
+        self.write_be_i32((buf.inner_ref().len() + mem::size_of::<i32>())
                            as i32);
         self.write(buf.inner());
     }
@@ -245,7 +243,7 @@ impl<R: Reader> ReadString for R {
     fn read_string(&mut self) -> ~str {
         let mut buf = ~[];
         loop {
-            let byte = self.read_u8_();
+            let byte = self.read_u8();
             if byte == 0 {
                 break;
             }
@@ -265,9 +263,9 @@ impl<R: Reader> ReadMessage for R {
     fn read_message(&mut self) -> BackendMessage {
         debug!("Reading message");
 
-        let ident = self.read_u8_();
+        let ident = self.read_u8();
         // subtract size of length value
-        let len = self.read_be_i32_() as uint - mem::size_of::<i32>();
+        let len = self.read_be_i32() as uint - mem::size_of::<i32>();
         let mut buf = MemReader::new(self.read_bytes(len));
 
         let ret = match ident as char {
@@ -275,7 +273,7 @@ impl<R: Reader> ReadMessage for R {
             '2' => BindComplete,
             '3' => CloseComplete,
             'A' => NotificationResponse {
-                pid: buf.read_be_i32_(),
+                pid: buf.read_be_i32(),
                 channel: buf.read_string(),
                 payload: buf.read_string()
             },
@@ -284,8 +282,8 @@ impl<R: Reader> ReadMessage for R {
             'E' => ErrorResponse { fields: read_fields(&mut buf) },
             'I' => EmptyQueryResponse,
             'K' => BackendKeyData {
-                process_id: buf.read_be_i32_(),
-                secret_key: buf.read_be_i32_()
+                process_id: buf.read_be_i32(),
+                secret_key: buf.read_be_i32()
             },
             'n' => NoData,
             'N' => NoticeResponse { fields: read_fields(&mut buf) },
@@ -297,7 +295,7 @@ impl<R: Reader> ReadMessage for R {
             },
             't' => read_parameter_description(&mut buf),
             'T' => read_row_description(&mut buf),
-            'Z' => ReadyForQuery { state: buf.read_u8_() },
+            'Z' => ReadyForQuery { state: buf.read_u8() },
             ident => fail!("Unknown message identifier `{}`", ident)
         };
         assert!(buf.eof());
@@ -309,7 +307,7 @@ impl<R: Reader> ReadMessage for R {
 fn read_fields(buf: &mut MemReader) -> ~[(u8, ~str)] {
     let mut fields = ~[];
     loop {
-        let ty = buf.read_u8_();
+        let ty = buf.read_u8();
         if ty == 0 {
             break;
         }
@@ -321,11 +319,11 @@ fn read_fields(buf: &mut MemReader) -> ~[(u8, ~str)] {
 }
 
 fn read_data_row(buf: &mut MemReader) -> BackendMessage {
-    let len = buf.read_be_i16_() as uint;
+    let len = buf.read_be_i16() as uint;
     let mut values = vec::with_capacity(len);
 
     do len.times() {
-        let val = match buf.read_be_i32_() {
+        let val = match buf.read_be_i32() {
             -1 => None,
             len => Some(buf.read_bytes(len as uint))
         };
@@ -336,7 +334,7 @@ fn read_data_row(buf: &mut MemReader) -> BackendMessage {
 }
 
 fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
-    match buf.read_be_i32_() {
+    match buf.read_be_i32() {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
@@ -349,29 +347,29 @@ fn read_auth_message(buf: &mut MemReader) -> BackendMessage {
 }
 
 fn read_parameter_description(buf: &mut MemReader) -> BackendMessage {
-    let len = buf.read_be_i16_() as uint;
+    let len = buf.read_be_i16() as uint;
     let mut types = vec::with_capacity(len);
 
     do len.times() {
-        types.push(buf.read_be_i32_());
+        types.push(buf.read_be_i32());
     }
 
     ParameterDescription { types: types }
 }
 
 fn read_row_description(buf: &mut MemReader) -> BackendMessage {
-    let len = buf.read_be_i16_() as uint;
+    let len = buf.read_be_i16() as uint;
     let mut types = vec::with_capacity(len);
 
     do len.times() {
         types.push(RowDescriptionEntry {
             name: buf.read_string(),
-            table_oid: buf.read_be_i32_(),
-            column_id: buf.read_be_i16_(),
-            type_oid: buf.read_be_i32_(),
-            type_size: buf.read_be_i16_(),
-            type_modifier: buf.read_be_i32_(),
-            format: buf.read_be_i16_()
+            table_oid: buf.read_be_i32(),
+            column_id: buf.read_be_i16(),
+            type_oid: buf.read_be_i32(),
+            type_size: buf.read_be_i16(),
+            type_modifier: buf.read_be_i32(),
+            format: buf.read_be_i16()
         });
     }
 
