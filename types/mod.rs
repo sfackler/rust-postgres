@@ -10,6 +10,8 @@ use std::rt::io::{Reader, Writer, Decorator};
 use std::rt::io::mem::{MemWriter, BufReader};
 use std::str;
 
+use super::types::range::{RangeBound, Inclusive, Exclusive, Range};
+
 pub mod range;
 
 /// A Postgres OID
@@ -31,12 +33,19 @@ static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
 static TIMESTAMPZOID: Oid = 1184;
 static UUIDOID: Oid = 2950;
+static INT4RANGEOID: Oid = 3904;
+static INT8RANGEOID: Oid = 3926;
 
 static USEC_PER_SEC: i64 = 1_000_000;
 static NSEC_PER_USEC: i64 = 1_000;
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 static TIME_SEC_CONVERSION: i64 = 946684800;
+
+static RANGE_EMPTY: i8 = 0x18;
+static RANGE_UPPER: i8 = 0x08;
+static RANGE_LOWER: i8 = 0x12;
+static RANGE_FULL: i8 = 0x02;
 
 /// A Postgres type
 #[deriving(Eq)]
@@ -71,6 +80,10 @@ pub enum PostgresType {
     PgVarchar,
     /// UUID
     PgUuid,
+    /// INT4RANGE
+    PgInt4Range,
+    /// INT8RANGE
+    PgInt8Range,
     /// An unknown type along with its OID
     PgUnknownType(Oid)
 }
@@ -94,6 +107,8 @@ impl PostgresType {
             BPCHAROID => PgCharN,
             VARCHAROID => PgVarchar,
             UUIDOID => PgUuid,
+            INT4RANGEOID => PgInt4Range,
+            INT8RANGEOID => PgInt8Range,
             oid => PgUnknownType(oid)
         }
     }
@@ -221,6 +236,33 @@ from_map_impl!(PgTimestamp | PgTimestampZ, Timespec, |buf| {
     Timespec::new(sec, (usec * NSEC_PER_USEC) as i32)
 })
 from_option_impl!(Timespec)
+
+from_map_impl!(PgInt4Range, Range<i32>, |buf| {
+    let mut rdr = BufReader::new(buf.as_slice());
+    let t = rdr.read_i8();
+
+    match t {
+        RANGE_EMPTY => Range::new(None, None),
+        RANGE_UPPER => {
+            rdr.read_be_i32();
+            Range::new(None, Some(RangeBound::new(rdr.read_be_i32(), Exclusive)))
+        }
+        RANGE_LOWER => {
+            rdr.read_be_i32();
+            Range::new(Some(RangeBound::new(rdr.read_be_i32(), Inclusive)), None)
+        }
+        RANGE_FULL => {
+            rdr.read_be_i32();
+            let low = rdr.read_be_i32();
+            rdr.read_be_i32();
+            let high = rdr.read_be_i32();
+            Range::new(Some(RangeBound::new(low, Inclusive)),
+                       Some(RangeBound::new(high, Exclusive)))
+        }
+        _ => unreachable!()
+    }
+})
+from_option_impl!(Range<i32>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -360,3 +402,47 @@ impl ToSql for Timespec {
 }
 
 to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
+
+impl ToSql for Range<i32> {
+    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+        check_types!(PgInt4Range, ty)
+        let lower = do self.lower.as_ref().map |b| {
+            match b.type_ {
+                Inclusive => b.value,
+                Exclusive => b.value + 1
+            }
+        };
+        let upper = do self.upper.as_ref().map |b| {
+            match b.type_ {
+                Inclusive => b.value - 1,
+                Exclusive => b.value
+            }
+        };
+
+        let mut buf = MemWriter::new();
+        match (lower, upper) {
+            (None, None) => buf.write_i8(RANGE_EMPTY),
+            (Some(low), None) => {
+                buf.write_i8(RANGE_LOWER);
+                buf.write_be_i32(4);
+                buf.write_be_i32(low);
+            }
+            (None, Some(high)) => {
+                buf.write_i8(RANGE_UPPER);
+                buf.write_be_i32(4);
+                buf.write_be_i32(high);
+            }
+            (Some(low), Some(high)) => {
+                buf.write_i8(RANGE_FULL);
+                buf.write_be_i32(4);
+                buf.write_be_i32(low);
+                buf.write_be_i32(4);
+                buf.write_be_i32(high);
+            }
+        }
+
+        (Binary, Some(buf.inner()))
+    }
+}
+
+to_option_impl!(PgInt4Range, Range<i32>)

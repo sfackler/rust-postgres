@@ -10,7 +10,9 @@ trait BoundSided {
     fn side(_: Option<Self>) -> BoundSide;
 }
 
+#[deriving(Eq)]
 pub struct UpperBound;
+#[deriving(Eq)]
 pub struct LowerBound;
 
 impl BoundSided for UpperBound {
@@ -25,11 +27,13 @@ impl BoundSided for LowerBound {
     }
 }
 
+#[deriving(Eq)]
 pub enum BoundType {
     Inclusive,
     Exclusive
 }
 
+#[deriving(Eq)]
 pub struct RangeBound<S, T> {
     value: T,
     type_: BoundType
@@ -68,6 +72,7 @@ pub enum RangeComparison {
     Below
 }
 
+#[deriving(Eq)]
 pub struct Range<T> {
     lower: Option<RangeBound<LowerBound, T>>,
     upper: Option<RangeBound<UpperBound, T>>,

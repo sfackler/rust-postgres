@@ -26,6 +26,7 @@ use super::error::hack::{SyntaxError,
                          QueryCanceled,
                          InvalidCatalogName};
 use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
+use super::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use super::pool::PostgresConnectionPool;
 
 #[test]
@@ -338,6 +339,15 @@ fn test_tm_params() {
                make_check("'1965-09-25 11:19:33.100314'"),
                make_check("'2010-02-09 23:11:45.1202'"),
                (None, "NULL")]);
+}
+
+#[test]
+fn test_int4range_params() {
+    test_type("INT4RANGE", [(Some(Range::new(None, None)), "'(,)'"),
+                            (Some(Range::new(None, Some(RangeBound::new(100i32, Exclusive)))), "'(,100)'"),
+                            (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)), None)), "'[100,)'"),
+                            (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)),
+                                             Some(RangeBound::new(200i32, Exclusive)))), "'[100,200)'")]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
