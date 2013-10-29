@@ -26,6 +26,7 @@ use super::error::hack::{SyntaxError,
                          QueryCanceled,
                          InvalidCatalogName};
 use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
+#[cfg(not(travis))]
 use super::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use super::pool::PostgresConnectionPool;
 
@@ -342,6 +343,7 @@ fn test_tm_params() {
 }
 
 #[test]
+#[cfg(not(travis))]
 fn test_int4range_params() {
     test_type("INT4RANGE", [(Some(Range::new(None, None)), "'(,)'"),
                             (Some(Range::new(None, Some(RangeBound::new(100i32, Exclusive)))), "'(,100)'"),
