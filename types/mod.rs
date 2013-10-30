@@ -42,7 +42,7 @@ static NSEC_PER_USEC: i64 = 1_000;
 // Number of seconds from 1970-01-01 to 2000-01-01
 static TIME_SEC_CONVERSION: i64 = 946684800;
 
-static RANGE_EMPTY: i8 = 0x18;
+static RANGE_UNBOUNDED: i8 = 0x18;
 static RANGE_UPPER: i8 = 0x08;
 static RANGE_LOWER: i8 = 0x12;
 static RANGE_FULL: i8 = 0x02;
@@ -237,32 +237,41 @@ from_map_impl!(PgTimestamp | PgTimestampZ, Timespec, |buf| {
 })
 from_option_impl!(Timespec)
 
-from_map_impl!(PgInt4Range, Range<i32>, |buf| {
-    let mut rdr = BufReader::new(buf.as_slice());
-    let t = rdr.read_i8();
+macro_rules! from_range_impl(
+    ($oid:ident, $t:ty, $f:ident) => (
+        from_map_impl!($oid, $t, |buf| {
+            let mut rdr = BufReader::new(buf.as_slice());
+            let t = rdr.read_i8();
 
-    match t {
-        RANGE_EMPTY => Range::new(None, None),
-        RANGE_UPPER => {
-            rdr.read_be_i32();
-            Range::new(None, Some(RangeBound::new(rdr.read_be_i32(), Exclusive)))
-        }
-        RANGE_LOWER => {
-            rdr.read_be_i32();
-            Range::new(Some(RangeBound::new(rdr.read_be_i32(), Inclusive)), None)
-        }
-        RANGE_FULL => {
-            rdr.read_be_i32();
-            let low = rdr.read_be_i32();
-            rdr.read_be_i32();
-            let high = rdr.read_be_i32();
-            Range::new(Some(RangeBound::new(low, Inclusive)),
-                       Some(RangeBound::new(high, Exclusive)))
-        }
-        _ => unreachable!()
-    }
-})
+            match t {
+                RANGE_UNBOUNDED => Range::new(None, None),
+                RANGE_UPPER => {
+                    rdr.read_be_i32();
+                    Range::new(None, Some(RangeBound::new(rdr.$f(), Exclusive)))
+                }
+                RANGE_LOWER => {
+                    rdr.read_be_i32();
+                    Range::new(Some(RangeBound::new(rdr.$f(), Inclusive)), None)
+                }
+                RANGE_FULL => {
+                    rdr.read_be_i32();
+                    let low = rdr.$f();
+                    rdr.read_be_i32();
+                    let high = rdr.$f();
+                    Range::new(Some(RangeBound::new(low, Inclusive)),
+                               Some(RangeBound::new(high, Exclusive)))
+                }
+                _ => unreachable!()
+            }
+        })
+    )
+)
+
+from_range_impl!(PgInt4Range, Range<i32>, read_be_i32)
 from_option_impl!(Range<i32>)
+
+from_range_impl!(PgInt8Range, Range<i64>, read_be_i64)
+from_option_impl!(Range<i64>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -403,46 +412,44 @@ impl ToSql for Timespec {
 
 to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 
-impl ToSql for Range<i32> {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgInt4Range, ty)
-        let lower = do self.lower().as_ref().map |b| {
-            match b.type_ {
-                Inclusive => b.value,
-                Exclusive => b.value + 1
-            }
-        };
-        let upper = do self.upper().as_ref().map |b| {
-            match b.type_ {
-                Inclusive => b.value - 1,
-                Exclusive => b.value
-            }
-        };
+macro_rules! to_range_impl(
+    ($oid:ident, $t:ty, $f:ident, $size:expr) => (
+        impl ToSql for $t {
+            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+                check_types!($oid, ty)
+                let lower = self.lower().as_ref().map(|b| { b.value });
+                let upper = self.upper().as_ref().map(|b| { b.value });
 
-        let mut buf = MemWriter::new();
-        match (lower, upper) {
-            (None, None) => buf.write_i8(RANGE_EMPTY),
-            (Some(low), None) => {
-                buf.write_i8(RANGE_LOWER);
-                buf.write_be_i32(4);
-                buf.write_be_i32(low);
-            }
-            (None, Some(high)) => {
-                buf.write_i8(RANGE_UPPER);
-                buf.write_be_i32(4);
-                buf.write_be_i32(high);
-            }
-            (Some(low), Some(high)) => {
-                buf.write_i8(RANGE_FULL);
-                buf.write_be_i32(4);
-                buf.write_be_i32(low);
-                buf.write_be_i32(4);
-                buf.write_be_i32(high);
+                let mut buf = MemWriter::new();
+                match (lower, upper) {
+                    (None, None) => buf.write_i8(RANGE_UNBOUNDED),
+                    (Some(low), None) => {
+                        buf.write_i8(RANGE_LOWER);
+                        buf.write_be_i32($size);
+                        buf.$f(low);
+                    }
+                    (None, Some(high)) => {
+                        buf.write_i8(RANGE_UPPER);
+                        buf.write_be_i32($size);
+                        buf.$f(high);
+                    }
+                    (Some(low), Some(high)) => {
+                        buf.write_i8(RANGE_FULL);
+                        buf.write_be_i32($size);
+                        buf.$f(low);
+                        buf.write_be_i32($size);
+                        buf.$f(high);
+                    }
+                }
+
+                (Binary, Some(buf.inner()))
             }
         }
+    )
+)
 
-        (Binary, Some(buf.inner()))
-    }
-}
-
+to_range_impl!(PgInt4Range, Range<i32>, write_be_i32, 4)
 to_option_impl!(PgInt4Range, Range<i32>)
+
+to_range_impl!(PgInt8Range, Range<i64>, write_be_i64, 8)
+to_option_impl!(PgInt8Range, Range<i64>)

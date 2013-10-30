@@ -5,22 +5,29 @@ pub trait Normalizable {
             -> RangeBound<S, Self>;
 }
 
-impl Normalizable for i32 {
-    fn normalize<S: BoundSided>(bound: RangeBound<S, i32>)
-            -> RangeBound<S, i32> {
-        match BoundSided::side(None::<S>) {
-            Upper if bound.type_ == Inclusive => {
-                assert!(bound.value != Bounded::max_value());
-                RangeBound::new(bound.value + 1, Exclusive)
+macro_rules! bounded_normalizable(
+    ($t:ty) => (
+        impl Normalizable for $t {
+            fn normalize<S: BoundSided>(bound: RangeBound<S, $t>)
+                    -> RangeBound<S, $t> {
+                match BoundSided::side(None::<S>) {
+                    Upper if bound.type_ == Inclusive => {
+                        assert!(bound.value != Bounded::max_value());
+                        RangeBound::new(bound.value + 1, Exclusive)
+                    }
+                    Lower if bound.type_ == Exclusive => {
+                        assert!(bound.value != Bounded::max_value());
+                        RangeBound::new(bound.value + 1, Inclusive)
+                    }
+                    _ => bound
+                }
             }
-            Lower if bound.type_ == Exclusive => {
-                assert!(bound.value != Bounded::max_value());
-                RangeBound::new(bound.value + 1, Inclusive)
-            }
-            _ => bound
         }
-    }
-}
+    )
+)
+
+bounded_normalizable!(i32)
+bounded_normalizable!(i64)
 
 enum BoundSide {
     Upper,
@@ -103,16 +110,16 @@ pub struct Range<T> {
 impl<T: Ord+Normalizable> Range<T> {
     pub fn new(lower: Option<RangeBound<LowerBound, T>>,
                upper: Option<RangeBound<UpperBound, T>>) -> Range<T> {
+        let lower = lower.map(|bound| { Normalizable::normalize(bound) });
+        let upper = upper.map(|bound| { Normalizable::normalize(bound) });
+
         match (&lower, &upper) {
             (&Some(ref lower), &Some(ref upper)) =>
                 assert!(lower.value <= upper.value),
             _ => {}
         }
 
-        Range {
-            lower: lower.map(|bound| { Normalizable::normalize(bound) }),
-            upper: upper.map(|bound| { Normalizable::normalize(bound) }),
-        }
+        Range { lower: lower, upper: upper }
     }
 
     pub fn lower<'a>(&'a self) -> &'a Option<RangeBound<LowerBound, T>> {

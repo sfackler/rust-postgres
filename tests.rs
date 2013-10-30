@@ -355,6 +355,19 @@ fn test_int4range_params() {
                             (None, "NULL")]);
 }
 
+#[test]
+#[cfg(not(travis))]
+fn test_int8range_params() {
+    test_type("INT8RANGE", [(Some(Range::new(None, None)), "'(,)'"),
+                            (Some(Range::new(None, Some(RangeBound::new(100i64, Exclusive)))), "'(,100)'"),
+                            (Some(Range::new(Some(RangeBound::new(100i64, Inclusive)), None)), "'[100,)'"),
+                            (Some(Range::new(Some(RangeBound::new(100i64, Inclusive)),
+                                             Some(RangeBound::new(200i64, Exclusive)))), "'[100,200)'"),
+                            (Some(Range::new(Some(RangeBound::new(10i64, Exclusive)),
+                                             Some(RangeBound::new(15i64, Inclusive)))), "'(10,15]'"),
+                            (None, "NULL")]);
+}
+
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 'NaN'::" + sql_type);
