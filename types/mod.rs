@@ -406,13 +406,13 @@ to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 impl ToSql for Range<i32> {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgInt4Range, ty)
-        let lower = do self.lower.as_ref().map |b| {
+        let lower = do self.lower().as_ref().map |b| {
             match b.type_ {
                 Inclusive => b.value,
                 Exclusive => b.value + 1
             }
         };
-        let upper = do self.upper.as_ref().map |b| {
+        let upper = do self.upper().as_ref().map |b| {
             match b.type_ {
                 Inclusive => b.value - 1,
                 Exclusive => b.value

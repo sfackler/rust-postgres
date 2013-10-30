@@ -1,5 +1,27 @@
 #[allow(missing_doc)];
 
+pub trait Normalizable {
+    fn normalize<S: BoundSided>(bound: RangeBound<S, Self>)
+            -> RangeBound<S, Self>;
+}
+
+impl Normalizable for i32 {
+    fn normalize<S: BoundSided>(bound: RangeBound<S, i32>)
+            -> RangeBound<S, i32> {
+        match BoundSided::side(None::<S>) {
+            Upper if bound.type_ == Inclusive => {
+                assert!(bound.value != Bounded::max_value());
+                RangeBound::new(bound.value + 1, Exclusive)
+            }
+            Lower if bound.type_ == Exclusive => {
+                assert!(bound.value != Bounded::max_value());
+                RangeBound::new(bound.value + 1, Inclusive)
+            }
+            _ => bound
+        }
+    }
+}
+
 enum BoundSide {
     Upper,
     Lower
@@ -74,11 +96,11 @@ pub enum RangeComparison {
 
 #[deriving(Eq)]
 pub struct Range<T> {
-    lower: Option<RangeBound<LowerBound, T>>,
-    upper: Option<RangeBound<UpperBound, T>>,
+    priv lower: Option<RangeBound<LowerBound, T>>,
+    priv upper: Option<RangeBound<UpperBound, T>>,
 }
 
-impl<T: Ord> Range<T> {
+impl<T: Ord+Normalizable> Range<T> {
     pub fn new(lower: Option<RangeBound<LowerBound, T>>,
                upper: Option<RangeBound<UpperBound, T>>) -> Range<T> {
         match (&lower, &upper) {
@@ -87,7 +109,18 @@ impl<T: Ord> Range<T> {
             _ => {}
         }
 
-        Range { lower: lower, upper: upper }
+        Range {
+            lower: lower.map(|bound| { Normalizable::normalize(bound) }),
+            upper: upper.map(|bound| { Normalizable::normalize(bound) }),
+        }
+    }
+
+    pub fn lower<'a>(&'a self) -> &'a Option<RangeBound<LowerBound, T>> {
+        &self.lower
+    }
+
+    pub fn upper<'a>(&'a self) -> &'a Option<RangeBound<UpperBound, T>> {
+        &self.upper
     }
 
     pub fn cmp(&self, value: &T) -> RangeComparison {
@@ -114,7 +147,6 @@ impl<T: Ord> Range<T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::int;
 
     #[test]
     fn test_range_bound_lower_lt() {
@@ -180,35 +212,62 @@ mod test {
 
     #[test]
     fn test_range_cmp() {
-        let r =  Range::new(Some(RangeBound::new(1, Inclusive)),
-                            Some(RangeBound::new(3, Inclusive)));
+        let r =  Range::new(Some(RangeBound::new(1i32, Inclusive)),
+                            Some(RangeBound::new(3i32, Inclusive)));
         assert_eq!(Above, r.cmp(&4));
         assert_eq!(Within, r.cmp(&3));
         assert_eq!(Within, r.cmp(&2));
         assert_eq!(Within, r.cmp(&1));
         assert_eq!(Below, r.cmp(&0));
 
-        let r =  Range::new(Some(RangeBound::new(1, Exclusive)),
-                            Some(RangeBound::new(3, Exclusive)));
+        let r =  Range::new(Some(RangeBound::new(1i32, Exclusive)),
+                            Some(RangeBound::new(3i32, Exclusive)));
         assert_eq!(Above, r.cmp(&4));
         assert_eq!(Above, r.cmp(&3));
         assert_eq!(Within, r.cmp(&2));
         assert_eq!(Below, r.cmp(&1));
         assert_eq!(Below, r.cmp(&0));
 
-        let r = Range::new(None, Some(RangeBound::new(3, Inclusive)));
+        let r = Range::new(None, Some(RangeBound::new(3i32, Inclusive)));
         assert_eq!(Above, r.cmp(&4));
         assert_eq!(Within, r.cmp(&2));
-        assert_eq!(Within, r.cmp(&int::min_value));
+        assert_eq!(Within, r.cmp(&Bounded::min_value()));
 
-        let r = Range::new(Some(RangeBound::new(1, Inclusive)), None);
-        assert_eq!(Within, r.cmp(&int::max_value));
+        let r = Range::new(Some(RangeBound::new(1i32, Inclusive)), None);
+        assert_eq!(Within, r.cmp(&Bounded::max_value()));
         assert_eq!(Within, r.cmp(&4));
         assert_eq!(Below, r.cmp(&0));
 
         let r = Range::new(None, None);
-        assert_eq!(Within, r.cmp(&int::max_value));
-        assert_eq!(Within, r.cmp(&0));
-        assert_eq!(Within, r.cmp(&int::min_value));
+        assert_eq!(Within, r.cmp(&Bounded::max_value()));
+        assert_eq!(Within, r.cmp(&0i32));
+        assert_eq!(Within, r.cmp(&Bounded::min_value()));
+    }
+
+    #[test]
+    fn test_normalize_lower() {
+        let r: RangeBound<LowerBound, i32> = RangeBound::new(10i32, Inclusive);
+        assert_eq!(RangeBound::new(10i32, Inclusive), Normalizable::normalize(r));
+
+        let r: RangeBound<LowerBound, i32> = RangeBound::new(10i32, Exclusive);
+        assert_eq!(RangeBound::new(11i32, Inclusive), Normalizable::normalize(r));
+    }
+
+    #[test]
+    fn test_normalize_upper() {
+        let r: RangeBound<UpperBound, i32> = RangeBound::new(10i32, Inclusive);
+        assert_eq!(RangeBound::new(11i32, Exclusive), Normalizable::normalize(r));
+
+        let r: RangeBound<UpperBound, i32> = RangeBound::new(10i32, Exclusive);
+        assert_eq!(RangeBound::new(10i32, Exclusive), Normalizable::normalize(r));
+    }
+
+    #[test]
+    fn test_range_normalizes() {
+        let r1 = Range::new(Some(RangeBound::new(10i32, Exclusive)),
+                            Some(RangeBound::new(15i32, Inclusive)));
+        let r2 = Range::new(Some(RangeBound::new(11i32, Inclusive)),
+                            Some(RangeBound::new(16i32, Exclusive)));
+        assert_eq!(r1, r2);
     }
 }

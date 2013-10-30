@@ -349,7 +349,10 @@ fn test_int4range_params() {
                             (Some(Range::new(None, Some(RangeBound::new(100i32, Exclusive)))), "'(,100)'"),
                             (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)), None)), "'[100,)'"),
                             (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)),
-                                             Some(RangeBound::new(200i32, Exclusive)))), "'[100,200)'")]);
+                                             Some(RangeBound::new(200i32, Exclusive)))), "'[100,200)'"),
+                            (Some(Range::new(Some(RangeBound::new(10i32, Exclusive)),
+                                             Some(RangeBound::new(15i32, Inclusive)))), "'(10,15]'"),
+                            (None, "NULL")]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
