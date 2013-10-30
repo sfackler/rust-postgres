@@ -257,15 +257,15 @@ fn test_i64_params() {
 
 #[test]
 fn test_f32_params() {
-    test_type("REAL", [(Some(f32::infinity), "'infinity'"),
-                       (Some(f32::neg_infinity), "'-infinity'"),
+    test_type("REAL", [(Some(f32::INFINITY), "'infinity'"),
+                       (Some(f32::NEG_INFINITY), "'-infinity'"),
                        (Some(1000.55), "1000.55"), (None, "NULL")]);
 }
 
 #[test]
 fn test_f64_params() {
-    test_type("DOUBLE PRECISION", [(Some(f64::infinity), "'infinity'"),
-                                   (Some(f64::neg_infinity), "'-infinity'"),
+    test_type("DOUBLE PRECISION", [(Some(f64::INFINITY), "'infinity'"),
+                                   (Some(f64::NEG_INFINITY), "'-infinity'"),
                                    (Some(10000.55), "10000.55"),
                                    (None, "NULL")]);
 }
