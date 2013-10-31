@@ -258,6 +258,18 @@ types. The driver currently supports the following conversions:
             <td>extra::time::Timespec</td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
+        <tr>
+            <td>types::range::Range&lt;i32&gt;</td>
+            <td>INT4RANGE</td>
+        </tr>
+        <tr>
+            <td>types::range::Range&lt;i64&gt;</td>
+            <td>INT8RANGE</td>
+        </tr>
+        <tr>
+            <td>types::range::Range&lt;Timespec&gt;</td>
+            <td>TSRANGE, TSTZRANGE</td>
+        </tr>
     </tbody>
 </table>
 
