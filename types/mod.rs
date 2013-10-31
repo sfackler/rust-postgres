@@ -48,6 +48,7 @@ static RANGE_UPPER_UNBOUNDED: i8 = 0b0001_0000;
 static RANGE_LOWER_UNBOUNDED: i8 = 0b0000_1000;
 static RANGE_UPPER_INCLUSIVE: i8 = 0b0000_0100;
 static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
+static RANGE_EMPTY: i8           = 0b0000_0001;
 
 /// A Postgres type
 #[deriving(Eq)]
@@ -281,30 +282,36 @@ macro_rules! from_range_impl(
             let mut rdr = BufReader::new(buf.as_slice());
             let t = rdr.read_i8();
 
-            let lower = match t & RANGE_LOWER_UNBOUNDED {
-                0 => {
-                    let type_ = match t & RANGE_LOWER_INCLUSIVE {
-                        0 => Exclusive,
-                        _ => Inclusive
-                    };
-                    rdr.read_be_i32();
-                    Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr), type_))
-                }
-                _ => None
-            };
-            let upper = match t & RANGE_UPPER_UNBOUNDED {
-                0 => {
-                    let type_ = match t & RANGE_UPPER_INCLUSIVE {
-                        0 => Exclusive,
-                        _ => Inclusive
-                    };
-                    rdr.read_be_i32();
-                    Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr), type_))
-                }
-                _ => None
-            };
+            if t & RANGE_EMPTY != 0 {
+                Range::empty()
+            } else {
+                let lower = match t & RANGE_LOWER_UNBOUNDED {
+                    0 => {
+                        let type_ = match t & RANGE_LOWER_INCLUSIVE {
+                            0 => Exclusive,
+                            _ => Inclusive
+                        };
+                        rdr.read_be_i32();
+                        Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr),
+                                             type_))
+                    }
+                    _ => None
+                };
+                let upper = match t & RANGE_UPPER_UNBOUNDED {
+                    0 => {
+                        let type_ = match t & RANGE_UPPER_INCLUSIVE {
+                            0 => Exclusive,
+                            _ => Inclusive
+                        };
+                        rdr.read_be_i32();
+                        Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr),
+                                             type_))
+                    }
+                    _ => None
+                };
 
-            Range::new(lower, upper)
+                Range::new(lower, upper)
+            }
         })
     )
 )
@@ -495,17 +502,21 @@ macro_rules! to_range_impl(
                 let mut buf = MemWriter::new();
 
                 let mut tag = 0;
-                match self.lower() {
-                    &None => tag |= RANGE_LOWER_UNBOUNDED,
-                    &Some(RangeBound { type_: Inclusive, _ }) =>
-                        tag |= RANGE_LOWER_INCLUSIVE,
-                    _ => {}
-                }
-                match self.upper() {
-                    &None => tag |= RANGE_UPPER_UNBOUNDED,
-                    &Some(RangeBound { type_: Inclusive, _ }) =>
-                        tag |= RANGE_UPPER_INCLUSIVE,
-                    _ => {}
+                if self.is_empty() {
+                    tag |= RANGE_EMPTY;
+                } else {
+                    match self.lower() {
+                        &None => tag |= RANGE_LOWER_UNBOUNDED,
+                        &Some(RangeBound { type_: Inclusive, _ }) =>
+                            tag |= RANGE_LOWER_INCLUSIVE,
+                        _ => {}
+                    }
+                    match self.upper() {
+                        &None => tag |= RANGE_UPPER_UNBOUNDED,
+                        &Some(RangeBound { type_: Inclusive, _ }) =>
+                            tag |= RANGE_UPPER_INCLUSIVE,
+                        _ => {}
+                    }
                 }
 
                 buf.write_i8(tag);

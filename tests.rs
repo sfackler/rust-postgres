@@ -368,7 +368,8 @@ macro_rules! test_range(
                      (Some(Range::new(Some(RangeBound::new($low, Exclusive)),
                                       Some(RangeBound::new($high, Exclusive)))),
                       "'(" + $low_str + "," + $high_str + ")'"),
-                      (None, ~"NULL")];
+                     (Some(Range::empty()), ~"'empty'"),
+                     (None, ~"NULL")];
         let test_refs: ~[(Option<Range<$t>>, &str)] = tests.iter()
                 .map(|&(ref val, ref s)| { (val.clone(), s.as_slice()) })
                 .collect();

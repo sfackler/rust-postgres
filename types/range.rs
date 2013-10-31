@@ -127,22 +127,12 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     }
 }
 
-/// The relation of a value to a range
-#[deriving(Eq)]
-pub enum RangeComparison {
-    /// The value lies above the range
-    Above,
-    /// The value lies within the range
-    Within,
-    /// The value lies below the range
-    Below
-}
-
 /// Represents a range of values.
 #[deriving(Eq,Clone)]
-pub struct Range<T> {
-    priv lower: Option<RangeBound<LowerBound, T>>,
-    priv upper: Option<RangeBound<UpperBound, T>>,
+pub enum Range<T> {
+    priv Empty,
+    priv Normal(Option<RangeBound<LowerBound, T>>,
+                Option<RangeBound<UpperBound, T>>)
 }
 
 impl<T: Ord+Normalizable> Range<T> {
@@ -160,39 +150,47 @@ impl<T: Ord+Normalizable> Range<T> {
             _ => {}
         }
 
-        Range { lower: lower, upper: upper }
+        Normal(lower, upper)
+    }
+
+    /// Creates a new empty range.
+    pub fn empty() -> Range<T> {
+        Empty
+    }
+
+    /// Determines if this range is the empty range.
+    pub fn is_empty(&self) -> bool {
+        match *self {
+            Empty => true,
+            Normal(*) => false
+        }
     }
 
     /// Returns the lower bound if it exists.
     pub fn lower<'a>(&'a self) -> &'a Option<RangeBound<LowerBound, T>> {
-        &self.lower
+        match *self {
+            Empty => &None,
+            Normal(ref lower, _) => lower
+        }
     }
 
     /// Returns the upper bound if it exists.
     pub fn upper<'a>(&'a self) -> &'a Option<RangeBound<UpperBound, T>> {
-        &self.upper
-    }
-
-    /// Compares a value to this range.
-    pub fn cmp(&self, value: &T) -> RangeComparison {
-        let lower = do self.lower.as_ref().map_default(true) |b| {
-            b.in_bounds(value)
-        };
-        let upper = do self.upper.as_ref().map_default(true) |b| {
-            b.in_bounds(value)
-        };
-
-        match (lower, upper) {
-            (true, false) => Above,
-            (true, true) => Within,
-            (false, true) => Below,
-            _ => unreachable!()
+        match *self {
+            Empty => &None,
+            Normal(_, ref upper) => upper
         }
     }
 
     /// Determines if a value lies within this range.
     pub fn contains(&self, value: &T) -> bool {
-        self.cmp(value) == Within
+        match *self {
+            Empty => false,
+            Normal(ref lower, ref upper) => {
+                lower.as_ref().map_default(true, |b| { b.in_bounds(value) }) &&
+                    upper.as_ref().map_default(true, |b| { b.in_bounds(value) })
+            }
+        }
     }
 }
 
@@ -263,37 +261,37 @@ mod test {
     }
 
     #[test]
-    fn test_range_cmp() {
+    fn test_range_contains() {
         let r =  Range::new(Some(RangeBound::new(1i32, Inclusive)),
                             Some(RangeBound::new(3i32, Inclusive)));
-        assert_eq!(Above, r.cmp(&4));
-        assert_eq!(Within, r.cmp(&3));
-        assert_eq!(Within, r.cmp(&2));
-        assert_eq!(Within, r.cmp(&1));
-        assert_eq!(Below, r.cmp(&0));
+        assert!(!r.contains(&4));
+        assert!(r.contains(&3));
+        assert!(r.contains(&2));
+        assert!(r.contains(&1));
+        assert!(!r.contains(&0));
 
         let r =  Range::new(Some(RangeBound::new(1i32, Exclusive)),
                             Some(RangeBound::new(3i32, Exclusive)));
-        assert_eq!(Above, r.cmp(&4));
-        assert_eq!(Above, r.cmp(&3));
-        assert_eq!(Within, r.cmp(&2));
-        assert_eq!(Below, r.cmp(&1));
-        assert_eq!(Below, r.cmp(&0));
+        assert!(!r.contains(&4));
+        assert!(!r.contains(&3));
+        assert!(r.contains(&2));
+        assert!(!r.contains(&1));
+        assert!(!r.contains(&0));
 
         let r = Range::new(None, Some(RangeBound::new(3i32, Inclusive)));
-        assert_eq!(Above, r.cmp(&4));
-        assert_eq!(Within, r.cmp(&2));
-        assert_eq!(Within, r.cmp(&Bounded::min_value()));
+        assert!(!r.contains(&4));
+        assert!(r.contains(&2));
+        assert!(r.contains(&Bounded::min_value()));
 
         let r = Range::new(Some(RangeBound::new(1i32, Inclusive)), None);
-        assert_eq!(Within, r.cmp(&Bounded::max_value()));
-        assert_eq!(Within, r.cmp(&4));
-        assert_eq!(Below, r.cmp(&0));
+        assert!(r.contains(&Bounded::max_value()));
+        assert!(r.contains(&4));
+        assert!(!r.contains(&0));
 
         let r = Range::new(None, None);
-        assert_eq!(Within, r.cmp(&Bounded::max_value()));
-        assert_eq!(Within, r.cmp(&0i32));
-        assert_eq!(Within, r.cmp(&Bounded::min_value()));
+        assert!(r.contains(&Bounded::max_value()));
+        assert!(r.contains(&0i32));
+        assert!(r.contains(&Bounded::min_value()));
     }
 
     #[test]
