@@ -10,7 +10,7 @@ use std::rt::io::{Reader, Writer, Decorator};
 use std::rt::io::mem::{MemWriter, BufReader};
 use std::str;
 
-use super::types::range::{RangeBound, Inclusive, Exclusive, Range};
+use self::range::{RangeBound, Inclusive, Exclusive, Range};
 
 pub mod range;
 
