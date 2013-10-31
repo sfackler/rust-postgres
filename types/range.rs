@@ -1,10 +1,19 @@
-#[allow(missing_doc)];
+//! Types dealing with ranges of values
 
 extern mod extra;
 
 use extra::time::Timespec;
 
+/// A trait that normalizes a range bound for a type
 pub trait Normalizable {
+    /// Given a range bound, returns the normalized version of that bound. For
+    /// discrete types such as i32, the normalized lower bound is always
+    /// inclusive and the normalized upper bound is always exclusive. Other
+    /// types, such as Timespec, have no normalization process so their
+    /// implementation is a no-op.
+    ///
+    /// The logic here should match the logic performed by the equivalent
+    /// Postgres type.
     fn normalize<S: BoundSided>(bound: RangeBound<S, Self>)
             -> RangeBound<S, Self>;
 }
@@ -50,8 +59,11 @@ trait BoundSided {
     fn side(_: Option<Self>) -> BoundSide;
 }
 
+/// A tag type representing an upper bound
 #[deriving(Eq,Clone)]
 pub struct UpperBound;
+
+/// A tag type representing a lower bound
 #[deriving(Eq,Clone)]
 pub struct LowerBound;
 
@@ -67,15 +79,23 @@ impl BoundSided for LowerBound {
     }
 }
 
+/// The type of a range bound
 #[deriving(Eq,Clone)]
 pub enum BoundType {
+    /// The bound includes its value
     Inclusive,
+    /// The bound excludes its value
     Exclusive
 }
 
+/// Represents a one-sided bound.
+///
+/// The side is determined by the `S` phantom parameter.
 #[deriving(Eq,Clone)]
 pub struct RangeBound<S, T> {
+    /// The value of the bound
     value: T,
+    /// The type of the bound
     type_: BoundType
 }
 
@@ -90,10 +110,12 @@ impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
 }
 
 impl<S: BoundSided, T: Ord> RangeBound<S, T> {
+    /// Constructs a new range bound
     pub fn new(value: T, type_: BoundType) -> RangeBound<S, T> {
         RangeBound { value: value, type_: type_ }
     }
 
+    /// Determines if a value lies within the range specified by this bound.
     pub fn in_bounds(&self, value: &T) -> bool {
         match (self.type_, BoundSided::side(None::<S>)) {
             (Inclusive, Upper) if value <= &self.value => true,
@@ -105,13 +127,18 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     }
 }
 
+/// The relation of a value to a range
 #[deriving(Eq)]
 pub enum RangeComparison {
+    /// The value lies above the range
     Above,
+    /// The value lies within the range
     Within,
+    /// The value lies below the range
     Below
 }
 
+/// Represents a range of values.
 #[deriving(Eq,Clone)]
 pub struct Range<T> {
     priv lower: Option<RangeBound<LowerBound, T>>,
@@ -119,6 +146,9 @@ pub struct Range<T> {
 }
 
 impl<T: Ord+Normalizable> Range<T> {
+    /// Creates a new range.
+    ///
+    /// If a bound is `None`, the range is unbounded in that direction.
     pub fn new(lower: Option<RangeBound<LowerBound, T>>,
                upper: Option<RangeBound<UpperBound, T>>) -> Range<T> {
         let lower = lower.map(|bound| { Normalizable::normalize(bound) });
@@ -133,14 +163,17 @@ impl<T: Ord+Normalizable> Range<T> {
         Range { lower: lower, upper: upper }
     }
 
+    /// Returns the lower bound if it exists.
     pub fn lower<'a>(&'a self) -> &'a Option<RangeBound<LowerBound, T>> {
         &self.lower
     }
 
+    /// Returns the upper bound if it exists.
     pub fn upper<'a>(&'a self) -> &'a Option<RangeBound<UpperBound, T>> {
         &self.upper
     }
 
+    /// Compares a value to this range.
     pub fn cmp(&self, value: &T) -> RangeComparison {
         let lower = do self.lower.as_ref().map_default(true) |b| {
             b.in_bounds(value)
@@ -157,6 +190,7 @@ impl<T: Ord+Normalizable> Range<T> {
         }
     }
 
+    /// Determines if a value lies within this range.
     pub fn contains(&self, value: &T) -> bool {
         self.cmp(value) == Within
     }

@@ -389,26 +389,25 @@ fn test_int8range_params() {
     test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
 }
 
-#[test]
-#[cfg(not(travis))]
-fn test_tsrange_params() {
+fn test_timespec_range_params(sql_type: &str) {
     fn t(time: &str) -> Timespec {
         time::strptime(time, "%Y-%m-%d").unwrap().to_timespec()
     }
     let low = "1970-01-01";
     let high = "1980-01-01";
-    test_range!("TSRANGE", Timespec, t(low), low, t(high), high);
+    test_range!(sql_type, Timespec, t(low), low, t(high), high);
+}
+
+#[test]
+#[cfg(not(travis))]
+fn test_tsrange_params() {
+    test_timespec_range_params("TSRANGE");
 }
 
 #[test]
 #[cfg(not(travis))]
 fn test_tstzrange_params() {
-    fn t(time: &str) -> Timespec {
-        time::strptime(time, "%Y-%m-%d").unwrap().to_timespec()
-    }
-    let low = "1970-01-01";
-    let high = "1980-01-01";
-    test_range!("TSTZRANGE", Timespec, t(low), low, t(high), high);
+    test_timespec_range_params("TSTZRANGE");
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
