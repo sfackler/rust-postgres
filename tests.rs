@@ -342,30 +342,73 @@ fn test_tm_params() {
                (None, "NULL")]);
 }
 
+macro_rules! test_range(
+    ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
+        let tests = [(Some(Range::new(None, None)), ~"'(,)'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Inclusive)),
+                                      None)),
+                      "'[" + $low_str + ",)'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Exclusive)),
+                                      None)),
+                      "'(" + $low_str + ",)'"),
+                     (Some(Range::new(None,
+                                      Some(RangeBound::new($high, Inclusive)))),
+                      "'(," + $high_str + "]'"),
+                     (Some(Range::new(None,
+                                      Some(RangeBound::new($high, Exclusive)))),
+                      "'(," + $high_str + ")'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Inclusive)),
+                                      Some(RangeBound::new($high, Inclusive)))),
+                      "'[" + $low_str + "," + $high_str + "]'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Inclusive)),
+                                      Some(RangeBound::new($high, Exclusive)))),
+                      "'[" + $low_str + "," + $high_str + ")'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Exclusive)),
+                                      Some(RangeBound::new($high, Inclusive)))),
+                      "'(" + $low_str + "," + $high_str + "]'"),
+                     (Some(Range::new(Some(RangeBound::new($low, Exclusive)),
+                                      Some(RangeBound::new($high, Exclusive)))),
+                      "'(" + $low_str + "," + $high_str + ")'"),
+                      (None, ~"NULL")];
+        let test_refs: ~[(Option<Range<$t>>, &str)] = tests.iter()
+                .map(|&(ref val, ref s)| { (val.clone(), s.as_slice()) })
+                .collect();
+        test_type($name, test_refs);
+    })
+)
+
 #[test]
 #[cfg(not(travis))]
 fn test_int4range_params() {
-    test_type("INT4RANGE", [(Some(Range::new(None, None)), "'(,)'"),
-                            (Some(Range::new(None, Some(RangeBound::new(100i32, Exclusive)))), "'(,100)'"),
-                            (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)), None)), "'[100,)'"),
-                            (Some(Range::new(Some(RangeBound::new(100i32, Inclusive)),
-                                             Some(RangeBound::new(200i32, Exclusive)))), "'[100,200)'"),
-                            (Some(Range::new(Some(RangeBound::new(10i32, Exclusive)),
-                                             Some(RangeBound::new(15i32, Inclusive)))), "'(10,15]'"),
-                            (None, "NULL")]);
+    test_range!("INT4RANGE", i32, 100i32, "100", 200i32, "200")
 }
 
 #[test]
 #[cfg(not(travis))]
 fn test_int8range_params() {
-    test_type("INT8RANGE", [(Some(Range::new(None, None)), "'(,)'"),
-                            (Some(Range::new(None, Some(RangeBound::new(100i64, Exclusive)))), "'(,100)'"),
-                            (Some(Range::new(Some(RangeBound::new(100i64, Inclusive)), None)), "'[100,)'"),
-                            (Some(Range::new(Some(RangeBound::new(100i64, Inclusive)),
-                                             Some(RangeBound::new(200i64, Exclusive)))), "'[100,200)'"),
-                            (Some(Range::new(Some(RangeBound::new(10i64, Exclusive)),
-                                             Some(RangeBound::new(15i64, Inclusive)))), "'(10,15]'"),
-                            (None, "NULL")]);
+    test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
+}
+
+#[test]
+#[cfg(not(travis))]
+fn test_tsrange_params() {
+    fn t(time: &str) -> Timespec {
+        time::strptime(time, "%Y-%m-%d").unwrap().to_timespec()
+    }
+    let low = "1970-01-01";
+    let high = "1980-01-01";
+    test_range!("TSRANGE", Timespec, t(low), low, t(high), high);
+}
+
+#[test]
+#[cfg(not(travis))]
+fn test_tstzrange_params() {
+    fn t(time: &str) -> Timespec {
+        time::strptime(time, "%Y-%m-%d").unwrap().to_timespec()
+    }
+    let low = "1970-01-01";
+    let high = "1980-01-01";
+    test_range!("TSTZRANGE", Timespec, t(low), low, t(high), high);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {

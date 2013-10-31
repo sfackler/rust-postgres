@@ -1,5 +1,9 @@
 #[allow(missing_doc)];
 
+extern mod extra;
+
+use extra::time::Timespec;
+
 pub trait Normalizable {
     fn normalize<S: BoundSided>(bound: RangeBound<S, Self>)
             -> RangeBound<S, Self>;
@@ -29,6 +33,13 @@ macro_rules! bounded_normalizable(
 bounded_normalizable!(i32)
 bounded_normalizable!(i64)
 
+impl Normalizable for Timespec {
+    fn normalize<S: BoundSided>(bound: RangeBound<S, Timespec>)
+            -> RangeBound<S, Timespec> {
+        bound
+    }
+}
+
 enum BoundSide {
     Upper,
     Lower
@@ -39,9 +50,9 @@ trait BoundSided {
     fn side(_: Option<Self>) -> BoundSide;
 }
 
-#[deriving(Eq)]
+#[deriving(Eq,Clone)]
 pub struct UpperBound;
-#[deriving(Eq)]
+#[deriving(Eq,Clone)]
 pub struct LowerBound;
 
 impl BoundSided for UpperBound {
@@ -56,13 +67,13 @@ impl BoundSided for LowerBound {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq,Clone)]
 pub enum BoundType {
     Inclusive,
     Exclusive
 }
 
-#[deriving(Eq)]
+#[deriving(Eq,Clone)]
 pub struct RangeBound<S, T> {
     value: T,
     type_: BoundType
@@ -101,7 +112,7 @@ pub enum RangeComparison {
     Below
 }
 
-#[deriving(Eq)]
+#[deriving(Eq,Clone)]
 pub struct Range<T> {
     priv lower: Option<RangeBound<LowerBound, T>>,
     priv upper: Option<RangeBound<UpperBound, T>>,

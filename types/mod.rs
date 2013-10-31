@@ -34,6 +34,8 @@ static TIMESTAMPOID: Oid = 1114;
 static TIMESTAMPZOID: Oid = 1184;
 static UUIDOID: Oid = 2950;
 static INT4RANGEOID: Oid = 3904;
+static TSRANGEOID: Oid = 3908;
+static TSTZRANGEOID: Oid = 3910;
 static INT8RANGEOID: Oid = 3926;
 
 static USEC_PER_SEC: i64 = 1_000_000;
@@ -42,10 +44,10 @@ static NSEC_PER_USEC: i64 = 1_000;
 // Number of seconds from 1970-01-01 to 2000-01-01
 static TIME_SEC_CONVERSION: i64 = 946684800;
 
-static RANGE_UNBOUNDED: i8 = 0x18;
-static RANGE_UPPER: i8 = 0x08;
-static RANGE_LOWER: i8 = 0x12;
-static RANGE_FULL: i8 = 0x02;
+static RANGE_UPPER_UNBOUNDED: i8 = 0b0001_0000;
+static RANGE_LOWER_UNBOUNDED: i8 = 0b0000_1000;
+static RANGE_UPPER_INCLUSIVE: i8 = 0b0000_0100;
+static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
 
 /// A Postgres type
 #[deriving(Eq)]
@@ -84,6 +86,10 @@ pub enum PostgresType {
     PgInt4Range,
     /// INT8RANGE
     PgInt8Range,
+    /// TSRANGE
+    PgTsRange,
+    /// TSTZRANGE
+    PgTstzRange,
     /// An unknown type along with its OID
     PgUnknownType(Oid)
 }
@@ -109,6 +115,8 @@ impl PostgresType {
             UUIDOID => PgUuid,
             INT4RANGEOID => PgInt4Range,
             INT8RANGEOID => PgInt8Range,
+            TSRANGEOID => PgTsRange,
+            TSTZRANGEOID => PgTstzRange,
             oid => PgUnknownType(oid)
         }
     }
@@ -151,6 +159,38 @@ pub trait FromSql {
     fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Self;
 }
 
+trait RawFromSql {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Self;
+}
+
+macro_rules! raw_from_impl(
+    ($t:ty, $f:ident) => (
+        impl RawFromSql for $t {
+            fn raw_from_sql<R: Reader>(raw: &mut R) -> $t {
+                raw.$f()
+            }
+        }
+    )
+)
+
+raw_from_impl!(i32, read_be_i32)
+raw_from_impl!(i64, read_be_i64)
+
+impl RawFromSql for Timespec {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Timespec {
+        let t = raw.read_be_i64();
+        let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
+        let mut usec = t % USEC_PER_SEC;
+
+        if usec < 0 {
+            sec -= 1;
+            usec = USEC_PER_SEC + usec;
+        }
+
+        Timespec::new(sec, (usec * NSEC_PER_USEC) as i32)
+    }
+}
+
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
@@ -159,6 +199,15 @@ macro_rules! from_map_impl(
                 raw.as_ref().map($blk)
             }
         }
+    )
+)
+
+macro_rules! from_raw_from_impl(
+    ($($expected:pat)|+, $t:ty) => (
+        from_map_impl!($($expected)|+, $t, |buf| {
+            let mut reader = BufReader::new(buf.as_slice());
+            RawFromSql::raw_from_sql(&mut reader)
+        })
     )
 )
 
@@ -186,14 +235,15 @@ macro_rules! from_option_impl(
 from_map_impl!(PgBool, bool, |buf| { buf[0] != 0 })
 from_option_impl!(bool)
 
+from_raw_from_impl!(PgInt4, i32)
+from_option_impl!(i32)
+from_raw_from_impl!(PgInt8, i64)
+from_option_impl!(i64)
+
 from_conversions_impl!(PgChar, i8, read_i8)
 from_option_impl!(i8)
 from_conversions_impl!(PgInt2, i16, read_be_i16)
 from_option_impl!(i16)
-from_conversions_impl!(PgInt4, i32, read_be_i32)
-from_option_impl!(i32)
-from_conversions_impl!(PgInt8, i64, read_be_i64)
-from_option_impl!(i64)
 from_conversions_impl!(PgFloat4, f32, read_be_f32)
 from_option_impl!(f32)
 from_conversions_impl!(PgFloat8, f64, read_be_f64)
@@ -222,56 +272,51 @@ from_map_impl!(PgUuid, Uuid, |buf| {
 })
 from_option_impl!(Uuid)
 
-from_map_impl!(PgTimestamp | PgTimestampZ, Timespec, |buf| {
-    let mut rdr = BufReader::new(buf.as_slice());
-    let t = rdr.read_be_i64();
-    let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
-    let mut usec = t % USEC_PER_SEC;
-
-    if usec < 0 {
-        sec -= 1;
-        usec = USEC_PER_SEC + usec;
-    }
-
-    Timespec::new(sec, (usec * NSEC_PER_USEC) as i32)
-})
+from_raw_from_impl!(PgTimestamp | PgTimestampZ, Timespec)
 from_option_impl!(Timespec)
 
 macro_rules! from_range_impl(
-    ($oid:ident, $t:ty, $f:ident) => (
-        from_map_impl!($oid, $t, |buf| {
+    ($($oid:ident)|+, $t:ty) => (
+        from_map_impl!($($oid)|+, Range<$t>, |buf| {
             let mut rdr = BufReader::new(buf.as_slice());
             let t = rdr.read_i8();
 
-            match t {
-                RANGE_UNBOUNDED => Range::new(None, None),
-                RANGE_UPPER => {
+            let lower = match t & RANGE_LOWER_UNBOUNDED {
+                0 => {
+                    let type_ = match t & RANGE_LOWER_INCLUSIVE {
+                        0 => Exclusive,
+                        _ => Inclusive
+                    };
                     rdr.read_be_i32();
-                    Range::new(None, Some(RangeBound::new(rdr.$f(), Exclusive)))
+                    Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr), type_))
                 }
-                RANGE_LOWER => {
+                _ => None
+            };
+            let upper = match t & RANGE_UPPER_UNBOUNDED {
+                0 => {
+                    let type_ = match t & RANGE_UPPER_INCLUSIVE {
+                        0 => Exclusive,
+                        _ => Inclusive
+                    };
                     rdr.read_be_i32();
-                    Range::new(Some(RangeBound::new(rdr.$f(), Inclusive)), None)
+                    Some(RangeBound::new(RawFromSql::raw_from_sql(&mut rdr), type_))
                 }
-                RANGE_FULL => {
-                    rdr.read_be_i32();
-                    let low = rdr.$f();
-                    rdr.read_be_i32();
-                    let high = rdr.$f();
-                    Range::new(Some(RangeBound::new(low, Inclusive)),
-                               Some(RangeBound::new(high, Exclusive)))
-                }
-                _ => unreachable!()
-            }
+                _ => None
+            };
+
+            Range::new(lower, upper)
         })
     )
 )
 
-from_range_impl!(PgInt4Range, Range<i32>, read_be_i32)
+from_range_impl!(PgInt4Range, i32)
 from_option_impl!(Range<i32>)
 
-from_range_impl!(PgInt8Range, Range<i64>, read_be_i64)
+from_range_impl!(PgInt8Range, i64)
 from_option_impl!(Range<i64>)
+
+from_range_impl!(PgTsRange | PgTstzRange, Timespec)
+from_option_impl!(Range<Timespec>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -283,6 +328,31 @@ pub trait ToSql {
     /// Fails if this type cannot be converted into the specified Postgres
     /// type.
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>);
+}
+
+trait RawToSql {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W);
+}
+
+macro_rules! raw_to_impl(
+    ($t:ty, $f:ident) => (
+        impl RawToSql for $t {
+            fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+                w.$f(*self)
+            }
+        }
+    )
+)
+
+raw_to_impl!(i32, write_be_i32)
+raw_to_impl!(i64, write_be_i64)
+
+impl RawToSql for Timespec {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
+            + self.nsec as i64 / NSEC_PER_USEC;
+        w.write_be_i64(t);
+    }
 }
 
 macro_rules! to_option_impl(
@@ -312,6 +382,20 @@ macro_rules! to_option_impl(
     )
 )
 
+macro_rules! to_raw_to_impl(
+    ($($oid:ident)|+, $t:ty) => (
+        impl ToSql for $t {
+            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+                check_types!($($oid)|+, ty)
+
+                let mut writer = MemWriter::new();
+                self.raw_to_sql(&mut writer);
+                (Binary, Some(writer.inner()))
+            }
+        }
+    )
+)
+
 macro_rules! to_conversions_impl(
     ($($oid:ident)|+, $t:ty, $f:ident) => (
         impl ToSql for $t {
@@ -334,14 +418,15 @@ impl ToSql for bool {
 }
 to_option_impl!(PgBool, bool)
 
+to_raw_to_impl!(PgInt4, i32)
+to_option_impl!(PgInt4, i32)
+to_raw_to_impl!(PgInt8, i64)
+to_option_impl!(PgInt8, i64)
+
 to_conversions_impl!(PgChar, i8, write_i8)
 to_option_impl!(PgChar, i8)
 to_conversions_impl!(PgInt2, i16, write_be_i16)
 to_option_impl!(PgInt2, i16)
-to_conversions_impl!(PgInt4, i32, write_be_i32)
-to_option_impl!(PgInt4, i32)
-to_conversions_impl!(PgInt8, i64, write_be_i64)
-to_option_impl!(PgInt8, i64)
 to_conversions_impl!(PgFloat4, f32, write_be_f32)
 to_option_impl!(PgFloat4, f32)
 to_conversions_impl!(PgFloat8, f64, write_be_f64)
@@ -399,47 +484,45 @@ impl ToSql for Uuid {
 
 to_option_impl!(PgUuid, Uuid)
 
-impl ToSql for Timespec {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgTimestamp | PgTimestampZ, ty)
-        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
-            + self.nsec as i64 / NSEC_PER_USEC;
-        let mut buf = MemWriter::new();
-        buf.write_be_i64(t);
-        (Binary, Some(buf.inner()))
-    }
-}
-
+to_raw_to_impl!(PgTimestamp | PgTimestampZ, Timespec)
 to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 
 macro_rules! to_range_impl(
-    ($oid:ident, $t:ty, $f:ident, $size:expr) => (
-        impl ToSql for $t {
+    ($($oid:ident)|+, $t:ty, $size:expr) => (
+        impl ToSql for Range<$t> {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-                check_types!($oid, ty)
-                let lower = self.lower().as_ref().map(|b| { b.value });
-                let upper = self.upper().as_ref().map(|b| { b.value });
-
+                check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
-                match (lower, upper) {
-                    (None, None) => buf.write_i8(RANGE_UNBOUNDED),
-                    (Some(low), None) => {
-                        buf.write_i8(RANGE_LOWER);
+
+                let mut tag = 0;
+                match self.lower() {
+                    &None => tag |= RANGE_LOWER_UNBOUNDED,
+                    &Some(RangeBound { type_: Inclusive, _ }) =>
+                        tag |= RANGE_LOWER_INCLUSIVE,
+                    _ => {}
+                }
+                match self.upper() {
+                    &None => tag |= RANGE_UPPER_UNBOUNDED,
+                    &Some(RangeBound { type_: Inclusive, _ }) =>
+                        tag |= RANGE_UPPER_INCLUSIVE,
+                    _ => {}
+                }
+
+                buf.write_i8(tag);
+
+                match self.lower() {
+                    &Some(ref bound) => {
                         buf.write_be_i32($size);
-                        buf.$f(low);
+                        bound.value.raw_to_sql(&mut buf);
                     }
-                    (None, Some(high)) => {
-                        buf.write_i8(RANGE_UPPER);
+                    &None => {}
+                }
+                match self.upper() {
+                    &Some(ref bound) => {
                         buf.write_be_i32($size);
-                        buf.$f(high);
+                        bound.value.raw_to_sql(&mut buf);
                     }
-                    (Some(low), Some(high)) => {
-                        buf.write_i8(RANGE_FULL);
-                        buf.write_be_i32($size);
-                        buf.$f(low);
-                        buf.write_be_i32($size);
-                        buf.$f(high);
-                    }
+                    &None => {}
                 }
 
                 (Binary, Some(buf.inner()))
@@ -448,8 +531,11 @@ macro_rules! to_range_impl(
     )
 )
 
-to_range_impl!(PgInt4Range, Range<i32>, write_be_i32, 4)
+to_range_impl!(PgInt4Range, i32, 4)
 to_option_impl!(PgInt4Range, Range<i32>)
 
-to_range_impl!(PgInt8Range, Range<i64>, write_be_i64, 8)
+to_range_impl!(PgInt8Range, i64, 8)
 to_option_impl!(PgInt8Range, Range<i64>)
+
+to_range_impl!(PgTsRange | PgTstzRange, Timespec, 8)
+to_option_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
