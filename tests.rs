@@ -26,7 +26,6 @@ use super::error::hack::{SyntaxError,
                          QueryCanceled,
                          InvalidCatalogName};
 use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
-#[cfg(not(travis))]
 use super::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use super::pool::PostgresConnectionPool;
 
