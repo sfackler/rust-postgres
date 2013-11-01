@@ -50,6 +50,7 @@ impl Normalizable for Timespec {
     }
 }
 
+#[deriving(Eq)]
 enum BoundSide {
     Upper,
     Lower
@@ -128,6 +129,19 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     }
 }
 
+struct OptBound<'self, S, T>(&'self Option<RangeBound<S, T>>);
+
+impl<'self, S: BoundSided, T: Ord> Ord for OptBound<'self, S, T> {
+    fn lt(&self, other: &OptBound<'self, S, T>) -> bool {
+        match (**self, **other) {
+            (&None, &None) => false,
+            (&None, _) => BoundSided::side(None::<S>) == Lower,
+            (_, &None) => BoundSided::side(None::<S>) == Upper,
+            (&Some(ref a), &Some(ref b)) => a < b
+        }
+    }
+}
+
 /// Represents a range of values.
 #[deriving(Eq,Clone)]
 pub enum Range<T> {
@@ -200,6 +214,20 @@ impl<T: Ord+Normalizable> Range<T> {
             }
         }
     }
+
+    /// Determines if a range lies completely within this range.
+    pub fn contains_range(&self, other: &Range<T>) -> bool {
+        if other.is_empty() {
+            return true;
+        }
+
+        if self.is_empty() {
+            return false;
+        }
+
+        OptBound(self.lower()) <= OptBound(other.lower()) &&
+            OptBound(self.upper()) >= OptBound(other.upper())
+    }
 }
 
 impl<T: Ord+Normalizable+Clone> Range<T> {
@@ -209,19 +237,10 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
             return Range::empty();
         }
 
-        let lower = match (self.lower(), other.lower()) {
-            (&Some(ref a), &Some(ref b)) => Some(cmp::max(a, b).clone()),
-            (&Some(ref a), &None) => Some(a.clone()),
-            (&None, &Some(ref b)) => Some(b.clone()),
-            (&None, &None) => None
-        };
-
-        let upper = match (self.upper(), other.upper()) {
-            (&Some(ref a), &Some(ref b)) => Some(cmp::min(a, b).clone()),
-            (&Some(ref a), &None) => Some(a.clone()),
-            (&None, &Some(ref b)) => Some(b.clone()),
-            (&None, &None) => None
-        };
+        let lower = cmp::max(OptBound(self.lower()), OptBound(other.lower()))
+                .clone();
+        let upper = cmp::min(OptBound(self.upper()), OptBound(other.upper()))
+                .clone();
 
         Range::new(lower, upper)
     }
@@ -390,5 +409,24 @@ mod test {
                             Some(RangeBound::new(14i32, Exclusive)));
         assert_eq!(r2, r1.intersect(&r2));
         assert_eq!(r2, r2.intersect(&r1));
+    }
+
+    #[test]
+    fn test_contains_range() {
+        assert!(Range::<i32>::empty().contains_range(&Range::empty()));
+
+        let r1 = Range::new(Some(RangeBound::new(10i32, Inclusive)),
+                           Some(RangeBound::new(15i32, Exclusive)));
+        assert!(r1.contains_range(&r1));
+
+        let r2 = Range::new(Some(RangeBound::new(10i32, Exclusive)),
+                            None);
+        assert!(!r1.contains_range(&r2));
+        assert!(!r2.contains_range(&r1));
+
+        let r2 = Range::new(None,
+                            Some(RangeBound::new(15i32, Inclusive)));
+        assert!(!r1.contains_range(&r2));
+        assert!(r2.contains_range(&r1));
     }
 }
