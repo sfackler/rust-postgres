@@ -2,6 +2,7 @@
 
 extern mod extra;
 
+use std::cmp;
 use extra::time::Timespec;
 
 /// A trait that normalizes a range bound for a type
@@ -145,8 +146,15 @@ impl<T: Ord+Normalizable> Range<T> {
         let upper = upper.map(|bound| { Normalizable::normalize(bound) });
 
         match (&lower, &upper) {
-            (&Some(ref lower), &Some(ref upper)) =>
-                assert!(lower.value <= upper.value),
+            (&Some(ref lower), &Some(ref upper)) => {
+                let empty = match (lower.type_, upper.type_) {
+                    (Inclusive, Inclusive) => lower.value > upper.value,
+                    _ => lower.value >= upper.value
+                };
+                if empty {
+                    return Empty;
+                }
+            }
             _ => {}
         }
 
@@ -191,6 +199,31 @@ impl<T: Ord+Normalizable> Range<T> {
                     upper.as_ref().map_default(true, |b| { b.in_bounds(value) })
             }
         }
+    }
+}
+
+impl<T: Ord+Normalizable+Clone> Range<T> {
+    /// Returns the intersection of this range with another
+    pub fn intersect(&self, other: &Range<T>) -> Range<T> {
+        if self.is_empty() || other.is_empty() {
+            return Range::empty();
+        }
+
+        let lower = match (self.lower(), other.lower()) {
+            (&Some(ref a), &Some(ref b)) => Some(cmp::max(a, b).clone()),
+            (&Some(ref a), &None) => Some(a.clone()),
+            (&None, &Some(ref b)) => Some(b.clone()),
+            (&None, &None) => None
+        };
+
+        let upper = match (self.upper(), other.upper()) {
+            (&Some(ref a), &Some(ref b)) => Some(cmp::min(a, b).clone()),
+            (&Some(ref a), &None) => Some(a.clone()),
+            (&None, &Some(ref b)) => Some(b.clone()),
+            (&None, &None) => None
+        };
+
+        Range::new(lower, upper)
     }
 }
 
@@ -319,5 +352,43 @@ mod test {
         let r2 = Range::new(Some(RangeBound::new(11i32, Inclusive)),
                             Some(RangeBound::new(16i32, Exclusive)));
         assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn test_range_empty() {
+        assert!(Range::new(Some(RangeBound::new(9i32, Exclusive)),
+                           Some(RangeBound::new(10i32, Exclusive))).is_empty());
+        assert!(Range::new(Some(RangeBound::new(10i32, Inclusive)),
+                           Some(RangeBound::new(10i32, Exclusive))).is_empty());
+        assert!(Range::new(Some(RangeBound::new(10i32, Exclusive)),
+                           Some(RangeBound::new(10i32, Inclusive))).is_empty());
+        assert!(Range::new(Some(RangeBound::new(10i32, Inclusive)),
+                           Some(RangeBound::new(9i32, Inclusive))).is_empty());
+    }
+
+    #[test]
+    fn test_intersection() {
+        let r1 = Range::new(Some(RangeBound::new(10i32, Inclusive)),
+                            Some(RangeBound::new(15i32, Exclusive)));
+        let r2 = Range::new(Some(RangeBound::new(20i32, Exclusive)),
+                            Some(RangeBound::new(25i32, Inclusive)));
+        assert!(r1.intersect(&r2).is_empty());
+        assert!(r2.intersect(&r1).is_empty());
+        assert_eq!(r1, r1.intersect(&Range::new(None, None)));
+        assert_eq!(r1, Range::new(None, None).intersect(&r1));
+
+        let r2 = Range::new(Some(RangeBound::new(10i32, Exclusive)), None);
+        let exp = Range::new(r2.lower().clone(), r1.upper().clone());
+        assert_eq!(exp, r1.intersect(&r2));
+        assert_eq!(exp, r2.intersect(&r1));
+
+        let r2 = Range::new(None, Some(RangeBound::new(15i32, Inclusive)));
+        assert_eq!(r1, r1.intersect(&r2));
+        assert_eq!(r1, r2.intersect(&r1));
+
+        let r2 = Range::new(Some(RangeBound::new(11i32, Inclusive)),
+                            Some(RangeBound::new(14i32, Exclusive)));
+        assert_eq!(r2, r1.intersect(&r2));
+        assert_eq!(r2, r2.intersect(&r1));
     }
 }
