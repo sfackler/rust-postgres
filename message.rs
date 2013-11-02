@@ -1,4 +1,3 @@
-#[doc(hidden)];
 #[allow(missing_doc)];
 
 use std::str;
