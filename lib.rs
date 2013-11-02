@@ -613,7 +613,7 @@ impl PostgresConnection {
     /// username if not specified.
     pub fn try_connect(url: &str) -> Result<PostgresConnection,
                                             PostgresConnectError> {
-        do InnerPostgresConnection::try_connect(url).map_move |conn| {
+        do InnerPostgresConnection::try_connect(url).map |conn| {
             PostgresConnection {
                 conn: Cell::new(conn)
             }
@@ -797,7 +797,7 @@ impl<'self> PostgresTransaction<'self> {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.try_prepare(query).map_move |stmt| {
+        do self.conn.try_prepare(query).map |stmt| {
             TransactionalPostgresStatement {
                 stmt: stmt
             }
