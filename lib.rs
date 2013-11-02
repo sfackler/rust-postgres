@@ -82,52 +82,49 @@ use std::rt::io::net::tcp::TcpStream;
 use std::task;
 use std::util;
 
-use error::hack::PostgresSqlState;
-use message::{BackendMessage,
-              AuthenticationOk,
-              AuthenticationKerberosV5,
-              AuthenticationCleartextPassword,
-              AuthenticationMD5Password,
-              AuthenticationSCMCredential,
-              AuthenticationGSS,
-              AuthenticationSSPI,
-              BackendKeyData,
-              BindComplete,
-              CommandComplete,
-              DataRow,
-              EmptyQueryResponse,
-              ErrorResponse,
-              NoData,
-              NoticeResponse,
-              NotificationResponse,
-              ParameterDescription,
-              ParameterStatus,
-              ParseComplete,
-              PortalSuspended,
-              ReadyForQuery,
-              RowDescription};
-use message::{FrontendMessage,
-              Bind,
-              CancelRequest,
-              Close,
-              Describe,
-              Execute,
-              Parse,
-              PasswordMessage,
-              Query,
-              StartupMessage,
-              Sync,
-              Terminate};
-use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
-use types::{PostgresType, ToSql, FromSql};
+use self::error::hack::PostgresSqlState;
+use self::message::{BackendMessage,
+                    AuthenticationOk,
+                    AuthenticationKerberosV5,
+                    AuthenticationCleartextPassword,
+                    AuthenticationMD5Password,
+                    AuthenticationSCMCredential,
+                    AuthenticationGSS,
+                    AuthenticationSSPI,
+                    BackendKeyData,
+                    BindComplete,
+                    CommandComplete,
+                    DataRow,
+                    EmptyQueryResponse,
+                    ErrorResponse,
+                    NoData,
+                    NoticeResponse,
+                    NotificationResponse,
+                    ParameterDescription,
+                    ParameterStatus,
+                    ParseComplete,
+                    PortalSuspended,
+                    ReadyForQuery,
+                    RowDescription};
+use self::message::{FrontendMessage,
+                    Bind,
+                    CancelRequest,
+                    Close,
+                    Describe,
+                    Execute,
+                    Parse,
+                    PasswordMessage,
+                    Query,
+                    StartupMessage,
+                    Sync,
+                    Terminate};
+use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
+use self::types::{PostgresType, ToSql, FromSql};
 
 pub mod error;
 pub mod pool;
 mod message;
 pub mod types;
-
-#[cfg(test)]
-mod tests;
 
 static DEFAULT_PORT: Port = 5432;
 

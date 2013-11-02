@@ -1,3 +1,5 @@
+#[feature(struct_variant, macro_rules, globs)];
+
 extern mod extra;
 
 use extra::comm::DuplexStream;
@@ -11,7 +13,7 @@ use std::f32;
 use std::f64;
 use std::rt::io::timer;
 
-use super::{PostgresNoticeHandler,
+use lib::{PostgresNoticeHandler,
             PostgresNotification,
             DbError,
             DnsError,
@@ -21,13 +23,15 @@ use super::{PostgresNoticeHandler,
             PostgresDbError,
             PostgresStatement,
             ResultDescription};
-use super::error::hack::{SyntaxError,
+use lib::error::hack::{SyntaxError,
                          InvalidPassword,
                          QueryCanceled,
                          InvalidCatalogName};
-use super::types::{ToSql, FromSql, PgInt4, PgVarchar};
-use super::types::range::{Range, Inclusive, Exclusive, RangeBound};
-use super::pool::PostgresConnectionPool;
+use lib::types::{ToSql, FromSql, PgInt4, PgVarchar};
+use lib::types::range::{Range, Inclusive, Exclusive, RangeBound};
+use lib::pool::PostgresConnectionPool;
+
+mod lib;
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
@@ -563,7 +567,7 @@ fn test_cancel_query() {
 
     do spawn {
         timer::sleep(500);
-        assert!(super::cancel_query("postgres://postgres@localhost",
+        assert!(lib::cancel_query("postgres://postgres@localhost",
                                     cancel_data).is_none());
     }
 

@@ -6,7 +6,7 @@ use std::rt::io::mem::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
 
-use types::Oid;
+use super::types::Oid;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 pub static CANCEL_CODE: i32 = 80877102;

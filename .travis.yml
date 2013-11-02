@@ -6,5 +6,5 @@ install:
 before_script:
   - ./travis/setup.sh
 script:
-  - rustc --test --cfg travis -o test lib.rs
+  - rustc --test --cfg travis test.rs
   - ./test
