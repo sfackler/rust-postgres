@@ -486,7 +486,7 @@ impl InnerPostgresConnection {
                         payload: payload
                     }),
                 ParameterStatus { parameter, value } =>
-                    debug!("Parameter {} = {}", parameter, value),
+                    info!("Parameter {} = {}", parameter, value),
                 msg => return msg
             }
         }
@@ -722,7 +722,7 @@ impl PostgresConnection {
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> PostgresCancelData {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_ref |conn| {
             conn.cancel_data
         }
     }
@@ -1035,7 +1035,7 @@ impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
         let num;
         loop {
             match self.conn.read_message() {
-                DataRow {_} => {}
+                DataRow { _ } => {}
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError::new(fields));
@@ -1178,7 +1178,7 @@ impl<'self> PostgresResult<'self> {
         loop {
             match self.stmt.conn.read_message() {
                 EmptyQueryResponse |
-                CommandComplete {_} => {
+                CommandComplete { _ } => {
                     self.more_rows = false;
                     break;
                 },
