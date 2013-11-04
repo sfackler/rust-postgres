@@ -14,19 +14,19 @@ use std::f64;
 use std::rt::io::timer;
 
 use lib::{PostgresNoticeHandler,
-            PostgresNotification,
-            DbError,
-            DnsError,
-            MissingPassword,
-            Position,
-            PostgresConnection,
-            PostgresDbError,
-            PostgresStatement,
-            ResultDescription};
+          PostgresNotification,
+          DbError,
+          DnsError,
+          MissingPassword,
+          Position,
+          PostgresConnection,
+          PostgresDbError,
+          PostgresStatement,
+          ResultDescription};
 use lib::error::hack::{SyntaxError,
-                         InvalidPassword,
-                         QueryCanceled,
-                         InvalidCatalogName};
+                       InvalidPassword,
+                       QueryCanceled,
+                       InvalidCatalogName};
 use lib::types::{ToSql, FromSql, PgInt4, PgVarchar};
 use lib::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use lib::pool::PostgresConnectionPool;
@@ -285,7 +285,6 @@ fn test_text_params() {
     test_type("TEXT", [(Some(~"hello world"), "'hello world'"),
                        (Some(~"イロハニホヘト チリヌルヲ"), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
-
 }
 
 #[test]
