@@ -6,7 +6,6 @@ use extra::comm::DuplexStream;
 use extra::future::Future;
 use extra::time;
 use extra::time::Timespec;
-#[cfg(not(travis))] // Travis uses Postgres 9.1
 use extra::json;
 use extra::uuid::Uuid;
 use std::f32;
@@ -311,7 +310,7 @@ fn test_bytea_params() {
 }
 
 #[test]
-#[cfg(not(travis))] // Travis runs Postgres 9.1
+#[ignore]
 fn test_json_params() {
     test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
@@ -381,13 +380,13 @@ macro_rules! test_range(
 )
 
 #[test]
-#[cfg(not(travis))]
+#[ignore]
 fn test_int4range_params() {
     test_range!("INT4RANGE", i32, 100i32, "100", 200i32, "200")
 }
 
 #[test]
-#[cfg(not(travis))]
+#[ignore]
 fn test_int8range_params() {
     test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
 }
@@ -402,13 +401,13 @@ fn test_timespec_range_params(sql_type: &str) {
 }
 
 #[test]
-#[cfg(not(travis))]
+#[ignore]
 fn test_tsrange_params() {
     test_timespec_range_params("TSRANGE");
 }
 
 #[test]
-#[cfg(not(travis))]
+#[ignore]
 fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
 }
