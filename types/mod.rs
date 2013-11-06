@@ -255,12 +255,9 @@ from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
 })
 from_option_impl!(~str)
 
-impl FromSql for Option<~[u8]> {
-    fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Option<~[u8]> {
-        check_types!(PgByteA, ty)
-        raw.clone()
-    }
-}
+from_map_impl!(PgByteA, ~[u8], |buf| {
+    buf.clone()
+})
 from_option_impl!(~[u8])
 
 from_map_impl!(PgJson, Json, |buf| {
