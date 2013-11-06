@@ -104,9 +104,9 @@ let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
 let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
-`query` returns an iterator over the rows returned from the database. Fields of
-each row in the result can be accessed either by their indicies or their column
-names. Unlike statement parameters, result columns are zero-indexed.
+`query` returns an iterator over the rows returned from the database. The
+fields in a row can be accessed either by their indices or their column names.
+Unlike statement parameters, result columns are zero-indexed.
 ```rust
 let stmt = conn.prepare("SELECT bar, baz FROM foo");
 for row in stmt.query([]) {
