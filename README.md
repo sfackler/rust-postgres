@@ -104,9 +104,9 @@ let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
 let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
-`query` returns a result iterator. Fields of each row in the result can be
-accessed either by their indicies or their column names. Unlike statement
-parameters, result columns are zero-indexed.
+`query` returns an iterator over the rows returned from the database. Fields of
+each row in the result can be accessed either by their indicies or their column
+names. Unlike statement parameters, result columns are zero-indexed.
 ```rust
 let stmt = conn.prepare("SELECT bar, baz FROM foo");
 for row in stmt.query([]) {
@@ -261,6 +261,6 @@ traits.
 
 Development
 ===========
-Rust-Postgres is still in the early stages of development, so don't be
-surprised if APIs change and things break. If something's not working properly,
-file an issue or submit a pull request!
+Like Rust itself, Rust-Postgres is still in the early stages of development, so
+don't be surprised if APIs change and things break. If something's not working
+properly, file an issue or submit a pull request!
