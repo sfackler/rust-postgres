@@ -148,23 +148,6 @@ The transaction will be active until the `PostgresTransaction` object falls out
 of scope. A transaction will commit by default. Nested transactions are
 supported via savepoints.
 
-Lazy Queries
-------------
-Some queries may return a large amount of data. Statements prepared within a
-transaction have an additional method, `lazy_query`. The rows returned from a
-call to `lazy_query` are pulled from the database in batches as needed:
-```rust
-{
-    let trans = conn.transaction();
-    let stmt = trans.prepare(query)
-
-    // No more than 100 rows will be stored in memory at any time
-    for row in stmt.lazy_query(100, params) {
-        // do things
-    }
-}
-```
-
 Error Handling
 --------------
 The methods described above will fail if there is an error. For each of these
