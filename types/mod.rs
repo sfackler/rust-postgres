@@ -439,13 +439,6 @@ to_option_impl!(PgFloat4, f32)
 to_conversions_impl!(PgFloat8, f64, write_be_f64)
 to_option_impl!(PgFloat8, f64)
 
-impl ToSql for ~str {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgVarchar | PgText | PgCharN, ty)
-        (Text, Some(self.as_bytes().to_owned()))
-    }
-}
-
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgVarchar | PgText | PgCharN, ty)
@@ -455,13 +448,6 @@ impl<'self> ToSql for &'self str {
 
 to_option_impl!(PgVarchar | PgText | PgCharN, ~str)
 to_option_impl!(self, PgVarchar | PgText | PgCharN, &'self str)
-
-impl ToSql for ~[u8] {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgByteA, ty)
-        (Binary, Some(self.to_owned()))
-    }
-}
 
 impl<'self> ToSql for &'self [u8] {
     fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
