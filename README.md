@@ -203,23 +203,23 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>i16</td>
-            <td>SMALLINT</td>
+            <td>SMALLINT, SMALLSERIAL</td>
         </tr>
         <tr>
             <td>i32</td>
-            <td>INT</td>
+            <td>INT, SERIAL</td>
         </tr>
         <tr>
             <td>i64</td>
-            <td>BIGINT</td>
+            <td>BIGINT, BIGSERIAL</td>
         </tr>
         <tr>
             <td>f32</td>
-            <td>FLOAT4</td>
+            <td>REAL</td>
         </tr>
         <tr>
             <td>f64</td>
-            <td>FLOAT8</td>
+            <td>DOUBLE PRECISION</td>
         </tr>
         <tr>
             <td>str</td>
