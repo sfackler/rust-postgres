@@ -6,6 +6,7 @@ use extra::comm::DuplexStream;
 use extra::future::Future;
 use extra::time;
 use extra::time::Timespec;
+#[cfg(not(travis))]
 use extra::json;
 use extra::uuid::Uuid;
 use std::f32;
@@ -310,7 +311,7 @@ fn test_bytea_params() {
 }
 
 #[test]
-#[ignore]
+#[cfg(not(travis))]
 fn test_json_params() {
     test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
@@ -380,13 +381,13 @@ macro_rules! test_range(
 )
 
 #[test]
-#[ignore]
+#[cfg(not(travis))]
 fn test_int4range_params() {
     test_range!("INT4RANGE", i32, 100i32, "100", 200i32, "200")
 }
 
 #[test]
-#[ignore]
+#[cfg(not(travis))]
 fn test_int8range_params() {
     test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
 }
@@ -401,13 +402,13 @@ fn test_timespec_range_params(sql_type: &str) {
 }
 
 #[test]
-#[ignore]
+#[cfg(not(travis))]
 fn test_tsrange_params() {
     test_timespec_range_params("TSRANGE");
 }
 
 #[test]
-#[ignore]
+#[cfg(not(travis))]
 fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
 }
@@ -593,6 +594,31 @@ fn test_plaintext_pass_no_pass() {
 #[test]
 fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost/postgres");
+    match ret {
+        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
+    }
+}
+
+ #[test]
+fn test_md5_pass() {
+    PostgresConnection::connect("postgres://md5_user:password@localhost/postgres");
+}
+
+#[test]
+fn test_md5_pass_no_pass() {
+    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost/postgres");
+    match ret {
+        Err(MissingPassword) => (),
+        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        _ => fail!("Expected error")
+    }
+}
+
+#[test]
+fn test_md5_pass_wrong_pass() {
+    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres");
     match ret {
         Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),

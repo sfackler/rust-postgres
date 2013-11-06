@@ -69,6 +69,7 @@ fn main() {
 
 extern mod extra;
 
+use std;
 use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
@@ -80,7 +81,6 @@ use std::rt::io::net;
 use std::rt::io::net::ip::{Port, SocketAddr};
 use std::rt::io::net::tcp::TcpStream;
 use std::task;
-use std::util;
 
 use self::error::hack::PostgresSqlState;
 use self::message::{BackendMessage,
@@ -120,11 +120,14 @@ use self::message::{FrontendMessage,
                     Terminate};
 use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
 use self::types::{PostgresType, ToSql, FromSql};
+use self::util::digest::Digest;
+use self::util::md5::Md5;
 
 pub mod error;
 pub mod pool;
 mod message;
 pub mod types;
+mod util;
 
 static DEFAULT_PORT: Port = 5432;
 
@@ -502,8 +505,25 @@ impl InnerPostgresConnection {
                 };
                 self.write_messages([&PasswordMessage { password: pass }]);
             }
-            AuthenticationMD5Password { _ }
-            | AuthenticationKerberosV5
+            AuthenticationMD5Password { salt } => {
+                let UserInfo { user, pass } = user;
+                let pass = match pass {
+                    Some(pass) => pass,
+                    None => return Some(MissingPassword)
+                };
+                let input = pass + user;
+                let mut md5 = Md5::new();
+                md5.input_str(input);
+                let output = md5.result_str();
+                md5.reset();
+                md5.input_str(output);
+                md5.input(salt);
+                let output = "md5" + md5.result_str();
+                self.write_messages([&PasswordMessage {
+                    password: output.as_slice()
+                }]);
+            }
+            AuthenticationKerberosV5
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Some(UnsupportedAuthentication),
@@ -522,7 +542,7 @@ impl InnerPostgresConnection {
 
     fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        util::replace(&mut self.notice_handler, handler)
+        std::util::replace(&mut self.notice_handler, handler)
     }
 
     fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
