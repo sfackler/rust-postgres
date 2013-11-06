@@ -6,4 +6,4 @@ install:
 before_script:
   - ./travis/setup.sh
 script:
-  - rustpkg test
+  - rustpkg --cfg travis test
