@@ -7,3 +7,4 @@ before_script:
   - ./travis/setup.sh
 script:
   - rustpkg --cfg travis test
+  - rustpkg build

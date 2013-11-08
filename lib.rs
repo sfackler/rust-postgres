@@ -69,7 +69,6 @@ fn main() {
 
 extern mod extra;
 
-use std;
 use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
@@ -542,7 +541,7 @@ impl InnerPostgresConnection {
 
     fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        std::util::replace(&mut self.notice_handler, handler)
+        ::std::util::replace(&mut self.notice_handler, handler)
     }
 
     fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
