@@ -460,15 +460,6 @@ fn test_too_many_params() {
 }
 
 #[test]
-fn test_find_col_named() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost");
-    let stmt = conn.prepare("SELECT 1 as my_id, 'hi' as val");
-    assert_eq!(Some(0), stmt.find_col_named("my_id"));
-    assert_eq!(Some(1), stmt.find_col_named("val"));
-    assert_eq!(None, stmt.find_col_named("asdf"));
-}
-
-#[test]
 fn test_get_named() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost");
     let stmt = conn.prepare("SELECT 10::INT as val");

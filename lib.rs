@@ -926,14 +926,6 @@ pub trait PostgresStatement {
             Err(err) => fail!("Error executing query:\n{}", err.to_str())
         }
     }
-
-    /// Returns the index of the first result column with the specified name,
-    /// or `None` if not found.
-    fn find_col_named(&self, col: &str) -> Option<uint> {
-        do self.result_descriptions().iter().position |desc| {
-            desc.name.as_slice() == col
-        }
-    }
 }
 
 /// A statement prepared outside of a transaction.
@@ -1296,9 +1288,11 @@ impl RowIndex for int {
 impl<'self> RowIndex for &'self str {
     #[inline]
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
-        match stmt.find_col_named(*self) {
-            Some(idx) => idx,
-            None => fail!("No column with name {}", *self)
+        for (i, desc) in stmt.result_descriptions().iter().enumerate() {
+            if desc.name.as_slice() == *self {
+                return i;
+            }
         }
+        fail!("There is no colnum with name {}", *self);
     }
 }
