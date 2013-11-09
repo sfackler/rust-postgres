@@ -1293,6 +1293,6 @@ impl<'self> RowIndex for &'self str {
                 return i;
             }
         }
-        fail!("There is no colnum with name {}", *self);
+        fail!("There is no column with name {}", *self);
     }
 }
