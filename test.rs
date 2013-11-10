@@ -1,6 +1,7 @@
 #[feature(struct_variant, macro_rules, globs)];
 
 extern mod extra;
+extern mod ssl = "github.com/sfackler/rust-ssl";
 
 use extra::comm::DuplexStream;
 use extra::future::Future;

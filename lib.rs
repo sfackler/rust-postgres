@@ -68,10 +68,12 @@ fn main() {
 #[feature(macro_rules, struct_variant, globs)];
 
 extern mod extra;
+extern mod ssl = "github.com/sfackler/rust-ssl";
 
 use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
+use ssl::SslStream;
 use std::cell::Cell;
 use std::hashmap::HashMap;
 use std::rt::io::{Writer, io_error, Decorator};
@@ -379,8 +381,38 @@ fn open_socket(host: &str, port: Port)
     Err(SocketError)
 }
 
+enum InternalStream {
+    Normal(TcpStream),
+    Ssl(SslStream<TcpStream>)
+}
+
+impl Reader for InternalStream {
+    fn read(&mut self, buf: &mut [u8]) -> Option<uint> {
+        match *self {
+            Normal(ref mut s) => s.read(buf),
+            Ssl(ref mut s) => s.read(buf)
+        }
+    }
+
+    fn eof(&mut self) -> bool {
+        match *self {
+            Normal(ref mut s) => s.eof(),
+            Ssl(ref mut s) => s.eof()
+        }
+    }
+}
+
+impl Writer for InternalStream {
+    fn write(&mut self, buf: &[u8]) {
+        match *self {
+            Normal(ref mut s) => s.write(buf),
+            Ssl(ref mut s) => s.write(buf)
+        }
+    }
+}
+
 struct InnerPostgresConnection {
-    stream: BufferedStream<TcpStream>,
+    stream: BufferedStream<InternalStream>,
     next_stmt_id: int,
     notice_handler: ~PostgresNoticeHandler,
     notifications: RingBuf<PostgresNotification>,
@@ -426,7 +458,7 @@ impl InnerPostgresConnection {
         };
 
         let mut conn = InnerPostgresConnection {
-            stream: BufferedStream::new(stream),
+            stream: BufferedStream::new(Normal(stream)),
             next_stmt_id: 0,
             notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
             notifications: RingBuf::new(),
@@ -1286,7 +1318,6 @@ impl RowIndex for int {
 }
 
 impl<'self> RowIndex for &'self str {
-    #[inline]
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
         for (i, desc) in stmt.result_descriptions().iter().enumerate() {
             if desc.name.as_slice() == *self {
