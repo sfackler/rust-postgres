@@ -9,6 +9,7 @@ use extra::time;
 use extra::time::Timespec;
 use extra::json;
 use extra::uuid::Uuid;
+use ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
 use std::rt::io::timer;
@@ -23,6 +24,7 @@ use lib::{PostgresNoticeHandler,
           PostgresDbError,
           PostgresStatement,
           ResultDescription,
+          RequireSsl,
           NoSsl};
 use lib::error::hack::{SyntaxError,
                        InvalidPassword,
@@ -566,6 +568,14 @@ fn test_cancel_query() {
         Err(PostgresDbError { code: QueryCanceled, _ }) => {}
         res => fail!("Unexpected result {:?}", res)
     }
+}
+
+#[test]
+fn test_ssl_conn() {
+    let ctx = SslContext::new(Sslv3);
+    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+                                           RequireSsl(&ctx));
+    conn.update("SELECT 1::VARCHAR", []);
 }
 
 #[test]
