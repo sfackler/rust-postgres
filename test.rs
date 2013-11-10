@@ -25,6 +25,7 @@ use lib::{PostgresNoticeHandler,
           PostgresStatement,
           ResultDescription,
           RequireSsl,
+          PreferSsl,
           NoSsl};
 use lib::error::hack::{SyntaxError,
                        InvalidPassword,
@@ -571,10 +572,18 @@ fn test_cancel_query() {
 }
 
 #[test]
-fn test_ssl_conn() {
+fn test_require_ssl_conn() {
     let ctx = SslContext::new(Sslv3);
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            RequireSsl(&ctx));
+    conn.update("SELECT 1::VARCHAR", []);
+}
+
+#[test]
+fn test_prefer_ssl_conn() {
+    let ctx = SslContext::new(Sslv3);
+    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+                                           PreferSsl(&ctx));
     conn.update("SELECT 1::VARCHAR", []);
 }
 

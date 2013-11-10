@@ -406,8 +406,12 @@ fn initialize_stream(host: &str, port: Port, ssl: SslMode)
 
     let resp = socket.read_u8();
 
-    if resp == 'N' as u8 && ssl_required {
-        return Err(NoSslSupport);
+    if resp == 'N' as u8 {
+        if ssl_required {
+            return Err(NoSslSupport);
+        } else {
+            return Ok(Normal(socket));
+        }
     }
 
     match SslStream::try_new(ctx, socket) {
