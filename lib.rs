@@ -73,7 +73,8 @@ extern mod ssl = "github.com/sfackler/rust-ssl";
 use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
-use ssl::SslStream;
+use ssl::{SslStream, SslContext};
+use ssl::error::SslError;
 use std::cell::Cell;
 use std::hashmap::HashMap;
 use std::rt::io::{Writer, io_error, Decorator};
@@ -117,6 +118,7 @@ use self::message::{FrontendMessage,
                     PasswordMessage,
                     Query,
                     StartupMessage,
+                    SslRequest,
                     Sync,
                     Terminate};
 use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
@@ -196,7 +198,11 @@ pub enum PostgresConnectError {
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
     /// by the driver
-    UnsupportedAuthentication
+    UnsupportedAuthentication,
+    /// The Postgres server does not support SSL encryption
+    NoSslSupport,
+    /// There was an error initializing the SSL session
+    SslError(SslError)
 }
 
 /// Represents the position of an error in a query
@@ -333,7 +339,7 @@ pub struct PostgresCancelData {
 /// A `PostgresCancelData` object can be created via
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
-pub fn cancel_query(url: &str, data: PostgresCancelData)
+pub fn cancel_query(url: &str, ssl: SslMode, data: PostgresCancelData)
         -> Option<PostgresConnectError> {
     let Url { host, port, _ }: Url = match FromStr::from_str(url) {
         Some(url) => url,
@@ -344,7 +350,7 @@ pub fn cancel_query(url: &str, data: PostgresCancelData)
         None => DEFAULT_PORT
     };
 
-    let mut socket = match open_socket(host, port) {
+    let mut socket = match initialize_stream(host, port, ssl) {
         Ok(socket) => socket,
         Err(err) => return Some(err)
     };
@@ -354,6 +360,7 @@ pub fn cancel_query(url: &str, data: PostgresCancelData)
         process_id: data.process_id,
         secret_key: data.secret_key
     });
+    socket.flush();
 
     None
 }
@@ -379,6 +386,34 @@ fn open_socket(host: &str, port: Port)
     }
 
     Err(SocketError)
+}
+
+fn initialize_stream(host: &str, port: Port, ssl: SslMode)
+        -> Result<InternalStream, PostgresConnectError> {
+    let mut socket = match open_socket(host, port) {
+        Ok(socket) => socket,
+        Err(err) => return Err(err)
+    };
+
+    let (ssl_required, ctx) = match ssl {
+        NoSsl => return Ok(Normal(socket)),
+        PreferSsl(ctx) => (false, ctx),
+        RequireSsl(ctx) => (true, ctx)
+    };
+
+    socket.write_message(&SslRequest { code: message::SSL_CODE });
+    socket.flush();
+
+    let resp = socket.read_u8();
+
+    if resp == 'N' as u8 && ssl_required {
+        return Err(NoSslSupport);
+    }
+
+    match SslStream::try_new(ctx, socket) {
+        Ok(stream) => Ok(Ssl(stream)),
+        Err(err) => Err(SslError(err))
+    }
 }
 
 enum InternalStream {
@@ -422,14 +457,14 @@ struct InnerPostgresConnection {
 impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
-            self.write_messages([&Terminate]);
+            self.write_messages([Terminate]);
         }
     }
 }
 
 impl InnerPostgresConnection {
-    fn try_connect(url: &str) -> Result<InnerPostgresConnection,
-                                        PostgresConnectError> {
+    fn try_connect(url: &str, ssl: SslMode)
+            -> Result<InnerPostgresConnection, PostgresConnectError> {
         let Url {
             host,
             port,
@@ -452,13 +487,13 @@ impl InnerPostgresConnection {
             None => DEFAULT_PORT
         };
 
-        let stream = match open_socket(host, port) {
+        let stream = match initialize_stream(host, port, ssl) {
             Ok(stream) => stream,
             Err(err) => return Err(err)
         };
 
         let mut conn = InnerPostgresConnection {
-            stream: BufferedStream::new(Normal(stream)),
+            stream: BufferedStream::new(stream),
             next_stmt_id: 0,
             notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
             notifications: RingBuf::new(),
@@ -475,7 +510,7 @@ impl InnerPostgresConnection {
             // path contains the leading /
             args.push((~"database", path.slice_from(1).to_owned()));
         }
-        conn.write_messages([&StartupMessage {
+        conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
         }]);
@@ -501,8 +536,8 @@ impl InnerPostgresConnection {
         Ok(conn)
     }
 
-    fn write_messages(&mut self, messages: &[&FrontendMessage]) {
-        for &message in messages.iter() {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) {
+        for message in messages.iter() {
             self.stream.write_message(message);
         }
         self.stream.flush();
@@ -534,7 +569,7 @@ impl InnerPostgresConnection {
                     Some(pass) => pass,
                     None => return Some(MissingPassword)
                 };
-                self.write_messages([&PasswordMessage { password: pass }]);
+                self.write_messages([PasswordMessage { password: pass }]);
             }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
@@ -550,7 +585,7 @@ impl InnerPostgresConnection {
                 md5.input_str(output);
                 md5.input(salt);
                 let output = "md5" + md5.result_str();
-                self.write_messages([&PasswordMessage {
+                self.write_messages([PasswordMessage {
                     password: output.as_slice()
                 }]);
             }
@@ -583,16 +618,16 @@ impl InnerPostgresConnection {
 
         let types = [];
         self.write_messages([
-            &Parse {
+            Parse {
                 name: stmt_name,
                 query: query,
                 param_types: types
             },
-            &Describe {
+            Describe {
                 variant: 'S' as u8,
                 name: stmt_name
             },
-            &Sync]);
+            Sync]);
 
         match self.read_message() {
             ParseComplete => {}
@@ -659,9 +694,9 @@ impl PostgresConnection {
     /// The password may be omitted if not required. The default Postgres port
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
-    pub fn try_connect(url: &str) -> Result<PostgresConnection,
-                                            PostgresConnectError> {
-        do InnerPostgresConnection::try_connect(url).map |conn| {
+    pub fn try_connect(url: &str, ssl: SslMode)
+            -> Result<PostgresConnection, PostgresConnectError> {
+        do InnerPostgresConnection::try_connect(url, ssl).map |conn| {
             PostgresConnection {
                 conn: Cell::new(conn)
             }
@@ -673,8 +708,8 @@ impl PostgresConnection {
     /// # Failure
     ///
     /// Fails if there was an error connecting to the database.
-    pub fn connect(url: &str) -> PostgresConnection {
-        match PostgresConnection::try_connect(url) {
+    pub fn connect(url: &str, ssl: SslMode) -> PostgresConnection {
+        match PostgresConnection::try_connect(url, ssl) {
             Ok(conn) => conn,
             Err(err) => fail!("Failed to connect: {}", err.to_str())
         }
@@ -780,7 +815,7 @@ impl PostgresConnection {
 
     fn quick_query(&self, query: &str) {
         do self.conn.with_mut_ref |conn| {
-            conn.write_messages([&Query { query: query }]);
+            conn.write_messages([Query { query: query }]);
 
             loop {
                 match conn.read_message() {
@@ -806,11 +841,21 @@ impl PostgresConnection {
         }
     }
 
-    fn write_messages(&self, messages: &[&FrontendMessage]) {
+    fn write_messages(&self, messages: &[FrontendMessage]) {
         do self.conn.with_mut_ref |conn| {
             conn.write_messages(messages)
         }
     }
+}
+
+/// Specifies the SSL support requested for a new connection
+pub enum SslMode<'a> {
+    /// The connection will not use SSL
+    NoSsl,
+    /// The connection will use SSL if the backend supports it
+    PreferSsl(&'a SslContext),
+    /// The connection must use SSL
+    RequireSsl(&'a SslContext)
 }
 
 /// Represents a transaction on a database connection
@@ -974,11 +1019,11 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.conn.write_messages([
-                &Close {
+                Close {
                     variant: 'S' as u8,
                     name: self.name.as_slice()
                 },
-                &Sync]);
+                Sync]);
             loop {
                 match self.conn.read_message() {
                     ReadyForQuery {_} => break,
@@ -1008,18 +1053,18 @@ impl<'self> NormalPostgresStatement<'self> {
         }).collect();
 
         self.conn.write_messages([
-            &Bind {
+            Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
                 formats: formats,
                 values: values,
                 result_formats: result_formats
             },
-            &Execute {
+            Execute {
                 portal: portal_name,
                 max_rows: row_limit as i32
             },
-            &Sync]);
+            Sync]);
 
         match self.conn.read_message() {
             BindComplete => None,
@@ -1201,11 +1246,11 @@ impl<'self> Drop for PostgresResult<'self> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.stmt.conn.write_messages([
-                &Close {
+                Close {
                     variant: 'P' as u8,
                     name: self.name.as_slice()
                 },
-                &Sync]);
+                Sync]);
             loop {
                 match self.stmt.conn.read_message() {
                     ReadyForQuery {_} => break,
@@ -1238,11 +1283,11 @@ impl<'self> PostgresResult<'self> {
 
     fn execute(&mut self) {
         self.stmt.conn.write_messages([
-            &Execute {
+            Execute {
                 portal: self.name,
                 max_rows: self.row_limit as i32
             },
-            &Sync]);
+            Sync]);
         self.read_rows();
     }
 }

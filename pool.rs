@@ -10,7 +10,8 @@ use super::{PostgresNotificationIterator,
             NormalPostgresStatement,
             PostgresDbError,
             PostgresConnectError,
-            PostgresTransaction};
+            PostgresTransaction,
+            NoSsl};
 use super::types::ToSql;
 
 struct InnerConnectionPool {
@@ -20,7 +21,7 @@ struct InnerConnectionPool {
 
 impl InnerConnectionPool {
     fn new_connection(&mut self) -> Option<PostgresConnectError> {
-        match PostgresConnection::try_connect(self.url) {
+        match PostgresConnection::try_connect(self.url, NoSsl) {
             Ok(conn) => {
                 self.pool.push(conn);
                 None

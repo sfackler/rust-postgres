@@ -10,6 +10,7 @@ use super::types::Oid;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 pub static CANCEL_CODE: i32 = 80877102;
+pub static SSL_CODE: i32 = 80877103;
 
 #[deriving(ToStr)]
 pub enum BackendMessage {
@@ -115,6 +116,9 @@ pub enum FrontendMessage<'self> {
         version: i32,
         parameters: &'self [(~str, ~str)]
     },
+    SslRequest {
+        code: i32
+    },
     Sync,
     Terminate
 }
@@ -214,6 +218,7 @@ impl<W: Writer> WriteMessage for W {
                 }
                 buf.write_u8(0);
             }
+            SslRequest { code } => buf.write_be_i32(code),
             Sync => {
                 ident = Some('S');
             }
