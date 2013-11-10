@@ -849,13 +849,13 @@ impl PostgresConnection {
 }
 
 /// Specifies the SSL support requested for a new connection
-pub enum SslMode<'a> {
+pub enum SslMode<'self> {
     /// The connection will not use SSL
     NoSsl,
     /// The connection will use SSL if the backend supports it
-    PreferSsl(&'a SslContext),
+    PreferSsl(&'self SslContext),
     /// The connection must use SSL
-    RequireSsl(&'a SslContext)
+    RequireSsl(&'self SslContext)
 }
 
 /// Represents a transaction on a database connection
