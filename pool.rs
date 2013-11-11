@@ -8,10 +8,9 @@ use super::{PostgresNotificationIterator,
             PostgresCancelData,
             PostgresConnection,
             NormalPostgresStatement,
-            PostgresDbError,
-            PostgresConnectError,
             PostgresTransaction,
             NoSsl};
+use super::error::{PostgresConnectError, PostgresDbError};
 use super::types::ToSql;
 
 struct InnerConnectionPool {

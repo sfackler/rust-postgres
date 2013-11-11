@@ -16,17 +16,17 @@ use std::rt::io::timer;
 
 use lib::{PostgresNoticeHandler,
           PostgresNotification,
-          DbError,
-          DnsError,
-          MissingPassword,
-          Position,
           PostgresConnection,
-          PostgresDbError,
           PostgresStatement,
           ResultDescription,
           RequireSsl,
           PreferSsl,
           NoSsl};
+use lib::error::{DbError,
+                 DnsError,
+                 MissingPassword,
+                 Position,
+                 PostgresDbError};
 use lib::error::hack::{SyntaxError,
                        InvalidPassword,
                        QueryCanceled,
