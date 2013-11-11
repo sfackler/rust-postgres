@@ -80,7 +80,8 @@ Connecting
 ----------
 Connect to a Postgres server using the standard URI format:
 ```rust
-let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2");
+let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
+                                       NoSsl);
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
