@@ -30,7 +30,7 @@ struct Person {
 
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           NoSsl);
+                                           &NoSsl);
 
     conn.update("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
@@ -81,7 +81,7 @@ Connecting
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                       NoSsl);
+                                       &NoSsl);
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -172,7 +172,8 @@ A very basic fixed-size connection pool is provided in the `pool` module. A
 single pool can be shared across tasks and `get_connection` will block until a
 connection is available.
 ```rust
-let pool = PostgresConnectionPool::new("postgres://postgres@localhost", 5);
+let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
+                                       &NoSsl, 5);
 
 for _ in range(0, 10) {
     do task::spawn_with(pool.clone()) |pool| {

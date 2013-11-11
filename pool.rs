@@ -9,18 +9,19 @@ use super::{PostgresNotificationIterator,
             PostgresConnection,
             NormalPostgresStatement,
             PostgresTransaction,
-            NoSsl};
+            SslMode};
 use super::error::{PostgresConnectError, PostgresDbError};
 use super::types::ToSql;
 
 struct InnerConnectionPool {
     url: ~str,
+    ssl: SslMode,
     pool: ~[PostgresConnection],
 }
 
 impl InnerConnectionPool {
     fn new_connection(&mut self) -> Option<PostgresConnectError> {
-        match PostgresConnection::try_connect(self.url, NoSsl) {
+        match PostgresConnection::try_connect(self.url, &self.ssl) {
             Ok(conn) => {
                 self.pool.push(conn);
                 None
@@ -43,10 +44,11 @@ impl PostgresConnectionPool {
     ///
     /// Returns an error if the specified number of connections cannot be
     /// created.
-    pub fn try_new(url: &str, pool_size: uint)
+    pub fn try_new(url: &str, ssl: SslMode, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
             url: url.to_owned(),
+            ssl: ssl,
             pool: ~[],
         };
 
@@ -65,8 +67,9 @@ impl PostgresConnectionPool {
     /// A convenience function wrapping `try_new`.
     ///
     /// Fails if the pool cannot be created.
-    pub fn new(url: &str, pool_size: uint) -> PostgresConnectionPool {
-        match PostgresConnectionPool::try_new(url, pool_size) {
+    pub fn new(url: &str, ssl: SslMode, pool_size: uint)
+            -> PostgresConnectionPool {
+        match PostgresConnectionPool::try_new(url, ssl, pool_size) {
             Ok(pool) => pool,
             Err(err) => fail!("Unable to initialize pool: {}", err.to_str())
         }

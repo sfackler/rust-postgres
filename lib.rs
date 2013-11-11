@@ -22,7 +22,7 @@ struct Person {
 
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           NoSsl);
+                                           &NoSsl);
 
     conn.update("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
@@ -207,7 +207,7 @@ pub struct PostgresCancelData {
 /// A `PostgresCancelData` object can be created via
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
-pub fn cancel_query(url: &str, ssl: SslMode, data: PostgresCancelData)
+pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         -> Option<PostgresConnectError> {
     let Url { host, port, _ }: Url = match FromStr::from_str(url) {
         Some(url) => url,
@@ -256,7 +256,7 @@ fn open_socket(host: &str, port: Port)
     Err(SocketError)
 }
 
-fn initialize_stream(host: &str, port: Port, ssl: SslMode)
+fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         -> Result<InternalStream, PostgresConnectError> {
     let mut socket = match open_socket(host, port) {
         Ok(socket) => socket,
@@ -264,9 +264,9 @@ fn initialize_stream(host: &str, port: Port, ssl: SslMode)
     };
 
     let (ssl_required, ctx) = match ssl {
-        NoSsl => return Ok(Normal(socket)),
-        PreferSsl(ctx) => (false, ctx),
-        RequireSsl(ctx) => (true, ctx)
+        &NoSsl => return Ok(Normal(socket)),
+        &PreferSsl(ref ctx) => (false, ctx),
+        &RequireSsl(ref ctx) => (true, ctx)
     };
 
     socket.write_message(&SslRequest { code: message::SSL_CODE });
@@ -335,7 +335,7 @@ impl Drop for InnerPostgresConnection {
 }
 
 impl InnerPostgresConnection {
-    fn try_connect(url: &str, ssl: SslMode)
+    fn try_connect(url: &str, ssl: &SslMode)
             -> Result<InnerPostgresConnection, PostgresConnectError> {
         let Url {
             host,
@@ -566,7 +566,7 @@ impl PostgresConnection {
     /// The password may be omitted if not required. The default Postgres port
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
-    pub fn try_connect(url: &str, ssl: SslMode)
+    pub fn try_connect(url: &str, ssl: &SslMode)
             -> Result<PostgresConnection, PostgresConnectError> {
         do InnerPostgresConnection::try_connect(url, ssl).map |conn| {
             PostgresConnection {
@@ -580,7 +580,7 @@ impl PostgresConnection {
     /// # Failure
     ///
     /// Fails if there was an error connecting to the database.
-    pub fn connect(url: &str, ssl: SslMode) -> PostgresConnection {
+    pub fn connect(url: &str, ssl: &SslMode) -> PostgresConnection {
         match PostgresConnection::try_connect(url, ssl) {
             Ok(conn) => conn,
             Err(err) => fail!("Failed to connect: {}", err.to_str())
@@ -721,13 +721,13 @@ impl PostgresConnection {
 }
 
 /// Specifies the SSL support requested for a new connection
-pub enum SslMode<'self> {
+pub enum SslMode {
     /// The connection will not use SSL
     NoSsl,
     /// The connection will use SSL if the backend supports it
-    PreferSsl(&'self SslContext),
+    PreferSsl(SslContext),
     /// The connection must use SSL
-    RequireSsl(&'self SslContext)
+    RequireSsl(SslContext)
 }
 
 /// Represents a transaction on a database connection
