@@ -18,7 +18,7 @@ extern mod extra;
 use extra::time;
 use extra::time::Timespec;
 
-use postgres::{PostgresConnection, PostgresStatement};
+use postgres::{PostgresConnection, PostgresStatement, NoSsl};
 use postgres::types::ToSql;
 
 struct Person {
@@ -29,7 +29,8 @@ struct Person {
 }
 
 fn main() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+                                           NoSsl);
 
     conn.update("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,

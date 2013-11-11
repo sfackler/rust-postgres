@@ -10,7 +10,7 @@ extern mod extra;
 use extra::time;
 use extra::time::Timespec;
 
-use postgres::{PostgresConnection, PostgresStatement};
+use postgres::{PostgresConnection, PostgresStatement, NoSsl};
 use postgres::types::ToSql;
 
 struct Person {
@@ -21,7 +21,8 @@ struct Person {
 }
 
 fn main() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost");
+    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+                                           NoSsl);
 
     conn.update("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
@@ -82,8 +83,8 @@ use std::rt::io::net::ip::{Port, SocketAddr};
 use std::rt::io::net::tcp::TcpStream;
 use std::task;
 
-use self::error::{PostgresConnectError,
-                  PostgresDbError,
+use self::error::{PostgresDbError,
+                  PostgresConnectError,
                   InvalidUrl,
                   DnsError,
                   SocketError,
