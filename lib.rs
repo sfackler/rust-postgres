@@ -76,7 +76,7 @@ use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
 use ssl::{SslStream, SslContext};
 use std::cell::Cell;
-use std::rt::io::{Writer, io_error, Decorator};
+use std::rt::io::io_error;
 use std::rt::io::buffered::BufferedStream;
 use std::rt::io::net;
 use std::rt::io::net::ip::{Port, SocketAddr};
@@ -272,9 +272,7 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
     socket.write_message(&SslRequest { code: message::SSL_CODE });
     socket.flush();
 
-    let resp = socket.read_u8();
-
-    if resp == 'N' as u8 {
+    if socket.read_u8() == 'N' as u8 {
         if ssl_required {
             return Err(NoSslSupport);
         } else {
@@ -398,7 +396,7 @@ impl InnerPostgresConnection {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
                 }
-                ReadyForQuery {_} => break,
+                ReadyForQuery { _ } => break,
                 ErrorResponse { fields } =>
                     return Err(DbError(PostgresDbError::new(fields))),
                 _ => unreachable!()
@@ -543,7 +541,7 @@ impl InnerPostgresConnection {
 
     fn wait_for_ready(&mut self) {
         match self.read_message() {
-            ReadyForQuery {_} => {}
+            ReadyForQuery { _ } => {}
             _ => unreachable!()
         }
     }
@@ -691,7 +689,7 @@ impl PostgresConnection {
 
             loop {
                 match conn.read_message() {
-                    ReadyForQuery {_} => break,
+                    ReadyForQuery { _ } => break,
                     ErrorResponse { fields } =>
                         fail!("Error: {}",
                                PostgresDbError::new(fields).to_str()),
@@ -898,7 +896,7 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
                 Sync]);
             loop {
                 match self.conn.read_message() {
-                    ReadyForQuery {_} => break,
+                    ReadyForQuery { _ } => break,
                     _ => {}
                 }
             }
@@ -1125,7 +1123,7 @@ impl<'self> Drop for PostgresResult<'self> {
                 Sync]);
             loop {
                 match self.stmt.conn.read_message() {
-                    ReadyForQuery {_} => break,
+                    ReadyForQuery { _ } => break,
                     _ => {}
                 }
             }
