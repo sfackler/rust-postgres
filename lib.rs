@@ -76,11 +76,11 @@ use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
 use ssl::{SslStream, SslContext};
 use std::cell::Cell;
-use std::rt::io::io_error;
-use std::rt::io::buffered::BufferedStream;
-use std::rt::io::net;
-use std::rt::io::net::ip::{Port, SocketAddr};
-use std::rt::io::net::tcp::TcpStream;
+use std::io::io_error;
+use std::io::buffered::BufferedStream;
+use std::io::net;
+use std::io::net::ip::{Port, SocketAddr};
+use std::io::net::tcp::TcpStream;
 use std::task;
 
 use self::error::{PostgresDbError,

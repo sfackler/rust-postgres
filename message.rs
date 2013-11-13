@@ -1,8 +1,8 @@
 #[allow(missing_doc)];
 
 use std::str;
-use std::rt::io::{Decorator, Reader, Writer};
-use std::rt::io::mem::{MemWriter, MemReader};
+use std::io::Decorator;
+use std::io::mem::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
 

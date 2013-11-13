@@ -6,8 +6,8 @@ use extra::time::Timespec;
 use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
-use std::rt::io::{Reader, Writer, Decorator};
-use std::rt::io::mem::{MemWriter, BufReader};
+use std::io::Decorator;
+use std::io::mem::{MemWriter, BufReader};
 use std::str;
 
 use self::range::{RangeBound, Inclusive, Exclusive, Range};

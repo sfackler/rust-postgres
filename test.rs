@@ -12,7 +12,7 @@ use extra::uuid::Uuid;
 use ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
-use std::rt::io::timer;
+use std::io::timer;
 
 use lib::{PostgresNoticeHandler,
           PostgresNotification,
