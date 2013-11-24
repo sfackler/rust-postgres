@@ -171,12 +171,12 @@ pub struct PostgresNotification {
 }
 
 /// An iterator over asynchronous notifications
-pub struct PostgresNotificationIterator<'self> {
-    priv conn: &'self PostgresConnection
+pub struct PostgresNotificationIterator<'conn> {
+    priv conn: &'conn PostgresConnection
 }
 
-impl<'self> Iterator<PostgresNotification> for
-        PostgresNotificationIterator<'self> {
+impl<'conn > Iterator<PostgresNotification> for
+        PostgresNotificationIterator<'conn> {
     /// Returns the oldest pending notification or `None` if there are none.
     ///
     /// # Note
@@ -727,14 +727,14 @@ pub enum SslMode {
 }
 
 /// Represents a transaction on a database connection
-pub struct PostgresTransaction<'self> {
-    priv conn: &'self PostgresConnection,
+pub struct PostgresTransaction<'conn> {
+    priv conn: &'conn PostgresConnection,
     priv commit: RefCell<bool>,
     priv nested: bool
 }
 
 #[unsafe_destructor]
-impl<'self> Drop for PostgresTransaction<'self> {
+impl<'conn> Drop for PostgresTransaction<'conn> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             if task::failing() || !self.commit.with(|x| *x) {
@@ -754,7 +754,7 @@ impl<'self> Drop for PostgresTransaction<'self> {
     }
 }
 
-impl<'self> PostgresTransaction<'self> {
+impl<'conn> PostgresTransaction<'conn> {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
@@ -785,7 +785,7 @@ impl<'self> PostgresTransaction<'self> {
     }
 
     /// Like `PostgresConnection::transaction`.
-    pub fn transaction<'a>(&self) -> PostgresTransaction<'self> {
+    pub fn transaction<'a>(&self) -> PostgresTransaction<'conn> {
         self.conn.quick_query("SAVEPOINT sp");
         PostgresTransaction {
             conn: self.conn,
@@ -870,8 +870,8 @@ pub trait PostgresStatement {
 }
 
 /// A statement prepared outside of a transaction.
-pub struct NormalPostgresStatement<'self> {
-    priv conn: &'self PostgresConnection,
+pub struct NormalPostgresStatement<'conn> {
+    priv conn: &'conn PostgresConnection,
     priv name: ~str,
     priv param_types: ~[PostgresType],
     priv result_desc: ~[ResultDescription],
@@ -879,7 +879,7 @@ pub struct NormalPostgresStatement<'self> {
 }
 
 #[unsafe_destructor]
-impl<'self> Drop for NormalPostgresStatement<'self> {
+impl<'conn> Drop for NormalPostgresStatement<'conn> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.conn.write_messages([
@@ -898,7 +898,7 @@ impl<'self> Drop for NormalPostgresStatement<'self> {
     }
 }
 
-impl<'self> NormalPostgresStatement<'self> {
+impl<'conn> NormalPostgresStatement<'conn> {
     fn execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
             -> Option<PostgresDbError> {
         let mut formats = ~[];
@@ -965,7 +965,7 @@ impl<'self> NormalPostgresStatement<'self> {
     }
 }
 
-impl<'self> PostgresStatement for NormalPostgresStatement<'self> {
+impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
     fn param_types<'a>(&'a self) -> &'a [PostgresType] {
         self.param_types.as_slice()
     }
@@ -1041,11 +1041,11 @@ impl ResultDescription {
 /// A statement prepared inside of a transaction.
 ///
 /// Provides additional functionality over a `NormalPostgresStatement`.
-pub struct TransactionalPostgresStatement<'self> {
-    priv stmt: NormalPostgresStatement<'self>
+pub struct TransactionalPostgresStatement<'conn> {
+    priv stmt: NormalPostgresStatement<'conn>
 }
 
-impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
+impl<'conn> PostgresStatement for TransactionalPostgresStatement<'conn> {
     fn param_types<'a>(&'a self) -> &'a [PostgresType] {
         self.stmt.param_types()
     }
@@ -1064,7 +1064,7 @@ impl<'self> PostgresStatement for TransactionalPostgresStatement<'self> {
     }
 }
 
-impl<'self> TransactionalPostgresStatement<'self> {
+impl<'conn> TransactionalPostgresStatement<'conn> {
     /// Attempts to execute the prepared statement, returning a lazily loaded
     /// iterator over the resulting rows.
     ///
@@ -1096,8 +1096,8 @@ impl<'self> TransactionalPostgresStatement<'self> {
 }
 
 /// An iterator over the resulting rows of a query.
-pub struct PostgresResult<'self> {
-    priv stmt: &'self NormalPostgresStatement<'self>,
+pub struct PostgresResult<'stmt> {
+    priv stmt: &'stmt NormalPostgresStatement<'stmt>,
     priv name: ~str,
     priv data: RingBuf<~[Option<~[u8]>]>,
     priv row_limit: uint,
@@ -1105,7 +1105,7 @@ pub struct PostgresResult<'self> {
 }
 
 #[unsafe_destructor]
-impl<'self> Drop for PostgresResult<'self> {
+impl<'stmt> Drop for PostgresResult<'stmt> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
             self.stmt.conn.write_messages([
@@ -1124,7 +1124,7 @@ impl<'self> Drop for PostgresResult<'self> {
     }
 }
 
-impl<'self> PostgresResult<'self> {
+impl<'stmt> PostgresResult<'stmt> {
     fn read_rows(&mut self) {
         loop {
             match self.stmt.conn.read_message() {
@@ -1155,8 +1155,8 @@ impl<'self> PostgresResult<'self> {
     }
 }
 
-impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
-    fn next(&mut self) -> Option<PostgresRow<'self>> {
+impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
+    fn next(&mut self) -> Option<PostgresRow<'stmt>> {
         if self.data.is_empty() && self.more_rows {
             self.execute();
         }
@@ -1179,19 +1179,19 @@ impl<'self> Iterator<PostgresRow<'self>> for PostgresResult<'self> {
 /// let foo: i32 = row[0];
 /// let bar: ~str = row["bar"];
 /// ```
-pub struct PostgresRow<'self> {
-    priv stmt: &'self NormalPostgresStatement<'self>,
+pub struct PostgresRow<'stmt> {
+    priv stmt: &'stmt NormalPostgresStatement<'stmt>,
     priv data: ~[Option<~[u8]>]
 }
 
-impl<'self> Container for PostgresRow<'self> {
+impl<'stmt> Container for PostgresRow<'stmt> {
     #[inline]
     fn len(&self) -> uint {
         self.data.len()
     }
 }
 
-impl<'self, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'self> {
+impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     #[inline]
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
@@ -1225,7 +1225,7 @@ impl RowIndex for int {
     }
 }
 
-impl<'self> RowIndex for &'self str {
+impl<'a> RowIndex for &'a str {
     fn idx(&self, stmt: &NormalPostgresStatement) -> uint {
         for (i, desc) in stmt.result_descriptions().iter().enumerate() {
             if desc.name.as_slice() == *self {

@@ -76,13 +76,13 @@ pub struct RowDescriptionEntry {
     format: i16
 }
 
-pub enum FrontendMessage<'self> {
+pub enum FrontendMessage<'a> {
     Bind {
-        portal: &'self str,
-        statement: &'self str,
-        formats: &'self [i16],
-        values: &'self [Option<~[u8]>],
-        result_formats: &'self [i16]
+        portal: &'a str,
+        statement: &'a str,
+        formats: &'a [i16],
+        values: &'a [Option<~[u8]>],
+        result_formats: &'a [i16]
     },
     CancelRequest {
         code: i32,
@@ -91,30 +91,30 @@ pub enum FrontendMessage<'self> {
     },
     Close {
         variant: u8,
-        name: &'self str
+        name: &'a str
     },
     Describe {
         variant: u8,
-        name: &'self str
+        name: &'a str
     },
     Execute {
-        portal: &'self str,
+        portal: &'a str,
         max_rows: i32
     },
     Parse {
-        name: &'self str,
-        query: &'self str,
-        param_types: &'self [i32]
+        name: &'a str,
+        query: &'a str,
+        param_types: &'a [i32]
     },
     PasswordMessage {
-        password: &'self str
+        password: &'a str
     },
     Query {
-        query: &'self str
+        query: &'a str
     },
     StartupMessage {
         version: i32,
-        parameters: &'self [(~str, ~str)]
+        parameters: &'a [(~str, ~str)]
     },
     SslRequest {
         code: i32
