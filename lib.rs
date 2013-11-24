@@ -75,7 +75,7 @@ use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
 use ssl::{SslStream, SslContext};
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::io::io_error;
 use std::io::buffered::BufferedStream;
 use std::io::net;
@@ -184,7 +184,7 @@ impl<'self> Iterator<PostgresNotification> for
     /// `next` may return `Some` notification after returning `None` if a new
     /// notification was received.
     fn next(&mut self) -> Option<PostgresNotification> {
-        do self.conn.conn.with_mut_ref |conn| {
+        do self.conn.conn.with_mut |conn| {
             conn.notifications.pop_front()
         }
     }
@@ -535,7 +535,7 @@ impl InnerPostgresConnection {
             name: stmt_name,
             param_types: param_types,
             result_desc: result_desc,
-            next_portal_id: Cell::new(0)
+            next_portal_id: RefCell::new(0)
         })
     }
 
@@ -549,7 +549,7 @@ impl InnerPostgresConnection {
 
 /// A connection to a Postgres database.
 pub struct PostgresConnection {
-    priv conn: Cell<InnerPostgresConnection>
+    priv conn: RefCell<InnerPostgresConnection>
 }
 
 impl PostgresConnection {
@@ -568,7 +568,7 @@ impl PostgresConnection {
             -> Result<PostgresConnection, PostgresConnectError> {
         do InnerPostgresConnection::try_connect(url, ssl).map |conn| {
             PostgresConnection {
-                conn: Cell::new(conn)
+                conn: RefCell::new(conn)
             }
         }
     }
@@ -588,10 +588,8 @@ impl PostgresConnection {
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        let mut conn = self.conn.take();
-        let handler = conn.set_notice_handler(handler);
-        self.conn.put_back(conn);
-        handler
+        let mut conn = self.conn.borrow_mut();
+        conn.get().set_notice_handler(handler)
     }
 
     /// Returns an iterator over asynchronous notification messages.
@@ -613,7 +611,7 @@ impl PostgresConnection {
     /// not outlive that connection.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_mut |conn| {
             conn.try_prepare(query, self)
         }
     }
@@ -642,7 +640,7 @@ impl PostgresConnection {
         self.quick_query("BEGIN");
         PostgresTransaction {
             conn: self,
-            commit: Cell::new(true),
+            commit: RefCell::new(true),
             nested: false
         }
     }
@@ -678,13 +676,13 @@ impl PostgresConnection {
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> PostgresCancelData {
-        do self.conn.with_ref |conn| {
+        do self.conn.with |conn| {
             conn.cancel_data
         }
     }
 
     fn quick_query(&self, query: &str) {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_mut |conn| {
             conn.write_messages([Query { query: query }]);
 
             loop {
@@ -700,19 +698,19 @@ impl PostgresConnection {
     }
 
     fn wait_for_ready(&self) {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_mut |conn| {
             conn.wait_for_ready()
         }
     }
 
     fn read_message(&self) -> BackendMessage {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_mut |conn| {
             conn.read_message()
         }
     }
 
     fn write_messages(&self, messages: &[FrontendMessage]) {
-        do self.conn.with_mut_ref |conn| {
+        do self.conn.with_mut |conn| {
             conn.write_messages(messages)
         }
     }
@@ -731,7 +729,7 @@ pub enum SslMode {
 /// Represents a transaction on a database connection
 pub struct PostgresTransaction<'self> {
     priv conn: &'self PostgresConnection,
-    priv commit: Cell<bool>,
+    priv commit: RefCell<bool>,
     priv nested: bool
 }
 
@@ -739,7 +737,7 @@ pub struct PostgresTransaction<'self> {
 impl<'self> Drop for PostgresTransaction<'self> {
     fn drop(&mut self) {
         do io_error::cond.trap(|_| {}).inside {
-            if task::failing() || !self.commit.take() {
+            if task::failing() || !self.commit.with(|x| *x) {
                 if self.nested {
                     self.conn.quick_query("ROLLBACK TO sp");
                 } else {
@@ -791,7 +789,7 @@ impl<'self> PostgresTransaction<'self> {
         self.conn.quick_query("SAVEPOINT sp");
         PostgresTransaction {
             conn: self.conn,
-            commit: Cell::new(true),
+            commit: RefCell::new(true),
             nested: true
         }
     }
@@ -803,21 +801,17 @@ impl<'self> PostgresTransaction<'self> {
 
     /// Determines if the transaction is currently set to commit or roll back.
     pub fn will_commit(&self) -> bool {
-        let commit = self.commit.take();
-        self.commit.put_back(commit);
-        commit
+        self.commit.with(|x| *x)
     }
 
     /// Sets the transaction to commit at its completion.
     pub fn set_commit(&self) {
-        self.commit.take();
-        self.commit.put_back(true);
+        self.commit.with_mut(|x| *x = true);
     }
 
     /// Sets the transaction to roll back at its completion.
     pub fn set_rollback(&self) {
-        self.commit.take();
-        self.commit.put_back(false);
+        self.commit.with_mut(|x| *x = false);
     }
 }
 
@@ -881,7 +875,7 @@ pub struct NormalPostgresStatement<'self> {
     priv name: ~str,
     priv param_types: ~[PostgresType],
     priv result_desc: ~[ResultDescription],
-    priv next_portal_id: Cell<uint>
+    priv next_portal_id: RefCell<uint>
 }
 
 #[unsafe_destructor]
@@ -948,9 +942,8 @@ impl<'self> NormalPostgresStatement<'self> {
 
     fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresDbError> {
-        let id = self.next_portal_id.take();
+        let id = self.next_portal_id.with_mut(|x| { *x += 1; *x - 1 });
         let portal_name = format!("{}_portal_{}", self.name, id);
-        self.next_portal_id.put_back(id + 1);
 
         match self.execute(portal_name, row_limit, params) {
             Some(err) => {
