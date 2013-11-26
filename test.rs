@@ -45,14 +45,16 @@ fn test_pool() {
 
     let (stream1, stream2) = DuplexStream::<(), ()>();
 
-    let mut fut1 = do Future::spawn_with(pool.clone()) |pool| {
-        let _conn = pool.get_connection();
+    let pool1 = pool.clone();
+    let mut fut1 = do Future::spawn {
+        let _conn = pool1.get_connection();
         stream1.send(());
         stream1.recv();
     };
 
-    let mut fut2 = do Future::spawn_with(pool.clone()) |pool| {
-        let _conn = pool.get_connection();
+    let pool2 = pool.clone();
+    let mut fut2 = do Future::spawn {
+        let _conn = pool2.get_connection();
         stream2.send(());
         stream2.recv();
     };
