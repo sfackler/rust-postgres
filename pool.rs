@@ -80,13 +80,13 @@ impl PostgresConnectionPool {
     /// If all connections are in use, blocks until one becomes available.
     pub fn get_connection(&self) -> PooledPostgresConnection {
         let conn = unsafe {
-            do self.pool.unsafe_access_cond |pool, cvar| {
+            self.pool.unsafe_access_cond(|pool, cvar| {
                 while pool.pool.is_empty() {
                     cvar.wait();
                 }
 
                 pool.pool.pop()
-            }
+            })
         };
 
         PooledPostgresConnection {
@@ -109,9 +109,9 @@ pub struct PooledPostgresConnection {
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         unsafe {
-            do self.pool.pool.unsafe_access |pool| {
+            self.pool.pool.unsafe_access(|pool| {
                 pool.pool.push(self.conn.take_unwrap());
-            }
+            })
         }
     }
 }

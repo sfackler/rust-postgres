@@ -26,11 +26,11 @@ use lib::error::{DbError,
                  DnsError,
                  MissingPassword,
                  Position,
-                 PostgresDbError};
-use lib::error::hack::{SyntaxError,
-                       InvalidPassword,
-                       QueryCanceled,
-                       InvalidCatalogName};
+                 PostgresDbError,
+                 SyntaxError,
+                 InvalidPassword,
+                 QueryCanceled,
+                 InvalidCatalogName};
 use lib::types::{ToSql, FromSql, PgInt4, PgVarchar};
 use lib::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use lib::pool::PostgresConnectionPool;

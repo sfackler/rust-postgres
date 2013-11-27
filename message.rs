@@ -326,7 +326,7 @@ fn read_data_row(buf: &mut MemReader) -> BackendMessage {
     let len = buf.read_be_i16() as uint;
     let mut values = vec::with_capacity(len);
 
-    do len.times() {
+    for _ in range(0, len) {
         let val = match buf.read_be_i32() {
             -1 => None,
             len => Some(buf.read_bytes(len as uint))
@@ -354,7 +354,7 @@ fn read_parameter_description(buf: &mut MemReader) -> BackendMessage {
     let len = buf.read_be_i16() as uint;
     let mut types = vec::with_capacity(len);
 
-    do len.times() {
+    for _ in range(0, len) {
         types.push(buf.read_be_i32());
     }
 
@@ -365,7 +365,7 @@ fn read_row_description(buf: &mut MemReader) -> BackendMessage {
     let len = buf.read_be_i16() as uint;
     let mut types = vec::with_capacity(len);
 
-    do len.times() {
+    for _ in range(0, len) {
         types.push(RowDescriptionEntry {
             name: buf.read_string(),
             table_oid: buf.read_be_i32(),

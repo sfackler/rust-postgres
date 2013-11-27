@@ -299,9 +299,9 @@ mod bench {
     pub fn md5_10(bh: & mut BenchHarness) {
         let mut sh = Md5::new();
         let bytes = [1u8, ..10];
-        do bh.iter {
+        bh.iter(|| {
             sh.input(bytes);
-        }
+        });
         bh.bytes = bytes.len() as u64;
     }
 
@@ -309,9 +309,9 @@ mod bench {
     pub fn md5_1k(bh: & mut BenchHarness) {
         let mut sh = Md5::new();
         let bytes = [1u8, ..1024];
-        do bh.iter {
+        bh.iter(|| {
             sh.input(bytes);
-        }
+        });
         bh.bytes = bytes.len() as u64;
     }
 
@@ -319,9 +319,9 @@ mod bench {
     pub fn md5_64k(bh: & mut BenchHarness) {
         let mut sh = Md5::new();
         let bytes = [1u8, ..65536];
-        do bh.iter {
+        bh.iter(|| {
             sh.input(bytes);
-        }
+        });
         bh.bytes = bytes.len() as u64;
     }
 }

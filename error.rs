@@ -3,28 +3,23 @@
 use std::hashmap::HashMap;
 
 use super::ssl::error::SslError;
-use self::hack::PostgresSqlState;
 
 macro_rules! make_errors(
     ($($code:pat => $error:ident),+) => (
-        // TODO: Get rid of this module when mozilla/rust#4375 is fixed
-        /// A module to get around issues with macro expansion
-        pub mod hack {
-            /// SQLSTATE error codes
-            #[deriving(ToStr, Eq)]
-            #[allow(missing_doc)]
-            pub enum PostgresSqlState {
-                $($error,)+
-                UnknownSqlState(~str)
-            }
+        /// SQLSTATE error codes
+        #[deriving(ToStr, Eq)]
+        #[allow(missing_doc)]
+        pub enum PostgresSqlState {
+            $($error,)+
+            UnknownSqlState(~str)
+        }
 
-            impl FromStr for PostgresSqlState {
-                fn from_str(s: &str) -> Option<PostgresSqlState> {
-                    Some(match s {
-                        $($code => $error,)+
-                        state => UnknownSqlState(state.to_owned())
-                    })
-                }
+        impl FromStr for PostgresSqlState {
+            fn from_str(s: &str) -> Option<PostgresSqlState> {
+                Some(match s {
+                    $($code => $error,)+
+                    state => UnknownSqlState(state.to_owned())
+                })
             }
         }
     )

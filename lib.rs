@@ -184,9 +184,7 @@ impl<'conn > Iterator<PostgresNotification> for
     /// `next` may return `Some` notification after returning `None` if a new
     /// notification was received.
     fn next(&mut self) -> Option<PostgresNotification> {
-        do self.conn.conn.with_mut |conn| {
-            conn.notifications.pop_front()
-        }
+        self.conn.conn.with_mut(|conn| { conn.notifications.pop_front() })
     }
 }
 
@@ -235,18 +233,18 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
 
 fn open_socket(host: &str, port: Port)
         -> Result<TcpStream, PostgresConnectError> {
-    let addrs = do io_error::cond.trap(|_| {}).inside {
+    let addrs = io_error::cond.trap(|_| {}).inside(|| {
         net::get_host_addresses(host)
-    };
+    });
     let addrs = match addrs {
         Some(addrs) => addrs,
         None => return Err(DnsError)
     };
 
     for addr in addrs.iter() {
-        let socket = do io_error::cond.trap(|_| {}).inside {
+        let socket = io_error::cond.trap(|_| {}).inside(|| {
             TcpStream::connect(SocketAddr { ip: *addr, port: port })
-        };
+        });
         match socket {
             Some(socket) => return Ok(socket),
             None => {}
@@ -326,9 +324,9 @@ struct InnerPostgresConnection {
 
 impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
-        do io_error::cond.trap(|_| {}).inside {
+        io_error::cond.trap(|_| {}).inside(|| {
             self.write_messages([Terminate]);
-        }
+        })
     }
 }
 
@@ -566,11 +564,11 @@ impl PostgresConnection {
     /// username if not specified.
     pub fn try_connect(url: &str, ssl: &SslMode)
             -> Result<PostgresConnection, PostgresConnectError> {
-        do InnerPostgresConnection::try_connect(url, ssl).map |conn| {
+        InnerPostgresConnection::try_connect(url, ssl).map(|conn| {
             PostgresConnection {
                 conn: RefCell::new(conn)
             }
-        }
+        })
     }
 
     /// A convenience wrapper around `try_connect`.
@@ -611,9 +609,7 @@ impl PostgresConnection {
     /// not outlive that connection.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.with_mut |conn| {
-            conn.try_prepare(query, self)
-        }
+        self.conn.with_mut(|conn| conn.try_prepare(query, self))
     }
 
     /// A convenience wrapper around `try_prepare`.
@@ -653,9 +649,7 @@ impl PostgresConnection {
     /// On success, returns the number of rows modified or 0 if not applicable.
     pub fn try_update(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
-        do self.try_prepare(query).and_then |stmt| {
-            stmt.try_update(params)
-        }
+        self.try_prepare(query).and_then(|stmt| stmt.try_update(params))
     }
 
     /// A convenience wrapper around `try_update`.
@@ -676,13 +670,11 @@ impl PostgresConnection {
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> PostgresCancelData {
-        do self.conn.with |conn| {
-            conn.cancel_data
-        }
+        self.conn.with(|conn| conn.cancel_data)
     }
 
     fn quick_query(&self, query: &str) {
-        do self.conn.with_mut |conn| {
+        self.conn.with_mut(|conn| {
             conn.write_messages([Query { query: query }]);
 
             loop {
@@ -694,25 +686,19 @@ impl PostgresConnection {
                     _ => {}
                 }
             }
-        }
+        })
     }
 
     fn wait_for_ready(&self) {
-        do self.conn.with_mut |conn| {
-            conn.wait_for_ready()
-        }
+        self.conn.with_mut(|conn| conn.wait_for_ready())
     }
 
     fn read_message(&self) -> BackendMessage {
-        do self.conn.with_mut |conn| {
-            conn.read_message()
-        }
+        self.conn.with_mut(|conn| conn.read_message())
     }
 
     fn write_messages(&self, messages: &[FrontendMessage]) {
-        do self.conn.with_mut |conn| {
-            conn.write_messages(messages)
-        }
+        self.conn.with_mut(|conn| conn.write_messages(messages))
     }
 }
 
@@ -736,7 +722,7 @@ pub struct PostgresTransaction<'conn> {
 #[unsafe_destructor]
 impl<'conn> Drop for PostgresTransaction<'conn> {
     fn drop(&mut self) {
-        do io_error::cond.trap(|_| {}).inside {
+        io_error::cond.trap(|_| {}).inside(|| {
             if task::failing() || !self.commit.with(|x| *x) {
                 if self.nested {
                     self.conn.quick_query("ROLLBACK TO sp");
@@ -750,7 +736,7 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
                     self.conn.quick_query("COMMIT");
                 }
             }
-        }
+        })
     }
 }
 
@@ -758,11 +744,11 @@ impl<'conn> PostgresTransaction<'conn> {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
-        do self.conn.try_prepare(query).map |stmt| {
+        self.conn.try_prepare(query).map(|stmt| {
             TransactionalPostgresStatement {
                 stmt: stmt
             }
-        }
+        })
     }
 
     /// Like `PostgresConnection::prepare`.
@@ -881,7 +867,7 @@ pub struct NormalPostgresStatement<'conn> {
 #[unsafe_destructor]
 impl<'conn> Drop for NormalPostgresStatement<'conn> {
     fn drop(&mut self) {
-        do io_error::cond.trap(|_| {}).inside {
+        io_error::cond.trap(|_| {}).inside(|| {
             self.conn.write_messages([
                 Close {
                     variant: 'S' as u8,
@@ -894,7 +880,7 @@ impl<'conn> Drop for NormalPostgresStatement<'conn> {
                     _ => {}
                 }
             }
-        }
+        })
     }
 }
 
@@ -992,7 +978,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
                     return Err(PostgresDbError::new(fields));
                 }
                 CommandComplete { tag } => {
-                    let s = tag.split_iter(' ').last().unwrap();
+                    let s = tag.split(' ').last().unwrap();
                     num = match FromStr::from_str(s) {
                         None => 0,
                         Some(n) => n
@@ -1107,7 +1093,7 @@ pub struct PostgresResult<'stmt> {
 #[unsafe_destructor]
 impl<'stmt> Drop for PostgresResult<'stmt> {
     fn drop(&mut self) {
-        do io_error::cond.trap(|_| {}).inside {
+        io_error::cond.trap(|_| {}).inside(|| {
             self.stmt.conn.write_messages([
                 Close {
                     variant: 'P' as u8,
@@ -1120,7 +1106,7 @@ impl<'stmt> Drop for PostgresResult<'stmt> {
                     _ => {}
                 }
             }
-        }
+        })
     }
 }
 
@@ -1161,12 +1147,12 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
             self.execute();
         }
 
-        do self.data.pop_front().map |row| {
+        self.data.pop_front().map(|row| {
             PostgresRow {
                 stmt: self.stmt,
                 data: row
             }
-        }
+        })
     }
 }
 

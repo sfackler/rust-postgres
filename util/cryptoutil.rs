@@ -56,7 +56,7 @@ pub fn read_u64v_be(dst: &mut[u64], input: &[u8]) {
     unsafe {
         let mut x: *mut i64 = transmute(dst.unsafe_mut_ref(0));
         let mut y: *i64 = transmute(input.unsafe_ref(0));
-        do dst.len().times() {
+        for _ in range(0, dst.len()) {
             *x = to_be64(*y);
             x = x.offset(1);
             y = y.offset(1);
@@ -72,7 +72,7 @@ pub fn read_u32v_be(dst: &mut[u32], input: &[u8]) {
     unsafe {
         let mut x: *mut i32 = transmute(dst.unsafe_mut_ref(0));
         let mut y: *i32 = transmute(input.unsafe_ref(0));
-        do dst.len().times() {
+        for _ in range(0, dst.len()) {
             *x = to_be32(*y);
             x = x.offset(1);
             y = y.offset(1);
@@ -88,7 +88,7 @@ pub fn read_u32v_le(dst: &mut[u32], input: &[u8]) {
     unsafe {
         let mut x: *mut i32 = transmute(dst.unsafe_mut_ref(0));
         let mut y: *i32 = transmute(input.unsafe_ref(0));
-        do dst.len().times() {
+        for _ in range(0, dst.len()) {
             *x = to_le32(*y);
             x = x.offset(1);
             y = y.offset(1);
@@ -178,7 +178,7 @@ pub fn add_bytes_to_bits_tuple
 pub trait FixedBuffer {
     /// Input a vector of bytes. If the buffer becomes full, process it with the provided
     /// function and then clear the buffer.
-    fn input(&mut self, input: &[u8], func: &fn(&[u8]));
+    fn input(&mut self, input: &[u8], func: |&[u8]|);
 
     /// Reset the buffer.
     fn reset(&mut self);
@@ -206,7 +206,7 @@ pub trait FixedBuffer {
 
 macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
     impl FixedBuffer for $name {
-        fn input(&mut self, input: &[u8], func: &fn(&[u8])) {
+        fn input(&mut self, input: &[u8], func: |&[u8]|) {
             let mut i = 0;
 
             // FIXME: #6304 - This local variable shouldn't be necessary.
@@ -326,11 +326,11 @@ pub trait StandardPadding {
     /// and is guaranteed to have exactly rem remaining bytes when it returns. If there are not at
     /// least rem bytes available, the buffer will be zero padded, processed, cleared, and then
     /// filled with zeros again until only rem bytes are remaining.
-    fn standard_padding(&mut self, rem: uint, func: &fn(&[u8]));
+    fn standard_padding(&mut self, rem: uint, func: |&[u8]|);
 }
 
 impl <T: FixedBuffer> StandardPadding for T {
-    fn standard_padding(&mut self, rem: uint, func: &fn(&[u8])) {
+    fn standard_padding(&mut self, rem: uint, func: |&[u8]|) {
         let size = self.size();
 
         self.next(1)[0] = 128;
