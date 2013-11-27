@@ -123,7 +123,7 @@ fn test_transaction_rollback() {
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
+    assert_eq!(~[1i32], result.map(|row| row[0]).collect());
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn test_nested_transactions() {
         let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
         let result = stmt.query([]);
 
-        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| { row[0] }).collect());
+        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[0]).collect());
 
         trans1.set_rollback();
     }
@@ -170,7 +170,7 @@ fn test_nested_transactions() {
     let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
+    assert_eq!(~[1i32], result.map(|row| row[0]).collect());
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_query() {
     let stmt = conn.prepare("SELECT * from foo ORDER BY id");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i64, 2], result.map(|row| { row[0] }).collect());
+    assert_eq!(~[1i64, 2], result.map(|row| row[0]).collect());
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn test_lazy_query() {
 
         let stmt = trans.prepare("SELECT id FROM foo ORDER BY id");
         let result = stmt.lazy_query(2, []);
-        assert_eq!(values, result.map(|row| { row[0] }).collect());
+        assert_eq!(values, result.map(|row| row[0]).collect());
 
         trans.set_rollback();
     }
@@ -308,7 +308,7 @@ fn test_bpchar_params() {
     let res = stmt.query([]);
 
     assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
-               res.map(|row| { row[0] }).collect());
+               res.map(|row| row[0]).collect());
 }
 
 #[test]
