@@ -125,7 +125,7 @@ impl PostgresType {
     /// Returns the wire format needed for the value of `self`.
     pub fn result_format(&self) -> Format {
         match *self {
-            PgUnknownType(*) => Text,
+            PgUnknownType(..) => Text,
             _ => Binary
         }
     }
@@ -504,13 +504,13 @@ macro_rules! to_range_impl(
                 } else {
                     match self.lower() {
                         &None => tag |= RANGE_LOWER_UNBOUNDED,
-                        &Some(RangeBound { type_: Inclusive, _ }) =>
+                        &Some(RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_LOWER_INCLUSIVE,
                         _ => {}
                     }
                     match self.upper() {
                         &None => tag |= RANGE_UPPER_UNBOUNDED,
-                        &Some(RangeBound { type_: Inclusive, _ }) =>
+                        &Some(RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_UPPER_INCLUSIVE,
                         _ => {}
                     }

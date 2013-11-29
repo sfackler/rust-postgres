@@ -207,7 +207,7 @@ pub struct PostgresCancelData {
 /// that connection.
 pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         -> Option<PostgresConnectError> {
-    let Url { host, port, _ }: Url = match FromStr::from_str(url) {
+    let Url { host, port, .. }: Url = match FromStr::from_str(url) {
         Some(url) => url,
         None => return Some(InvalidUrl)
     };
@@ -339,7 +339,7 @@ impl InnerPostgresConnection {
             user,
             path,
             query: args,
-            _
+            ..
         }: Url = match FromStr::from_str(url) {
             Some(url) => url,
             None => return Err(InvalidUrl)
@@ -394,7 +394,7 @@ impl InnerPostgresConnection {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
                 }
-                ReadyForQuery { _ } => break,
+                ReadyForQuery { .. } => break,
                 ErrorResponse { fields } =>
                     return Err(DbError(PostgresDbError::new(fields))),
                 _ => unreachable!()
@@ -539,7 +539,7 @@ impl InnerPostgresConnection {
 
     fn wait_for_ready(&mut self) {
         match self.read_message() {
-            ReadyForQuery { _ } => {}
+            ReadyForQuery { .. } => {}
             _ => unreachable!()
         }
     }
@@ -679,7 +679,7 @@ impl PostgresConnection {
 
             loop {
                 match conn.read_message() {
-                    ReadyForQuery { _ } => break,
+                    ReadyForQuery { .. } => break,
                     ErrorResponse { fields } =>
                         fail!("Error: {}",
                                PostgresDbError::new(fields).to_str()),
@@ -876,7 +876,7 @@ impl<'conn> Drop for NormalPostgresStatement<'conn> {
                 Sync]);
             loop {
                 match self.conn.read_message() {
-                    ReadyForQuery { _ } => break,
+                    ReadyForQuery { .. } => break,
                     _ => {}
                 }
             }
@@ -972,7 +972,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
         let num;
         loop {
             match self.conn.read_message() {
-                DataRow { _ } => {}
+                DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
                     return Err(PostgresDbError::new(fields));
@@ -1015,7 +1015,7 @@ pub struct ResultDescription {
 impl ResultDescription {
     fn from_row_description_entry(row: RowDescriptionEntry)
             -> ResultDescription {
-        let RowDescriptionEntry { name, type_oid, _ } = row;
+        let RowDescriptionEntry { name, type_oid, .. } = row;
 
         ResultDescription {
             name: name,
@@ -1102,7 +1102,7 @@ impl<'stmt> Drop for PostgresResult<'stmt> {
                 Sync]);
             loop {
                 match self.stmt.conn.read_message() {
-                    ReadyForQuery { _ } => break,
+                    ReadyForQuery { .. } => break,
                     _ => {}
                 }
             }
@@ -1115,7 +1115,7 @@ impl<'stmt> PostgresResult<'stmt> {
         loop {
             match self.stmt.conn.read_message() {
                 EmptyQueryResponse |
-                CommandComplete { _ } => {
+                CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
                 },

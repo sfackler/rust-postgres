@@ -184,7 +184,7 @@ impl<T: Ord+Normalizable> Range<T> {
     pub fn is_empty(&self) -> bool {
         match *self {
             Empty => true,
-            Normal(*) => false
+            Normal(..) => false
         }
     }
 

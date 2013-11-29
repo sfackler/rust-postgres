@@ -79,7 +79,7 @@ fn test_url_terminating_slash() {
 fn test_prepare_err() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     match conn.try_prepare("invalid sql statment") {
-        Err(PostgresDbError { code: SyntaxError, position: Some(Position(1)), _ }) => (),
+        Err(PostgresDbError { code: SyntaxError, position: Some(Position(1)), .. }) => (),
         resp => fail!("Unexpected result {:?}", resp)
     }
 }
@@ -87,7 +87,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match PostgresConnection::try_connect("postgres://postgres@localhost/asdf", &NoSsl) {
-        Err(DbError(PostgresDbError { code: InvalidCatalogName, _ })) => {}
+        Err(DbError(PostgresDbError { code: InvalidCatalogName, .. })) => {}
         resp => fail!("Unexpected result {:?}", resp)
     }
 }
@@ -520,7 +520,7 @@ fn test_notification_iterator_some() {
     fn check_notification(expected: PostgresNotification,
                           actual: Option<PostgresNotification>) {
         match actual {
-            Some(PostgresNotification { channel, payload, _ }) => {
+            Some(PostgresNotification { channel, payload, .. }) => {
                 assert_eq!(&expected.channel, &channel);
                 assert_eq!(&expected.payload, &payload);
             }
@@ -569,7 +569,7 @@ fn test_cancel_query() {
     }
 
     match conn.try_update("SELECT pg_sleep(10)", []) {
-        Err(PostgresDbError { code: QueryCanceled, _ }) => {}
+        Err(PostgresDbError { code: QueryCanceled, .. }) => {}
         res => fail!("Unexpected result {:?}", res)
     }
 }
@@ -609,7 +609,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost/postgres", &NoSsl);
     match ret {
-        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
+        Err(DbError(PostgresDbError { code: InvalidPassword, .. })) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
         _ => fail!("Expected error")
     }
@@ -634,7 +634,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
     match ret {
-        Err(DbError(PostgresDbError { code: InvalidPassword, _ })) => (),
+        Err(DbError(PostgresDbError { code: InvalidPassword, .. })) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
         _ => fail!("Expected error")
     }
