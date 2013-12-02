@@ -256,6 +256,10 @@ types. The driver currently supports the following conversions:
             <td>types::range::Range&lt;Timespec&gt;</td>
             <td>TSRANGE, TSTZRANGE</td>
         </tr>
+        <tr>
+            <td>types::array::ArrayBase&lt;i32&gt;</td>
+            <td>INT4[], INT4[][], ...</td>
+        </tr>
     </tbody>
 </table>
 

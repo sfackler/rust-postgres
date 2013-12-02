@@ -32,6 +32,7 @@ use lib::error::{DbError,
                  QueryCanceled,
                  InvalidCatalogName};
 use lib::types::{ToSql, FromSql, PgInt4, PgVarchar};
+use lib::types::array::{ArrayBase};
 use lib::types::range::{Range, Inclusive, Exclusive, RangeBound};
 use lib::pool::PostgresConnectionPool;
 
@@ -418,6 +419,19 @@ fn test_tsrange_params() {
 #[ignore(cfg(travis))]
 fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
+}
+
+#[test]
+fn test_int4array_params() {
+    test_type("INT4[]",
+              [(Some(ArrayBase::from_vec(~[Some(0i32), Some(1), None], 1)),
+                "'{0,1,NULL}'"),
+               (None, "NULL")]);
+    let mut a = ArrayBase::from_vec(~[Some(0i32), Some(1)], 0);
+    a.wrap(-1);
+    a.push_move(ArrayBase::from_vec(~[None, Some(3)], 0));
+    test_type("INT4[][]",
+              [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {

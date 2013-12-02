@@ -9,9 +9,12 @@ use extra::uuid::Uuid;
 use std::io::Decorator;
 use std::io::mem::{MemWriter, BufReader};
 use std::str;
+use std::vec;
 
+use self::array::{Array, ArrayBase, DimensionInfo};
 use self::range::{RangeBound, Inclusive, Exclusive, Range};
 
+pub mod array;
 pub mod range;
 
 /// A Postgres OID
@@ -28,6 +31,7 @@ static TEXTOID: Oid = 25;
 static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
+static INT4ARRAYOID: Oid = 1007;
 static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
@@ -73,6 +77,8 @@ pub enum PostgresType {
     PgFloat4,
     /// FLOAT8/DOUBLE PRECISION
     PgFloat8,
+    /// INT4[]
+    PgInt4Array,
     /// TIMESTAMP
     PgTimestamp,
     /// TIMESTAMP WITH TIME ZONE
@@ -109,6 +115,7 @@ impl PostgresType {
             JSONOID => PgJson,
             FLOAT4OID => PgFloat4,
             FLOAT8OID => PgFloat8,
+            INT4ARRAYOID => PgInt4Array,
             TIMESTAMPOID => PgTimestamp,
             TIMESTAMPZOID => PgTimestampZ,
             BPCHAROID => PgCharN,
@@ -321,6 +328,42 @@ from_option_impl!(Range<i64>)
 
 from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 from_option_impl!(Range<Timespec>)
+
+macro_rules! from_array_impl(
+    ($($oid:ident)|+, $t:ty) => (
+        from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf| {
+            let mut rdr = BufReader::new(buf.as_slice());
+
+            let ndim = rdr.read_be_i32() as uint;
+            let _has_null = rdr.read_be_i32() == 1;
+            let _element_type: Oid = rdr.read_be_i32();
+
+            let mut dim_info = vec::with_capacity(ndim);
+            for _ in range(0, ndim) {
+                dim_info.push(DimensionInfo {
+                    len: rdr.read_be_i32() as uint,
+                    lower_bound: rdr.read_be_i32() as int
+                });
+            }
+            let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
+
+            let mut elements = vec::with_capacity(nele);
+            for _ in range(0, nele) {
+                let len = rdr.read_be_i32();
+                if len < 0 {
+                    elements.push(None);
+                } else {
+                    elements.push(Some(RawFromSql::raw_from_sql(&mut rdr)));
+                }
+            }
+
+            ArrayBase::from_raw(elements, dim_info)
+        })
+    )
+)
+
+from_array_impl!(PgInt4Array, i32)
+from_option_impl!(ArrayBase<Option<i32>>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -547,3 +590,38 @@ to_option_impl!(PgInt8Range, Range<i64>)
 
 to_range_impl!(PgTsRange | PgTstzRange, Timespec, 8)
 to_option_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
+
+macro_rules! to_array_impl(
+    ($($oid:ident)|+, $base_oid:ident, $t:ty, $size:expr) => (
+        impl ToSql for ArrayBase<Option<$t>> {
+            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+                check_types!($($oid)|+, ty)
+                let mut buf = MemWriter::new();
+
+                buf.write_be_i32(self.get_dimension_info().len() as i32);
+                buf.write_be_i32(1);
+                buf.write_be_i32($base_oid);
+
+                for info in self.get_dimension_info().iter() {
+                    buf.write_be_i32(info.len as i32);
+                    buf.write_be_i32(info.lower_bound as i32);
+                }
+
+                for v in self.values() {
+                    match *v {
+                        Some(ref val) => {
+                            buf.write_be_i32($size);
+                            val.raw_to_sql(&mut buf);
+                        }
+                        None => buf.write_be_i32(-1)
+                    }
+                }
+
+                (Binary, Some(buf.inner()))
+            }
+        }
+    )
+)
+
+to_array_impl!(PgInt4Array, INT4OID, i32, 4)
+to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)
