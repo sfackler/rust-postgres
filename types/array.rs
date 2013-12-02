@@ -74,7 +74,7 @@ impl<T> ArrayBase<T> {
         assert!(self.info.len() - 1 == other.info.len(),
                 "Cannot append differently shaped arrays");
         for (info1, info2) in self.info.iter().skip(1).zip(other.info.iter()) {
-            assert!(info1 == info2, "Cannot append differently shaped arrays");
+            assert!(info1 == info2, "Cannot join differently shaped arrays");
         }
         self.info[0].len += 1;
         self.data.push_all_move(other.data);
@@ -278,5 +278,17 @@ mod tests {
         let s2 = s1.slice(1);
         assert_eq!(&6, s2.get(0));
         assert_eq!(&7, s2.get(1));
+    }
+
+    #[test]
+    fn test_mut() {
+        let mut a = ArrayBase::from_vec(~[1, 2], 0);
+        a.wrap(0);
+        {
+            let mut s = a.slice_mut(0);
+            *s.get_mut(0) = 3;
+        }
+        let s = a.slice(0);
+        assert_eq!(&3, s.get(0));
     }
 }
