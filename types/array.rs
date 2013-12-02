@@ -91,6 +91,8 @@ impl<T> Array<T> for ArrayBase<T> {
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
+        assert!(self.info.len() != 1,
+                "Attempted to slice a one-dimensional array");
         ArraySlice {
             parent: BaseParent(self),
             idx: self.shift_idx(idx)
@@ -132,6 +134,8 @@ impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
+        assert!(self.get_dimension_info().len() != 1,
+                "Attempted to slice a one-dimensional array");
         ArraySlice {
             parent: SliceParent(self),
             idx: self.shift_idx(idx)
@@ -290,5 +294,21 @@ mod tests {
         }
         let s = a.slice(0);
         assert_eq!(&3, s.get(0));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_base_overslice() {
+        let a = ArrayBase::from_vec(~[1], 0);
+        a.slice(0);
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_slice_overslice() {
+        let mut a = ArrayBase::from_vec(~[1], 0);
+        a.wrap(0);
+        let s = a.slice(0);
+        s.slice(0);
     }
 }
