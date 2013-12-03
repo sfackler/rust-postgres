@@ -515,11 +515,10 @@ impl InnerPostgresConnection {
 
         let result_desc = match self.read_message() {
             RowDescription { descriptions } => {
-                let mut res: ~[ResultDescription] = descriptions
-                    .move_rev_iter().map(|desc| {
+                let res: ~[ResultDescription] = descriptions
+                    .move_iter().map(|desc| {
                         ResultDescription::from_row_description_entry(desc)
                     }).collect();
-                res.reverse();
                 res
             },
             NoData => ~[],
