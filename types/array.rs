@@ -3,23 +3,53 @@
 use std::cast;
 use std::vec::VecIterator;
 
+/// Information about a dimension of an array
 #[deriving(Eq, Clone)]
 pub struct DimensionInfo {
+    /// The size of the dimension
     len: uint,
+    /// The index of the first element of the dimension
     lower_bound: int,
 }
 
+/// Specifies methods that can be performed on multi-dimensional arrays
 pub trait Array<T> {
+    /// Returns information about the dimensions of this array
     fn get_dimension_info<'a>(&'a self) -> &'a [DimensionInfo];
+
+    /// Slices into this array, returning an immutable view of a subarray.
+    ///
+    /// # Failure
+    ///
+    /// Fails if the array is one-dimensional or the index is out of bounds.
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T>;
+
+    /// Retrieves an immutable reference to a value in this array.
+    ///
+    ///
+    /// # Failure
+    ///
+    /// Fails if the array is multi-dimensional or the index is out of bounds.
     fn get<'a>(&'a self, idx: int) -> &'a T;
 }
 
+/// Specifies methods that can be performed on mutable multi-dimensional arrays
 pub trait MutableArray<T> : Array<T> {
+    /// Slices into this array, returning a mutable view of a subarray.
+    ///
+    /// # Failure
+    ///
+    /// Fails if the array is one-dimensional or the index is out of bounds.
     fn slice_mut<'a>(&'a mut self, idx: int) -> MutArraySlice<'a, T> {
         MutArraySlice { slice: self.slice(idx) }
     }
 
+    /// Retrieves a mutable reference to a value in this array.
+    ///
+    ///
+    /// # Failure
+    ///
+    /// Fails if the array is multi-dimensional or the index is out of bounds.
     fn get_mut<'a>(&'a mut self, idx: int) -> &'a mut T {
         unsafe { cast::transmute_mut(self.get(idx)) }
     }
@@ -28,13 +58,16 @@ pub trait MutableArray<T> : Array<T> {
 trait InternalArray<T> : Array<T> {
     fn shift_idx(&self, idx: int) -> uint {
         let shifted_idx = idx - self.get_dimension_info()[0].lower_bound;
-        assert!(shifted_idx >= 0, "Out of bounds array access");
+        assert!(shifted_idx >= 0 &&
+                    shifted_idx < self.get_dimension_info()[0].len as int,
+                "Out of bounds array access");
         shifted_idx as uint
     }
 
     fn raw_get<'a>(&'a self, idx: uint, size: uint) -> &'a T;
 }
 
+/// A multi-dimensional array
 #[deriving(Eq, Clone)]
 pub struct ArrayBase<T> {
     priv info: ~[DimensionInfo],
@@ -42,6 +75,15 @@ pub struct ArrayBase<T> {
 }
 
 impl<T> ArrayBase<T> {
+    /// Creates a new multi-dimensional array from its underlying components.
+    ///
+    /// The data array should be provided in the higher-dimensional equivalent
+    /// of row-major order.
+    ///
+    /// # Failure
+    ///
+    /// Fails if there are 0 dimensions or the number of elements provided does
+    /// not match the number of elements specified.
     pub fn from_raw(data: ~[T], info: ~[DimensionInfo])
             -> ArrayBase<T> {
         assert!(!info.is_empty(), "Cannot create a 0x0 array");
@@ -53,6 +95,7 @@ impl<T> ArrayBase<T> {
         }
     }
 
+    /// Creates a new one-dimensional array from a vector.
     pub fn from_vec(data: ~[T], lower_bound: int) -> ArrayBase<T> {
         ArrayBase {
             info: ~[DimensionInfo {
@@ -63,6 +106,10 @@ impl<T> ArrayBase<T> {
         }
     }
 
+    /// Wraps this array in a new dimension of size 1.
+    ///
+    /// For example the one-dimensional array `[1,2]` would turn into
+    /// the two-dimensional array `[[1,2]]`.
     pub fn wrap(&mut self, lower_bound: int) {
         self.info.unshift(DimensionInfo {
             len: 1,
@@ -70,6 +117,20 @@ impl<T> ArrayBase<T> {
         })
     }
 
+    /// Takes ownership of another array, appending it to the top-level
+    /// dimension of this array.
+    ///
+    /// The dimensions of the other array must have an identical shape to the
+    /// dimensions of a slice of this array. This includes both the sizes of
+    /// the dimensions as well as their lower bounds.
+    ///
+    /// For example, if `[3,4]` is pushed onto `[[1,2]]`, the result is
+    /// `[[1,2],[3,4]]`.
+    ///
+    /// # Failure
+    ///
+    /// Fails if the other array does not have dimensions identical to the
+    /// dimensions of a slice of this array.
     pub fn push_move(&mut self, other: ArrayBase<T>) {
         assert!(self.info.len() - 1 == other.info.len(),
                 "Cannot append differently shaped arrays");
@@ -80,6 +141,8 @@ impl<T> ArrayBase<T> {
         self.data.push_all_move(other.data);
     }
 
+    /// Returns an iterator over the values in this array, in the
+    /// higher-dimensional equivalent of row-major order.
     pub fn values<'a>(&'a self) -> VecIterator<'a, T> {
         self.data.iter()
     }
@@ -119,6 +182,7 @@ enum ArrayParent<'parent, T> {
     BaseParent(&'parent ArrayBase<T>),
 }
 
+/// An immutable slice of a multi-dimensional array
 pub struct ArraySlice<'parent, T> {
     priv parent: ArrayParent<'parent, T>,
     priv idx: uint,
@@ -160,6 +224,7 @@ impl<'parent, T> InternalArray<T> for ArraySlice<'parent, T> {
     }
 }
 
+/// A mutable slice of a multi-dimensional array
 pub struct MutArraySlice<'parent, T> {
     priv slice: ArraySlice<'parent, T>
 }
@@ -204,10 +269,18 @@ mod tests {
 
     #[test]
     #[should_fail]
-    fn test_2d_slice_range_fail() {
+    fn test_2d_slice_range_fail_low() {
         let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
         a.wrap(1);
         a.slice(0);
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_2d_slice_range_fail_high() {
+        let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        a.wrap(1);
+        a.slice(2);
     }
 
     #[test]
