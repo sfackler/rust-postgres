@@ -15,7 +15,7 @@ pub struct DimensionInfo {
 /// Specifies methods that can be performed on multi-dimensional arrays
 pub trait Array<T> {
     /// Returns information about the dimensions of this array
-    fn get_dimension_info<'a>(&'a self) -> &'a [DimensionInfo];
+    fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo];
 
     /// Slices into this array, returning an immutable view of a subarray.
     ///
@@ -57,9 +57,9 @@ pub trait MutableArray<T> : Array<T> {
 
 trait InternalArray<T> : Array<T> {
     fn shift_idx(&self, idx: int) -> uint {
-        let shifted_idx = idx - self.get_dimension_info()[0].lower_bound;
+        let shifted_idx = idx - self.dimension_info()[0].lower_bound;
         assert!(shifted_idx >= 0 &&
-                    shifted_idx < self.get_dimension_info()[0].len as int,
+                    shifted_idx < self.dimension_info()[0].len as int,
                 "Out of bounds array access");
         shifted_idx as uint
     }
@@ -149,7 +149,7 @@ impl<T> ArrayBase<T> {
 }
 
 impl<T> Array<T> for ArrayBase<T> {
-    fn get_dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
+    fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
         self.info.as_slice()
     }
 
@@ -189,16 +189,16 @@ pub struct ArraySlice<'parent, T> {
 }
 
 impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
-    fn get_dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
+    fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
         let info = match self.parent {
-            SliceParent(p) => p.get_dimension_info(),
-            BaseParent(p) => p.get_dimension_info()
+            SliceParent(p) => p.dimension_info(),
+            BaseParent(p) => p.dimension_info()
         };
         info.slice_from(1)
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
-        assert!(self.get_dimension_info().len() != 1,
+        assert!(self.dimension_info().len() != 1,
                 "Attempted to slice a one-dimensional array");
         ArraySlice {
             parent: SliceParent(self),
@@ -207,7 +207,7 @@ impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
     }
 
     fn get<'a>(&'a self, idx: int) -> &'a T {
-        assert!(self.get_dimension_info().len() == 1,
+        assert!(self.dimension_info().len() == 1,
                 "Attempted to get from a multi-dimensional array");
         self.raw_get(self.shift_idx(idx), 1)
     }
@@ -215,7 +215,7 @@ impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
 
 impl<'parent, T> InternalArray<T> for ArraySlice<'parent, T> {
     fn raw_get<'a>(&'a self, idx: uint, size: uint) -> &'a T {
-        let size = size * self.get_dimension_info()[0].len;
+        let size = size * self.dimension_info()[0].len;
         let idx = size * self.idx + idx;
         match self.parent {
             SliceParent(p) => p.raw_get(idx, size),
@@ -230,8 +230,8 @@ pub struct MutArraySlice<'parent, T> {
 }
 
 impl<'parent, T> Array<T> for MutArraySlice<'parent, T> {
-    fn get_dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
-        self.slice.get_dimension_info()
+    fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
+        self.slice.dimension_info()
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
@@ -253,7 +253,7 @@ mod tests {
     fn test_from_vec() {
         let a = ArrayBase::from_vec(~[0, 1, 2], -1);
         assert_eq!([DimensionInfo { len: 3, lower_bound: -1 }],
-                   a.get_dimension_info());
+                   a.dimension_info());
         assert_eq!(&0, a.get(-1));
         assert_eq!(&1, a.get(0));
         assert_eq!(&2, a.get(1));

@@ -598,11 +598,11 @@ macro_rules! to_array_impl(
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
-                buf.write_be_i32(self.get_dimension_info().len() as i32);
+                buf.write_be_i32(self.dimension_info().len() as i32);
                 buf.write_be_i32(1);
                 buf.write_be_i32($base_oid);
 
-                for info in self.get_dimension_info().iter() {
+                for info in self.dimension_info().iter() {
                     buf.write_be_i32(info.len as i32);
                     buf.write_be_i32(info.lower_bound as i32);
                 }

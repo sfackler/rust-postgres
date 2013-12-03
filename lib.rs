@@ -514,11 +514,10 @@ impl InnerPostgresConnection {
         };
 
         let result_desc = match self.read_message() {
-            RowDescription { descriptions } => {
+            RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
                         ResultDescription::from_row_description_entry(desc)
-                    }).collect()
-            }
+                    }).collect(),
             NoData => ~[],
             _ => unreachable!()
         };
