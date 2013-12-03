@@ -52,10 +52,10 @@ fn main() {
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
     for row in stmt.query([]) {
         let person = Person {
-            id: row[0],
-            name: row[1],
-            time_created: row[2],
-            data: row[3]
+            id: row[1],
+            name: row[2],
+            time_created: row[3],
+            data: row[4]
         };
         println!("Found person {}", person.name);
     }
@@ -107,12 +107,13 @@ let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
-fields in a row can be accessed either by their indices or their column names.
-Unlike statement parameters, result columns are zero-indexed.
+fields in a row can be accessed either by their indices or their column names,
+though access by index is more efficient. Like statement parameters, result
+columns are one-indexed.
 ```rust
 let stmt = conn.prepare("SELECT bar, baz FROM foo");
 for row in stmt.query([]) {
-    let bar: i32 = row[0];
+    let bar: i32 = row[1];
     let baz: ~str = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
 }

@@ -106,7 +106,7 @@ fn test_transaction_commit() {
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| { row[0] }).collect());
+    assert_eq!(~[1i32], result.map(|row| { row[1] }).collect());
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn test_transaction_rollback() {
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| row[0]).collect());
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn test_nested_transactions() {
         let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
         let result = stmt.query([]);
 
-        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[0]).collect());
+        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[1]).collect());
 
         trans1.set_rollback();
     }
@@ -171,7 +171,7 @@ fn test_nested_transactions() {
     let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| row[0]).collect());
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn test_query() {
     let stmt = conn.prepare("SELECT * from foo ORDER BY id");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i64, 2], result.map(|row| row[0]).collect());
+    assert_eq!(~[1i64, 2], result.map(|row| row[1]).collect());
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn test_lazy_query() {
 
         let stmt = trans.prepare("SELECT id FROM foo ORDER BY id");
         let result = stmt.lazy_query(2, []);
-        assert_eq!(values, result.map(|row| row[0]).collect());
+        assert_eq!(values, result.map(|row| row[1]).collect());
 
         trans.set_rollback();
     }
@@ -227,11 +227,11 @@ fn test_type<T: Eq+FromSql+ToSql>(sql_type: &str, checks: &[(T, &str)]) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     for &(ref val, ref repr) in checks.iter() {
         let stmt = conn.prepare("SELECT " + *repr + "::" + sql_type);
-        let result = stmt.query([]).next().unwrap()[0];
+        let result = stmt.query([]).next().unwrap()[1];
         assert_eq!(val, &result);
 
         let stmt = conn.prepare("SELECT $1::" + sql_type);
-        let result = stmt.query([val as &ToSql]).next().unwrap()[0];
+        let result = stmt.query([val as &ToSql]).next().unwrap()[1];
         assert_eq!(val, &result);
     }
 }
@@ -309,7 +309,7 @@ fn test_bpchar_params() {
     let res = stmt.query([]);
 
     assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
-               res.map(|row| row[0]).collect());
+               res.map(|row| row[1]).collect());
 }
 
 #[test]
@@ -438,13 +438,13 @@ fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let stmt = conn.prepare("SELECT 'NaN'::" + sql_type);
     let mut result = stmt.query([]);
-    let val: T = result.next().unwrap()[0];
+    let val: T = result.next().unwrap()[1];
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
     let stmt = conn.prepare("SELECT $1::" + sql_type);
     let mut result = stmt.query([&nan as &ToSql]);
-    let val: T = result.next().unwrap()[0];
+    let val: T = result.next().unwrap()[1];
     assert!(val.is_nan())
 }
 

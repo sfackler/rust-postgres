@@ -44,10 +44,10 @@ fn main() {
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
     for row in stmt.query([]) {
         let person = Person {
-            id: row[0],
-            name: row[1],
-            time_created: row[2],
-            data: row[3]
+            id: row[1],
+            name: row[2],
+            time_created: row[3],
+            data: row[4]
         };
         println!("Found person {}", person.name);
     }
@@ -1159,10 +1159,10 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 /// A single result row of a query.
 ///
 /// A value can be accessed by the name or index of its column, though access
-/// by index is more efficient.
+/// by index is more efficient. Rows are 1-indexed.
 ///
 /// ```rust
-/// let foo: i32 = row[0];
+/// let foo: i32 = row[1];
 /// let bar: ~str = row["bar"];
 /// ```
 pub struct PostgresRow<'stmt> {
@@ -1198,16 +1198,17 @@ pub trait RowIndex {
 impl RowIndex for uint {
     #[inline]
     fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
-        *self
+        assert!(*self != 0, "out of bounds row access");
+        *self - 1
     }
 }
 
-// This is a convenience as the 0 in get[0] resolves to int :(
+// This is a convenience as the 1 in get[1] resolves to int :(
 impl RowIndex for int {
     #[inline]
     fn idx(&self, _stmt: &NormalPostgresStatement) -> uint {
-        assert!(*self >= 0);
-        *self as uint
+        assert!(*self >= 1, "out of bounds row access");
+        (*self - 1) as uint
     }
 }
 
