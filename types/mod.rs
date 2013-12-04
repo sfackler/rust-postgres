@@ -101,12 +101,17 @@ pub enum PostgresType {
     PgTsRange,
     /// TSTZRANGE
     PgTstzRange,
-    /// An unknown type along with its OID
-    PgUnknownType(Oid)
+    /// An unknown type
+    PgUnknownType {
+        /// The name of the type
+        name: ~str,
+        /// The OID of the type
+        oid: Oid
+    }
 }
 
 impl PostgresType {
-    /// Creates a PostgresType from a Postgres OID.
+    #[doc(hidden)]
     pub fn from_oid(oid: Oid) -> PostgresType {
         match oid {
             BOOLOID => PgBool,
@@ -130,14 +135,15 @@ impl PostgresType {
             INT8RANGEOID => PgInt8Range,
             TSRANGEOID => PgTsRange,
             TSTZRANGEOID => PgTstzRange,
-            oid => PgUnknownType(oid)
+            // We have to load an empty string now, it'll get filled in later
+            oid => PgUnknownType { name: ~"", oid: oid }
         }
     }
 
     /// Returns the wire format needed for the value of `self`.
     pub fn result_format(&self) -> Format {
         match *self {
-            PgUnknownType(..) => Text,
+            PgUnknownType { .. } => Text,
             _ => Binary
         }
     }
@@ -154,7 +160,7 @@ pub enum Format {
 macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
         match $actual {
-            $($expected)|+ => (),
+            $(&$expected)|+ => (),
             actual => fail!("Invalid Postgres type {:?}", actual)
         }
     )
@@ -169,7 +175,7 @@ pub trait FromSql {
     /// # Failure
     ///
     /// Fails if this type can not be created from the provided Postgres type.
-    fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Self;
+    fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> Self;
 }
 
 trait RawFromSql {
@@ -207,7 +213,7 @@ impl RawFromSql for Timespec {
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
-            fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> Option<$t> {
+            fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> Option<$t> {
                 check_types!($($expected)|+, ty)
                 raw.as_ref().map($blk)
             }
@@ -236,7 +242,7 @@ macro_rules! from_conversions_impl(
 macro_rules! from_option_impl(
     ($t:ty) => (
         impl FromSql for $t {
-            fn from_sql(ty: PostgresType, raw: &Option<~[u8]>) -> $t {
+            fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> $t {
                 // FIXME when you can specify Self types properly
                 let ret: Option<$t> = FromSql::from_sql(ty, raw);
                 ret.unwrap()
@@ -382,7 +388,7 @@ pub trait ToSql {
     ///
     /// Fails if this type cannot be converted into the specified Postgres
     /// type.
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>);
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>);
 }
 
 trait RawToSql {
@@ -423,7 +429,7 @@ impl RawToSql for Timespec {
 macro_rules! to_option_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Option<$t> {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -435,7 +441,7 @@ macro_rules! to_option_impl(
     );
     (self, $($oid:ident)|+, $t:ty) => (
         impl<'self> ToSql for Option<$t> {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -450,7 +456,7 @@ macro_rules! to_option_impl(
 macro_rules! to_raw_to_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for $t {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
@@ -464,7 +470,7 @@ macro_rules! to_raw_to_impl(
 macro_rules! to_conversions_impl(
     ($($oid:ident)|+, $t:ty, $f:ident) => (
         impl ToSql for $t {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
@@ -476,7 +482,7 @@ macro_rules! to_conversions_impl(
 )
 
 impl ToSql for bool {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgBool, ty)
         (Binary, Some(~[*self as u8]))
     }
@@ -498,14 +504,14 @@ to_conversions_impl!(PgFloat8, f64, write_be_f64)
 to_option_impl!(PgFloat8, f64)
 
 impl ToSql for ~str {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgVarchar | PgText | PgCharN, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
 impl<'self> ToSql for &'self str {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgVarchar | PgText | PgCharN, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
@@ -515,14 +521,14 @@ to_option_impl!(PgVarchar | PgText | PgCharN, ~str)
 to_option_impl!(self, PgVarchar | PgText | PgCharN, &'self str)
 
 impl ToSql for ~[u8] {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgByteA, ty)
         (Binary, Some(self.to_owned()))
     }
 }
 
 impl<'self> ToSql for &'self [u8] {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgByteA, ty)
         (Binary, Some(self.to_owned()))
     }
@@ -532,7 +538,7 @@ to_option_impl!(PgByteA, ~[u8])
 to_option_impl!(self, PgByteA, &'self [u8])
 
 impl ToSql for Json {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgJson, ty)
         (Text, Some(self.to_str().into_bytes()))
     }
@@ -541,7 +547,7 @@ impl ToSql for Json {
 to_option_impl!(PgJson, Json)
 
 impl ToSql for Uuid {
-    fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgUuid, ty)
         (Binary, Some(self.to_bytes().to_owned()))
     }
@@ -555,7 +561,7 @@ to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 macro_rules! to_range_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Range<$t> {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
@@ -612,7 +618,7 @@ to_option_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $base_oid:ident, $t:ty) => (
         impl ToSql for ArrayBase<Option<$t>> {
-            fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
+            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 

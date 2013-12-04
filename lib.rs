@@ -82,6 +82,7 @@ use std::io::net;
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
 use std::task;
+use std::hashmap::HashMap;
 use std::str;
 
 use self::error::{PostgresDbError,
@@ -132,7 +133,7 @@ use self::message::{FrontendMessage,
                     Sync,
                     Terminate};
 use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
-use self::types::{PostgresType, ToSql, FromSql};
+use self::types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
 use self::util::digest::Digest;
 use self::util::md5::Md5;
 
@@ -320,7 +321,8 @@ struct InnerPostgresConnection {
     next_stmt_id: int,
     notice_handler: ~PostgresNoticeHandler,
     notifications: RingBuf<PostgresNotification>,
-    cancel_data: PostgresCancelData
+    cancel_data: PostgresCancelData,
+    unknown_types: HashMap<Oid, ~str>,
 }
 
 impl Drop for InnerPostgresConnection {
@@ -366,7 +368,8 @@ impl InnerPostgresConnection {
             next_stmt_id: 0,
             notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
             notifications: RingBuf::new(),
-            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 }
+            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
+            unknown_types: HashMap::new(),
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -507,14 +510,14 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         }
 
-        let param_types = match self.read_message() {
+        let mut param_types: ~[PostgresType] = match self.read_message() {
             ParameterDescription { types } =>
                 types.iter().map(|ty| { PostgresType::from_oid(*ty) })
                     .collect(),
             _ => unreachable!()
         };
 
-        let result_desc = match self.read_message() {
+        let mut result_desc: ~[ResultDescription] = match self.read_message() {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
                         ResultDescription::from_row_description_entry(desc)
@@ -525,6 +528,29 @@ impl InnerPostgresConnection {
 
         self.wait_for_ready();
 
+        // now that the connection is ready again, get unknown type names
+        for param in param_types.mut_iter() {
+            match *param {
+                PgUnknownType { oid, .. } =>
+                    *param = PgUnknownType {
+                        name: self.get_type_name(oid),
+                        oid: oid
+                    },
+                _ => {}
+            }
+        }
+
+        for desc in result_desc.mut_iter() {
+            match desc.ty {
+                PgUnknownType { oid, .. } =>
+                    desc.ty = PgUnknownType {
+                        name: self.get_type_name(oid),
+                        oid: oid
+                    },
+                _ => {}
+            }
+        }
+
         Ok(NormalPostgresStatement {
             conn: conn,
             name: stmt_name,
@@ -532,6 +558,18 @@ impl InnerPostgresConnection {
             result_desc: result_desc,
             next_portal_id: RefCell::new(0)
         })
+    }
+
+    fn get_type_name(&mut self, oid: Oid) -> ~str {
+        match self.unknown_types.find(&oid) {
+            Some(name) => return name.clone(),
+            None => {}
+        }
+        let name = self.quick_query(
+                format!("SELECT typname FROM pg_type WHERE oid={}", oid))[0][0]
+                .unwrap();
+        self.unknown_types.insert(oid, name.clone());
+        name
     }
 
     fn wait_for_ready(&mut self) {
@@ -896,7 +934,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
         assert!(self.param_types.len() == params.len(),
                 "Expected {} parameters but found {}",
                 self.param_types.len(), params.len());
-        for (&param, &ty) in params.iter().zip(self.param_types.iter()) {
+        for (&param, ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = param.to_sql(ty);
             formats.push(format as i16);
             values.push(value);
@@ -1183,7 +1221,7 @@ impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     #[inline]
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
-        FromSql::from_sql(self.stmt.result_desc[idx].ty, &self.data[idx])
+        FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 }
 
