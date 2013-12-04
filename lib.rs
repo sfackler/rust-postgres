@@ -338,17 +338,17 @@ impl InnerPostgresConnection {
             port,
             user,
             path,
-            query: args,
+            query: mut args,
             ..
         }: Url = match FromStr::from_str(url) {
             Some(url) => url,
             None => return Err(InvalidUrl)
         };
+
         let user = match user {
             Some(user) => user,
             None => return Err(MissingUser)
         };
-        let mut args = args;
 
         let port = match port {
             Some(port) => FromStr::from_str(port).unwrap(),
@@ -928,9 +928,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
         let portal_name = format!("{}_portal_{}", self.name, id);
 
         match self.execute(portal_name, row_limit, params) {
-            Some(err) => {
-                return Err(err);
-            }
+            Some(err) => return Err(err),
             None => {}
         }
 

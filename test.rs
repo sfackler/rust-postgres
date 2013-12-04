@@ -434,6 +434,19 @@ fn test_int4array_params() {
               [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
 }
 
+#[test]
+fn test_int8array_params() {
+    test_type("INT8[]",
+              [(Some(ArrayBase::from_vec(~[Some(0i64), Some(1), None], 1)),
+                "'{0,1,NULL}'"),
+               (None, "NULL")]);
+    let mut a = ArrayBase::from_vec(~[Some(0i64), Some(1)], 0);
+    a.wrap(-1);
+    a.push_move(ArrayBase::from_vec(~[None, Some(3)], 0));
+    test_type("INT8[][]",
+              [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
+}
+
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let stmt = conn.prepare("SELECT 'NaN'::" + sql_type);

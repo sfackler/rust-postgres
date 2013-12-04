@@ -8,6 +8,7 @@ use extra::json::Json;
 use extra::uuid::Uuid;
 use std::io::Decorator;
 use std::io::mem::{MemWriter, BufReader};
+use std::mem;
 use std::str;
 use std::vec;
 
@@ -32,6 +33,7 @@ static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
 static INT4ARRAYOID: Oid = 1007;
+static INT8ARRAYOID: Oid = 1016;
 static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
@@ -79,6 +81,8 @@ pub enum PostgresType {
     PgFloat8,
     /// INT4[]
     PgInt4Array,
+    /// INT8[]
+    PgInt8Array,
     /// TIMESTAMP
     PgTimestamp,
     /// TIMESTAMP WITH TIME ZONE
@@ -116,6 +120,7 @@ impl PostgresType {
             FLOAT4OID => PgFloat4,
             FLOAT8OID => PgFloat8,
             INT4ARRAYOID => PgInt4Array,
+            INT8ARRAYOID => PgInt8Array,
             TIMESTAMPOID => PgTimestamp,
             TIMESTAMPZOID => PgTimestampZ,
             BPCHAROID => PgCharN,
@@ -365,6 +370,9 @@ macro_rules! from_array_impl(
 from_array_impl!(PgInt4Array, i32)
 from_option_impl!(ArrayBase<Option<i32>>)
 
+from_array_impl!(PgInt8Array, i64)
+from_option_impl!(ArrayBase<Option<i64>>)
+
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
     /// Converts the value of `self` into a format appropriate for the Postgres
@@ -379,6 +387,8 @@ pub trait ToSql {
 
 trait RawToSql {
     fn raw_to_sql<W: Writer>(&self, w: &mut W);
+
+    fn raw_size(&self) -> uint;
 }
 
 macro_rules! raw_to_impl(
@@ -386,6 +396,10 @@ macro_rules! raw_to_impl(
         impl RawToSql for $t {
             fn raw_to_sql<W: Writer>(&self, w: &mut W) {
                 w.$f(*self)
+            }
+
+            fn raw_size(&self) -> uint {
+                mem::size_of::<$t>()
             }
         }
     )
@@ -399,6 +413,10 @@ impl RawToSql for Timespec {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
             + self.nsec as i64 / NSEC_PER_USEC;
         w.write_be_i64(t);
+    }
+
+    fn raw_size(&self) -> uint {
+        8
     }
 }
 
@@ -535,7 +553,7 @@ to_raw_to_impl!(PgTimestamp | PgTimestampZ, Timespec)
 to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 
 macro_rules! to_range_impl(
-    ($($oid:ident)|+, $t:ty, $size:expr) => (
+    ($($oid:ident)|+, $t:ty) => (
         impl ToSql for Range<$t> {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
@@ -563,14 +581,14 @@ macro_rules! to_range_impl(
 
                 match self.lower() {
                     &Some(ref bound) => {
-                        buf.write_be_i32($size);
+                        buf.write_be_i32(bound.value.raw_size() as i32);
                         bound.value.raw_to_sql(&mut buf);
                     }
                     &None => {}
                 }
                 match self.upper() {
                     &Some(ref bound) => {
-                        buf.write_be_i32($size);
+                        buf.write_be_i32(bound.value.raw_size() as i32);
                         bound.value.raw_to_sql(&mut buf);
                     }
                     &None => {}
@@ -582,17 +600,17 @@ macro_rules! to_range_impl(
     )
 )
 
-to_range_impl!(PgInt4Range, i32, 4)
+to_range_impl!(PgInt4Range, i32)
 to_option_impl!(PgInt4Range, Range<i32>)
 
-to_range_impl!(PgInt8Range, i64, 8)
+to_range_impl!(PgInt8Range, i64)
 to_option_impl!(PgInt8Range, Range<i64>)
 
-to_range_impl!(PgTsRange | PgTstzRange, Timespec, 8)
+to_range_impl!(PgTsRange | PgTstzRange, Timespec)
 to_option_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 
 macro_rules! to_array_impl(
-    ($($oid:ident)|+, $base_oid:ident, $t:ty, $size:expr) => (
+    ($($oid:ident)|+, $base_oid:ident, $t:ty) => (
         impl ToSql for ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
@@ -610,7 +628,7 @@ macro_rules! to_array_impl(
                 for v in self.values() {
                     match *v {
                         Some(ref val) => {
-                            buf.write_be_i32($size);
+                            buf.write_be_i32(val.raw_size() as i32);
                             val.raw_to_sql(&mut buf);
                         }
                         None => buf.write_be_i32(-1)
@@ -623,5 +641,8 @@ macro_rules! to_array_impl(
     )
 )
 
-to_array_impl!(PgInt4Array, INT4OID, i32, 4)
+to_array_impl!(PgInt4Array, INT4OID, i32)
 to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)
+
+to_array_impl!(PgInt8Array, INT8OID, i64)
+to_option_impl!(PgInt8Array, ArrayBase<Option<i64>>)
