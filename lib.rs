@@ -82,6 +82,7 @@ use std::io::net;
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
 use std::task;
+use std::str;
 
 use self::error::{PostgresDbError,
                   PostgresConnectError,
@@ -539,6 +540,25 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         }
     }
+
+    fn quick_query(&mut self, query: &str) -> ~[~[Option<~str>]] {
+        self.write_messages([Query { query: query }]);
+
+        let mut result = ~[];
+        loop {
+            match self.read_message() {
+                ReadyForQuery { .. } => break,
+                DataRow { row } =>
+                    result.push(row.move_iter().map(|opt|
+                            opt.map(|b| str::from_utf8_owned(b))).collect()),
+                ErrorResponse { fields } =>
+                    fail!("Error: {}",
+                           PostgresDbError::new(fields).to_str()),
+                _ => {}
+            }
+        }
+        result
+    }
 }
 
 /// A connection to a Postgres database.
@@ -669,20 +689,8 @@ impl PostgresConnection {
         self.conn.with(|conn| conn.cancel_data)
     }
 
-    fn quick_query(&self, query: &str) {
-        self.conn.with_mut(|conn| {
-            conn.write_messages([Query { query: query }]);
-
-            loop {
-                match conn.read_message() {
-                    ReadyForQuery { .. } => break,
-                    ErrorResponse { fields } =>
-                        fail!("Error: {}",
-                               PostgresDbError::new(fields).to_str()),
-                    _ => {}
-                }
-            }
-        })
+    fn quick_query(&self, query: &str) -> ~[~[Option<~str>]] {
+        self.conn.with_mut(|conn| conn.quick_query(query))
     }
 
     fn wait_for_ready(&self) {
