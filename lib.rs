@@ -314,6 +314,13 @@ impl Writer for InternalStream {
             Ssl(ref mut s) => s.write(buf)
         }
     }
+
+    fn flush(&mut self) {
+        match *self {
+            Normal(ref mut s) => s.flush(),
+            Ssl(ref mut s) => s.flush()
+        }
+    }
 }
 
 struct InnerPostgresConnection {
