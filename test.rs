@@ -99,15 +99,14 @@ fn test_transaction_commit() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
-    {
-        let trans = conn.transaction();
-        trans.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
-    }
+    let trans = conn.transaction();
+    trans.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    drop(trans);
 
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
 
-    assert_eq!(~[1i32], result.map(|row| { row[1] }).collect());
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
@@ -116,11 +115,11 @@ fn test_transaction_rollback() {
     conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     conn.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
-    {
-        let trans = conn.transaction();
-        trans.update("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
-        trans.set_rollback();
-    }
+
+    let trans = conn.transaction();
+    trans.update("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
+    trans.set_rollback();
+    drop(trans);
 
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
