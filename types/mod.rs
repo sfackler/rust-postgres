@@ -269,7 +269,7 @@ from_conversions_impl!(PgFloat8, f64, read_be_f64)
 from_option_impl!(f64)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
-    str::from_utf8(buf.as_slice())
+    str::from_utf8_owned(buf.clone())
 })
 from_option_impl!(~str)
 
@@ -279,7 +279,7 @@ from_map_impl!(PgByteA, ~[u8], |buf| {
 from_option_impl!(~[u8])
 
 from_map_impl!(PgJson, Json, |buf| {
-    json::from_str(str::from_utf8_slice(buf.as_slice())).unwrap()
+    json::from_str(str::from_utf8(buf.as_slice())).unwrap()
 })
 from_option_impl!(Json)
 
