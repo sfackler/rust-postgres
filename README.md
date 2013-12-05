@@ -133,19 +133,19 @@ The `transaction` method will start a new transaction. It returns a
 `PostgresConnection` as well as methods to control the result of the
 transaction:
 ```rust
-{
-    let trans = conn.transaction();
-    trans.update(...);
-    let stmt = trans.prepare(...);
+let trans = conn.transaction();
+trans.update(...);
+let stmt = trans.prepare(...);
 
-    if a_bad_thing_happened {
-        trans.set_rollback();
-    }
-
-    if the_coast_is_clear {
-        trans.set_commit();
-    }
+if a_bad_thing_happened {
+    trans.set_rollback();
 }
+
+if the_coast_is_clear {
+    trans.set_commit();
+}
+
+drop(trans);
 ```
 The transaction will be active until the `PostgresTransaction` object falls out
 of scope. A transaction will commit by default. Nested transactions are
