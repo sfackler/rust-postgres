@@ -12,6 +12,7 @@ use extra::uuid::Uuid;
 use ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
+use std::hashmap::HashMap;
 use std::io::timer;
 
 use lib::{PostgresNoticeHandler,
@@ -445,6 +446,24 @@ fn test_int8array_params() {
     a.push_move(ArrayBase::from_vec(~[None, Some(3)], 0));
     test_type("INT8[][]",
               [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
+}
+
+#[test]
+fn test_hstore_params() {
+    macro_rules! make_map(
+        ($($k:expr => $v:expr),+) => ({
+            let mut map = HashMap::new();
+            $(map.insert($k, $v);)+
+            map
+        })
+    )
+    test_type("hstore",
+              [(Some(make_map!(~"a" => Some(~"1"))), "'a=>1'"),
+               (Some(make_map!(~"hello" => Some(~"world!"),
+                               ~"hola" => Some(~"mundo!"),
+                               ~"what" => None)),
+                "'hello=>world!,hola=>mundo!,what=>NULL'"),
+                (None, "NULL")]);
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {

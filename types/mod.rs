@@ -6,6 +6,7 @@ use extra::time::Timespec;
 use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
+use std::hashmap::HashMap;
 use std::io::Decorator;
 use std::io::mem::{MemWriter, BufReader};
 use std::mem;
@@ -143,6 +144,7 @@ impl PostgresType {
     /// Returns the wire format needed for the value of `self`.
     pub fn result_format(&self) -> Format {
         match *self {
+            PgUnknownType { name: ~"hstore", .. } => Binary,
             PgUnknownType { .. } => Text,
             _ => Binary
         }
@@ -379,6 +381,31 @@ from_option_impl!(ArrayBase<Option<i32>>)
 from_array_impl!(PgInt8Array, i64)
 from_option_impl!(ArrayBase<Option<i64>>)
 
+from_map_impl!(PgUnknownType { name: ~"hstore", .. },
+               HashMap<~str, Option<~str>>, |buf| {
+    let mut rdr = BufReader::new(buf.as_slice());
+    let mut map = HashMap::new();
+
+    let count = rdr.read_be_i32();
+
+    for _ in range(0, count) {
+        let key_len = rdr.read_be_i32();
+        let key = str::from_utf8_owned(rdr.read_bytes(key_len as uint));
+
+        let val_len = rdr.read_be_i32();
+        let val = if val_len < 0 {
+            None
+        } else {
+            Some(str::from_utf8_owned(rdr.read_bytes(val_len as uint)))
+        };
+
+        map.insert(key, val);
+    }
+
+    map
+})
+from_option_impl!(HashMap<~str, Option<~str>>)
+
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
     /// Converts the value of `self` into a format appropriate for the Postgres
@@ -427,7 +454,7 @@ impl RawToSql for Timespec {
 }
 
 macro_rules! to_option_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($($oid:pat)|+, $t:ty) => (
         impl ToSql for Option<$t> {
             fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
@@ -438,8 +465,11 @@ macro_rules! to_option_impl(
                 }
             }
         }
-    );
-    (self, $($oid:ident)|+, $t:ty) => (
+    )
+)
+
+macro_rules! to_option_impl_self(
+    ($($oid:pat)|+, $t:ty) => (
         impl<'self> ToSql for Option<$t> {
             fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
@@ -518,7 +548,7 @@ impl<'self> ToSql for &'self str {
 }
 
 to_option_impl!(PgVarchar | PgText | PgCharN, ~str)
-to_option_impl!(self, PgVarchar | PgText | PgCharN, &'self str)
+to_option_impl_self!(PgVarchar | PgText | PgCharN, &'self str)
 
 impl ToSql for ~[u8] {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -535,7 +565,7 @@ impl<'self> ToSql for &'self [u8] {
 }
 
 to_option_impl!(PgByteA, ~[u8])
-to_option_impl!(self, PgByteA, &'self [u8])
+to_option_impl_self!(PgByteA, &'self [u8])
 
 impl ToSql for Json {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -652,3 +682,29 @@ to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)
 
 to_array_impl!(PgInt8Array, INT8OID, i64)
 to_option_impl!(PgInt8Array, ArrayBase<Option<i64>>)
+
+impl<'self> ToSql for HashMap<~str, Option<~str>> {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
+        check_types!(PgUnknownType { name: ~"hstore", .. }, ty)
+        let mut buf = MemWriter::new();
+
+        buf.write_be_i32(self.len() as i32);
+
+        for (key, val) in self.iter() {
+            buf.write_be_i32(key.len() as i32);
+            buf.write(key.as_bytes());
+
+            match *val {
+                Some(ref val) => {
+                    buf.write_be_i32(val.len() as i32);
+                    buf.write(val.as_bytes());
+                }
+                None => buf.write_be_i32(-1)
+            }
+        }
+
+        (Binary, Some(buf.inner()))
+    }
+}
+to_option_impl!(PgUnknownType { name: ~"hstore", .. },
+                HashMap<~str, Option<~str>>)

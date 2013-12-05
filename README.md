@@ -265,6 +265,10 @@ types. The driver currently supports the following conversions:
             <td>types::array::ArrayBase&lt;Option&lt;i64&gt;&gt;</td>
             <td>INT8[], INT8[][], ...</td>
         </tr>
+        <tr>
+            <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
+            <td>HSTORE</td>
+        </tr>
     </tbody>
 </table>
 
