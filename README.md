@@ -177,7 +177,8 @@ let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
                                        &NoSsl, 5);
 
 for _ in range(0, 10) {
-    do task::spawn_with(pool.clone()) |pool| {
+    let pool = pool.clone();
+    do task::spawn {
         let conn = pool.get_connection();
         conn.query(...);
     }
