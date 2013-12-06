@@ -617,15 +617,15 @@ macro_rules! to_range_impl(
                 if self.is_empty() {
                     tag |= RANGE_EMPTY;
                 } else {
-                    match self.lower() {
-                        &None => tag |= RANGE_LOWER_UNBOUNDED,
-                        &Some(RangeBound { type_: Inclusive, .. }) =>
+                    match *self.lower() {
+                        None => tag |= RANGE_LOWER_UNBOUNDED,
+                        Some(RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_LOWER_INCLUSIVE,
                         _ => {}
                     }
-                    match self.upper() {
-                        &None => tag |= RANGE_UPPER_UNBOUNDED,
-                        &Some(RangeBound { type_: Inclusive, .. }) =>
+                    match *self.upper() {
+                        None => tag |= RANGE_UPPER_UNBOUNDED,
+                        Some(RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_UPPER_INCLUSIVE,
                         _ => {}
                     }
@@ -633,19 +633,19 @@ macro_rules! to_range_impl(
 
                 buf.write_i8(tag);
 
-                match self.lower() {
-                    &Some(ref bound) => {
+                match *self.lower() {
+                    Some(ref bound) => {
                         buf.write_be_i32(bound.value.raw_size() as i32);
                         bound.value.raw_to_sql(&mut buf);
                     }
-                    &None => {}
+                    None => {}
                 }
-                match self.upper() {
-                    &Some(ref bound) => {
+                match *self.upper() {
+                    Some(ref bound) => {
                         buf.write_be_i32(bound.value.raw_size() as i32);
                         bound.value.raw_to_sql(&mut buf);
                     }
-                    &None => {}
+                    None => {}
                 }
 
                 (Binary, Some(buf.inner()))

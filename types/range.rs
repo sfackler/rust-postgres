@@ -156,8 +156,8 @@ impl<T: Ord+Normalizable> Range<T> {
     /// If a bound is `None`, the range is unbounded in that direction.
     pub fn new(lower: Option<RangeBound<LowerBound, T>>,
                upper: Option<RangeBound<UpperBound, T>>) -> Range<T> {
-        let lower = lower.map(|bound| { Normalizable::normalize(bound) });
-        let upper = upper.map(|bound| { Normalizable::normalize(bound) });
+        let lower = lower.map(|bound| Normalizable::normalize(bound));
+        let upper = upper.map(|bound| Normalizable::normalize(bound));
 
         match (&lower, &upper) {
             (&Some(ref lower), &Some(ref upper)) => {
@@ -209,8 +209,8 @@ impl<T: Ord+Normalizable> Range<T> {
         match *self {
             Empty => false,
             Normal(ref lower, ref upper) => {
-                lower.as_ref().map_default(true, |b| { b.in_bounds(value) }) &&
-                    upper.as_ref().map_default(true, |b| { b.in_bounds(value) })
+                lower.as_ref().map_default(true, |b| b.in_bounds(value)) &&
+                    upper.as_ref().map_default(true, |b| b.in_bounds(value))
             }
         }
     }
