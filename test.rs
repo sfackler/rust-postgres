@@ -223,10 +223,10 @@ fn test_result_descriptions() {
                 ResultDescription { name: ~"b", ty: PgVarchar}]);
 }
 
-fn test_type<T: Eq+FromSql+ToSql>(sql_type: &str, checks: &[(T, &str)]) {
+fn test_type<T: Eq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = conn.prepare("SELECT " + *repr + "::" + sql_type);
+        let stmt = conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type));
         let result = stmt.query([]).next().unwrap()[1];
         assert_eq!(val, &result);
 
@@ -381,10 +381,7 @@ macro_rules! test_range(
                       "'(" + $low_str + "," + $high_str + ")'"),
                      (Some(Range::empty()), ~"'empty'"),
                      (None, ~"NULL")];
-        let test_refs: ~[(Option<Range<$t>>, &str)] = tests.iter()
-                .map(|&(ref val, ref s)| { (val.clone(), s.as_slice()) })
-                .collect();
-        test_type($name, test_refs);
+        test_type($name, tests);
     })
 )
 
@@ -421,30 +418,33 @@ fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
 }
 
+macro_rules! test_array_params(
+    ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
+        let tests = [(Some(ArrayBase::from_vec(~[Some($v1), Some($v2), None], 1)),
+                      "'{" + $s1 + "," + $s2 + ",NULL}'"),
+                     (None, ~"NULL")];
+        test_type($name + "[]", tests);
+        let mut a = ArrayBase::from_vec(~[Some($v1), Some($v2)], 0);
+        a.wrap(-1);
+        a.push_move(ArrayBase::from_vec(~[None, Some($v3)], 0));
+        let tests = [(Some(a), "'[-1:0][0:1]={{" + $s1 + "," + $s2 + "},{NULL," + $s3 + "}}'")];
+        test_type($name + "[][]", tests);
+    })
+)
+
 #[test]
 fn test_int4array_params() {
-    test_type("INT4[]",
-              [(Some(ArrayBase::from_vec(~[Some(0i32), Some(1), None], 1)),
-                "'{0,1,NULL}'"),
-               (None, "NULL")]);
-    let mut a = ArrayBase::from_vec(~[Some(0i32), Some(1)], 0);
-    a.wrap(-1);
-    a.push_move(ArrayBase::from_vec(~[None, Some(3)], 0));
-    test_type("INT4[][]",
-              [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
+    test_array_params!("INT4", 0i32, "0", 1i32, "1", 2i32, "2");
 }
 
 #[test]
 fn test_int8array_params() {
-    test_type("INT8[]",
-              [(Some(ArrayBase::from_vec(~[Some(0i64), Some(1), None], 1)),
-                "'{0,1,NULL}'"),
-               (None, "NULL")]);
-    let mut a = ArrayBase::from_vec(~[Some(0i64), Some(1)], 0);
-    a.wrap(-1);
-    a.push_move(ArrayBase::from_vec(~[None, Some(3)], 0));
-    test_type("INT8[][]",
-              [(Some(a), "'[-1:0][0:1]={{0,1},{NULL,3}}'")]);
+    test_array_params!("INT8", 0i64, "0", 1i64, "1", 2i64, "2");
+}
+
+#[test]
+fn test_float4array_params() {
+    test_array_params!("FLOAT4", 0f32, "0", 1.5f32, "1.5", 0.009f32, ".009");
 }
 
 #[test]
@@ -518,7 +518,7 @@ fn test_get_named() {
     let stmt = conn.prepare("SELECT 10::INT as val");
     let result = stmt.query([]);
 
-    assert_eq!(~[10i32], result.map(|row| { row["val"] }).collect());
+    assert_eq!(~[10i32], result.map(|row| row["val"]).collect());
 }
 
 #[test]
@@ -610,7 +610,7 @@ fn test_cancel_query() {
     do spawn {
         timer::sleep(500);
         assert!(lib::cancel_query("postgres://postgres@localhost", &NoSsl,
-                                    cancel_data).is_none());
+                                  cancel_data).is_none());
     }
 
     match conn.try_update("SELECT pg_sleep(10)", []) {
