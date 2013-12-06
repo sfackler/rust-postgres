@@ -208,10 +208,10 @@ pub struct PostgresCancelData {
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
 pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
-        -> Option<PostgresConnectError> {
+        -> Result<(), PostgresConnectError> {
     let Url { host, port, .. }: Url = match FromStr::from_str(url) {
         Some(url) => url,
-        None => return Some(InvalidUrl)
+        None => return Err(InvalidUrl)
     };
     let port = match port {
         Some(port) => FromStr::from_str(port).unwrap(),
@@ -220,7 +220,7 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
 
     let mut socket = match initialize_stream(host, port, ssl) {
         Ok(socket) => socket,
-        Err(err) => return Some(err)
+        Err(err) => return Err(err)
     };
 
     socket.write_message(&CancelRequest {
@@ -230,7 +230,7 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
     });
     socket.flush();
 
-    None
+    Ok(())
 }
 
 fn open_socket(host: &str, port: Port)
@@ -325,7 +325,7 @@ impl Writer for InternalStream {
 
 struct InnerPostgresConnection {
     stream: BufferedStream<InternalStream>,
-    next_stmt_id: int,
+    next_stmt_id: uint,
     notice_handler: ~PostgresNoticeHandler,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
@@ -347,7 +347,7 @@ impl InnerPostgresConnection {
             host,
             port,
             user,
-            path,
+            path: mut path,
             query: mut args,
             ..
         }: Url = match FromStr::from_str(url) {
@@ -387,7 +387,8 @@ impl InnerPostgresConnection {
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
             // path contains the leading /
-            args.push((~"database", path.slice_from(1).to_owned()));
+            path.shift_char();
+            args.push((~"database", path));
         }
         conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,

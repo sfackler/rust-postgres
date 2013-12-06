@@ -615,7 +615,7 @@ fn test_cancel_query() {
     do spawn {
         timer::sleep(500);
         assert!(lib::cancel_query("postgres://postgres@localhost", &NoSsl,
-                                  cancel_data).is_none());
+                                  cancel_data).is_ok());
     }
 
     match conn.try_update("SELECT pg_sleep(10)", []) {
