@@ -36,6 +36,7 @@ static FLOAT8OID: Oid = 701;
 static INT4ARRAYOID: Oid = 1007;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
+static FLAOT8ARRAYOID: Oid = 1022;
 static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
@@ -87,6 +88,8 @@ pub enum PostgresType {
     PgInt8Array,
     /// FLOAT4[]
     PgFloat4Array,
+    /// FLOAT8[]
+    PgFloat8Array,
     /// TIMESTAMP
     PgTimestamp,
     /// TIMESTAMP WITH TIME ZONE
@@ -131,6 +134,7 @@ impl PostgresType {
             INT4ARRAYOID => PgInt4Array,
             INT8ARRAYOID => PgInt8Array,
             FLOAT4ARRAYOID => PgFloat4Array,
+            FLAOT8ARRAYOID => PgFloat8Array,
             TIMESTAMPOID => PgTimestamp,
             TIMESTAMPZOID => PgTimestampZ,
             BPCHAROID => PgCharN,
@@ -201,6 +205,7 @@ macro_rules! raw_from_impl(
 raw_from_impl!(i32, read_be_i32)
 raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
+raw_from_impl!(f64, read_be_f64)
 
 impl RawFromSql for Timespec {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Timespec {
@@ -267,13 +272,13 @@ from_raw_from_impl!(PgInt8, i64)
 from_option_impl!(i64)
 from_raw_from_impl!(PgFloat4, f32)
 from_option_impl!(f32)
+from_raw_from_impl!(PgFloat8, f64)
+from_option_impl!(f64)
 
 from_conversions_impl!(PgChar, i8, read_i8)
 from_option_impl!(i8)
 from_conversions_impl!(PgInt2, i16, read_be_i16)
 from_option_impl!(i16)
-from_conversions_impl!(PgFloat8, f64, read_be_f64)
-from_option_impl!(f64)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
     str::from_utf8_owned(buf.clone())
@@ -389,6 +394,9 @@ from_option_impl!(ArrayBase<Option<i64>>)
 from_array_impl!(PgFloat4Array, f32)
 from_option_impl!(ArrayBase<Option<f32>>)
 
+from_array_impl!(PgFloat8Array, f64)
+from_option_impl!(ArrayBase<Option<f64>>)
+
 from_map_impl!(PgUnknownType { name: ~"hstore", .. },
                HashMap<~str, Option<~str>>, |buf| {
     let mut rdr = BufReader::new(buf.as_slice());
@@ -449,6 +457,7 @@ macro_rules! raw_to_impl(
 raw_to_impl!(i32, write_be_i32)
 raw_to_impl!(i64, write_be_i64)
 raw_to_impl!(f32, write_be_f32)
+raw_to_impl!(f64, write_be_f64)
 
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
@@ -534,13 +543,13 @@ to_raw_to_impl!(PgInt8, i64)
 to_option_impl!(PgInt8, i64)
 to_raw_to_impl!(PgFloat4, f32)
 to_option_impl!(PgFloat4, f32)
+to_raw_to_impl!(PgFloat8, f64)
+to_option_impl!(PgFloat8, f64)
 
 to_conversions_impl!(PgChar, i8, write_i8)
 to_option_impl!(PgChar, i8)
 to_conversions_impl!(PgInt2, i16, write_be_i16)
 to_option_impl!(PgInt2, i16)
-to_conversions_impl!(PgFloat8, f64, write_be_f64)
-to_option_impl!(PgFloat8, f64)
 
 impl ToSql for ~str {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -694,6 +703,9 @@ to_option_impl!(PgInt8Array, ArrayBase<Option<i64>>)
 
 to_array_impl!(PgFloat4Array, FLOAT4OID, f32)
 to_option_impl!(PgFloat4Array, ArrayBase<Option<f32>>)
+
+to_array_impl!(PgFloat8Array, FLOAT8OID, f64)
+to_option_impl!(PgFloat8Array, ArrayBase<Option<f64>>)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {

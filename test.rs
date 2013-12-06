@@ -448,6 +448,11 @@ fn test_float4array_params() {
 }
 
 #[test]
+fn test_float8array_params() {
+    test_array_params!("FLOAT8", 0f64, "0", 1.5f64, "1.5", 0.009f64, ".009");
+}
+
+#[test]
 fn test_hstore_params() {
     macro_rules! make_map(
         ($($k:expr => $v:expr),+) => ({

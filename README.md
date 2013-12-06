@@ -271,6 +271,10 @@ types. The driver currently supports the following conversions:
             <td>FLOAT4[], FLOAT4[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;f64&gt;&gt;</td>
+            <td>FLOAT8[], FLOAT8[][], ...</td>
+        </tr>
+        <tr>
             <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
