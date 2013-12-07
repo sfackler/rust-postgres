@@ -467,7 +467,7 @@ impl RawToSql for Timespec {
     }
 
     fn raw_size(&self) -> uint {
-        8
+        mem::size_of::<i64>()
     }
 }
 

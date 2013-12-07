@@ -243,18 +243,10 @@ trait ReadString {
     fn read_string(&mut self) -> ~str;
 }
 
-impl<R: Reader> ReadString for R {
+impl<R: Buffer> ReadString for R {
     fn read_string(&mut self) -> ~str {
-        let mut buf = ~[];
-        loop {
-            let byte = self.read_u8();
-            if byte == 0 {
-                break;
-            }
-
-            buf.push(byte);
-        }
-
+        let mut buf = self.read_until(0).unwrap();
+        buf.pop();
         str::from_utf8_owned(buf)
     }
 }
