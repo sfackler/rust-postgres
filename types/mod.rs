@@ -33,6 +33,8 @@ static TEXTOID: Oid = 25;
 static JSONOID: Oid = 114;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
+static BOOLARRAYOID: Oid = 1000;
+static BYTEAARRAYOID: Oid = 1001;
 static INT4ARRAYOID: Oid = 1007;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
@@ -82,6 +84,8 @@ pub enum PostgresType {
     PgFloat4,
     /// FLOAT8/DOUBLE PRECISION
     PgFloat8,
+    /// BOOL[]
+    PgBoolArray,
     /// INT4[]
     PgInt4Array,
     /// INT8[]
@@ -131,6 +135,7 @@ impl PostgresType {
             JSONOID => PgJson,
             FLOAT4OID => PgFloat4,
             FLOAT8OID => PgFloat8,
+            BOOLARRAYOID => PgBoolArray,
             INT4ARRAYOID => PgInt4Array,
             INT8ARRAYOID => PgInt8Array,
             FLOAT4ARRAYOID => PgFloat4Array,
@@ -202,6 +207,12 @@ macro_rules! raw_from_impl(
     )
 )
 
+impl RawFromSql for bool {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> bool {
+        raw.read_u8() != 0
+    }
+}
+
 raw_from_impl!(i32, read_be_i32)
 raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
@@ -263,9 +274,8 @@ macro_rules! from_option_impl(
     )
 )
 
-from_map_impl!(PgBool, bool, |buf| { buf[0] != 0 })
+from_raw_from_impl!(PgBool, bool)
 from_option_impl!(bool)
-
 from_raw_from_impl!(PgInt4, i32)
 from_option_impl!(i32)
 from_raw_from_impl!(PgInt8, i64)
@@ -385,6 +395,9 @@ macro_rules! from_array_impl(
     )
 )
 
+from_array_impl!(PgBoolArray, bool)
+from_option_impl!(ArrayBase<Option<bool>>)
+
 from_array_impl!(PgInt4Array, i32)
 from_option_impl!(ArrayBase<Option<i32>>)
 
@@ -453,6 +466,16 @@ macro_rules! raw_to_impl(
         }
     )
 )
+
+impl RawToSql for bool {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+        w.write_u8(*self as u8)
+    }
+
+    fn raw_size(&self) -> uint {
+        1
+    }
+}
 
 raw_to_impl!(i32, write_be_i32)
 raw_to_impl!(i64, write_be_i64)
@@ -529,14 +552,8 @@ macro_rules! to_conversions_impl(
     )
 )
 
-impl ToSql for bool {
-    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgBool, ty)
-        (Binary, Some(~[*self as u8]))
-    }
-}
+to_raw_to_impl!(PgBool, bool)
 to_option_impl!(PgBool, bool)
-
 to_raw_to_impl!(PgInt4, i32)
 to_option_impl!(PgInt4, i32)
 to_raw_to_impl!(PgInt8, i64)
@@ -694,6 +711,9 @@ macro_rules! to_array_impl(
         }
     )
 )
+
+to_array_impl!(PgBoolArray, BOOLOID, bool)
+to_option_impl!(PgBoolArray, ArrayBase<Option<bool>>)
 
 to_array_impl!(PgInt4Array, INT4OID, i32)
 to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)

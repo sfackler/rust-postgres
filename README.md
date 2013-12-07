@@ -259,6 +259,10 @@ types. The driver currently supports the following conversions:
             <td>TSRANGE, TSTZRANGE</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;bool&gt;&gt;</td>
+            <td>BOOL[], BOOL[][], ...</td>
+        </tr>
+        <tr>
             <td>types::array::ArrayBase&lt;Option&lt;i32&gt;&gt;</td>
             <td>INT4[], INT4[][], ...</td>
         </tr>

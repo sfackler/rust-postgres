@@ -520,8 +520,7 @@ impl InnerPostgresConnection {
 
         let mut param_types: ~[PostgresType] = match self.read_message() {
             ParameterDescription { types } =>
-                types.iter().map(|ty| { PostgresType::from_oid(*ty) })
-                    .collect(),
+                types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
             _ => unreachable!()
         };
 
