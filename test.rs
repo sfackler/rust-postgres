@@ -464,6 +464,12 @@ fn test_byteaarray_params() {
 }
 
 #[test]
+fn test_chararray_params() {
+    test_array_params!("\"char\"", 'a' as i8, "a", 'z' as i8, "z",
+                       '0' as i8, "0");
+}
+
+#[test]
 fn test_hstore_params() {
     macro_rules! make_map(
         ($($k:expr => $v:expr),+) => ({

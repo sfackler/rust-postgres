@@ -35,6 +35,7 @@ static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
 static BOOLARRAYOID: Oid = 1000;
 static BYTEAARRAYOID: Oid = 1001;
+static CHARARRAYOID: Oid = 1002;
 static INT4ARRAYOID: Oid = 1007;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
@@ -88,6 +89,8 @@ pub enum PostgresType {
     PgBoolArray,
     /// BYTEA[]
     PgByteAArray,
+    /// "char"[]
+    PgCharArray,
     /// INT4[]
     PgInt4Array,
     /// INT8[]
@@ -139,6 +142,7 @@ impl PostgresType {
             FLOAT8OID => PgFloat8,
             BOOLARRAYOID => PgBoolArray,
             BYTEAARRAYOID => PgByteAArray,
+            CHARARRAYOID => PgCharArray,
             INT4ARRAYOID => PgInt4Array,
             INT8ARRAYOID => PgInt8Array,
             FLOAT4ARRAYOID => PgFloat4Array,
@@ -222,6 +226,7 @@ impl RawFromSql for ~[u8] {
     }
 }
 
+raw_from_impl!(i8, read_i8)
 raw_from_impl!(i32, read_be_i32)
 raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
@@ -287,6 +292,8 @@ from_raw_from_impl!(PgBool, bool)
 from_option_impl!(bool)
 from_raw_from_impl!(PgByteA, ~[u8])
 from_option_impl!(~[u8])
+from_raw_from_impl!(PgChar, i8)
+from_option_impl!(i8)
 from_raw_from_impl!(PgInt4, i32)
 from_option_impl!(i32)
 from_raw_from_impl!(PgInt8, i64)
@@ -296,8 +303,6 @@ from_option_impl!(f32)
 from_raw_from_impl!(PgFloat8, f64)
 from_option_impl!(f64)
 
-from_conversions_impl!(PgChar, i8, read_i8)
-from_option_impl!(i8)
 from_conversions_impl!(PgInt2, i16, read_be_i16)
 from_option_impl!(i16)
 
@@ -408,6 +413,9 @@ from_option_impl!(ArrayBase<Option<bool>>)
 from_array_impl!(PgByteAArray, ~[u8])
 from_option_impl!(ArrayBase<Option<~[u8]>>)
 
+from_array_impl!(PgCharArray, i8)
+from_option_impl!(ArrayBase<Option<i8>>)
+
 from_array_impl!(PgInt4Array, i32)
 from_option_impl!(ArrayBase<Option<i32>>)
 
@@ -497,6 +505,7 @@ impl RawToSql for ~[u8] {
     }
 }
 
+raw_to_impl!(i8, write_i8)
 raw_to_impl!(i32, write_be_i32)
 raw_to_impl!(i64, write_be_i64)
 raw_to_impl!(f32, write_be_f32)
@@ -576,6 +585,8 @@ to_raw_to_impl!(PgBool, bool)
 to_option_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
 to_option_impl!(PgByteA, ~[u8])
+to_raw_to_impl!(PgChar, i8)
+to_option_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt4, i32)
 to_option_impl!(PgInt4, i32)
 to_raw_to_impl!(PgInt8, i64)
@@ -585,8 +596,6 @@ to_option_impl!(PgFloat4, f32)
 to_raw_to_impl!(PgFloat8, f64)
 to_option_impl!(PgFloat8, f64)
 
-to_conversions_impl!(PgChar, i8, write_i8)
-to_option_impl!(PgChar, i8)
 to_conversions_impl!(PgInt2, i16, write_be_i16)
 to_option_impl!(PgInt2, i16)
 
@@ -731,6 +740,9 @@ to_option_impl!(PgBoolArray, ArrayBase<Option<bool>>)
 
 to_array_impl!(PgByteAArray, BYTEAOID, ~[u8])
 to_option_impl!(PgByteAArray, ArrayBase<Option<~[u8]>>)
+
+to_array_impl!(PgCharArray, CHAROID, i8)
+to_option_impl!(PgCharArray, ArrayBase<Option<i8>>)
 
 to_array_impl!(PgInt4Array, INT4OID, i32)
 to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)
