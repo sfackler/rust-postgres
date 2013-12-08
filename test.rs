@@ -514,6 +514,14 @@ fn test_uuidarray_params() {
 }
 
 #[test]
+fn test_int4rangearray_params() {
+    test_array_params!("INT4RANGE",
+                       Range::new(None, None), "\"(,)\"",
+                       Range::new(Some(RangeBound::new(10i32, Inclusive)), None), "\"[10,)\"",
+                       Range::new(None, Some(RangeBound::new(10i32, Exclusive))), "\"(,10)\"");
+}
+
+#[test]
 fn test_hstore_params() {
     macro_rules! make_map(
         ($($k:expr => $v:expr),+) => ({

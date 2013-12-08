@@ -303,6 +303,10 @@ types. The driver currently supports the following conversions:
             <td>UUID[], UUID[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;types::range::Range&lt;i32&gt;&gt;&gt;</td>
+            <td>INT4RANGE[], INT4RANGE[][], ...</td>
+        </tr>
+        <tr>
             <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
