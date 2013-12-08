@@ -453,6 +453,11 @@ fn test_float8array_params() {
 }
 
 #[test]
+fn test_boolarray_params() {
+    test_array_params!("BOOL", false, "f", true, "t", true, "t");
+}
+
+#[test]
 fn test_hstore_params() {
     macro_rules! make_map(
         ($($k:expr => $v:expr),+) => ({
