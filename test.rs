@@ -458,6 +458,12 @@ fn test_boolarray_params() {
 }
 
 #[test]
+fn test_byteaarray_params() {
+    test_array_params!("BYTEA", ~[0u8, 1], r#""\\x0001""#, ~[254u8, 255u8],
+                       r#""\\xfeff""#, ~[10u8, 11u8], r#""\\x0a0b""#);
+}
+
+#[test]
 fn test_hstore_params() {
     macro_rules! make_map(
         ($($k:expr => $v:expr),+) => ({

@@ -263,6 +263,10 @@ types. The driver currently supports the following conversions:
             <td>BOOL[], BOOL[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;~[u8]&gt;&gt;</td>
+            <td>BYTEA[], BYTEA[][], ...</td>
+        </tr>
+        <tr>
             <td>types::array::ArrayBase&lt;Option&lt;i32&gt;&gt;</td>
             <td>INT4[], INT4[][], ...</td>
         </tr>
