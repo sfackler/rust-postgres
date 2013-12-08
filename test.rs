@@ -433,6 +433,28 @@ macro_rules! test_array_params(
 )
 
 #[test]
+fn test_boolarray_params() {
+    test_array_params!("BOOL", false, "f", true, "t", true, "t");
+}
+
+#[test]
+fn test_byteaarray_params() {
+    test_array_params!("BYTEA", ~[0u8, 1], r#""\\x0001""#, ~[254u8, 255u8],
+                       r#""\\xfeff""#, ~[10u8, 11u8], r#""\\x0a0b""#);
+}
+
+#[test]
+fn test_chararray_params() {
+    test_array_params!("\"char\"", 'a' as i8, "a", 'z' as i8, "z",
+                       '0' as i8, "0");
+}
+
+#[test]
+fn test_int2array_params() {
+    test_array_params!("INT2", 0i16, "0", 1i16, "1", 2i16, "2");
+}
+
+#[test]
 fn test_int4array_params() {
     test_array_params!("INT4", 0i32, "0", 1i32, "1", 2i32, "2");
 }
@@ -450,23 +472,6 @@ fn test_float4array_params() {
 #[test]
 fn test_float8array_params() {
     test_array_params!("FLOAT8", 0f64, "0", 1.5f64, "1.5", 0.009f64, ".009");
-}
-
-#[test]
-fn test_boolarray_params() {
-    test_array_params!("BOOL", false, "f", true, "t", true, "t");
-}
-
-#[test]
-fn test_byteaarray_params() {
-    test_array_params!("BYTEA", ~[0u8, 1], r#""\\x0001""#, ~[254u8, 255u8],
-                       r#""\\xfeff""#, ~[10u8, 11u8], r#""\\x0a0b""#);
-}
-
-#[test]
-fn test_chararray_params() {
-    test_array_params!("\"char\"", 'a' as i8, "a", 'z' as i8, "z",
-                       '0' as i8, "0");
 }
 
 #[test]

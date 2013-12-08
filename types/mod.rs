@@ -36,6 +36,7 @@ static FLOAT8OID: Oid = 701;
 static BOOLARRAYOID: Oid = 1000;
 static BYTEAARRAYOID: Oid = 1001;
 static CHARARRAYOID: Oid = 1002;
+static INT2ARRAYOID: Oid = 1005;
 static INT4ARRAYOID: Oid = 1007;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
@@ -91,6 +92,8 @@ pub enum PostgresType {
     PgByteAArray,
     /// "char"[]
     PgCharArray,
+    /// INT2[]
+    PgInt2Array,
     /// INT4[]
     PgInt4Array,
     /// INT8[]
@@ -143,6 +146,7 @@ impl PostgresType {
             BOOLARRAYOID => PgBoolArray,
             BYTEAARRAYOID => PgByteAArray,
             CHARARRAYOID => PgCharArray,
+            INT2ARRAYOID => PgInt2Array,
             INT4ARRAYOID => PgInt4Array,
             INT8ARRAYOID => PgInt8Array,
             FLOAT4ARRAYOID => PgFloat4Array,
@@ -227,6 +231,7 @@ impl RawFromSql for ~[u8] {
 }
 
 raw_from_impl!(i8, read_i8)
+raw_from_impl!(i16, read_be_i16)
 raw_from_impl!(i32, read_be_i32)
 raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
@@ -267,15 +272,6 @@ macro_rules! from_raw_from_impl(
     )
 )
 
-macro_rules! from_conversions_impl(
-    ($expected:pat, $t:ty, $f:ident) => (
-        from_map_impl!($expected, $t, |buf| {
-            let mut reader = BufReader::new(buf.as_slice());
-            reader.$f()
-        })
-    )
-)
-
 macro_rules! from_option_impl(
     ($t:ty) => (
         impl FromSql for $t {
@@ -294,6 +290,8 @@ from_raw_from_impl!(PgByteA, ~[u8])
 from_option_impl!(~[u8])
 from_raw_from_impl!(PgChar, i8)
 from_option_impl!(i8)
+from_raw_from_impl!(PgInt2, i16)
+from_option_impl!(i16)
 from_raw_from_impl!(PgInt4, i32)
 from_option_impl!(i32)
 from_raw_from_impl!(PgInt8, i64)
@@ -302,9 +300,6 @@ from_raw_from_impl!(PgFloat4, f32)
 from_option_impl!(f32)
 from_raw_from_impl!(PgFloat8, f64)
 from_option_impl!(f64)
-
-from_conversions_impl!(PgInt2, i16, read_be_i16)
-from_option_impl!(i16)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
     str::from_utf8_owned(buf.clone())
@@ -416,6 +411,9 @@ from_option_impl!(ArrayBase<Option<~[u8]>>)
 from_array_impl!(PgCharArray, i8)
 from_option_impl!(ArrayBase<Option<i8>>)
 
+from_array_impl!(PgInt2Array, i16)
+from_option_impl!(ArrayBase<Option<i16>>)
+
 from_array_impl!(PgInt4Array, i32)
 from_option_impl!(ArrayBase<Option<i32>>)
 
@@ -506,6 +504,7 @@ impl RawToSql for ~[u8] {
 }
 
 raw_to_impl!(i8, write_i8)
+raw_to_impl!(i16, write_be_i16)
 raw_to_impl!(i32, write_be_i32)
 raw_to_impl!(i64, write_be_i64)
 raw_to_impl!(f32, write_be_f32)
@@ -567,26 +566,14 @@ macro_rules! to_raw_to_impl(
     )
 )
 
-macro_rules! to_conversions_impl(
-    ($($oid:ident)|+, $t:ty, $f:ident) => (
-        impl ToSql for $t {
-            fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-                check_types!($($oid)|+, ty)
-
-                let mut writer = MemWriter::new();
-                writer.$f(*self);
-                (Binary, Some(writer.inner()))
-            }
-        }
-    )
-)
-
 to_raw_to_impl!(PgBool, bool)
 to_option_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
 to_option_impl!(PgByteA, ~[u8])
 to_raw_to_impl!(PgChar, i8)
 to_option_impl!(PgChar, i8)
+to_raw_to_impl!(PgInt2, i16)
+to_option_impl!(PgInt2, i16)
 to_raw_to_impl!(PgInt4, i32)
 to_option_impl!(PgInt4, i32)
 to_raw_to_impl!(PgInt8, i64)
@@ -595,9 +582,6 @@ to_raw_to_impl!(PgFloat4, f32)
 to_option_impl!(PgFloat4, f32)
 to_raw_to_impl!(PgFloat8, f64)
 to_option_impl!(PgFloat8, f64)
-
-to_conversions_impl!(PgInt2, i16, write_be_i16)
-to_option_impl!(PgInt2, i16)
 
 impl ToSql for ~str {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -743,6 +727,9 @@ to_option_impl!(PgByteAArray, ArrayBase<Option<~[u8]>>)
 
 to_array_impl!(PgCharArray, CHAROID, i8)
 to_option_impl!(PgCharArray, ArrayBase<Option<i8>>)
+
+to_array_impl!(PgInt2Array, INT2OID, i16)
+to_option_impl!(PgInt2Array, ArrayBase<Option<i16>>)
 
 to_array_impl!(PgInt4Array, INT4OID, i32)
 to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)

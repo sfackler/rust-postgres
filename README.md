@@ -271,6 +271,10 @@ types. The driver currently supports the following conversions:
             <td>"char"[], "char"[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;i16&gt;&gt;</td>
+            <td>INT2[], INT2[][], ...</td>
+        </tr>
+        <tr>
             <td>types::array::ArrayBase&lt;Option&lt;i32&gt;&gt;</td>
             <td>INT4[], INT4[][], ...</td>
         </tr>
