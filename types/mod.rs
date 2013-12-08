@@ -58,6 +58,7 @@ static TSRANGEARRAYOID: Oid = 3909;
 static TSTZRANGEOID: Oid = 3910;
 static TSTZRANGEARRAYOID: Oid = 3911;
 static INT8RANGEOID: Oid = 3926;
+static INT8RANGEARRAYOID: Oid = 3927;
 
 static USEC_PER_SEC: i64 = 1_000_000;
 static NSEC_PER_USEC: i64 = 1_000;
@@ -192,8 +193,6 @@ make_postgres_type!(
     INT4RANGEOID => PgInt4Range,
     #[doc="INT4RANGE[]"]
     INT4RANGEARRAYOID => PgInt4RangeArray member PgInt4Range,
-    #[doc="INT8RANGE"]
-    INT8RANGEOID => PgInt8Range,
     #[doc="TSRANGE"]
     TSRANGEOID => PgTsRange,
     #[doc="TSRANGE[]"]
@@ -201,7 +200,11 @@ make_postgres_type!(
     #[doc="TSTZRANGE"]
     TSTZRANGEOID => PgTstzRange,
     #[doc="TSTZRANGE[]"]
-    TSTZRANGEARRAYOID => PgTstzRangeArray member PgTstzRange
+    TSTZRANGEARRAYOID => PgTstzRangeArray member PgTstzRange,
+    #[doc="INT8RANGE"]
+    INT8RANGEOID => PgInt8Range,
+    #[doc="INT8RANGE[]"]
+    INT8RANGEARRAYOID => PgInt8RangeArray member PgInt8Range
 )
 
 /// The wire format of a Postgres value
@@ -433,6 +436,7 @@ from_array_impl!(PgFloat8Array, f64)
 from_array_impl!(PgUuidArray, Uuid)
 from_array_impl!(PgInt4RangeArray, Range<i32>)
 from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
+from_array_impl!(PgInt8RangeArray, Range<i64>)
 
 from_map_impl!(PgUnknownType { name: ~"hstore", .. },
                HashMap<~str, Option<~str>>, |buf| {
@@ -715,6 +719,7 @@ to_array_impl!(PgFloat8Array, f64)
 to_array_impl!(PgUuidArray, Uuid)
 to_array_impl!(PgInt4RangeArray, Range<i32>)
 to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
+to_array_impl!(PgInt8RangeArray, Range<i64>)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {

@@ -311,6 +311,10 @@ types. The driver currently supports the following conversions:
             <td>TSRANGE[], TSTZRANGE[], TSRANGE[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;i64&gt;&gt;&gt;</td>
+            <td>INT8RANGE[], INT8RANGE[][], ...</td>
+        </tr>
+        <tr>
             <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>

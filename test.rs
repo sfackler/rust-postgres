@@ -523,6 +523,7 @@ fn test_int4rangearray_params() {
 }
 
 #[test]
+#[cfg(not(travis))]
 fn test_tsrangearray_params() {
     fn make_check<'a>(time: &'a str) -> (Timespec, &'a str) {
         (time::strptime(time, "%Y-%m-%d").unwrap().to_timespec(), time)
@@ -537,6 +538,15 @@ fn test_tsrangearray_params() {
     let rs3 = "\"(," + s2 + ")\"";
     test_array_params!("TSRANGE", r1, rs1, r2, rs2, r3, rs3);
     test_array_params!("TSTZRANGE", r1, rs1, r2, rs2, r3, rs3);
+}
+
+#[test]
+#[cfg(not(travis))]
+fn test_int8rangearray_params() {
+    test_array_params!("INT8RANGE",
+                       Range::new(None, None), "\"(,)\"",
+                       Range::new(Some(RangeBound::new(10i64, Inclusive)), None), "\"[10,)\"",
+                       Range::new(None, Some(RangeBound::new(10i64, Exclusive))), "\"(,10)\"");
 }
 
 #[test]
