@@ -260,6 +260,14 @@ macro_rules! from_map_impl(
                 raw.as_ref().map($blk)
             }
         }
+
+        impl FromSql for $t {
+            fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> $t {
+                // FIXME when you can specify Self types properly
+                let ret: Option<$t> = FromSql::from_sql(ty, raw);
+                ret.unwrap()
+            }
+        }
     )
 )
 
@@ -272,52 +280,28 @@ macro_rules! from_raw_from_impl(
     )
 )
 
-macro_rules! from_option_impl(
-    ($t:ty) => (
-        impl FromSql for $t {
-            fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> $t {
-                // FIXME when you can specify Self types properly
-                let ret: Option<$t> = FromSql::from_sql(ty, raw);
-                ret.unwrap()
-            }
-        }
-    )
-)
-
 from_raw_from_impl!(PgBool, bool)
-from_option_impl!(bool)
 from_raw_from_impl!(PgByteA, ~[u8])
-from_option_impl!(~[u8])
 from_raw_from_impl!(PgChar, i8)
-from_option_impl!(i8)
 from_raw_from_impl!(PgInt2, i16)
-from_option_impl!(i16)
 from_raw_from_impl!(PgInt4, i32)
-from_option_impl!(i32)
 from_raw_from_impl!(PgInt8, i64)
-from_option_impl!(i64)
 from_raw_from_impl!(PgFloat4, f32)
-from_option_impl!(f32)
 from_raw_from_impl!(PgFloat8, f64)
-from_option_impl!(f64)
 
 from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
     str::from_utf8_owned(buf.clone())
 })
-from_option_impl!(~str)
 
 from_map_impl!(PgJson, Json, |buf| {
     json::from_str(str::from_utf8(buf.as_slice())).unwrap()
 })
-from_option_impl!(Json)
 
 from_map_impl!(PgUuid, Uuid, |buf| {
     Uuid::from_bytes(buf.as_slice()).unwrap()
 })
-from_option_impl!(Uuid)
 
 from_raw_from_impl!(PgTimestamp | PgTimestampZ, Timespec)
-from_option_impl!(Timespec)
 
 macro_rules! from_range_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -360,13 +344,8 @@ macro_rules! from_range_impl(
 )
 
 from_range_impl!(PgInt4Range, i32)
-from_option_impl!(Range<i32>)
-
 from_range_impl!(PgInt8Range, i64)
-from_option_impl!(Range<i64>)
-
 from_range_impl!(PgTsRange | PgTstzRange, Timespec)
-from_option_impl!(Range<Timespec>)
 
 macro_rules! from_array_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -403,28 +382,13 @@ macro_rules! from_array_impl(
 )
 
 from_array_impl!(PgBoolArray, bool)
-from_option_impl!(ArrayBase<Option<bool>>)
-
 from_array_impl!(PgByteAArray, ~[u8])
-from_option_impl!(ArrayBase<Option<~[u8]>>)
-
 from_array_impl!(PgCharArray, i8)
-from_option_impl!(ArrayBase<Option<i8>>)
-
 from_array_impl!(PgInt2Array, i16)
-from_option_impl!(ArrayBase<Option<i16>>)
-
 from_array_impl!(PgInt4Array, i32)
-from_option_impl!(ArrayBase<Option<i32>>)
-
 from_array_impl!(PgInt8Array, i64)
-from_option_impl!(ArrayBase<Option<i64>>)
-
 from_array_impl!(PgFloat4Array, f32)
-from_option_impl!(ArrayBase<Option<f32>>)
-
 from_array_impl!(PgFloat8Array, f64)
-from_option_impl!(ArrayBase<Option<f64>>)
 
 from_map_impl!(PgUnknownType { name: ~"hstore", .. },
                HashMap<~str, Option<~str>>, |buf| {
@@ -449,7 +413,6 @@ from_map_impl!(PgUnknownType { name: ~"hstore", .. },
 
     map
 })
-from_option_impl!(HashMap<~str, Option<~str>>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -563,25 +526,19 @@ macro_rules! to_raw_to_impl(
                 (Binary, Some(writer.inner()))
             }
         }
+
+        to_option_impl!($($oid)|+, $t)
     )
 )
 
 to_raw_to_impl!(PgBool, bool)
-to_option_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
-to_option_impl!(PgByteA, ~[u8])
 to_raw_to_impl!(PgChar, i8)
-to_option_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt2, i16)
-to_option_impl!(PgInt2, i16)
 to_raw_to_impl!(PgInt4, i32)
-to_option_impl!(PgInt4, i32)
 to_raw_to_impl!(PgInt8, i64)
-to_option_impl!(PgInt8, i64)
 to_raw_to_impl!(PgFloat4, f32)
-to_option_impl!(PgFloat4, f32)
 to_raw_to_impl!(PgFloat8, f64)
-to_option_impl!(PgFloat8, f64)
 
 impl ToSql for ~str {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -628,7 +585,6 @@ impl ToSql for Uuid {
 to_option_impl!(PgUuid, Uuid)
 
 to_raw_to_impl!(PgTimestamp | PgTimestampZ, Timespec)
-to_option_impl!(PgTimestamp | PgTimestampZ, Timespec)
 
 macro_rules! to_range_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -675,17 +631,14 @@ macro_rules! to_range_impl(
                 (Binary, Some(buf.inner()))
             }
         }
+
+        to_option_impl!($($oid)|+, Range<$t>)
     )
 )
 
 to_range_impl!(PgInt4Range, i32)
-to_option_impl!(PgInt4Range, Range<i32>)
-
 to_range_impl!(PgInt8Range, i64)
-to_option_impl!(PgInt8Range, Range<i64>)
-
 to_range_impl!(PgTsRange | PgTstzRange, Timespec)
-to_option_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $base_oid:ident, $t:ty) => (
@@ -716,32 +669,19 @@ macro_rules! to_array_impl(
                 (Binary, Some(buf.inner()))
             }
         }
+
+        to_option_impl!($($oid)|+, ArrayBase<Option<$t>>)
     )
 )
 
 to_array_impl!(PgBoolArray, BOOLOID, bool)
-to_option_impl!(PgBoolArray, ArrayBase<Option<bool>>)
-
 to_array_impl!(PgByteAArray, BYTEAOID, ~[u8])
-to_option_impl!(PgByteAArray, ArrayBase<Option<~[u8]>>)
-
 to_array_impl!(PgCharArray, CHAROID, i8)
-to_option_impl!(PgCharArray, ArrayBase<Option<i8>>)
-
 to_array_impl!(PgInt2Array, INT2OID, i16)
-to_option_impl!(PgInt2Array, ArrayBase<Option<i16>>)
-
 to_array_impl!(PgInt4Array, INT4OID, i32)
-to_option_impl!(PgInt4Array, ArrayBase<Option<i32>>)
-
 to_array_impl!(PgInt8Array, INT8OID, i64)
-to_option_impl!(PgInt8Array, ArrayBase<Option<i64>>)
-
 to_array_impl!(PgFloat4Array, FLOAT4OID, f32)
-to_option_impl!(PgFloat4Array, ArrayBase<Option<f32>>)
-
 to_array_impl!(PgFloat8Array, FLOAT8OID, f64)
-to_option_impl!(PgFloat8Array, ArrayBase<Option<f64>>)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
