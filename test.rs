@@ -481,6 +481,17 @@ fn test_int8array_params() {
 }
 
 #[test]
+fn test_timestamparray_params() {
+    fn make_check<'a>(time: &'a str) -> (Timespec, &'a str) {
+        (time::strptime(time, "%Y-%m-%d %H:%M:%S.%f").unwrap().to_timespec(), time)
+    }
+    let (v1, s1) = make_check("1970-01-01 00:00:00.01");
+    let (v2, s2) = make_check("1965-09-25 11:19:33.100314");
+    let (v3, s3) = make_check("2010-02-09 23:11:45.1202");
+    test_array_params!("TIMESTAMP", v1, s1, v2, s2, v3, s3);
+}
+
+#[test]
 fn test_float4array_params() {
     test_array_params!("FLOAT4", 0f32, "0", 1.5f32, "1.5", 0.009f32, ".009");
 }

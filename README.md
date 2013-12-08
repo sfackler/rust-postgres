@@ -287,6 +287,10 @@ types. The driver currently supports the following conversions:
             <td>INT8[], INT8[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</td>
+            <td>TIMESTAMP[], TIMESTAMP[][], ...</td>
+        </tr>
+        <tr>
             <td>types::array::ArrayBase&lt;Option&lt;f32&gt;&gt;</td>
             <td>FLOAT4[], FLOAT4[][], ...</td>
         </tr>

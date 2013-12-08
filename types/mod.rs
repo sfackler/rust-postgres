@@ -47,6 +47,7 @@ static FLAOT8ARRAYOID: Oid = 1022;
 static BPCHAROID: Oid = 1042;
 static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
+static TIMESTAMPARRAYOID: Oid = 1115;
 static TIMESTAMPZOID: Oid = 1184;
 static UUIDOID: Oid = 2950;
 static INT4RANGEOID: Oid = 3904;
@@ -169,6 +170,8 @@ make_postgres_type!(
     FLAOT8ARRAYOID => PgFloat8Array member PgFloat8,
     #[doc="TIMESTAMP"]
     TIMESTAMPOID => PgTimestamp,
+    #[doc="TIMESTAMP[]"]
+    TIMESTAMPARRAYOID => PgTimestampArray member PgTimestamp,
     #[doc="TIMESTAMP WITH TIME ZONE"]
     TIMESTAMPZOID => PgTimestampZ,
     #[doc="CHAR(n)/CHARACTER(n)"]
@@ -403,6 +406,7 @@ from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
 from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 from_array_impl!(PgInt8Array, i64)
+from_array_impl!(PgTimestampArray, Timespec)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
 
@@ -700,6 +704,7 @@ to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
 to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 to_array_impl!(PgInt8Array, i64)
+to_array_impl!(PgTimestampArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)
 
