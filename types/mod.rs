@@ -64,120 +64,104 @@ static RANGE_UPPER_INCLUSIVE: i8 = 0b0000_0100;
 static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
 static RANGE_EMPTY: i8           = 0b0000_0001;
 
-/// A Postgres type
-#[deriving(Eq)]
-pub enum PostgresType {
-    /// BOOL
-    PgBool,
-    /// BYTEA
-    PgByteA,
-    /// "char"
-    PgChar,
-    /// INT8/BIGINT
-    PgInt8,
-    /// INT2/SMALLINT
-    PgInt2,
-    /// INT4/INT
-    PgInt4,
-    /// TEXT
-    PgText,
-    /// JSON
-    PgJson,
-    /// FLOAT4/REAL
-    PgFloat4,
-    /// FLOAT8/DOUBLE PRECISION
-    PgFloat8,
-    /// BOOL[]
-    PgBoolArray,
-    /// BYTEA[]
-    PgByteAArray,
-    /// "char"[]
-    PgCharArray,
-    /// INT2[]
-    PgInt2Array,
-    /// INT4[]
-    PgInt4Array,
-    /// TEXT[]
-    PgTextArray,
-    /// INT8[]
-    PgInt8Array,
-    /// FLOAT4[]
-    PgFloat4Array,
-    /// FLOAT8[]
-    PgFloat8Array,
-    /// TIMESTAMP
-    PgTimestamp,
-    /// TIMESTAMP WITH TIME ZONE
-    PgTimestampZ,
-    /// CHAR(n)/CHARACTER(n)
-    PgCharN,
-    /// VARCHAR/CHARACTER VARYING
-    PgVarchar,
-    /// UUID
-    PgUuid,
-    /// INT4RANGE
-    PgInt4Range,
-    /// INT8RANGE
-    PgInt8Range,
-    /// TSRANGE
-    PgTsRange,
-    /// TSTZRANGE
-    PgTstzRange,
-    /// An unknown type
-    PgUnknownType {
-        /// The name of the type
-        name: ~str,
-        /// The OID of the type
-        oid: Oid
-    }
-}
-
-impl PostgresType {
-    #[doc(hidden)]
-    pub fn from_oid(oid: Oid) -> PostgresType {
-        match oid {
-            BOOLOID => PgBool,
-            BYTEAOID => PgByteA,
-            CHAROID => PgChar,
-            INT8OID => PgInt8,
-            INT2OID => PgInt2,
-            INT4OID => PgInt4,
-            TEXTOID => PgText,
-            JSONOID => PgJson,
-            FLOAT4OID => PgFloat4,
-            FLOAT8OID => PgFloat8,
-            BOOLARRAYOID => PgBoolArray,
-            BYTEAARRAYOID => PgByteAArray,
-            CHARARRAYOID => PgCharArray,
-            INT2ARRAYOID => PgInt2Array,
-            INT4ARRAYOID => PgInt4Array,
-            TEXTARRAYOID => PgTextArray,
-            INT8ARRAYOID => PgInt8Array,
-            FLOAT4ARRAYOID => PgFloat4Array,
-            FLAOT8ARRAYOID => PgFloat8Array,
-            TIMESTAMPOID => PgTimestamp,
-            TIMESTAMPZOID => PgTimestampZ,
-            BPCHAROID => PgCharN,
-            VARCHAROID => PgVarchar,
-            UUIDOID => PgUuid,
-            INT4RANGEOID => PgInt4Range,
-            INT8RANGEOID => PgInt8Range,
-            TSRANGEOID => PgTsRange,
-            TSTZRANGEOID => PgTstzRange,
-            // We have to load an empty string now, it'll get filled in later
-            oid => PgUnknownType { name: ~"", oid: oid }
+macro_rules! make_postgres_type(
+    ($($doc:attr $variant:ident => $oid:ident),+) => (
+        /// A Postgres type
+        #[deriving(Eq)]
+        pub enum PostgresType {
+            $(
+                $doc
+                $variant,
+            )+
+            /// An unknown type
+            PgUnknownType {
+                /// The name of the type
+                name: ~str,
+                /// The OID of the type
+                oid: Oid
+            }
         }
-    }
 
-    /// Returns the wire format needed for the value of `self`.
-    pub fn result_format(&self) -> Format {
-        match *self {
-            PgUnknownType { name: ~"hstore", .. } => Binary,
-            PgUnknownType { .. } => Text,
-            _ => Binary
+        impl PostgresType {
+            #[doc(hidden)]
+            pub fn from_oid(oid: Oid) -> PostgresType {
+                match oid {
+                    $($oid => $variant,)+
+                    // We have to load an empty string now, it'll get filled in later
+                    oid => PgUnknownType { name: ~"", oid: oid }
+                }
+            }
+
+            /// Returns the wire format needed for the value of `self`.
+            pub fn result_format(&self) -> Format {
+                match *self {
+                    PgUnknownType { name: ~"hstore", .. } => Binary,
+                    PgUnknownType { .. } => Text,
+                    _ => Binary
+                }
+            }
         }
-    }
-}
+    )
+)
+
+make_postgres_type!(
+    #[doc="BOOL"]
+    PgBool => BOOLOID,
+    #[doc="BYTEA"]
+    PgByteA => BYTEAOID,
+    #[doc="\"char\""]
+    PgChar => CHAROID,
+    #[doc="INT8/BIGINT"]
+    PgInt8 => INT8OID,
+    #[doc="INT2/SMALLINT"]
+    PgInt2 => INT2OID,
+    #[doc="INT4/INT"]
+    PgInt4 => INT4OID,
+    #[doc="TEXT"]
+    PgText => TEXTOID,
+    #[doc="JSON"]
+    PgJson => JSONOID,
+    #[doc="FLOAT4/REAL"]
+    PgFloat4 => FLOAT4OID,
+    #[doc="FLOAT8/DOUBLE PRECISION"]
+    PgFloat8 => FLOAT8OID,
+    #[doc="BOOL[]"]
+    PgBoolArray => BOOLARRAYOID,
+    #[doc="BYTEA[]"]
+    PgByteAArray => BYTEAARRAYOID,
+    #[doc="\"char\"[]"]
+    PgCharArray => CHARARRAYOID,
+    #[doc="INT2[]"]
+    PgInt2Array => INT2ARRAYOID,
+    #[doc="INT4[]"]
+    PgInt4Array => INT4ARRAYOID,
+    #[doc="TEXT[]"]
+    PgTextArray => TEXTARRAYOID,
+    #[doc="INT8[]"]
+    PgInt8Array => INT8ARRAYOID,
+    #[doc="FLOAT4[]"]
+    PgFloat4Array => FLOAT4ARRAYOID,
+    #[doc="FLOAT8[]"]
+    PgFloat8Array => FLAOT8ARRAYOID,
+    #[doc="TIMESTAMP"]
+    PgTimestamp => TIMESTAMPOID,
+    #[doc="TIMESTAMP WITH TIME ZONE"]
+    PgTimestampZ => TIMESTAMPZOID,
+    #[doc="CHAR(n)/CHARACTER(n)"]
+    PgCharN => BPCHAROID,
+    #[doc="VARCHAR/CHARACTER VARYING"]
+    PgVarchar => VARCHAROID,
+    #[doc="UUID"]
+    PgUuid => UUIDOID,
+    #[doc="INT4RANGE"]
+    PgInt4Range => INT4RANGEOID,
+    #[doc="INT8RANGE"]
+    PgInt8Range => INT8RANGEOID,
+    #[doc="TSRANGE"]
+    PgTsRange => TSRANGEOID,
+    #[doc="TSTZRANGE"]
+    PgTstzRange => TSTZRANGEOID
+)
 
 /// The wire format of a Postgres value
 pub enum Format {
