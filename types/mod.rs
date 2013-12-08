@@ -49,6 +49,7 @@ static VARCHAROID: Oid = 1043;
 static TIMESTAMPOID: Oid = 1114;
 static TIMESTAMPARRAYOID: Oid = 1115;
 static TIMESTAMPZOID: Oid = 1184;
+static TIMESTAMPZARRAYOID: Oid = 1185;
 static UUIDOID: Oid = 2950;
 static INT4RANGEOID: Oid = 3904;
 static TSRANGEOID: Oid = 3908;
@@ -173,7 +174,9 @@ make_postgres_type!(
     #[doc="TIMESTAMP[]"]
     TIMESTAMPARRAYOID => PgTimestampArray member PgTimestamp,
     #[doc="TIMESTAMP WITH TIME ZONE"]
-    TIMESTAMPZOID => PgTimestampZ,
+    TIMESTAMPZOID => PgTimestampTZ,
+    #[doc="TIMESTAMP WITH TIME ZONE[]"]
+    TIMESTAMPZARRAYOID => PgTimestampTZArray member PgTimestampTZ,
     #[doc="CHAR(n)/CHARACTER(n)"]
     BPCHAROID => PgCharN,
     #[doc="VARCHAR/CHARACTER VARYING"]
@@ -319,7 +322,7 @@ from_map_impl!(PgUuid, Uuid, |buf| {
     Uuid::from_bytes(buf.as_slice()).unwrap()
 })
 
-from_raw_from_impl!(PgTimestamp | PgTimestampZ, Timespec)
+from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 
 macro_rules! from_range_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -406,7 +409,7 @@ from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
 from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 from_array_impl!(PgInt8Array, i64)
-from_array_impl!(PgTimestampArray, Timespec)
+from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
 
@@ -607,7 +610,7 @@ impl ToSql for Uuid {
 
 to_option_impl!(PgUuid, Uuid)
 
-to_raw_to_impl!(PgTimestamp | PgTimestampZ, Timespec)
+to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 
 macro_rules! to_range_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -704,7 +707,7 @@ to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
 to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 to_array_impl!(PgInt8Array, i64)
-to_array_impl!(PgTimestampArray, Timespec)
+to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)
 

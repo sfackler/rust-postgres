@@ -489,6 +489,7 @@ fn test_timestamparray_params() {
     let (v2, s2) = make_check("1965-09-25 11:19:33.100314");
     let (v3, s3) = make_check("2010-02-09 23:11:45.1202");
     test_array_params!("TIMESTAMP", v1, s1, v2, s2, v3, s3);
+    test_array_params!("TIMESTAMPTZ", v1, s1, v2, s2, v3, s3);
 }
 
 #[test]

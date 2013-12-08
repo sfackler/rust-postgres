@@ -288,7 +288,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</td>
-            <td>TIMESTAMP[], TIMESTAMP[][], ...</td>
+            <td>TIMESTAMP[], TIMESTAMPTZ[], TIMESTAMP[][], ...</td>
         </tr>
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;f32&gt;&gt;</td>
