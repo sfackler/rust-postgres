@@ -299,15 +299,15 @@ types. The driver currently supports the following conversions:
             <td>FLOAT8[], FLOAT8[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;extra::uuid::Uuid&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;Uuid&gt;&gt;</td>
             <td>UUID[], UUID[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;types::range::Range&lt;i32&gt;&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;i32&gt;&gt;&gt;</td>
             <td>INT4RANGE[], INT4RANGE[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;types::range::Range&lt;extra::time::Timespec&gt;&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;Timespec&gt;&gt;&gt;</td>
             <td>TSRANGE[], TSTZRANGE[], TSRANGE[][], ...</td>
         </tr>
         <tr>
