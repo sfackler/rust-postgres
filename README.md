@@ -307,6 +307,10 @@ types. The driver currently supports the following conversions:
             <td>INT4RANGE[], INT4RANGE[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;types::range::Range&lt;extra::time::Timespec&gt;&gt;&gt;</td>
+            <td>TSRANGE[], TSTZRANGE[], TSRANGE[][], ...</td>
+        </tr>
+        <tr>
             <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>

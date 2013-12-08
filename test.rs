@@ -514,11 +514,29 @@ fn test_uuidarray_params() {
 }
 
 #[test]
+#[cfg(not(travis))]
 fn test_int4rangearray_params() {
     test_array_params!("INT4RANGE",
                        Range::new(None, None), "\"(,)\"",
                        Range::new(Some(RangeBound::new(10i32, Inclusive)), None), "\"[10,)\"",
                        Range::new(None, Some(RangeBound::new(10i32, Exclusive))), "\"(,10)\"");
+}
+
+#[test]
+fn test_tsrangearray_params() {
+    fn make_check<'a>(time: &'a str) -> (Timespec, &'a str) {
+        (time::strptime(time, "%Y-%m-%d").unwrap().to_timespec(), time)
+    }
+    let (v1, s1) = make_check("1970-10-11");
+    let (v2, s2) = make_check("1990-01-01");
+    let r1 = Range::new(None, None);
+    let rs1 = "\"(,)\"";
+    let r2 = Range::new(Some(RangeBound::new(v1, Inclusive)), None);
+    let rs2 = "\"[" + s1 + ",)\"";
+    let r3 = Range::new(None, Some(RangeBound::new(v2, Exclusive)));
+    let rs3 = "\"(," + s2 + ")\"";
+    test_array_params!("TSRANGE", r1, rs1, r2, rs2, r3, rs3);
+    test_array_params!("TSTZRANGE", r1, rs1, r2, rs2, r3, rs3);
 }
 
 #[test]
