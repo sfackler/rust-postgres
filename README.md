@@ -299,6 +299,10 @@ types. The driver currently supports the following conversions:
             <td>FLOAT8[], FLOAT8[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;extra::uuid::Uuid&gt;&gt;</td>
+            <td>UUID[], UUID[][], ...</td>
+        </tr>
+        <tr>
             <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>

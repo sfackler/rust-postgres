@@ -51,6 +51,7 @@ static TIMESTAMPARRAYOID: Oid = 1115;
 static TIMESTAMPZOID: Oid = 1184;
 static TIMESTAMPZARRAYOID: Oid = 1185;
 static UUIDOID: Oid = 2950;
+static UUIDARRAYOID: Oid = 2951;
 static INT4RANGEOID: Oid = 3904;
 static TSRANGEOID: Oid = 3908;
 static TSTZRANGEOID: Oid = 3910;
@@ -183,6 +184,8 @@ make_postgres_type!(
     VARCHAROID => PgVarchar,
     #[doc="UUID"]
     UUIDOID => PgUuid,
+    #[doc="UUID[]"]
+    UUIDARRAYOID => PgUuidArray member PgUuid,
     #[doc="INT4RANGE"]
     INT4RANGEOID => PgInt4Range,
     #[doc="INT8RANGE"]
@@ -276,6 +279,12 @@ impl RawFromSql for Timespec {
     }
 }
 
+impl RawFromSql for Uuid {
+    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Uuid {
+        Uuid::from_bytes(raw.read_bytes(len)).unwrap()
+    }
+}
+
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
@@ -313,13 +322,10 @@ from_raw_from_impl!(PgInt4, i32)
 from_raw_from_impl!(PgInt8, i64)
 from_raw_from_impl!(PgFloat4, f32)
 from_raw_from_impl!(PgFloat8, f64)
+from_raw_from_impl!(PgUuid, Uuid)
 
 from_map_impl!(PgJson, Json, |buf| {
     json::from_str(str::from_utf8(buf.as_slice())).unwrap()
-})
-
-from_map_impl!(PgUuid, Uuid, |buf| {
-    Uuid::from_bytes(buf.as_slice()).unwrap()
 })
 
 from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
@@ -412,6 +418,7 @@ from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
+from_array_impl!(PgUuidArray, Uuid)
 
 from_map_impl!(PgUnknownType { name: ~"hstore", .. },
                HashMap<~str, Option<~str>>, |buf| {
@@ -518,6 +525,16 @@ impl RawToSql for Timespec {
     }
 }
 
+impl RawToSql for Uuid {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+        w.write(self.to_bytes())
+    }
+
+    fn raw_size(&self) -> uint {
+        self.to_bytes().len()
+    }
+}
+
 macro_rules! to_option_impl(
     ($($oid:pat)|+, $t:ty) => (
         impl ToSql for Option<$t> {
@@ -601,16 +618,8 @@ impl ToSql for Json {
 
 to_option_impl!(PgJson, Json)
 
-impl ToSql for Uuid {
-    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgUuid, ty)
-        (Binary, Some(self.to_bytes().to_owned()))
-    }
-}
-
-to_option_impl!(PgUuid, Uuid)
-
 to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
+to_raw_to_impl!(PgUuid, Uuid)
 
 macro_rules! to_range_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -710,6 +719,7 @@ to_array_impl!(PgInt8Array, i64)
 to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)
+to_array_impl!(PgUuidArray, Uuid)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
