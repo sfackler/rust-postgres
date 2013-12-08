@@ -40,6 +40,7 @@ static INT2ARRAYOID: Oid = 1005;
 static INT4ARRAYOID: Oid = 1007;
 static TEXTARRAYOID: Oid = 1009;
 static BPCHARARRAYOID: Oid = 1014;
+static VARCHARARRAYOID: Oid = 1015;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
 static FLAOT8ARRAYOID: Oid = 1022;
@@ -158,6 +159,8 @@ make_postgres_type!(
     TEXTARRAYOID => PgTextArray member PgText,
     #[doc="CHAR(n)[]"]
     BPCHARARRAYOID => PgCharNArray member PgCharN,
+    #[doc="VARCHAR[]"]
+    VARCHARARRAYOID => PgVarcharArray member PgVarchar,
     #[doc="INT8[]"]
     INT8ARRAYOID => PgInt8Array member PgInt8,
     #[doc="FLOAT4[]"]
@@ -398,7 +401,7 @@ from_array_impl!(PgByteAArray, ~[u8])
 from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
-from_array_impl!(PgTextArray | PgCharNArray, ~str)
+from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
@@ -695,7 +698,7 @@ to_array_impl!(PgByteAArray, ~[u8])
 to_array_impl!(PgCharArray, i8)
 to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
-to_array_impl!(PgTextArray | PgCharNArray, ~str)
+to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 to_array_impl!(PgInt8Array, i64)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)

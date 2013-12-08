@@ -471,6 +471,11 @@ fn test_charnarray_params() {
 }
 
 #[test]
+fn test_varchararray_params() {
+    test_array_params!("VARCHAR", ~"hello", "hello", ~"world", "world", ~"!", "!");
+}
+
+#[test]
 fn test_int8array_params() {
     test_array_params!("INT8", 0i64, "0", 1i64, "1", 2i64, "2");
 }
