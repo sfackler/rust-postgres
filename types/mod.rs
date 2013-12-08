@@ -38,6 +38,7 @@ static BYTEAARRAYOID: Oid = 1001;
 static CHARARRAYOID: Oid = 1002;
 static INT2ARRAYOID: Oid = 1005;
 static INT4ARRAYOID: Oid = 1007;
+static TEXTARRAYOID: Oid = 1009;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
 static FLAOT8ARRAYOID: Oid = 1022;
@@ -96,6 +97,8 @@ pub enum PostgresType {
     PgInt2Array,
     /// INT4[]
     PgInt4Array,
+    /// TEXT[]
+    PgTextArray,
     /// INT8[]
     PgInt8Array,
     /// FLOAT4[]
@@ -148,6 +151,7 @@ impl PostgresType {
             CHARARRAYOID => PgCharArray,
             INT2ARRAYOID => PgInt2Array,
             INT4ARRAYOID => PgInt4Array,
+            TEXTARRAYOID => PgTextArray,
             INT8ARRAYOID => PgInt8Array,
             FLOAT4ARRAYOID => PgFloat4Array,
             FLAOT8ARRAYOID => PgFloat8Array,
@@ -230,6 +234,12 @@ impl RawFromSql for ~[u8] {
     }
 }
 
+impl RawFromSql for ~str {
+    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~str {
+        str::from_utf8_owned(raw.read_bytes(len))
+    }
+}
+
 raw_from_impl!(i8, read_i8)
 raw_from_impl!(i16, read_be_i16)
 raw_from_impl!(i32, read_be_i32)
@@ -282,16 +292,13 @@ macro_rules! from_raw_from_impl(
 
 from_raw_from_impl!(PgBool, bool)
 from_raw_from_impl!(PgByteA, ~[u8])
+from_raw_from_impl!(PgVarchar | PgText | PgCharN, ~str)
 from_raw_from_impl!(PgChar, i8)
 from_raw_from_impl!(PgInt2, i16)
 from_raw_from_impl!(PgInt4, i32)
 from_raw_from_impl!(PgInt8, i64)
 from_raw_from_impl!(PgFloat4, f32)
 from_raw_from_impl!(PgFloat8, f64)
-
-from_map_impl!(PgVarchar | PgText | PgCharN, ~str, |buf| {
-    str::from_utf8_owned(buf.clone())
-})
 
 from_map_impl!(PgJson, Json, |buf| {
     json::from_str(str::from_utf8(buf.as_slice())).unwrap()
@@ -386,6 +393,7 @@ from_array_impl!(PgByteAArray, ~[u8])
 from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
+from_array_impl!(PgTextArray, ~str)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
@@ -466,6 +474,16 @@ impl RawToSql for ~[u8] {
     }
 }
 
+impl RawToSql for ~str {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+        w.write(self.as_bytes())
+    }
+
+    fn raw_size(&self) -> uint {
+        self.len()
+    }
+}
+
 raw_to_impl!(i8, write_i8)
 raw_to_impl!(i16, write_be_i16)
 raw_to_impl!(i32, write_be_i32)
@@ -533,19 +551,13 @@ macro_rules! to_raw_to_impl(
 
 to_raw_to_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
+to_raw_to_impl!(PgVarchar | PgText | PgCharN, ~str)
 to_raw_to_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt2, i16)
 to_raw_to_impl!(PgInt4, i32)
 to_raw_to_impl!(PgInt8, i64)
 to_raw_to_impl!(PgFloat4, f32)
 to_raw_to_impl!(PgFloat8, f64)
-
-impl ToSql for ~str {
-    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgVarchar | PgText | PgCharN, ty)
-        (Text, Some(self.as_bytes().to_owned()))
-    }
-}
 
 impl<'self> ToSql for &'self str {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
@@ -554,7 +566,6 @@ impl<'self> ToSql for &'self str {
     }
 }
 
-to_option_impl!(PgVarchar | PgText | PgCharN, ~str)
 to_option_impl_self!(PgVarchar | PgText | PgCharN, &'self str)
 
 impl<'self> ToSql for &'self [u8] {
@@ -679,6 +690,7 @@ to_array_impl!(PgByteAArray, BYTEAOID, ~[u8])
 to_array_impl!(PgCharArray, CHAROID, i8)
 to_array_impl!(PgInt2Array, INT2OID, i16)
 to_array_impl!(PgInt4Array, INT4OID, i32)
+to_array_impl!(PgTextArray, TEXTOID, ~str)
 to_array_impl!(PgInt8Array, INT8OID, i64)
 to_array_impl!(PgFloat4Array, FLOAT4OID, f32)
 to_array_impl!(PgFloat8Array, FLOAT8OID, f64)
