@@ -66,7 +66,7 @@ static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
 static RANGE_EMPTY: i8           = 0b0000_0001;
 
 macro_rules! make_postgres_type(
-    ($($doc:attr $variant:ident => $oid:ident $(member $member:ident)*),+) => (
+    ($($doc:attr $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
         #[deriving(Eq)]
         #[allow(missing_doc)] // FIXME mozilla/rust#10853
@@ -125,63 +125,63 @@ macro_rules! make_postgres_type(
 
 make_postgres_type!(
     #[doc="BOOL"]
-    PgBool => BOOLOID,
+    BOOLOID => PgBool,
     #[doc="BYTEA"]
-    PgByteA => BYTEAOID,
+    BYTEAOID => PgByteA,
     #[doc="\"char\""]
-    PgChar => CHAROID,
+    CHAROID => PgChar,
     #[doc="INT8/BIGINT"]
-    PgInt8 => INT8OID,
+    INT8OID => PgInt8,
     #[doc="INT2/SMALLINT"]
-    PgInt2 => INT2OID,
+    INT2OID => PgInt2,
     #[doc="INT4/INT"]
-    PgInt4 => INT4OID,
+    INT4OID => PgInt4,
     #[doc="TEXT"]
-    PgText => TEXTOID,
+    TEXTOID => PgText,
     #[doc="JSON"]
-    PgJson => JSONOID,
+    JSONOID => PgJson,
     #[doc="FLOAT4/REAL"]
-    PgFloat4 => FLOAT4OID,
+    FLOAT4OID => PgFloat4,
     #[doc="FLOAT8/DOUBLE PRECISION"]
-    PgFloat8 => FLOAT8OID,
+    FLOAT8OID => PgFloat8,
     #[doc="BOOL[]"]
-    PgBoolArray => BOOLARRAYOID member PgBool,
+    BOOLARRAYOID => PgBoolArray member PgBool,
     #[doc="BYTEA[]"]
-    PgByteAArray => BYTEAARRAYOID member PgByteA,
+    BYTEAARRAYOID => PgByteAArray member PgByteA,
     #[doc="\"char\"[]"]
-    PgCharArray => CHARARRAYOID member PgChar,
+    CHARARRAYOID => PgCharArray member PgChar,
     #[doc="INT2[]"]
-    PgInt2Array => INT2ARRAYOID member PgInt2,
+    INT2ARRAYOID => PgInt2Array member PgInt2,
     #[doc="INT4[]"]
-    PgInt4Array => INT4ARRAYOID member PgInt4,
+    INT4ARRAYOID => PgInt4Array member PgInt4,
     #[doc="TEXT[]"]
-    PgTextArray => TEXTARRAYOID member PgText,
+    TEXTARRAYOID => PgTextArray member PgText,
     #[doc="CHAR(n)[]"]
-    PgCharNArray => BPCHARARRAYOID member PgCharN,
+    BPCHARARRAYOID => PgCharNArray member PgCharN,
     #[doc="INT8[]"]
-    PgInt8Array => INT8ARRAYOID member PgInt8,
+    INT8ARRAYOID => PgInt8Array member PgInt8,
     #[doc="FLOAT4[]"]
-    PgFloat4Array => FLOAT4ARRAYOID member PgFloat4,
+    FLOAT4ARRAYOID => PgFloat4Array member PgFloat4,
     #[doc="FLOAT8[]"]
-    PgFloat8Array => FLAOT8ARRAYOID member PgFloat8,
+    FLAOT8ARRAYOID => PgFloat8Array member PgFloat8,
     #[doc="TIMESTAMP"]
-    PgTimestamp => TIMESTAMPOID,
+    TIMESTAMPOID => PgTimestamp,
     #[doc="TIMESTAMP WITH TIME ZONE"]
-    PgTimestampZ => TIMESTAMPZOID,
+    TIMESTAMPZOID => PgTimestampZ,
     #[doc="CHAR(n)/CHARACTER(n)"]
-    PgCharN => BPCHAROID,
+    BPCHAROID => PgCharN,
     #[doc="VARCHAR/CHARACTER VARYING"]
-    PgVarchar => VARCHAROID,
+    VARCHAROID => PgVarchar,
     #[doc="UUID"]
-    PgUuid => UUIDOID,
+    UUIDOID => PgUuid,
     #[doc="INT4RANGE"]
-    PgInt4Range => INT4RANGEOID,
+    INT4RANGEOID => PgInt4Range,
     #[doc="INT8RANGE"]
-    PgInt8Range => INT8RANGEOID,
+    INT8RANGEOID => PgInt8Range,
     #[doc="TSRANGE"]
-    PgTsRange => TSRANGEOID,
+    TSRANGEOID => PgTsRange,
     #[doc="TSTZRANGE"]
-    PgTstzRange => TSTZRANGEOID
+    TSTZRANGEOID => PgTstzRange
 )
 
 /// The wire format of a Postgres value
