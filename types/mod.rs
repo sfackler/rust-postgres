@@ -39,6 +39,7 @@ static CHARARRAYOID: Oid = 1002;
 static INT2ARRAYOID: Oid = 1005;
 static INT4ARRAYOID: Oid = 1007;
 static TEXTARRAYOID: Oid = 1009;
+static BPCHARARRAYOID: Oid = 1014;
 static INT8ARRAYOID: Oid = 1016;
 static FLOAT4ARRAYOID: Oid = 1021;
 static FLAOT8ARRAYOID: Oid = 1022;
@@ -65,9 +66,10 @@ static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
 static RANGE_EMPTY: i8           = 0b0000_0001;
 
 macro_rules! make_postgres_type(
-    ($($doc:attr $variant:ident => $oid:ident),+) => (
+    ($($doc:attr $variant:ident => $oid:ident $(member $member:ident)*),+) => (
         /// A Postgres type
         #[deriving(Eq)]
+        #[allow(missing_doc)] // FIXME mozilla/rust#10853
         pub enum PostgresType {
             $(
                 $doc
@@ -89,6 +91,23 @@ macro_rules! make_postgres_type(
                     $($oid => $variant,)+
                     // We have to load an empty string now, it'll get filled in later
                     oid => PgUnknownType { name: ~"", oid: oid }
+                }
+            }
+
+            #[doc(hidden)]
+            pub fn to_oid(&self) -> Oid {
+                match *self {
+                    $($variant => $oid,)+
+                    PgUnknownType { oid, .. } => oid
+                }
+            }
+
+            fn member_type(&self) -> PostgresType {
+                match *self {
+                    $(
+                        $($variant => $member,)*
+                    )+
+                    _ => unreachable!()
                 }
             }
 
@@ -126,23 +145,25 @@ make_postgres_type!(
     #[doc="FLOAT8/DOUBLE PRECISION"]
     PgFloat8 => FLOAT8OID,
     #[doc="BOOL[]"]
-    PgBoolArray => BOOLARRAYOID,
+    PgBoolArray => BOOLARRAYOID member PgBool,
     #[doc="BYTEA[]"]
-    PgByteAArray => BYTEAARRAYOID,
+    PgByteAArray => BYTEAARRAYOID member PgByteA,
     #[doc="\"char\"[]"]
-    PgCharArray => CHARARRAYOID,
+    PgCharArray => CHARARRAYOID member PgChar,
     #[doc="INT2[]"]
-    PgInt2Array => INT2ARRAYOID,
+    PgInt2Array => INT2ARRAYOID member PgInt2,
     #[doc="INT4[]"]
-    PgInt4Array => INT4ARRAYOID,
+    PgInt4Array => INT4ARRAYOID member PgInt4,
     #[doc="TEXT[]"]
-    PgTextArray => TEXTARRAYOID,
+    PgTextArray => TEXTARRAYOID member PgText,
+    #[doc="CHAR(n)[]"]
+    PgCharNArray => BPCHARARRAYOID member PgCharN,
     #[doc="INT8[]"]
-    PgInt8Array => INT8ARRAYOID,
+    PgInt8Array => INT8ARRAYOID member PgInt8,
     #[doc="FLOAT4[]"]
-    PgFloat4Array => FLOAT4ARRAYOID,
+    PgFloat4Array => FLOAT4ARRAYOID member PgFloat4,
     #[doc="FLOAT8[]"]
-    PgFloat8Array => FLAOT8ARRAYOID,
+    PgFloat8Array => FLAOT8ARRAYOID member PgFloat8,
     #[doc="TIMESTAMP"]
     PgTimestamp => TIMESTAMPOID,
     #[doc="TIMESTAMP WITH TIME ZONE"]
@@ -377,7 +398,7 @@ from_array_impl!(PgByteAArray, ~[u8])
 from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
-from_array_impl!(PgTextArray, ~str)
+from_array_impl!(PgTextArray | PgCharNArray, ~str)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
@@ -636,7 +657,7 @@ to_range_impl!(PgInt8Range, i64)
 to_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 macro_rules! to_array_impl(
-    ($($oid:ident)|+, $base_oid:ident, $t:ty) => (
+    ($($oid:ident)|+, $t:ty) => (
         impl ToSql for ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
@@ -644,7 +665,7 @@ macro_rules! to_array_impl(
 
                 buf.write_be_i32(self.dimension_info().len() as i32);
                 buf.write_be_i32(1);
-                buf.write_be_i32($base_oid);
+                buf.write_be_i32(ty.member_type().to_oid());
 
                 for info in self.dimension_info().iter() {
                     buf.write_be_i32(info.len as i32);
@@ -669,15 +690,15 @@ macro_rules! to_array_impl(
     )
 )
 
-to_array_impl!(PgBoolArray, BOOLOID, bool)
-to_array_impl!(PgByteAArray, BYTEAOID, ~[u8])
-to_array_impl!(PgCharArray, CHAROID, i8)
-to_array_impl!(PgInt2Array, INT2OID, i16)
-to_array_impl!(PgInt4Array, INT4OID, i32)
-to_array_impl!(PgTextArray, TEXTOID, ~str)
-to_array_impl!(PgInt8Array, INT8OID, i64)
-to_array_impl!(PgFloat4Array, FLOAT4OID, f32)
-to_array_impl!(PgFloat8Array, FLOAT8OID, f64)
+to_array_impl!(PgBoolArray, bool)
+to_array_impl!(PgByteAArray, ~[u8])
+to_array_impl!(PgCharArray, i8)
+to_array_impl!(PgInt2Array, i16)
+to_array_impl!(PgInt4Array, i32)
+to_array_impl!(PgTextArray | PgCharNArray, ~str)
+to_array_impl!(PgInt8Array, i64)
+to_array_impl!(PgFloat4Array, f32)
+to_array_impl!(PgFloat8Array, f64)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {

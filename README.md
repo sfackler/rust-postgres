@@ -280,7 +280,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;~str&gt;&gt;</td>
-            <td>TEXT[], TEXT[][], ...</td>
+            <td>TEXT[], CHAR(n)[], TEXT[][], ...</td>
         </tr>
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;i64&gt;&gt;</td>

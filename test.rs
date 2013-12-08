@@ -465,6 +465,12 @@ fn test_textarray_params() {
 }
 
 #[test]
+fn test_charnarray_params() {
+    test_array_params!("CHAR(5)", ~"hello", "hello", ~"world", "world",
+                       ~"!    ", "!");
+}
+
+#[test]
 fn test_int8array_params() {
     test_array_params!("INT8", 0i64, "0", 1i64, "1", 2i64, "2");
 }
