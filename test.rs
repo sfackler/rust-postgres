@@ -798,6 +798,7 @@ fn test_dns_failure() {
 }
 
 #[test]
+#[cfg(not(travis))]
 fn test_jsonarray_params() {
     test_array_params!("JSON",
                        json::from_str("[10, 11, 12]").unwrap(),
