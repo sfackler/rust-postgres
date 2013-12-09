@@ -283,6 +283,10 @@ types. The driver currently supports the following conversions:
             <td>TEXT[], CHAR(n)[], VARCHAR[], TEXT[][], ...</td>
         </tr>
         <tr>
+            <td>types::array::ArrayBase&lt;Option&lt;Json&gt;&gt;</td>
+            <td>JSON[], JSON[][], ...</td>
+        </tr>
+        <tr>
             <td>types::array::ArrayBase&lt;Option&lt;i64&gt;&gt;</td>
             <td>INT8[], INT8[][], ...</td>
         </tr>

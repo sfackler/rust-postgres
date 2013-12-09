@@ -796,3 +796,14 @@ fn test_dns_failure() {
         _ => fail!("Expected error")
     }
 }
+
+#[test]
+fn test_jsonarray_params() {
+    test_array_params!("JSON",
+                       json::from_str("[10, 11, 12]").unwrap(),
+                       "\"[10,11,12]\"",
+                       json::from_str(r#"{"a": 10, "b": null}"#).unwrap(),
+                       r#""{\"a\": 10, \"b\": null}""#,
+                       json::from_str(r#"{"a": [10], "b": true}"#).unwrap(),
+                       r#""{\"a\": [10], \"b\": true}""#);
+}

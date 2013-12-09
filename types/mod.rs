@@ -30,6 +30,7 @@ static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
 static TEXTOID: Oid = 25;
 static JSONOID: Oid = 114;
+static JSONARRAYOID: Oid = 199;
 static FLOAT4OID: Oid = 700;
 static FLOAT8OID: Oid = 701;
 static BOOLARRAYOID: Oid = 1000;
@@ -147,6 +148,8 @@ make_postgres_type!(
     TEXTOID => PgText,
     #[doc="JSON"]
     JSONOID => PgJson,
+    #[doc="JSON[]"]
+    JSONARRAYOID => PgJsonArray member PgJson,
     #[doc="FLOAT4/REAL"]
     FLOAT4OID => PgFloat4,
     #[doc="FLOAT8/DOUBLE PRECISION"]
@@ -341,6 +344,14 @@ from_range_impl!(PgInt4Range, i32)
 from_range_impl!(PgInt8Range, i64)
 from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
+impl RawFromSql for Json {
+    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Json {
+        // TODO this should really use from_reader, but that seems to overshoot
+        let s = raw.read_bytes(len);
+        json::from_str(str::from_utf8_owned(s)).unwrap()
+    }
+}
+
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
@@ -379,10 +390,7 @@ from_raw_from_impl!(PgInt8, i64)
 from_raw_from_impl!(PgFloat4, f32)
 from_raw_from_impl!(PgFloat8, f64)
 from_raw_from_impl!(PgUuid, Uuid)
-
-from_map_impl!(PgJson, Json, |buf| {
-    json::from_str(str::from_utf8(buf.as_slice())).unwrap()
-})
+from_raw_from_impl!(PgJson, Json)
 
 from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 from_raw_from_impl!(PgInt4Range, Range<i32>)
@@ -431,6 +439,7 @@ from_array_impl!(PgInt4Array, i32)
 from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
+from_array_impl!(PgJsonArray, Json)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
 from_array_impl!(PgUuidArray, Uuid)
@@ -580,6 +589,12 @@ to_range_impl!(PgInt4Range, i32)
 to_range_impl!(PgInt8Range, i64)
 to_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
+impl RawToSql for Json {
+    fn raw_to_sql<W: Writer>(&self, raw: &mut W) {
+        self.to_writer(raw as &mut Writer)
+    }
+}
+
 macro_rules! to_option_impl(
     ($($oid:pat)|+, $t:ty) => (
         impl ToSql for Option<$t> {
@@ -629,6 +644,7 @@ macro_rules! to_raw_to_impl(
 to_raw_to_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
 to_raw_to_impl!(PgVarchar | PgText | PgCharN, ~str)
+to_raw_to_impl!(PgJson, Json)
 to_raw_to_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt2, i16)
 to_raw_to_impl!(PgInt4, i32)
@@ -656,15 +672,6 @@ impl<'self> ToSql for &'self [u8] {
 }
 
 to_option_impl_self!(PgByteA, &'self [u8])
-
-impl ToSql for Json {
-    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgJson, ty)
-        (Text, Some(self.to_str().into_bytes()))
-    }
-}
-
-to_option_impl!(PgJson, Json)
 
 to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 to_raw_to_impl!(PgUuid, Uuid)
@@ -720,6 +727,7 @@ to_array_impl!(PgUuidArray, Uuid)
 to_array_impl!(PgInt4RangeArray, Range<i32>)
 to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)
+to_array_impl!(PgJsonArray, Json)
 
 impl<'self> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
