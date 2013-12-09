@@ -1010,9 +1010,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
     fn try_update(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
         match self.execute("", 0, params) {
-            Some(err) => {
-                return Err(err);
-            }
+            Some(err) => return Err(err),
             None => {}
         }
 

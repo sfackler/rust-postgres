@@ -52,7 +52,7 @@ impl PostgresConnectionPool {
             pool: ~[],
         };
 
-        while pool.pool.len() < pool_size {
+        for _ in range(0, pool_size) {
             match pool.new_connection() {
                 None => (),
                 Some(err) => return Err(err)
