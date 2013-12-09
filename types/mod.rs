@@ -346,9 +346,36 @@ from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 impl RawFromSql for Json {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Json {
-        // TODO this should really use from_reader, but that seems to overshoot
-        let s = raw.read_bytes(len);
-        json::from_str(str::from_utf8_owned(s)).unwrap()
+        struct LimitedReader<'a, R> {
+            limit: uint,
+            reader: &'a mut R
+        }
+        impl<'a, R: Reader> Reader for LimitedReader<'a, R> {
+            fn read(&mut self, buf: &mut [u8]) -> Option<uint> {
+                if self.limit == 0 {
+                    return None;
+                }
+
+                let buf = if self.limit < buf.len() {
+                    buf.mut_slice_to(self.limit)
+                } else {
+                    buf
+                };
+                match self.reader.read(buf) {
+                    Some(len) => {
+                        self.limit -= len;
+                        Some(len)
+                    }
+                    None => None
+                }
+            }
+
+            fn eof(&mut self) -> bool {
+                self.limit == 0 || self.reader.eof()
+            }
+        }
+        let mut reader = LimitedReader { limit: len, reader: raw };
+        json::from_reader(&mut reader as &mut Reader).unwrap()
     }
 }
 
