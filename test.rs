@@ -319,7 +319,6 @@ fn test_bytea_params() {
 }
 
 #[test]
-#[ignore(cfg(travis))]
 fn test_json_params() {
     test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
@@ -386,13 +385,11 @@ macro_rules! test_range(
 )
 
 #[test]
-#[ignore(cfg(travis))]
 fn test_int4range_params() {
     test_range!("INT4RANGE", i32, 100i32, "100", 200i32, "200")
 }
 
 #[test]
-#[ignore(cfg(travis))]
 fn test_int8range_params() {
     test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
 }
@@ -407,13 +404,11 @@ fn test_timespec_range_params(sql_type: &str) {
 }
 
 #[test]
-#[ignore(cfg(travis))]
 fn test_tsrange_params() {
     test_timespec_range_params("TSRANGE");
 }
 
 #[test]
-#[ignore(cfg(travis))]
 fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
 }
@@ -514,7 +509,6 @@ fn test_uuidarray_params() {
 }
 
 #[test]
-#[cfg(not(travis))]
 fn test_int4rangearray_params() {
     test_array_params!("INT4RANGE",
                        Range::new(None, None), "\"(,)\"",
@@ -523,7 +517,6 @@ fn test_int4rangearray_params() {
 }
 
 #[test]
-#[cfg(not(travis))]
 fn test_tsrangearray_params() {
     fn make_check<'a>(time: &'a str) -> (Timespec, &'a str) {
         (time::strptime(time, "%Y-%m-%d").unwrap().to_timespec(), time)
@@ -541,7 +534,6 @@ fn test_tsrangearray_params() {
 }
 
 #[test]
-#[cfg(not(travis))]
 fn test_int8rangearray_params() {
     test_array_params!("INT8RANGE",
                        Range::new(None, None), "\"(,)\"",
@@ -798,7 +790,6 @@ fn test_dns_failure() {
 }
 
 #[test]
-#[cfg(not(travis))]
 fn test_jsonarray_params() {
     test_array_params!("JSON",
                        json::from_str("[10, 11, 12]").unwrap(),
