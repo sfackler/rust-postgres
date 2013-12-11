@@ -77,7 +77,6 @@ macro_rules! make_postgres_type(
     ($($doc:attr $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
         #[deriving(Eq)]
-        #[allow(missing_doc)] // FIXME mozilla/rust#10853
         pub enum PostgresType {
             $(
                 $doc
