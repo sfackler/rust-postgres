@@ -174,7 +174,7 @@ single pool can be shared across tasks and `get_connection` will block until a
 connection is available.
 ```rust
 let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-                                       &NoSsl, 5);
+                                       NoSsl, 5);
 
 for _ in range(0, 10) {
     let pool = pool.clone();
