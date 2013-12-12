@@ -636,9 +636,9 @@ macro_rules! to_option_impl(
     )
 )
 
-macro_rules! to_option_impl_self(
+macro_rules! to_option_impl_lifetime(
     ($($oid:pat)|+, $t:ty) => (
-        impl<'self> ToSql for Option<$t> {
+        impl<'a> ToSql for Option<$t> {
             fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
                 check_types!($($oid)|+, ty)
 
@@ -681,23 +681,23 @@ to_raw_to_impl!(PgInt4Range, Range<i32>)
 to_raw_to_impl!(PgInt8Range, Range<i64>)
 to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 
-impl<'self> ToSql for &'self str {
+impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgVarchar | PgText | PgCharN, ty)
         (Text, Some(self.as_bytes().to_owned()))
     }
 }
 
-to_option_impl_self!(PgVarchar | PgText | PgCharN, &'self str)
+to_option_impl_lifetime!(PgVarchar | PgText | PgCharN, &'a str)
 
-impl<'self> ToSql for &'self [u8] {
+impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgByteA, ty)
         (Binary, Some(self.to_owned()))
     }
 }
 
-to_option_impl_self!(PgByteA, &'self [u8])
+to_option_impl_lifetime!(PgByteA, &'a [u8])
 
 to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 to_raw_to_impl!(PgUuid, Uuid)
@@ -755,7 +755,7 @@ to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)
 to_array_impl!(PgJsonArray, Json)
 
-impl<'self> ToSql for HashMap<~str, Option<~str>> {
+impl<'a> ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
         check_types!(PgUnknownType { name: ~"hstore", .. }, ty)
         let mut buf = MemWriter::new();

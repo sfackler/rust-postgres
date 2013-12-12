@@ -129,10 +129,10 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     }
 }
 
-struct OptBound<'self, S, T>(&'self Option<RangeBound<S, T>>);
+struct OptBound<'a, S, T>(&'a Option<RangeBound<S, T>>);
 
-impl<'self, S: BoundSided, T: Ord> Ord for OptBound<'self, S, T> {
-    fn lt(&self, other: &OptBound<'self, S, T>) -> bool {
+impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
+    fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
         match (**self, **other) {
             (&None, &None) => false,
             (&None, _) => BoundSided::side(None::<S>) == Lower,
