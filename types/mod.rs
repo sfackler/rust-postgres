@@ -9,6 +9,7 @@ use extra::uuid::Uuid;
 use std::hashmap::HashMap;
 use std::io::Decorator;
 use std::io::mem::{MemWriter, BufReader};
+use std::io::util::LimitReader;
 use std::str;
 use std::vec;
 
@@ -345,35 +346,7 @@ from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 impl RawFromSql for Json {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Json {
-        struct LimitedReader<'a, R> {
-            limit: uint,
-            reader: &'a mut R
-        }
-        impl<'a, R: Reader> Reader for LimitedReader<'a, R> {
-            fn read(&mut self, buf: &mut [u8]) -> Option<uint> {
-                if self.limit == 0 {
-                    return None;
-                }
-
-                let buf = if self.limit < buf.len() {
-                    buf.mut_slice_to(self.limit)
-                } else {
-                    buf
-                };
-                match self.reader.read(buf) {
-                    Some(len) => {
-                        self.limit -= len;
-                        Some(len)
-                    }
-                    None => None
-                }
-            }
-
-            fn eof(&mut self) -> bool {
-                self.limit == 0 || self.reader.eof()
-            }
-        }
-        let mut reader = LimitedReader { limit: len, reader: raw };
+        let mut reader = LimitReader::new(raw, len);
         json::from_reader(&mut reader as &mut Reader).unwrap()
     }
 }
