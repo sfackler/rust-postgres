@@ -219,16 +219,14 @@ macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
                 if input.len() >= buffer_remaining {
                         copy_memory(
                             self.buffer.mut_slice(self.buffer_idx, size),
-                            input.slice_to(buffer_remaining),
-                            buffer_remaining);
+                            input.slice_to(buffer_remaining));
                     self.buffer_idx = 0;
                     func(self.buffer);
                     i += buffer_remaining;
                 } else {
                     copy_memory(
                         self.buffer.mut_slice(self.buffer_idx, self.buffer_idx + input.len()),
-                        input,
-                        input.len());
+                        input);
                     self.buffer_idx += input.len();
                     return;
                 }
@@ -247,8 +245,7 @@ macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
             let input_remaining = input.len() - i;
             copy_memory(
                 self.buffer.mut_slice(0, input_remaining),
-                input.slice_from(i),
-                input.len() - i);
+                input.slice_from(i));
             self.buffer_idx += input_remaining;
         }
 
