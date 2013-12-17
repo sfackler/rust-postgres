@@ -121,12 +121,12 @@ pub enum FrontendMessage<'a> {
     Terminate
 }
 
-trait WriteString {
-    fn write_string(&mut self, s: &str);
+trait WriteCStr {
+    fn write_cstr(&mut self, s: &str);
 }
 
-impl<W: Writer> WriteString for W {
-    fn write_string(&mut self, s: &str) {
+impl<W: Writer> WriteCStr for W {
+    fn write_cstr(&mut self, s: &str) {
         self.write(s.as_bytes());
         self.write_u8(0);
     }
@@ -145,8 +145,8 @@ impl<W: Writer> WriteMessage for W {
         match *message {
             Bind { portal, statement, formats, values, result_formats } => {
                 ident = Some('B');
-                buf.write_string(portal);
-                buf.write_string(statement);
+                buf.write_cstr(portal);
+                buf.write_cstr(statement);
 
                 buf.write_be_i16(formats.len() as i16);
                 for format in formats.iter() {
@@ -179,22 +179,22 @@ impl<W: Writer> WriteMessage for W {
             Close { variant, name } => {
                 ident = Some('C');
                 buf.write_u8(variant);
-                buf.write_string(name);
+                buf.write_cstr(name);
             }
             Describe { variant, name } => {
                 ident = Some('D');
                 buf.write_u8(variant);
-                buf.write_string(name);
+                buf.write_cstr(name);
             }
             Execute { portal, max_rows } => {
                 ident = Some('E');
-                buf.write_string(portal);
+                buf.write_cstr(portal);
                 buf.write_be_i32(max_rows);
             }
             Parse { name, query, param_types } => {
                 ident = Some('P');
-                buf.write_string(name);
-                buf.write_string(query);
+                buf.write_cstr(name);
+                buf.write_cstr(query);
                 buf.write_be_i16(param_types.len() as i16);
                 for ty in param_types.iter() {
                     buf.write_be_i32(*ty);
@@ -202,17 +202,17 @@ impl<W: Writer> WriteMessage for W {
             }
             PasswordMessage { password } => {
                 ident = Some('p');
-                buf.write_string(password);
+                buf.write_cstr(password);
             }
             Query { query } => {
                 ident = Some('Q');
-                buf.write_string(query);
+                buf.write_cstr(query);
             }
             StartupMessage { version, parameters } => {
                 buf.write_be_i32(version);
                 for &(ref k, ref v) in parameters.iter() {
-                    buf.write_string(k.as_slice());
-                    buf.write_string(v.as_slice());
+                    buf.write_cstr(k.as_slice());
+                    buf.write_cstr(v.as_slice());
                 }
                 buf.write_u8(0);
             }
