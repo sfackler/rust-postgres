@@ -66,6 +66,8 @@ impl PostgresConnectionPool {
 
     /// A convenience function wrapping `try_new`.
     ///
+    /// # Failure
+    ///
     /// Fails if the pool cannot be created.
     pub fn new(url: &str, ssl: SslMode, pool_size: uint)
             -> PostgresConnectionPool {
