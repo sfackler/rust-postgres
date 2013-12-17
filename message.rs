@@ -1,5 +1,3 @@
-#[allow(missing_doc)];
-
 use std::str;
 use std::io::Decorator;
 use std::io::mem::{MemWriter, MemReader};
