@@ -237,12 +237,12 @@ impl<W: Writer> WriteMessage for W {
     }
 }
 
-trait ReadString {
-    fn read_string(&mut self) -> ~str;
+trait ReadCStr {
+    fn read_cstr(&mut self) -> ~str;
 }
 
-impl<R: Buffer> ReadString for R {
-    fn read_string(&mut self) -> ~str {
+impl<R: Buffer> ReadCStr for R {
+    fn read_cstr(&mut self) -> ~str {
         let mut buf = self.read_until(0).unwrap();
         buf.pop();
         str::from_utf8_owned(buf)
@@ -268,10 +268,10 @@ impl<R: Reader> ReadMessage for R {
             '3' => CloseComplete,
             'A' => NotificationResponse {
                 pid: buf.read_be_i32(),
-                channel: buf.read_string(),
-                payload: buf.read_string()
+                channel: buf.read_cstr(),
+                payload: buf.read_cstr()
             },
-            'C' => CommandComplete { tag: buf.read_string() },
+            'C' => CommandComplete { tag: buf.read_cstr() },
             'D' => read_data_row(&mut buf),
             'E' => ErrorResponse { fields: read_fields(&mut buf) },
             'I' => EmptyQueryResponse,
@@ -284,8 +284,8 @@ impl<R: Reader> ReadMessage for R {
             'R' => read_auth_message(&mut buf),
             's' => PortalSuspended,
             'S' => ParameterStatus {
-                parameter: buf.read_string(),
-                value: buf.read_string()
+                parameter: buf.read_cstr(),
+                value: buf.read_cstr()
             },
             't' => read_parameter_description(&mut buf),
             'T' => read_row_description(&mut buf),
@@ -306,7 +306,7 @@ fn read_fields(buf: &mut MemReader) -> ~[(u8, ~str)] {
             break;
         }
 
-        fields.push((ty, buf.read_string()));
+        fields.push((ty, buf.read_cstr()));
     }
 
     fields
@@ -357,7 +357,7 @@ fn read_row_description(buf: &mut MemReader) -> BackendMessage {
 
     for _ in range(0, len) {
         types.push(RowDescriptionEntry {
-            name: buf.read_string(),
+            name: buf.read_cstr(),
             table_oid: buf.read_be_i32(),
             column_id: buf.read_be_i16(),
             type_oid: buf.read_be_i32(),
