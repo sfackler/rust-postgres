@@ -63,11 +63,11 @@ trait BoundSided {
 
 /// A tag type representing an upper bound
 #[deriving(Eq,Clone)]
-pub struct UpperBound;
+pub enum UpperBound {}
 
 /// A tag type representing a lower bound
 #[deriving(Eq,Clone)]
-pub struct LowerBound;
+pub enum LowerBound {}
 
 impl BoundSided for UpperBound {
     fn side(_: Option<UpperBound>) -> BoundSide {
