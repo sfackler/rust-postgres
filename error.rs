@@ -442,8 +442,7 @@ pub struct PostgresDbError {
 impl PostgresDbError {
     #[doc(hidden)]
     pub fn new(fields: ~[(u8, ~str)]) -> PostgresDbError {
-        // move_rev_iter is more efficient than move_iter
-        let mut map: HashMap<u8, ~str> = fields.move_rev_iter().collect();
+        let mut map: HashMap<u8, ~str> = fields.move_iter().collect();
         PostgresDbError {
             severity: map.pop(&('S' as u8)).unwrap(),
             code: FromStr::from_str(map.pop(&('C' as u8)).unwrap()).unwrap(),
