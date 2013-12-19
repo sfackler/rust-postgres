@@ -341,7 +341,7 @@ impl InnerPostgresConnection {
             host,
             port,
             user,
-            path: mut path,
+            mut path,
             query: mut args,
             ..
         }: Url = match FromStr::from_str(url) {
