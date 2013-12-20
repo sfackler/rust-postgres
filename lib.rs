@@ -55,7 +55,7 @@ fn main() {
 ```
  */
 
-#[pkgid="github.com/sfackler/rust-postgres"];
+#[crate_id="github.com/sfackler/rust-postgres"];
 #[doc(html_root_url="http://sfackler.github.io/rust-postgres/doc/")];
 
 #[warn(missing_doc)];
