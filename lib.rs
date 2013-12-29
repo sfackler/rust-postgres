@@ -24,22 +24,22 @@ fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &NoSsl);
 
-    conn.update("CREATE TABLE person (
+    conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
                     time_created    TIMESTAMP NOT NULL,
                     data            BYTEA
-                 )", []);
+                  )", []);
     let me = Person {
         id: 0,
         name: ~"Steven",
         time_created: time::get_time(),
         data: None
     };
-    conn.update("INSERT INTO person (name, time_created, data)
+    conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                [&me.name as &ToSql, &me.time_created as &ToSql,
-                 &me.data as &ToSql]);
+                 [&me.name as &ToSql, &me.time_created as &ToSql,
+                  &me.data as &ToSql]);
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
     for row in stmt.query([]) {
@@ -697,26 +697,26 @@ impl PostgresConnection {
         }
     }
 
-    /// A convenience function for update queries that are only run once.
+    /// A convenience function for queries that are only run once.
     ///
     /// If an error is returned, it could have come from either the preparation
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
-    pub fn try_update(&self, query: &str, params: &[&ToSql])
+    pub fn try_execute(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
-        self.try_prepare(query).and_then(|stmt| stmt.try_update(params))
+        self.try_prepare(query).and_then(|stmt| stmt.try_execute(params))
     }
 
-    /// A convenience wrapper around `try_update`.
+    /// A convenience wrapper around `try_execute`.
     ///
     /// # Failure
     ///
     /// Fails if there was an error preparing or executing the statement.
-    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
-        match self.try_update(query, params) {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> uint {
+        match self.try_execute(query, params) {
             Ok(res) => res,
-            Err(err) => fail!("Error running update:\n{}",
+            Err(err) => fail!("Error running query:\n{}",
                                err.pretty_error(query))
         }
     }
@@ -803,15 +803,15 @@ impl<'conn> PostgresTransaction<'conn> {
         }
     }
 
-    /// Like `PostgresConnection::try_update`.
-    pub fn try_update(&self, query: &str, params: &[&ToSql])
+    /// Like `PostgresConnection::try_execute`.
+    pub fn try_execute(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresDbError> {
-        self.conn.try_update(query, params)
+        self.conn.try_execute(query, params)
     }
 
-    /// Like `PostgresConnection::update`.
-    pub fn update(&self, query: &str, params: &[&ToSql]) -> uint {
-        self.conn.update(query, params)
+    /// Like `PostgresConnection::execute`.
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> uint {
+        self.conn.execute(query, params)
     }
 
     /// Like `PostgresConnection::transaction`.
@@ -862,17 +862,17 @@ pub trait PostgresStatement {
     ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
-    fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
+    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
 
-    /// A convenience function wrapping `try_update`.
+    /// A convenience function wrapping `try_execute`.
     ///
     /// # Failure
     ///
     /// Fails if there was an error executing the statement.
-    fn update(&self, params: &[&ToSql]) -> uint {
-        match self.try_update(params) {
+    fn execute(&self, params: &[&ToSql]) -> uint {
+        match self.try_execute(params) {
             Ok(count) => count,
-            Err(err) => fail!("Error running update\n{}", err.to_str())
+            Err(err) => fail!("Error running query\n{}", err.to_str())
         }
     }
 
@@ -1002,7 +1002,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
         self.result_desc.as_slice()
     }
 
-    fn try_update(&self, params: &[&ToSql])
+    fn try_execute(&self, params: &[&ToSql])
                       -> Result<uint, PostgresDbError> {
         match self.execute("", 0, params) {
             Some(err) => return Err(err),
@@ -1080,8 +1080,8 @@ impl<'conn> PostgresStatement for TransactionalPostgresStatement<'conn> {
         self.stmt.result_descriptions()
     }
 
-    fn try_update(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
-        self.stmt.try_update(params)
+    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
+        self.stmt.try_execute(params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])

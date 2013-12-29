@@ -97,10 +97,10 @@ fn test_unknown_database() {
 #[test]
 fn test_transaction_commit() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
     let trans = conn.transaction();
-    trans.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
     drop(trans);
 
     let stmt = conn.prepare("SELECT * FROM foo");
@@ -112,12 +112,12 @@ fn test_transaction_commit() {
 #[test]
 fn test_transaction_rollback() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
-    conn.update("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
 
     let trans = conn.transaction();
-    trans.update("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
+    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
     trans.set_rollback();
     drop(trans);
 
@@ -130,33 +130,33 @@ fn test_transaction_rollback() {
 #[test]
 fn test_nested_transactions() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
 
-    conn.update("INSERT INTO foo (id) VALUES (1)", []);
+    conn.execute("INSERT INTO foo (id) VALUES (1)", []);
 
     {
         let trans1 = conn.transaction();
-        trans1.update("INSERT INTO foo (id) VALUES (2)", []);
+        trans1.execute("INSERT INTO foo (id) VALUES (2)", []);
 
         {
             let trans2 = trans1.transaction();
-            trans2.update("INSERT INTO foo (id) VALUES (3)", []);
+            trans2.execute("INSERT INTO foo (id) VALUES (3)", []);
             trans2.set_rollback();
         }
 
         {
             let trans2 = trans1.transaction();
-            trans2.update("INSERT INTO foo (id) VALUES (4)", []);
+            trans2.execute("INSERT INTO foo (id) VALUES (4)", []);
 
             {
                 let trans3 = trans2.transaction();
-                trans3.update("INSERT INTO foo (id) VALUES (5)", []);
+                trans3.execute("INSERT INTO foo (id) VALUES (5)", []);
                 trans3.set_rollback();
             }
 
             {
                 let trans3 = trans2.transaction();
-                trans3.update("INSERT INTO foo (id) VALUES (6)", []);
+                trans3.execute("INSERT INTO foo (id) VALUES (6)", []);
             }
         }
 
@@ -177,8 +177,8 @@ fn test_nested_transactions() {
 #[test]
 fn test_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.update("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
-    conn.update("INSERT INTO foo (id) VALUES ($1), ($2)",
+    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
+    conn.execute("INSERT INTO foo (id) VALUES ($1), ($2)",
                  [&1i64 as &ToSql, &2i64 as &ToSql]);
     let stmt = conn.prepare("SELECT * from foo ORDER BY id");
     let result = stmt.query([]);
@@ -192,11 +192,11 @@ fn test_lazy_query() {
 
     {
         let trans = conn.transaction();
-        trans.update("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+        trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
         let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
         let values = ~[0i32, 1, 2, 3, 4, 5];
         for value in values.iter() {
-            stmt.update([value as &ToSql]);
+            stmt.execute([value as &ToSql]);
         }
 
         let stmt = trans.prepare("SELECT id FROM foo ORDER BY id");
@@ -298,11 +298,11 @@ fn test_text_params() {
 #[test]
 fn test_bpchar_params() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.update("CREATE TEMPORARY TABLE foo (
+    conn.execute("CREATE TEMPORARY TABLE foo (
                     id SERIAL PRIMARY KEY,
                     b CHAR(5)
                  )", []);
-    conn.update("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+    conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
                 [&Some("12345") as &ToSql, &Some("123") as &ToSql,
                  &None::<~str> as &ToSql]);
     let stmt = conn.prepare("SELECT b FROM foo ORDER BY id");
@@ -587,21 +587,21 @@ fn test_f64_nan_param() {
 #[should_fail]
 fn test_wrong_param_type() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_update("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
+    conn.try_execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_few_params() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_update("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
+    conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_many_params() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_update("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
+    conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
                                                 &2i32 as &ToSql,
                                                 &3i32 as &ToSql]);
 }
@@ -638,12 +638,12 @@ fn test_custom_notice_handler() {
 
     let conn = PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl);
     conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
-    conn.update("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
+    conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
                 BEGIN
                     RAISE NOTICE 'note';
                     RETURN 1;
                 END; $$ LANGUAGE plpgsql", []);
-    conn.update("SELECT pg_temp.note()", []);
+    conn.execute("SELECT pg_temp.note()", []);
 
     assert_eq!(unsafe { count }, 1);
 }
@@ -669,10 +669,10 @@ fn test_notification_iterator_some() {
 
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let mut it = conn.notifications();
-    conn.update("LISTEN test_notification_iterator_one_channel", []);
-    conn.update("LISTEN test_notification_iterator_one_channel2", []);
-    conn.update("NOTIFY test_notification_iterator_one_channel, 'hello'", []);
-    conn.update("NOTIFY test_notification_iterator_one_channel2, 'world'", []);
+    conn.execute("LISTEN test_notification_iterator_one_channel", []);
+    conn.execute("LISTEN test_notification_iterator_one_channel2", []);
+    conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", []);
+    conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", []);
 
     check_notification(PostgresNotification {
         pid: 0,
@@ -686,7 +686,7 @@ fn test_notification_iterator_some() {
     }, it.next());
     assert!(it.next().is_none());
 
-    conn.update("NOTIFY test_notification_iterator_one_channel, '!'", []);
+    conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []);
     check_notification(PostgresNotification {
         pid: 0,
         channel: ~"test_notification_iterator_one_channel",
@@ -707,7 +707,7 @@ fn test_cancel_query() {
                                   cancel_data).is_ok());
     }
 
-    match conn.try_update("SELECT pg_sleep(10)", []) {
+    match conn.try_execute("SELECT pg_sleep(10)", []) {
         Err(PostgresDbError { code: QueryCanceled, .. }) => {}
         res => fail!("Unexpected result {:?}", res)
     }
@@ -718,7 +718,7 @@ fn test_require_ssl_conn() {
     let ctx = SslContext::new(Sslv3);
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &RequireSsl(ctx));
-    conn.update("SELECT 1::VARCHAR", []);
+    conn.execute("SELECT 1::VARCHAR", []);
 }
 
 #[test]
@@ -726,7 +726,7 @@ fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(Sslv3);
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &PreferSsl(ctx));
-    conn.update("SELECT 1::VARCHAR", []);
+    conn.execute("SELECT 1::VARCHAR", []);
 }
 
 #[test]
