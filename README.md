@@ -32,22 +32,22 @@ fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &NoSsl);
 
-    conn.update("CREATE TABLE person (
+    conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
                     time_created    TIMESTAMP NOT NULL,
                     data            BYTEA
-                 )", []);
+                  )", []);
     let me = Person {
         id: 0,
         name: ~"Steven",
         time_created: time::get_time(),
         data: None
     };
-    conn.update("INSERT INTO person (name, time_created, data)
+    conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                [&me.name as &ToSql, &me.time_created as &ToSql,
-                 &me.data as &ToSql]);
+                 [&me.name as &ToSql, &me.time_created as &ToSql,
+                  &me.data as &ToSql]);
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
     for row in stmt.query([]) {
@@ -97,13 +97,13 @@ let stmt = conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2");
 
 Querying
 --------
-A prepared statement can be executed with the `query` and `update` methods.
+A prepared statement can be executed with the `query` and `execute` methods.
 Both methods take an array of parameters to bind to the query represented as
-`&ToSql` trait objects. `update` returns the number of rows affected by the
+`&ToSql` trait objects. `execute` returns the number of rows affected by the
 query (or 0 if not applicable):
 ```rust
 let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
-let updates = stmt.update([&1i32 as &ToSql, & &"biz" as &ToSql]);
+let updates = stmt.execute([&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
@@ -118,10 +118,10 @@ for row in stmt.query([]) {
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `PostgresConnection` has a utility `update` method which is useful
+In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
-let updates = conn.update("UPDATE foo SET bar = $1 WHERE baz = $2",
+let updates = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
                           [&1i32 as &ToSql, & &"biz" as &ToSql]);
 println!("{} rows were updated", updates);
 ```
@@ -134,7 +134,7 @@ The `transaction` method will start a new transaction. It returns a
 transaction:
 ```rust
 let trans = conn.transaction();
-trans.update(...);
+trans.execute(...);
 let stmt = trans.prepare(...);
 
 if a_bad_thing_happened {
@@ -157,7 +157,7 @@ The methods described above will fail if there is an error. For each of these
 methods, there is a second variant prefixed with `try_` which returns a
 `Result`:
 ```rust
-match conn.try_update(query, params) {
+match conn.try_execute(query, params) {
     Ok(updates) => println!("{} rows were updated", updates),
     Err(err) => match err.code {
         NotNullViolation => println!("Something was NULL that shouldn't be"),
