@@ -2,7 +2,7 @@
 
 use std::hashmap::HashMap;
 
-use super::ssl::error::SslError;
+use openssl::ssl::error::SslError;
 
 macro_rules! make_errors(
     ($($code:pat => $error:ident),+) => (

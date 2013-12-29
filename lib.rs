@@ -63,12 +63,12 @@ fn main() {
 #[feature(macro_rules, struct_variant, globs)];
 
 extern mod extra;
-extern mod ssl = "github.com/sfackler/rust-ssl";
+extern mod openssl = "github.com/sfackler/rust-openssl";
 
 use extra::container::Deque;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
-use ssl::{SslStream, SslContext};
+use openssl::ssl::{SslStream, SslContext};
 use std::cell::RefCell;
 use std::io::io_error;
 use std::io::buffered::BufferedStream;

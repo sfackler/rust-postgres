@@ -1,7 +1,7 @@
 #[feature(struct_variant, macro_rules, globs)];
 
 extern mod extra;
-extern mod ssl = "github.com/sfackler/rust-ssl";
+extern mod openssl = "github.com/sfackler/rust-openssl";
 
 use extra::comm::DuplexStream;
 use extra::future::Future;
@@ -9,7 +9,7 @@ use extra::time;
 use extra::time::Timespec;
 use extra::json;
 use extra::uuid::Uuid;
-use ssl::{SslContext, Sslv3};
+use openssl::ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
 use std::hashmap::HashMap;
