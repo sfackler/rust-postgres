@@ -62,6 +62,7 @@ fn main() {
 #[warn(missing_doc)];
 
 #[feature(macro_rules, struct_variant, globs)];
+#[macro_escape];
 
 extern mod extra;
 extern mod openssl = "github.com/sfackler/rust-openssl";

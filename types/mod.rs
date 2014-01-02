@@ -1,4 +1,5 @@
 //! Traits dealing with Postgres data types
+#[macro_escape];
 
 extern mod extra;
 

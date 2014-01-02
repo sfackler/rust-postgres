@@ -1,4 +1,5 @@
 //! Types dealing with ranges of values
+#[macro_escape];
 
 extern mod extra;
 
