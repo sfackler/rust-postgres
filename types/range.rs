@@ -166,11 +166,11 @@ struct OptBound<'a, S, T>(&'a Option<RangeBound<S, T>>);
 
 impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
     fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
-        match (**self, **other) {
-            (&None, &None) => false,
-            (&None, _) => BoundSided::side(None::<S>) == Lower,
-            (_, &None) => BoundSided::side(None::<S>) == Upper,
-            (&Some(ref a), &Some(ref b)) => a < b
+        match (*self, *other) {
+            (OptBound(&None), OptBound(&None)) => false,
+            (OptBound(&None), _) => BoundSided::side(None::<S>) == Lower,
+            (_, OptBound(&None)) => BoundSided::side(None::<S>) == Upper,
+            (OptBound(&Some(ref a)), OptBound(&Some(ref b))) => a < b
         }
     }
 }
