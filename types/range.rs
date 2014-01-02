@@ -347,33 +347,31 @@ mod test {
 
     #[test]
     fn test_range_contains() {
-        let r =  Range::new(Some(RangeBound::new(1i32, Inclusive)),
-                            Some(RangeBound::new(3i32, Inclusive)));
+        let r = range!('[' 1i32, 3i32 ']');
         assert!(!r.contains(&4));
         assert!(r.contains(&3));
         assert!(r.contains(&2));
         assert!(r.contains(&1));
         assert!(!r.contains(&0));
 
-        let r =  Range::new(Some(RangeBound::new(1i32, Exclusive)),
-                            Some(RangeBound::new(3i32, Exclusive)));
+        let r = range!('(' 1i32, 3i32 ')');
         assert!(!r.contains(&4));
         assert!(!r.contains(&3));
         assert!(r.contains(&2));
         assert!(!r.contains(&1));
         assert!(!r.contains(&0));
 
-        let r = Range::new(None, Some(RangeBound::new(3i32, Inclusive)));
+        let r = range!('(', 3i32 ']');
         assert!(!r.contains(&4));
         assert!(r.contains(&2));
         assert!(r.contains(&Bounded::min_value()));
 
-        let r = Range::new(Some(RangeBound::new(1i32, Inclusive)), None);
+        let r = range!('[' 1i32, ')');
         assert!(r.contains(&Bounded::max_value()));
         assert!(r.contains(&4));
         assert!(!r.contains(&0));
 
-        let r = Range::new(None, None);
+        let r = range!('(', ')');
         assert!(r.contains(&Bounded::max_value()));
         assert!(r.contains(&0i32));
         assert!(r.contains(&Bounded::min_value()));
