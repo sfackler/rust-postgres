@@ -57,12 +57,12 @@ macro_rules! bounded_normalizable(
         impl Normalizable for $t {
             fn normalize<S: BoundSided>(bound: RangeBound<S, $t>)
                     -> RangeBound<S, $t> {
-                match BoundSided::side(None::<S>) {
-                    Upper if bound.type_ == Inclusive => {
+                match (BoundSided::side(None::<S>), bound.type_) {
+                    (Upper, Inclusive) => {
                         assert!(bound.value != Bounded::max_value());
                         RangeBound::new(bound.value + 1, Exclusive)
                     }
-                    Lower if bound.type_ == Exclusive => {
+                    (Lower, Exclusive) => {
                         assert!(bound.value != Bounded::max_value());
                         RangeBound::new(bound.value + 1, Inclusive)
                     }
