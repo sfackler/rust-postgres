@@ -397,10 +397,8 @@ mod test {
 
     #[test]
     fn test_range_normalizes() {
-        let r1 = Range::new(Some(RangeBound::new(10i32, Exclusive)),
-                            Some(RangeBound::new(15i32, Inclusive)));
-        let r2 = Range::new(Some(RangeBound::new(11i32, Inclusive)),
-                            Some(RangeBound::new(16i32, Exclusive)));
+        let r1 = range!('(' 10i32, 15i32 ']');
+        let r2 = range!('[' 11i32, 16i32 ')');
         assert_eq!(r1, r2);
     }
 
