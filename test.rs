@@ -223,6 +223,19 @@ fn test_result_descriptions() {
                 ResultDescription { name: ~"b", ty: PgVarchar}]);
 }
 
+#[test]
+fn test_execute_counts() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    assert_eq!(0, conn.execute("CREATE TEMPORARY TABLE foo (
+                                    id SERIAL PRIMARY KEY,
+                                    b INT
+                                )", []));
+    assert_eq!(3, conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($2)",
+                               [&1i32 as &ToSql, &2i32 as &ToSql]));
+    assert_eq!(2, conn.execute("UPDATE foo SET b = 0 WHERE b = 2", []));
+    assert_eq!(3, conn.execute("SELECT * FROM foo", []));
+}
+
 fn test_type<T: Eq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     for &(ref val, ref repr) in checks.iter() {
