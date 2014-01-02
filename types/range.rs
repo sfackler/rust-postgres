@@ -5,6 +5,39 @@ extern mod extra;
 use std::cmp;
 use extra::time::Timespec;
 
+macro_rules! range(
+    (empty) => (Range::empty());
+    ('(', ')') => (Range::new(None, None));
+    ('(', $h:expr ')') => (
+        Range::new(None, Some(RangeBound::new($h, Exclusive)))
+    );
+    ('(', $h:expr ']') => (
+        Range::new(None, Some(RangeBound::new($h, Inclusive)))
+    );
+    ('(' $l:expr, ')') => (
+        Range::new(Some(RangeBound::new($l, Exclusive)), None)
+    );
+    ('[' $l:expr, ')') => (
+        Range::new(Some(RangeBound::new($l, Inclusive)), None)
+    );
+    ('(' $l:expr, $h:expr ')') => (
+        Range::new(Some(RangeBound::new($l, Exclusive)),
+                   Some(RangeBound::new($h, Exclusive)))
+    );
+    ('(' $l:expr, $h:expr ']') => (
+        Range::new(Some(RangeBound::new($l, Exclusive)),
+                   Some(RangeBound::new($h, Inclusive)))
+    );
+    ('[' $l:expr, $h:expr ')') => (
+        Range::new(Some(RangeBound::new($l, Inclusive)),
+                   Some(RangeBound::new($h, Exclusive)))
+    );
+    ('[' $l:expr, $h:expr ']') => (
+        Range::new(Some(RangeBound::new($l, Inclusive)),
+                   Some(RangeBound::new($h, Inclusive)))
+    )
+)
+
 /// A trait that normalizes a range bound for a type
 pub trait Normalizable {
     /// Given a range bound, returns the normalized version of that bound. For
@@ -375,38 +408,31 @@ mod test {
 
     #[test]
     fn test_range_empty() {
-        assert!(Range::new(Some(RangeBound::new(9i32, Exclusive)),
-                           Some(RangeBound::new(10i32, Exclusive))).is_empty());
-        assert!(Range::new(Some(RangeBound::new(10i32, Inclusive)),
-                           Some(RangeBound::new(10i32, Exclusive))).is_empty());
-        assert!(Range::new(Some(RangeBound::new(10i32, Exclusive)),
-                           Some(RangeBound::new(10i32, Inclusive))).is_empty());
-        assert!(Range::new(Some(RangeBound::new(10i32, Inclusive)),
-                           Some(RangeBound::new(9i32, Inclusive))).is_empty());
+        assert!((range!('(' 9i32, 10i32 ')')).is_empty());
+        assert!((range!('[' 10i32, 10i32 ')')).is_empty());
+        assert!((range!('(' 10i32, 10i32 ']')).is_empty());
+        assert!((range!('[' 10i32, 9i32 ']')).is_empty());
     }
 
     #[test]
     fn test_intersection() {
-        let r1 = Range::new(Some(RangeBound::new(10i32, Inclusive)),
-                            Some(RangeBound::new(15i32, Exclusive)));
-        let r2 = Range::new(Some(RangeBound::new(20i32, Exclusive)),
-                            Some(RangeBound::new(25i32, Inclusive)));
+        let r1 = range!('[' 10i32, 15i32 ')');
+        let r2 = range!('(' 20i32, 25i32 ']');
         assert!(r1.intersect(&r2).is_empty());
         assert!(r2.intersect(&r1).is_empty());
-        assert_eq!(r1, r1.intersect(&Range::new(None, None)));
-        assert_eq!(r1, Range::new(None, None).intersect(&r1));
+        assert_eq!(r1, r1.intersect(&range!('(', ')')));
+        assert_eq!(r1, (range!('(', ')')).intersect(&r1));
 
-        let r2 = Range::new(Some(RangeBound::new(10i32, Exclusive)), None);
+        let r2 = range!('(' 10i32, ')');
         let exp = Range::new(r2.lower().clone(), r1.upper().clone());
         assert_eq!(exp, r1.intersect(&r2));
         assert_eq!(exp, r2.intersect(&r1));
 
-        let r2 = Range::new(None, Some(RangeBound::new(15i32, Inclusive)));
+        let r2 = range!('(', 15i32 ']');
         assert_eq!(r1, r1.intersect(&r2));
         assert_eq!(r1, r2.intersect(&r1));
 
-        let r2 = Range::new(Some(RangeBound::new(11i32, Inclusive)),
-                            Some(RangeBound::new(14i32, Exclusive)));
+        let r2 = range!('[' 11i32, 14i32 ')');
         assert_eq!(r2, r1.intersect(&r2));
         assert_eq!(r2, r2.intersect(&r1));
     }
@@ -415,17 +441,14 @@ mod test {
     fn test_contains_range() {
         assert!(Range::<i32>::empty().contains_range(&Range::empty()));
 
-        let r1 = Range::new(Some(RangeBound::new(10i32, Inclusive)),
-                           Some(RangeBound::new(15i32, Exclusive)));
+        let r1 = range!('[' 10i32, 15i32 ')');
         assert!(r1.contains_range(&r1));
 
-        let r2 = Range::new(Some(RangeBound::new(10i32, Exclusive)),
-                            None);
+        let r2 = range!('(' 10i32, ')');
         assert!(!r1.contains_range(&r2));
         assert!(!r2.contains_range(&r1));
 
-        let r2 = Range::new(None,
-                            Some(RangeBound::new(15i32, Inclusive)));
+        let r2 = range!('(', 15i32 ']');
         assert!(!r1.contains_range(&r2));
         assert!(r2.contains_range(&r1));
     }
