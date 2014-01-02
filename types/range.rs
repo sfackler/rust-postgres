@@ -153,11 +153,10 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     /// Determines if a value lies within the range specified by this bound.
     pub fn in_bounds(&self, value: &T) -> bool {
         match (self.type_, BoundSided::side(None::<S>)) {
-            (Inclusive, Upper) if value <= &self.value => true,
-            (Exclusive, Upper) if value < &self.value => true,
-            (Inclusive, Lower) if value >= &self.value => true,
-            (Exclusive, Lower) if value > &self.value => true,
-            _ => false
+            (Inclusive, Upper) => value <= &self.value,
+            (Exclusive, Upper) => value < &self.value,
+            (Inclusive, Lower) => value >= &self.value,
+            (Exclusive, Lower) => value > &self.value,
         }
     }
 }
