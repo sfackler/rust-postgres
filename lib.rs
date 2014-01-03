@@ -68,8 +68,10 @@ extern mod extra;
 extern mod openssl = "github.com/sfackler/rust-openssl";
 
 use extra::container::Deque;
+use extra::hex::ToHex;
 use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
+use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use std::cell::RefCell;
 use std::io::io_error;
@@ -130,14 +132,11 @@ use self::message::{FrontendMessage,
                     Terminate};
 use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
 use self::types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
-use self::util::digest::Digest;
-use self::util::md5::Md5;
 
 pub mod error;
 pub mod pool;
 mod message;
 pub mod types;
-mod util;
 
 static DEFAULT_PORT: Port = 5432;
 
@@ -454,13 +453,13 @@ impl InnerPostgresConnection {
                     None => return Some(MissingPassword)
                 };
                 let input = pass + user;
-                let mut md5 = Md5::new();
-                md5.input_str(input);
-                let output = md5.result_str();
-                md5.reset();
-                md5.input_str(output);
-                md5.input(salt);
-                let output = "md5" + md5.result_str();
+                let hasher = Hasher::new(MD5);
+                hasher.update(input.as_bytes());
+                let output = hasher.final().to_hex();
+                let hasher = Hasher::new(MD5);
+                hasher.update(output.as_bytes());
+                hasher.update(salt);
+                let output = "md5" + hasher.final().to_hex();
                 self.write_messages([PasswordMessage {
                     password: output.as_slice()
                 }]);
