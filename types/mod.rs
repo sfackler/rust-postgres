@@ -21,7 +21,7 @@ pub mod array;
 pub mod range;
 
 /// A Postgres OID
-pub type Oid = i32;
+pub type Oid = u32;
 
 // Values from pg_type.h
 static BOOLOID: Oid = 16;
@@ -404,7 +404,7 @@ macro_rules! from_array_impl(
 
             let ndim = rdr.read_be_i32() as uint;
             let _has_null = rdr.read_be_i32() == 1;
-            let _element_type: Oid = rdr.read_be_i32();
+            let _element_type: Oid = rdr.read_be_u32();
 
             let mut dim_info = vec::with_capacity(ndim);
             for _ in range(0, ndim) {
@@ -685,7 +685,7 @@ macro_rules! to_array_impl(
 
                 buf.write_be_i32(self.dimension_info().len() as i32);
                 buf.write_be_i32(1);
-                buf.write_be_i32(ty.member_type().to_oid());
+                buf.write_be_u32(ty.member_type().to_oid());
 
                 for info in self.dimension_info().iter() {
                     buf.write_be_i32(info.len as i32);

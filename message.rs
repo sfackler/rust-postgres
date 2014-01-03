@@ -345,7 +345,7 @@ fn read_parameter_description(buf: &mut MemReader) -> BackendMessage {
     let mut types = vec::with_capacity(len);
 
     for _ in range(0, len) {
-        types.push(buf.read_be_i32());
+        types.push(buf.read_be_u32());
     }
 
     ParameterDescription { types: types }
@@ -358,9 +358,9 @@ fn read_row_description(buf: &mut MemReader) -> BackendMessage {
     for _ in range(0, len) {
         types.push(RowDescriptionEntry {
             name: buf.read_cstr(),
-            table_oid: buf.read_be_i32(),
+            table_oid: buf.read_be_u32(),
             column_id: buf.read_be_i16(),
-            type_oid: buf.read_be_i32(),
+            type_oid: buf.read_be_u32(),
             type_size: buf.read_be_i16(),
             type_modifier: buf.read_be_i32(),
             format: buf.read_be_i16()
