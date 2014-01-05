@@ -270,12 +270,12 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
             return Range::empty();
         }
 
-        let lower = cmp::max(OptBound(self.lower()), OptBound(other.lower()))
-                .clone();
-        let upper = cmp::min(OptBound(self.upper()), OptBound(other.upper()))
-                .clone();
+        let OptBound(lower) = cmp::max(OptBound(self.lower()),
+                                       OptBound(other.lower()));
+        let OptBound(upper) = cmp::min(OptBound(self.upper()),
+                                       OptBound(other.upper()));
 
-        Range::new(lower, upper)
+        Range::new(lower.clone(), upper.clone())
     }
 }
 
