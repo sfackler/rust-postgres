@@ -242,8 +242,8 @@ impl<T: Ord+Normalizable> Range<T> {
         match *self {
             Empty => false,
             Normal(ref lower, ref upper) => {
-                lower.as_ref().map_default(true, |b| b.in_bounds(value)) &&
-                    upper.as_ref().map_default(true, |b| b.in_bounds(value))
+                lower.as_ref().map_or(true, |b| b.in_bounds(value)) &&
+                    upper.as_ref().map_or(true, |b| b.in_bounds(value))
             }
         }
     }
