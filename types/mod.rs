@@ -8,7 +8,6 @@ use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
 use std::hashmap::HashMap;
-use std::io::Decorator;
 use std::io::mem::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
@@ -564,7 +563,7 @@ macro_rules! to_range_impl(
                     Some(ref bound) => {
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
-                        let inner_buf = inner_buf.inner();
+                        let inner_buf = inner_buf.unwrap();
                         buf.write_be_i32(inner_buf.len() as i32);
                         buf.write(inner_buf);
                     }
@@ -574,7 +573,7 @@ macro_rules! to_range_impl(
                     Some(ref bound) => {
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
-                        let inner_buf = inner_buf.inner();
+                        let inner_buf = inner_buf.unwrap();
                         buf.write_be_i32(inner_buf.len() as i32);
                         buf.write(inner_buf);
                     }
@@ -633,7 +632,7 @@ macro_rules! to_raw_to_impl(
 
                 let mut writer = MemWriter::new();
                 self.raw_to_sql(&mut writer);
-                (Binary, Some(writer.inner()))
+                (Binary, Some(writer.unwrap()))
             }
         }
 
@@ -697,7 +696,7 @@ macro_rules! to_array_impl(
                         Some(ref val) => {
                             let mut inner_buf = MemWriter::new();
                             val.raw_to_sql(&mut inner_buf);
-                            let inner_buf = inner_buf.inner();
+                            let inner_buf = inner_buf.unwrap();
                             buf.write_be_i32(inner_buf.len() as i32);
                             buf.write(inner_buf);
                         }
@@ -705,7 +704,7 @@ macro_rules! to_array_impl(
                     }
                 }
 
-                (Binary, Some(buf.inner()))
+                (Binary, Some(buf.unwrap()))
             }
         }
 
@@ -749,7 +748,7 @@ impl<'a> ToSql for HashMap<~str, Option<~str>> {
             }
         }
 
-        (Binary, Some(buf.inner()))
+        (Binary, Some(buf.unwrap()))
     }
 }
 to_option_impl!(PgUnknownType { name: ~"hstore", .. },

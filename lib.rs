@@ -293,13 +293,6 @@ impl Reader for InternalStream {
             Ssl(ref mut s) => s.read(buf)
         }
     }
-
-    fn eof(&mut self) -> bool {
-        match *self {
-            Normal(ref mut s) => s.eof(),
-            Ssl(ref mut s) => s.eof()
-        }
-    }
 }
 
 impl Writer for InternalStream {

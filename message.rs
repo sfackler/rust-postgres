@@ -1,5 +1,4 @@
 use std::str;
-use std::io::Decorator;
 use std::io::mem::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
@@ -231,9 +230,9 @@ impl<W: Writer> WriteMessage for W {
         }
 
         // add size of length value
-        self.write_be_i32((buf.inner_ref().len() + mem::size_of::<i32>())
+        self.write_be_i32((buf.get_ref().len() + mem::size_of::<i32>())
                            as i32);
-        self.write(buf.inner());
+        self.write(buf.unwrap());
     }
 }
 
@@ -292,7 +291,6 @@ impl<R: Reader> ReadMessage for R {
             'Z' => ReadyForQuery { state: buf.read_u8() },
             ident => fail!("Unknown message identifier `{}`", ident)
         };
-        assert!(buf.eof());
         debug!("Read message {:?}", ret);
         ret
     }
