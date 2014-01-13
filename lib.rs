@@ -74,14 +74,15 @@ use extra::url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use std::cell::RefCell;
-use std::io::io_error;
+use std::hashmap::HashMap;
 use std::io::buffered::BufferedStream;
-use std::io::net;
+use std::io::io_error;
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
-use std::task;
-use std::hashmap::HashMap;
+use std::io::net;
 use std::str;
+use std::task;
+use std::util;
 
 use self::error::{PostgresDbError,
                   PostgresConnectError,
@@ -476,7 +477,7 @@ impl InnerPostgresConnection {
 
     fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        ::std::util::replace(&mut self.notice_handler, handler)
+        util::replace(&mut self.notice_handler, handler)
     }
 
     fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
