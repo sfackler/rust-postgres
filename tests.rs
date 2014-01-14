@@ -1,8 +1,3 @@
-#[feature(struct_variant, macro_rules, globs)];
-
-extern mod extra;
-extern mod openssl = "github.com/sfackler/rust-openssl";
-
 use extra::comm::DuplexStream;
 use extra::future::Future;
 use extra::time;
@@ -15,29 +10,27 @@ use std::f64;
 use std::hashmap::HashMap;
 use std::io::timer;
 
-use lib::{PostgresNoticeHandler,
-          PostgresNotification,
-          PostgresConnection,
-          PostgresStatement,
-          ResultDescription,
-          RequireSsl,
-          PreferSsl,
-          NoSsl};
-use lib::error::{DbError,
-                 DnsError,
-                 MissingPassword,
-                 Position,
-                 PostgresDbError,
-                 SyntaxError,
-                 InvalidPassword,
-                 QueryCanceled,
-                 InvalidCatalogName};
-use lib::types::{ToSql, FromSql, PgInt4, PgVarchar};
-use lib::types::array::{ArrayBase};
-use lib::types::range::{Range, Inclusive, Exclusive, RangeBound};
-use lib::pool::PostgresConnectionPool;
-
-mod lib;
+use {PostgresNoticeHandler,
+     PostgresNotification,
+     PostgresConnection,
+     PostgresStatement,
+     ResultDescription,
+     RequireSsl,
+     PreferSsl,
+     NoSsl};
+use error::{DbError,
+            DnsError,
+            MissingPassword,
+            Position,
+            PostgresDbError,
+            SyntaxError,
+            InvalidPassword,
+            QueryCanceled,
+            InvalidCatalogName};
+use types::{ToSql, FromSql, PgInt4, PgVarchar};
+use types::array::{ArrayBase};
+use types::range::{Range, Inclusive, Exclusive, RangeBound};
+use pool::PostgresConnectionPool;
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
@@ -704,8 +697,8 @@ fn test_cancel_query() {
 
     do spawn {
         timer::sleep(500);
-        assert!(lib::cancel_query("postgres://postgres@localhost", &NoSsl,
-                                  cancel_data).is_ok());
+        assert!(super::cancel_query("postgres://postgres@localhost", &NoSsl,
+                                    cancel_data).is_ok());
     }
 
     match conn.try_execute("SELECT pg_sleep(10)", []) {

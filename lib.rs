@@ -84,60 +84,62 @@ use std::str;
 use std::task;
 use std::util;
 
-use self::error::{PostgresDbError,
-                  PostgresConnectError,
-                  InvalidUrl,
-                  DnsError,
-                  SocketError,
-                  NoSslSupport,
-                  SslError,
-                  MissingUser,
-                  DbError,
-                  UnsupportedAuthentication,
-                  MissingPassword};
-use self::message::{BackendMessage,
-                    AuthenticationOk,
-                    AuthenticationKerberosV5,
-                    AuthenticationCleartextPassword,
-                    AuthenticationMD5Password,
-                    AuthenticationSCMCredential,
-                    AuthenticationGSS,
-                    AuthenticationSSPI,
-                    BackendKeyData,
-                    BindComplete,
-                    CommandComplete,
-                    DataRow,
-                    EmptyQueryResponse,
-                    ErrorResponse,
-                    NoData,
-                    NoticeResponse,
-                    NotificationResponse,
-                    ParameterDescription,
-                    ParameterStatus,
-                    ParseComplete,
-                    PortalSuspended,
-                    ReadyForQuery,
-                    RowDescription};
-use self::message::{FrontendMessage,
-                    Bind,
-                    CancelRequest,
-                    Close,
-                    Describe,
-                    Execute,
-                    Parse,
-                    PasswordMessage,
-                    Query,
-                    StartupMessage,
-                    SslRequest,
-                    Sync,
-                    Terminate};
-use self::message::{RowDescriptionEntry, WriteMessage, ReadMessage};
-use self::types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
+use error::{PostgresDbError,
+            PostgresConnectError,
+            InvalidUrl,
+            DnsError,
+            SocketError,
+            NoSslSupport,
+            SslError,
+            MissingUser,
+            DbError,
+            UnsupportedAuthentication,
+            MissingPassword};
+use message::{BackendMessage,
+              AuthenticationOk,
+              AuthenticationKerberosV5,
+              AuthenticationCleartextPassword,
+              AuthenticationMD5Password,
+              AuthenticationSCMCredential,
+              AuthenticationGSS,
+              AuthenticationSSPI,
+              BackendKeyData,
+              BindComplete,
+              CommandComplete,
+              DataRow,
+              EmptyQueryResponse,
+              ErrorResponse,
+              NoData,
+              NoticeResponse,
+              NotificationResponse,
+              ParameterDescription,
+              ParameterStatus,
+              ParseComplete,
+              PortalSuspended,
+              ReadyForQuery,
+              RowDescription};
+use message::{FrontendMessage,
+              Bind,
+              CancelRequest,
+              Close,
+              Describe,
+              Execute,
+              Parse,
+              PasswordMessage,
+              Query,
+              StartupMessage,
+              SslRequest,
+              Sync,
+              Terminate};
+use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
+use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
 
 pub mod error;
 pub mod pool;
 mod message;
 pub mod types;
+#[cfg(test)]
+mod tests;
 
 static DEFAULT_PORT: Port = 5432;
 
