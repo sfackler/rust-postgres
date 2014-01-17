@@ -4,6 +4,8 @@
 extern mod extra;
 
 use std::cmp;
+use std::i32;
+use std::i64;
 use extra::time::Timespec;
 
 macro_rules! range(
@@ -54,17 +56,17 @@ pub trait Normalizable {
 }
 
 macro_rules! bounded_normalizable(
-    ($t:ty) => (
+    ($t:ident) => (
         impl Normalizable for $t {
             fn normalize<S: BoundSided>(bound: RangeBound<S, $t>)
                     -> RangeBound<S, $t> {
                 match (BoundSided::side(None::<S>), bound.type_) {
                     (Upper, Inclusive) => {
-                        assert!(bound.value != Bounded::max_value());
+                        assert!(bound.value != $t::max_value);
                         RangeBound::new(bound.value + 1, Exclusive)
                     }
                     (Lower, Exclusive) => {
-                        assert!(bound.value != Bounded::max_value());
+                        assert!(bound.value != $t::max_value);
                         RangeBound::new(bound.value + 1, Inclusive)
                     }
                     _ => bound
@@ -281,6 +283,8 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
 
 #[cfg(test)]
 mod test {
+    use std::i32;
+
     use super::*;
 
     #[test]
@@ -364,17 +368,17 @@ mod test {
         let r = range!('(', 3i32 ']');
         assert!(!r.contains(&4));
         assert!(r.contains(&2));
-        assert!(r.contains(&Bounded::min_value()));
+        assert!(r.contains(&i32::min_value));
 
         let r = range!('[' 1i32, ')');
-        assert!(r.contains(&Bounded::max_value()));
+        assert!(r.contains(&i32::max_value));
         assert!(r.contains(&4));
         assert!(!r.contains(&0));
 
         let r = range!('(', ')');
-        assert!(r.contains(&Bounded::max_value()));
+        assert!(r.contains(&i32::max_value));
         assert!(r.contains(&0i32));
-        assert!(r.contains(&Bounded::min_value()));
+        assert!(r.contains(&i32::min_value));
     }
 
     #[test]

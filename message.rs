@@ -229,10 +229,11 @@ impl<W: Writer> WriteMessage for W {
             None => ()
         }
 
+        let buf = buf.unwrap();
+
         // add size of length value
-        self.write_be_i32((buf.get_ref().len() + mem::size_of::<i32>())
-                           as i32);
-        self.write(buf.unwrap());
+        self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32);
+        self.write(buf);
     }
 }
 
