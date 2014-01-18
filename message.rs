@@ -1,5 +1,5 @@
 use std::str;
-use std::io::mem::{MemWriter, MemReader};
+use std::io::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
 

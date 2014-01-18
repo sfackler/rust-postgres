@@ -8,7 +8,7 @@ use extra::json;
 use extra::json::Json;
 use extra::uuid::Uuid;
 use std::hashmap::HashMap;
-use std::io::mem::{MemWriter, BufReader};
+use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
 use std::vec;

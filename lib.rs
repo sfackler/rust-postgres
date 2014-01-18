@@ -75,7 +75,7 @@ use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use std::cell::RefCell;
 use std::hashmap::HashMap;
-use std::io::buffered::BufferedStream;
+use std::io::BufferedStream;
 use std::io::io_error;
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
