@@ -61,11 +61,14 @@ fn main() {
 
 #[warn(missing_doc)];
 
-#[feature(macro_rules, struct_variant, globs)];
+#[feature(macro_rules, struct_variant, globs, phase)];
 #[macro_escape];
 
 extern mod extra;
 extern mod openssl;
+#[phase(syntax)]
+extern mod phf_mac;
+extern mod phf;
 
 use extra::container::Deque;
 use extra::hex::ToHex;

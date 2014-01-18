@@ -3,22 +3,27 @@
 use std::hashmap::HashMap;
 
 use openssl::ssl::error::SslError;
+use phf::PhfMap;
 
 macro_rules! make_errors(
-    ($($code:pat => $error:ident),+) => (
+    ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(ToStr, Eq)]
+        #[deriving(ToStr, Eq, Clone)]
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
             UnknownSqlState(~str)
         }
 
+        static STATE_MAP: PhfMap<PostgresSqlState> = phf_map!(
+            $($code => $error),+
+        );
+
         impl FromStr for PostgresSqlState {
             fn from_str(s: &str) -> Option<PostgresSqlState> {
-                Some(match s {
-                    $($code => $error,)+
-                    state => UnknownSqlState(state.to_owned())
+                Some(match STATE_MAP.find_str(&s) {
+                    Some(state) => state.clone(),
+                    None => UnknownSqlState(s.to_owned())
                 })
             }
         }

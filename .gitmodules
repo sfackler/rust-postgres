@@ -1,3 +1,6 @@
 [submodule "submodules/rust-openssl"]
 	path = submodules/rust-openssl
 	url = git://github.com/sfackler/rust-openssl
+[submodule "submodules/rust-phf"]
+	path = submodules/rust-phf
+	url = git://github.com/sfackler/rust-phf

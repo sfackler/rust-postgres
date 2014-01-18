@@ -7,6 +7,8 @@ POSTGRES = $(BUILDDIR)/$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB))
 POSTGRES_TEST = $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB))
 OPENSSL_DIR = submodules/rust-openssl
 OPENSSL = $(OPENSSL_DIR)/$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target)
+PHF_DIR = submodules/rust-phf
+PHF = $(PHF_DIR)/$(shell $(MAKE) -s -C $(PHF_DIR) print-targets)
 
 all: $(POSTGRES)
 
@@ -16,21 +18,24 @@ all: $(POSTGRES)
 $(BUILDDIR):
 	mkdir -p $@
 
-$(BUILDDIR)/rust-openssl-trigger: submodules/rust-openssl-trigger | $(BUILDDIR)
+$(BUILDDIR)/submodule-trigger: submodules/submodule-trigger | $(BUILDDIR)
 	git submodule init
 	git submodule update
 	touch $@
 
-$(OPENSSL): $(BUILDDIR)/rust-openssl-trigger | $(BUILDDIR)
+$(OPENSSL): $(BUILDDIR)/submodule-trigger | $(BUILDDIR)
 	$(MAKE) -C $(OPENSSL_DIR)
 
-$(POSTGRES): $(POSTGRES_LIB) $(OPENSSL) | $(BUILDDIR)
-	$(RUSTC) $(RUSTFLAGS) --dep-info $(@D)/postgres.d --out-dir $(@D) \
-		-L $(dir $(OPENSSL)) $<
+$(PHF): $(BUILDDIR)/submodule-trigger | $(BUILDDIR)
+	$(MAKE) -C $(PHF_DIR)
 
-$(POSTGRES_TEST): $(POSTGRES_LIB) $(OPENSSL) | $(BUILDDIR)
+$(POSTGRES): $(POSTGRES_LIB) $(OPENSSL) $(PHF) | $(BUILDDIR)
+	$(RUSTC) $(RUSTFLAGS) --dep-info $(@D)/postgres.d --out-dir $(@D) \
+		-L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) $<
+
+$(POSTGRES_TEST): $(POSTGRES_LIB) $(OPENSSL) $(PHF) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) --dep-info $(@D)/postgres_test.d --out-dir $(@D) \
-		-L $(dir $(OPENSSL)) --test $<
+		-L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) --test $<
 
 check: $(POSTGRES_TEST)
 	$<
