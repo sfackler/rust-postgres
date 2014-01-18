@@ -9,6 +9,7 @@ OPENSSL_DIR = submodules/rust-openssl
 OPENSSL = $(OPENSSL_DIR)/$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target)
 PHF_DIR = submodules/rust-phf
 PHF = $(PHF_DIR)/$(shell $(MAKE) -s -C $(PHF_DIR) print-targets)
+LINK_ARGS = -L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file)))
 
 all: $(POSTGRES)
 
@@ -31,11 +32,11 @@ $(PHF): $(BUILDDIR)/submodule-trigger | $(BUILDDIR)
 
 $(POSTGRES): $(POSTGRES_LIB) $(OPENSSL) $(PHF) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) --dep-info $(@D)/postgres.d --out-dir $(@D) \
-		-L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) $<
+		$(LINK_ARGS) $<
 
 $(POSTGRES_TEST): $(POSTGRES_LIB) $(OPENSSL) $(PHF) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) --dep-info $(@D)/postgres_test.d --out-dir $(@D) \
-		-L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) --test $<
+		$(LINK_ARGS) --test $<
 
 check: $(POSTGRES_TEST)
 	$<
@@ -44,7 +45,6 @@ clean:
 	rm -rf $(BUILDDIR)
 
 doc: $(OPENSSL) $(PHF)
-	rustdoc -L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) \
-		$(POSTGRES_LIB)
+	rustdoc $(LINK_ARGS) $(POSTGRES_LIB)
 
 .PHONY: all check clean
