@@ -14,5 +14,5 @@ script:
   - make
   - make check
   - make doc
-after_script:
+after_success:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
