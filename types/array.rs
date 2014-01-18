@@ -1,7 +1,7 @@
 //! Multi-dimensional arrays with per-dimension specifiable lower bounds
 
 use std::cast;
-use std::vec::VecIterator;
+use std::vec;
 
 /// Information about a dimension of an array
 #[deriving(Eq, Clone)]
@@ -143,7 +143,7 @@ impl<T> ArrayBase<T> {
 
     /// Returns an iterator over the values in this array, in the
     /// higher-dimensional equivalent of row-major order.
-    pub fn values<'a>(&'a self) -> VecIterator<'a, T> {
+    pub fn values<'a>(&'a self) -> vec::Items<'a, T> {
         self.data.iter()
     }
 }
