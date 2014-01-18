@@ -43,4 +43,8 @@ check: $(POSTGRES_TEST)
 clean:
 	rm -rf $(BUILDDIR)
 
+doc: $(OPENSSL) $(PHF)
+	rustdoc -L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file))) \
+		$(POSTGRES_LIB)
+
 .PHONY: all check clean
