@@ -9,4 +9,4 @@ before_script:
   - ./travis/setup.sh
 script:
   - make
-  - make test
+  - make check

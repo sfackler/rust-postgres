@@ -1,4 +1,2 @@
-/.rust/
 /doc/
-/test
-/rust-postgres
+/build/
