@@ -11,8 +11,6 @@ install:
 before_script:
   - ./travis/setup.sh
 script:
-  - make
-  - make check
-  - make doc
+  - make all check doc
 after_success:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
