@@ -21,7 +21,7 @@ macro_rules! make_errors(
 
         impl FromStr for PostgresSqlState {
             fn from_str(s: &str) -> Option<PostgresSqlState> {
-                Some(match STATE_MAP.find_str(&s) {
+                Some(match STATE_MAP.find(&s) {
                     Some(state) => state.clone(),
                     None => UnknownSqlState(s.to_owned())
                 })
