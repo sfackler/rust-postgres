@@ -1,0 +1,29 @@
+#!/bin/bash
+
+set -e
+
+TEMP=`getopt -o "" --long prefix: -n "$0" -- "$@"`
+CONFIGURE_ARGS=$@
+
+if [ $? != 0 ]; then exit 1; fi
+
+eval set -- "$TEMP"
+
+PREFIX=/usr/lib
+
+while true ; do
+    case "$1" in
+        --prefix) PREFIX=$2; shift 2;;
+        --) shift; break;;
+    esac
+done
+
+git submodule update --init
+./submodules/rust-phf/configure
+./submodules/rust-openssl/configure
+
+sed -e "s|%PREFIX%|$PREFIX|" \
+    -e "s|%CONFIGURE_ARGS%|$CONFIGURE_ARGS|" \
+    < Makefile.in > Makefile
+
+touch config.stamp

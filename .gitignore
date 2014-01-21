@@ -1,2 +1,4 @@
 /doc/
 /build/
+/Makefile
+/config.stamp

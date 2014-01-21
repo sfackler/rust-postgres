@@ -10,6 +10,7 @@ install:
   - sudo apt-get install rust-nightly
 before_script:
   - ./travis/setup.sh
+  - ./configure
 script:
   - make all check doc
 after_success:

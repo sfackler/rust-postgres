@@ -1,0 +1,93 @@
+export RUSTC = rustc
+RUSTDOC = rustdoc
+export RUSTFLAGS = -O -Z debug-info
+BUILDDIR = build
+INSTALL_DIR = %PREFIX%
+
+###############################################################################
+# Reconfiguration
+###############################################################################
+CONFIGURE_ARGS = %CONFIGURE_ARGS%
+
+NEED_GIT_RECONFIG = $(shell git submodule status | grep -c '^\(+|-\)')
+
+ifeq ($(NEED_GIT_RECONFIG),0)
+else
+.PHONY: config.stamp
+endif
+
+Makefile: config.stamp
+
+config.stamp: configure Makefile.in
+	./configure $(CONFIGURE_ARGS)
+
+###############################################################################
+# Dependencies
+###############################################################################
+PHF_DIR = submodules/rust-phf
+PHF = $(foreach file,$(shell $(MAKE) -s -C $(PHF_DIR) print-targets),$(PHF_DIR)/$(file))
+OPENSSL_DIR = submodules/rust-openssl
+OPENSSL = $(OPENSSL_DIR)/$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target)
+
+$(PHF): config.stamp
+	$(MAKE) -C $(PHF_DIR)
+	touch $(PHF)
+
+$(OPENSSL): config.stamp
+	$(MAKE) -C $(OPENSSL_DIR)
+	touch $(OPENSSL)
+
+###############################################################################
+# Main targets
+###############################################################################
+POSTGRES_LIB_FILE = lib.rs
+POSTGRES_LIB = $(BUILDDIR)/$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE))
+POSTGRES_TEST = $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
+
+POSTGRES_LIB_DEPS = $(BUILDDIR)/postgres.d
+POSTGRES_TEST_DEPS = $(BUILDDIR)/postgres_test.d
+
+LINK_ARGS = -L $(dir $(OPENSSL)) $(foreach file,$(PHF),-L $(dir $(file)))
+
+-include $(POSTGRES_LIB_DEPS)
+-include $(POSTGRES_TEST_DEPS)
+
+$(BUILDDIR):
+	mkdir -p $@
+
+$(POSTGRES_LIB): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
+	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_LIB_DEPS) \
+		--out-dir $(@D) $<
+
+$(POSTGRES_TEST): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
+	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_TEST_DEPS) \
+		--out-dir $(@D) --test $<
+
+all: $(POSTGRES_LIB)
+
+.DEFAULT_GOAL := all
+.PHONY: all
+
+###############################################################################
+# Utility
+###############################################################################
+
+check: $(POSTGRES_TEST)
+	$(POSTGRES_TEST)
+
+clean:
+	rm -rf $(BUILDDIR)
+
+clean-deps:
+	$(MAKE) -C $(PHF_DIR) clean
+	$(MAKE) -C $(OPENSSL_DIR) clean
+
+doc: $(OPENSSL) $(PHF)
+	$(RUSTDOC) $(LINK_ARGS) $(POSTGRES_LIB_FILE)
+
+install: $(POSTGRES_LIB)
+	$(MAKE) -C $(PHF_DIR) install INSTALL_DIR=$(abspath $(INSTALL_DIR))
+	$(MAKE) -C $(PHF_DIR) install INSTALL_DIR=$(abspath $(INSTALL_DIR))
+	install $(POSTGRES_LIB) $(INSTALL_DIR)
+
+.PHONY: check clean doc install
