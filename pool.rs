@@ -87,7 +87,7 @@ impl PostgresConnectionPool {
                     cvar.wait();
                 }
 
-                pool.pool.pop()
+                pool.pool.pop().unwrap()
             })
         };
 

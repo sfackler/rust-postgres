@@ -267,7 +267,7 @@ impl RawFromSql for ~[u8] {
 
 impl RawFromSql for ~str {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~str {
-        str::from_utf8_owned(raw.read_bytes(len))
+        str::from_utf8_owned(raw.read_bytes(len)).unwrap()
     }
 }
 
@@ -455,13 +455,13 @@ from_map_impl!(PgUnknownType { name: ~"hstore", .. },
 
     for _ in range(0, count) {
         let key_len = rdr.read_be_i32();
-        let key = str::from_utf8_owned(rdr.read_bytes(key_len as uint));
+        let key = str::from_utf8_owned(rdr.read_bytes(key_len as uint)).unwrap();
 
         let val_len = rdr.read_be_i32();
         let val = if val_len < 0 {
             None
         } else {
-            Some(str::from_utf8_owned(rdr.read_bytes(val_len as uint)))
+            Some(str::from_utf8_owned(rdr.read_bytes(val_len as uint)).unwrap())
         };
 
         map.insert(key, val);

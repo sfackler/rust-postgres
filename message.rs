@@ -245,7 +245,7 @@ impl<R: Buffer> ReadCStr for R {
     fn read_cstr(&mut self) -> ~str {
         let mut buf = self.read_until(0).unwrap();
         buf.pop();
-        str::from_utf8_owned(buf)
+        str::from_utf8_owned(buf).unwrap()
     }
 }
 

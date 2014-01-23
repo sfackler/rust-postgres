@@ -589,7 +589,8 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } =>
                     result.push(row.move_iter().map(|opt|
-                            opt.map(|b| str::from_utf8_owned(b))).collect()),
+                            opt.map(|b| str::from_utf8_owned(b).unwrap()))
+                               .collect()),
                 ErrorResponse { fields } =>
                     fail!("Error: {}",
                            PostgresDbError::new(fields).to_str()),
