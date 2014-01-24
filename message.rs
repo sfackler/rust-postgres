@@ -118,6 +118,7 @@ pub enum FrontendMessage<'a> {
     Terminate
 }
 
+#[doc(hidden)]
 trait WriteCStr {
     fn write_cstr(&mut self, s: &str);
 }
@@ -129,6 +130,7 @@ impl<W: Writer> WriteCStr for W {
     }
 }
 
+#[doc(hidden)]
 pub trait WriteMessage {
     fn write_message(&mut self, &FrontendMessage);
 }
@@ -235,6 +237,7 @@ impl<W: Writer> WriteMessage for W {
     }
 }
 
+#[doc(hidden)]
 trait ReadCStr {
     fn read_cstr(&mut self) -> ~str;
 }
@@ -247,6 +250,7 @@ impl<R: Buffer> ReadCStr for R {
     }
 }
 
+#[doc(hidden)]
 pub trait ReadMessage {
     fn read_message(&mut self) -> BackendMessage;
 }

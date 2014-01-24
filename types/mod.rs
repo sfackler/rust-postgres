@@ -239,6 +239,7 @@ pub trait FromSql {
     fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>) -> Self;
 }
 
+#[doc(hidden)]
 trait RawFromSql {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Self;
 }
@@ -482,6 +483,7 @@ pub trait ToSql {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>);
 }
 
+#[doc(hidden)]
 trait RawToSql {
     fn raw_to_sql<W: Writer>(&self, w: &mut W);
 }

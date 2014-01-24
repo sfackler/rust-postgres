@@ -134,6 +134,7 @@ enum BoundSide {
     Lower
 }
 
+#[doc(hidden)]
 trait BoundSided {
     // param is a hack to get around lack of hints for self type
     fn side(_: Option<Self>) -> BoundSide;

@@ -55,6 +55,7 @@ pub trait MutableArray<T> : Array<T> {
     }
 }
 
+#[doc(hidden)]
 trait InternalArray<T> : Array<T> {
     fn shift_idx(&self, idx: int) -> uint {
         let shifted_idx = idx - self.dimension_info()[0].lower_bound;
