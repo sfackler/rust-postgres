@@ -9,7 +9,6 @@ pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 pub static CANCEL_CODE: i32 = 80877102;
 pub static SSL_CODE: i32 = 80877103;
 
-#[deriving(ToStr)]
 pub enum BackendMessage {
     AuthenticationOk,
     AuthenticationKerberosV5,
@@ -62,7 +61,6 @@ pub enum BackendMessage {
     }
 }
 
-#[deriving(ToStr)]
 pub struct RowDescriptionEntry {
     name: ~str,
     table_oid: Oid,
