@@ -3,7 +3,7 @@ use std::io::{MemWriter, MemReader};
 use std::mem;
 use std::vec;
 
-use super::types::Oid;
+use types::Oid;
 
 pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
 pub static CANCEL_CODE: i32 = 80877102;
