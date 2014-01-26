@@ -104,11 +104,11 @@ macro_rules! bounded_normalizable(
                     -> RangeBound<S, $t> {
                 match (BoundSided::side(None::<S>), bound.type_) {
                     (Upper, Inclusive) => {
-                        assert!(bound.value != $t::max_value);
+                        assert!(bound.value != $t::MAX);
                         RangeBound::new(bound.value + 1, Exclusive)
                     }
                     (Lower, Exclusive) => {
-                        assert!(bound.value != $t::max_value);
+                        assert!(bound.value != $t::MAX);
                         RangeBound::new(bound.value + 1, Inclusive)
                     }
                     _ => bound
@@ -411,17 +411,17 @@ mod test {
         let r = range!('(', 3i32 ']');
         assert!(!r.contains(&4));
         assert!(r.contains(&2));
-        assert!(r.contains(&i32::min_value));
+        assert!(r.contains(&i32::MIN));
 
         let r = range!('[' 1i32, ')');
-        assert!(r.contains(&i32::max_value));
+        assert!(r.contains(&i32::MAX));
         assert!(r.contains(&4));
         assert!(!r.contains(&0));
 
         let r = range!('(', ')');
-        assert!(r.contains(&i32::max_value));
+        assert!(r.contains(&i32::MAX));
         assert!(r.contains(&0i32));
-        assert!(r.contains(&i32::min_value));
+        assert!(r.contains(&i32::MIN));
     }
 
     #[test]
