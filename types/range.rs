@@ -207,15 +207,15 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
     }
 }
 
-struct OptBound<'a, S, T>(&'a Option<RangeBound<S, T>>);
+struct OptBound<'a, S, T>(Option<&'a RangeBound<S, T>>);
 
 impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
     fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
         match (*self, *other) {
-            (OptBound(&None), OptBound(&None)) => false,
-            (OptBound(&None), _) => BoundSided::side(None::<S>) == Lower,
-            (_, OptBound(&None)) => BoundSided::side(None::<S>) == Upper,
-            (OptBound(&Some(ref a)), OptBound(&Some(ref b))) => a < b
+            (OptBound(None), OptBound(None)) => false,
+            (OptBound(None), _) => BoundSided::side(None::<S>) == Lower,
+            (_, OptBound(None)) => BoundSided::side(None::<S>) == Upper,
+            (OptBound(Some(a)), OptBound(Some(b))) => a < b
         }
     }
 }
@@ -267,18 +267,18 @@ impl<T: Ord+Normalizable> Range<T> {
     }
 
     /// Returns the lower bound if it exists.
-    pub fn lower<'a>(&'a self) -> &'a Option<RangeBound<LowerBound, T>> {
+    pub fn lower<'a>(&'a self) -> Option<&'a RangeBound<LowerBound, T>> {
         match *self {
-            Empty => &None,
-            Normal(ref lower, _) => lower
+            Normal(Some(ref lower), _) => Some(lower),
+            _ => None
         }
     }
 
     /// Returns the upper bound if it exists.
-    pub fn upper<'a>(&'a self) -> &'a Option<RangeBound<UpperBound, T>> {
+    pub fn upper<'a>(&'a self) -> Option<&'a RangeBound<UpperBound, T>> {
         match *self {
-            Empty => &None,
-            Normal(_, ref upper) => upper
+            Normal(_, Some(ref upper)) => Some(upper),
+            _ => None
         }
     }
 
@@ -320,7 +320,7 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
         let OptBound(upper) = cmp::min(OptBound(self.upper()),
                                        OptBound(other.upper()));
 
-        Range::new(lower.clone(), upper.clone())
+        Range::new(lower.map(|v| v.clone()), upper.map(|v| v.clone()))
     }
 }
 
@@ -467,7 +467,8 @@ mod test {
         assert_eq!(r1, (range!('(', ')')).intersect(&r1));
 
         let r2 = range!('(' 10i32, ')');
-        let exp = Range::new(r2.lower().clone(), r1.upper().clone());
+        let exp = Range::new(r2.lower().map(|v| v.clone()),
+                             r1.upper().map(|v| v.clone()));
         assert_eq!(exp, r1.intersect(&r2));
         assert_eq!(exp, r2.intersect(&r1));
 

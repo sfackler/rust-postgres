@@ -545,15 +545,15 @@ macro_rules! to_range_impl(
                 if self.is_empty() {
                     tag |= RANGE_EMPTY;
                 } else {
-                    match *self.lower() {
+                    match self.lower() {
                         None => tag |= RANGE_LOWER_UNBOUNDED,
-                        Some(RangeBound { type_: Inclusive, .. }) =>
+                        Some(&RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_LOWER_INCLUSIVE,
                         _ => {}
                     }
-                    match *self.upper() {
+                    match self.upper() {
                         None => tag |= RANGE_UPPER_UNBOUNDED,
-                        Some(RangeBound { type_: Inclusive, .. }) =>
+                        Some(&RangeBound { type_: Inclusive, .. }) =>
                             tag |= RANGE_UPPER_INCLUSIVE,
                         _ => {}
                     }
@@ -561,8 +561,8 @@ macro_rules! to_range_impl(
 
                 buf.write_i8(tag);
 
-                match *self.lower() {
-                    Some(ref bound) => {
+                match self.lower() {
+                    Some(bound) => {
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
                         let inner_buf = inner_buf.unwrap();
@@ -571,8 +571,8 @@ macro_rules! to_range_impl(
                     }
                     None => {}
                 }
-                match *self.upper() {
-                    Some(ref bound) => {
+                match self.upper() {
+                    Some(bound) => {
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
                         let inner_buf = inner_buf.unwrap();

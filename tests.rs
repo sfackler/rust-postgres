@@ -41,18 +41,18 @@ fn test_pool() {
     let (stream1, stream2) = DuplexStream::<(), ()>::new();
 
     let pool1 = pool.clone();
-    let mut fut1 = do Future::spawn {
+    let mut fut1 = Future::spawn(proc() {
         let _conn = pool1.get_connection();
         stream1.send(());
         stream1.recv();
-    };
+    });
 
     let pool2 = pool.clone();
-    let mut fut2 = do Future::spawn {
+    let mut fut2 = Future::spawn(proc() {
         let _conn = pool2.get_connection();
         stream2.send(());
         stream2.recv();
-    };
+    });
 
     fut1.get();
     fut2.get();
@@ -581,23 +581,23 @@ fn test_f64_nan_param() {
 #[should_fail]
 fn test_wrong_param_type() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
+    let _ = conn.try_execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_few_params() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
+    let _ = conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_many_params() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
-                                                &2i32 as &ToSql,
-                                                &3i32 as &ToSql]);
+    let _ = conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
+                                                         &2i32 as &ToSql,
+                                                         &3i32 as &ToSql]);
 }
 
 #[test]
@@ -695,11 +695,11 @@ fn test_cancel_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let cancel_data = conn.cancel_data();
 
-    do spawn {
+    spawn(proc() {
         timer::sleep(500);
         assert!(super::cancel_query("postgres://postgres@localhost", &NoSsl,
                                     cancel_data).is_ok());
-    }
+    });
 
     match conn.try_execute("SELECT pg_sleep(10)", []) {
         Err(PostgresDbError { code: QueryCanceled, .. }) => {}
