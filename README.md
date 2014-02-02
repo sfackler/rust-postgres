@@ -178,10 +178,10 @@ let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
 
 for _ in range(0, 10) {
     let pool = pool.clone();
-    do task::spawn {
+    spawn(proc() {
         let conn = pool.get_connection();
         conn.query(...);
-    }
+    })
 }
 ```
 
