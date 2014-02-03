@@ -40,7 +40,7 @@ $(OPENSSL): config.stamp
 ###############################################################################
 # Main targets
 ###############################################################################
-POSTGRES_LIB_FILE = lib.rs
+POSTGRES_LIB_FILE = src/lib.rs
 POSTGRES_LIB = $(BUILDDIR)/$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE))
 POSTGRES_TEST = $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
 
