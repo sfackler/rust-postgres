@@ -174,12 +174,11 @@ pub struct PostgresNotification {
 }
 
 /// An iterator over asynchronous notifications
-pub struct PostgresNotificationIterator<'conn> {
+pub struct PostgresNotifications<'conn> {
     priv conn: &'conn PostgresConnection
 }
 
-impl<'conn > Iterator<PostgresNotification> for
-        PostgresNotificationIterator<'conn> {
+impl<'conn > Iterator<PostgresNotification> for PostgresNotifications<'conn> {
     /// Returns the oldest pending notification or `None` if there are none.
     ///
     /// # Note
@@ -649,8 +648,8 @@ impl PostgresConnection {
     /// Returns an iterator over asynchronous notification messages.
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
-    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
-        PostgresNotificationIterator {
+    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
+        PostgresNotifications {
             conn: self
         }
     }
@@ -825,7 +824,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `PostgresConnection::notifications`.
-    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
+    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
         self.conn.notifications()
     }
 

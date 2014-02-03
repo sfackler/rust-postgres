@@ -4,7 +4,7 @@ extern mod extra;
 
 use extra::arc::MutexArc;
 
-use super::{PostgresNotificationIterator,
+use super::{PostgresNotifications,
             PostgresCancelData,
             PostgresConnection,
             NormalPostgresStatement,
@@ -147,7 +147,7 @@ impl PooledPostgresConnection {
     }
 
     /// Like `PostgresConnection::notifications`.
-    pub fn notifications<'a>(&'a self) -> PostgresNotificationIterator<'a> {
+    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
         self.conn.get_ref().notifications()
     }
 
