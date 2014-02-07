@@ -1,6 +1,7 @@
 //! Postgres errors
 
 use std::hashmap::HashMap;
+use std::io::IoError;
 
 use openssl::ssl::error::SslError;
 use phf::PhfMap;
@@ -362,7 +363,7 @@ pub enum PostgresConnectError {
     /// There was an error opening a socket to the server
     SocketError,
     /// An error from the Postgres server itself
-    DbError(PostgresDbError),
+    PgConnectDbError(PostgresDbError),
     /// A password was required but not provided in the URL
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
@@ -371,7 +372,9 @@ pub enum PostgresConnectError {
     /// The Postgres server does not support SSL encryption
     NoSslSupport,
     /// There was an error initializing the SSL session
-    SslError(SslError)
+    SslError(SslError),
+    /// There was an error communicating with the server
+    PgConnectStreamError(IoError),
 }
 
 /// Represents the position of an error in a query
@@ -488,6 +491,24 @@ impl PostgresDbError {
                         query),
             None => format!("{}: {} in\n{}", self.severity, self.message,
                             query)
+        }
+    }
+}
+
+#[deriving(ToStr)]
+pub enum PostgresError {
+    /// An error reported by the Postgres server
+    PgDbError(PostgresDbError),
+    /// An error communicating with the Postgres server
+    PgStreamError(IoError),
+}
+
+impl PostgresError {
+    #[doc(hidden)]
+    pub fn pretty_error(&self, query: &str) -> ~str {
+        match *self {
+            PgDbError(ref err) => err.pretty_error(query),
+            PgStreamError(ref err) => format!("{}", *err),
         }
     }
 }

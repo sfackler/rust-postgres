@@ -10,7 +10,7 @@ use super::{PostgresNotifications,
             NormalPostgresStatement,
             PostgresTransaction,
             SslMode};
-use super::error::{PostgresConnectError, PostgresDbError};
+use super::error::{PostgresConnectError, PostgresError};
 use super::types::ToSql;
 
 struct InnerConnectionPool {
@@ -121,7 +121,7 @@ impl Drop for PooledPostgresConnection {
 impl PooledPostgresConnection {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+            -> Result<NormalPostgresStatement<'a>, PostgresError> {
         self.conn.get_ref().try_prepare(query)
     }
 
@@ -132,7 +132,7 @@ impl PooledPostgresConnection {
 
     /// Like `PostgresConnection::try_execute`.
     pub fn try_execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresDbError> {
+            -> Result<uint, PostgresError> {
         self.conn.get_ref().try_execute(query, params)
     }
 

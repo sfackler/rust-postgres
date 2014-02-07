@@ -6,7 +6,7 @@ extern mod extra;
 use extra::time::Timespec;
 use extra::json;
 use extra::json::Json;
-use extra::uuid::Uuid;
+use uuid::Uuid;
 use std::hashmap::HashMap;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
@@ -227,6 +227,15 @@ macro_rules! check_types(
     )
 )
 
+macro_rules! or_fail(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => fail!("{}", err)
+        }
+    )
+)
+
 /// A trait for types that can be created from a Postgres value
 pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
@@ -248,7 +257,7 @@ macro_rules! raw_from_impl(
     ($t:ty, $f:ident) => (
         impl RawFromSql for $t {
             fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> $t {
-                raw.$f()
+                or_fail!(raw.$f())
             }
         }
     )
@@ -256,19 +265,19 @@ macro_rules! raw_from_impl(
 
 impl RawFromSql for bool {
     fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> bool {
-        raw.read_u8() != 0
+        (or_fail!(raw.read_u8())) != 0
     }
 }
 
 impl RawFromSql for ~[u8] {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~[u8] {
-        raw.read_bytes(len)
+        or_fail!(raw.read_bytes(len))
     }
 }
 
 impl RawFromSql for ~str {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~str {
-        str::from_utf8_owned(raw.read_bytes(len)).unwrap()
+        str::from_utf8_owned(or_fail!(raw.read_bytes(len))).unwrap()
     }
 }
 
@@ -281,7 +290,7 @@ raw_from_impl!(f64, read_be_f64)
 
 impl RawFromSql for Timespec {
     fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> Timespec {
-        let t = raw.read_be_i64();
+        let t = or_fail!(raw.read_be_i64());
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
         let mut usec = t % USEC_PER_SEC;
 
@@ -296,7 +305,7 @@ impl RawFromSql for Timespec {
 
 impl RawFromSql for Uuid {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Uuid {
-        Uuid::from_bytes(raw.read_bytes(len)).unwrap()
+        Uuid::from_bytes(or_fail!(raw.read_bytes(len))).unwrap()
     }
 }
 
@@ -304,7 +313,7 @@ macro_rules! from_range_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl RawFromSql for Range<$t> {
             fn raw_from_sql<R: Reader>(_len: uint, rdr: &mut R) -> Range<$t> {
-                let t = rdr.read_i8();
+                let t = or_fail!(rdr.read_i8());
 
                 if t & RANGE_EMPTY != 0 {
                     Range::empty()
@@ -315,7 +324,7 @@ macro_rules! from_range_impl(
                                 0 => Exclusive,
                                 _ => Inclusive
                             };
-                            let len = rdr.read_be_i32() as uint;
+                            let len = or_fail!(rdr.read_be_i32()) as uint;
                             Some(RangeBound::new(
                                     RawFromSql::raw_from_sql(len, rdr), type_))
                         }
@@ -327,7 +336,7 @@ macro_rules! from_range_impl(
                                 0 => Exclusive,
                                 _ => Inclusive
                             };
-                            let len = rdr.read_be_i32() as uint;
+                            let len = or_fail!(rdr.read_be_i32()) as uint;
                             Some(RangeBound::new(
                                     RawFromSql::raw_from_sql(len, rdr), type_))
                         }
@@ -402,22 +411,22 @@ macro_rules! from_array_impl(
         from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf| {
             let mut rdr = BufReader::new(buf.as_slice());
 
-            let ndim = rdr.read_be_i32() as uint;
-            let _has_null = rdr.read_be_i32() == 1;
-            let _element_type: Oid = rdr.read_be_u32();
+            let ndim = or_fail!(rdr.read_be_i32()) as uint;
+            let _has_null = or_fail!(rdr.read_be_i32()) == 1;
+            let _element_type: Oid = or_fail!(rdr.read_be_u32());
 
             let mut dim_info = vec::with_capacity(ndim);
             for _ in range(0, ndim) {
                 dim_info.push(DimensionInfo {
-                    len: rdr.read_be_i32() as uint,
-                    lower_bound: rdr.read_be_i32() as int
+                    len: or_fail!(rdr.read_be_i32()) as uint,
+                    lower_bound: or_fail!(rdr.read_be_i32()) as int
                 });
             }
             let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
 
             let mut elements = vec::with_capacity(nele);
             for _ in range(0, nele) {
-                let len = rdr.read_be_i32();
+                let len = or_fail!(rdr.read_be_i32());
                 if len < 0 {
                     elements.push(None);
                 } else {
@@ -452,17 +461,17 @@ from_map_impl!(PgUnknownType { name: ~"hstore", .. },
     let mut rdr = BufReader::new(buf.as_slice());
     let mut map = HashMap::new();
 
-    let count = rdr.read_be_i32();
+    let count = or_fail!(rdr.read_be_i32());
 
     for _ in range(0, count) {
-        let key_len = rdr.read_be_i32();
-        let key = str::from_utf8_owned(rdr.read_bytes(key_len as uint)).unwrap();
+        let key_len = or_fail!(rdr.read_be_i32());
+        let key = str::from_utf8_owned(or_fail!(rdr.read_bytes(key_len as uint))).unwrap();
 
-        let val_len = rdr.read_be_i32();
+        let val_len = or_fail!(rdr.read_be_i32());
         let val = if val_len < 0 {
             None
         } else {
-            Some(str::from_utf8_owned(rdr.read_bytes(val_len as uint)).unwrap())
+            Some(str::from_utf8_owned(or_fail!(rdr.read_bytes(val_len as uint))).unwrap())
         };
 
         map.insert(key, val);
@@ -492,7 +501,7 @@ macro_rules! raw_to_impl(
     ($t:ty, $f:ident) => (
         impl RawToSql for $t {
             fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-                w.$f(*self)
+                or_fail!(w.$f(*self))
             }
         }
     )
@@ -500,19 +509,19 @@ macro_rules! raw_to_impl(
 
 impl RawToSql for bool {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-        w.write_u8(*self as u8)
+        or_fail!(w.write_u8(*self as u8))
     }
 }
 
 impl RawToSql for ~[u8] {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-        w.write(self.as_slice())
+        or_fail!(w.write(self.as_slice()))
     }
 }
 
 impl RawToSql for ~str {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-        w.write(self.as_bytes())
+        or_fail!(w.write(self.as_bytes()))
     }
 }
 
@@ -527,13 +536,13 @@ impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
             + self.nsec as i64 / NSEC_PER_USEC;
-        w.write_be_i64(t);
+        or_fail!(w.write_be_i64(t))
     }
 }
 
 impl RawToSql for Uuid {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-        w.write(self.to_bytes())
+        or_fail!(w.write(self.to_bytes()))
     }
 }
 
@@ -559,15 +568,15 @@ macro_rules! to_range_impl(
                     }
                 }
 
-                buf.write_i8(tag);
+                or_fail!(buf.write_i8(tag));
 
                 match self.lower() {
                     Some(bound) => {
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
                         let inner_buf = inner_buf.unwrap();
-                        buf.write_be_i32(inner_buf.len() as i32);
-                        buf.write(inner_buf);
+                        or_fail!(buf.write_be_i32(inner_buf.len() as i32));
+                        or_fail!(buf.write(inner_buf));
                     }
                     None => {}
                 }
@@ -576,8 +585,8 @@ macro_rules! to_range_impl(
                         let mut inner_buf = MemWriter::new();
                         bound.value.raw_to_sql(&mut inner_buf);
                         let inner_buf = inner_buf.unwrap();
-                        buf.write_be_i32(inner_buf.len() as i32);
-                        buf.write(inner_buf);
+                        or_fail!(buf.write_be_i32(inner_buf.len() as i32));
+                        or_fail!(buf.write(inner_buf));
                     }
                     None => {}
                 }
@@ -592,7 +601,7 @@ to_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 impl RawToSql for Json {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W) {
-        self.to_writer(raw as &mut Writer)
+        or_fail!(self.to_writer(raw as &mut Writer))
     }
 }
 
@@ -684,13 +693,13 @@ macro_rules! to_array_impl(
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
-                buf.write_be_i32(self.dimension_info().len() as i32);
-                buf.write_be_i32(1);
-                buf.write_be_u32(ty.member_type().to_oid());
+                or_fail!(buf.write_be_i32(self.dimension_info().len() as i32));
+                or_fail!(buf.write_be_i32(1));
+                or_fail!(buf.write_be_u32(ty.member_type().to_oid()));
 
                 for info in self.dimension_info().iter() {
-                    buf.write_be_i32(info.len as i32);
-                    buf.write_be_i32(info.lower_bound as i32);
+                    or_fail!(buf.write_be_i32(info.len as i32));
+                    or_fail!(buf.write_be_i32(info.lower_bound as i32));
                 }
 
                 for v in self.values() {
@@ -699,10 +708,10 @@ macro_rules! to_array_impl(
                             let mut inner_buf = MemWriter::new();
                             val.raw_to_sql(&mut inner_buf);
                             let inner_buf = inner_buf.unwrap();
-                            buf.write_be_i32(inner_buf.len() as i32);
-                            buf.write(inner_buf);
+                            or_fail!(buf.write_be_i32(inner_buf.len() as i32));
+                            or_fail!(buf.write(inner_buf));
                         }
-                        None => buf.write_be_i32(-1)
+                        None => or_fail!(buf.write_be_i32(-1))
                     }
                 }
 
@@ -735,18 +744,18 @@ impl<'a> ToSql for HashMap<~str, Option<~str>> {
         check_types!(PgUnknownType { name: ~"hstore", .. }, ty)
         let mut buf = MemWriter::new();
 
-        buf.write_be_i32(self.len() as i32);
+        or_fail!(buf.write_be_i32(self.len() as i32));
 
         for (key, val) in self.iter() {
-            buf.write_be_i32(key.len() as i32);
-            buf.write(key.as_bytes());
+            or_fail!(buf.write_be_i32(key.len() as i32));
+            or_fail!(buf.write(key.as_bytes()));
 
             match *val {
                 Some(ref val) => {
-                    buf.write_be_i32(val.len() as i32);
-                    buf.write(val.as_bytes());
+                    or_fail!(buf.write_be_i32(val.len() as i32));
+                    or_fail!(buf.write(val.as_bytes()));
                 }
-                None => buf.write_be_i32(-1)
+                None => or_fail!(buf.write_be_i32(-1))
             }
         }
 

@@ -69,6 +69,7 @@ extern mod openssl;
 #[phase(syntax)]
 extern mod phf_mac;
 extern mod phf;
+extern mod uuid;
 
 use extra::container::Deque;
 use extra::hex::ToHex;
@@ -78,8 +79,7 @@ use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use std::cell::RefCell;
 use std::hashmap::HashMap;
-use std::io::BufferedStream;
-use std::io::io_error;
+use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
 use std::io::net;
@@ -88,6 +88,8 @@ use std::task;
 use std::util;
 
 use error::{PostgresDbError,
+            PgConnectDbError,
+            PgConnectStreamError,
             PostgresConnectError,
             InvalidUrl,
             DnsError,
@@ -95,9 +97,11 @@ use error::{PostgresDbError,
             NoSslSupport,
             SslError,
             MissingUser,
-            DbError,
             UnsupportedAuthentication,
-            MissingPassword};
+            MissingPassword,
+            PostgresError,
+            PgStreamError,
+            PgDbError};
 use message::{BackendMessage,
               AuthenticationOk,
               AuthenticationKerberosV5,
@@ -235,26 +239,38 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
 
 fn open_socket(host: &str, port: Port)
         -> Result<TcpStream, PostgresConnectError> {
-    let addrs = io_error::cond.trap(|_| {}).inside(|| {
-        net::get_host_addresses(host)
-    });
-    let addrs = match addrs {
-        Some(addrs) => addrs,
-        None => return Err(DnsError)
+    let addrs = match net::get_host_addresses(host) {
+        Ok(addrs) => addrs,
+        Err(_) => return Err(DnsError)
     };
 
-    for addr in addrs.iter() {
-        let socket = io_error::cond.trap(|_| {}).inside(|| {
-            TcpStream::connect(SocketAddr { ip: *addr, port: port })
-        });
-        match socket {
-            Some(socket) => return Ok(socket),
-            None => {}
+    for &addr in addrs.iter() {
+        match TcpStream::connect(SocketAddr { ip: addr, port: port }) {
+            Ok(socket) => return Ok(socket),
+            Err(_) => {}
         }
     }
 
     Err(SocketError)
 }
+
+macro_rules! if_ok_pg_conn(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => return Err(PgConnectStreamError(err))
+        }
+    )
+)
+
+macro_rules! if_ok_pg(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => return Err(PgStreamError(err))
+        }
+    )
+)
 
 fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         -> Result<InternalStream, PostgresConnectError> {
@@ -272,7 +288,7 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
     socket.write_message(&SslRequest { code: message::SSL_CODE });
     socket.flush();
 
-    if socket.read_u8() == 'N' as u8 {
+    if if_ok_pg_conn!(socket.read_u8()) == 'N' as u8 {
         if ssl_required {
             return Err(NoSslSupport);
         } else {
@@ -292,7 +308,7 @@ enum InternalStream {
 }
 
 impl Reader for InternalStream {
-    fn read(&mut self, buf: &mut [u8]) -> Option<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {
             Normal(ref mut s) => s.read(buf),
             Ssl(ref mut s) => s.read(buf)
@@ -301,14 +317,14 @@ impl Reader for InternalStream {
 }
 
 impl Writer for InternalStream {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> IoResult<()> {
         match *self {
             Normal(ref mut s) => s.write(buf),
             Ssl(ref mut s) => s.write(buf)
         }
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self) -> IoResult<()> {
         match *self {
             Normal(ref mut s) => s.flush(),
             Ssl(ref mut s) => s.flush()
@@ -327,9 +343,7 @@ struct InnerPostgresConnection {
 
 impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
-        io_error::cond.trap(|_| {}).inside(|| {
-            self.write_messages([Terminate]);
-        })
+        let _ = self.write_messages([Terminate]);
     }
 }
 
@@ -383,25 +397,25 @@ impl InnerPostgresConnection {
             path.shift_char();
             args.push((~"database", path));
         }
-        conn.write_messages([StartupMessage {
+        if_ok_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
-        }]);
+        }]));
 
         match conn.handle_auth(user) {
-            Some(err) => return Err(err),
-            None => {}
+            Err(err) => return Err(err),
+            Ok(()) => {}
         }
 
         loop {
-            match conn.read_message() {
+            match if_ok_pg_conn!(conn.read_message()) {
                 BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } =>
-                    return Err(DbError(PostgresDbError::new(fields))),
+                    return Err(PgConnectDbError(PostgresDbError::new(fields))),
                 _ => unreachable!()
             }
         }
@@ -409,46 +423,47 @@ impl InnerPostgresConnection {
         Ok(conn)
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
         for message in messages.iter() {
-            self.stream.write_message(message);
+            if_ok!(self.stream.write_message(message));
         }
-        self.stream.flush();
+        self.stream.flush()
     }
 
-    fn read_message(&mut self) -> BackendMessage {
+    fn read_message(&mut self) -> IoResult<BackendMessage> {
         loop {
             match self.stream.read_message() {
-                NoticeResponse { fields } =>
+                Ok(NoticeResponse { fields }) =>
                     self.notice_handler.handle(PostgresDbError::new(fields)),
-                NotificationResponse { pid, channel, payload } =>
+                Ok(NotificationResponse { pid, channel, payload }) =>
                     self.notifications.push_back(PostgresNotification {
                         pid: pid,
                         channel: channel,
                         payload: payload
                     }),
-                ParameterStatus { parameter, value } =>
+                Ok(ParameterStatus { parameter, value }) =>
                     info!("Parameter {} = {}", parameter, value),
-                msg => return msg
+                val => return val
             }
         }
     }
 
-    fn handle_auth(&mut self, user: UserInfo) -> Option<PostgresConnectError> {
-        match self.read_message() {
-            AuthenticationOk => return None,
+    fn handle_auth(&mut self, user: UserInfo) ->
+            Result<(), PostgresConnectError> {
+        match if_ok_pg_conn!(self.read_message()) {
+            AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
                 let pass = match user.pass {
                     Some(pass) => pass,
-                    None => return Some(MissingPassword)
+                    None => return Err(MissingPassword)
                 };
-                self.write_messages([PasswordMessage { password: pass }]);
+                if_ok_pg_conn!(self.write_messages([PasswordMessage { password: pass }]));
             }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
                 let pass = match pass {
                     Some(pass) => pass,
-                    None => return Some(MissingPassword)
+                    None => return Err(MissingPassword)
                 };
                 let input = pass + user;
                 let hasher = Hasher::new(MD5);
@@ -458,23 +473,23 @@ impl InnerPostgresConnection {
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
                 let output = "md5" + hasher.final().to_hex();
-                self.write_messages([PasswordMessage {
+                if_ok_pg_conn!(self.write_messages([PasswordMessage {
                     password: output.as_slice()
-                }]);
+                }]));
             }
             AuthenticationKerberosV5
             | AuthenticationSCMCredential
             | AuthenticationGSS
-            | AuthenticationSSPI => return Some(UnsupportedAuthentication),
+            | AuthenticationSSPI => return Err(UnsupportedAuthentication),
             ErrorResponse { fields } =>
-                return Some(DbError(PostgresDbError::new(fields))),
+                return Err(PgConnectDbError(PostgresDbError::new(fields))),
             _ => unreachable!()
         }
 
-        match self.read_message() {
-            AuthenticationOk => None,
+        match if_ok_pg_conn!(self.read_message()) {
+            AuthenticationOk => Ok(()),
             ErrorResponse { fields } =>
-                Some(DbError(PostgresDbError::new(fields))),
+                Err(PgConnectDbError(PostgresDbError::new(fields))),
             _ => unreachable!()
         }
     }
@@ -485,12 +500,12 @@ impl InnerPostgresConnection {
     }
 
     fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
-            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+            -> Result<NormalPostgresStatement<'a>, PostgresError> {
         let stmt_name = format!("statement_{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
         let types = [];
-        self.write_messages([
+        if_ok_pg!(self.write_messages([
             Parse {
                 name: stmt_name,
                 query: query,
@@ -500,24 +515,24 @@ impl InnerPostgresConnection {
                 variant: 'S' as u8,
                 name: stmt_name
             },
-            Sync]);
+            Sync]));
 
-        match self.read_message() {
+        match if_ok_pg!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 self.wait_for_ready();
-                return Err(PostgresDbError::new(fields));
+                return Err(PgDbError(PostgresDbError::new(fields)));
             }
             _ => unreachable!()
         }
 
-        let mut param_types: ~[PostgresType] = match self.read_message() {
+        let mut param_types: ~[PostgresType] = match if_ok_pg!(self.read_message()) {
             ParameterDescription { types } =>
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
             _ => unreachable!()
         };
 
-        let mut result_desc: ~[ResultDescription] = match self.read_message() {
+        let mut result_desc: ~[ResultDescription] = match if_ok_pg!(self.read_message()) {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
                         ResultDescription::from_row_description_entry(desc)
@@ -526,14 +541,14 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         };
 
-        self.wait_for_ready();
+        if_ok!(self.wait_for_ready());
 
         // now that the connection is ready again, get unknown type names
         for param in param_types.mut_iter() {
             match *param {
                 PgUnknownType { oid, .. } =>
                     *param = PgUnknownType {
-                        name: self.get_type_name(oid),
+                        name: if_ok!(self.get_type_name(oid)),
                         oid: oid
                     },
                 _ => {}
@@ -544,7 +559,7 @@ impl InnerPostgresConnection {
             match desc.ty {
                 PgUnknownType { oid, .. } =>
                     desc.ty = PgUnknownType {
-                        name: self.get_type_name(oid),
+                        name: if_ok!(self.get_type_name(oid)),
                         oid: oid
                     },
                 _ => {}
@@ -560,43 +575,43 @@ impl InnerPostgresConnection {
         })
     }
 
-    fn get_type_name(&mut self, oid: Oid) -> ~str {
+    fn get_type_name(&mut self, oid: Oid) -> Result<~str, PostgresError> {
         match self.unknown_types.find(&oid) {
-            Some(name) => return name.clone(),
+            Some(name) => return Ok(name.clone()),
             None => {}
         }
-        let name = self.quick_query(
-                format!("SELECT typname FROM pg_type WHERE oid={}", oid))[0][0]
+        let name = if_ok!(self.quick_query(
+                format!("SELECT typname FROM pg_type WHERE oid={}", oid)))[0][0]
                 .unwrap();
         self.unknown_types.insert(oid, name.clone());
-        name
+        Ok(name)
     }
 
-    fn wait_for_ready(&mut self) {
-        match self.read_message() {
-            ReadyForQuery { .. } => {}
+    fn wait_for_ready(&mut self) -> Result<(), PostgresError> {
+        match if_ok_pg!(self.read_message()) {
+            ReadyForQuery { .. } => Ok(()),
             _ => unreachable!()
         }
     }
 
-    fn quick_query(&mut self, query: &str) -> ~[~[Option<~str>]] {
-        self.write_messages([Query { query: query }]);
+    fn quick_query(&mut self, query: &str)
+            -> Result<~[~[Option<~str>]], PostgresError> {
+        if_ok_pg!(self.write_messages([Query { query: query }]));
 
         let mut result = ~[];
         loop {
-            match self.read_message() {
+            match if_ok_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } =>
                     result.push(row.move_iter().map(|opt|
                             opt.map(|b| str::from_utf8_owned(b).unwrap()))
                                .collect()),
                 ErrorResponse { fields } =>
-                    fail!("Error: {}",
-                           PostgresDbError::new(fields).to_str()),
+                    return Err(PgDbError(PostgresDbError::new(fields))),
                 _ => {}
             }
         }
-        result
+        Ok(result)
     }
 }
 
@@ -663,7 +678,7 @@ impl PostgresConnection {
     /// The statement is associated with the connection that created it and may
     /// not outlive that connection.
     pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<NormalPostgresStatement<'a>, PostgresDbError> {
+            -> Result<NormalPostgresStatement<'a>, PostgresError> {
         self.conn.with_mut(|conn| conn.try_prepare(query, self))
     }
 
@@ -703,7 +718,7 @@ impl PostgresConnection {
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
     pub fn try_execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresDbError> {
+            -> Result<uint, PostgresError> {
         self.try_prepare(query).and_then(|stmt| stmt.try_execute(params))
     }
 
@@ -728,19 +743,19 @@ impl PostgresConnection {
         self.conn.with(|conn| conn.cancel_data)
     }
 
-    fn quick_query(&self, query: &str) -> ~[~[Option<~str>]] {
+    fn quick_query(&self, query: &str) -> Result<~[~[Option<~str>]], PostgresError> {
         self.conn.with_mut(|conn| conn.quick_query(query))
     }
 
-    fn wait_for_ready(&self) {
+    fn wait_for_ready(&self) -> Result<(), PostgresError> {
         self.conn.with_mut(|conn| conn.wait_for_ready())
     }
 
-    fn read_message(&self) -> BackendMessage {
+    fn read_message(&self) -> IoResult<BackendMessage> {
         self.conn.with_mut(|conn| conn.read_message())
     }
 
-    fn write_messages(&self, messages: &[FrontendMessage]) {
+    fn write_messages(&self, messages: &[FrontendMessage]) -> IoResult<()> {
         self.conn.with_mut(|conn| conn.write_messages(messages))
     }
 }
@@ -765,28 +780,26 @@ pub struct PostgresTransaction<'conn> {
 #[unsafe_destructor]
 impl<'conn> Drop for PostgresTransaction<'conn> {
     fn drop(&mut self) {
-        io_error::cond.trap(|_| {}).inside(|| {
-            if task::failing() || !self.commit.with(|x| *x) {
-                if self.nested {
-                    self.conn.quick_query("ROLLBACK TO sp");
-                } else {
-                    self.conn.quick_query("ROLLBACK");
-                }
+        if task::failing() || !self.commit.with(|x| *x) {
+            if self.nested {
+                self.conn.quick_query("ROLLBACK TO sp");
             } else {
-                if self.nested {
-                    self.conn.quick_query("RELEASE sp");
-                } else {
-                    self.conn.quick_query("COMMIT");
-                }
+                self.conn.quick_query("ROLLBACK");
             }
-        })
+        } else {
+            if self.nested {
+                self.conn.quick_query("RELEASE sp");
+            } else {
+                self.conn.quick_query("COMMIT");
+            }
+        }
     }
 }
 
 impl<'conn> PostgresTransaction<'conn> {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<TransactionalPostgresStatement<'a>, PostgresDbError> {
+            -> Result<TransactionalPostgresStatement<'a>, PostgresError> {
         self.conn.try_prepare(query).map(|stmt| {
             TransactionalPostgresStatement {
                 stmt: stmt
@@ -804,7 +817,7 @@ impl<'conn> PostgresTransaction<'conn> {
 
     /// Like `PostgresConnection::try_execute`.
     pub fn try_execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresDbError> {
+            -> Result<uint, PostgresError> {
         self.conn.try_execute(query, params)
     }
 
@@ -861,7 +874,7 @@ pub trait PostgresStatement {
     ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
-    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError>;
+    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError>;
 
     /// A convenience function wrapping `try_execute`.
     ///
@@ -883,7 +896,7 @@ pub trait PostgresStatement {
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
     fn try_query<'a>(&'a self, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresDbError>;
+            -> Result<PostgresResult<'a>, PostgresError>;
 
     /// A convenience function wrapping `try_query`.
     ///
@@ -910,26 +923,25 @@ pub struct NormalPostgresStatement<'conn> {
 #[unsafe_destructor]
 impl<'conn> Drop for NormalPostgresStatement<'conn> {
     fn drop(&mut self) {
-        io_error::cond.trap(|_| {}).inside(|| {
-            self.conn.write_messages([
-                Close {
-                    variant: 'S' as u8,
-                    name: self.name.as_slice()
-                },
-                Sync]);
-            loop {
-                match self.conn.read_message() {
-                    ReadyForQuery { .. } => break,
-                    _ => {}
-                }
+        let _ = self.conn.write_messages([
+            Close {
+                variant: 'S' as u8,
+                name: self.name.as_slice()
+            },
+            Sync]);
+        loop {
+            match self.conn.read_message() {
+                Ok(ReadyForQuery { .. }) => break,
+                Err(_) => break,
+                _ => {}
             }
-        })
+        }
     }
 }
 
 impl<'conn> NormalPostgresStatement<'conn> {
     fn execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
-            -> Option<PostgresDbError> {
+            -> Result<(), PostgresError> {
         let mut formats = ~[];
         let mut values = ~[];
         assert!(self.param_types.len() == params.len(),
@@ -959,25 +971,22 @@ impl<'conn> NormalPostgresStatement<'conn> {
             },
             Sync]);
 
-        match self.conn.read_message() {
-            BindComplete => None,
+        match if_ok_pg!(self.conn.read_message()) {
+            BindComplete => Ok(()),
             ErrorResponse { fields } => {
-                self.conn.wait_for_ready();
-                Some(PostgresDbError::new(fields))
+                if_ok!(self.conn.wait_for_ready());
+                Err(PgDbError(PostgresDbError::new(fields)))
             }
             _ => unreachable!()
         }
     }
 
     fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresDbError> {
+            -> Result<PostgresResult<'a>, PostgresError> {
         let id = self.next_portal_id.with_mut(|x| { *x += 1; *x - 1 });
         let portal_name = format!("{}_portal_{}", self.name, id);
 
-        match self.execute(portal_name, row_limit, params) {
-            Some(err) => return Err(err),
-            None => {}
-        }
+        if_ok!(self.execute(portal_name, row_limit, params));
 
         let mut result = PostgresResult {
             stmt: self,
@@ -1002,19 +1011,16 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
     }
 
     fn try_execute(&self, params: &[&ToSql])
-                      -> Result<uint, PostgresDbError> {
-        match self.execute("", 0, params) {
-            Some(err) => return Err(err),
-            None => {}
-        }
+                      -> Result<uint, PostgresError> {
+        if_ok!(self.execute("", 0, params));
 
         let num;
         loop {
-            match self.conn.read_message() {
+            match if_ok_pg!(self.conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     self.conn.wait_for_ready();
-                    return Err(PostgresDbError::new(fields));
+                    return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
                     let s = tag.split(' ').last().unwrap();
@@ -1031,13 +1037,13 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
                 _ => unreachable!()
             }
         }
-        self.conn.wait_for_ready();
+        if_ok!(self.conn.wait_for_ready());
 
         Ok(num)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresDbError> {
+            -> Result<PostgresResult<'a>, PostgresError> {
         self.try_lazy_query(0, params)
     }
 }
@@ -1079,12 +1085,12 @@ impl<'conn> PostgresStatement for TransactionalPostgresStatement<'conn> {
         self.stmt.result_descriptions()
     }
 
-    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresDbError> {
+    fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError> {
         self.stmt.try_execute(params)
     }
 
     fn try_query<'a>(&'a self, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresDbError> {
+            -> Result<PostgresResult<'a>, PostgresError> {
         self.stmt.try_query(params)
     }
 }
@@ -1102,7 +1108,7 @@ impl<'conn> TransactionalPostgresStatement<'conn> {
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
     pub fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresDbError> {
+            -> Result<PostgresResult<'a>, PostgresError> {
         self.stmt.try_lazy_query(row_limit, params)
     }
 
@@ -1132,27 +1138,25 @@ pub struct PostgresResult<'stmt> {
 #[unsafe_destructor]
 impl<'stmt> Drop for PostgresResult<'stmt> {
     fn drop(&mut self) {
-        io_error::cond.trap(|_| {}).inside(|| {
-            self.stmt.conn.write_messages([
-                Close {
-                    variant: 'P' as u8,
-                    name: self.name.as_slice()
-                },
-                Sync]);
-            loop {
-                match self.stmt.conn.read_message() {
-                    ReadyForQuery { .. } => break,
-                    _ => {}
-                }
+        let _ = self.stmt.conn.write_messages([
+            Close {
+                variant: 'P' as u8,
+                name: self.name.as_slice()
+            },
+            Sync]);
+        loop {
+            match self.stmt.conn.read_message() {
+                Ok(ReadyForQuery { .. }) => break,
+                _ => {}
             }
-        })
+        }
     }
 }
 
 impl<'stmt> PostgresResult<'stmt> {
-    fn read_rows(&mut self) {
+    fn read_rows(&mut self) -> Result<(), PostgresError> {
         loop {
-            match self.stmt.conn.read_message() {
+            match if_ok_pg!(self.stmt.conn.read_message()) {
                 EmptyQueryResponse |
                 CommandComplete { .. } => {
                     self.more_rows = false;
@@ -1166,7 +1170,7 @@ impl<'stmt> PostgresResult<'stmt> {
                 _ => unreachable!()
             }
         }
-        self.stmt.conn.wait_for_ready();
+        self.stmt.conn.wait_for_ready()
     }
 
     fn execute(&mut self) {
