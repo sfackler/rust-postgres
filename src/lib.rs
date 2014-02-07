@@ -149,6 +149,24 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+macro_rules! if_ok_pg_conn(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => return Err(PgConnectStreamError(err))
+        }
+    )
+)
+
+macro_rules! if_ok_pg(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => return Err(PgStreamError(err))
+        }
+    )
+)
+
 static DEFAULT_PORT: Port = 5432;
 
 /// Trait for types that can handle Postgres notice messages
@@ -228,12 +246,12 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         Err(err) => return Err(err)
     };
 
-    socket.write_message(&CancelRequest {
+    if_ok_pg_conn!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
         process_id: data.process_id,
         secret_key: data.secret_key
-    });
-    socket.flush();
+    }));
+    if_ok_pg_conn!(socket.flush());
 
     Ok(())
 }
@@ -255,24 +273,6 @@ fn open_socket(host: &str, port: Port)
     Err(SocketError)
 }
 
-macro_rules! if_ok_pg_conn(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgConnectStreamError(err))
-        }
-    )
-)
-
-macro_rules! if_ok_pg(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgStreamError(err))
-        }
-    )
-)
-
 fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         -> Result<InternalStream, PostgresConnectError> {
     let mut socket = match open_socket(host, port) {
@@ -286,8 +286,8 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         &RequireSsl(ref ctx) => (true, ctx)
     };
 
-    socket.write_message(&SslRequest { code: message::SSL_CODE });
-    socket.flush();
+    if_ok_pg_conn!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
+    if_ok_pg_conn!(socket.flush());
 
     if if_ok_pg_conn!(socket.read_u8()) == 'N' as u8 {
         if ssl_required {
@@ -521,7 +521,7 @@ impl InnerPostgresConnection {
         match if_ok_pg!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
-                self.wait_for_ready();
+                if_ok!(self.wait_for_ready());
                 return Err(PgDbError(PostgresDbError::new(fields)));
             }
             _ => unreachable!()
@@ -958,7 +958,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             desc.ty.result_format() as i16
         }).collect();
 
-        self.conn.write_messages([
+        if_ok_pg!(self.conn.write_messages([
             Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
@@ -970,7 +970,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
                 portal: portal_name,
                 max_rows: row_limit as i32
             },
-            Sync]);
+            Sync]));
 
         match if_ok_pg!(self.conn.read_message()) {
             BindComplete => Ok(()),
@@ -1020,7 +1020,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
             match if_ok_pg!(self.conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
-                    self.conn.wait_for_ready();
+                    if_ok!(self.conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
@@ -1174,14 +1174,14 @@ impl<'stmt> PostgresResult<'stmt> {
         self.stmt.conn.wait_for_ready()
     }
 
-    fn execute(&mut self) {
-        self.stmt.conn.write_messages([
+    fn execute(&mut self) -> Result<(), PostgresError> {
+        if_ok_pg!(self.stmt.conn.write_messages([
             Execute {
                 portal: self.name,
                 max_rows: self.row_limit as i32
             },
-            Sync]);
-        self.read_rows();
+            Sync]));
+        self.read_rows()
     }
 }
 
