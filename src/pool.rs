@@ -1,17 +1,15 @@
 //! A simple connection pool
 
-extern mod extra;
+use sync::MutexArc;
 
-use extra::arc::MutexArc;
-
-use super::{PostgresNotifications,
-            PostgresCancelData,
-            PostgresConnection,
-            NormalPostgresStatement,
-            PostgresTransaction,
-            SslMode};
-use super::error::{PostgresConnectError, PostgresError};
-use super::types::ToSql;
+use {PostgresNotifications,
+     PostgresCancelData,
+     PostgresConnection,
+     NormalPostgresStatement,
+     PostgresTransaction,
+     SslMode};
+use error::{PostgresConnectError, PostgresError};
+use types::ToSql;
 
 struct InnerConnectionPool {
     url: ~str,

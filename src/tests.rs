@@ -1,5 +1,5 @@
-use extra::comm::DuplexStream;
-use extra::future::Future;
+use sync::DuplexStream;
+use sync::Future;
 use extra::time;
 use extra::time::Timespec;
 use extra::json;

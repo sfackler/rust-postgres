@@ -66,6 +66,7 @@ fn main() {
 
 extern mod extra;
 extern mod openssl;
+extern mod sync;
 #[phase(syntax)]
 extern mod phf_mac;
 extern mod phf;
