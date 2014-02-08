@@ -1,6 +1,6 @@
 export RUSTC = rustc
 RUSTDOC = rustdoc
-export RUSTFLAGS = -O -Z debug-info
+export RUSTFLAGS = -O -Z extra-debug-info
 BUILDDIR = build
 INSTALL_DIR = %PREFIX%
 

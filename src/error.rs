@@ -495,6 +495,7 @@ impl PostgresDbError {
     }
 }
 
+/// An error encountered when communicating with the Postgres server
 #[deriving(ToStr)]
 pub enum PostgresError {
     /// An error reported by the Postgres server
