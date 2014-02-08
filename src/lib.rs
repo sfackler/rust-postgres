@@ -1198,6 +1198,16 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
             }
         })
     }
+
+    fn size_hint(&self) -> (uint, Option<uint>) {
+        let lower = self.data.len();
+        let upper = if self.more_rows {
+            None
+         } else {
+            Some(lower)
+         };
+         (lower, upper)
+    }
 }
 
 /// A single result row of a query.
