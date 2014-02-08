@@ -78,7 +78,7 @@ use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::hashmap::HashMap;
 use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::{Port, SocketAddr};
@@ -572,7 +572,7 @@ impl InnerPostgresConnection {
             name: stmt_name,
             param_types: param_types,
             result_desc: result_desc,
-            next_portal_id: RefCell::new(0)
+            next_portal_id: Cell::new(0)
         })
     }
 
@@ -918,7 +918,7 @@ pub struct NormalPostgresStatement<'conn> {
     priv name: ~str,
     priv param_types: ~[PostgresType],
     priv result_desc: ~[ResultDescription],
-    priv next_portal_id: RefCell<uint>
+    priv next_portal_id: Cell<uint>
 }
 
 #[unsafe_destructor]
@@ -984,7 +984,8 @@ impl<'conn> NormalPostgresStatement<'conn> {
 
     fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresError> {
-        let id = self.next_portal_id.with_mut(|x| { *x += 1; *x - 1 });
+        let id = self.next_portal_id.get();
+        self.next_portal_id.set(id + 1);
         let portal_name = format!("{}_portal_{}", self.name, id);
 
         if_ok!(self.execute(portal_name, row_limit, params));
