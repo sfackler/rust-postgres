@@ -64,6 +64,7 @@ fn main() {
 #[feature(macro_rules, struct_variant, globs, phase)];
 #[macro_escape];
 
+extern mod collections;
 extern mod extra;
 extern mod openssl;
 extern mod sync;
@@ -72,9 +73,8 @@ extern mod phf_mac;
 extern mod phf;
 extern mod uuid;
 
-use extra::container::Deque;
+use collections::{Deque, RingBuf};
 use extra::hex::ToHex;
-use extra::ringbuf::RingBuf;
 use extra::url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
@@ -1274,6 +1274,6 @@ impl<'a> RowIndex for &'a str {
                 return i;
             }
         }
-        fail!("There is no column with name {}", *self);
+        fail!("there is no column with name {}", *self);
     }
 }
