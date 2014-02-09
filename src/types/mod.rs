@@ -77,7 +77,7 @@ static RANGE_EMPTY: i8           = 0b0000_0001;
 macro_rules! make_postgres_type(
     ($($doc:attr $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
-        #[deriving(Eq)]
+        #[deriving(Eq, Show)]
         pub enum PostgresType {
             $(
                 $doc
@@ -222,7 +222,7 @@ macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
         match $actual {
             $(&$expected)|+ => (),
-            actual => fail!("Invalid Postgres type {:?}", actual)
+            actual => fail!("Invalid Postgres type {}", *actual)
         }
     )
 )
