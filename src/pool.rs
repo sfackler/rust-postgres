@@ -139,6 +139,12 @@ impl PooledPostgresConnection {
         self.conn.get_ref().execute(query, params)
     }
 
+    /// Like `PostgresConnection::try_transaction`.
+    pub fn try_transaction<'a>(&'a self)
+            -> Result<PostgresTransaction<'a>, PostgresError> {
+        self.conn.get_ref().try_transaction()
+    }
+
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
         self.conn.get_ref().transaction()
@@ -152,5 +158,10 @@ impl PooledPostgresConnection {
     /// Like `PostgresConnection::cancel_data`.
     pub fn cancel_data(&self) -> PostgresCancelData {
         self.conn.get_ref().cancel_data()
+    }
+
+    /// Like `PostgresConnection::is_desynchronized`.
+    pub fn is_desynchronized(&self) -> bool {
+        self.conn.get_ref().is_desynchronized()
     }
 }

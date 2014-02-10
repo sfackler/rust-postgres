@@ -9,7 +9,7 @@ use phf::PhfMap;
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(ToStr, Eq, Clone)]
+        #[deriving(ToStr, Eq, Clone, Show)]
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
@@ -378,7 +378,7 @@ pub enum PostgresConnectError {
 }
 
 /// Represents the position of an error in a query
-#[deriving(ToStr)]
+#[deriving(ToStr, Show)]
 pub enum PostgresErrorPosition {
     /// A position in the original query
     Position(uint),
@@ -392,7 +392,7 @@ pub enum PostgresErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
-#[deriving(ToStr)]
+#[deriving(ToStr, Show)]
 pub struct PostgresDbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -496,12 +496,15 @@ impl PostgresDbError {
 }
 
 /// An error encountered when communicating with the Postgres server
-#[deriving(ToStr)]
+#[deriving(ToStr, Show)]
 pub enum PostgresError {
     /// An error reported by the Postgres server
     PgDbError(PostgresDbError),
     /// An error communicating with the Postgres server
     PgStreamError(IoError),
+    /// The communication channel with the Postgres server has desynchronized
+    /// due to an earlier communications error.
+    PgStreamDesynchronized,
 }
 
 impl PostgresError {
@@ -510,6 +513,9 @@ impl PostgresError {
         match *self {
             PgDbError(ref err) => err.pretty_error(query),
             PgStreamError(ref err) => format!("{}", *err),
+            PgStreamDesynchronized =>
+                ~"The communication stream with the Postgres server has \
+                  become desynchronized due to an earlier communications error"
         }
     }
 }
