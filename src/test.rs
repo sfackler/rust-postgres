@@ -89,6 +89,12 @@ fn test_unknown_database() {
 }
 
 #[test]
+fn test_connection_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    assert!(conn.finish().is_ok());
+}
+
+#[test]
 fn test_transaction_commit() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
@@ -96,6 +102,21 @@ fn test_transaction_commit() {
     let trans = conn.transaction();
     trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
     drop(trans);
+
+    let stmt = conn.prepare("SELECT * FROM foo");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_transaction_commit_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    let trans = conn.transaction();
+    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    assert!(trans.finish().is_ok());
 
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
@@ -114,6 +135,24 @@ fn test_transaction_rollback() {
     trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
     trans.set_rollback();
     drop(trans);
+
+    let stmt = conn.prepare("SELECT * FROM foo");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_transaction_rollback_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+
+    let trans = conn.transaction();
+    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
+    trans.set_rollback();
+    assert!(trans.finish().is_ok());
 
     let stmt = conn.prepare("SELECT * FROM foo");
     let result = stmt.query([]);
@@ -169,6 +208,67 @@ fn test_nested_transactions() {
 }
 
 #[test]
+fn test_nested_transactions_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+
+    conn.execute("INSERT INTO foo (id) VALUES (1)", []);
+
+    {
+        let trans1 = conn.transaction();
+        trans1.execute("INSERT INTO foo (id) VALUES (2)", []);
+
+        {
+            let trans2 = trans1.transaction();
+            trans2.execute("INSERT INTO foo (id) VALUES (3)", []);
+            trans2.set_rollback();
+            assert!(trans2.finish().is_ok());
+        }
+
+        {
+            let trans2 = trans1.transaction();
+            trans2.execute("INSERT INTO foo (id) VALUES (4)", []);
+
+            {
+                let trans3 = trans2.transaction();
+                trans3.execute("INSERT INTO foo (id) VALUES (5)", []);
+                trans3.set_rollback();
+                assert!(trans3.finish().is_ok());
+            }
+
+            {
+                let trans3 = trans2.transaction();
+                trans3.execute("INSERT INTO foo (id) VALUES (6)", []);
+                assert!(trans3.finish().is_ok());
+            }
+
+            assert!(trans2.finish().is_ok());
+        }
+
+        let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
+        let result = stmt.query([]);
+
+        assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[1]).collect());
+
+        trans1.set_rollback();
+        assert!(trans1.finish().is_ok());
+    }
+
+    let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
+    let result = stmt.query([]);
+
+    assert_eq!(~[1i32], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_stmt_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
+    let stmt = conn.prepare("SELECT * FROM foo");
+    assert!(stmt.finish().is_ok());
+}
+
+#[test]
 fn test_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
@@ -178,6 +278,15 @@ fn test_query() {
     let result = stmt.query([]);
 
     assert_eq!(~[1i64, 2], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_result_finish() {
+    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
+    let stmt = conn.prepare("SELECT * FROM foo");
+    let result = stmt.query([]);
+    assert!(result.finish().is_ok());
 }
 
 #[test]
