@@ -148,7 +148,7 @@ pub mod pool;
 mod message;
 pub mod types;
 #[cfg(test)]
-mod tests;
+mod test;
 
 macro_rules! if_ok_pg_conn(
     ($e:expr) => (
