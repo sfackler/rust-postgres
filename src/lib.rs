@@ -378,7 +378,7 @@ impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
         if !self.finished {
             match self.finish_inner() {
-                Ok(()) => {}
+                Ok(()) | Err(PgStreamDesynchronized) => {}
                 Err(err) =>
                     fail_unless_failing!("Error dropping connection: {}", err)
             }
@@ -874,7 +874,7 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
     fn drop(&mut self) {
         if !self.finished {
             match self.finish_inner() {
-                Ok(()) => {}
+                Ok(()) | Err(PgStreamDesynchronized) => {}
                 Err(err) =>
                     fail_unless_failing!("Error dropping transaction: {}", err)
             }
@@ -1062,7 +1062,7 @@ impl<'conn> Drop for NormalPostgresStatement<'conn> {
     fn drop(&mut self) {
         if !self.finished.get() {
             match self.finish_inner() {
-                Ok(()) => {}
+                Ok(()) | Err(PgStreamDesynchronized) => {}
                 Err(err) =>
                     fail_unless_failing!("Error dropping statement: {}", err)
             }
@@ -1304,7 +1304,7 @@ impl<'stmt> Drop for PostgresResult<'stmt> {
     fn drop(&mut self) {
         if !self.finished {
             match self.finish_inner() {
-                Ok(()) => {}
+                Ok(()) | Err(PgStreamDesynchronized) => {}
                 Err(err) =>
                     fail_unless_failing!("Error dropping result: {}", err)
             }
