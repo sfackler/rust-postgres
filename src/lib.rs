@@ -87,7 +87,7 @@ use std::io::net::tcp::TcpStream;
 use std::io::net;
 use std::str;
 use std::task;
-use std::util;
+use std::mem;
 
 use error::{PostgresDbError,
             PgConnectDbError,
@@ -539,7 +539,7 @@ impl InnerPostgresConnection {
 
     fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        util::replace(&mut self.notice_handler, handler)
+        mem::replace(&mut self.notice_handler, handler)
     }
 
     fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
