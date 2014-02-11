@@ -1,15 +1,15 @@
-export RUSTC = rustc
-RUSTDOC = rustdoc
-export RUSTFLAGS = -O -g --cfg ndebug
-BUILDDIR = build
-INSTALL_DIR = %PREFIX%
+export RUSTC := rustc
+RUSTDOC := rustdoc
+export RUSTFLAGS := -O -g --cfg ndebug
+BUILDDIR := build
+INSTALL_DIR := %PREFIX%
 
 ###############################################################################
 # Reconfiguration
 ###############################################################################
-CONFIGURE_ARGS = %CONFIGURE_ARGS%
+CONFIGURE_ARGS := %CONFIGURE_ARGS%
 
-NEED_GIT_RECONFIG = $(shell git submodule status | grep -c '^\(+|-\)')
+NEED_GIT_RECONFIG := $(shell git submodule status | grep -c '^\(+|-\)')
 
 ifeq ($(NEED_GIT_RECONFIG),0)
 else
@@ -24,10 +24,10 @@ config.stamp: configure Makefile.in
 ###############################################################################
 # Dependencies
 ###############################################################################
-PHF_DIR = submodules/rust-phf
-PHF = $(foreach file,$(shell $(MAKE) -s -C $(PHF_DIR) print-targets),$(PHF_DIR)/$(file))
-OPENSSL_DIR = submodules/rust-openssl
-OPENSSL = $(foreach file,$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target),$(OPENSSL_DIR)/$(file))
+PHF_DIR := submodules/rust-phf
+PHF := $(foreach file,$(shell $(MAKE) -s -C $(PHF_DIR) print-targets),$(PHF_DIR)/$(file))
+OPENSSL_DIR := submodules/rust-openssl
+OPENSSL := $(foreach file,$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target),$(OPENSSL_DIR)/$(file))
 
 $(PHF): config.stamp
 	$(MAKE) -C $(PHF_DIR)
@@ -40,14 +40,14 @@ $(OPENSSL): config.stamp
 ###############################################################################
 # Main targets
 ###############################################################################
-POSTGRES_LIB_FILE = src/lib.rs
-POSTGRES_LIB = $(foreach file,$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
-POSTGRES_TEST = $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
+POSTGRES_LIB_FILE := src/lib.rs
+POSTGRES_LIB := $(foreach file,$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
+POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
 
-POSTGRES_LIB_DEPS = $(BUILDDIR)/postgres.d
-POSTGRES_TEST_DEPS = $(BUILDDIR)/postgres_test.d
+POSTGRES_LIB_DEPS := $(BUILDDIR)/postgres.d
+POSTGRES_TEST_DEPS := $(BUILDDIR)/postgres_test.d
 
-LINK_ARGS = $(foreach file,$(OPENSSL),-L $(dir $(file))) $(foreach file,$(PHF),-L $(dir $(file)))
+LINK_ARGS := $(foreach file,$(OPENSSL),-L $(dir $(file))) $(foreach file,$(PHF),-L $(dir $(file)))
 
 -include $(POSTGRES_LIB_DEPS)
 -include $(POSTGRES_TEST_DEPS)
