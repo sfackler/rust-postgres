@@ -63,7 +63,6 @@ fn main() {
 #[warn(missing_doc)];
 
 #[feature(macro_rules, struct_variant, globs, phase)];
-#[macro_escape];
 
 extern mod collections;
 extern mod extra;
@@ -1080,9 +1079,12 @@ impl<'conn> NormalPostgresStatement<'conn> {
             },
             Sync]));
         loop {
-            // TODO forward db errors
             match if_ok_pg!(self.conn.read_message()) {
                 ReadyForQuery { .. } => break,
+                ErrorResponse { fields } => {
+                    if_ok!(self.conn.wait_for_ready());
+                    return Err(PgDbError(PostgresDbError::new(fields)));
+                }
                 _ => {}
             }
         }
@@ -1322,9 +1324,12 @@ impl<'stmt> PostgresResult<'stmt> {
             },
             Sync]));
         loop {
-            // TODO forward PG errors
             match if_ok_pg!(self.stmt.conn.read_message()) {
                 ReadyForQuery { .. } => break,
+                ErrorResponse { fields } => {
+                    if_ok!(self.stmt.conn.wait_for_ready());
+                    return Err(PgDbError(PostgresDbError::new(fields)));
+                }
                 _ => {}
             }
         }
