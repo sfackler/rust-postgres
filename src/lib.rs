@@ -654,8 +654,10 @@ impl InnerPostgresConnection {
                     result.push(row.move_iter().map(|opt|
                             opt.map(|b| str::from_utf8_owned(b).unwrap()))
                                .collect()),
-                ErrorResponse { fields } =>
-                    return Err(PgDbError(PostgresDbError::new(fields))),
+                ErrorResponse { fields } => {
+                    if_ok!(self.wait_for_ready());
+                    return Err(PgDbError(PostgresDbError::new(fields)));
+                }
                 _ => {}
             }
         }
