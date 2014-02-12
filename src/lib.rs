@@ -81,38 +81,38 @@ use openssl::ssl::{SslStream, SslContext};
 use std::cell::{Cell, RefCell};
 use std::hashmap::HashMap;
 use std::io::{BufferedStream, IoResult};
+use std::io::net;
 use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
-use std::io::net;
+use std::mem;
 use std::str;
 use std::task;
-use std::mem;
 
-use error::{PostgresDbError,
+use error::{DnsError,
+            InvalidUrl,
+            MissingPassword,
+            MissingUser,
+            NoSslSupport,
             PgConnectDbError,
             PgConnectStreamError,
-            PostgresConnectError,
-            InvalidUrl,
-            DnsError,
-            SocketError,
-            NoSslSupport,
-            SslError,
-            MissingUser,
-            UnsupportedAuthentication,
-            MissingPassword,
-            PostgresError,
-            PgStreamError,
             PgDbError,
-            PgStreamDesynchronized};
-use message::{BackendMessage,
-              AuthenticationOk,
-              AuthenticationKerberosV5,
-              AuthenticationCleartextPassword,
-              AuthenticationMD5Password,
-              AuthenticationSCMCredential,
+            PgStreamDesynchronized,
+            PgStreamError,
+            PostgresConnectError,
+            PostgresDbError,
+            PostgresError,
+            SocketError,
+            SslError,
+            UnsupportedAuthentication};
+use message::{AuthenticationCleartextPassword,
               AuthenticationGSS,
+              AuthenticationKerberosV5,
+              AuthenticationMD5Password,
+              AuthenticationOk,
+              AuthenticationSCMCredential,
               AuthenticationSSPI,
               BackendKeyData,
+              BackendMessage,
               BindComplete,
               CommandComplete,
               DataRow,
@@ -127,17 +127,17 @@ use message::{BackendMessage,
               PortalSuspended,
               ReadyForQuery,
               RowDescription};
-use message::{FrontendMessage,
-              Bind,
+use message::{Bind,
               CancelRequest,
               Close,
               Describe,
               Execute,
+              FrontendMessage,
               Parse,
               PasswordMessage,
               Query,
-              StartupMessage,
               SslRequest,
+              StartupMessage,
               Sync,
               Terminate};
 use message::{RowDescriptionEntry, WriteMessage, ReadMessage};
