@@ -1,5 +1,6 @@
 //! A simple connection pool
 
+use std::cell::RefCell;
 use sync::MutexArc;
 
 use {PostgresNotifications,
@@ -109,8 +110,9 @@ pub struct PooledPostgresConnection {
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         unsafe {
+            let conn = RefCell::new(self.conn.take());
             self.pool.pool.unsafe_access(|pool| {
-                pool.pool.push(self.conn.take_unwrap());
+                pool.pool.push(conn.with_mut(|r| r.take_unwrap()));
             })
         }
     }
