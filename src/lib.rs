@@ -67,6 +67,7 @@ fn main() {
 extern mod collections;
 extern mod extra;
 extern mod openssl;
+extern mod serialize;
 extern mod sync;
 #[phase(syntax)]
 extern mod phf_mac;
@@ -74,10 +75,10 @@ extern mod phf;
 extern mod uuid;
 
 use collections::{Deque, RingBuf};
-use extra::hex::ToHex;
 use extra::url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
+use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::hashmap::HashMap;
 use std::io::{BufferedStream, IoResult};
