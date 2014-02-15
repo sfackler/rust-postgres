@@ -250,13 +250,13 @@ pub trait FromSql {
 
 #[doc(hidden)]
 trait RawFromSql {
-    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Self;
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Self;
 }
 
 macro_rules! raw_from_impl(
     ($t:ty, $f:ident) => (
         impl RawFromSql for $t {
-            fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> $t {
+            fn raw_from_sql<R: Reader>(raw: &mut R) -> $t {
                 or_fail!(raw.$f())
             }
         }
@@ -264,20 +264,20 @@ macro_rules! raw_from_impl(
 )
 
 impl RawFromSql for bool {
-    fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> bool {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> bool {
         (or_fail!(raw.read_u8())) != 0
     }
 }
 
 impl RawFromSql for ~[u8] {
-    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~[u8] {
-        or_fail!(raw.read_bytes(len))
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> ~[u8] {
+        or_fail!(raw.read_to_end())
     }
 }
 
 impl RawFromSql for ~str {
-    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> ~str {
-        str::from_utf8_owned(or_fail!(raw.read_bytes(len))).unwrap()
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> ~str {
+        str::from_utf8_owned(or_fail!(raw.read_to_end())).unwrap()
     }
 }
 
@@ -289,7 +289,7 @@ raw_from_impl!(f32, read_be_f32)
 raw_from_impl!(f64, read_be_f64)
 
 impl RawFromSql for Timespec {
-    fn raw_from_sql<R: Reader>(_len: uint, raw: &mut R) -> Timespec {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Timespec {
         let t = or_fail!(raw.read_be_i64());
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
         let mut usec = t % USEC_PER_SEC;
@@ -304,15 +304,15 @@ impl RawFromSql for Timespec {
 }
 
 impl RawFromSql for Uuid {
-    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Uuid {
-        Uuid::from_bytes(or_fail!(raw.read_bytes(len))).unwrap()
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Uuid {
+        Uuid::from_bytes(or_fail!(raw.read_to_end())).unwrap()
     }
 }
 
 macro_rules! from_range_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl RawFromSql for Range<$t> {
-            fn raw_from_sql<R: Reader>(_len: uint, rdr: &mut R) -> Range<$t> {
+            fn raw_from_sql<R: Reader>(rdr: &mut R) -> Range<$t> {
                 let t = or_fail!(rdr.read_i8());
 
                 if t & RANGE_EMPTY != 0 {
@@ -325,8 +325,10 @@ macro_rules! from_range_impl(
                                 _ => Inclusive
                             };
                             let len = or_fail!(rdr.read_be_i32()) as uint;
+                            let mut limit = LimitReader::new(rdr.by_ref(), len);
                             Some(RangeBound::new(
-                                    RawFromSql::raw_from_sql(len, rdr), type_))
+                                    RawFromSql::raw_from_sql(&mut limit), type_))
+                            // TODO assert limit is used up
                         }
                         _ => None
                     };
@@ -337,8 +339,10 @@ macro_rules! from_range_impl(
                                 _ => Inclusive
                             };
                             let len = or_fail!(rdr.read_be_i32()) as uint;
+                            let mut limit = LimitReader::new(rdr.by_ref(), len);
                             Some(RangeBound::new(
-                                    RawFromSql::raw_from_sql(len, rdr), type_))
+                                    RawFromSql::raw_from_sql(&mut limit), type_))
+                            // TODO assert limit is used up
                         }
                         _ => None
                     };
@@ -355,9 +359,8 @@ from_range_impl!(PgInt8Range, i64)
 from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 impl RawFromSql for Json {
-    fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Json {
-        let mut reader = LimitReader::new(raw.by_ref(), len);
-        json::from_reader(&mut reader as &mut Reader).unwrap()
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Json {
+        json::from_reader(raw as &mut Reader).unwrap()
     }
 }
 
@@ -384,7 +387,7 @@ macro_rules! from_raw_from_impl(
     ($($expected:pat)|+, $t:ty) => (
         from_map_impl!($($expected)|+, $t, |buf| {
             let mut reader = BufReader::new(buf.as_slice());
-            RawFromSql::raw_from_sql(buf.len(), &mut reader)
+            RawFromSql::raw_from_sql(&mut reader)
         })
     )
 )
@@ -430,8 +433,9 @@ macro_rules! from_array_impl(
                 if len < 0 {
                     elements.push(None);
                 } else {
-                    elements.push(Some(RawFromSql::raw_from_sql(len as uint,
-                                                                &mut rdr)));
+                    let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
+                    elements.push(Some(RawFromSql::raw_from_sql(&mut limit)));
+                    // TODO assert the reader's at the end
                 }
             }
 
