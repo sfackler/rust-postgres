@@ -1,6 +1,6 @@
 export RUSTC := rustc
 RUSTDOC := rustdoc
-export RUSTFLAGS := -O -g --cfg ndebug
+export RUSTFLAGS := -O --cfg ndebug
 BUILDDIR := build
 INSTALL_DIR := %PREFIX%
 
