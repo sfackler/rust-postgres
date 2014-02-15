@@ -356,7 +356,7 @@ from_range_impl!(PgTsRange | PgTstzRange, Timespec)
 
 impl RawFromSql for Json {
     fn raw_from_sql<R: Reader>(len: uint, raw: &mut R) -> Json {
-        let mut reader = LimitReader::new(raw, len);
+        let mut reader = LimitReader::new(raw.by_ref(), len);
         json::from_reader(&mut reader as &mut Reader).unwrap()
     }
 }
