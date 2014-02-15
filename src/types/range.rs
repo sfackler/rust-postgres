@@ -14,7 +14,7 @@
 //! #[feature(phase)];
 //!
 //! #[phase(syntax, link)]
-//! extern mod postgres;
+//! extern crate postgres;
 //!
 //! use postgres::types::range::{Range, RangeBound, Inclusive, Exclusive};
 //!
@@ -42,7 +42,7 @@
 //! }
 #[macro_escape];
 
-extern mod extra;
+extern crate extra;
 
 use std::cmp;
 use std::i32;

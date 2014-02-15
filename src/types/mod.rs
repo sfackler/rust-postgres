@@ -1,7 +1,7 @@
 //! Traits dealing with Postgres data types
 #[macro_escape];
 
-extern mod extra;
+extern crate extra;
 
 use extra::time::Timespec;
 use extra::json;

@@ -4,8 +4,8 @@ exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
 
 ```rust
-extern mod postgres;
-extern mod extra;
+extern crate postgres;
+extern crate extra;
 
 use extra::time;
 use extra::time::Timespec;
@@ -64,15 +64,15 @@ fn main() {
 
 #[feature(macro_rules, struct_variant, globs, phase)];
 
-extern mod collections;
-extern mod extra;
-extern mod openssl;
-extern mod serialize;
-extern mod sync;
+extern crate collections;
+extern crate extra;
+extern crate openssl;
+extern crate serialize;
+extern crate sync;
 #[phase(syntax)]
-extern mod phf_mac;
-extern mod phf;
-extern mod uuid;
+extern crate phf_mac;
+extern crate phf;
+extern crate uuid;
 
 use collections::{Deque, RingBuf};
 use extra::url::{UserInfo, Url};
