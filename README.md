@@ -160,9 +160,10 @@ methods, there is a second variant prefixed with `try_` which returns a
 match conn.try_execute(query, params) {
     Ok(updates) => println!("{} rows were updated", updates),
     Err(err) => match err.code {
-        NotNullViolation => println!("Something was NULL that shouldn't be"),
-        SyntaxError => println!("Invalid query syntax"),
-        _ => println!("A bad thing happened: {}", err.message),
+        PgDbError(NotNullViolation) =>
+            println!("Something was NULL that shouldn't be"),
+        PgDbError(SyntaxError) => println!("Invalid query syntax"),
+        _ => println!("A bad thing happened: {}", err),
     }
 }
 ```
