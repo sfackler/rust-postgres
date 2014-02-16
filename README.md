@@ -12,8 +12,8 @@ Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
 exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
 ```rust
-extern mod postgres;
-extern mod extra;
+extern crate postgres;
+extern crate extra;
 
 use extra::time;
 use extra::time::Timespec;
