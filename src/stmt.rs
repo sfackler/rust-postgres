@@ -265,15 +265,12 @@ pub struct ResultDescription {
     ty: PostgresType
 }
 
-impl ResultDescription {
-    pub fn from_row_description_entry(row: RowDescriptionEntry)
-            -> ResultDescription {
-        let RowDescriptionEntry { name, type_oid, .. } = row;
+pub fn make_ResultDescription(row: RowDescriptionEntry) -> ResultDescription {
+    let RowDescriptionEntry { name, type_oid, .. } = row;
 
-        ResultDescription {
-            name: name,
-            ty: PostgresType::from_oid(type_oid)
-        }
+    ResultDescription {
+        name: name,
+        ty: PostgresType::from_oid(type_oid)
     }
 }
 

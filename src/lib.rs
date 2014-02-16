@@ -583,7 +583,7 @@ impl InnerPostgresConnection {
         let mut result_desc: ~[ResultDescription] = match if_ok_pg!(self.read_message()) {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
-                        ResultDescription::from_row_description_entry(desc)
+                        stmt::make_ResultDescription(desc)
                     }).collect(),
             NoData => ~[],
             _ => unreachable!()
