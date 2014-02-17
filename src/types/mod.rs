@@ -326,9 +326,10 @@ macro_rules! from_range_impl(
                             };
                             let len = or_fail!(rdr.read_be_i32()) as uint;
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            Some(RangeBound::new(
-                                    RawFromSql::raw_from_sql(&mut limit), type_))
-                            // TODO assert limit is used up
+                            let lower = Some(RangeBound::new(
+                                    RawFromSql::raw_from_sql(&mut limit), type_));
+                            assert!(limit.limit() == 0);
+                            lower
                         }
                         _ => None
                     };
@@ -340,9 +341,10 @@ macro_rules! from_range_impl(
                             };
                             let len = or_fail!(rdr.read_be_i32()) as uint;
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            Some(RangeBound::new(
-                                    RawFromSql::raw_from_sql(&mut limit), type_))
-                            // TODO assert limit is used up
+                            let upper = Some(RangeBound::new(
+                                    RawFromSql::raw_from_sql(&mut limit), type_));
+                            assert!(limit.limit() == 0);
+                            upper
                         }
                         _ => None
                     };
@@ -435,7 +437,7 @@ macro_rules! from_array_impl(
                 } else {
                     let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
                     elements.push(Some(RawFromSql::raw_from_sql(&mut limit)));
-                    // TODO assert the reader's at the end
+                    assert!(limit.limit() == 0);
                 }
             }
 
