@@ -86,7 +86,7 @@ impl PostgresConnectionPool {
             }
 
             pool.pool.pop().unwrap()
-        });;
+        });
 
         PooledPostgresConnection {
             pool: self.clone(),
