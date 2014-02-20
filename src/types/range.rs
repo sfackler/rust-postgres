@@ -1,45 +1,4 @@
 //! Types dealing with ranges of values
-//!
-//! # Macros
-//!
-//! The `quote!` macro can make it easier to create ranges. It roughly mirrors
-//! traditional mathematic range syntax.
-//!
-//! # Note
-//!
-//! The `Range`, `RangeBound`, `Inclusive`, and `Exclusive` types must be
-//! directly usable at the location the macro is used.
-//!
-//! ```rust
-//! #[feature(phase)];
-//!
-//! #[phase(syntax, link)]
-//! extern crate postgres;
-//!
-//! use postgres::types::range::{Range, RangeBound, Inclusive, Exclusive};
-//!
-//! fn main() {
-//!     # let mut r: Range<i32>;
-//!     // a closed interval
-//!     r = range!('[' 5i32, 10i32 ']');
-//!     // an open interval
-//!     r = range!('(' 5i32, 10i32 ')');
-//!     // half-open intervals
-//!     r = range!('(' 5i32, 10i32 ']');
-//!     r = range!('[' 5i32, 10i32 ')');
-//!     // a closed lower-bounded interval
-//!     r = range!('[' 5i32, ')');
-//!     // an open lower-bounded interval
-//!     r = range!('(' 5i32, ')');
-//!     // a closed upper-bounded interval
-//!     r = range!('(', 10i32 ']');
-//!     // an open upper-bounded interval
-//!     r = range!('(', 10i32 ')');
-//!     // an unbounded interval
-//!     r = range!('(', ')');
-//!     // an empty interval
-//!     r = range!(empty);
-//! }
 #[macro_escape];
 
 extern crate extra;
@@ -49,6 +8,46 @@ use std::i32;
 use std::i64;
 use extra::time::Timespec;
 
+/// The `quote!` macro can make it easier to create ranges. It roughly mirrors
+/// traditional mathematic range syntax.
+///
+/// # Note
+///
+/// The `Range`, `RangeBound`, `Inclusive`, and `Exclusive` types must be
+/// directly usable at the location the macro is used.
+///
+/// # Example
+///
+/// ```rust
+/// #[feature(phase)];
+///
+/// #[phase(syntax, link)]
+/// extern crate postgres;
+///
+/// use postgres::types::range::{Range, RangeBound, Inclusive, Exclusive};
+///
+/// fn main() {
+///     # let mut r: Range<i32>;
+///     // a closed interval
+///     r = range!('[' 5i32, 10i32 ']');
+///     // an open interval
+///     r = range!('(' 5i32, 10i32 ')');
+///     // half-open intervals
+///     r = range!('(' 5i32, 10i32 ']');
+///     r = range!('[' 5i32, 10i32 ')');
+///     // a closed lower-bounded interval
+///     r = range!('[' 5i32, ')');
+///     // an open lower-bounded interval
+///     r = range!('(' 5i32, ')');
+///     // a closed upper-bounded interval
+///     r = range!('(', 10i32 ']');
+///     // an open upper-bounded interval
+///     r = range!('(', 10i32 ')');
+///     // an unbounded interval
+///     r = range!('(', ')');
+///     // an empty interval
+///     r = range!(empty);
+/// }
 #[macro_export]
 macro_rules! range(
     (empty) => (Range::empty());
