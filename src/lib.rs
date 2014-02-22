@@ -69,6 +69,7 @@ extern crate extra;
 extern crate openssl;
 extern crate serialize;
 extern crate sync;
+extern crate time;
 #[phase(syntax)]
 extern crate phf_mac;
 extern crate phf;
@@ -568,7 +569,7 @@ impl InnerPostgresConnection {
         match if_ok_pg!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
-                if_ok!(self.wait_for_ready());
+                try!(self.wait_for_ready());
                 return Err(PgDbError(PostgresDbError::new(fields)));
             }
             _ => unreachable!()
@@ -589,14 +590,14 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         };
 
-        if_ok!(self.wait_for_ready());
+        try!(self.wait_for_ready());
 
         // now that the connection is ready again, get unknown type names
         for param in param_types.mut_iter() {
             match *param {
                 PgUnknownType { oid, .. } =>
                     *param = PgUnknownType {
-                        name: if_ok!(self.get_type_name(oid)),
+                        name: try!(self.get_type_name(oid)),
                         oid: oid
                     },
                 _ => {}
@@ -607,7 +608,7 @@ impl InnerPostgresConnection {
             match desc.ty {
                 PgUnknownType { oid, .. } =>
                     desc.ty = PgUnknownType {
-                        name: if_ok!(self.get_type_name(oid)),
+                        name: try!(self.get_type_name(oid)),
                         oid: oid
                     },
                 _ => {}
@@ -629,7 +630,7 @@ impl InnerPostgresConnection {
             Some(name) => return Ok(name.clone()),
             None => {}
         }
-        let name = if_ok!(self.quick_query(
+        let name = try!(self.quick_query(
                 format!("SELECT typname FROM pg_type WHERE oid={}", oid)))[0][0]
                 .unwrap();
         self.unknown_types.insert(oid, name.clone());
@@ -657,7 +658,7 @@ impl InnerPostgresConnection {
                             opt.map(|b| str::from_utf8_owned(b).unwrap()))
                                .collect()),
                 ErrorResponse { fields } => {
-                    if_ok!(self.wait_for_ready());
+                    try!(self.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 _ => {}
@@ -762,7 +763,7 @@ impl PostgresConnection {
     pub fn try_transaction<'a>(&'a self)
             -> Result<PostgresTransaction<'a>, PostgresError> {
         check_desync!(self);
-        if_ok!(self.quick_query("BEGIN"));
+        try!(self.quick_query("BEGIN"));
         Ok(PostgresTransaction {
             conn: self,
             commit: Cell::new(true),
@@ -889,15 +890,15 @@ impl<'conn> PostgresTransaction<'conn> {
     fn finish_inner(&mut self) -> Result<(), PostgresError> {
         if task::failing() || !self.commit.get() {
             if self.nested {
-                if_ok!(self.conn.quick_query("ROLLBACK TO sp"));
+                try!(self.conn.quick_query("ROLLBACK TO sp"));
             } else {
-                if_ok!(self.conn.quick_query("ROLLBACK"));
+                try!(self.conn.quick_query("ROLLBACK"));
             }
         } else {
             if self.nested {
-                if_ok!(self.conn.quick_query("RELEASE sp"));
+                try!(self.conn.quick_query("RELEASE sp"));
             } else {
-                if_ok!(self.conn.quick_query("COMMIT"));
+                try!(self.conn.quick_query("COMMIT"));
             }
         }
         Ok(())
@@ -934,7 +935,7 @@ impl<'conn> PostgresTransaction<'conn> {
     pub fn try_transaction<'a>(&'a self)
             -> Result<PostgresTransaction<'a>, PostgresError> {
         check_desync!(self.conn);
-        if_ok!(self.conn.quick_query("SAVEPOINT sp"));
+        try!(self.conn.quick_query("SAVEPOINT sp"));
         Ok(PostgresTransaction {
             conn: self.conn,
             commit: Cell::new(true),

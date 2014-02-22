@@ -125,7 +125,7 @@ trait WriteCStr {
 
 impl<W: Writer> WriteCStr for W {
     fn write_cstr(&mut self, s: &str) -> IoResult<()> {
-        if_ok!(self.write(s.as_bytes()));
+        try!(self.write(s.as_bytes()));
         self.write_u8(0)
     }
 }
@@ -144,78 +144,78 @@ impl<W: Writer> WriteMessage for W {
         match *message {
             Bind { portal, statement, formats, values, result_formats } => {
                 ident = Some('B');
-                if_ok!(buf.write_cstr(portal));
-                if_ok!(buf.write_cstr(statement));
+                try!(buf.write_cstr(portal));
+                try!(buf.write_cstr(statement));
 
-                if_ok!(buf.write_be_i16(formats.len() as i16));
+                try!(buf.write_be_i16(formats.len() as i16));
                 for format in formats.iter() {
-                    if_ok!(buf.write_be_i16(*format));
+                    try!(buf.write_be_i16(*format));
                 }
 
-                if_ok!(buf.write_be_i16(values.len() as i16));
+                try!(buf.write_be_i16(values.len() as i16));
                 for value in values.iter() {
                     match *value {
                         None => {
-                            if_ok!(buf.write_be_i32(-1));
+                            try!(buf.write_be_i32(-1));
                         }
                         Some(ref value) => {
-                            if_ok!(buf.write_be_i32(value.len() as i32));
-                            if_ok!(buf.write(*value));
+                            try!(buf.write_be_i32(value.len() as i32));
+                            try!(buf.write(*value));
                         }
                     }
                 }
 
-                if_ok!(buf.write_be_i16(result_formats.len() as i16));
+                try!(buf.write_be_i16(result_formats.len() as i16));
                 for format in result_formats.iter() {
-                    if_ok!(buf.write_be_i16(*format));
+                    try!(buf.write_be_i16(*format));
                 }
             }
             CancelRequest { code, process_id, secret_key } => {
-                if_ok!(buf.write_be_i32(code));
-                if_ok!(buf.write_be_i32(process_id));
-                if_ok!(buf.write_be_i32(secret_key));
+                try!(buf.write_be_i32(code));
+                try!(buf.write_be_i32(process_id));
+                try!(buf.write_be_i32(secret_key));
             }
             Close { variant, name } => {
                 ident = Some('C');
-                if_ok!(buf.write_u8(variant));
-                if_ok!(buf.write_cstr(name));
+                try!(buf.write_u8(variant));
+                try!(buf.write_cstr(name));
             }
             Describe { variant, name } => {
                 ident = Some('D');
-                if_ok!(buf.write_u8(variant));
-                if_ok!(buf.write_cstr(name));
+                try!(buf.write_u8(variant));
+                try!(buf.write_cstr(name));
             }
             Execute { portal, max_rows } => {
                 ident = Some('E');
-                if_ok!(buf.write_cstr(portal));
-                if_ok!(buf.write_be_i32(max_rows));
+                try!(buf.write_cstr(portal));
+                try!(buf.write_be_i32(max_rows));
             }
             Parse { name, query, param_types } => {
                 ident = Some('P');
-                if_ok!(buf.write_cstr(name));
-                if_ok!(buf.write_cstr(query));
-                if_ok!(buf.write_be_i16(param_types.len() as i16));
+                try!(buf.write_cstr(name));
+                try!(buf.write_cstr(query));
+                try!(buf.write_be_i16(param_types.len() as i16));
                 for ty in param_types.iter() {
-                    if_ok!(buf.write_be_i32(*ty));
+                    try!(buf.write_be_i32(*ty));
                 }
             }
             PasswordMessage { password } => {
                 ident = Some('p');
-                if_ok!(buf.write_cstr(password));
+                try!(buf.write_cstr(password));
             }
             Query { query } => {
                 ident = Some('Q');
-                if_ok!(buf.write_cstr(query));
+                try!(buf.write_cstr(query));
             }
             StartupMessage { version, parameters } => {
-                if_ok!(buf.write_be_i32(version));
+                try!(buf.write_be_i32(version));
                 for &(ref k, ref v) in parameters.iter() {
-                    if_ok!(buf.write_cstr(k.as_slice()));
-                    if_ok!(buf.write_cstr(v.as_slice()));
+                    try!(buf.write_cstr(k.as_slice()));
+                    try!(buf.write_cstr(v.as_slice()));
                 }
-                if_ok!(buf.write_u8(0));
+                try!(buf.write_u8(0));
             }
-            SslRequest { code } => if_ok!(buf.write_be_i32(code)),
+            SslRequest { code } => try!(buf.write_be_i32(code)),
             Sync => {
                 ident = Some('S');
             }
@@ -225,15 +225,15 @@ impl<W: Writer> WriteMessage for W {
         }
 
         match ident {
-            Some(ident) => if_ok!(self.write_u8(ident as u8)),
+            Some(ident) => try!(self.write_u8(ident as u8)),
             None => ()
         }
 
         let buf = buf.unwrap();
 
         // add size of length value
-        if_ok!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
-        if_ok!(self.write(buf));
+        try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
+        try!(self.write(buf));
 
         Ok(())
     }
@@ -246,7 +246,7 @@ trait ReadCStr {
 
 impl<R: Buffer> ReadCStr for R {
     fn read_cstr(&mut self) -> IoResult<~str> {
-        let mut buf = if_ok!(self.read_until(0));
+        let mut buf = try!(self.read_until(0));
         buf.pop();
         Ok(str::from_utf8_owned(buf).unwrap())
     }
@@ -261,39 +261,39 @@ impl<R: Reader> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         debug!("Reading message");
 
-        let ident = if_ok!(self.read_u8());
+        let ident = try!(self.read_u8());
         // subtract size of length value
-        let len = if_ok!(self.read_be_i32()) as uint - mem::size_of::<i32>();
-        let mut buf = MemReader::new(if_ok!(self.read_bytes(len)));
+        let len = try!(self.read_be_i32()) as uint - mem::size_of::<i32>();
+        let mut buf = MemReader::new(try!(self.read_bytes(len)));
 
         let ret = match ident as char {
             '1' => ParseComplete,
             '2' => BindComplete,
             '3' => CloseComplete,
             'A' => NotificationResponse {
-                pid: if_ok!(buf.read_be_i32()),
-                channel: if_ok!(buf.read_cstr()),
-                payload: if_ok!(buf.read_cstr())
+                pid: try!(buf.read_be_i32()),
+                channel: try!(buf.read_cstr()),
+                payload: try!(buf.read_cstr())
             },
-            'C' => CommandComplete { tag: if_ok!(buf.read_cstr()) },
-            'D' => if_ok!(read_data_row(&mut buf)),
-            'E' => ErrorResponse { fields: if_ok!(read_fields(&mut buf)) },
+            'C' => CommandComplete { tag: try!(buf.read_cstr()) },
+            'D' => try!(read_data_row(&mut buf)),
+            'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
             'I' => EmptyQueryResponse,
             'K' => BackendKeyData {
-                process_id: if_ok!(buf.read_be_i32()),
-                secret_key: if_ok!(buf.read_be_i32())
+                process_id: try!(buf.read_be_i32()),
+                secret_key: try!(buf.read_be_i32())
             },
             'n' => NoData,
-            'N' => NoticeResponse { fields: if_ok!(read_fields(&mut buf)) },
-            'R' => if_ok!(read_auth_message(&mut buf)),
+            'N' => NoticeResponse { fields: try!(read_fields(&mut buf)) },
+            'R' => try!(read_auth_message(&mut buf)),
             's' => PortalSuspended,
             'S' => ParameterStatus {
-                parameter: if_ok!(buf.read_cstr()),
-                value: if_ok!(buf.read_cstr())
+                parameter: try!(buf.read_cstr()),
+                value: try!(buf.read_cstr())
             },
-            't' => if_ok!(read_parameter_description(&mut buf)),
-            'T' => if_ok!(read_row_description(&mut buf)),
-            'Z' => ReadyForQuery { state: if_ok!(buf.read_u8()) },
+            't' => try!(read_parameter_description(&mut buf)),
+            'T' => try!(read_row_description(&mut buf)),
+            'Z' => ReadyForQuery { state: try!(buf.read_u8()) },
             ident => fail!("Unknown message identifier `{}`", ident)
         };
         debug!("Read message {:?}", ret);
@@ -304,25 +304,25 @@ impl<R: Reader> ReadMessage for R {
 fn read_fields(buf: &mut MemReader) -> IoResult<~[(u8, ~str)]> {
     let mut fields = ~[];
     loop {
-        let ty = if_ok!(buf.read_u8());
+        let ty = try!(buf.read_u8());
         if ty == 0 {
             break;
         }
 
-        fields.push((ty, if_ok!(buf.read_cstr())));
+        fields.push((ty, try!(buf.read_cstr())));
     }
 
     Ok(fields)
 }
 
 fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
-    let len = if_ok!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as uint;
     let mut values = vec::with_capacity(len);
 
     for _ in range(0, len) {
-        let val = match if_ok!(buf.read_be_i32()) {
+        let val = match try!(buf.read_be_i32()) {
             -1 => None,
-            len => Some(if_ok!(buf.read_bytes(len as uint)))
+            len => Some(try!(buf.read_bytes(len as uint)))
         };
         values.push(val);
     }
@@ -331,11 +331,11 @@ fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
 }
 
 fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
-    Ok(match if_ok!(buf.read_be_i32()) {
+    Ok(match try!(buf.read_be_i32()) {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
-        5 => AuthenticationMD5Password { salt: if_ok!(buf.read_bytes(4)) },
+        5 => AuthenticationMD5Password { salt: try!(buf.read_bytes(4)) },
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
@@ -344,29 +344,29 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
 }
 
 fn read_parameter_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
-    let len = if_ok!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as uint;
     let mut types = vec::with_capacity(len);
 
     for _ in range(0, len) {
-        types.push(if_ok!(buf.read_be_u32()));
+        types.push(try!(buf.read_be_u32()));
     }
 
     Ok(ParameterDescription { types: types })
 }
 
 fn read_row_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
-    let len = if_ok!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as uint;
     let mut types = vec::with_capacity(len);
 
     for _ in range(0, len) {
         types.push(RowDescriptionEntry {
-            name: if_ok!(buf.read_cstr()),
-            table_oid: if_ok!(buf.read_be_u32()),
-            column_id: if_ok!(buf.read_be_i16()),
-            type_oid: if_ok!(buf.read_be_u32()),
-            type_size: if_ok!(buf.read_be_i16()),
-            type_modifier: if_ok!(buf.read_be_i32()),
-            format: if_ok!(buf.read_be_i16())
+            name: try!(buf.read_cstr()),
+            table_oid: try!(buf.read_be_u32()),
+            column_id: try!(buf.read_be_i16()),
+            type_oid: try!(buf.read_be_u32()),
+            type_size: try!(buf.read_be_i16()),
+            type_modifier: try!(buf.read_be_i32()),
+            format: try!(buf.read_be_i16())
         });
     }
 

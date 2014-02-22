@@ -130,7 +130,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             match if_ok_pg!(self.conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
-                    if_ok!(self.conn.wait_for_ready());
+                    try!(self.conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 _ => {}
@@ -173,7 +173,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
         match if_ok_pg!(self.conn.read_message()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
-                if_ok!(self.conn.wait_for_ready());
+                try!(self.conn.wait_for_ready());
                 Err(PgDbError(PostgresDbError::new(fields)))
             }
             _ => unreachable!()
@@ -186,7 +186,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}_portal_{}", self.name, id);
 
-        if_ok!(self.execute(portal_name, row_limit, params));
+        try!(self.execute(portal_name, row_limit, params));
 
         let mut result = PostgresResult {
             stmt: self,
@@ -196,7 +196,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             more_rows: true,
             finished: false,
         };
-        if_ok!(result.read_rows())
+        try!(result.read_rows())
 
         Ok(result)
     }
@@ -214,14 +214,14 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
     fn try_execute(&self, params: &[&ToSql])
                       -> Result<uint, PostgresError> {
         check_desync!(self.conn);
-        if_ok!(self.execute("", 0, params));
+        try!(self.execute("", 0, params));
 
         let num;
         loop {
             match if_ok_pg!(self.conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
-                    if_ok!(self.conn.wait_for_ready());
+                    try!(self.conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
@@ -239,7 +239,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
                 _ => unreachable!()
             }
         }
-        if_ok!(self.conn.wait_for_ready());
+        try!(self.conn.wait_for_ready());
 
         Ok(num)
     }
@@ -379,7 +379,7 @@ impl<'stmt> PostgresResult<'stmt> {
             match if_ok_pg!(self.stmt.conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
-                    if_ok!(self.stmt.conn.wait_for_ready());
+                    try!(self.stmt.conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 _ => {}
@@ -433,7 +433,7 @@ impl<'stmt> PostgresResult<'stmt> {
     pub fn try_next(&mut self)
             -> Result<Option<PostgresRow<'stmt>>, PostgresError> {
         if self.data.is_empty() && self.more_rows {
-            if_ok!(self.execute());
+            try!(self.execute());
         }
 
         let row = self.data.pop_front().map(|row| {

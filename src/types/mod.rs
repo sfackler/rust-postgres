@@ -3,7 +3,7 @@
 
 extern crate extra;
 
-use extra::time::Timespec;
+use time::Timespec;
 use extra::json;
 use extra::json::Json;
 use uuid::Uuid;

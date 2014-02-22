@@ -1,7 +1,7 @@
 use sync::DuplexStream;
 use sync::Future;
-use extra::time;
-use extra::time::Timespec;
+use time;
+use time::Timespec;
 use extra::json;
 use uuid::Uuid;
 use openssl::ssl::{SslContext, Sslv3};
