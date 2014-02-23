@@ -548,7 +548,7 @@ impl RawToSql for Timespec {
 
 impl RawToSql for Uuid {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
-        or_fail!(w.write(self.to_bytes()))
+        or_fail!(w.write(self.as_bytes()))
     }
 }
 
