@@ -1,3 +1,4 @@
+use collections::HashMap;
 use sync::DuplexStream;
 use sync::Future;
 use time;
@@ -7,7 +8,6 @@ use uuid::Uuid;
 use openssl::ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
-use std::hashmap::HashMap;
 use std::io::timer;
 
 use {PostgresNoticeHandler,

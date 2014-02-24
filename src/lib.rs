@@ -75,13 +75,12 @@ extern crate phf_mac;
 extern crate phf;
 extern crate uuid;
 
-use collections::{Deque, RingBuf};
+use collections::{Deque, HashMap, RingBuf};
 use extra::url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
-use std::hashmap::HashMap;
 use std::io::{BufferedStream, IoResult};
 use std::io::net;
 use std::io::net::ip::{Port, SocketAddr};

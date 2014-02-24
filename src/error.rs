@@ -1,6 +1,6 @@
 //! Postgres errors
 
-use std::hashmap::HashMap;
+use collections::HashMap;
 use std::io::IoError;
 
 use openssl::ssl::error::SslError;

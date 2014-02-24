@@ -3,15 +3,15 @@
 
 extern crate extra;
 
-use time::Timespec;
+use collections::HashMap;
 use extra::json;
 use extra::json::Json;
 use uuid::Uuid;
-use std::hashmap::HashMap;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
 use std::vec;
+use time::Timespec;
 
 use self::array::{Array, ArrayBase, DimensionInfo};
 use self::range::{RangeBound, Inclusive, Exclusive, Range};
