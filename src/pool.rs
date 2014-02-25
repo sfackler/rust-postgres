@@ -72,7 +72,7 @@ impl PostgresConnectionPool {
             -> PostgresConnectionPool {
         match PostgresConnectionPool::try_new(url, ssl, pool_size) {
             Ok(pool) => pool,
-            Err(err) => fail!("Unable to initialize pool: {}", err.to_str())
+            Err(err) => fail!("Unable to initialize pool: {}", err)
         }
     }
 
