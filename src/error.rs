@@ -9,7 +9,7 @@ use phf::PhfMap;
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(ToStr, Eq, Clone, Show)]
+        #[deriving(Eq, Clone, Show)]
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
@@ -352,7 +352,7 @@ make_errors!(
 )
 
 /// Reasons a new Postgres connection could fail
-#[deriving(ToStr)]
+#[deriving(Show)]
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
     InvalidUrl,
@@ -378,7 +378,7 @@ pub enum PostgresConnectError {
 }
 
 /// Represents the position of an error in a query
-#[deriving(ToStr, Show)]
+#[deriving(Show)]
 pub enum PostgresErrorPosition {
     /// A position in the original query
     Position(uint),
@@ -392,7 +392,7 @@ pub enum PostgresErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
-#[deriving(ToStr, Show)]
+#[deriving(Show)]
 pub struct PostgresDbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -496,7 +496,7 @@ impl PostgresDbError {
 }
 
 /// An error encountered when communicating with the Postgres server
-#[deriving(ToStr, Show)]
+#[deriving(Show)]
 pub enum PostgresError {
     /// An error reported by the Postgres server
     PgDbError(PostgresDbError),
