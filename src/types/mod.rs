@@ -4,9 +4,9 @@
 extern crate extra;
 
 use collections::HashMap;
-use extra::json;
-use extra::json::Json;
 use uuid::Uuid;
+use serialize::json;
+use serialize::json::Json;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
