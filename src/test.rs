@@ -314,16 +314,16 @@ fn test_lazy_query() {
 fn test_param_types() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let stmt = conn.prepare("SELECT $1::INT, $2::VARCHAR");
-    assert_eq!(stmt.param_types(), [PgInt4, PgVarchar]);
+    assert_eq!(stmt.param_types(), &[PgInt4, PgVarchar]);
 }
 
 #[test]
 fn test_result_descriptions() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
     let stmt = conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b");
-    assert_eq!(stmt.result_descriptions(),
-               [ResultDescription { name: ~"a", ty: PgInt4},
-                ResultDescription { name: ~"b", ty: PgVarchar}]);
+    assert!(stmt.result_descriptions() ==
+            [ResultDescription { name: ~"a", ty: PgInt4},
+             ResultDescription { name: ~"b", ty: PgVarchar}]);
 }
 
 #[test]
@@ -344,11 +344,11 @@ fn test_type<T: Eq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     for &(ref val, ref repr) in checks.iter() {
         let stmt = conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type));
         let result = stmt.query([]).next().unwrap()[1];
-        assert_eq!(val, &result);
+        assert!(val == &result);
 
         let stmt = conn.prepare("SELECT $1::" + sql_type);
         let result = stmt.query([val as &ToSql]).next().unwrap()[1];
-        assert_eq!(val, &result);
+        assert!(val == &result);
     }
 }
 

@@ -4,7 +4,7 @@ use std::cast;
 use std::vec;
 
 /// Information about a dimension of an array
-#[deriving(Eq, Clone)]
+#[deriving(Eq, Clone, Show)]
 pub struct DimensionInfo {
     /// The size of the dimension
     len: uint,
@@ -253,8 +253,8 @@ mod tests {
     #[test]
     fn test_from_vec() {
         let a = ArrayBase::from_vec(~[0, 1, 2], -1);
-        assert_eq!([DimensionInfo { len: 3, lower_bound: -1 }],
-                   a.dimension_info());
+        assert!([DimensionInfo { len: 3, lower_bound: -1 }] ==
+                a.dimension_info());
         assert_eq!(&0, a.get(-1));
         assert_eq!(&1, a.get(0));
         assert_eq!(&2, a.get(1));

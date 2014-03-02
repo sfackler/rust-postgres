@@ -4,6 +4,7 @@
 extern crate extra;
 
 use std::cmp;
+use std::fmt;
 use std::i32;
 use std::i64;
 use time::Timespec;
@@ -179,6 +180,26 @@ pub struct RangeBound<S, T> {
     type_: BoundType
 }
 
+impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let chars = match self.type_ {
+            Inclusive => ['[', ']'],
+            Exclusive => ['(', ')'],
+        };
+
+        match BoundSided::side(None::<S>) {
+            Lower => {
+                try!(formatter.buf.write_char(chars[0]));
+                self.value.fmt(formatter)
+            }
+            Upper => {
+                try!(self.value.fmt(formatter));
+                formatter.buf.write_char(chars[1])
+            }
+        }
+    }
+}
+
 impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
     fn lt(&self, other: &RangeBound<S, T>) -> bool {
         match (BoundSided::side(None::<S>), self.type_, other.type_) {
@@ -225,6 +246,25 @@ pub enum Range<T> {
     priv Empty,
     priv Normal(Option<RangeBound<LowerBound, T>>,
                 Option<RangeBound<UpperBound, T>>)
+}
+
+impl<T: fmt::Show> fmt::Show for Range<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Empty => formatter.buf.write_str("empty"),
+            Normal(ref lower, ref upper) => {
+                match *lower {
+                    Some(ref bound) => try!(bound.fmt(formatter)),
+                    None => try!(formatter.buf.write_char('(')),
+                }
+                try!(formatter.buf.write_char(','));
+                match *upper {
+                    Some(ref bound) => bound.fmt(formatter),
+                    None => formatter.buf.write_char(')'),
+                }
+            }
+        }
+    }
 }
 
 impl<T: Ord+Normalizable> Range<T> {
