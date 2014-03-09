@@ -1,8 +1,6 @@
 //! Types dealing with ranges of values
 #[macro_escape];
 
-extern crate extra;
-
 use std::cmp;
 use std::fmt;
 use std::i32;
@@ -141,11 +139,9 @@ trait BoundSided {
 }
 
 /// A tag type representing an upper bound
-#[deriving(Eq,Clone)]
 pub enum UpperBound {}
 
 /// A tag type representing a lower bound
-#[deriving(Eq,Clone)]
 pub enum LowerBound {}
 
 impl BoundSided for UpperBound {
@@ -172,12 +168,20 @@ pub enum BoundType {
 /// Represents a one-sided bound.
 ///
 /// The side is determined by the `S` phantom parameter.
-#[deriving(Clone)]
 pub struct RangeBound<S, T> {
     /// The value of the bound
     value: T,
     /// The type of the bound
     type_: BoundType
+}
+
+impl<S: BoundSided, T: Clone> Clone for RangeBound<S, T> {
+    fn clone(&self) -> RangeBound<S, T> {
+        RangeBound {
+            value: self.value.clone(),
+            type_: self.type_.clone(),
+        }
+    }
 }
 
 impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
