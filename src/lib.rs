@@ -5,10 +5,9 @@ package.
 
 ```rust
 extern crate postgres;
-extern crate extra;
+extern crate time;
 
-use extra::time;
-use extra::time::Timespec;
+use time::Timespec;
 
 use postgres::{PostgresConnection, PostgresStatement, NoSsl};
 use postgres::types::ToSql;
@@ -20,6 +19,7 @@ struct Person {
     data: Option<~[u8]>
 }
 
+# fn main() {
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &NoSsl);
@@ -52,6 +52,7 @@ fn main() {
         println!("Found person {}", person.name);
     }
 }
+# }
 ```
  */
 
@@ -683,7 +684,7 @@ impl PostgresConnection {
     ///
     /// The URL should be provided in the normal format:
     ///
-    /// ```
+    /// ```notrust
     /// postgres://user[:password]@host[:port][/database][?param1=val1[[&param2=val2]...]]
     /// ```
     ///

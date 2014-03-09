@@ -5,23 +5,6 @@ BUILDDIR := build
 INSTALL_DIR := %PREFIX%
 
 ###############################################################################
-# Reconfiguration
-###############################################################################
-CONFIGURE_ARGS := %CONFIGURE_ARGS%
-
-NEED_GIT_RECONFIG := $(shell git submodule status | grep -c '^\(+|-\)')
-
-ifeq ($(NEED_GIT_RECONFIG),0)
-else
-.PHONY: config.stamp
-endif
-
-Makefile: config.stamp
-
-config.stamp: configure Makefile.in
-	./configure $(CONFIGURE_ARGS)
-
-###############################################################################
 # Dependencies
 ###############################################################################
 PHF_DIR := submodules/rust-phf
@@ -71,8 +54,10 @@ all: $(POSTGRES_LIB)
 ###############################################################################
 # Utility
 ###############################################################################
+check-doc: $(POSTGRES_LIB)
+	$(RUSTDOC) $(LINK_ARGS) -L $(BUILDDIR) --test $(POSTGRES_LIB_FILE)
 
-check: $(POSTGRES_TEST)
+check: $(POSTGRES_TEST) check-doc
 	$(POSTGRES_TEST)
 
 clean:
@@ -90,4 +75,4 @@ install: $(POSTGRES_LIB)
 	$(MAKE) -C $(PHF_DIR) install INSTALL_DIR=$(abspath $(INSTALL_DIR))
 	install $(POSTGRES_LIB) $(INSTALL_DIR)
 
-.PHONY: check clean doc install
+.PHONY: check-doc check clean clean-deps doc install

@@ -472,8 +472,17 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 /// by index is more efficient. Rows are 1-indexed.
 ///
 /// ```rust
+/// # extern crate postgres;
+/// # use postgres::{PostgresConnection, PostgresStatement, NoSsl};
+/// # fn main() {}
+/// # fn foo() {
+/// # let conn = PostgresConnection::connect("", &NoSsl);
+/// # let stmt = conn.prepare("");
+/// # let mut result = stmt.query([]);
+/// # let row = result.next().unwrap();
 /// let foo: i32 = row[1];
 /// let bar: ~str = row["bar"];
+/// # }
 /// ```
 pub struct PostgresRow<'stmt> {
     priv stmt: &'stmt NormalPostgresStatement<'stmt>,
