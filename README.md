@@ -13,10 +13,9 @@ exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
 ```rust
 extern crate postgres;
-extern crate extra;
+extern crate time;
 
-use extra::time;
-use extra::time::Timespec;
+use time::Timespec;
 
 use postgres::{PostgresConnection, PostgresStatement, NoSsl};
 use postgres::types::ToSql;
