@@ -37,6 +37,23 @@ pub trait PostgresStatement {
     ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use postgres::{PostgresConnection, NoSsl, PostgresStatement};
+    /// # use postgres::types::ToSql;
+    /// # fn main() {}
+    /// # fn foo() {
+    /// # let conn = PostgresConnection::connect("", &NoSsl);
+    /// # let bar = 1i32;
+    /// # let baz = true;
+    /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
+    /// match stmt.try_execute([&bar as &ToSql, &baz as &ToSql]) {
+    ///     Ok(count) => println!("{} row(s) updated", count),
+    ///     Err(err) => println!("Error executing query: {}", err)
+    /// }
+    /// # }
     fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError>;
 
     /// A convenience function wrapping `try_execute`.
@@ -47,7 +64,7 @@ pub trait PostgresStatement {
     fn execute(&self, params: &[&ToSql]) -> uint {
         match self.try_execute(params) {
             Ok(count) => count,
-            Err(err) => fail!("Error running query\n{}", err.to_str())
+            Err(err) => fail!("Error running query\n{}", err)
         }
     }
 
@@ -58,6 +75,27 @@ pub trait PostgresStatement {
     ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use postgres::{PostgresConnection, NoSsl, PostgresStatement};
+    /// # use postgres::types::ToSql;
+    /// # fn main() {}
+    /// # fn foo() {
+    /// # let conn = PostgresConnection::connect("", &NoSsl);
+    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
+    /// # let baz = true;
+    /// let mut rows = match stmt.try_query([&baz as &ToSql]) {
+    ///     Ok(rows) => rows,
+    ///     Err(err) => fail!("Error running query: {}", err)
+    /// };
+    /// for row in rows {
+    ///     let foo: i32 = row["foo"];
+    ///     println!("foo: {}", foo);
+    /// }
+    /// # }
+    /// ```
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresError>;
 
@@ -69,7 +107,7 @@ pub trait PostgresStatement {
     fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
         match self.try_query(params) {
             Ok(result) => result,
-            Err(err) => fail!("Error executing query:\n{}", err.to_str())
+            Err(err) => fail!("Error executing query:\n{}", err)
         }
     }
 
@@ -431,8 +469,8 @@ impl<'stmt> PostgresResult<'stmt> {
 
     /// Like `PostgresResult::next` except that it returns any errors to the
     /// caller instead of failing.
-    pub fn try_next(&mut self)
-            -> Result<Option<PostgresRow<'stmt>>, PostgresError> {
+    pub fn try_next(&mut self) -> Result<Option<PostgresRow<'stmt>>,
+                                         PostgresError> {
         if self.data.is_empty() && self.more_rows {
             try!(self.execute());
         }

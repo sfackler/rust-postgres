@@ -33,6 +33,25 @@ impl InnerConnectionPool {
 /// A simple fixed-size Postgres connection pool.
 ///
 /// It can be shared across tasks.
+///
+/// # Example
+///
+/// ```rust
+/// # use postgres::NoSsl;
+/// # use postgres::pool::PostgresConnectionPool;
+/// # fn main() {}
+/// # fn foo() {
+/// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
+///                                        NoSsl, 5);
+/// for _ in range(0, 10) {
+///     let pool = pool.clone();
+///     spawn(proc() {
+///         let conn = pool.get_connection();
+///         conn.execute("UPDATE foo SET bar = 1", []);
+///     });
+/// }
+/// # }
+/// ```
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
     priv pool: MutexArc<InnerConnectionPool>

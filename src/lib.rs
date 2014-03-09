@@ -267,6 +267,24 @@ pub struct PostgresCancelData {
 /// A `PostgresCancelData` object can be created via
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
+///
+/// # Example
+///
+/// ```rust
+/// # extern crate postgres;
+/// # fn main() {}
+/// # fn foo() {
+/// # use postgres::{PostgresConnection, NoSsl};
+/// # let url = "";
+/// let conn = PostgresConnection::connect(url, &NoSsl);
+/// let cancel_data = conn.cancel_data();
+/// spawn(proc() {
+///     conn.execute("SOME EXPENSIVE QUERY", []);
+/// });
+/// # let _ =
+/// postgres::cancel_query(url, &NoSsl, cancel_data);
+/// # }
+/// ```
 pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         -> Result<(), PostgresConnectError> {
     let Url { host, port, .. }: Url = match FromStr::from_str(url) {
@@ -691,6 +709,21 @@ impl PostgresConnection {
     /// The password may be omitted if not required. The default Postgres port
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # fn main() {}
+    /// # fn foo() {
+    /// # use postgres::{PostgresConnection, NoSsl};
+    /// let url = "postgres://postgres:hunter2@localhost:2994/foodb";
+    /// let maybe_conn = PostgresConnection::try_connect(url, &NoSsl);
+    /// let conn = match maybe_conn {
+    ///     Ok(conn) => conn,
+    ///     Err(err) => fail!("Error connecting: {}", err)
+    /// };
+    /// # }
+    /// ```
     pub fn try_connect(url: &str, ssl: &SslMode)
             -> Result<PostgresConnection, PostgresConnectError> {
         InnerPostgresConnection::try_connect(url, ssl).map(|conn| {
@@ -736,6 +769,20 @@ impl PostgresConnection {
     ///
     /// The statement is associated with the connection that created it and may
     /// not outlive that connection.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # fn main() {}
+    /// # fn foo() {
+    /// # let conn = PostgresConnection::connect("", &NoSsl);
+    /// let maybe_stmt = conn.try_prepare("SELECT foo FROM bar WHERE baz = $1");
+    /// let stmt = match maybe_stmt {
+    ///     Ok(stmt) => stmt,
+    ///     Err(err) => fail!("Error preparing statement: {}", err)
+    /// };
+    /// # }
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresError> {
         self.conn.with_mut(|conn| conn.try_prepare(query, self))
@@ -761,6 +808,26 @@ impl PostgresConnection {
     /// is active until the `PostgresTransaction` object falls out of scope.
     /// A transaction will commit by default unless the task fails or the
     /// transaction is set to roll back.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # fn main() {}
+    /// # fn foo() -> Result<(), postgres::error::PostgresError> {
+    /// # let conn = PostgresConnection::connect("", &NoSsl);
+    /// let trans = try!(conn.try_transaction());
+    /// trans.execute("UPDATE foo SET bar = 10", []);
+    ///
+    /// # let something_bad_happened = true;
+    /// if something_bad_happened {
+    ///     trans.set_rollback();
+    /// }
+    ///
+    /// drop(trans);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn try_transaction<'a>(&'a self)
             -> Result<PostgresTransaction<'a>, PostgresError> {
         check_desync!(self);
