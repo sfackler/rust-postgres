@@ -172,7 +172,7 @@ pub enum BoundType {
 /// Represents a one-sided bound.
 ///
 /// The side is determined by the `S` phantom parameter.
-#[deriving(Eq,Clone)]
+#[deriving(Clone)]
 pub struct RangeBound<S, T> {
     /// The value of the bound
     value: T,
@@ -197,6 +197,12 @@ impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
                 formatter.buf.write_char(chars[1])
             }
         }
+    }
+}
+
+impl<S: BoundSided, T: Eq> Eq for RangeBound<S, T> {
+    fn eq(&self, other: &RangeBound<S, T>) -> bool {
+        self.value == other.value && self.type_ == other.type_
     }
 }
 
@@ -228,6 +234,13 @@ impl<S: BoundSided, T: Ord> RangeBound<S, T> {
 }
 
 struct OptBound<'a, S, T>(Option<&'a RangeBound<S, T>>);
+
+impl<'a, S: BoundSided, T: Eq> Eq for OptBound<'a, S, T> {
+    fn eq(&self, &OptBound(ref other): &OptBound<'a, S, T>) -> bool {
+        let &OptBound(ref self_) = self;
+        self_ == other
+    }
+}
 
 impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
     fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
