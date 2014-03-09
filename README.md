@@ -158,11 +158,11 @@ methods, there is a second variant prefixed with `try_` which returns a
 ```rust
 match conn.try_execute(query, params) {
     Ok(updates) => println!("{} rows were updated", updates),
-    Err(err) => match err.code {
-        PgDbError(NotNullViolation) =>
-            println!("Something was NULL that shouldn't be"),
-        PgDbError(SyntaxError) => println!("Invalid query syntax"),
-        _ => println!("A bad thing happened: {}", err),
+    Err(PgDbError(PostgresDbError { code: NotNullViolation, .. })) =>
+        println!("Something was NULL that shouldn't be"),
+    Err(PgDbError(PostgresDbError { code: SyntaxError, .. })) =>
+        println!("Invalid query syntax"),
+    _ => println!("A bad thing happened: {}", err),
     }
 }
 ```
