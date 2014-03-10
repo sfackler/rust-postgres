@@ -40,11 +40,9 @@ pub trait PostgresStatement {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl, PostgresStatement};
     /// # use postgres::types::ToSql;
-    /// # fn main() {}
-    /// # fn foo() {
     /// # let conn = PostgresConnection::connect("", &NoSsl);
     /// # let bar = 1i32;
     /// # let baz = true;
@@ -53,7 +51,6 @@ pub trait PostgresStatement {
     ///     Ok(count) => println!("{} row(s) updated", count),
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
-    /// # }
     fn try_execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError>;
 
     /// A convenience function wrapping `try_execute`.
@@ -78,11 +75,9 @@ pub trait PostgresStatement {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl, PostgresStatement};
     /// # use postgres::types::ToSql;
-    /// # fn main() {}
-    /// # fn foo() {
     /// # let conn = PostgresConnection::connect("", &NoSsl);
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// # let baz = true;
@@ -94,7 +89,6 @@ pub trait PostgresStatement {
     ///     let foo: i32 = row["foo"];
     ///     println!("foo: {}", foo);
     /// }
-    /// # }
     /// ```
     fn try_query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresError>;
@@ -509,18 +503,14 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 /// A value can be accessed by the name or index of its column, though access
 /// by index is more efficient. Rows are 1-indexed.
 ///
-/// ```rust
-/// # extern crate postgres;
+/// ```rust,no_run
 /// # use postgres::{PostgresConnection, PostgresStatement, NoSsl};
-/// # fn main() {}
-/// # fn foo() {
 /// # let conn = PostgresConnection::connect("", &NoSsl);
 /// # let stmt = conn.prepare("");
 /// # let mut result = stmt.query([]);
 /// # let row = result.next().unwrap();
 /// let foo: i32 = row[1];
 /// let bar: ~str = row["bar"];
-/// # }
 /// ```
 pub struct PostgresRow<'stmt> {
     priv stmt: &'stmt NormalPostgresStatement<'stmt>,

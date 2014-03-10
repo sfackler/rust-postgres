@@ -3,7 +3,7 @@ Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
 exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
 
-```rust
+```rust,no_run
 extern crate postgres;
 extern crate time;
 
@@ -19,7 +19,6 @@ struct Person {
     data: Option<~[u8]>
 }
 
-# fn main() {
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
                                            &NoSsl);
@@ -52,7 +51,6 @@ fn main() {
         println!("Found person {}", person.name);
     }
 }
-# }
 ```
  */
 
@@ -270,10 +268,7 @@ pub struct PostgresCancelData {
 ///
 /// # Example
 ///
-/// ```rust
-/// # extern crate postgres;
-/// # fn main() {}
-/// # fn foo() {
+/// ```rust,no_run
 /// # use postgres::{PostgresConnection, NoSsl};
 /// # let url = "";
 /// let conn = PostgresConnection::connect(url, &NoSsl);
@@ -283,7 +278,6 @@ pub struct PostgresCancelData {
 /// });
 /// # let _ =
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
-/// # }
 /// ```
 pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         -> Result<(), PostgresConnectError> {
@@ -712,9 +706,7 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// # fn main() {}
-    /// # fn foo() {
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
     /// let url = "postgres://postgres:hunter2@localhost:2994/foodb";
     /// let maybe_conn = PostgresConnection::try_connect(url, &NoSsl);
@@ -722,7 +714,6 @@ impl PostgresConnection {
     ///     Ok(conn) => conn,
     ///     Err(err) => fail!("Error connecting: {}", err)
     /// };
-    /// # }
     /// ```
     pub fn try_connect(url: &str, ssl: &SslMode)
             -> Result<PostgresConnection, PostgresConnectError> {
@@ -772,17 +763,14 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// # fn main() {}
-    /// # fn foo() {
     /// # let conn = PostgresConnection::connect("", &NoSsl);
     /// let maybe_stmt = conn.try_prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
     ///     Err(err) => fail!("Error preparing statement: {}", err)
     /// };
-    /// # }
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresError> {
         self.conn.with_mut(|conn| conn.try_prepare(query, self))
@@ -811,9 +799,8 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// # fn main() {}
     /// # fn foo() -> Result<(), postgres::error::PostgresError> {
     /// # let conn = PostgresConnection::connect("", &NoSsl);
     /// let trans = try!(conn.try_transaction());

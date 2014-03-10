@@ -36,11 +36,9 @@ impl InnerConnectionPool {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
 /// # use postgres::NoSsl;
 /// # use postgres::pool::PostgresConnectionPool;
-/// # fn main() {}
-/// # fn foo() {
 /// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
 ///                                        NoSsl, 5);
 /// for _ in range(0, 10) {
@@ -50,7 +48,6 @@ impl InnerConnectionPool {
 ///         conn.execute("UPDATE foo SET bar = 1", []);
 ///     });
 /// }
-/// # }
 /// ```
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
