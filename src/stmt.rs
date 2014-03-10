@@ -525,7 +525,6 @@ impl<'stmt> Container for PostgresRow<'stmt> {
 }
 
 impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
-    #[inline]
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
         FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
