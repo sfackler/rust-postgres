@@ -384,7 +384,14 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
 mod test {
     use std::i32;
 
-    use super::*;
+    use super::{RangeBound,
+                Range,
+                Inclusive,
+                Exclusive,
+                UpperBound,
+                LowerBound,
+                Normalizable,
+                BoundType};
 
     #[test]
     fn test_range_bound_lower_lt() {

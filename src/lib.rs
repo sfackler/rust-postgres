@@ -63,7 +63,7 @@ fn main() {
 
 #[warn(missing_doc)];
 
-#[feature(macro_rules, struct_variant, globs, phase)];
+#[feature(macro_rules, struct_variant, phase)];
 
 extern crate collections;
 extern crate extra;

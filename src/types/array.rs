@@ -248,7 +248,7 @@ impl<'parent, T> MutableArray<T> for MutArraySlice<'parent, T> {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{DimensionInfo, ArrayBase, Array, MutableArray};
 
     #[test]
     fn test_from_vec() {
