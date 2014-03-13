@@ -462,29 +462,47 @@ from_array_impl!(PgInt4RangeArray, Range<i32>)
 from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 from_array_impl!(PgInt8RangeArray, Range<i64>)
 
-from_map_impl!(PgUnknownType { name: ~"hstore", .. },
-               HashMap<~str, Option<~str>>, |buf| {
-    let mut rdr = BufReader::new(buf.as_slice());
-    let mut map = HashMap::new();
+impl FromSql for Option<HashMap<~str, Option<~str>>> {
+    fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>)
+                -> Option<HashMap<~str, Option<~str>>> {
+        match *ty {
+            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            _ => fail!("Invalid Postgres type {}", *ty)
+        }
 
-    let count = or_fail!(rdr.read_be_i32());
+        raw.as_ref().map(|buf| {
+            let mut rdr = BufReader::new(buf.as_slice());
+            let mut map = HashMap::new();
 
-    for _ in range(0, count) {
-        let key_len = or_fail!(rdr.read_be_i32());
-        let key = str::from_utf8_owned(or_fail!(rdr.read_bytes(key_len as uint))).unwrap();
+            let count = or_fail!(rdr.read_be_i32());
 
-        let val_len = or_fail!(rdr.read_be_i32());
-        let val = if val_len < 0 {
-            None
-        } else {
-            Some(str::from_utf8_owned(or_fail!(rdr.read_bytes(val_len as uint))).unwrap())
-        };
+            for _ in range(0, count) {
+                let key_len = or_fail!(rdr.read_be_i32());
+                let key = str::from_utf8_owned(or_fail!(rdr.read_bytes(key_len as uint))).unwrap();
 
-        map.insert(key, val);
+                let val_len = or_fail!(rdr.read_be_i32());
+                let val = if val_len < 0 {
+                    None
+                } else {
+                    Some(str::from_utf8_owned(or_fail!(rdr.read_bytes(val_len as uint))).unwrap())
+                };
+
+                map.insert(key, val);
+            }
+
+            map
+        })
     }
+}
 
-    map
-})
+impl FromSql for HashMap<~str, Option<~str>> {
+    fn from_sql(ty: &PostgresType, raw: &Option<~[u8]>)
+                -> HashMap<~str, Option<~str>> {
+        // FIXME when you can specify Self types properly
+        let ret: Option<HashMap<~str, Option<~str>>> = FromSql::from_sql(ty, raw);
+        ret.unwrap()
+    }
+}
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -745,9 +763,13 @@ to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)
 to_array_impl!(PgJsonArray, Json)
 
-impl<'a> ToSql for HashMap<~str, Option<~str>> {
+impl ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
-        check_types!(PgUnknownType { name: ~"hstore", .. }, ty)
+        match *ty {
+            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            _ => fail!("Invalid Postgres type {}", *ty)
+        }
+
         let mut buf = MemWriter::new();
 
         or_fail!(buf.write_be_i32(self.len() as i32));
@@ -768,5 +790,17 @@ impl<'a> ToSql for HashMap<~str, Option<~str>> {
         (Binary, Some(buf.unwrap()))
     }
 }
-to_option_impl!(PgUnknownType { name: ~"hstore", .. },
-                HashMap<~str, Option<~str>>)
+
+impl ToSql for Option<HashMap<~str, Option<~str>>> {
+    fn to_sql(&self, ty: &PostgresType) -> (Format, Option<~[u8]>) {
+        match *ty {
+            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            _ => fail!("Invalid Postgres type {}", *ty)
+        }
+
+        match *self {
+            Some(ref inner) => inner.to_sql(ty),
+            None => (Binary, None)
+        }
+    }
+}
