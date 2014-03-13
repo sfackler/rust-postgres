@@ -364,6 +364,14 @@ impl<T: Ord+Normalizable> Range<T> {
     }
 }
 
+fn order<T:Ord>(a: T, b: T) -> (T, T) {
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
 impl<T: Ord+Normalizable+Clone> Range<T> {
     /// Returns the intersection of this range with another
     pub fn intersect(&self, other: &Range<T>) -> Range<T> {
@@ -377,6 +385,37 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
                                        OptBound(other.upper()));
 
         Range::new(lower.map(|v| v.clone()), upper.map(|v| v.clone()))
+    }
+
+    /// Returns the union of this range with another if it is contiguous
+    pub fn union(&self, other: &Range<T>) -> Option<Range<T>> {
+        if self.is_empty() {
+            return Some(other.clone());
+        }
+
+        if other.is_empty() {
+            return Some(self.clone());
+        }
+
+        let (OptBound(l_lower), OptBound(u_lower)) =
+            order(OptBound(self.lower()), OptBound(other.lower()));
+        let (OptBound(l_upper), OptBound(u_upper)) =
+            order(OptBound(self.upper()), OptBound(other.upper()));
+
+        let discontiguous = match (u_lower, l_upper) {
+            (Some(&RangeBound { value: ref l, type_: Exclusive }),
+             Some(&RangeBound { value: ref u, type_: Exclusive })) => l >= u,
+            (Some(&RangeBound { value: ref l, .. }),
+             Some(&RangeBound { value: ref u, .. })) => l > u,
+            _ => false
+        };
+
+        if discontiguous {
+            None
+        } else {
+            Some(Range::new(l_lower.map(|v| v.clone()),
+                            u_upper.map(|v| v.clone())))
+        }
     }
 }
 
@@ -542,6 +581,42 @@ mod test {
         let r2 = range!('[' 11i32, 14i32 ')');
         assert_eq!(r2, r1.intersect(&r2));
         assert_eq!(r2, r2.intersect(&r1));
+    }
+
+    #[test]
+    fn test_union() {
+        let r1 = range!('[' 10i32, 15i32 ')');
+        let r2 = range!('(' 20i32, 25i32 ']');
+        assert_eq!(None, r1.union(&r2));
+        assert_eq!(None, r2.union(&r1));
+
+        let r2 = range!('(', ')');
+        assert_eq!(Some(r2), r1.union(&r2));
+        assert_eq!(Some(r2), r2.union(&r1));
+
+        let r2 = range!('[' 13i32, 50i32 ')');
+        assert_eq!(Some(range!('[' 10i32, 50i32 ')')), r1.union(&r2));
+        assert_eq!(Some(range!('[' 10i32, 50i32 ')')), r2.union(&r1));
+
+        let r2 = range!('[' 3i32, 50i32 ')');
+        assert_eq!(Some(range!('[' 3i32, 50i32 ')')), r1.union(&r2));
+        assert_eq!(Some(range!('[' 3i32, 50i32 ')')), r2.union(&r1));
+
+        let r2 = range!('(', 11i32 ')');
+        assert_eq!(Some(range!('(', 15i32 ')')), r1.union(&r2));
+        assert_eq!(Some(range!('(', 15i32 ')')), r2.union(&r1));
+
+        let r2 = range!('(' 11i32, ')');
+        assert_eq!(Some(range!('[' 10i32, ')')), r1.union(&r2));
+        assert_eq!(Some(range!('[' 10i32, ')')), r2.union(&r1));
+
+        let r2 = range!('(' 15i32, 20i32 ')');
+        assert_eq!(None, r1.union(&r2));
+        assert_eq!(None, r2.union(&r1));
+
+        let r2 = range!('[' 15i32, 20i32 ']');
+        assert_eq!(Some(range!('[' 10i32, 20i32 ']')), r1.union(&r2));
+        assert_eq!(Some(range!('[' 10i32, 20i32 ']')), r2.union(&r1));
     }
 
     #[test]
