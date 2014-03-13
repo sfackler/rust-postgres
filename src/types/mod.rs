@@ -122,7 +122,7 @@ macro_rules! make_postgres_type(
             /// Returns the wire format needed for the value of `self`.
             pub fn result_format(&self) -> Format {
                 match *self {
-                    PgUnknownType { name: ~"hstore", .. } => Binary,
+                    PgUnknownType { name: ref name, .. } if "hstore" == *name => Binary,
                     PgUnknownType { .. } => Text,
                     _ => Binary
                 }
