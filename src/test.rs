@@ -1,6 +1,6 @@
 use collections::HashMap;
 use serialize::json;
-use sync::DuplexStream;
+use sync;
 use sync::Future;
 use time;
 use time::Timespec;
@@ -39,7 +39,7 @@ fn test_pool() {
     let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
                                            NoSsl, 2);
 
-    let (stream1, stream2) = DuplexStream::<(), ()>::new();
+    let (stream1, stream2) = sync::duplex();
 
     let pool1 = pool.clone();
     let mut fut1 = Future::spawn(proc() {
