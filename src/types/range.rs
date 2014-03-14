@@ -258,16 +258,21 @@ impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
 }
 
 /// Represents a range of values.
+#[deriving(Eq, Clone)]
+pub struct Range<T> {
+    priv inner: InnerRange<T>,
+}
+
 #[deriving(Eq,Clone)]
-pub enum Range<T> {
-    priv Empty,
-    priv Normal(Option<RangeBound<LowerBound, T>>,
-                Option<RangeBound<UpperBound, T>>)
+enum InnerRange<T> {
+    Empty,
+    Normal(Option<RangeBound<LowerBound, T>>,
+           Option<RangeBound<UpperBound, T>>)
 }
 
 impl<T: fmt::Show> fmt::Show for Range<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self.inner {
             Empty => formatter.buf.write_str("empty"),
             Normal(ref lower, ref upper) => {
                 match *lower {
@@ -300,23 +305,23 @@ impl<T: Ord+Normalizable> Range<T> {
                     _ => lower.value >= upper.value
                 };
                 if empty {
-                    return Empty;
+                    return Range { inner: Empty };
                 }
             }
             _ => {}
         }
 
-        Normal(lower, upper)
+        Range { inner: Normal(lower, upper) }
     }
 
     /// Creates a new empty range.
     pub fn empty() -> Range<T> {
-        Empty
+        Range { inner: Empty }
     }
 
     /// Determines if this range is the empty range.
     pub fn is_empty(&self) -> bool {
-        match *self {
+        match self.inner {
             Empty => true,
             Normal(..) => false
         }
@@ -324,7 +329,7 @@ impl<T: Ord+Normalizable> Range<T> {
 
     /// Returns the lower bound if it exists.
     pub fn lower<'a>(&'a self) -> Option<&'a RangeBound<LowerBound, T>> {
-        match *self {
+        match self.inner {
             Normal(Some(ref lower), _) => Some(lower),
             _ => None
         }
@@ -332,7 +337,7 @@ impl<T: Ord+Normalizable> Range<T> {
 
     /// Returns the upper bound if it exists.
     pub fn upper<'a>(&'a self) -> Option<&'a RangeBound<UpperBound, T>> {
-        match *self {
+        match self.inner {
             Normal(_, Some(ref upper)) => Some(upper),
             _ => None
         }
@@ -340,7 +345,7 @@ impl<T: Ord+Normalizable> Range<T> {
 
     /// Determines if a value lies within this range.
     pub fn contains(&self, value: &T) -> bool {
-        match *self {
+        match self.inner {
             Empty => false,
             Normal(ref lower, ref upper) => {
                 lower.as_ref().map_or(true, |b| b.in_bounds(value)) &&
