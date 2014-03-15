@@ -384,10 +384,10 @@ impl<T: Ord+Normalizable+Clone> Range<T> {
             return Range::empty();
         }
 
-        let OptBound(lower) = cmp::max(OptBound(self.lower()),
-                                       OptBound(other.lower()));
-        let OptBound(upper) = cmp::min(OptBound(self.upper()),
-                                       OptBound(other.upper()));
+        let (_, OptBound(lower)) = order(OptBound(self.lower()),
+                                         OptBound(other.lower()));
+        let (OptBound(upper), _) = order(OptBound(self.upper()),
+                                         OptBound(other.upper()));
 
         Range::new(lower.map(|v| v.clone()), upper.map(|v| v.clone()))
     }
