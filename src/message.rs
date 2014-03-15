@@ -2,6 +2,7 @@ use std::str;
 use std::io::{IoResult, MemWriter, MemReader};
 use std::mem;
 use std::vec;
+use std::vec_ng::Vec;
 
 use types::Oid;
 
@@ -29,15 +30,15 @@ pub enum BackendMessage {
         tag: ~str
     },
     DataRow {
-        row: ~[Option<~[u8]>]
+        row: Vec<Option<~[u8]>>
     },
     EmptyQueryResponse,
     ErrorResponse {
-        fields: ~[(u8, ~str)]
+        fields: Vec<(u8, ~str)>
     },
     NoData,
     NoticeResponse {
-        fields: ~[(u8, ~str)]
+        fields: Vec<(u8, ~str)>
     },
     NotificationResponse {
         pid: i32,
@@ -45,7 +46,7 @@ pub enum BackendMessage {
         payload: ~str
     },
     ParameterDescription {
-        types: ~[Oid]
+        types: Vec<Oid>
     },
     ParameterStatus {
         parameter: ~str,
@@ -57,7 +58,7 @@ pub enum BackendMessage {
         state: u8
     },
     RowDescription {
-        descriptions: ~[RowDescriptionEntry]
+        descriptions: Vec<RowDescriptionEntry>
     }
 }
 
@@ -301,8 +302,8 @@ impl<R: Reader> ReadMessage for R {
     }
 }
 
-fn read_fields(buf: &mut MemReader) -> IoResult<~[(u8, ~str)]> {
-    let mut fields = ~[];
+fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, ~str)>> {
+    let mut fields = Vec::new();
     loop {
         let ty = try!(buf.read_u8());
         if ty == 0 {
@@ -317,7 +318,7 @@ fn read_fields(buf: &mut MemReader) -> IoResult<~[(u8, ~str)]> {
 
 fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
-    let mut values = vec::with_capacity(len);
+    let mut values = Vec::with_capacity(len);
 
     for _ in range(0, len) {
         let val = match try!(buf.read_be_i32()) {
@@ -345,7 +346,7 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
 
 fn read_parameter_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
-    let mut types = vec::with_capacity(len);
+    let mut types = Vec::with_capacity(len);
 
     for _ in range(0, len) {
         types.push(try!(buf.read_be_u32()));
@@ -356,7 +357,7 @@ fn read_parameter_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
 
 fn read_row_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
-    let mut types = vec::with_capacity(len);
+    let mut types = Vec::with_capacity(len);
 
     for _ in range(0, len) {
         types.push(RowDescriptionEntry {

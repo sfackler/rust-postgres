@@ -3,6 +3,7 @@
 use collections::HashMap;
 use std::from_str::FromStr;
 use std::io::IoError;
+use std::vec_ng::Vec;
 
 use openssl::ssl::error::SslError;
 use phf::PhfMap;
@@ -450,7 +451,7 @@ pub struct PostgresDbError {
 
 impl PostgresDbError {
     #[doc(hidden)]
-    pub fn new(fields: ~[(u8, ~str)]) -> PostgresDbError {
+    pub fn new(fields: Vec<(u8, ~str)>) -> PostgresDbError {
         let mut map: HashMap<u8, ~str> = fields.move_iter().collect();
         PostgresDbError {
             severity: map.pop(&('S' as u8)).unwrap(),

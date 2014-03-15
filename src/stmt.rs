@@ -2,6 +2,7 @@ use collections::{Deque, RingBuf};
 use std::cell::Cell;
 use std::from_str::FromStr;
 use std::task;
+use std::vec_ng::Vec;
 
 use PostgresConnection;
 use error::{PgDbError,
@@ -116,16 +117,16 @@ pub trait PostgresStatement {
 pub struct NormalPostgresStatement<'conn> {
     priv conn: &'conn PostgresConnection,
     priv name: ~str,
-    priv param_types: ~[PostgresType],
-    priv result_desc: ~[ResultDescription],
+    priv param_types: Vec<PostgresType>,
+    priv result_desc: Vec<ResultDescription>,
     priv next_portal_id: Cell<uint>,
     priv finished: Cell<bool>,
 }
 
 pub fn make_NormalPostgresStatement<'a>(conn: &'a PostgresConnection,
                                         name: ~str,
-                                        param_types: ~[PostgresType],
-                                        result_desc: ~[ResultDescription])
+                                        param_types: Vec<PostgresType>,
+                                        result_desc: Vec<ResultDescription>)
                                         -> NormalPostgresStatement<'a> {
     NormalPostgresStatement {
         conn: conn,
@@ -174,8 +175,8 @@ impl<'conn> NormalPostgresStatement<'conn> {
 
     fn execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
             -> Result<(), PostgresError> {
-        let mut formats = ~[];
-        let mut values = ~[];
+        let mut formats = Vec::new();
+        let mut values = Vec::new();
         assert!(self.param_types.len() == params.len(),
                 "Expected {} parameters but found {}",
                 self.param_types.len(), params.len());
@@ -185,7 +186,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             values.push(value);
         };
 
-        let result_formats: ~[i16] = self.result_desc.iter().map(|desc| {
+        let result_formats: Vec<i16> = self.result_desc.iter().map(|desc| {
             desc.ty.result_format() as i16
         }).collect();
 
@@ -193,9 +194,9 @@ impl<'conn> NormalPostgresStatement<'conn> {
             Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
-                formats: formats,
-                values: values,
-                result_formats: result_formats
+                formats: formats.as_slice(),
+                values: values.as_slice(),
+                result_formats: result_formats.as_slice()
             },
             Execute {
                 portal: portal_name,
@@ -380,7 +381,7 @@ impl<'conn> TransactionalPostgresStatement<'conn> {
 pub struct PostgresResult<'stmt> {
     priv stmt: &'stmt NormalPostgresStatement<'stmt>,
     priv name: ~str,
-    priv data: RingBuf<~[Option<~[u8]>]>,
+    priv data: RingBuf<Vec<Option<~[u8]>>>,
     priv row_limit: uint,
     priv more_rows: bool,
     priv finished: bool,
@@ -514,7 +515,7 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 /// ```
 pub struct PostgresRow<'stmt> {
     priv stmt: &'stmt NormalPostgresStatement<'stmt>,
-    priv data: ~[Option<~[u8]>]
+    priv data: Vec<Option<~[u8]>>
 }
 
 impl<'stmt> Container for PostgresRow<'stmt> {
@@ -527,7 +528,7 @@ impl<'stmt> Container for PostgresRow<'stmt> {
 impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
-        FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
+        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty, self.data.get(idx))
     }
 }
 

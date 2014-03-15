@@ -88,6 +88,7 @@ use std::io::net::tcp::TcpStream;
 use std::mem;
 use std::str;
 use std::task;
+use std::vec_ng::Vec;
 
 use error::{DnsError,
             InvalidUrl,
@@ -588,18 +589,18 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         }
 
-        let mut param_types: ~[PostgresType] = match if_ok_pg!(self.read_message()) {
+        let mut param_types: Vec<PostgresType> = match if_ok_pg!(self.read_message()) {
             ParameterDescription { types } =>
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
             _ => unreachable!()
         };
 
-        let mut result_desc: ~[ResultDescription] = match if_ok_pg!(self.read_message()) {
+        let mut result_desc: Vec<ResultDescription> = match if_ok_pg!(self.read_message()) {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
                         stmt::make_ResultDescription(desc)
                     }).collect(),
-            NoData => ~[],
+            NoData => Vec::new(),
             _ => unreachable!()
         };
 
@@ -644,8 +645,8 @@ impl InnerPostgresConnection {
             None => {}
         }
         let name = try!(self.quick_query(
-                format!("SELECT typname FROM pg_type WHERE oid={}", oid)))[0][0]
-                .unwrap();
+            format!("SELECT typname FROM pg_type WHERE oid={}", oid)))
+            .move_iter().next().unwrap().move_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
     }
@@ -658,11 +659,11 @@ impl InnerPostgresConnection {
     }
 
     fn quick_query(&mut self, query: &str)
-            -> Result<~[~[Option<~str>]], PostgresError> {
+            -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
         check_desync!(self);
         if_ok_pg!(self.write_messages([Query { query: query }]));
 
-        let mut result = ~[];
+        let mut result = Vec::new();
         loop {
             match if_ok_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
@@ -893,7 +894,7 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str)
-            -> Result<~[~[Option<~str>]], PostgresError> {
+            -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
         self.conn.with_mut(|conn| conn.quick_query(query))
     }
 
