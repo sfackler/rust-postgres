@@ -11,6 +11,7 @@ use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
 use std::vec;
+use std::vec_ng::Vec;
 use time::Timespec;
 
 use self::array::{Array, ArrayBase, DimensionInfo};
@@ -543,6 +544,12 @@ impl RawToSql for ~[u8] {
     }
 }
 
+impl RawToSql for Vec<u8> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) {
+        or_fail!(w.write(self.as_slice()))
+    }
+}
+
 impl RawToSql for ~str {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) {
         or_fail!(w.write(self.as_bytes()))
@@ -677,6 +684,7 @@ macro_rules! to_raw_to_impl(
 
 to_raw_to_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, ~[u8])
+to_raw_to_impl!(PgByteA, Vec<u8>)
 to_raw_to_impl!(PgVarchar | PgText | PgCharN, ~str)
 to_raw_to_impl!(PgJson, Json)
 to_raw_to_impl!(PgChar, i8)
@@ -749,6 +757,7 @@ macro_rules! to_array_impl(
 
 to_array_impl!(PgBoolArray, bool)
 to_array_impl!(PgByteAArray, ~[u8])
+to_array_impl!(PgByteAArray, Vec<u8>)
 to_array_impl!(PgCharArray, i8)
 to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
