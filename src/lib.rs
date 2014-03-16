@@ -64,7 +64,6 @@ fn main() {
 #[feature(macro_rules, struct_variant, phase)];
 
 extern crate collections;
-extern crate extra;
 extern crate openssl;
 extern crate serialize;
 extern crate sync;
@@ -73,9 +72,10 @@ extern crate time;
 extern crate phf_mac;
 extern crate phf;
 extern crate uuid;
+extern crate url;
 
 use collections::{Deque, HashMap, RingBuf};
-use extra::url::{UserInfo, Url};
+use url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use serialize::hex::ToHex;

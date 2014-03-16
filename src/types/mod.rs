@@ -1,8 +1,6 @@
 //! Traits dealing with Postgres data types
 #[macro_escape];
 
-extern crate extra;
-
 use collections::HashMap;
 use uuid::Uuid;
 use serialize::json;
