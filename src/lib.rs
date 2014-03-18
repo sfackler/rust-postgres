@@ -73,6 +73,8 @@ extern crate phf_mac;
 extern crate phf;
 extern crate uuid;
 extern crate url;
+#[phase(syntax, link)]
+extern crate log;
 
 use collections::{Deque, HashMap, RingBuf};
 use url::{UserInfo, Url};
