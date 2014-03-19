@@ -507,7 +507,7 @@ impl InnerPostgresConnection {
                         payload: payload
                     }),
                 ParameterStatus { parameter, value } =>
-                    info!("Parameter {} = {}", parameter, value),
+                    debug!("Parameter {} = {}", parameter, value),
                 val => return Ok(val)
             }
         }
@@ -742,8 +742,7 @@ impl PostgresConnection {
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
             -> ~PostgresNoticeHandler {
-        let mut conn = self.conn.borrow_mut();
-        conn.get().set_notice_handler(handler)
+        self.conn.borrow_mut().set_notice_handler(handler)
     }
 
     /// Returns an iterator over asynchronous notification messages.
@@ -776,7 +775,7 @@ impl PostgresConnection {
     /// };
     pub fn try_prepare<'a>(&'a self, query: &str)
             -> Result<NormalPostgresStatement<'a>, PostgresError> {
-        self.conn.with_mut(|conn| conn.try_prepare(query, self))
+        self.conn.borrow_mut().try_prepare(query, self)
     }
 
     /// A convenience wrapper around `try_prepare`.
@@ -871,7 +870,7 @@ impl PostgresConnection {
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> PostgresCancelData {
-        self.conn.with(|conn| conn.cancel_data)
+        self.conn.borrow().cancel_data
     }
 
     /// Returns whether or not the stream has been desynchronized due to an
@@ -880,7 +879,7 @@ impl PostgresConnection {
     /// If this has occurred, all further queries will immediately return an
     /// error.
     pub fn is_desynchronized(&self) -> bool {
-        self.conn.with(|conn| conn.is_desynchronized())
+        self.conn.borrow().is_desynchronized()
     }
 
     /// Consumes the connection, closing it.
@@ -889,27 +888,26 @@ impl PostgresConnection {
     /// `PostgresConnection` except that it returns any error encountered to
     /// the caller.
     pub fn finish(self) -> Result<(), PostgresError> {
-        self.conn.with_mut(|conn| {
-            conn.finished = true;
-            conn.finish_inner()
-        })
+        let mut conn = self.conn.borrow_mut();
+        conn.finished = true;
+        conn.finish_inner()
     }
 
     fn quick_query(&self, query: &str)
             -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
-        self.conn.with_mut(|conn| conn.quick_query(query))
+        self.conn.borrow_mut().quick_query(query)
     }
 
     fn wait_for_ready(&self) -> Result<(), PostgresError> {
-        self.conn.with_mut(|conn| conn.wait_for_ready())
+        self.conn.borrow_mut().wait_for_ready()
     }
 
     fn read_message(&self) -> IoResult<BackendMessage> {
-        self.conn.with_mut(|conn| conn.read_message())
+        self.conn.borrow_mut().read_message()
     }
 
     fn write_messages(&self, messages: &[FrontendMessage]) -> IoResult<()> {
-        self.conn.with_mut(|conn| conn.write_messages(messages))
+        self.conn.borrow_mut().write_messages(messages)
     }
 }
 
