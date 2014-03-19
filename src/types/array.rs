@@ -2,6 +2,7 @@
 
 use std::cast;
 use std::vec;
+use std::vec_ng::Vec;
 
 /// Information about a dimension of an array
 #[deriving(Eq, Clone, Show)]
@@ -71,8 +72,8 @@ trait InternalArray<T> : Array<T> {
 /// A multi-dimensional array
 #[deriving(Eq, Clone)]
 pub struct ArrayBase<T> {
-    priv info: ~[DimensionInfo],
-    priv data: ~[T],
+    priv info: Vec<DimensionInfo>,
+    priv data: Vec<T>,
 }
 
 impl<T> ArrayBase<T> {
@@ -85,7 +86,7 @@ impl<T> ArrayBase<T> {
     ///
     /// Fails if there are 0 dimensions or the number of elements provided does
     /// not match the number of elements specified.
-    pub fn from_raw(data: ~[T], info: ~[DimensionInfo])
+    pub fn from_raw(data: Vec<T>, info: Vec<DimensionInfo>)
             -> ArrayBase<T> {
         assert!(!info.is_empty(), "Cannot create a 0x0 array");
         assert!(data.len() == info.iter().fold(1, |acc, i| acc * i.len),
@@ -97,12 +98,12 @@ impl<T> ArrayBase<T> {
     }
 
     /// Creates a new one-dimensional array from a vector.
-    pub fn from_vec(data: ~[T], lower_bound: int) -> ArrayBase<T> {
+    pub fn from_vec(data: Vec<T>, lower_bound: int) -> ArrayBase<T> {
         ArrayBase {
-            info: ~[DimensionInfo {
+            info: vec!(DimensionInfo {
                 len: data.len(),
                 lower_bound: lower_bound
-            }],
+            }),
             data: data
         }
     }
@@ -138,7 +139,7 @@ impl<T> ArrayBase<T> {
         for (info1, info2) in self.info.iter().skip(1).zip(other.info.iter()) {
             assert!(info1 == info2, "Cannot join differently shaped arrays");
         }
-        self.info[0].len += 1;
+        self.info.get_mut(0).len += 1;
         self.data.push_all_move(other.data);
     }
 
@@ -174,7 +175,7 @@ impl<T> MutableArray<T> for ArrayBase<T> {}
 
 impl<T> InternalArray<T> for ArrayBase<T> {
     fn raw_get<'a>(&'a self, idx: uint, _size: uint) -> &'a T {
-        &self.data[idx]
+        self.data.get(idx)
     }
 }
 
@@ -252,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_from_vec() {
-        let a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        let a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
         assert!([DimensionInfo { len: 3, lower_bound: -1 }] ==
                 a.dimension_info());
         assert_eq!(&0, a.get(-1));
@@ -263,7 +264,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_get_2d_fail() {
-        let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
         a.wrap(1);
         a.get(1);
     }
@@ -271,7 +272,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_2d_slice_range_fail_low() {
-        let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
         a.wrap(1);
         a.slice(0);
     }
@@ -279,14 +280,14 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_2d_slice_range_fail_high() {
-        let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
         a.wrap(1);
         a.slice(2);
     }
 
     #[test]
     fn test_2d_slice_get() {
-        let mut a = ArrayBase::from_vec(~[0, 1, 2], -1);
+        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
         a.wrap(1);
         let s = a.slice(1);
         assert_eq!(&0, s.get(-1));
@@ -297,33 +298,33 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_push_move_wrong_lower_bound() {
-        let mut a = ArrayBase::from_vec(~[1], -1);
-        a.push_move(ArrayBase::from_vec(~[2], 0));
+        let mut a = ArrayBase::from_vec(vec!(1), -1);
+        a.push_move(ArrayBase::from_vec(vec!(2), 0));
     }
 
     #[test]
     #[should_fail]
     fn test_push_move_wrong_dims() {
-        let mut a = ArrayBase::from_vec(~[1], -1);
+        let mut a = ArrayBase::from_vec(vec!(1), -1);
         a.wrap(1);
-        a.push_move(ArrayBase::from_vec(~[1, 2], -1));
+        a.push_move(ArrayBase::from_vec(vec!(1, 2), -1));
     }
 
     #[test]
     #[should_fail]
     fn test_push_move_wrong_dim_count() {
-        let mut a = ArrayBase::from_vec(~[1], -1);
+        let mut a = ArrayBase::from_vec(vec!(1), -1);
         a.wrap(1);
-        let mut b = ArrayBase::from_vec(~[2], -1);
+        let mut b = ArrayBase::from_vec(vec!(2), -1);
         b.wrap(1);
         a.push_move(b);
     }
 
     #[test]
     fn test_push_move_ok() {
-        let mut a = ArrayBase::from_vec(~[1, 2], 0);
+        let mut a = ArrayBase::from_vec(vec!(1, 2), 0);
         a.wrap(0);
-        a.push_move(ArrayBase::from_vec(~[3, 4], 0));
+        a.push_move(ArrayBase::from_vec(vec!(3, 4), 0));
         let s = a.slice(0);
         assert_eq!(&1, s.get(0));
         assert_eq!(&2, s.get(1));
@@ -334,13 +335,13 @@ mod tests {
 
     #[test]
     fn test_3d() {
-        let mut a = ArrayBase::from_vec(~[0, 1], 0);
+        let mut a = ArrayBase::from_vec(vec!(0, 1), 0);
         a.wrap(0);
-        a.push_move(ArrayBase::from_vec(~[2, 3], 0));
+        a.push_move(ArrayBase::from_vec(vec!(2, 3), 0));
         a.wrap(0);
-        let mut b = ArrayBase::from_vec(~[4, 5], 0);
+        let mut b = ArrayBase::from_vec(vec!(4, 5), 0);
         b.wrap(0);
-        b.push_move(ArrayBase::from_vec(~[6, 7], 0));
+        b.push_move(ArrayBase::from_vec(vec!(6, 7), 0));
         a.push_move(b);
         let s1 = a.slice(0);
         let s2 = s1.slice(0);
@@ -360,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_mut() {
-        let mut a = ArrayBase::from_vec(~[1, 2], 0);
+        let mut a = ArrayBase::from_vec(vec!(1, 2), 0);
         a.wrap(0);
         {
             let mut s = a.slice_mut(0);
@@ -373,14 +374,14 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_base_overslice() {
-        let a = ArrayBase::from_vec(~[1], 0);
+        let a = ArrayBase::from_vec(vec!(1), 0);
         a.slice(0);
     }
 
     #[test]
     #[should_fail]
     fn test_slice_overslice() {
-        let mut a = ArrayBase::from_vec(~[1], 0);
+        let mut a = ArrayBase::from_vec(vec!(1), 0);
         a.wrap(0);
         let s = a.slice(0);
         s.slice(0);

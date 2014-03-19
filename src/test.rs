@@ -519,13 +519,13 @@ fn test_tstzrange_params() {
 
 macro_rules! test_array_params(
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
-        let tests = [(Some(ArrayBase::from_vec(~[Some($v1), Some($v2), None], 1)),
+        let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
                       "'{" + $s1 + "," + $s2 + ",NULL}'"),
                      (None, ~"NULL")];
         test_type($name + "[]", tests);
-        let mut a = ArrayBase::from_vec(~[Some($v1), Some($v2)], 0);
+        let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
-        a.push_move(ArrayBase::from_vec(~[None, Some($v3)], 0));
+        a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
         let tests = [(Some(a), "'[-1:0][0:1]={{" + $s1 + "," + $s2 + "},{NULL," + $s3 + "}}'")];
         test_type($name + "[][]", tests);
     })

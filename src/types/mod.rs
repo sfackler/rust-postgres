@@ -419,7 +419,7 @@ macro_rules! from_array_impl(
             let _has_null = or_fail!(rdr.read_be_i32()) == 1;
             let _element_type: Oid = or_fail!(rdr.read_be_u32());
 
-            let mut dim_info = vec::with_capacity(ndim);
+            let mut dim_info = Vec::with_capacity(ndim);
             for _ in range(0, ndim) {
                 dim_info.push(DimensionInfo {
                     len: or_fail!(rdr.read_be_i32()) as uint,
@@ -428,7 +428,7 @@ macro_rules! from_array_impl(
             }
             let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
 
-            let mut elements = vec::with_capacity(nele);
+            let mut elements = Vec::with_capacity(nele);
             for _ in range(0, nele) {
                 let len = or_fail!(rdr.read_be_i32());
                 if len < 0 {
