@@ -743,10 +743,10 @@ fn test_custom_notice_handler() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl);
     conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
     conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
-                BEGIN
+                  BEGIN
                     RAISE NOTICE 'note';
                     RETURN 1;
-                END; $$ LANGUAGE plpgsql", []);
+                  END; $$ LANGUAGE plpgsql", []);
     conn.execute("SELECT pg_temp.note()", []);
 
     assert_eq!(unsafe { count }, 1);
