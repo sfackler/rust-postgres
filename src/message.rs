@@ -1,8 +1,6 @@
 use std::str;
 use std::io::{IoResult, MemWriter, MemReader};
 use std::mem;
-use std::vec;
-use std::vec_ng::Vec;
 
 use types::Oid;
 

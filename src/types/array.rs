@@ -1,8 +1,7 @@
 //! Multi-dimensional arrays with per-dimension specifiable lower bounds
 
 use std::cast;
-use std::vec;
-use std::vec_ng::Vec;
+use std::slice;
 
 /// Information about a dimension of an array
 #[deriving(Eq, Clone, Show)]
@@ -145,7 +144,7 @@ impl<T> ArrayBase<T> {
 
     /// Returns an iterator over the values in this array, in the
     /// higher-dimensional equivalent of row-major order.
-    pub fn values<'a>(&'a self) -> vec::Items<'a, T> {
+    pub fn values<'a>(&'a self) -> slice::Items<'a, T> {
         self.data.iter()
     }
 }

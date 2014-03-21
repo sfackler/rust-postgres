@@ -2,7 +2,6 @@ use collections::{Deque, RingBuf};
 use std::cell::Cell;
 use std::from_str::FromStr;
 use std::task;
-use std::vec_ng::Vec;
 
 use PostgresConnection;
 use error::{PgDbError,

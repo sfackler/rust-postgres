@@ -8,8 +8,6 @@ use serialize::json::Json;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use std::str;
-use std::vec;
-use std::vec_ng::Vec;
 use time::Timespec;
 
 use self::array::{Array, ArrayBase, DimensionInfo};

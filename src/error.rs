@@ -3,7 +3,6 @@
 use collections::HashMap;
 use std::from_str::FromStr;
 use std::io::IoError;
-use std::vec_ng::Vec;
 
 use openssl::ssl::error::SslError;
 use phf::PhfMap;

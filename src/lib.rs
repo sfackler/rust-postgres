@@ -90,7 +90,6 @@ use std::io::net::tcp::TcpStream;
 use std::mem;
 use std::str;
 use std::task;
-use std::vec_ng::Vec;
 
 use error::{DnsError,
             InvalidUrl,

@@ -1,7 +1,6 @@
 //! Types dealing with ranges of values
 #[macro_escape];
 
-use std::cmp;
 use std::fmt;
 use std::i32;
 use std::i64;
