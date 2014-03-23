@@ -246,7 +246,7 @@ impl<'conn > Iterator<PostgresNotification> for PostgresNotifications<'conn> {
     /// `next` may return `Some` notification after returning `None` if a new
     /// notification was received.
     fn next(&mut self) -> Option<PostgresNotification> {
-        self.conn.conn.with_mut(|conn| { conn.notifications.pop_front() })
+        self.conn.conn.borrow_mut().notifications.pop_front()
     }
 }
 

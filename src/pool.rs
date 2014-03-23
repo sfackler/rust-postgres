@@ -125,7 +125,7 @@ impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         let conn = RefCell::new(self.conn.take());
         self.pool.pool.access(|pool| {
-            pool.pool.push(conn.with_mut(|r| r.take_unwrap()));
+            pool.pool.push(conn.borrow_mut().take_unwrap());
         })
     }
 }

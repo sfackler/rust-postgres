@@ -475,13 +475,13 @@ impl FromSql for Option<HashMap<~str, Option<~str>>> {
 
             for _ in range(0, count) {
                 let key_len = or_fail!(rdr.read_be_i32());
-                let key = str::from_utf8_owned(or_fail!(rdr.read_bytes(key_len as uint))).unwrap();
+                let key = str::from_utf8_owned(or_fail!(rdr.read_exact(key_len as uint))).unwrap();
 
                 let val_len = or_fail!(rdr.read_be_i32());
                 let val = if val_len < 0 {
                     None
                 } else {
-                    Some(str::from_utf8_owned(or_fail!(rdr.read_bytes(val_len as uint))).unwrap())
+                    Some(str::from_utf8_owned(or_fail!(rdr.read_exact(val_len as uint))).unwrap())
                 };
 
                 map.insert(key, val);

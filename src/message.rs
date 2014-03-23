@@ -263,7 +263,7 @@ impl<R: Reader> ReadMessage for R {
         let ident = try!(self.read_u8());
         // subtract size of length value
         let len = try!(self.read_be_i32()) as uint - mem::size_of::<i32>();
-        let mut buf = MemReader::new(try!(self.read_bytes(len)));
+        let mut buf = MemReader::new(try!(self.read_exact(len)));
 
         let ret = match ident as char {
             '1' => ParseComplete,
@@ -321,7 +321,7 @@ fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
     for _ in range(0, len) {
         let val = match try!(buf.read_be_i32()) {
             -1 => None,
-            len => Some(try!(buf.read_bytes(len as uint)))
+            len => Some(try!(buf.read_exact(len as uint)))
         };
         values.push(val);
     }
@@ -334,7 +334,7 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
-        5 => AuthenticationMD5Password { salt: try!(buf.read_bytes(4)) },
+        5 => AuthenticationMD5Password { salt: try!(buf.read_exact(4)) },
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
