@@ -150,7 +150,7 @@ pub use stmt::{NormalPostgresStatement,
                RowIndex,
                TransactionalPostgresStatement};
 
-macro_rules! if_ok_pg_conn(
+macro_rules! try_pg_conn(
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
@@ -159,7 +159,7 @@ macro_rules! if_ok_pg_conn(
     )
 )
 
-macro_rules! if_ok_pg(
+macro_rules! try_pg(
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
@@ -168,7 +168,7 @@ macro_rules! if_ok_pg(
     )
 )
 
-macro_rules! if_ok_desync(
+macro_rules! try_desync(
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
@@ -297,12 +297,12 @@ pub fn cancel_query(url: &str, ssl: &SslMode, data: PostgresCancelData)
         Err(err) => return Err(err)
     };
 
-    if_ok_pg_conn!(socket.write_message(&CancelRequest {
+    try_pg_conn!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
         process_id: data.process_id,
         secret_key: data.secret_key
     }));
-    if_ok_pg_conn!(socket.flush());
+    try_pg_conn!(socket.flush());
 
     Ok(())
 }
@@ -337,10 +337,10 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         &RequireSsl(ref ctx) => (true, ctx)
     };
 
-    if_ok_pg_conn!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
-    if_ok_pg_conn!(socket.flush());
+    try_pg_conn!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
+    try_pg_conn!(socket.flush());
 
-    if if_ok_pg_conn!(socket.read_u8()) == 'N' as u8 {
+    if try_pg_conn!(socket.read_u8()) == 'N' as u8 {
         if ssl_required {
             return Err(NoSslSupport);
         } else {
@@ -432,10 +432,7 @@ impl InnerPostgresConnection {
             None => DEFAULT_PORT
         };
 
-        let stream = match initialize_stream(host, port, ssl) {
-            Ok(stream) => stream,
-            Err(err) => return Err(err)
-        };
+        let stream = try!(initialize_stream(host, port, ssl));
 
         let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
@@ -459,18 +456,15 @@ impl InnerPostgresConnection {
             path.shift_char();
             args.push((~"database", path));
         }
-        if_ok_pg_conn!(conn.write_messages([StartupMessage {
+        try_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
         }]));
 
-        match conn.handle_auth(user) {
-            Err(err) => return Err(err),
-            Ok(()) => {}
-        }
+        try!(conn.handle_auth(user));
 
         loop {
-            match if_ok_pg_conn!(conn.read_message()) {
+            match try_pg_conn!(conn.read_message()) {
                 BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
@@ -488,15 +482,15 @@ impl InnerPostgresConnection {
     fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
         assert!(!self.desynchronized);
         for message in messages.iter() {
-            if_ok_desync!(self.stream.write_message(message));
+            try_desync!(self.stream.write_message(message));
         }
-        Ok(if_ok_desync!(self.stream.flush()))
+        Ok(try_desync!(self.stream.flush()))
     }
 
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         assert!(!self.desynchronized);
         loop {
-            match if_ok_desync!(self.stream.read_message()) {
+            match try_desync!(self.stream.read_message()) {
                 NoticeResponse { fields } =>
                     self.notice_handler.handle(PostgresDbError::new(fields)),
                 NotificationResponse { pid, channel, payload } =>
@@ -514,14 +508,14 @@ impl InnerPostgresConnection {
 
     fn handle_auth(&mut self, user: UserInfo) ->
             Result<(), PostgresConnectError> {
-        match if_ok_pg_conn!(self.read_message()) {
+        match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
                 let pass = match user.pass {
                     Some(pass) => pass,
                     None => return Err(MissingPassword)
                 };
-                if_ok_pg_conn!(self.write_messages([PasswordMessage { password: pass }]));
+                try_pg_conn!(self.write_messages([PasswordMessage { password: pass }]));
             }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
@@ -537,7 +531,7 @@ impl InnerPostgresConnection {
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
                 let output = "md5" + hasher.final().to_hex();
-                if_ok_pg_conn!(self.write_messages([PasswordMessage {
+                try_pg_conn!(self.write_messages([PasswordMessage {
                     password: output.as_slice()
                 }]));
             }
@@ -550,7 +544,7 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         }
 
-        match if_ok_pg_conn!(self.read_message()) {
+        match try_pg_conn!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } =>
                 Err(PgConnectDbError(PostgresDbError::new(fields))),
@@ -569,7 +563,7 @@ impl InnerPostgresConnection {
         self.next_stmt_id += 1;
 
         let types = [];
-        if_ok_pg!(self.write_messages([
+        try_pg!(self.write_messages([
             Parse {
                 name: stmt_name,
                 query: query,
@@ -581,7 +575,7 @@ impl InnerPostgresConnection {
             },
             Sync]));
 
-        match if_ok_pg!(self.read_message()) {
+        match try_pg!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -590,13 +584,13 @@ impl InnerPostgresConnection {
             _ => unreachable!()
         }
 
-        let mut param_types: Vec<PostgresType> = match if_ok_pg!(self.read_message()) {
+        let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
             ParameterDescription { types } =>
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
             _ => unreachable!()
         };
 
-        let mut result_desc: Vec<ResultDescription> = match if_ok_pg!(self.read_message()) {
+        let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
                         stmt::make_ResultDescription(desc)
@@ -653,7 +647,7 @@ impl InnerPostgresConnection {
     }
 
     fn wait_for_ready(&mut self) -> Result<(), PostgresError> {
-        match if_ok_pg!(self.read_message()) {
+        match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
             _ => unreachable!()
         }
@@ -662,11 +656,11 @@ impl InnerPostgresConnection {
     fn quick_query(&mut self, query: &str)
             -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
         check_desync!(self);
-        if_ok_pg!(self.write_messages([Query { query: query }]));
+        try_pg!(self.write_messages([Query { query: query }]));
 
         let mut result = Vec::new();
         loop {
-            match if_ok_pg!(self.read_message()) {
+            match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } =>
                     result.push(row.move_iter().map(|opt|
@@ -684,7 +678,7 @@ impl InnerPostgresConnection {
 
     fn finish_inner(&mut self) -> Result<(), PostgresError> {
         check_desync!(self);
-        Ok(if_ok_pg!(self.write_messages([Terminate])))
+        Ok(try_pg!(self.write_messages([Terminate])))
     }
 }
 

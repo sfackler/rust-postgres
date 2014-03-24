@@ -153,14 +153,14 @@ impl<'conn> Drop for NormalPostgresStatement<'conn> {
 impl<'conn> NormalPostgresStatement<'conn> {
     fn finish_inner(&mut self) -> Result<(), PostgresError> {
         check_desync!(self.conn);
-        if_ok_pg!(self.conn.write_messages([
+        try_pg!(self.conn.write_messages([
             Close {
                 variant: 'S' as u8,
                 name: self.name.as_slice()
             },
             Sync]));
         loop {
-            match if_ok_pg!(self.conn.read_message()) {
+            match try_pg!(self.conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.conn.wait_for_ready());
@@ -189,7 +189,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             desc.ty.result_format() as i16
         }).collect();
 
-        if_ok_pg!(self.conn.write_messages([
+        try_pg!(self.conn.write_messages([
             Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
@@ -203,7 +203,7 @@ impl<'conn> NormalPostgresStatement<'conn> {
             },
             Sync]));
 
-        match if_ok_pg!(self.conn.read_message()) {
+        match try_pg!(self.conn.read_message()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(self.conn.wait_for_ready());
@@ -251,7 +251,7 @@ impl<'conn> PostgresStatement for NormalPostgresStatement<'conn> {
 
         let num;
         loop {
-            match if_ok_pg!(self.conn.read_message()) {
+            match try_pg!(self.conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(self.conn.wait_for_ready());
@@ -402,14 +402,14 @@ impl<'stmt> Drop for PostgresResult<'stmt> {
 impl<'stmt> PostgresResult<'stmt> {
     fn finish_inner(&mut self) -> Result<(), PostgresError> {
         check_desync!(self.stmt.conn);
-        if_ok_pg!(self.stmt.conn.write_messages([
+        try_pg!(self.stmt.conn.write_messages([
             Close {
                 variant: 'P' as u8,
                 name: self.name.as_slice()
             },
             Sync]));
         loop {
-            match if_ok_pg!(self.stmt.conn.read_message()) {
+            match try_pg!(self.stmt.conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.stmt.conn.wait_for_ready());
@@ -423,7 +423,7 @@ impl<'stmt> PostgresResult<'stmt> {
 
     fn read_rows(&mut self) -> Result<(), PostgresError> {
         loop {
-            match if_ok_pg!(self.stmt.conn.read_message()) {
+            match try_pg!(self.stmt.conn.read_message()) {
                 EmptyQueryResponse |
                 CommandComplete { .. } => {
                     self.more_rows = false;
@@ -441,7 +441,7 @@ impl<'stmt> PostgresResult<'stmt> {
     }
 
     fn execute(&mut self) -> Result<(), PostgresError> {
-        if_ok_pg!(self.stmt.conn.write_messages([
+        try_pg!(self.stmt.conn.write_messages([
             Execute {
                 portal: self.name,
                 max_rows: self.row_limit as i32
