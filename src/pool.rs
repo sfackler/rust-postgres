@@ -1,7 +1,7 @@
 //! A simple connection pool
 
-use std::cell::RefCell;
-use sync::MutexArc;
+use std::cast;
+use sync::{Arc, Mutex};
 
 use {PostgresNotifications,
      PostgresCancelData,
@@ -15,14 +15,28 @@ use types::ToSql;
 struct InnerConnectionPool {
     url: ~str,
     ssl: SslMode,
-    pool: ~[PostgresConnection],
+    // Actually Vec<~PostgresConnection>
+    pool: Vec<*()>,
+}
+
+impl Drop for InnerConnectionPool {
+    fn drop(&mut self) {
+        loop {
+            match self.pool.pop() {
+                Some(conn) => unsafe {
+                    drop(cast::transmute::<*(), ~PostgresConnection>(conn));
+                },
+                None => break
+            }
+        }
+    }
 }
 
 impl InnerConnectionPool {
     fn new_connection(&mut self) -> Option<PostgresConnectError> {
         match PostgresConnection::try_connect(self.url, &self.ssl) {
             Ok(conn) => {
-                self.pool.push(conn);
+                unsafe { self.pool.push(cast::transmute(~conn)) };
                 None
             }
             Err(err) => Some(err)
@@ -51,7 +65,7 @@ impl InnerConnectionPool {
 /// ```
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
-    priv pool: MutexArc<InnerConnectionPool>
+    priv pool: Arc<Mutex<InnerConnectionPool>>
 }
 
 impl PostgresConnectionPool {
@@ -64,7 +78,7 @@ impl PostgresConnectionPool {
         let mut pool = InnerConnectionPool {
             url: url.to_owned(),
             ssl: ssl,
-            pool: ~[],
+            pool: Vec::new(),
         };
 
         for _ in range(0, pool_size) {
@@ -75,7 +89,7 @@ impl PostgresConnectionPool {
         }
 
         Ok(PostgresConnectionPool {
-            pool: MutexArc::new(pool)
+            pool: Arc::new(Mutex::new(pool))
         })
     }
 
@@ -96,17 +110,15 @@ impl PostgresConnectionPool {
     ///
     /// If all connections are in use, blocks until one becomes available.
     pub fn get_connection(&self) -> PooledPostgresConnection {
-        let conn = self.pool.access_cond(|pool, cvar| {
-            while pool.pool.is_empty() {
-                cvar.wait();
-            }
+        let mut pool = self.pool.lock();
 
-            pool.pool.pop().unwrap()
-        });
+        while pool.pool.is_empty() {
+            pool.cond.wait();
+        }
 
         PooledPostgresConnection {
             pool: self.clone(),
-            conn: Some(conn)
+            conn: Some(unsafe { cast::transmute(pool.pool.pop().unwrap()) })
         }
     }
 }
@@ -118,15 +130,13 @@ impl PostgresConnectionPool {
 pub struct PooledPostgresConnection {
     priv pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
-    priv conn: Option<PostgresConnection>
+    priv conn: Option<~PostgresConnection>
 }
 
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
-        let conn = RefCell::new(self.conn.take());
-        self.pool.pool.access(|pool| {
-            pool.pool.push(conn.borrow_mut().take_unwrap());
-        })
+        let conn = unsafe { cast::transmute(self.conn.take_unwrap()) };
+        self.pool.pool.lock().pool.push(conn);
     }
 }
 
