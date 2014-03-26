@@ -6,7 +6,7 @@ use sync::{Arc, Mutex};
 use {PostgresNotifications,
      PostgresCancelData,
      PostgresConnection,
-     NormalPostgresStatement,
+     PostgresStatement,
      PostgresTransaction,
      SslMode};
 use error::{PostgresConnectError, PostgresError};
@@ -143,12 +143,12 @@ impl Drop for PooledPostgresConnection {
 impl PooledPostgresConnection {
     /// Like `PostgresConnection::try_prepare`.
     pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<NormalPostgresStatement<'a>, PostgresError> {
+            -> Result<PostgresStatement<'a>, PostgresError> {
         self.conn.get_ref().try_prepare(query)
     }
 
     /// Like `PostgresConnection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str) -> NormalPostgresStatement<'a> {
+    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
         self.conn.get_ref().prepare(query)
     }
 

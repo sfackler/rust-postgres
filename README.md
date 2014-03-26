@@ -17,7 +17,7 @@ extern crate time;
 
 use time::Timespec;
 
-use postgres::{PostgresConnection, PostgresStatement, NoSsl};
+use postgres::{PostgresConnection, NoSsl};
 use postgres::types::ToSql;
 
 struct Person {

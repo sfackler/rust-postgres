@@ -506,6 +506,8 @@ pub enum PostgresError {
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
     PgStreamDesynchronized,
+    /// A prepared statement was executed on a connection it does not belong to
+    PgWrongConnection,
 }
 
 impl PostgresError {
@@ -516,7 +518,11 @@ impl PostgresError {
             PgStreamError(ref err) => format!("{}", *err),
             PgStreamDesynchronized =>
                 ~"The communication stream with the Postgres server has \
-                  become desynchronized due to an earlier communications error"
+                  become desynchronized due to an earlier communications \
+                  error",
+            PgWrongConnection =>
+                ~"A statement was executed on a connection it was not \
+                  prepared on "
         }
     }
 }

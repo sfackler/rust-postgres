@@ -13,13 +13,13 @@ use std::io::timer;
 use {PostgresNoticeHandler,
      PostgresNotification,
      PostgresConnection,
-     PostgresStatement,
      ResultDescription,
      RequireSsl,
      PreferSsl,
      NoSsl};
 use error::{PgConnectDbError,
             PgDbError,
+            PgWrongConnection,
             DnsError,
             MissingPassword,
             Position,
@@ -293,20 +293,31 @@ fn test_result_finish() {
 fn test_lazy_query() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
 
-    {
-        let trans = conn.transaction();
-        trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
-        let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
-        let values = ~[0i32, 1, 2, 3, 4, 5];
-        for value in values.iter() {
-            stmt.execute([value as &ToSql]);
-        }
+    let trans = conn.transaction();
+    trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
+    let values = ~[0i32, 1, 2, 3, 4, 5];
+    for value in values.iter() {
+        stmt.execute([value as &ToSql]);
+    }
+    let stmt = conn.prepare("SELECT id FROM foo ORDER BY id");
+    let result = trans.lazy_query(&stmt, [], 2);
+    assert_eq!(values, result.map(|row| row[1]).collect());
 
-        let stmt = trans.prepare("SELECT id FROM foo ORDER BY id");
-        let result = stmt.lazy_query(2, []);
-        assert_eq!(values, result.map(|row| row[1]).collect());
+    trans.set_rollback();
+}
 
-        trans.set_rollback();
+#[test]
+fn test_lazy_query_wrong_conn() {
+    let conn1 = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn2 = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+
+    let trans = conn1.transaction();
+    let stmt = conn2.prepare("SELECT 1::INT");
+    match trans.try_lazy_query(&stmt, [], 1) {
+        Err(PgWrongConnection) => {}
+        Err(err) => fail!("Unexpected error {}", err),
+        Ok(_) => fail!("Expected failure")
     }
 }
 
