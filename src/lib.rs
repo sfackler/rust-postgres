@@ -235,7 +235,7 @@ pub struct PostgresNotifications<'conn> {
     priv conn: &'conn PostgresConnection
 }
 
-impl<'conn > Iterator<PostgresNotification> for PostgresNotifications<'conn> {
+impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
     /// Returns the oldest pending notification or `None` if there are none.
     ///
     /// # Note
@@ -1525,8 +1525,6 @@ impl<'a> RowIndex for &'a str {
 }
 
 /// A lazily-loaded iterator over the resulting rows of a query
-///
-/// This is a smart pointer around a `PostgresResult`.
 pub struct PostgresLazyResult<'trans, 'stmt> {
     priv result: PostgresResult<'stmt>,
     priv trans: &'trans PostgresTransaction<'trans>,
