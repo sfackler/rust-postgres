@@ -12,11 +12,11 @@ PHF := $(foreach file,$(shell $(MAKE) -s -C $(PHF_DIR) print-targets),$(PHF_DIR)
 OPENSSL_DIR := submodules/rust-openssl
 OPENSSL := $(foreach file,$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target),$(OPENSSL_DIR)/$(file))
 
-$(PHF): config.stamp
+$(PHF):
 	$(MAKE) -C $(PHF_DIR)
 	touch $(PHF)
 
-$(OPENSSL): config.stamp
+$(OPENSSL):
 	$(MAKE) -C $(OPENSSL_DIR)
 	touch $(OPENSSL)
 

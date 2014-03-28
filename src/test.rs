@@ -296,7 +296,7 @@ fn test_lazy_query() {
     let trans = conn.transaction();
     trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
     let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
-    let values = ~[0i32, 1, 2, 3, 4, 5];
+    let values = vec!(0i32, 1, 2, 3, 4, 5);
     for value in values.iter() {
         stmt.execute([value as &ToSql]);
     }
