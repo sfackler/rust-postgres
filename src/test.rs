@@ -20,6 +20,7 @@ use {PostgresNoticeHandler,
 use error::{PgConnectDbError,
             PgDbError,
             PgWrongConnection,
+            PgWrongParamCount,
             DnsError,
             MissingPassword,
             Position,
@@ -706,19 +707,23 @@ fn test_wrong_param_type() {
 }
 
 #[test]
-#[should_fail]
 fn test_too_few_params() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let _ = conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
+    match conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]) {
+        Err(PgWrongParamCount { expected: 2, actual: 1 }) => {},
+        res => fail!("unexpected result {}", res)
+    }
 }
 
 #[test]
-#[should_fail]
 fn test_too_many_params() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let _ = conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
-                                                     &2i32 as &ToSql,
-                                                     &3i32 as &ToSql]);
+    match conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
+                                                   &2i32 as &ToSql,
+                                                   &3i32 as &ToSql]) {
+        Err(PgWrongParamCount { expected: 2, actual: 3 }) => {},
+        res => fail!("unexpected result {}", res)
+    }
 }
 
 #[test]

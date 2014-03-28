@@ -102,6 +102,7 @@ use error::{DnsError,
             PgDbError,
             PgStreamDesynchronized,
             PgStreamError,
+            PgWrongParamCount,
             PostgresConnectError,
             PostgresDbError,
             PostgresError,
@@ -979,8 +980,8 @@ impl<'conn> PostgresTransaction<'conn> {
     ///
     /// # Failure
     ///
-    /// Fails if the number or types of the provided parameters do not match
-    /// the parameters of the statement.
+    /// Fails if the types of the provided parameters do not match the
+    /// parameters of the statement.
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
@@ -1050,9 +1051,12 @@ impl<'conn> PostgresStatement<'conn> {
             -> Result<(), PostgresError> {
         let mut formats = Vec::new();
         let mut values = Vec::new();
-        assert!(self.param_types.len() == params.len(),
-                "Expected {} parameters but found {}",
-                self.param_types.len(), params.len());
+        if self.param_types.len() != params.len() {
+            return Err(PgWrongParamCount {
+                expected: self.param_types.len(),
+                actual: params.len(),
+            });
+        }
         for (&param, ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = param.to_sql(ty);
             formats.push(format as i16);
@@ -1124,8 +1128,8 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// # Failure
     ///
-    /// Fails if the number or types of the provided parameters do not match
-    /// the parameters of the statement.
+    /// Fails if the types of the provided parameters do not match the
+    /// parameters of the statement.
     ///
     /// # Example
     ///
@@ -1177,8 +1181,8 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// # Failure
     ///
-    /// Fails if the number or types of the provided parameters do not match
-    /// the parameters of the statement.
+    /// Fails if the types of the provided parameters do not match the
+    /// parameters of the statement.
     ///
     /// # Example
     ///

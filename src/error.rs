@@ -508,6 +508,13 @@ pub enum PostgresError {
     PgStreamDesynchronized,
     /// A prepared statement was executed on a connection it does not belong to
     PgWrongConnection,
+    /// An incorrect number of parameters were bound to a statement
+    PgWrongParamCount {
+        /// The expected number of parameters
+        expected: uint,
+        /// The actual number of parameters
+        actual: uint,
+    }
 }
 
 impl PostgresError {
@@ -522,7 +529,9 @@ impl PostgresError {
                   error",
             PgWrongConnection =>
                 ~"A statement was executed on a connection it was not \
-                  prepared on "
+                  prepared on ",
+            PgWrongParamCount { expected, actual } =>
+                format!("Expected {} parameters but got {}", expected, actual),
         }
     }
 }
