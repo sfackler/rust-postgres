@@ -302,7 +302,7 @@ fn test_lazy_query() {
     }
     let stmt = or_fail!(conn.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
-    assert_eq!(values, result.map(|row| row[1]).collect());
+    assert_eq!(values, result.map(|row| row.unwrap()[1]).collect());
 
     trans.set_rollback();
 }

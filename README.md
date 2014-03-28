@@ -80,8 +80,8 @@ Connecting
 ----------
 Connect to a Postgres server using the standard URI format:
 ```rust
-let conn = PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                       &NoSsl);
+let conn = try!(PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
+                                            &NoSsl));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -92,7 +92,7 @@ Statement Preparation
 Prepared statements can have parameters, represented as `$n` where `n` is an
 index into the parameter array starting from 1:
 ```rust
-let stmt = conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2");
+let stmt = try!(conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2"));
 ```
 
 Querying
@@ -111,8 +111,8 @@ fields in a row can be accessed either by their indices or their column names,
 though access by index is more efficient. Like statement parameters, result
 columns are one-indexed.
 ```rust
-let stmt = conn.prepare("SELECT bar, baz FROM foo");
-for row in stmt.query([]) {
+let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
+for row in try!(stmt.query([])) {
     let bar: i32 = row[1];
     let baz: ~str = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
@@ -121,8 +121,8 @@ for row in stmt.query([]) {
 In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
-let updates = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                           [&1i32 as &ToSql, & &"biz" as &ToSql]);
+let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
+                                [&1i32 as &ToSql, & &"biz" as &ToSql]));
 println!("{} rows were updated", updates);
 ```
 
@@ -133,9 +133,9 @@ The `transaction` method will start a new transaction. It returns a
 `PostgresConnection` as well as methods to control the result of the
 transaction:
 ```rust
-let trans = conn.transaction();
-trans.execute(...);
-let stmt = trans.prepare(...);
+let trans = try!(conn.transaction());
+try!(trans.execute(...));
+let stmt = try!(trans.prepare(...));
 
 if a_bad_thing_happened {
     trans.set_rollback();
@@ -151,37 +151,20 @@ The transaction will be active until the `PostgresTransaction` object falls out
 of scope. A transaction will commit by default. Nested transactions are
 supported via savepoints.
 
-Error Handling
---------------
-The methods described above will fail if there is an error. For each of these
-methods, there is a second variant prefixed with `try_` which returns a
-`Result`:
-```rust
-match conn.try_execute(query, params) {
-    Ok(updates) => println!("{} rows were updated", updates),
-    Err(PgDbError(PostgresDbError { code: NotNullViolation, .. })) =>
-        println!("Something was NULL that shouldn't be"),
-    Err(PgDbError(PostgresDbError { code: SyntaxError, .. })) =>
-        println!("Invalid query syntax"),
-    _ => println!("A bad thing happened: {}", err),
-    }
-}
-```
-
 Connection Pooling
 ------------------
 A very basic fixed-size connection pool is provided in the `pool` module. A
 single pool can be shared across tasks and `get_connection` will block until a
 connection is available.
 ```rust
-let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-                                       NoSsl, 5);
+let pool = try!(PostgresConnectionPool::new("postgres://postgres@localhost",
+                                            NoSsl, 5));
 
 for _ in range(0, 10) {
     let pool = pool.clone();
     spawn(proc() {
         let conn = pool.get_connection();
-        conn.query(...);
+        conn.query(...).unwrap();
     })
 }
 ```

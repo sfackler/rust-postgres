@@ -1307,30 +1307,28 @@ impl<'stmt> PostgresResult<'stmt> {
         self.finish_inner()
     }
 
-    /// Like `PostgresResult::next` except that it returns any errors to the
-    /// caller instead of failing.
-    pub fn try_next(&mut self) -> Result<Option<PostgresRow<'stmt>>,
-                                         PostgresError> {
+    fn try_next(&mut self) -> Option<Result<PostgresRow<'stmt>,
+                                            PostgresError>> {
         if self.data.is_empty() && self.more_rows {
-            try!(self.execute());
+            match self.execute() {
+                Ok(()) => {}
+                Err(err) => return Some(Err(err))
+            }
         }
 
-        let row = self.data.pop_front().map(|row| {
-            PostgresRow {
+        self.data.pop_front().map(|row| {
+            Ok(PostgresRow {
                 stmt: self.stmt,
                 data: row
-            }
-        });
-        Ok(row)
+            })
+        })
     }
 }
 
 impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
     fn next(&mut self) -> Option<PostgresRow<'stmt>> {
-        match self.try_next() {
-            Ok(ok) => ok,
-            Err(err) => fail!("Error fetching rows: {}", err)
-        }
+        // we'll never hit the network on a non-lazy result
+        self.try_next().map(|r| r.unwrap())
     }
 
     fn size_hint(&self) -> (uint, Option<uint>) {
@@ -1426,18 +1424,12 @@ impl<'trans, 'stmt> PostgresLazyResult<'trans, 'stmt> {
     pub fn finish(self) -> Result<(), PostgresError> {
         self.result.finish()
     }
-
-    /// Like `PostgresResult::try_next`.
-    pub fn try_next(&mut self) -> Result<Option<PostgresRow<'stmt>>,
-                                         PostgresError> {
-        self.result.try_next()
-    }
 }
 
-impl<'trans, 'stmt> Iterator<PostgresRow<'stmt>>
+impl<'trans, 'stmt> Iterator<Result<PostgresRow<'stmt>, PostgresError>>
         for PostgresLazyResult<'trans, 'stmt> {
-    fn next(&mut self) -> Option<PostgresRow<'stmt>> {
-        self.result.next()
+    fn next(&mut self) -> Option<Result<PostgresRow<'stmt>, PostgresError>> {
+        self.result.try_next()
     }
 
     fn size_hint(&self) -> (uint, Option<uint>) {
