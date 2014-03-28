@@ -977,11 +977,6 @@ impl<'conn> PostgresTransaction<'conn> {
     /// No more than `row_limit` rows will be stored in memory at a time. Rows
     /// will be pulled from the database in batches of `row_limit` as needed.
     /// If `row_limit` is 0, `lazy_query` is equivalent to `query`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if the types of the provided parameters do not match the
-    /// parameters of the statement.
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
@@ -1058,7 +1053,7 @@ impl<'conn> PostgresStatement<'conn> {
             });
         }
         for (&param, ty) in params.iter().zip(self.param_types.iter()) {
-            let (format, value) = param.to_sql(ty);
+            let (format, value) = try!(param.to_sql(ty));
             formats.push(format as i16);
             values.push(value);
         };
@@ -1126,11 +1121,6 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
-    /// # Failure
-    ///
-    /// Fails if the types of the provided parameters do not match the
-    /// parameters of the statement.
-    ///
     /// # Example
     ///
     /// ```rust,no_run
@@ -1178,11 +1168,6 @@ impl<'conn> PostgresStatement<'conn> {
 
     /// Executes the prepared statement, returning an iterator over the
     /// resulting rows.
-    ///
-    /// # Failure
-    ///
-    /// Fails if the types of the provided parameters do not match the
-    /// parameters of the statement.
     ///
     /// # Example
     ///
@@ -1375,7 +1360,7 @@ impl<'stmt> Container for PostgresRow<'stmt> {
 impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     fn index(&self, idx: &I) -> T {
         let idx = idx.idx(self.stmt);
-        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty, self.data.get(idx))
+        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty, self.data.get(idx)).unwrap()
     }
 }
 

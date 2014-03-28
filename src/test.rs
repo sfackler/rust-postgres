@@ -21,6 +21,7 @@ use error::{PgConnectDbError,
             PgDbError,
             PgWrongConnection,
             PgWrongParamCount,
+            PgWrongType,
             DnsError,
             MissingPassword,
             Position,
@@ -33,6 +34,15 @@ use types::{ToSql, FromSql, PgInt4, PgVarchar};
 use types::array::{ArrayBase};
 use types::range::{Range, Inclusive, Exclusive, RangeBound};
 use pool::PostgresConnectionPool;
+
+macro_rules! or_fail(
+    ($e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => fail!("{}", err)
+        }
+    )
+)
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
@@ -700,10 +710,12 @@ fn test_f64_nan_param() {
 }
 
 #[test]
-#[should_fail]
 fn test_wrong_param_type() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let _ = conn.execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
+    match conn.execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]) {
+        Err(PgWrongType(_)) => {}
+        res => fail!("unexpected result {}", res)
+    }
 }
 
 #[test]

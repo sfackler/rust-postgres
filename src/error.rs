@@ -7,6 +7,8 @@ use std::io::IoError;
 use openssl::ssl::error::SslError;
 use phf::PhfMap;
 
+use types::PostgresType;
+
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
@@ -514,7 +516,10 @@ pub enum PostgresError {
         expected: uint,
         /// The actual number of parameters
         actual: uint,
-    }
+    },
+    /// An attempt was made to convert between incompatible Rust and Postgres
+    /// types
+    PgWrongType(PostgresType)
 }
 
 impl PostgresError {
@@ -532,6 +537,7 @@ impl PostgresError {
                   prepared on ",
             PgWrongParamCount { expected, actual } =>
                 format!("Expected {} parameters but got {}", expected, actual),
+            PgWrongType(ref ty) => format!("Unexpected type {}", *ty),
         }
     }
 }
