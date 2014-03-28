@@ -36,8 +36,8 @@ use pool::PostgresConnectionPool;
 #[test]
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
-    let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-                                           NoSsl, 2);
+    let pool = or_fail!(PostgresConnectionPool::new("postgres://postgres@localhost",
+                                                    NoSsl, 2));
 
     let (stream1, stream2) = sync::duplex();
 
@@ -63,18 +63,18 @@ fn test_pool() {
 
 #[test]
 fn test_non_default_database() {
-    PostgresConnection::connect("postgres://postgres@localhost/postgres", &NoSsl);
+    or_fail!(PostgresConnection::connect("postgres://postgres@localhost/postgres", &NoSsl));
 }
 
 #[test]
 fn test_url_terminating_slash() {
-    PostgresConnection::connect("postgres://postgres@localhost/", &NoSsl);
+    or_fail!(PostgresConnection::connect("postgres://postgres@localhost/", &NoSsl));
 }
 
 #[test]
 fn test_prepare_err() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    match conn.try_prepare("invalid sql statment") {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    match conn.prepare("invalid sql statment") {
         Err(PgDbError(PostgresDbError { code: SyntaxError, position: Some(Position(1)), .. })) => (),
         resp => fail!("Unexpected result {:?}", resp)
     }
@@ -82,7 +82,7 @@ fn test_prepare_err() {
 
 #[test]
 fn test_unknown_database() {
-    match PostgresConnection::try_connect("postgres://postgres@localhost/asdf", &NoSsl) {
+    match PostgresConnection::connect("postgres://postgres@localhost/asdf", &NoSsl) {
         Err(PgConnectDbError(PostgresDbError { code: InvalidCatalogName, .. })) => {}
         resp => fail!("Unexpected result {:?}", resp)
     }
@@ -90,163 +90,163 @@ fn test_unknown_database() {
 
 #[test]
 fn test_connection_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     assert!(conn.finish().is_ok());
 }
 
 #[test]
 fn test_transaction_commit() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    let trans = conn.transaction();
-    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
     drop(trans);
 
-    let stmt = conn.prepare("SELECT * FROM foo");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_transaction_commit_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    let trans = conn.transaction();
-    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
     assert!(trans.finish().is_ok());
 
-    let stmt = conn.prepare("SELECT * FROM foo");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_transaction_rollback() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
 
-    let trans = conn.transaction();
-    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]));
     trans.set_rollback();
     drop(trans);
 
-    let stmt = conn.prepare("SELECT * FROM foo");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_transaction_rollback_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]);
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
 
-    let trans = conn.transaction();
-    trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]);
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]));
     trans.set_rollback();
     assert!(trans.finish().is_ok());
 
-    let stmt = conn.prepare("SELECT * FROM foo");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_nested_transactions() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    conn.execute("INSERT INTO foo (id) VALUES (1)", []);
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES (1)", []));
 
     {
-        let trans1 = conn.transaction();
-        trans1.execute("INSERT INTO foo (id) VALUES (2)", []);
+        let trans1 = or_fail!(conn.transaction());
+        or_fail!(trans1.execute("INSERT INTO foo (id) VALUES (2)", []));
 
         {
-            let trans2 = trans1.transaction();
-            trans2.execute("INSERT INTO foo (id) VALUES (3)", []);
+            let trans2 = or_fail!(trans1.transaction());
+            or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
             trans2.set_rollback();
         }
 
         {
-            let trans2 = trans1.transaction();
-            trans2.execute("INSERT INTO foo (id) VALUES (4)", []);
+            let trans2 = or_fail!(trans1.transaction());
+            or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (4)", []));
 
             {
-                let trans3 = trans2.transaction();
-                trans3.execute("INSERT INTO foo (id) VALUES (5)", []);
+                let trans3 = or_fail!(trans2.transaction());
+                or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
                 trans3.set_rollback();
             }
 
             {
-                let trans3 = trans2.transaction();
-                trans3.execute("INSERT INTO foo (id) VALUES (6)", []);
+                let trans3 = or_fail!(trans2.transaction());
+                or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
             }
         }
 
-        let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
-        let result = stmt.query([]);
+        let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+        let result = or_fail!(stmt.query([]));
 
         assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[1]).collect());
 
         trans1.set_rollback();
     }
 
-    let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_nested_transactions_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    conn.execute("INSERT INTO foo (id) VALUES (1)", []);
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES (1)", []));
 
     {
-        let trans1 = conn.transaction();
-        trans1.execute("INSERT INTO foo (id) VALUES (2)", []);
+        let trans1 = or_fail!(conn.transaction());
+        or_fail!(trans1.execute("INSERT INTO foo (id) VALUES (2)", []));
 
         {
-            let trans2 = trans1.transaction();
-            trans2.execute("INSERT INTO foo (id) VALUES (3)", []);
+            let trans2 = or_fail!(trans1.transaction());
+            or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
             trans2.set_rollback();
             assert!(trans2.finish().is_ok());
         }
 
         {
-            let trans2 = trans1.transaction();
-            trans2.execute("INSERT INTO foo (id) VALUES (4)", []);
+            let trans2 = or_fail!(trans1.transaction());
+            or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (4)", []));
 
             {
-                let trans3 = trans2.transaction();
-                trans3.execute("INSERT INTO foo (id) VALUES (5)", []);
+                let trans3 = or_fail!(trans2.transaction());
+                or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
                 trans3.set_rollback();
                 assert!(trans3.finish().is_ok());
             }
 
             {
-                let trans3 = trans2.transaction();
-                trans3.execute("INSERT INTO foo (id) VALUES (6)", []);
+                let trans3 = or_fail!(trans2.transaction());
+                or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
                 assert!(trans3.finish().is_ok());
             }
 
             assert!(trans2.finish().is_ok());
         }
 
-        let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
-        let result = stmt.query([]);
+        let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+        let result = or_fail!(stmt.query([]));
 
         assert_eq!(~[1i32, 2, 4, 6], result.map(|row| row[1]).collect());
 
@@ -254,54 +254,54 @@ fn test_nested_transactions_finish() {
         assert!(trans1.finish().is_ok());
     }
 
-    let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
-    let result = stmt.query([]);
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i32], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_stmt_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
-    let stmt = conn.prepare("SELECT * FROM foo");
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     assert!(stmt.finish().is_ok());
 }
 
 #[test]
 fn test_query() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
-    conn.execute("INSERT INTO foo (id) VALUES ($1), ($2)",
-                 [&1i64 as &ToSql, &2i64 as &ToSql]);
-    let stmt = conn.prepare("SELECT * from foo ORDER BY id");
-    let result = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1), ($2)",
+                          [&1i64 as &ToSql, &2i64 as &ToSql]));
+    let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[1i64, 2], result.map(|row| row[1]).collect());
 }
 
 #[test]
 fn test_result_finish() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []);
-    let stmt = conn.prepare("SELECT * FROM foo");
-    let result = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
     assert!(result.finish().is_ok());
 }
 
 #[test]
 fn test_lazy_query() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
 
-    let trans = conn.transaction();
-    trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []);
-    let stmt = trans.prepare("INSERT INTO foo (id) VALUES ($1)");
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    let stmt = or_fail!(trans.prepare("INSERT INTO foo (id) VALUES ($1)"));
     let values = vec!(0i32, 1, 2, 3, 4, 5);
     for value in values.iter() {
-        stmt.execute([value as &ToSql]);
+        or_fail!(stmt.execute([value as &ToSql]));
     }
-    let stmt = conn.prepare("SELECT id FROM foo ORDER BY id");
-    let result = trans.lazy_query(&stmt, [], 2);
+    let stmt = or_fail!(conn.prepare("SELECT id FROM foo ORDER BY id"));
+    let result = or_fail!(trans.lazy_query(&stmt, [], 2));
     assert_eq!(values, result.map(|row| row[1]).collect());
 
     trans.set_rollback();
@@ -309,12 +309,12 @@ fn test_lazy_query() {
 
 #[test]
 fn test_lazy_query_wrong_conn() {
-    let conn1 = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let conn2 = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn1 = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn2 = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
 
-    let trans = conn1.transaction();
-    let stmt = conn2.prepare("SELECT 1::INT");
-    match trans.try_lazy_query(&stmt, [], 1) {
+    let trans = or_fail!(conn1.transaction());
+    let stmt = or_fail!(conn2.prepare("SELECT 1::INT"));
+    match trans.lazy_query(&stmt, [], 1) {
         Err(PgWrongConnection) => {}
         Err(err) => fail!("Unexpected error {}", err),
         Ok(_) => fail!("Expected failure")
@@ -323,15 +323,15 @@ fn test_lazy_query_wrong_conn() {
 
 #[test]
 fn test_param_types() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let stmt = conn.prepare("SELECT $1::INT, $2::VARCHAR");
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
     assert_eq!(stmt.param_types(), &[PgInt4, PgVarchar]);
 }
 
 #[test]
 fn test_result_descriptions() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let stmt = conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b");
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
             [ResultDescription { name: ~"a", ty: PgInt4},
              ResultDescription { name: ~"b", ty: PgVarchar}]);
@@ -339,26 +339,26 @@ fn test_result_descriptions() {
 
 #[test]
 fn test_execute_counts() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    assert_eq!(0, conn.execute("CREATE TEMPORARY TABLE foo (
-                                    id SERIAL PRIMARY KEY,
-                                    b INT
-                                )", []));
-    assert_eq!(3, conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($2)",
-                               [&1i32 as &ToSql, &2i32 as &ToSql]));
-    assert_eq!(2, conn.execute("UPDATE foo SET b = 0 WHERE b = 2", []));
-    assert_eq!(3, conn.execute("SELECT * FROM foo", []));
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    assert_eq!(0, or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (
+                                            id SERIAL PRIMARY KEY,
+                                            b INT
+                                         )", [])));
+    assert_eq!(3, or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($2)",
+                                        [&1i32 as &ToSql, &2i32 as &ToSql])));
+    assert_eq!(2, or_fail!(conn.execute("UPDATE foo SET b = 0 WHERE b = 2", [])));
+    assert_eq!(3, or_fail!(conn.execute("SELECT * FROM foo", [])));
 }
 
 fn test_type<T: Eq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type));
-        let result = stmt.query([]).next().unwrap()[1];
+        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)));
+        let result = or_fail!(stmt.query([])).next().unwrap()[1];
         assert!(val == &result);
 
-        let stmt = conn.prepare("SELECT $1::" + sql_type);
-        let result = stmt.query([val as &ToSql]).next().unwrap()[1];
+        let stmt = or_fail!(conn.prepare("SELECT $1::" + sql_type));
+        let result = or_fail!(stmt.query([val as &ToSql])).next().unwrap()[1];
         assert!(val == &result);
     }
 }
@@ -424,16 +424,16 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    conn.execute("CREATE TEMPORARY TABLE foo (
-                    id SERIAL PRIMARY KEY,
-                    b CHAR(5)
-                 )", []);
-    conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                [&Some("12345") as &ToSql, &Some("123") as &ToSql,
-                 &None::<~str> as &ToSql]);
-    let stmt = conn.prepare("SELECT b FROM foo ORDER BY id");
-    let res = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (
+                            id SERIAL PRIMARY KEY,
+                            b CHAR(5)
+                           )", []));
+    or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+                          [&Some("12345") as &ToSql, &Some("123") as &ToSql,
+                           &None::<~str> as &ToSql]));
+    let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
+    let res = or_fail!(stmt.query([]));
 
     assert_eq!(~[Some(~"12345"), Some(~"123  "), None],
                res.map(|row| row[1]).collect());
@@ -675,15 +675,15 @@ fn test_hstore_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let stmt = conn.prepare("SELECT 'NaN'::" + sql_type);
-    let mut result = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT 'NaN'::" + sql_type));
+    let mut result = or_fail!(stmt.query([]));
     let val: T = result.next().unwrap()[1];
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
-    let stmt = conn.prepare("SELECT $1::" + sql_type);
-    let mut result = stmt.query([&nan as &ToSql]);
+    let stmt = or_fail!(conn.prepare("SELECT $1::" + sql_type));
+    let mut result = or_fail!(stmt.query([&nan as &ToSql]));
     let val: T = result.next().unwrap()[1];
     assert!(val.is_nan())
 }
@@ -701,31 +701,31 @@ fn test_f64_nan_param() {
 #[test]
 #[should_fail]
 fn test_wrong_param_type() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let _ = conn.try_execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let _ = conn.execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_few_params() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let _ = conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let _ = conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]);
 }
 
 #[test]
 #[should_fail]
 fn test_too_many_params() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let _ = conn.try_execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
-                                                         &2i32 as &ToSql,
-                                                         &3i32 as &ToSql]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let _ = conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql,
+                                                     &2i32 as &ToSql,
+                                                     &3i32 as &ToSql]);
 }
 
 #[test]
 fn test_get_named() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let stmt = conn.prepare("SELECT 10::INT as val");
-    let result = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT 10::INT as val"));
+    let result = or_fail!(stmt.query([]));
 
     assert_eq!(~[10i32], result.map(|row| row["val"]).collect());
 }
@@ -733,9 +733,9 @@ fn test_get_named() {
 #[test]
 #[should_fail]
 fn test_get_named_fail() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
-    let stmt = conn.prepare("SELECT 10::INT as id");
-    let mut result = stmt.query([]);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT 10::INT as id"));
+    let mut result = or_fail!(stmt.query([]));
 
     let _: i32 = result.next().unwrap()["asdf"];
 }
@@ -751,21 +751,21 @@ fn test_custom_notice_handler() {
         }
     }
 
-    let conn = PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl));
     conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
-    conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
-                  BEGIN
-                    RAISE NOTICE 'note';
-                    RETURN 1;
-                  END; $$ LANGUAGE plpgsql", []);
-    conn.execute("SELECT pg_temp.note()", []);
+    or_fail!(conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
+                           BEGIN
+                            RAISE NOTICE 'note';
+                            RETURN 1;
+                           END; $$ LANGUAGE plpgsql", []));
+    or_fail!(conn.execute("SELECT pg_temp.note()", []));
 
     assert_eq!(unsafe { count }, 1);
 }
 
 #[test]
 fn test_notification_iterator_none() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     assert!(conn.notifications().next().is_none());
 }
 
@@ -782,12 +782,12 @@ fn test_notification_iterator_some() {
         }
     }
 
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let mut it = conn.notifications();
-    conn.execute("LISTEN test_notification_iterator_one_channel", []);
-    conn.execute("LISTEN test_notification_iterator_one_channel2", []);
-    conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", []);
-    conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", []);
+    or_fail!(conn.execute("LISTEN test_notification_iterator_one_channel", []));
+    or_fail!(conn.execute("LISTEN test_notification_iterator_one_channel2", []));
+    or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", []));
+    or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", []));
 
     check_notification(PostgresNotification {
         pid: 0,
@@ -801,7 +801,7 @@ fn test_notification_iterator_some() {
     }, it.next());
     assert!(it.next().is_none());
 
-    conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []);
+    or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
     check_notification(PostgresNotification {
         pid: 0,
         channel: ~"test_notification_iterator_one_channel",
@@ -813,7 +813,7 @@ fn test_notification_iterator_some() {
 #[test]
 // This test is pretty sad, but I don't think there's a better way :(
 fn test_cancel_query() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost", &NoSsl);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let cancel_data = conn.cancel_data();
 
     spawn(proc() {
@@ -822,7 +822,7 @@ fn test_cancel_query() {
                                     cancel_data).is_ok());
     });
 
-    match conn.try_execute("SELECT pg_sleep(10)", []) {
+    match conn.execute("SELECT pg_sleep(10)", []) {
         Err(PgDbError(PostgresDbError { code: QueryCanceled, .. })) => {}
         res => fail!("Unexpected result {:?}", res)
     }
@@ -831,27 +831,27 @@ fn test_cancel_query() {
 #[test]
 fn test_require_ssl_conn() {
     let ctx = SslContext::new(Sslv3);
-    let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           &RequireSsl(ctx));
-    conn.execute("SELECT 1::VARCHAR", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost",
+                                                    &RequireSsl(ctx)));
+    or_fail!(conn.execute("SELECT 1::VARCHAR", []));
 }
 
 #[test]
 fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(Sslv3);
-    let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           &PreferSsl(ctx));
-    conn.execute("SELECT 1::VARCHAR", []);
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost",
+                                                    &PreferSsl(ctx)));
+    or_fail!(conn.execute("SELECT 1::VARCHAR", []));
 }
 
 #[test]
 fn test_plaintext_pass() {
-    PostgresConnection::connect("postgres://pass_user:password@localhost/postgres", &NoSsl);
+    or_fail!(PostgresConnection::connect("postgres://pass_user:password@localhost/postgres", &NoSsl));
 }
 
 #[test]
 fn test_plaintext_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user@localhost/postgres", &NoSsl);
+    let ret = PostgresConnection::connect("postgres://pass_user@localhost/postgres", &NoSsl);
     match ret {
         Err(MissingPassword) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
@@ -861,7 +861,7 @@ fn test_plaintext_pass_no_pass() {
 
 #[test]
 fn test_plaintext_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://pass_user:asdf@localhost/postgres", &NoSsl);
+    let ret = PostgresConnection::connect("postgres://pass_user:asdf@localhost/postgres", &NoSsl);
     match ret {
         Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
@@ -871,12 +871,12 @@ fn test_plaintext_pass_wrong_pass() {
 
  #[test]
 fn test_md5_pass() {
-    PostgresConnection::connect("postgres://md5_user:password@localhost/postgres", &NoSsl);
+    or_fail!(PostgresConnection::connect("postgres://md5_user:password@localhost/postgres", &NoSsl));
 }
 
 #[test]
 fn test_md5_pass_no_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user@localhost/postgres", &NoSsl);
+    let ret = PostgresConnection::connect("postgres://md5_user@localhost/postgres", &NoSsl);
     match ret {
         Err(MissingPassword) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
@@ -886,7 +886,7 @@ fn test_md5_pass_no_pass() {
 
 #[test]
 fn test_md5_pass_wrong_pass() {
-    let ret = PostgresConnection::try_connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
+    let ret = PostgresConnection::connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
     match ret {
         Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),
@@ -896,7 +896,7 @@ fn test_md5_pass_wrong_pass() {
 
 #[test]
 fn test_dns_failure() {
-    let ret = PostgresConnection::try_connect("postgres://postgres@asdfasdfasdf", &NoSsl);
+    let ret = PostgresConnection::connect("postgres://postgres@asdfasdfasdf", &NoSsl);
     match ret {
         Err(DnsError) => (),
         Err(err) => fail!("Unexpected error {}", err.to_str()),

@@ -29,14 +29,14 @@ struct Person {
 
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           &NoSsl);
+                                           &NoSsl).unwrap();
 
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
                     time_created    TIMESTAMP NOT NULL,
                     data            BYTEA
-                  )", []);
+                  )", []).unwrap();
     let me = Person {
         id: 0,
         name: ~"Steven",
@@ -46,10 +46,11 @@ fn main() {
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
                  [&me.name as &ToSql, &me.time_created as &ToSql,
-                  &me.data as &ToSql]);
+                  &me.data as &ToSql]).unwrap();
 
-    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
-    for row in stmt.query([]) {
+    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
+            .unwrap();
+    for row in stmt.query([]).unwrap() {
         let person = Person {
             id: row[1],
             name: row[2],

@@ -34,7 +34,7 @@ impl Drop for InnerConnectionPool {
 
 impl InnerConnectionPool {
     fn new_connection(&mut self) -> Option<PostgresConnectError> {
-        match PostgresConnection::try_connect(self.url, &self.ssl) {
+        match PostgresConnection::connect(self.url, &self.ssl) {
             Ok(conn) => {
                 unsafe { self.pool.push(cast::transmute(~conn)) };
                 None
@@ -54,12 +54,12 @@ impl InnerConnectionPool {
 /// # use postgres::NoSsl;
 /// # use postgres::pool::PostgresConnectionPool;
 /// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
-///                                        NoSsl, 5);
+///                                        NoSsl, 5).unwrap();
 /// for _ in range(0, 10) {
 ///     let pool = pool.clone();
 ///     spawn(proc() {
 ///         let conn = pool.get_connection();
-///         conn.execute("UPDATE foo SET bar = 1", []);
+///         conn.execute("UPDATE foo SET bar = 1", []).unwrap();
 ///     });
 /// }
 /// ```
@@ -69,11 +69,11 @@ pub struct PostgresConnectionPool {
 }
 
 impl PostgresConnectionPool {
-    /// Attempts to create a new pool with the specified number of connections.
+    /// Creates a new pool with the specified number of connections.
     ///
     /// Returns an error if the specified number of connections cannot be
     /// created.
-    pub fn try_new(url: &str, ssl: SslMode, pool_size: uint)
+    pub fn new(url: &str, ssl: SslMode, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
             url: url.to_owned(),
@@ -91,19 +91,6 @@ impl PostgresConnectionPool {
         Ok(PostgresConnectionPool {
             pool: Arc::new(Mutex::new(pool))
         })
-    }
-
-    /// A convenience function wrapping `try_new`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if the pool cannot be created.
-    pub fn new(url: &str, ssl: SslMode, pool_size: uint)
-            -> PostgresConnectionPool {
-        match PostgresConnectionPool::try_new(url, ssl, pool_size) {
-            Ok(pool) => pool,
-            Err(err) => fail!("Unable to initialize pool: {}", err)
-        }
     }
 
     /// Retrieves a connection from the pool.
@@ -141,36 +128,21 @@ impl Drop for PooledPostgresConnection {
 }
 
 impl PooledPostgresConnection {
-    /// Like `PostgresConnection::try_prepare`.
-    pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<PostgresStatement<'a>, PostgresError> {
-        self.conn.get_ref().try_prepare(query)
-    }
-
     /// Like `PostgresConnection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
+    pub fn prepare<'a>(&'a self, query: &str)
+            -> Result<PostgresStatement<'a>, PostgresError> {
         self.conn.get_ref().prepare(query)
     }
 
-    /// Like `PostgresConnection::try_execute`.
-    pub fn try_execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresError> {
-        self.conn.get_ref().try_execute(query, params)
-    }
-
     /// Like `PostgresConnection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> uint {
+    pub fn execute(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresError> {
         self.conn.get_ref().execute(query, params)
     }
 
-    /// Like `PostgresConnection::try_transaction`.
-    pub fn try_transaction<'a>(&'a self)
-            -> Result<PostgresTransaction<'a>, PostgresError> {
-        self.conn.get_ref().try_transaction()
-    }
-
     /// Like `PostgresConnection::transaction`.
-    pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
+    pub fn transaction<'a>(&'a self)
+            -> Result<PostgresTransaction<'a>, PostgresError> {
         self.conn.get_ref().transaction()
     }
 

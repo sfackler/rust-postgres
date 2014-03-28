@@ -21,14 +21,14 @@ struct Person {
 
 fn main() {
     let conn = PostgresConnection::connect("postgres://postgres@localhost",
-                                           &NoSsl);
+                                           &NoSsl).unwrap();
 
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
                     time_created    TIMESTAMP NOT NULL,
                     data            BYTEA
-                  )", []);
+                  )", []).unwrap();
     let me = Person {
         id: 0,
         name: ~"Steven",
@@ -38,10 +38,11 @@ fn main() {
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
                  [&me.name as &ToSql, &me.time_created as &ToSql,
-                  &me.data as &ToSql]);
+                  &me.data as &ToSql]).unwrap();
 
-    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person");
-    for row in stmt.query([]) {
+    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
+            .unwrap();
+    for row in stmt.query([]).unwrap() {
         let person = Person {
             id: row[1],
             name: row[2],
@@ -270,10 +271,10 @@ pub struct PostgresCancelData {
 /// ```rust,no_run
 /// # use postgres::{PostgresConnection, NoSsl};
 /// # let url = "";
-/// let conn = PostgresConnection::connect(url, &NoSsl);
+/// let conn = PostgresConnection::connect(url, &NoSsl).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// spawn(proc() {
-///     conn.execute("SOME EXPENSIVE QUERY", []);
+///     conn.execute("SOME EXPENSIVE QUERY", []).unwrap();
 /// });
 /// # let _ =
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
@@ -405,7 +406,7 @@ impl Drop for InnerPostgresConnection {
 }
 
 impl InnerPostgresConnection {
-    fn try_connect(url: &str, ssl: &SslMode)
+    fn connect(url: &str, ssl: &SslMode)
             -> Result<InnerPostgresConnection, PostgresConnectError> {
         let Url {
             host,
@@ -554,7 +555,7 @@ impl InnerPostgresConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn try_prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
+    fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> Result<PostgresStatement<'a>, PostgresError> {
         let stmt_name = format!("statement_{}", self.next_stmt_id);
         self.next_stmt_id += 1;
@@ -693,7 +694,7 @@ pub struct PostgresConnection {
 }
 
 impl PostgresConnection {
-    /// Attempts to create a new connection to a Postgres database.
+    /// Creates a new connection to a Postgres database.
     ///
     /// The URL should be provided in the normal format:
     ///
@@ -710,31 +711,19 @@ impl PostgresConnection {
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
     /// let url = "postgres://postgres:hunter2@localhost:2994/foodb";
-    /// let maybe_conn = PostgresConnection::try_connect(url, &NoSsl);
+    /// let maybe_conn = PostgresConnection::connect(url, &NoSsl);
     /// let conn = match maybe_conn {
     ///     Ok(conn) => conn,
     ///     Err(err) => fail!("Error connecting: {}", err)
     /// };
     /// ```
-    pub fn try_connect(url: &str, ssl: &SslMode)
+    pub fn connect(url: &str, ssl: &SslMode)
             -> Result<PostgresConnection, PostgresConnectError> {
-        InnerPostgresConnection::try_connect(url, ssl).map(|conn| {
+        InnerPostgresConnection::connect(url, ssl).map(|conn| {
             PostgresConnection {
                 conn: RefCell::new(conn)
             }
         })
-    }
-
-    /// A convenience wrapper around `try_connect`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error connecting to the database.
-    pub fn connect(url: &str, ssl: &SslMode) -> PostgresConnection {
-        match PostgresConnection::try_connect(url, ssl) {
-            Ok(conn) => conn,
-            Err(err) => fail!("Failed to connect: {}", err.to_str())
-        }
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
@@ -752,7 +741,7 @@ impl PostgresConnection {
         }
     }
 
-    /// Attempts to create a new prepared statement.
+    /// Creates a new prepared statement.
     ///
     /// A statement may contain parameters, specified by `$n` where `n` is the
     /// index of the parameter in the list provided at execution time,
@@ -765,31 +754,18 @@ impl PostgresConnection {
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// # let conn = PostgresConnection::connect("", &NoSsl);
-    /// let maybe_stmt = conn.try_prepare("SELECT foo FROM bar WHERE baz = $1");
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
     ///     Err(err) => fail!("Error preparing statement: {}", err)
     /// };
-    pub fn try_prepare<'a>(&'a self, query: &str)
+    pub fn prepare<'a>(&'a self, query: &str)
             -> Result<PostgresStatement<'a>, PostgresError> {
-        self.conn.borrow_mut().try_prepare(query, self)
+        self.conn.borrow_mut().prepare(query, self)
     }
 
-    /// A convenience wrapper around `try_prepare`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error preparing the statement.
-    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
-        match self.try_prepare(query) {
-            Ok(stmt) => stmt,
-            Err(err) => fail!("Error preparing statement:\n{}",
-                               err.pretty_error(query))
-        }
-    }
-
-    /// Attempts to begin a new transaction.
+    /// Begins a new transaction.
     ///
     /// Returns a `PostgresTransaction` object which should be used instead of
     /// the connection for the duration of the transaction. The transaction
@@ -802,9 +778,9 @@ impl PostgresConnection {
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
     /// # fn foo() -> Result<(), postgres::error::PostgresError> {
-    /// # let conn = PostgresConnection::connect("", &NoSsl);
-    /// let trans = try!(conn.try_transaction());
-    /// trans.execute("UPDATE foo SET bar = 10", []);
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// let trans = try!(conn.transaction());
+    /// try!(trans.execute("UPDATE foo SET bar = 10", []));
     ///
     /// # let something_bad_happened = true;
     /// if something_bad_happened {
@@ -815,7 +791,7 @@ impl PostgresConnection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn try_transaction<'a>(&'a self)
+    pub fn transaction<'a>(&'a self)
             -> Result<PostgresTransaction<'a>, PostgresError> {
         check_desync!(self);
         try!(self.quick_query("BEGIN"));
@@ -827,40 +803,15 @@ impl PostgresConnection {
         })
     }
 
-    /// A convenience wrapper around `try_transaction`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error beginning the transaction.
-    pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
-        match self.try_transaction() {
-            Ok(trans) => trans,
-            Err(err) => fail!("Error preparing transaction: {}", err)
-        }
-    }
-
     /// A convenience function for queries that are only run once.
     ///
     /// If an error is returned, it could have come from either the preparation
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
-    pub fn try_execute(&self, query: &str, params: &[&ToSql])
+    pub fn execute(&self, query: &str, params: &[&ToSql])
             -> Result<uint, PostgresError> {
-        self.try_prepare(query).and_then(|stmt| stmt.try_execute(params))
-    }
-
-    /// A convenience wrapper around `try_execute`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error preparing or executing the statement.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> uint {
-        match self.try_execute(query, params) {
-            Ok(res) => res,
-            Err(err) => fail!("Error running query:\n{}",
-                               err.pretty_error(query))
-        }
+        self.prepare(query).and_then(|stmt| stmt.execute(params))
     }
 
     /// Returns information used to cancel pending queries.
@@ -960,30 +911,20 @@ impl<'conn> PostgresTransaction<'conn> {
 }
 
 impl<'conn> PostgresTransaction<'conn> {
-    /// Like `PostgresConnection::try_prepare`.
-    pub fn try_prepare<'a>(&'a self, query: &str)
-            -> Result<PostgresStatement<'a>, PostgresError> {
-        self.conn.try_prepare(query)
-    }
-
     /// Like `PostgresConnection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str) -> PostgresStatement<'a> {
+    pub fn prepare<'a>(&'a self, query: &str)
+            -> Result<PostgresStatement<'a>, PostgresError> {
         self.conn.prepare(query)
     }
 
-    /// Like `PostgresConnection::try_execute`.
-    pub fn try_execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresError> {
-        self.conn.try_execute(query, params)
-    }
-
     /// Like `PostgresConnection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> uint {
+    pub fn execute(&self, query: &str, params: &[&ToSql])
+            -> Result<uint, PostgresError> {
         self.conn.execute(query, params)
     }
 
-    /// Like `PostgresConnection::try_transaction`.
-    pub fn try_transaction<'a>(&'a self)
+    /// Like `PostgresConnection::transaction`.
+    pub fn transaction<'a>(&'a self)
             -> Result<PostgresTransaction<'a>, PostgresError> {
         check_desync!(self.conn);
         try!(self.conn.quick_query("SAVEPOINT sp"));
@@ -993,14 +934,6 @@ impl<'conn> PostgresTransaction<'conn> {
             nested: true,
             finished: false,
         })
-    }
-
-    /// Like `PostgresTransaction::transaction`.
-    pub fn transaction<'a>(&'a self) -> PostgresTransaction<'a> {
-        match self.try_transaction() {
-            Ok(trans) => trans,
-            Err(err) => fail!("Error preparing transaction: {}", err)
-        }
     }
 
     /// Like `PostgresConnection::notifications`.
@@ -1037,50 +970,34 @@ impl<'conn> PostgresTransaction<'conn> {
         self.finish_inner()
     }
 
-    /// Attempts to execute a prepared statement, returning a lazily loaded
-    /// iterator over the resulting rows.
+    /// Executes a prepared statement, returning a lazily loaded iterator over
+    /// the resulting rows.
     ///
     /// No more than `row_limit` rows will be stored in memory at a time. Rows
     /// will be pulled from the database in batches of `row_limit` as needed.
-    /// If `row_limit` is 0, `try_lazy_query` is equivalent to `try_query`.
+    /// If `row_limit` is 0, `lazy_query` is equivalent to `query`.
     ///
     /// # Failure
     ///
     /// Fails if the number or types of the provided parameters do not match
     /// the parameters of the statement.
-    pub fn try_lazy_query<'trans, 'stmt>(&'trans self,
-                                         stmt: &'stmt PostgresStatement,
-                                         params: &[&ToSql],
-                                         row_limit: uint)
-                                         -> Result<PostgresLazyResult<'trans,
-                                                                      'stmt>,
-                                                   PostgresError> {
+    pub fn lazy_query<'trans, 'stmt>(&'trans self,
+                                     stmt: &'stmt PostgresStatement,
+                                     params: &[&ToSql],
+                                     row_limit: uint)
+                                     -> Result<PostgresLazyResult<'trans,
+                                                                  'stmt>,
+                                               PostgresError> {
         if self.conn as *PostgresConnection != stmt.conn as *PostgresConnection {
             return Err(PgWrongConnection);
         }
         check_desync!(self.conn);
-        stmt.try_lazy_query(row_limit, params).map(|result| {
+        stmt.lazy_query(row_limit, params).map(|result| {
             PostgresLazyResult {
                 trans: self,
                 result: result
             }
         })
-    }
-
-    /// A convenience wrapper around `try_lazy_query`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error executing the statement.
-    pub fn lazy_query<'trans, 'stmt>(&'trans self,
-                                     stmt: &'stmt PostgresStatement,
-                                     params: &[&ToSql],
-                                     row_limit: uint)
-                                     -> PostgresLazyResult<'trans, 'stmt> {
-        match self.try_lazy_query(stmt, params, row_limit) {
-            Ok(result) => result,
-            Err(err) => fail!("Error executing query:\n{}", err)
-        }
     }
 }
 
@@ -1170,7 +1087,7 @@ impl<'conn> PostgresStatement<'conn> {
         }
     }
 
-    fn try_lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+    fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresError> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
@@ -1201,8 +1118,7 @@ impl<'conn> PostgresStatement<'conn> {
         self.result_desc.as_slice()
     }
 
-    /// Attempts to execute the prepared statement, returning the number of
-    /// rows modified.
+    /// Executes the prepared statement, returning the number of rows modified.
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
@@ -1216,16 +1132,15 @@ impl<'conn> PostgresStatement<'conn> {
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
     /// # use postgres::types::ToSql;
-    /// # let conn = PostgresConnection::connect("", &NoSsl);
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
-    /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
-    /// match stmt.try_execute([&bar as &ToSql, &baz as &ToSql]) {
+    /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
+    /// match stmt.execute([&bar as &ToSql, &baz as &ToSql]) {
     ///     Ok(count) => println!("{} row(s) updated", count),
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
-    pub fn try_execute(&self, params: &[&ToSql])
-                      -> Result<uint, PostgresError> {
+    pub fn execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
 
@@ -1257,20 +1172,8 @@ impl<'conn> PostgresStatement<'conn> {
         Ok(num)
     }
 
-    /// A convenience function wrapping `try_execute`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error executing the statement.
-    pub fn execute(&self, params: &[&ToSql]) -> uint {
-        match self.try_execute(params) {
-            Ok(count) => count,
-            Err(err) => fail!("Error running query\n{}", err)
-        }
-    }
-
-    /// Attempts to execute the prepared statement, returning an iterator over
-    /// the resulting rows.
+    /// Executes the prepared statement, returning an iterator over the
+    /// resulting rows.
     ///
     /// # Failure
     ///
@@ -1282,10 +1185,10 @@ impl<'conn> PostgresStatement<'conn> {
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
     /// # use postgres::types::ToSql;
-    /// # let conn = PostgresConnection::connect("", &NoSsl);
-    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// let mut rows = match stmt.try_query([&baz as &ToSql]) {
+    /// let mut rows = match stmt.query([&baz as &ToSql]) {
     ///     Ok(rows) => rows,
     ///     Err(err) => fail!("Error running query: {}", err)
     /// };
@@ -1294,22 +1197,10 @@ impl<'conn> PostgresStatement<'conn> {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn try_query<'a>(&'a self, params: &[&ToSql])
+    pub fn query<'a>(&'a self, params: &[&ToSql])
             -> Result<PostgresResult<'a>, PostgresError> {
         check_desync!(self.conn);
-        self.try_lazy_query(0, params)
-    }
-
-    /// A convenience function wrapping `try_query`.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there was an error executing the statement.
-    pub fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<'a> {
-        match self.try_query(params) {
-            Ok(result) => result,
-            Err(err) => fail!("Error executing query:\n{}", err)
-        }
+        self.lazy_query(0, params)
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
@@ -1460,9 +1351,9 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 ///
 /// ```rust,no_run
 /// # use postgres::{PostgresConnection, NoSsl};
-/// # let conn = PostgresConnection::connect("", &NoSsl);
-/// # let stmt = conn.prepare("");
-/// # let mut result = stmt.query([]);
+/// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+/// # let stmt = conn.prepare("").unwrap();
+/// # let mut result = stmt.query([]).unwrap();
 /// # let row = result.next().unwrap();
 /// let foo: i32 = row[1];
 /// let bar: ~str = row["bar"];
