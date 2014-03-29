@@ -1,5 +1,5 @@
 //! Types dealing with ranges of values
-#[macro_escape];
+#![macro_escape]
 
 use std::fmt;
 use std::i32;

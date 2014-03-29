@@ -769,7 +769,7 @@ fn test_custom_notice_handler() {
     }
 
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl));
-    conn.set_notice_handler(~Handler as ~PostgresNoticeHandler);
+    conn.set_notice_handler(~Handler);
     or_fail!(conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
                            BEGIN
                             RAISE NOTICE 'note';

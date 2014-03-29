@@ -25,5 +25,3 @@ git submodule update --init
 sed -e "s|%PREFIX%|$PREFIX|" \
     -e "s|%CONFIGURE_ARGS%|$CONFIGURE_ARGS|" \
     < Makefile.in > Makefile
-
-touch config.stamp

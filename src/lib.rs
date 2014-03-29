@@ -55,14 +55,14 @@ fn main() {
 ```
  */
 
-#[crate_id="github.com/sfackler/rust-postgres#postgres:0.0"];
-#[crate_type="rlib"];
-#[crate_type="dylib"];
-#[doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")];
+#![crate_id="github.com/sfackler/rust-postgres#postgres:0.0"]
+#![crate_type="rlib"]
+#![crate_type="dylib"]
+#![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
 
-#[warn(missing_doc)];
+#![warn(missing_doc)]
 
-#[feature(macro_rules, struct_variant, phase)];
+#![feature(macro_rules, struct_variant, phase)]
 
 extern crate collections;
 extern crate openssl;
@@ -386,7 +386,7 @@ impl Writer for InternalStream {
 struct InnerPostgresConnection {
     stream: BufferedStream<InternalStream>,
     next_stmt_id: uint,
-    notice_handler: ~PostgresNoticeHandler,
+    notice_handler: ~PostgresNoticeHandler:Send,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
     unknown_types: HashMap<Oid, ~str>,
@@ -436,7 +436,7 @@ impl InnerPostgresConnection {
         let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
-            notice_handler: ~DefaultNoticeHandler as ~PostgresNoticeHandler,
+            notice_handler: ~DefaultNoticeHandler,
             notifications: RingBuf::new(),
             cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
@@ -551,8 +551,8 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler)
-            -> ~PostgresNoticeHandler {
+    fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler:Send)
+            -> ~PostgresNoticeHandler:Send {
         mem::replace(&mut self.notice_handler, handler)
     }
 
@@ -728,8 +728,8 @@ impl PostgresConnection {
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler)
-            -> ~PostgresNoticeHandler {
+    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler:Send)
+            -> ~PostgresNoticeHandler:Send {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 

@@ -1,5 +1,5 @@
 //! Traits dealing with Postgres data types
-#[macro_escape];
+#![macro_escape]
 
 use collections::HashMap;
 use uuid::Uuid;
@@ -73,12 +73,12 @@ static RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
 static RANGE_EMPTY: i8           = 0b0000_0001;
 
 macro_rules! make_postgres_type(
-    ($($doc:attr $oid:ident => $variant:ident $(member $member:ident)*),+) => (
+    ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
         #[deriving(Eq, Clone, Show)]
         pub enum PostgresType {
             $(
-                $doc
+                #[$doc]
                 $variant,
             )+
             /// An unknown type
@@ -504,14 +504,6 @@ impl FromSql for HashMap<~str, Option<~str>> {
         ret.map(|ok| ok.unwrap())
     }
 }
-macro_rules! or_fail(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => fail!("{}", err)
-        }
-    )
-)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
