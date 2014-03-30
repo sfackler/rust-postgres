@@ -562,12 +562,11 @@ impl InnerPostgresConnection {
         let stmt_name = format!("statement_{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
-        let types = [];
         try_pg!(self.write_messages([
             Parse {
                 name: stmt_name,
                 query: query,
-                param_types: types
+                param_types: []
             },
             Describe {
                 variant: 'S' as u8,
@@ -606,27 +605,8 @@ impl InnerPostgresConnection {
         try!(self.wait_for_ready());
 
         // now that the connection is ready again, get unknown type names
-        for param in param_types.mut_iter() {
-            match *param {
-                PgUnknownType { oid, .. } =>
-                    *param = PgUnknownType {
-                        name: try!(self.get_type_name(oid)),
-                        oid: oid
-                    },
-                _ => {}
-            }
-        }
-
-        for desc in result_desc.mut_iter() {
-            match desc.ty {
-                PgUnknownType { oid, .. } =>
-                    desc.ty = PgUnknownType {
-                        name: try!(self.get_type_name(oid)),
-                        oid: oid
-                    },
-                _ => {}
-            }
-        }
+        try!(self.set_type_names(param_types.mut_iter()));
+        try!(self.set_type_names(result_desc.mut_iter().map(|d| &mut d.ty)));
 
         Ok(PostgresStatement {
             conn: conn,
@@ -638,8 +618,16 @@ impl InnerPostgresConnection {
         })
     }
 
-    fn is_desynchronized(&self) -> bool {
-        self.desynchronized
+    fn set_type_names<'a, I: Iterator<&'a mut PostgresType>>(&mut self, mut it: I)
+            -> Result<(), PostgresError> {
+        for ty in it {
+            match *ty {
+                PgUnknownType { oid, ref mut name } =>
+                    *name = try!(self.get_type_name(oid)),
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     fn get_type_name(&mut self, oid: Oid) -> Result<~str, PostgresError> {
@@ -652,6 +640,10 @@ impl InnerPostgresConnection {
             .move_iter().next().unwrap().move_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
+    }
+
+    fn is_desynchronized(&self) -> bool {
+        self.desynchronized
     }
 
     fn wait_for_ready(&mut self) -> Result<(), PostgresError> {
@@ -1045,14 +1037,14 @@ impl<'conn> PostgresStatement<'conn> {
 
     fn inner_execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
             -> Result<(), PostgresError> {
-        let mut formats = Vec::new();
-        let mut values = Vec::new();
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
                 expected: self.param_types.len(),
                 actual: params.len(),
             });
         }
+        let mut formats = Vec::new();
+        let mut values = Vec::new();
         for (&param, ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = try!(param.to_sql(ty));
             formats.push(format as i16);
@@ -1404,11 +1396,10 @@ pub trait RowIndex: Clone {
 impl RowIndex for uint {
     #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
-        let idx = *self - 1;
-        if idx >= stmt.result_desc.len() {
+        if *self == 0 || *self > stmt.result_desc.len() {
             None
         } else {
-            Some(idx)
+            Some(*self - 1)
         }
     }
 }

@@ -13,7 +13,7 @@ pub enum BackendMessage {
     AuthenticationKerberosV5,
     AuthenticationCleartextPassword,
     AuthenticationMD5Password {
-        salt: ~[u8]
+        salt: [u8, ..4]
     },
     AuthenticationSCMCredential,
     AuthenticationGSS,
@@ -229,7 +229,6 @@ impl<W: Writer> WriteMessage for W {
         }
 
         let buf = buf.unwrap();
-
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
         try!(self.write(buf));
@@ -334,7 +333,11 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
-        5 => AuthenticationMD5Password { salt: try!(buf.read_exact(4)) },
+        5 => {
+            let mut salt = [0, 0, 0, 0];
+            try!(buf.fill(salt));
+            AuthenticationMD5Password { salt: salt }
+        },
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
