@@ -3,6 +3,7 @@
 use collections::HashMap;
 use std::from_str::FromStr;
 use std::io::IoError;
+use std::fmt;
 
 use openssl::ssl::error::SslError;
 use phf::PhfMap;
@@ -12,7 +13,7 @@ use types::PostgresType;
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(Eq, Clone, Show)]
+        #[deriving(Eq, Clone)]
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
@@ -355,7 +356,6 @@ make_errors!(
 )
 
 /// Reasons a new Postgres connection could fail
-#[deriving(Show)]
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
     InvalidUrl,
@@ -380,8 +380,30 @@ pub enum PostgresConnectError {
     PgConnectStreamError(IoError),
 }
 
+impl fmt::Show for PostgresConnectError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            InvalidUrl => fmt.buf.write_str("Invalid URL"),
+            MissingUser => fmt.buf.write_str("User missing in URL"),
+            DnsError => fmt.buf.write_str("DNS lookup failed"),
+            SocketError =>
+                fmt.buf.write_str("Unable to open connection to server"),
+            PgConnectDbError(ref err) => err.fmt(fmt),
+            MissingPassword =>
+                fmt.buf.write_str("The server requested a password but none \
+                                   was provided"),
+            UnsupportedAuthentication =>
+                fmt.buf.write_str("The server requested an unsupporeted \
+                                   authentication method"),
+            NoSslSupport =>
+                fmt.buf.write_str("The server does not support SSL"),
+            SslError(ref err) => err.fmt(fmt),
+            PgConnectStreamError(ref err) => err.fmt(fmt),
+        }
+    }
+}
+
 /// Represents the position of an error in a query
-#[deriving(Show)]
 pub enum PostgresErrorPosition {
     /// A position in the original query
     Position(uint),
@@ -395,7 +417,6 @@ pub enum PostgresErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
-#[deriving(Show)]
 pub struct PostgresDbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -483,8 +504,13 @@ impl PostgresDbError {
     }
 }
 
+impl fmt::Show for PostgresDbError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt.buf, "{}: {}", self.severity, self.message)
+    }
+}
+
 /// An error encountered when communicating with the Postgres server
-#[deriving(Show)]
 pub enum PostgresError {
     /// An error reported by the Postgres server
     PgDbError(PostgresDbError),
@@ -509,4 +535,25 @@ pub enum PostgresError {
     PgInvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type
     PgWasNull,
+}
+
+impl fmt::Show for PostgresError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PgDbError(ref err) => err.fmt(fmt),
+            PgStreamError(ref err) => err.fmt(fmt),
+            PgStreamDesynchronized => fmt.buf.write_str(
+                "Communication with the server has desynchronized due to an \
+                 earlier IO error"),
+            PgWrongConnection => fmt.buf.write_str(
+                "A statement was executed with a connection it was not \
+                 prepared with"),
+            PgWrongParamCount { expected, actual } =>
+                write!(fmt.buf, "Expected {} parameters but got {}", expected,
+                       actual),
+            PgWrongType(ref ty) => write!(fmt.buf, "Unexpected type {}", ty),
+            PgInvalidColumn => fmt.buf.write_str("Invalid column"),
+            PgWasNull => fmt.buf.write_str("The value was NULL")
+        }
+    }
 }
