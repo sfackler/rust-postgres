@@ -10,7 +10,7 @@ use std::io::util::LimitReader;
 use std::str;
 use time::Timespec;
 
-use error::{PostgresError, PgWrongType, PgStreamError};
+use error::{PostgresError, PgWrongType, PgStreamError, PgWasNull};
 use types::array::{Array, ArrayBase, DimensionInfo};
 use types::range::{RangeBound, Inclusive, Exclusive, Range};
 
@@ -378,7 +378,11 @@ macro_rules! from_map_impl(
                     -> Result<$t, PostgresError> {
                 // FIXME when you can specify Self types properly
                 let ret: Result<Option<$t>, PostgresError> = FromSql::from_sql(ty, raw);
-                ret.map(|ok| ok.unwrap())
+                match ret {
+                    Ok(Some(val)) => Ok(val),
+                    Ok(None) => Err(PgWasNull),
+                    Err(err) => Err(err)
+                }
             }
         }
     )
@@ -501,7 +505,11 @@ impl FromSql for HashMap<~str, Option<~str>> {
                 -> Result<HashMap<~str, Option<~str>>, PostgresError> {
         // FIXME when you can specify Self types properly
         let ret: Result<Option<HashMap<~str, Option<~str>>>, PostgresError> = FromSql::from_sql(ty, raw);
-        ret.map(|ok| ok.unwrap())
+        match ret {
+            Ok(Some(val)) => Ok(val),
+            Ok(None) => Err(PgWasNull),
+            Err(err) => Err(err)
+        }
     }
 }
 

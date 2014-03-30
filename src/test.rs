@@ -23,6 +23,7 @@ use error::{PgConnectDbError,
             PgWrongParamCount,
             PgWrongType,
             PgInvalidColumn,
+            PgWasNull,
             DnsError,
             MissingPassword,
             Position,
@@ -766,6 +767,18 @@ fn test_get_named_err() {
 
     match result.next().unwrap().get::<&str, i32>("asdf") {
         Err(PgInvalidColumn) => {}
+        res => fail!("unexpected result {}", res),
+    };
+}
+
+#[test]
+fn test_get_was_null() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT NULL::INT as id"));
+    let mut result = or_fail!(stmt.query([]));
+
+    match result.next().unwrap().get::<uint, i32>(1) {
+        Err(PgWasNull) => {}
         res => fail!("unexpected result {}", res),
     };
 }

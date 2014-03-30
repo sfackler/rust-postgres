@@ -481,21 +481,6 @@ impl PostgresDbError {
             routine: map.pop(&('R' as u8)).unwrap()
         }
     }
-
-    #[doc(hidden)]
-    pub fn pretty_error(&self, query: &str) -> ~str {
-        match self.position {
-            Some(Position(pos)) =>
-                format!("{}: {} at position {} in\n{}", self.severity,
-                        self.message, pos, query),
-            Some(InternalPosition { position, query: ref inner_query }) =>
-                format!("{}: {} at position {} in\n{} called from\n{}",
-                        self.severity, self.message, position, *inner_query,
-                        query),
-            None => format!("{}: {} in\n{}", self.severity, self.message,
-                            query)
-        }
-    }
 }
 
 /// An error encountered when communicating with the Postgres server
@@ -522,4 +507,6 @@ pub enum PostgresError {
     PgWrongType(PostgresType),
     /// An attempt was made to read from a column that does not exist
     PgInvalidColumn,
+    /// A value was NULL but converted to a non-nullable Rust type
+    PgWasNull,
 }
