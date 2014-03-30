@@ -519,25 +519,7 @@ pub enum PostgresError {
     },
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types
-    PgWrongType(PostgresType)
-}
-
-impl PostgresError {
-    #[doc(hidden)]
-    pub fn pretty_error(&self, query: &str) -> ~str {
-        match *self {
-            PgDbError(ref err) => err.pretty_error(query),
-            PgStreamError(ref err) => format!("{}", *err),
-            PgStreamDesynchronized =>
-                ~"The communication stream with the Postgres server has \
-                  become desynchronized due to an earlier communications \
-                  error",
-            PgWrongConnection =>
-                ~"A statement was executed on a connection it was not \
-                  prepared on ",
-            PgWrongParamCount { expected, actual } =>
-                format!("Expected {} parameters but got {}", expected, actual),
-            PgWrongType(ref ty) => format!("Unexpected type {}", *ty),
-        }
-    }
+    PgWrongType(PostgresType),
+    /// An attempt was made to read from a column that does not exist
+    PgInvalidColumn,
 }

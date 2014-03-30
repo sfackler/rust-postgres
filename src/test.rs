@@ -22,6 +22,7 @@ use error::{PgConnectDbError,
             PgWrongConnection,
             PgWrongParamCount,
             PgWrongType,
+            PgInvalidColumn,
             DnsError,
             MissingPassword,
             Position,
@@ -739,7 +740,7 @@ fn test_too_many_params() {
 }
 
 #[test]
-fn test_get_named() {
+fn test_index_named() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT 10::INT as val"));
     let result = or_fail!(stmt.query([]));
@@ -749,12 +750,24 @@ fn test_get_named() {
 
 #[test]
 #[should_fail]
-fn test_get_named_fail() {
+fn test_index_named_fail() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT 10::INT as id"));
     let mut result = or_fail!(stmt.query([]));
 
     let _: i32 = result.next().unwrap()["asdf"];
+}
+
+#[test]
+fn test_get_named_err() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT 10::INT as id"));
+    let mut result = or_fail!(stmt.query([]));
+
+    match result.next().unwrap().get::<&str, i32>("asdf") {
+        Err(PgInvalidColumn) => {}
+        res => fail!("unexpected result {}", res),
+    };
 }
 
 #[test]

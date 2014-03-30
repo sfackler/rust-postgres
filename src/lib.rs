@@ -100,6 +100,7 @@ use error::{DnsError,
             PgConnectDbError,
             PgConnectStreamError,
             PgDbError,
+            PgInvalidColumn,
             PgStreamDesynchronized,
             PgStreamError,
             PgWrongParamCount,
@@ -1332,22 +1333,28 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 }
 
 /// A single result row of a query.
-///
-/// A value can be accessed by the name or index of its column, though access
-/// by index is more efficient. Rows are 1-indexed.
-///
-/// ```rust,no_run
-/// # use postgres::{PostgresConnection, NoSsl};
-/// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
-/// # let stmt = conn.prepare("").unwrap();
-/// # let mut result = stmt.query([]).unwrap();
-/// # let row = result.next().unwrap();
-/// let foo: i32 = row[1];
-/// let bar: ~str = row["bar"];
-/// ```
 pub struct PostgresRow<'stmt> {
     priv stmt: &'stmt PostgresStatement<'stmt>,
     priv data: Vec<Option<~[u8]>>
+}
+
+impl<'stmt> PostgresRow<'stmt> {
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 1-indexed.
+    ///
+    /// Returns an `Error` value if the index does not reference a column or
+    /// the return type is not compatible with the Postgres type.
+    pub fn get<I: RowIndex, T: FromSql>(&self, idx: I)
+            -> Result<T, PostgresError> {
+        let idx = match idx.idx(self.stmt) {
+            Some(idx) => idx,
+            None => return Err(PgInvalidColumn)
+        };
+        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty,
+                          self.data.get(idx))
+    }
 }
 
 impl<'stmt> Container for PostgresRow<'stmt> {
@@ -1358,47 +1365,74 @@ impl<'stmt> Container for PostgresRow<'stmt> {
 }
 
 impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
+    /// Retreives the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 1-indexed.
+    ///
+    /// # Failure
+    ///
+    /// Fails if the index does not reference a column or the return type is
+    /// not compatible with the Postgres type.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # let stmt = conn.prepare("").unwrap();
+    /// # let mut result = stmt.query([]).unwrap();
+    /// # let row = result.next().unwrap();
+    /// let foo: i32 = row[1];
+    /// let bar: ~str = row["bar"];
+    /// ```
     fn index(&self, idx: &I) -> T {
-        let idx = idx.idx(self.stmt);
-        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty, self.data.get(idx)).unwrap()
+        match self.get(idx.clone()) {
+            Ok(ok) => ok,
+            Err(err) => fail!("error retrieving row: {}", err)
+        }
     }
 }
 
 /// A trait implemented by types that can index into columns of a row.
-pub trait RowIndex {
-    /// Returns the index of the appropriate column.
-    ///
-    /// # Failure
-    ///
-    /// Fails if there is no corresponding column.
-    fn idx(&self, stmt: &PostgresStatement) -> uint;
+pub trait RowIndex: Clone {
+    /// Returns the index of the appropriate column, or `None` if no such
+    /// column exists.
+    fn idx(&self, stmt: &PostgresStatement) -> Option<uint>;
 }
 
 impl RowIndex for uint {
     #[inline]
-    fn idx(&self, _stmt: &PostgresStatement) -> uint {
-        assert!(*self != 0, "out of bounds row access");
-        *self - 1
+    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
+        let idx = *self - 1;
+        if idx >= stmt.result_desc.len() {
+            None
+        } else {
+            Some(idx)
+        }
     }
 }
 
 // This is a convenience as the 1 in get[1] resolves to int :(
 impl RowIndex for int {
     #[inline]
-    fn idx(&self, _stmt: &PostgresStatement) -> uint {
-        assert!(*self >= 1, "out of bounds row access");
-        (*self - 1) as uint
+    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
+        if *self < 0 {
+            return None;
+        }
+
+        (*self as uint).idx(stmt)
     }
 }
 
 impl<'a> RowIndex for &'a str {
-    fn idx(&self, stmt: &PostgresStatement) -> uint {
+    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
         for (i, desc) in stmt.result_descriptions().iter().enumerate() {
             if desc.name.as_slice() == *self {
-                return i;
+                return Some(i);
             }
         }
-        fail!("there is no column with name {}", *self);
+        None
     }
 }
 
