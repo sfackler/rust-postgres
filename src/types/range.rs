@@ -184,7 +184,7 @@ impl<S: BoundSided, T: Clone> Clone for RangeBound<S, T> {
 }
 
 impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let chars = match self.type_ {
             Inclusive => ['[', ']'],
             Exclusive => ['(', ')'],
@@ -192,12 +192,10 @@ impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
 
         match BoundSided::side(None::<S>) {
             Lower => {
-                try!(formatter.buf.write_char(chars[0]));
-                self.value.fmt(formatter)
+                write!(fmt.buf, "{}{}", chars[0], self.value)
             }
             Upper => {
-                try!(self.value.fmt(formatter));
-                formatter.buf.write_char(chars[1])
+                write!(fmt.buf, "{}{}", self.value, chars[1])
             }
         }
     }
@@ -270,18 +268,18 @@ enum InnerRange<T> {
 }
 
 impl<T: fmt::Show> fmt::Show for Range<T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.inner {
-            Empty => formatter.buf.write_str("empty"),
+            Empty => fmt.buf.write_str("empty"),
             Normal(ref lower, ref upper) => {
                 match *lower {
-                    Some(ref bound) => try!(bound.fmt(formatter)),
-                    None => try!(formatter.buf.write_char('(')),
+                    Some(ref bound) => try!(bound.fmt(fmt)),
+                    None => try!(fmt.buf.write_char('(')),
                 }
-                try!(formatter.buf.write_char(','));
+                try!(fmt.buf.write_char(','));
                 match *upper {
-                    Some(ref bound) => bound.fmt(formatter),
-                    None => formatter.buf.write_char(')'),
+                    Some(ref bound) => bound.fmt(fmt),
+                    None => fmt.buf.write_char(')'),
                 }
             }
         }

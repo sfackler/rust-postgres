@@ -268,6 +268,8 @@ pub struct PostgresCancelData {
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
 ///
+/// Only the host and port of the URL are used.
+///
 /// # Example
 ///
 /// ```rust,no_run
@@ -311,17 +313,18 @@ fn open_socket(host: &str, port: Port)
         -> Result<TcpStream, PostgresConnectError> {
     let addrs = match net::get_host_addresses(host) {
         Ok(addrs) => addrs,
-        Err(_) => return Err(DnsError)
+        Err(err) => return Err(DnsError(err))
     };
 
+    let mut err = None;
     for &addr in addrs.iter() {
         match TcpStream::connect(SocketAddr { ip: addr, port: port }) {
             Ok(socket) => return Ok(socket),
-            Err(_) => {}
+            Err(e) => err = Some(e)
         }
     }
 
-    Err(SocketError)
+    Err(SocketError(err.unwrap()))
 }
 
 fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
@@ -1356,7 +1359,7 @@ impl<'stmt> Container for PostgresRow<'stmt> {
     }
 }
 
-impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
+impl<'stmt, I: RowIndex+Clone, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     /// Retreives the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
@@ -1387,7 +1390,7 @@ impl<'stmt, I: RowIndex, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
 }
 
 /// A trait implemented by types that can index into columns of a row.
-pub trait RowIndex: Clone {
+pub trait RowIndex {
     /// Returns the index of the appropriate column, or `None` if no such
     /// column exists.
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint>;

@@ -24,12 +24,13 @@ macro_rules! make_errors(
             $($code => $error),+
         );
 
-        impl FromStr for PostgresSqlState {
-            fn from_str(s: &str) -> Option<PostgresSqlState> {
-                Some(match STATE_MAP.find(&s) {
+        impl PostgresSqlState {
+            #[doc(hidden)]
+            pub fn from_code(s: &str) -> PostgresSqlState {
+                match STATE_MAP.find(&s) {
                     Some(state) => state.clone(),
                     None => UnknownSqlState(s.to_owned())
-                })
+                }
             }
         }
     )
@@ -362,9 +363,9 @@ pub enum PostgresConnectError {
     /// The URL was missing a user
     MissingUser,
     /// DNS lookup failed
-    DnsError,
+    DnsError(IoError),
     /// There was an error opening a socket to the server
-    SocketError,
+    SocketError(IoError),
     /// An error from the Postgres server itself
     PgConnectDbError(PostgresDbError),
     /// A password was required but not provided in the URL
@@ -385,9 +386,9 @@ impl fmt::Show for PostgresConnectError {
         match *self {
             InvalidUrl => fmt.buf.write_str("Invalid URL"),
             MissingUser => fmt.buf.write_str("User missing in URL"),
-            DnsError => fmt.buf.write_str("DNS lookup failed"),
-            SocketError =>
-                fmt.buf.write_str("Unable to open connection to server"),
+            DnsError(ref err) => write!(fmt.buf, "DNS lookup failed: {}", err),
+            SocketError(ref err) =>
+                write!(fmt.buf, "Unable to open connection to server: {}", err),
             PgConnectDbError(ref err) => err.fmt(fmt),
             MissingPassword =>
                 fmt.buf.write_str("The server requested a password but none \
@@ -397,8 +398,10 @@ impl fmt::Show for PostgresConnectError {
                                    authentication method"),
             NoSslSupport =>
                 fmt.buf.write_str("The server does not support SSL"),
-            SslError(ref err) => err.fmt(fmt),
-            PgConnectStreamError(ref err) => err.fmt(fmt),
+            SslError(ref err) =>
+                write!(fmt.buf, "Error initiating SSL session: {}", err),
+            PgConnectStreamError(ref err) =>
+                write!(fmt.buf, "Error communicating with server: {}", err),
         }
     }
 }
@@ -477,7 +480,7 @@ impl PostgresDbError {
         let mut map: HashMap<u8, ~str> = fields.move_iter().collect();
         PostgresDbError {
             severity: map.pop(&('S' as u8)).unwrap(),
-            code: FromStr::from_str(map.pop(&('C' as u8)).unwrap()).unwrap(),
+            code: PostgresSqlState::from_code(map.pop(&('C' as u8)).unwrap()),
             message: map.pop(&('M' as u8)).unwrap(),
             detail: map.pop(&('D' as u8)),
             hint: map.pop(&('H' as u8)),

@@ -897,7 +897,7 @@ fn test_plaintext_pass_no_pass() {
     let ret = PostgresConnection::connect("postgres://pass_user@localhost/postgres", &NoSsl);
     match ret {
         Err(MissingPassword) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
 }
@@ -907,7 +907,7 @@ fn test_plaintext_pass_wrong_pass() {
     let ret = PostgresConnection::connect("postgres://pass_user:asdf@localhost/postgres", &NoSsl);
     match ret {
         Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
 }
@@ -922,7 +922,7 @@ fn test_md5_pass_no_pass() {
     let ret = PostgresConnection::connect("postgres://md5_user@localhost/postgres", &NoSsl);
     match ret {
         Err(MissingPassword) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
 }
@@ -932,7 +932,7 @@ fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
     match ret {
         Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
 }
@@ -941,8 +941,8 @@ fn test_md5_pass_wrong_pass() {
 fn test_dns_failure() {
     let ret = PostgresConnection::connect("postgres://postgres@asdfasdfasdf", &NoSsl);
     match ret {
-        Err(DnsError) => (),
-        Err(err) => fail!("Unexpected error {}", err.to_str()),
+        Err(DnsError(_)) => (),
+        Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
 }
