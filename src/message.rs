@@ -9,109 +9,109 @@ pub static CANCEL_CODE: i32 = 80877102;
 pub static SSL_CODE: i32 = 80877103;
 
 pub enum BackendMessage {
-    AuthenticationOk,
-    AuthenticationKerberosV5,
     AuthenticationCleartextPassword,
-    AuthenticationMD5Password {
-        salt: [u8, ..4]
-    },
-    AuthenticationSCMCredential,
     AuthenticationGSS,
+    AuthenticationKerberosV5,
+    AuthenticationMD5Password {
+        pub salt: [u8, ..4]
+    },
+    AuthenticationOk,
+    AuthenticationSCMCredential,
     AuthenticationSSPI,
     BackendKeyData {
-        process_id: i32,
-        secret_key: i32
+        pub process_id: i32,
+        pub secret_key: i32
     },
     BindComplete,
     CloseComplete,
     CommandComplete {
-        tag: ~str
+        pub tag: ~str
     },
     DataRow {
-        row: Vec<Option<~[u8]>>
+        pub row: Vec<Option<~[u8]>>
     },
     EmptyQueryResponse,
     ErrorResponse {
-        fields: Vec<(u8, ~str)>
+        pub fields: Vec<(u8, ~str)>
     },
     NoData,
     NoticeResponse {
-        fields: Vec<(u8, ~str)>
+        pub fields: Vec<(u8, ~str)>
     },
     NotificationResponse {
-        pid: i32,
-        channel: ~str,
-        payload: ~str
+        pub pid: i32,
+        pub channel: ~str,
+        pub payload: ~str
     },
     ParameterDescription {
-        types: Vec<Oid>
+        pub types: Vec<Oid>
     },
     ParameterStatus {
-        parameter: ~str,
-        value: ~str
+        pub parameter: ~str,
+        pub value: ~str
     },
     ParseComplete,
     PortalSuspended,
     ReadyForQuery {
-        state: u8
+        pub state: u8
     },
     RowDescription {
-        descriptions: Vec<RowDescriptionEntry>
+        pub descriptions: Vec<RowDescriptionEntry>
     }
 }
 
 pub struct RowDescriptionEntry {
-    name: ~str,
-    table_oid: Oid,
-    column_id: i16,
-    type_oid: Oid,
-    type_size: i16,
-    type_modifier: i32,
-    format: i16
+    pub name: ~str,
+    pub table_oid: Oid,
+    pub column_id: i16,
+    pub type_oid: Oid,
+    pub type_size: i16,
+    pub type_modifier: i32,
+    pub format: i16
 }
 
 pub enum FrontendMessage<'a> {
     Bind {
-        portal: &'a str,
-        statement: &'a str,
-        formats: &'a [i16],
-        values: &'a [Option<~[u8]>],
-        result_formats: &'a [i16]
+        pub portal: &'a str,
+        pub statement: &'a str,
+        pub formats: &'a [i16],
+        pub values: &'a [Option<~[u8]>],
+        pub result_formats: &'a [i16]
     },
     CancelRequest {
-        code: i32,
-        process_id: i32,
-        secret_key: i32,
+        pub code: i32,
+        pub process_id: i32,
+        pub secret_key: i32,
     },
     Close {
-        variant: u8,
-        name: &'a str
+        pub variant: u8,
+        pub name: &'a str
     },
     Describe {
-        variant: u8,
-        name: &'a str
+        pub variant: u8,
+        pub name: &'a str
     },
     Execute {
-        portal: &'a str,
-        max_rows: i32
+        pub portal: &'a str,
+        pub max_rows: i32
     },
     Parse {
-        name: &'a str,
-        query: &'a str,
-        param_types: &'a [i32]
+        pub name: &'a str,
+        pub query: &'a str,
+        pub param_types: &'a [i32]
     },
     PasswordMessage {
-        password: &'a str
+        pub password: &'a str
     },
     Query {
-        query: &'a str
-    },
-    StartupMessage {
-        version: i32,
-        parameters: &'a [(~str, ~str)]
+        pub query: &'a str
     },
     SslRequest {
-        code: i32
+        pub code: i32
+    },
+    StartupMessage {
+        pub version: i32,
+        pub parameters: &'a [(~str, ~str)]
     },
     Sync,
     Terminate

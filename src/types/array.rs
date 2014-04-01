@@ -7,9 +7,9 @@ use std::slice;
 #[deriving(Eq, Clone, Show)]
 pub struct DimensionInfo {
     /// The size of the dimension
-    len: uint,
+    pub len: uint,
     /// The index of the first element of the dimension
-    lower_bound: int,
+    pub lower_bound: int,
 }
 
 /// Specifies methods that can be performed on multi-dimensional arrays
@@ -71,8 +71,8 @@ trait InternalArray<T> : Array<T> {
 /// A multi-dimensional array
 #[deriving(Eq, Clone)]
 pub struct ArrayBase<T> {
-    priv info: Vec<DimensionInfo>,
-    priv data: Vec<T>,
+    info: Vec<DimensionInfo>,
+    data: Vec<T>,
 }
 
 impl<T> ArrayBase<T> {
@@ -185,8 +185,8 @@ enum ArrayParent<'parent, T> {
 
 /// An immutable slice of a multi-dimensional array
 pub struct ArraySlice<'parent, T> {
-    priv parent: ArrayParent<'parent, T>,
-    priv idx: uint,
+    parent: ArrayParent<'parent, T>,
+    idx: uint,
 }
 
 impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
@@ -227,7 +227,7 @@ impl<'parent, T> InternalArray<T> for ArraySlice<'parent, T> {
 
 /// A mutable slice of a multi-dimensional array
 pub struct MutArraySlice<'parent, T> {
-    priv slice: ArraySlice<'parent, T>
+    slice: ArraySlice<'parent, T>
 }
 
 impl<'parent, T> Array<T> for MutArraySlice<'parent, T> {

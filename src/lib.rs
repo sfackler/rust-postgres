@@ -69,13 +69,13 @@ extern crate openssl;
 extern crate serialize;
 extern crate sync;
 extern crate time;
+extern crate phf;
 #[phase(syntax)]
 extern crate phf_mac;
-extern crate phf;
-extern crate uuid;
 extern crate url;
 #[phase(syntax, link)]
 extern crate log;
+extern crate uuid;
 
 use collections::{Deque, HashMap, RingBuf};
 use url::{UserInfo, Url};
@@ -236,7 +236,7 @@ pub struct PostgresNotification {
 
 /// An iterator over asynchronous notifications
 pub struct PostgresNotifications<'conn> {
-    priv conn: &'conn PostgresConnection
+    conn: &'conn PostgresConnection
 }
 
 impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
@@ -483,7 +483,8 @@ impl InnerPostgresConnection {
         Ok(conn)
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
+    fn write_messages(&mut self, messages: &[FrontendMessage])
+            -> IoResult<()> {
         assert!(!self.desynchronized);
         for message in messages.iter() {
             try_desync!(self.stream.write_message(message));
@@ -519,7 +520,9 @@ impl InnerPostgresConnection {
                     Some(pass) => pass,
                     None => return Err(MissingPassword)
                 };
-                try_pg_conn!(self.write_messages([PasswordMessage { password: pass }]));
+                try_pg_conn!(self.write_messages([PasswordMessage {
+                        password: pass
+                    }]));
             }
             AuthenticationMD5Password { salt } => {
                 let UserInfo { user, pass } = user;
@@ -536,8 +539,8 @@ impl InnerPostgresConnection {
                 hasher.update(salt);
                 let output = "md5" + hasher.final().to_hex();
                 try_pg_conn!(self.write_messages([PasswordMessage {
-                    password: output.as_slice()
-                }]));
+                        password: output.as_slice()
+                    }]));
             }
             AuthenticationKerberosV5
             | AuthenticationSCMCredential
@@ -688,7 +691,7 @@ impl InnerPostgresConnection {
 
 /// A connection to a Postgres database.
 pub struct PostgresConnection {
-    priv conn: RefCell<InnerPostgresConnection>
+    conn: RefCell<InnerPostgresConnection>
 }
 
 impl PostgresConnection {
@@ -870,10 +873,10 @@ pub enum SslMode {
 
 /// Represents a transaction on a database connection
 pub struct PostgresTransaction<'conn> {
-    priv conn: &'conn PostgresConnection,
-    priv commit: Cell<bool>,
-    priv nested: bool,
-    priv finished: bool,
+    conn: &'conn PostgresConnection,
+    commit: Cell<bool>,
+    nested: bool,
+    finished: bool,
 }
 
 #[unsafe_destructor]
@@ -996,12 +999,12 @@ impl<'conn> PostgresTransaction<'conn> {
 
 /// A prepared statement
 pub struct PostgresStatement<'conn> {
-    priv conn: &'conn PostgresConnection,
-    priv name: ~str,
-    priv param_types: Vec<PostgresType>,
-    priv result_desc: Vec<ResultDescription>,
-    priv next_portal_id: Cell<uint>,
-    priv finished: Cell<bool>,
+    conn: &'conn PostgresConnection,
+    name: ~str,
+    param_types: Vec<PostgresType>,
+    result_desc: Vec<ResultDescription>,
+    next_portal_id: Cell<uint>,
+    finished: Cell<bool>,
 }
 
 #[unsafe_destructor]
@@ -1210,12 +1213,12 @@ pub struct ResultDescription {
 
 /// An iterator over the resulting rows of a query.
 pub struct PostgresResult<'stmt> {
-    priv stmt: &'stmt PostgresStatement<'stmt>,
-    priv name: ~str,
-    priv data: RingBuf<Vec<Option<~[u8]>>>,
-    priv row_limit: uint,
-    priv more_rows: bool,
-    priv finished: bool,
+    stmt: &'stmt PostgresStatement<'stmt>,
+    name: ~str,
+    data: RingBuf<Vec<Option<~[u8]>>>,
+    row_limit: uint,
+    more_rows: bool,
+    finished: bool,
 }
 
 #[unsafe_destructor]
@@ -1330,8 +1333,8 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
 
 /// A single result row of a query.
 pub struct PostgresRow<'stmt> {
-    priv stmt: &'stmt PostgresStatement<'stmt>,
-    priv data: Vec<Option<~[u8]>>
+    stmt: &'stmt PostgresStatement<'stmt>,
+    data: Vec<Option<~[u8]>>
 }
 
 impl<'stmt> PostgresRow<'stmt> {
@@ -1433,8 +1436,8 @@ impl<'a> RowIndex for &'a str {
 
 /// A lazily-loaded iterator over the resulting rows of a query
 pub struct PostgresLazyResult<'trans, 'stmt> {
-    priv result: PostgresResult<'stmt>,
-    priv trans: &'trans PostgresTransaction<'trans>,
+    result: PostgresResult<'stmt>,
+    trans: &'trans PostgresTransaction<'trans>,
 }
 
 impl<'trans, 'stmt> PostgresLazyResult<'trans, 'stmt> {

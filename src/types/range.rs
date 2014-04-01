@@ -169,9 +169,9 @@ pub enum BoundType {
 /// The side is determined by the `S` phantom parameter.
 pub struct RangeBound<S, T> {
     /// The value of the bound
-    value: T,
+    pub value: T,
     /// The type of the bound
-    type_: BoundType
+    pub type_: BoundType
 }
 
 impl<S: BoundSided, T: Clone> Clone for RangeBound<S, T> {
@@ -257,7 +257,7 @@ impl<'a, S: BoundSided, T: Ord> Ord for OptBound<'a, S, T> {
 /// Represents a range of values.
 #[deriving(Eq, Clone)]
 pub struct Range<T> {
-    priv inner: InnerRange<T>,
+    inner: InnerRange<T>,
 }
 
 #[deriving(Eq,Clone)]

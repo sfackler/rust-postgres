@@ -65,7 +65,7 @@ impl InnerConnectionPool {
 /// ```
 #[deriving(Clone)]
 pub struct PostgresConnectionPool {
-    priv pool: Arc<Mutex<InnerConnectionPool>>
+    pool: Arc<Mutex<InnerConnectionPool>>
 }
 
 impl PostgresConnectionPool {
@@ -115,9 +115,9 @@ impl PostgresConnectionPool {
 /// It will be returned to the pool when it falls out of scope, even due to
 /// task failure.
 pub struct PooledPostgresConnection {
-    priv pool: PostgresConnectionPool,
+    pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
-    priv conn: Option<~PostgresConnection>
+    conn: Option<~PostgresConnection>
 }
 
 impl Drop for PooledPostgresConnection {
