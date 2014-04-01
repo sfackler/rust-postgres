@@ -91,6 +91,7 @@ use std::io::net::tcp::TcpStream;
 use std::mem;
 use std::str;
 use std::task;
+use std::fmt;
 
 use error::{DnsError,
             InvalidUrl,
@@ -1359,7 +1360,7 @@ impl<'stmt> Container for PostgresRow<'stmt> {
     }
 }
 
-impl<'stmt, I: RowIndex+Clone, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
+impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     /// Retreives the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
@@ -1384,7 +1385,7 @@ impl<'stmt, I: RowIndex+Clone, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
     fn index(&self, idx: &I) -> T {
         match self.get(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => fail!("error retrieving row: {}", err)
+            Err(err) => fail!("error retrieving row[{}]: {}", idx, err)
         }
     }
 }
