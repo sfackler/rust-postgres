@@ -538,29 +538,25 @@ macro_rules! raw_to_impl(
 )
 
 impl RawToSql for bool {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         Ok(try_pg!(w.write_u8(*self as u8)))
     }
 }
 
 impl RawToSql for ~[u8] {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         Ok(try_pg!(w.write(self.as_slice())))
     }
 }
 
 impl RawToSql for Vec<u8> {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         Ok(try_pg!(w.write(self.as_slice())))
     }
 }
 
 impl RawToSql for ~str {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         Ok(try_pg!(w.write(self.as_bytes())))
     }
 }
@@ -573,8 +569,7 @@ raw_to_impl!(f32, write_be_f32)
 raw_to_impl!(f64, write_be_f64)
 
 impl RawToSql for Timespec {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
             + self.nsec as i64 / NSEC_PER_USEC;
         Ok(try_pg!(w.write_be_i64(t)))
@@ -582,8 +577,7 @@ impl RawToSql for Timespec {
 }
 
 impl RawToSql for Uuid {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W)
-            -> Result<(), PostgresError> {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<(), PostgresError> {
         Ok(try_pg!(w.write(self.as_bytes())))
     }
 }

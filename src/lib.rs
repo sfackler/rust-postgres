@@ -981,15 +981,14 @@ impl<'conn> PostgresTransaction<'conn> {
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
                                      row_limit: uint)
-                                     -> Result<PostgresLazyResult<'trans,
-                                                                  'stmt>,
+                                     -> Result<PostgresLazyRows<'trans, 'stmt>,
                                                PostgresError> {
         if self.conn as *PostgresConnection != stmt.conn as *PostgresConnection {
             return Err(PgWrongConnection);
         }
         check_desync!(self.conn);
         stmt.lazy_query(row_limit, params).map(|result| {
-            PostgresLazyResult {
+            PostgresLazyRows {
                 trans: self,
                 result: result
             }
@@ -1087,14 +1086,14 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresError> {
+            -> Result<PostgresRows<'a>, PostgresError> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}_portal_{}", self.name, id);
 
         try!(self.inner_execute(portal_name, row_limit, params));
 
-        let mut result = PostgresResult {
+        let mut result = PostgresRows {
             stmt: self,
             name: portal_name,
             data: RingBuf::new(),
@@ -1187,7 +1186,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// }
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql])
-            -> Result<PostgresResult<'a>, PostgresError> {
+            -> Result<PostgresRows<'a>, PostgresError> {
         check_desync!(self.conn);
         self.lazy_query(0, params)
     }
@@ -1212,7 +1211,7 @@ pub struct ResultDescription {
 }
 
 /// An iterator over the resulting rows of a query.
-pub struct PostgresResult<'stmt> {
+pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
     name: ~str,
     data: RingBuf<Vec<Option<~[u8]>>>,
@@ -1222,7 +1221,7 @@ pub struct PostgresResult<'stmt> {
 }
 
 #[unsafe_destructor]
-impl<'stmt> Drop for PostgresResult<'stmt> {
+impl<'stmt> Drop for PostgresRows<'stmt> {
     fn drop(&mut self) {
         if !self.finished {
             match self.finish_inner() {
@@ -1234,7 +1233,7 @@ impl<'stmt> Drop for PostgresResult<'stmt> {
     }
 }
 
-impl<'stmt> PostgresResult<'stmt> {
+impl<'stmt> PostgresRows<'stmt> {
     fn finish_inner(&mut self) -> Result<(), PostgresError> {
         check_desync!(self.stmt.conn);
         try_pg!(self.stmt.conn.write_messages([
@@ -1286,11 +1285,11 @@ impl<'stmt> PostgresResult<'stmt> {
     }
 }
 
-impl<'stmt> PostgresResult<'stmt> {
-    /// Consumes the `PostgresResult`, cleaning up associated state.
+impl<'stmt> PostgresRows<'stmt> {
+    /// Consumes the `PostgresRows`, cleaning up associated state.
     ///
-    /// Functionally identical to the `Drop` implementation on
-    /// `PostgresResult` except that it returns any error to the caller.
+    /// Functionally identical to the `Drop` implementation on `PostgresRows`
+    /// except that it returns any error to the caller.
     pub fn finish(mut self) -> Result<(), PostgresError> {
         self.finished = true;
         self.finish_inner()
@@ -1314,7 +1313,7 @@ impl<'stmt> PostgresResult<'stmt> {
     }
 }
 
-impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresResult<'stmt> {
+impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresRows<'stmt> {
     fn next(&mut self) -> Option<PostgresRow<'stmt>> {
         // we'll never hit the network on a non-lazy result
         self.try_next().map(|r| r.unwrap())
@@ -1363,7 +1362,8 @@ impl<'stmt> Container for PostgresRow<'stmt> {
     }
 }
 
-impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T> for PostgresRow<'stmt> {
+impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
+        for PostgresRow<'stmt> {
     /// Retreives the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
@@ -1388,7 +1388,7 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T> for PostgresRow
     fn index(&self, idx: &I) -> T {
         match self.get(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => fail!("error retrieving row[{}]: {}", idx, err)
+            Err(err) => fail!("error retrieving row {}: {}", idx, err)
         }
     }
 }
@@ -1435,20 +1435,20 @@ impl<'a> RowIndex for &'a str {
 }
 
 /// A lazily-loaded iterator over the resulting rows of a query
-pub struct PostgresLazyResult<'trans, 'stmt> {
-    result: PostgresResult<'stmt>,
+pub struct PostgresLazyRows<'trans, 'stmt> {
+    result: PostgresRows<'stmt>,
     trans: &'trans PostgresTransaction<'trans>,
 }
 
-impl<'trans, 'stmt> PostgresLazyResult<'trans, 'stmt> {
-    /// Like `PostgresResult::finish`.
+impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
+    /// Like `PostgresRows::finish`.
     pub fn finish(self) -> Result<(), PostgresError> {
         self.result.finish()
     }
 }
 
 impl<'trans, 'stmt> Iterator<Result<PostgresRow<'stmt>, PostgresError>>
-        for PostgresLazyResult<'trans, 'stmt> {
+        for PostgresLazyRows<'trans, 'stmt> {
     fn next(&mut self) -> Option<Result<PostgresRow<'stmt>, PostgresError>> {
         self.result.try_next()
     }
