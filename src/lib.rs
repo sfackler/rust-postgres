@@ -1388,7 +1388,7 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
     fn index(&self, idx: &I) -> T {
         match self.get(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => fail!("error retrieving row {}: {}", idx, err)
+            Err(err) => fail!("error retrieving column {}: {}", idx, err)
         }
     }
 }
