@@ -575,9 +575,8 @@ raw_to_impl!(f64, write_be_f64)
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W)
             -> Result<(), PostgresError> {
-        //let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
-        //    + self.nsec as i64 / NSEC_PER_USEC;
-        let t = 0;
+        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
+            + self.nsec as i64 / NSEC_PER_USEC;
         Ok(try_pg!(w.write_be_i64(t)))
     }
 }
