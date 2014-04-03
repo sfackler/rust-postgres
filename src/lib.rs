@@ -230,11 +230,11 @@ impl PostgresNoticeHandler for DefaultNoticeHandler {
 /// An asynchronous notification
 pub struct PostgresNotification {
     /// The process ID of the notifying backend process
-    pid: i32,
+    pub pid: i32,
     /// The name of the channel that the notify has been raised on
-    channel: ~str,
+    pub channel: ~str,
     /// The "payload" string passed from the notifying process
-    payload: ~str,
+    pub payload: ~str,
 }
 
 /// An iterator over asynchronous notifications
@@ -257,9 +257,9 @@ impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
 /// Contains information necessary to cancel queries for a session
 pub struct PostgresCancelData {
     /// The process ID of the session
-    process_id: i32,
+    pub process_id: i32,
     /// The secret key for the session
-    secret_key: i32,
+    pub secret_key: i32,
 }
 
 /// Attempts to cancel an in-progress query.
@@ -338,10 +338,10 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         Err(err) => return Err(err)
     };
 
-    let (ssl_required, ctx) = match ssl {
-        &NoSsl => return Ok(Normal(socket)),
-        &PreferSsl(ref ctx) => (false, ctx),
-        &RequireSsl(ref ctx) => (true, ctx)
+    let (ssl_required, ctx) = match *ssl {
+        NoSsl => return Ok(Normal(socket)),
+        PreferSsl(ref ctx) => (false, ctx),
+        RequireSsl(ref ctx) => (true, ctx)
     };
 
     try_pg_conn!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
@@ -602,12 +602,12 @@ impl InnerPostgresConnection {
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } =>
                 descriptions.move_iter().map(|desc| {
-                        let RowDescriptionEntry { name, type_oid, .. } = desc;
-                        ResultDescription {
-                            name: name,
-                            ty: PostgresType::from_oid(type_oid)
-                        }
-                    }).collect(),
+                    let RowDescriptionEntry { name, type_oid, .. } = desc;
+                    ResultDescription {
+                        name: name,
+                        ty: PostgresType::from_oid(type_oid)
+                    }
+                }).collect(),
             NoData => Vec::new(),
             _ => unreachable!()
         };
@@ -645,8 +645,8 @@ impl InnerPostgresConnection {
             Some(name) => return Ok(name.clone()),
             None => {}
         }
-        let name = try!(self.quick_query(
-            format!("SELECT typname FROM pg_type WHERE oid={}", oid)))
+        let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
+                                                  WHERE oid={}", oid)))
             .move_iter().next().unwrap().move_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
@@ -721,8 +721,8 @@ impl PostgresConnection {
     ///     Err(err) => fail!("Error connecting: {}", err)
     /// };
     /// ```
-    pub fn connect(url: &str, ssl: &SslMode)
-            -> Result<PostgresConnection, PostgresConnectError> {
+    pub fn connect(url: &str, ssl: &SslMode) -> Result<PostgresConnection,
+                                                       PostgresConnectError> {
         InnerPostgresConnection::connect(url, ssl).map(|conn| {
             PostgresConnection {
                 conn: RefCell::new(conn)
@@ -1293,6 +1293,7 @@ impl<'stmt> PostgresRows<'stmt> {
     ///
     /// Functionally identical to the `Drop` implementation on `PostgresRows`
     /// except that it returns any error to the caller.
+    #[inline]
     pub fn finish(mut self) -> PostgresResult<()> {
         self.finished = true;
         self.finish_inner()
@@ -1316,11 +1317,13 @@ impl<'stmt> PostgresRows<'stmt> {
 }
 
 impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresRows<'stmt> {
+    #[inline]
     fn next(&mut self) -> Option<PostgresRow<'stmt>> {
         // we'll never hit the network on a non-lazy result
         self.try_next().map(|r| r.unwrap())
     }
 
+    #[inline]
     fn size_hint(&self) -> (uint, Option<uint>) {
         let lower = self.data.len();
         let upper = if self.more_rows {
@@ -1443,6 +1446,7 @@ pub struct PostgresLazyRows<'trans, 'stmt> {
 
 impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
     /// Like `PostgresRows::finish`.
+    #[inline]
     pub fn finish(self) -> PostgresResult<()> {
         self.result.finish()
     }
@@ -1450,10 +1454,12 @@ impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
 
 impl<'trans, 'stmt> Iterator<PostgresResult<PostgresRow<'stmt>>>
         for PostgresLazyRows<'trans, 'stmt> {
+    #[inline]
     fn next(&mut self) -> Option<PostgresResult<PostgresRow<'stmt>>> {
         self.result.try_next()
     }
 
+    #[inline]
     fn size_hint(&self) -> (uint, Option<uint>) {
         self.result.size_hint()
     }
