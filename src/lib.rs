@@ -207,6 +207,9 @@ mod test;
 
 static DEFAULT_PORT: Port = 5432;
 
+/// A typedef of the result returned by many methods.
+pub type PostgresResult<T> = Result<T, PostgresError>;
+
 /// Trait for types that can handle Postgres notice messages
 pub trait PostgresNoticeHandler {
     /// Handle a Postgres notice message
@@ -412,8 +415,8 @@ impl Drop for InnerPostgresConnection {
 }
 
 impl InnerPostgresConnection {
-    fn connect(url: &str, ssl: &SslMode)
-            -> Result<InnerPostgresConnection, PostgresConnectError> {
+    fn connect(url: &str, ssl: &SslMode) -> Result<InnerPostgresConnection,
+                                                   PostgresConnectError> {
         let Url {
             host,
             port,
@@ -511,8 +514,8 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: UserInfo) ->
-            Result<(), PostgresConnectError> {
+    fn handle_auth(&mut self, user: UserInfo)
+            -> Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
@@ -565,7 +568,7 @@ impl InnerPostgresConnection {
     }
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
-            -> Result<PostgresStatement<'a>, PostgresError> {
+            -> PostgresResult<PostgresStatement<'a>> {
         let stmt_name = format!("statement_{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
@@ -626,7 +629,7 @@ impl InnerPostgresConnection {
     }
 
     fn set_type_names<'a, I: Iterator<&'a mut PostgresType>>(&mut self, mut it: I)
-            -> Result<(), PostgresError> {
+            -> PostgresResult<()> {
         for ty in it {
             match *ty {
                 PgUnknownType { oid, ref mut name } =>
@@ -637,7 +640,7 @@ impl InnerPostgresConnection {
         Ok(())
     }
 
-    fn get_type_name(&mut self, oid: Oid) -> Result<~str, PostgresError> {
+    fn get_type_name(&mut self, oid: Oid) -> PostgresResult<~str> {
         match self.unknown_types.find(&oid) {
             Some(name) => return Ok(name.clone()),
             None => {}
@@ -653,7 +656,7 @@ impl InnerPostgresConnection {
         self.desynchronized
     }
 
-    fn wait_for_ready(&mut self) -> Result<(), PostgresError> {
+    fn wait_for_ready(&mut self) -> PostgresResult<()> {
         match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
             _ => unreachable!()
@@ -661,7 +664,7 @@ impl InnerPostgresConnection {
     }
 
     fn quick_query(&mut self, query: &str)
-            -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
+            -> PostgresResult<Vec<Vec<Option<~str>>>> {
         check_desync!(self);
         try_pg!(self.write_messages([Query { query: query }]));
 
@@ -683,7 +686,7 @@ impl InnerPostgresConnection {
         Ok(result)
     }
 
-    fn finish_inner(&mut self) -> Result<(), PostgresError> {
+    fn finish_inner(&mut self) -> PostgresResult<()> {
         check_desync!(self);
         Ok(try_pg!(self.write_messages([Terminate])))
     }
@@ -762,7 +765,7 @@ impl PostgresConnection {
     ///     Err(err) => fail!("Error preparing statement: {}", err)
     /// };
     pub fn prepare<'a>(&'a self, query: &str)
-            -> Result<PostgresStatement<'a>, PostgresError> {
+            -> PostgresResult<PostgresStatement<'a>> {
         self.conn.borrow_mut().prepare(query, self)
     }
 
@@ -793,7 +796,7 @@ impl PostgresConnection {
     /// # }
     /// ```
     pub fn transaction<'a>(&'a self)
-            -> Result<PostgresTransaction<'a>, PostgresError> {
+            -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self);
         try!(self.quick_query("BEGIN"));
         Ok(PostgresTransaction {
@@ -811,7 +814,7 @@ impl PostgresConnection {
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
     pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresError> {
+            -> PostgresResult<uint> {
         self.prepare(query).and_then(|stmt| stmt.execute(params))
     }
 
@@ -837,18 +840,18 @@ impl PostgresConnection {
     /// Functionally equivalent to the `Drop` implementation for
     /// `PostgresConnection` except that it returns any error encountered to
     /// the caller.
-    pub fn finish(self) -> Result<(), PostgresError> {
+    pub fn finish(self) -> PostgresResult<()> {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
     }
 
     fn quick_query(&self, query: &str)
-            -> Result<Vec<Vec<Option<~str>>>, PostgresError> {
+            -> PostgresResult<Vec<Vec<Option<~str>>>> {
         self.conn.borrow_mut().quick_query(query)
     }
 
-    fn wait_for_ready(&self) -> Result<(), PostgresError> {
+    fn wait_for_ready(&self) -> PostgresResult<()> {
         self.conn.borrow_mut().wait_for_ready()
     }
 
@@ -893,7 +896,7 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
 }
 
 impl<'conn> PostgresTransaction<'conn> {
-    fn finish_inner(&mut self) -> Result<(), PostgresError> {
+    fn finish_inner(&mut self) -> PostgresResult<()> {
         if task::failing() || !self.commit.get() {
             if self.nested {
                 try!(self.conn.quick_query("ROLLBACK TO sp"));
@@ -914,19 +917,19 @@ impl<'conn> PostgresTransaction<'conn> {
 impl<'conn> PostgresTransaction<'conn> {
     /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str)
-            -> Result<PostgresStatement<'a>, PostgresError> {
+            -> PostgresResult<PostgresStatement<'a>> {
         self.conn.prepare(query)
     }
 
     /// Like `PostgresConnection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresError> {
+            -> PostgresResult<uint> {
         self.conn.execute(query, params)
     }
 
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self)
-            -> Result<PostgresTransaction<'a>, PostgresError> {
+            -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self.conn);
         try!(self.conn.quick_query("SAVEPOINT sp"));
         Ok(PostgresTransaction {
@@ -966,7 +969,7 @@ impl<'conn> PostgresTransaction<'conn> {
     ///
     /// Functionally equivalent to the `Drop` implementation of
     /// `PostgresTransaction` except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<(), PostgresError> {
+    pub fn finish(mut self) -> PostgresResult<()> {
         self.finished = true;
         self.finish_inner()
     }
@@ -981,8 +984,8 @@ impl<'conn> PostgresTransaction<'conn> {
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
                                      row_limit: uint)
-                                     -> Result<PostgresLazyRows<'trans, 'stmt>,
-                                               PostgresError> {
+                                     -> PostgresResult<PostgresLazyRows
+                                                       <'trans, 'stmt>> {
         if self.conn as *PostgresConnection != stmt.conn as *PostgresConnection {
             return Err(PgWrongConnection);
         }
@@ -1020,7 +1023,7 @@ impl<'conn> Drop for PostgresStatement<'conn> {
 }
 
 impl<'conn> PostgresStatement<'conn> {
-    fn finish_inner(&mut self) -> Result<(), PostgresError> {
+    fn finish_inner(&mut self) -> PostgresResult<()> {
         check_desync!(self.conn);
         try_pg!(self.conn.write_messages([
             Close {
@@ -1042,7 +1045,7 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
-            -> Result<(), PostgresError> {
+            -> PostgresResult<()> {
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
                 expected: self.param_types.len(),
@@ -1086,7 +1089,7 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
-            -> Result<PostgresRows<'a>, PostgresError> {
+            -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}_portal_{}", self.name, id);
@@ -1133,7 +1136,7 @@ impl<'conn> PostgresStatement<'conn> {
     ///     Ok(count) => println!("{} row(s) updated", count),
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
-    pub fn execute(&self, params: &[&ToSql]) -> Result<uint, PostgresError> {
+    pub fn execute(&self, params: &[&ToSql]) -> PostgresResult<uint> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
 
@@ -1186,7 +1189,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// }
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql])
-            -> Result<PostgresRows<'a>, PostgresError> {
+            -> PostgresResult<PostgresRows<'a>> {
         check_desync!(self.conn);
         self.lazy_query(0, params)
     }
@@ -1195,7 +1198,7 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// Functionally identical to the `Drop` implementation of the
     /// `PostgresStatement` except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<(), PostgresError> {
+    pub fn finish(mut self) -> PostgresResult<()> {
         self.finished.set(true);
         self.finish_inner()
     }
@@ -1234,7 +1237,7 @@ impl<'stmt> Drop for PostgresRows<'stmt> {
 }
 
 impl<'stmt> PostgresRows<'stmt> {
-    fn finish_inner(&mut self) -> Result<(), PostgresError> {
+    fn finish_inner(&mut self) -> PostgresResult<()> {
         check_desync!(self.stmt.conn);
         try_pg!(self.stmt.conn.write_messages([
             Close {
@@ -1255,7 +1258,7 @@ impl<'stmt> PostgresRows<'stmt> {
         Ok(())
     }
 
-    fn read_rows(&mut self) -> Result<(), PostgresError> {
+    fn read_rows(&mut self) -> PostgresResult<()> {
         loop {
             match try_pg!(self.stmt.conn.read_message()) {
                 EmptyQueryResponse |
@@ -1274,7 +1277,7 @@ impl<'stmt> PostgresRows<'stmt> {
         self.stmt.conn.wait_for_ready()
     }
 
-    fn execute(&mut self) -> Result<(), PostgresError> {
+    fn execute(&mut self) -> PostgresResult<()> {
         try_pg!(self.stmt.conn.write_messages([
             Execute {
                 portal: self.name,
@@ -1290,13 +1293,12 @@ impl<'stmt> PostgresRows<'stmt> {
     ///
     /// Functionally identical to the `Drop` implementation on `PostgresRows`
     /// except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<(), PostgresError> {
+    pub fn finish(mut self) -> PostgresResult<()> {
         self.finished = true;
         self.finish_inner()
     }
 
-    fn try_next(&mut self) -> Option<Result<PostgresRow<'stmt>,
-                                            PostgresError>> {
+    fn try_next(&mut self) -> Option<PostgresResult<PostgresRow<'stmt>>> {
         if self.data.is_empty() && self.more_rows {
             match self.execute() {
                 Ok(()) => {}
@@ -1344,8 +1346,7 @@ impl<'stmt> PostgresRow<'stmt> {
     ///
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
-    pub fn get<I: RowIndex, T: FromSql>(&self, idx: I)
-            -> Result<T, PostgresError> {
+    pub fn get<I: RowIndex, T: FromSql>(&self, idx: I) -> PostgresResult<T> {
         let idx = match idx.idx(self.stmt) {
             Some(idx) => idx,
             None => return Err(PgInvalidColumn)
@@ -1442,14 +1443,14 @@ pub struct PostgresLazyRows<'trans, 'stmt> {
 
 impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
     /// Like `PostgresRows::finish`.
-    pub fn finish(self) -> Result<(), PostgresError> {
+    pub fn finish(self) -> PostgresResult<()> {
         self.result.finish()
     }
 }
 
-impl<'trans, 'stmt> Iterator<Result<PostgresRow<'stmt>, PostgresError>>
+impl<'trans, 'stmt> Iterator<PostgresResult<PostgresRow<'stmt>>>
         for PostgresLazyRows<'trans, 'stmt> {
-    fn next(&mut self) -> Option<Result<PostgresRow<'stmt>, PostgresError>> {
+    fn next(&mut self) -> Option<PostgresResult<PostgresRow<'stmt>>> {
         self.result.try_next()
     }
 

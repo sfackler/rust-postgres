@@ -4,12 +4,13 @@ use std::cast;
 use sync::{Arc, Mutex};
 
 use {PostgresNotifications,
+     PostgresResult,
      PostgresCancelData,
      PostgresConnection,
      PostgresStatement,
      PostgresTransaction,
      SslMode};
-use error::{PostgresConnectError, PostgresError};
+use error::PostgresConnectError;
 use types::ToSql;
 
 struct InnerConnectionPool {
@@ -130,19 +131,19 @@ impl Drop for PooledPostgresConnection {
 impl PooledPostgresConnection {
     /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str)
-            -> Result<PostgresStatement<'a>, PostgresError> {
+            -> PostgresResult<PostgresStatement<'a>> {
         self.conn.get_ref().prepare(query)
     }
 
     /// Like `PostgresConnection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> Result<uint, PostgresError> {
+            -> PostgresResult<uint> {
         self.conn.get_ref().execute(query, params)
     }
 
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self)
-            -> Result<PostgresTransaction<'a>, PostgresError> {
+            -> PostgresResult<PostgresTransaction<'a>> {
         self.conn.get_ref().transaction()
     }
 
