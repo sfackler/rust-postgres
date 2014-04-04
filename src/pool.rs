@@ -123,7 +123,9 @@ pub struct PooledPostgresConnection {
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         let conn = unsafe { cast::transmute(self.conn.take_unwrap()) };
-        self.pool.pool.lock().pool.push(conn);
+        let mut pool = self.pool.pool.lock();
+        pool.pool.push(conn);
+        pool.cond.signal();
     }
 }
 
