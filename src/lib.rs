@@ -190,14 +190,6 @@ macro_rules! check_desync(
     )
 )
 
-macro_rules! fail_unless_failing(
-    ($($t:tt)*) => (
-        if !task::failing() {
-            fail!($($t)*)
-        }
-    )
-)
-
 pub mod error;
 pub mod pool;
 mod message;
@@ -405,11 +397,7 @@ struct InnerPostgresConnection {
 impl Drop for InnerPostgresConnection {
     fn drop(&mut self) {
         if !self.finished {
-            match self.finish_inner() {
-                Ok(()) | Err(PgStreamDesynchronized) => {}
-                Err(err) =>
-                    fail_unless_failing!("Error dropping connection: {}", err)
-            }
+            let _ = self.finish_inner();
         }
     }
 }
@@ -886,11 +874,7 @@ pub struct PostgresTransaction<'conn> {
 impl<'conn> Drop for PostgresTransaction<'conn> {
     fn drop(&mut self) {
         if !self.finished {
-            match self.finish_inner() {
-                Ok(()) | Err(PgStreamDesynchronized) => {}
-                Err(err) =>
-                    fail_unless_failing!("Error dropping transaction: {}", err)
-            }
+            let _ = self.finish_inner();
         }
     }
 }
@@ -1013,11 +997,7 @@ pub struct PostgresStatement<'conn> {
 impl<'conn> Drop for PostgresStatement<'conn> {
     fn drop(&mut self) {
         if !self.finished.get() {
-            match self.finish_inner() {
-                Ok(()) | Err(PgStreamDesynchronized) => {}
-                Err(err) =>
-                    fail_unless_failing!("Error dropping statement: {}", err)
-            }
+            let _ = self.finish_inner();
         }
     }
 }
@@ -1227,11 +1207,7 @@ pub struct PostgresRows<'stmt> {
 impl<'stmt> Drop for PostgresRows<'stmt> {
     fn drop(&mut self) {
         if !self.finished {
-            match self.finish_inner() {
-                Ok(()) | Err(PgStreamDesynchronized) => {}
-                Err(err) =>
-                    fail_unless_failing!("Error dropping result: {}", err)
-            }
+            let _ = self.finish_inner();
         }
     }
 }
