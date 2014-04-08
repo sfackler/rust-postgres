@@ -16,7 +16,7 @@ struct Person {
     id: i32,
     name: ~str,
     time_created: Timespec,
-    data: Option<~[u8]>
+    data: Option<Vec<u8>>
 }
 
 fn main() {
@@ -661,8 +661,9 @@ impl InnerPostgresConnection {
             match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } =>
+                    // FIXME
                     result.push(row.move_iter().map(|opt|
-                            opt.map(|b| str::from_utf8_owned(b).unwrap()))
+                            opt.map(|b| str::from_utf8(b.as_slice()).unwrap().to_owned()))
                                .collect()),
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
@@ -1197,7 +1198,7 @@ pub struct ResultDescription {
 pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
     name: ~str,
-    data: RingBuf<Vec<Option<~[u8]>>>,
+    data: RingBuf<Vec<Option<Vec<u8>>>>,
     row_limit: uint,
     more_rows: bool,
     finished: bool,
@@ -1314,7 +1315,7 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresRows<'stmt> {
 /// A single result row of a query.
 pub struct PostgresRow<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
-    data: Vec<Option<~[u8]>>
+    data: Vec<Option<Vec<u8>>>
 }
 
 impl<'stmt> PostgresRow<'stmt> {

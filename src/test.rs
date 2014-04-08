@@ -454,7 +454,7 @@ fn test_bpchar_params() {
 
 #[test]
 fn test_bytea_params() {
-    test_type("BYTEA", [(Some(~[0u8, 1, 2, 3, 254, 255]), "'\\x00010203feff'"),
+    test_type("BYTEA", [(Some(vec!(0u8, 1, 2, 3, 254, 255)), "'\\x00010203feff'"),
                         (None, "NULL")]);
 }
 
@@ -562,8 +562,8 @@ fn test_boolarray_params() {
 
 #[test]
 fn test_byteaarray_params() {
-    test_array_params!("BYTEA", ~[0u8, 1], r#""\\x0001""#, ~[254u8, 255u8],
-                       r#""\\xfeff""#, ~[10u8, 11u8], r#""\\x0a0b""#);
+    test_array_params!("BYTEA", vec!(0u8, 1), r#""\\x0001""#, vec!(254u8, 255u8),
+                       r#""\\xfeff""#, vec!(10u8, 11u8), r#""\\x0a0b""#);
 }
 
 #[test]

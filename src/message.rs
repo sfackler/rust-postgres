@@ -28,7 +28,7 @@ pub enum BackendMessage {
         pub tag: ~str
     },
     DataRow {
-        pub row: Vec<Option<~[u8]>>
+        pub row: Vec<Option<Vec<u8>>>
     },
     EmptyQueryResponse,
     ErrorResponse {
@@ -75,7 +75,7 @@ pub enum FrontendMessage<'a> {
         pub portal: &'a str,
         pub statement: &'a str,
         pub formats: &'a [i16],
-        pub values: &'a [Option<~[u8]>],
+        pub values: &'a [Option<Vec<u8>>],
         pub result_formats: &'a [i16]
     },
     CancelRequest {
@@ -159,7 +159,7 @@ impl<W: Writer> WriteMessage for W {
                         }
                         Some(ref value) => {
                             try!(buf.write_be_i32(value.len() as i32));
-                            try!(buf.write(*value));
+                            try!(buf.write(value.as_slice()));
                         }
                     }
                 }
@@ -231,7 +231,7 @@ impl<W: Writer> WriteMessage for W {
         let buf = buf.unwrap();
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
-        try!(self.write(buf));
+        try!(self.write(buf.as_slice()));
 
         Ok(())
     }
@@ -246,7 +246,8 @@ impl<R: Buffer> ReadCStr for R {
     fn read_cstr(&mut self) -> IoResult<~str> {
         let mut buf = try!(self.read_until(0));
         buf.pop();
-        Ok(str::from_utf8_owned(buf).unwrap())
+        // FIXME
+        Ok(str::from_utf8(buf.as_slice()).unwrap().to_owned())
     }
 }
 
