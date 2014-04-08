@@ -24,7 +24,7 @@ struct Person {
     id: i32,
     name: ~str,
     time_created: Timespec,
-    data: Option<~[u8]>
+    data: Option<Vec<u8>>
 }
 
 fn main() {
@@ -215,7 +215,7 @@ types. The driver currently supports the following conversions:
             <td>VARCHAR, CHAR(n), TEXT</td>
         </tr>
         <tr>
-            <td>[u8]</td>
+            <td>[u8]/Vec&lt;u8&gt;</td>
             <td>BYTEA</td>
         </tr>
         <tr>
@@ -247,7 +247,7 @@ types. The driver currently supports the following conversions:
             <td>BOOL[], BOOL[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;~[u8]&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;Vec&lt;u8&gt;&gt;&gt;</td>
             <td>BYTEA[], BYTEA[][], ...</td>
         </tr>
         <tr>
