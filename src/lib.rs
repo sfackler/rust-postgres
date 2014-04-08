@@ -183,11 +183,14 @@ macro_rules! try_desync(
 )
 
 macro_rules! check_desync(
-    ($e:expr) => (
+    ($e:expr) => ({
+        if $e.canary() != CANARY {
+            fail!("PostgresConnection use after free. See mozilla/rust#13246.");
+        }
         if $e.is_desynchronized() {
             return Err(PgStreamDesynchronized);
         }
-    )
+    })
 )
 
 pub mod error;
@@ -198,6 +201,7 @@ pub mod types;
 mod test;
 
 static DEFAULT_PORT: Port = 5432;
+static CANARY: u32 = 0xdeadbeef;
 
 /// A typedef of the result returned by many methods.
 pub type PostgresResult<T> = Result<T, PostgresError>;
@@ -392,6 +396,7 @@ struct InnerPostgresConnection {
     unknown_types: HashMap<Oid, ~str>,
     desynchronized: bool,
     finished: bool,
+    canary: u32,
 }
 
 impl Drop for InnerPostgresConnection {
@@ -438,6 +443,7 @@ impl InnerPostgresConnection {
             unknown_types: HashMap::new(),
             desynchronized: false,
             finished: false,
+            canary: CANARY,
         };
 
         args.push((~"client_encoding", ~"UTF8"));
@@ -644,6 +650,10 @@ impl InnerPostgresConnection {
         self.desynchronized
     }
 
+    fn canary(&self) -> u32 {
+        self.canary
+    }
+
     fn wait_for_ready(&mut self) -> PostgresResult<()> {
         match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
@@ -677,6 +687,7 @@ impl InnerPostgresConnection {
 
     fn finish_inner(&mut self) -> PostgresResult<()> {
         check_desync!(self);
+        self.canary = 0;
         Ok(try_pg!(self.write_messages([Terminate])))
     }
 }
@@ -833,6 +844,10 @@ impl PostgresConnection {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
+    }
+
+    fn canary(&self) -> u32 {
+        self.conn.borrow_mut().canary()
     }
 
     fn quick_query(&self, query: &str)
