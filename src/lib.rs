@@ -335,7 +335,7 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
     };
 
     let (ssl_required, ctx) = match *ssl {
-        NoSsl => return Ok(Normal(socket)),
+        NoSsl => return Ok(NormalStream(socket)),
         PreferSsl(ref ctx) => (false, ctx),
         RequireSsl(ref ctx) => (true, ctx)
     };
@@ -347,26 +347,26 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         if ssl_required {
             return Err(NoSslSupport);
         } else {
-            return Ok(Normal(socket));
+            return Ok(NormalStream(socket));
         }
     }
 
     match SslStream::try_new(ctx, socket) {
-        Ok(stream) => Ok(Ssl(stream)),
+        Ok(stream) => Ok(SslStream(stream)),
         Err(err) => Err(SslError(err))
     }
 }
 
 enum InternalStream {
-    Normal(TcpStream),
-    Ssl(SslStream<TcpStream>)
+    NormalStream(TcpStream),
+    SslStream(SslStream<TcpStream>)
 }
 
 impl Reader for InternalStream {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {
-            Normal(ref mut s) => s.read(buf),
-            Ssl(ref mut s) => s.read(buf)
+            NormalStream(ref mut s) => s.read(buf),
+            SslStream(ref mut s) => s.read(buf)
         }
     }
 }
@@ -374,15 +374,15 @@ impl Reader for InternalStream {
 impl Writer for InternalStream {
     fn write(&mut self, buf: &[u8]) -> IoResult<()> {
         match *self {
-            Normal(ref mut s) => s.write(buf),
-            Ssl(ref mut s) => s.write(buf)
+            NormalStream(ref mut s) => s.write(buf),
+            SslStream(ref mut s) => s.write(buf)
         }
     }
 
     fn flush(&mut self) -> IoResult<()> {
         match *self {
-            Normal(ref mut s) => s.flush(),
-            Ssl(ref mut s) => s.flush()
+            NormalStream(ref mut s) => s.flush(),
+            SslStream(ref mut s) => s.flush()
         }
     }
 }
@@ -563,7 +563,7 @@ impl InnerPostgresConnection {
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> PostgresResult<PostgresStatement<'a>> {
-        let stmt_name = format!("statement_{}", self.next_stmt_id);
+        let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
         try_pg!(self.write_messages([
@@ -847,7 +847,7 @@ impl PostgresConnection {
     }
 
     fn canary(&self) -> u32 {
-        self.conn.borrow_mut().canary()
+        self.conn.borrow().canary()
     }
 
     fn quick_query(&self, query: &str)
@@ -1088,7 +1088,7 @@ impl<'conn> PostgresStatement<'conn> {
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}_portal_{}", self.name, id);
+        let portal_name = format!("{}p{}", self.name, id);
 
         try!(self.inner_execute(portal_name, row_limit, params));
 
