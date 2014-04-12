@@ -25,7 +25,8 @@ impl Drop for InnerConnectionPool {
         loop {
             match self.pool.pop() {
                 Some(conn) => unsafe {
-                    drop(cast::transmute::<*(), ~PostgresConnection>(conn));
+                    let c: ~PostgresConnection = cast::transmute(conn);
+                    drop(c);
                 },
                 None => break
             }
@@ -34,14 +35,9 @@ impl Drop for InnerConnectionPool {
 }
 
 impl InnerConnectionPool {
-    fn new_connection(&mut self) -> Option<PostgresConnectError> {
-        match PostgresConnection::connect(self.url, &self.ssl) {
-            Ok(conn) => {
-                unsafe { self.pool.push(cast::transmute(~conn)) };
-                None
-            }
-            Err(err) => Some(err)
-        }
+    fn add_connection(&mut self) -> Result<(), PostgresConnectError> {
+        PostgresConnection::connect(self.url, &self.ssl)
+            .map(|c| unsafe { self.pool.push(cast::transmute(~c)); })
     }
 }
 
@@ -54,7 +50,7 @@ impl InnerConnectionPool {
 /// ```rust,no_run
 /// # use postgres::NoSsl;
 /// # use postgres::pool::PostgresConnectionPool;
-/// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
+/// let pool = PostgresConnectionPool::new(~"postgres://postgres@localhost",
 ///                                        NoSsl, 5).unwrap();
 /// for _ in range(0, 10) {
 ///     let pool = pool.clone();
@@ -74,19 +70,16 @@ impl PostgresConnectionPool {
     ///
     /// Returns an error if the specified number of connections cannot be
     /// created.
-    pub fn new(url: &str, ssl: SslMode, pool_size: uint)
+    pub fn new(url: ~str, ssl: SslMode, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
-            url: url.to_owned(),
+            url: url,
             ssl: ssl,
             pool: Vec::new(),
         };
 
         for _ in range(0, pool_size) {
-            match pool.new_connection() {
-                None => (),
-                Some(err) => return Err(err)
-            }
+            try!(pool.add_connection());
         }
 
         Ok(PostgresConnectionPool {

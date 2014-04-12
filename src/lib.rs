@@ -414,7 +414,7 @@ impl InnerPostgresConnection {
             host,
             port,
             user,
-            mut path,
+            path,
             query: mut args,
             ..
         }: Url = match FromStr::from_str(url) {
@@ -454,8 +454,10 @@ impl InnerPostgresConnection {
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
             // path contains the leading /
-            path.shift_char();
-            args.push((~"database", path));
+            let mut  path = StrBuf::from_owned_str(path);
+            // FIXME
+            unsafe { path.shift_byte(); }
+            args.push((~"database", path.into_owned()));
         }
         try_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,

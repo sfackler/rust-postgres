@@ -49,7 +49,7 @@ macro_rules! or_fail(
 #[test]
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
-    let pool = or_fail!(PostgresConnectionPool::new("postgres://postgres@localhost",
+    let pool = or_fail!(PostgresConnectionPool::new(~"postgres://postgres@localhost",
                                                     NoSsl, 2));
 
     let (stream1, stream2) = sync::duplex();
