@@ -454,10 +454,8 @@ impl InnerPostgresConnection {
         args.push((~"user", user.user.clone()));
         if !path.is_empty() {
             // path contains the leading /
-            let mut  path = StrBuf::from_owned_str(path);
-            // FIXME
-            unsafe { path.shift_byte(); }
-            args.push((~"database", path.into_owned()));
+            let (_, path) = path.slice_shift_char();
+            args.push((~"database", path.to_owned()));
         }
         try_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
