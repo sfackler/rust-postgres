@@ -70,12 +70,12 @@ extern crate serialize;
 extern crate sync;
 extern crate time;
 extern crate phf;
-#[phase(syntax)]
-extern crate phf_mac;
 extern crate url;
 #[phase(syntax, link)]
 extern crate log;
 extern crate uuid;
+#[phase(syntax)]
+extern crate phf_mac;
 
 use collections::{Deque, HashMap, RingBuf};
 use url::{UserInfo, Url};
