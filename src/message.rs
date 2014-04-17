@@ -136,7 +136,6 @@ pub trait WriteMessage {
 
 impl<W: Writer> WriteMessage for W {
     fn write_message(&mut self, message: &FrontendMessage) -> IoResult<()> {
-        debug!("Writing message {:?}", message);
         let mut buf = MemWriter::new();
         let mut ident = None;
 
@@ -258,8 +257,6 @@ pub trait ReadMessage {
 
 impl<R: Reader> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
-        debug!("Reading message");
-
         let ident = try!(self.read_u8());
         // subtract size of length value
         let len = try!(self.read_be_i32()) as uint - mem::size_of::<i32>();
@@ -295,7 +292,6 @@ impl<R: Reader> ReadMessage for R {
             'Z' => ReadyForQuery { state: try!(buf.read_u8()) },
             ident => fail!("Unknown message identifier `{}`", ident)
         };
-        debug!("Read message {:?}", ret);
         Ok(ret)
     }
 }
