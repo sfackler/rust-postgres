@@ -9,6 +9,7 @@ use openssl::ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
 use std::io::timer;
+use url::UserInfo;
 
 use {PostgresNoticeHandler,
      PostgresNotification,
@@ -104,6 +105,12 @@ fn test_unknown_database() {
 #[test]
 fn test_connection_finish() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    assert!(conn.finish().is_ok());
+}
+
+#[test]
+fn test_unix_connection() {
+    let conn = or_fail!(PostgresConnection::connect_unix(&Path::new("/tmp"), 5432, UserInfo::new(~"postgres", None), ~"postgres"));
     assert!(conn.finish().is_ok());
 }
 
