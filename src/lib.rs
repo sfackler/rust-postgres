@@ -772,10 +772,12 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// # extern crate url;
+    /// # extern crate postgres;
     /// # use url::UserInfo;
     /// # use postgres::PostgresConnection;
+    /// # fn main() {
     /// let path = Path::new("/tmp");
     /// let port = 5432;
     /// let user = UserInfo::new(~"username", None);
@@ -785,6 +787,7 @@ impl PostgresConnection {
     ///     Ok(conn) => conn,
     ///     Err(err) => fail!("Error connecting: {}", err)
     /// };
+    /// # }
     /// ```
     pub fn connect_unix(path: &Path, port: Port, user: UserInfo, database: ~str)
             -> Result<PostgresConnection, PostgresConnectError> {
