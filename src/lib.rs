@@ -328,13 +328,6 @@ fn open_socket(host: &str, port: Port)
     Err(SocketError(err.unwrap()))
 }
 
-fn open_unix(path: &Path) -> Result<UnixStream, PostgresConnectError> {
-    match UnixStream::connect(path) {
-        Ok(unix) => Ok(unix),
-        Err(err) => Err(SocketError(err))
-    }
-}
-
 fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
         -> Result<InternalStream, PostgresConnectError> {
     let mut socket = match open_socket(host, port) {
@@ -367,9 +360,9 @@ fn initialize_stream(host: &str, port: Port, ssl: &SslMode)
 
 fn initialize_unix(path: &Path)
         -> Result<InternalStream, PostgresConnectError> {
-    match open_unix(path) {
+    match UnixStream::connect(path) {
         Ok(unix) => Ok(NormalUnix(unix)),
-       Err(err) => Err(err)
+        Err(err) => Err(SocketError(err))
     }
 }
 
@@ -454,31 +447,13 @@ impl InnerPostgresConnection {
 
         let stream = try!(initialize_stream(host, port, ssl));
 
-        let conn = InnerPostgresConnection {
-            stream: BufferedStream::new(stream),
-            next_stmt_id: 0,
-            notice_handler: ~DefaultNoticeHandler,
-            notifications: RingBuf::new(),
-            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
-            unknown_types: HashMap::new(),
-            desynchronized: false,
-            finished: false,
-            canary: CANARY,
-        };
-
-        args.push((~"client_encoding", ~"UTF8"));
-        // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
-        // WITH TIME ZONE values. Timespec converts to GMT internally.
-        args.push((~"TimeZone", ~"GMT"));
-        // We have to clone here since we need the user again for auth
-        args.push((~"user", user.user.clone()));
         if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path.slice_shift_char();
             args.push((~"database", path.to_owned()));
         }
 
-        InnerPostgresConnection::connect_finish(conn, args, user)
+        InnerPostgresConnection::connect_finish(stream, args, user)
     }
 
     fn connect_unix(socket_dir: &Path, port: Port, user: UserInfo, database: ~str)
@@ -488,7 +463,16 @@ impl InnerPostgresConnection {
 
         let stream = try!(initialize_unix(&socket));
 
-        let conn = InnerPostgresConnection {
+        let mut args = Vec::new();
+        args.push((~"database", database));
+
+        InnerPostgresConnection::connect_finish(stream, args, user)
+    }
+
+    fn connect_finish(stream: InternalStream, mut args: Vec<(~str, ~str)>, user: UserInfo)
+            -> Result<InnerPostgresConnection, PostgresConnectError> {
+
+        let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
             notice_handler: ~DefaultNoticeHandler,
@@ -500,21 +484,13 @@ impl InnerPostgresConnection {
             canary: CANARY,
         };
 
-        let mut args = Vec::new();
-
         args.push((~"client_encoding", ~"UTF8"));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
         args.push((~"TimeZone", ~"GMT"));
         // We have to clone here since we need the user again for auth
         args.push((~"user", user.user.clone()));
-        args.push((~"database", database));
 
-        InnerPostgresConnection::connect_finish(conn, args, user)
-    }
-
-    fn connect_finish(mut conn: InnerPostgresConnection, args: Vec<(~str, ~str)>, user: UserInfo)
-            -> Result<InnerPostgresConnection, PostgresConnectError> {
         try_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: args.as_slice()
@@ -796,7 +772,9 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
+    /// # extern crate url;
+    /// # use url::UserInfo;
     /// # use postgres::PostgresConnection;
     /// let path = Path::new("/tmp");
     /// let port = 5432;

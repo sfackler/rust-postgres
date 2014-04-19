@@ -110,7 +110,18 @@ fn test_connection_finish() {
 
 #[test]
 fn test_unix_connection() {
-    let conn = or_fail!(PostgresConnection::connect_unix(&Path::new("/tmp"), 5432, UserInfo::new(~"postgres", None), ~"postgres"));
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SHOW unix_socket_directories"));
+    let result = or_fail!(stmt.query([]));
+    let unix_socket_directories: ~str = result.map(|row| row[1]).next().unwrap();
+
+    if unix_socket_directories == ~"" {
+        fail!("can't test connect_unix; unix_socket_directories is empty");
+    }
+
+    let unix_socket_directory = unix_socket_directories.splitn(',', 1).next().unwrap();
+
+    let conn = or_fail!(PostgresConnection::connect_unix(&Path::new(unix_socket_directory), 5432, UserInfo::new(~"postgres", None), ~"postgres"));
     assert!(conn.finish().is_ok());
 }
 
