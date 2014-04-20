@@ -1272,9 +1272,9 @@ impl<'conn> PostgresStatement<'conn> {
 #[deriving(Eq)]
 pub struct ResultDescription {
     /// The name of the column
-    name: ~str,
+    pub name: ~str,
     /// The type of the data in the column
-    ty: PostgresType
+    pub ty: PostgresType
 }
 
 /// An iterator over the resulting rows of a query.
