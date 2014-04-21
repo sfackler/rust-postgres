@@ -4,6 +4,8 @@ use std::cast;
 use sync::{Arc, Mutex};
 
 use {PostgresNotifications,
+     PostgresConnectParams,
+     IntoConnectParams,
      PostgresResult,
      PostgresCancelData,
      PostgresConnection,
@@ -14,7 +16,7 @@ use error::PostgresConnectError;
 use types::ToSql;
 
 struct InnerConnectionPool {
-    url: ~str,
+    params: PostgresConnectParams,
     ssl: SslMode,
     // Actually Vec<~PostgresConnection>
     pool: Vec<*()>,
@@ -36,7 +38,7 @@ impl Drop for InnerConnectionPool {
 
 impl InnerConnectionPool {
     fn add_connection(&mut self) -> Result<(), PostgresConnectError> {
-        PostgresConnection::connect(self.url, &self.ssl)
+        PostgresConnection::connect(self.params.clone(), &self.ssl)
             .map(|c| unsafe { self.pool.push(cast::transmute(~c)); })
     }
 }
@@ -50,7 +52,7 @@ impl InnerConnectionPool {
 /// ```rust,no_run
 /// # use postgres::NoSsl;
 /// # use postgres::pool::PostgresConnectionPool;
-/// let pool = PostgresConnectionPool::new(~"postgres://postgres@localhost",
+/// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
 ///                                        NoSsl, 5).unwrap();
 /// for _ in range(0, 10) {
 ///     let pool = pool.clone();
@@ -70,10 +72,10 @@ impl PostgresConnectionPool {
     ///
     /// Returns an error if the specified number of connections cannot be
     /// created.
-    pub fn new(url: ~str, ssl: SslMode, pool_size: uint)
+    pub fn new<T: IntoConnectParams>(params: T, ssl: SslMode, pool_size: uint)
             -> Result<PostgresConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
-            url: url,
+            params: try!(params.into_connect_params()),
             ssl: ssl,
             pool: Vec::new(),
         };

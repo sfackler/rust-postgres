@@ -9,7 +9,7 @@ use openssl::ssl::{SslContext, Sslv3};
 use std::f32;
 use std::f64;
 use std::io::timer;
-use url::UserInfo;
+use url;
 
 use {PostgresNoticeHandler,
      PostgresNotification,
@@ -50,7 +50,7 @@ macro_rules! or_fail(
 #[test]
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
-    let pool = or_fail!(PostgresConnectionPool::new(~"postgres://postgres@localhost",
+    let pool = or_fail!(PostgresConnectionPool::new("postgres://postgres@localhost",
                                                     NoSsl, 2));
 
     let (stream1, stream2) = sync::duplex();
@@ -121,7 +121,8 @@ fn test_unix_connection() {
 
     let unix_socket_directory = unix_socket_directories.splitn(',', 1).next().unwrap();
 
-    let conn = or_fail!(PostgresConnection::connect_unix(&Path::new(unix_socket_directory), 5432, UserInfo::new(~"postgres", None), ~"postgres"));
+    let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
+    let conn = or_fail!(PostgresConnection::connect(url.as_slice(), &NoSsl));
     assert!(conn.finish().is_ok());
 }
 
