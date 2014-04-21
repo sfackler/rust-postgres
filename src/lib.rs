@@ -20,7 +20,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+    let conn = PostgresConnection::connect("postgresql://postgres@localhost",
                                            &NoSsl).unwrap();
 
     conn.execute("CREATE TABLE person (
@@ -424,7 +424,6 @@ fn open_unix_socket(path: &Path, port: Port) -> Result<UnixStream,
 
     match UnixStream::connect(&socket) {
         Ok(unix) => Ok(unix),
-        // FIXME bad error variant
         Err(err) => Err(SocketError(err))
     }
 }
@@ -844,8 +843,8 @@ impl PostgresConnection {
     /// username if not specified.
     ///
     /// To connect to the server via Unix sockets, `host` should be set to the
-    /// path to the directory containing the socket file. Since `/` is a
-    /// reserved character in URLs, the path should be URL encoded.  If the
+    /// absolute path of the directory containing the socket file. Since `/` is
+    /// a reserved character in URLs, the path should be URL encoded.  If the
     /// path contains non-UTF 8 characters, a `PostgresConnectParams` struct
     /// should be created manually and passed in.
     ///
