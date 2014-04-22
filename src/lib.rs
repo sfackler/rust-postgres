@@ -221,8 +221,10 @@ pub enum PostgresConnectTarget {
 pub struct PostgresConnectParams {
     /// The target server
     pub target: PostgresConnectTarget,
-    /// The target port
-    pub port: Port,
+    /// The target port.
+    ///
+    /// Defaults to 5432 if not specified.
+    pub port: Option<Port>,
     /// The user to login as.
     ///
     /// `PostgresConnection::connect` requires a user but `cancel_query` does
@@ -267,20 +269,23 @@ impl<'a> IntoConnectParams for &'a str {
         };
 
         let maybe_path = url::decode_component(host);
-        let host = if maybe_path.starts_with("/") {
+        let target = if maybe_path.starts_with("/") {
             TargetUnix(Path::new(maybe_path))
         } else {
             TargetTcp(host)
         };
 
         let (user, pass) = match user {
-            Some(UserInfo { user, pass}) => (Some(user), pass),
+            Some(UserInfo { user, pass }) => (Some(user), pass),
             None => (None, None),
         };
 
         let port = match port {
-            Some(port) => FromStr::from_str(port).unwrap(),
-            None => DEFAULT_PORT
+            Some(port) => match FromStr::from_str(port) {
+                Some(port) => Some(port),
+                None => return Err(InvalidUrl),
+            },
+            None => None,
         };
 
         let database = if !path.is_empty() {
@@ -292,7 +297,7 @@ impl<'a> IntoConnectParams for &'a str {
         };
 
         Ok(PostgresConnectParams {
-            target: host,
+            target: target,
             port: port,
             user: user,
             password: pass,
@@ -399,8 +404,8 @@ pub fn cancel_query<T: IntoConnectParams>(params: T, ssl: &SslMode,
     Ok(())
 }
 
-fn open_tcp_socket(host: &str, port: Port)
-                   -> Result<TcpStream, PostgresConnectError> {
+fn open_tcp_socket(host: &str, port: Port) -> Result<TcpStream,
+                                                     PostgresConnectError> {
     let addrs = match net::get_host_addresses(host) {
         Ok(addrs) => addrs,
         Err(err) => return Err(DnsError(err))
@@ -491,10 +496,11 @@ impl Writer for InternalStream {
 
 fn open_socket(params: &PostgresConnectParams)
                -> Result<InternalStream, PostgresConnectError> {
+    let port = params.port.unwrap_or(DEFAULT_PORT);
     match params.target {
-        TargetTcp(ref host) => open_tcp_socket(host.as_slice(), params.port)
+        TargetTcp(ref host) => open_tcp_socket(host.as_slice(), port)
                 .map(|s| TcpStream(s)),
-        TargetUnix(ref path) => open_unix_socket(path, params.port)
+        TargetUnix(ref path) => open_unix_socket(path, port)
                 .map(|s| UnixStream(s)),
     }
 }
@@ -659,9 +665,9 @@ impl InnerPostgresConnection {
                     Some(pass) => pass,
                     None => return Err(MissingPassword)
                 };
-                let input = pass + user;
                 let hasher = Hasher::new(MD5);
-                hasher.update(input.as_bytes());
+                hasher.update(pass.as_bytes());
+                hasher.update(user.as_bytes());
                 let output = hasher.final().as_slice().to_hex();
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
@@ -862,8 +868,22 @@ impl PostgresConnection {
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// let url = "postgresql://postgres@%2Ftmp";
+    /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
     /// let maybe_conn = PostgresConnection::connect(url, &NoSsl);
+    /// ```
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{PostgresConnection, PostgresConnectParams, NoSsl, TargetUnix};
+    /// # let some_crazy_path = Path::new("");
+    /// let params = PostgresConnectParams {
+    ///     target: TargetUnix(some_crazy_path),
+    ///     port: None,
+    ///     user: Some("postgres".to_owned()),
+    ///     password: None,
+    ///     database: None,
+    ///     options: Vec::new(),
+    /// };
+    /// let maybe_conn = PostgresConnection::connect(params, &NoSsl);
     /// ```
     pub fn connect<T: IntoConnectParams>(params: T, ssl: &SslMode)
                                          -> Result<PostgresConnection,
