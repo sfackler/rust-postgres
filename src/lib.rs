@@ -266,9 +266,9 @@ impl<'a> IntoConnectParams for &'a str {
             None => return Err(InvalidUrl)
         };
 
-        let host = url::decode_component(host);
-        let host = if host.starts_with("/") {
-            TargetUnix(Path::new(host))
+        let maybe_path = url::decode_component(host);
+        let host = if maybe_path.starts_with("/") {
+            TargetUnix(Path::new(maybe_path))
         } else {
             TargetTcp(host)
         };
