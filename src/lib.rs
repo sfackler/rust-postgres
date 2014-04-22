@@ -31,7 +31,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: ~"Steven",
+        name: "Steven".to_owned(),
         time_created: time::get_time(),
         data: None
     };
@@ -579,14 +579,14 @@ impl InnerPostgresConnection {
             None => return Err(MissingUser),
         };
 
-        options.push((~"client_encoding", ~"UTF8"));
+        options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push((~"TimeZone", ~"GMT"));
+        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
-        options.push((~"user", user.clone()));
+        options.push(("user".to_owned(), user.clone()));
         match database {
-            Some(database) => options.push((~"database", database)),
+            Some(database) => options.push(("database".to_owned(), database)),
             None => {}
         }
 
