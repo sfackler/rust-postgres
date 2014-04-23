@@ -303,7 +303,7 @@ impl RawFromSql for Uuid {
 }
 
 macro_rules! from_range_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($t:ty) => (
         impl RawFromSql for Range<$t> {
             fn raw_from_sql<R: Reader>(rdr: &mut R)
                     -> Result<Range<$t>, PostgresError> {
@@ -350,9 +350,9 @@ macro_rules! from_range_impl(
     )
 )
 
-from_range_impl!(PgInt4Range, i32)
-from_range_impl!(PgInt8Range, i64)
-from_range_impl!(PgTsRange | PgTstzRange, Timespec)
+from_range_impl!(i32)
+from_range_impl!(i64)
+from_range_impl!(Timespec)
 
 impl RawFromSql for Json {
     fn raw_from_sql<R: Reader>(raw: &mut R)
@@ -580,7 +580,7 @@ impl RawToSql for Uuid {
 }
 
 macro_rules! to_range_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($t:ty) => (
         impl RawToSql for Range<$t> {
             fn raw_to_sql<W: Writer>(&self, buf: &mut W)
                     -> Result<(), PostgresError> {
@@ -631,9 +631,9 @@ macro_rules! to_range_impl(
     )
 )
 
-to_range_impl!(PgInt4Range, i32)
-to_range_impl!(PgInt8Range, i64)
-to_range_impl!(PgTsRange | PgTstzRange, Timespec)
+to_range_impl!(i32)
+to_range_impl!(i64)
+to_range_impl!(Timespec)
 
 impl RawToSql for Json {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W)
