@@ -1,6 +1,5 @@
 //! A simple connection pool
 
-use std::cast;
 use sync::{Arc, Mutex};
 
 use {PostgresNotifications,
@@ -18,28 +17,13 @@ use types::ToSql;
 struct InnerConnectionPool {
     params: PostgresConnectParams,
     ssl: SslMode,
-    // Actually Vec<~PostgresConnection>
-    pool: Vec<*()>,
-}
-
-impl Drop for InnerConnectionPool {
-    fn drop(&mut self) {
-        loop {
-            match self.pool.pop() {
-                Some(conn) => unsafe {
-                    let c: ~PostgresConnection = cast::transmute(conn);
-                    drop(c);
-                },
-                None => break
-            }
-        }
-    }
+    pool: Vec<PostgresConnection>,
 }
 
 impl InnerConnectionPool {
     fn add_connection(&mut self) -> Result<(), PostgresConnectError> {
         PostgresConnection::connect(self.params.clone(), &self.ssl)
-            .map(|c| unsafe { self.pool.push(cast::transmute(~c)); })
+            .map(|c| self.pool.push(c))
     }
 }
 
@@ -101,7 +85,7 @@ impl PostgresConnectionPool {
 
         PooledPostgresConnection {
             pool: self.clone(),
-            conn: Some(unsafe { cast::transmute(pool.pool.pop().unwrap()) })
+            conn: Some(pool.pool.pop().unwrap())
         }
     }
 }
@@ -113,14 +97,13 @@ impl PostgresConnectionPool {
 pub struct PooledPostgresConnection {
     pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
-    conn: Option<~PostgresConnection>
+    conn: Option<PostgresConnection>
 }
 
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
-        let conn = unsafe { cast::transmute(self.conn.take_unwrap()) };
         let mut pool = self.pool.pool.lock();
-        pool.pool.push(conn);
+        pool.pool.push(self.conn.take_unwrap());
         pool.cond.signal();
     }
 }
