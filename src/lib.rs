@@ -369,7 +369,8 @@ pub struct PostgresCancelData {
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
 ///
-/// Only the host and port of the connetion info are used.
+/// Only the host and port of the connetion info are used. See
+/// `PostgresConnection::connect` for details of the `params` argument.
 ///
 /// # Example
 ///
@@ -852,7 +853,8 @@ impl PostgresConnection {
     /// absolute path of the directory containing the socket file. Since `/` is
     /// a reserved character in URLs, the path should be URL encoded.  If the
     /// path contains non-UTF 8 characters, a `PostgresConnectParams` struct
-    /// should be created manually and passed in.
+    /// should be created manually and passed in. Note that Postgres does not
+    /// support SSL over Unix sockets.
     ///
     /// # Examples
     ///
