@@ -457,8 +457,8 @@ impl<S: Stream> Writer for MaybeSslStream<S> {
 
     fn flush(&mut self) -> IoResult<()> {
         match *self {
-            NormalStream(ref mut s) => s.flush(),
             SslStream(ref mut s) => s.flush(),
+            NormalStream(ref mut s) => s.flush(),
         }
     }
 }
