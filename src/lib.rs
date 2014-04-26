@@ -564,7 +564,7 @@ impl InnerPostgresConnection {
         let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
-            notice_handler: ~DefaultNoticeHandler,
+            notice_handler: box DefaultNoticeHandler,
             notifications: RingBuf::new(),
             cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
