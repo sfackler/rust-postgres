@@ -1,4 +1,3 @@
-use std::str;
 use std::io::{IoResult, MemWriter, MemReader};
 use std::mem;
 
@@ -245,8 +244,7 @@ impl<R: Buffer> ReadCStr for R {
     fn read_cstr(&mut self) -> IoResult<~str> {
         let mut buf = try!(self.read_until(0));
         buf.pop();
-        // FIXME
-        Ok(str::from_utf8(buf.as_slice()).unwrap().to_owned())
+        Ok(StrBuf::from_utf8(buf).unwrap().into_owned())
     }
 }
 

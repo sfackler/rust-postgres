@@ -7,7 +7,6 @@ use serialize::json;
 use serialize::json::Json;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
-use std::str;
 use time::Timespec;
 
 use error::{PostgresError, PgWrongType, PgStreamError, PgWasNull};
@@ -267,8 +266,7 @@ impl RawFromSql for Vec<u8> {
 impl RawFromSql for ~str {
     fn raw_from_sql<R: Reader>(raw: &mut R)
             -> Result<~str, PostgresError> {
-        // FIXME
-        Ok(str::from_utf8(try_pg!(raw.read_to_end()).as_slice()).unwrap().to_owned())
+        Ok(StrBuf::from_utf8(try_pg!(raw.read_to_end())).unwrap().into_owned())
     }
 }
 
@@ -483,15 +481,15 @@ impl FromSql for Option<HashMap<~str, Option<~str>>> {
 
                 for _ in range(0, count) {
                     let key_len = try_pg!(rdr.read_be_i32());
-                    let key = str::from_utf8(try_pg!(rdr.read_exact(key_len as uint)).as_slice())
-                        .unwrap().to_owned();
+                    let key = try_pg!(rdr.read_exact(key_len as uint));
+                    let key = StrBuf::from_utf8(key).unwrap().into_owned();
 
                     let val_len = try_pg!(rdr.read_be_i32());
                     let val = if val_len < 0 {
                         None
                     } else {
-                        Some(str::from_utf8(try_pg!(rdr.read_exact(val_len as uint)).as_slice())
-                             .unwrap().to_owned())
+                        let val = try_pg!(rdr.read_exact(val_len as uint));
+                        Some(StrBuf::from_utf8(val).unwrap().into_owned())
                     };
 
                     map.insert(key, val);

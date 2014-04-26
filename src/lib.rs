@@ -90,7 +90,6 @@ use std::io::net::ip::{Port, SocketAddr};
 use std::io::net::tcp::TcpStream;
 use std::io::net::unix::UnixStream;
 use std::mem;
-use std::str;
 use std::task;
 use std::fmt;
 
@@ -809,11 +808,11 @@ impl InnerPostgresConnection {
         loop {
             match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
-                DataRow { row } =>
-                    // FIXME
-                    result.push(row.move_iter().map(|opt|
-                            opt.map(|b| str::from_utf8(b.as_slice()).unwrap().to_owned()))
-                               .collect()),
+                DataRow { row } => {
+                    result.push(row.move_iter().map(|opt| {
+                            opt.map(|b| StrBuf::from_utf8(b).unwrap().into_owned())
+                        }).collect());
+                }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
