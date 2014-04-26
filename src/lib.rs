@@ -757,7 +757,7 @@ impl InnerPostgresConnection {
             param_types: param_types,
             result_desc: result_desc,
             next_portal_id: Cell::new(0),
-            finished: Cell::new(false),
+            finished: false,
         })
     }
 
@@ -827,7 +827,8 @@ impl InnerPostgresConnection {
     fn finish_inner(&mut self) -> PostgresResult<()> {
         check_desync!(self);
         self.canary = 0;
-        Ok(try_pg!(self.write_messages([Terminate])))
+        try_pg!(self.write_messages([Terminate]));
+        Ok(())
     }
 }
 
@@ -1151,7 +1152,7 @@ impl<'conn> PostgresTransaction<'conn> {
                                      row_limit: uint)
                                      -> PostgresResult<PostgresLazyRows
                                                        <'trans, 'stmt>> {
-        if self.conn as *PostgresConnection != stmt.conn as *PostgresConnection {
+        if self.conn as *_ != stmt.conn as *_ {
             return Err(PgWrongConnection);
         }
         check_desync!(self.conn);
@@ -1171,13 +1172,13 @@ pub struct PostgresStatement<'conn> {
     param_types: Vec<PostgresType>,
     result_desc: Vec<ResultDescription>,
     next_portal_id: Cell<uint>,
-    finished: Cell<bool>,
+    finished: bool,
 }
 
 #[unsafe_destructor]
 impl<'conn> Drop for PostgresStatement<'conn> {
     fn drop(&mut self) {
-        if !self.finished.get() {
+        if !self.finished {
             let _ = self.finish_inner();
         }
     }
@@ -1360,7 +1361,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// Functionally identical to the `Drop` implementation of the
     /// `PostgresStatement` except that it returns any error to the caller.
     pub fn finish(mut self) -> PostgresResult<()> {
-        self.finished.set(true);
+        self.finished = true;
         self.finish_inner()
     }
 }
