@@ -2,7 +2,7 @@ Rust-Postgres
 =============
 A native PostgreSQL driver for Rust.
 
-Documentation is available at http://www.rust-ci.org/sfackler/rust-postgres/doc/postgres/.
+Documentation is available at http://sfackler.github.io/rust-postgres/doc/postgres/index.html.
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres)
 
