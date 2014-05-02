@@ -407,6 +407,13 @@ fn test_i8_params() {
 }
 
 #[test]
+fn test_name_params() {
+    test_type("NAME", [(Some("hello world".to_owned()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
+                       (None, "NULL")]);
+}
+
+#[test]
 fn test_i16_params() {
     test_type("SMALLINT", [(Some(15001i16), "15001"),
                            (Some(-15001i16), "-15001"), (None, "NULL")]);
@@ -589,6 +596,12 @@ fn test_byteaarray_params() {
 fn test_chararray_params() {
     test_array_params!("\"char\"", 'a' as i8, "a", 'z' as i8, "z",
                        '0' as i8, "0");
+}
+
+#[test]
+fn test_namearray_params() {
+    test_array_params!("NAME", "hello".to_owned(), "hello", "world".to_owned(),
+                       "world", "!".to_owned(), "!");
 }
 
 #[test]

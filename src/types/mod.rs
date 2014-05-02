@@ -24,6 +24,7 @@ pub type Oid = u32;
 static BOOLOID: Oid = 16;
 static BYTEAOID: Oid = 17;
 static CHAROID: Oid = 18;
+static NAMEOID: Oid = 19;
 static INT8OID: Oid = 20;
 static INT2OID: Oid = 21;
 static INT4OID: Oid = 23;
@@ -35,6 +36,7 @@ static FLOAT8OID: Oid = 701;
 static BOOLARRAYOID: Oid = 1000;
 static BYTEAARRAYOID: Oid = 1001;
 static CHARARRAYOID: Oid = 1002;
+static NAMEARRAYOID: Oid = 1003;
 static INT2ARRAYOID: Oid = 1005;
 static INT4ARRAYOID: Oid = 1007;
 static TEXTARRAYOID: Oid = 1009;
@@ -136,6 +138,8 @@ make_postgres_type!(
     BYTEAOID => PgByteA,
     #[doc="\"char\""]
     CHAROID => PgChar,
+    #[doc="NAME"]
+    NAMEOID => PgName,
     #[doc="INT8/BIGINT"]
     INT8OID => PgInt8,
     #[doc="INT2/SMALLINT"]
@@ -158,6 +162,8 @@ make_postgres_type!(
     BYTEAARRAYOID => PgByteAArray member PgByteA,
     #[doc="\"char\"[]"]
     CHARARRAYOID => PgCharArray member PgChar,
+    #[doc="NAME[]"]
+    NAMEARRAYOID => PgNameArray member PgName,
     #[doc="INT2[]"]
     INT2ARRAYOID => PgInt2Array member PgInt2,
     #[doc="INT4[]"]
@@ -392,7 +398,7 @@ macro_rules! from_raw_from_impl(
 
 from_raw_from_impl!(PgBool, bool)
 from_raw_from_impl!(PgByteA, Vec<u8>)
-from_raw_from_impl!(PgVarchar | PgText | PgCharN, ~str)
+from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, ~str)
 from_raw_from_impl!(PgChar, i8)
 from_raw_from_impl!(PgInt2, i16)
 from_raw_from_impl!(PgInt4, i32)
@@ -447,7 +453,7 @@ from_array_impl!(PgByteAArray, Vec<u8>)
 from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
-from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
+from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, ~str)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgJsonArray, Json)
@@ -684,7 +690,7 @@ macro_rules! to_raw_to_impl(
 
 to_raw_to_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, Vec<u8>)
-to_raw_to_impl!(PgVarchar | PgText | PgCharN, ~str)
+to_raw_to_impl!(PgVarchar | PgText | PgCharN | PgName, ~str)
 to_raw_to_impl!(PgJson, Json)
 to_raw_to_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt2, i16)
@@ -699,12 +705,12 @@ to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &PostgresType)
             -> PostgresResult<(Format, Option<Vec<u8>>)> {
-        check_types!(PgVarchar | PgText | PgCharN, ty)
+        check_types!(PgVarchar | PgText | PgCharN | PgName, ty)
         Ok((Text, Some(Vec::from_slice(self.as_bytes()))))
     }
 }
 
-to_option_impl_lifetime!(PgVarchar | PgText | PgCharN, &'a str)
+to_option_impl_lifetime!(PgVarchar | PgText | PgCharN | PgName, &'a str)
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &PostgresType)
@@ -762,7 +768,7 @@ to_array_impl!(PgByteAArray, Vec<u8>)
 to_array_impl!(PgCharArray, i8)
 to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
-to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray, ~str)
+to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, ~str)
 to_array_impl!(PgInt8Array, i64)
 to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
