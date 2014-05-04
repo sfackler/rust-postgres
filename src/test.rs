@@ -823,7 +823,8 @@ fn test_custom_notice_handler() {
     struct Handler;
 
     impl PostgresNoticeHandler for Handler {
-        fn handle(&mut self, _notice: PostgresDbError) {
+        fn handle(&mut self, notice: PostgresDbError) {
+            assert_eq!("note", notice.message.as_slice());
             unsafe { count += 1; }
         }
     }

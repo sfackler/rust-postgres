@@ -359,7 +359,7 @@ make_errors!(
 /// Reasons a new Postgres connection could fail
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
-    InvalidUrl,
+    InvalidUrl(~str),
     /// The URL was missing a user
     MissingUser,
     /// DNS lookup failed
@@ -384,7 +384,7 @@ pub enum PostgresConnectError {
 impl fmt::Show for PostgresConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InvalidUrl => fmt.buf.write_str("Invalid URL"),
+            InvalidUrl(ref err) => write!(fmt.buf, "Invalid URL: {}", err),
             MissingUser => fmt.buf.write_str("User missing in URL"),
             DnsError(ref err) => write!(fmt.buf, "DNS lookup failed: {}", err),
             SocketError(ref err) =>
