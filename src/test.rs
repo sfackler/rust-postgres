@@ -991,3 +991,14 @@ fn test_jsonarray_params() {
                        json::from_str(r#"{"a": [10], "b": true}"#).unwrap(),
                        r#""{\"a\": [10], \"b\": true}""#);
 }
+
+#[test]
+fn test_pg_database_datname() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("SELECT datname FROM pg_database"));
+    let mut result = or_fail!(stmt.query([]));
+
+    let next = result.next().unwrap();
+    or_fail!(next.get::<uint, ~str>(1));
+    or_fail!(next.get::<&str, ~str>("datname"));
+}
