@@ -82,6 +82,7 @@ use url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::{SslStream, SslContext};
 use serialize::hex::ToHex;
+use std::owned::Box;
 use std::cell::{Cell, RefCell};
 use std::from_str::FromStr;
 use std::io::{Stream, BufferedStream, IoResult};
@@ -536,7 +537,7 @@ fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
 struct InnerPostgresConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: uint,
-    notice_handler: ~PostgresNoticeHandler:Send,
+    notice_handler: Box<PostgresNoticeHandler:Send>,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
     unknown_types: HashMap<Oid, ~str>,
@@ -694,8 +695,8 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: ~PostgresNoticeHandler:Send)
-            -> ~PostgresNoticeHandler:Send {
+    fn set_notice_handler(&mut self, handler: Box<PostgresNoticeHandler:Send>)
+            -> Box<PostgresNoticeHandler:Send> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
@@ -896,8 +897,8 @@ impl PostgresConnection {
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: ~PostgresNoticeHandler:Send)
-            -> ~PostgresNoticeHandler:Send {
+    pub fn set_notice_handler(&self, handler: Box<PostgresNoticeHandler:Send>)
+            -> Box<PostgresNoticeHandler:Send> {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
