@@ -1,6 +1,6 @@
 //! Multi-dimensional arrays with per-dimension specifiable lower bounds
 
-use std::cast;
+use std::mem;
 use std::slice;
 
 /// Information about a dimension of an array
@@ -228,7 +228,7 @@ impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
                 "Attempted to slice a one-dimensional array");
         unsafe {
             ArraySlice {
-                parent: SliceParent(cast::transmute(self)),
+                parent: SliceParent(mem::transmute(self)),
                 idx: self.shift_idx(idx),
             }
         }
@@ -268,8 +268,8 @@ impl<'parent, T> Array<T> for MutArraySlice<'parent, T> {
     fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
         let info : &'a [DimensionInfo] = unsafe {
             match self.parent {
-                MutSliceMutParent(ref p) => cast::transmute(p.dimension_info()),
-                MutBaseParent(ref p) => cast::transmute(p.dimension_info()),
+                MutSliceMutParent(ref p) => mem::transmute(p.dimension_info()),
+                MutBaseParent(ref p) => mem::transmute(p.dimension_info()),
             }
         };
         info.slice_from(1)
@@ -280,7 +280,7 @@ impl<'parent, T> Array<T> for MutArraySlice<'parent, T> {
                 "Attempted to slice a one-dimensional array");
         unsafe {
             ArraySlice {
-                parent: MutSliceParent(cast::transmute(self)),
+                parent: MutSliceParent(mem::transmute(self)),
                 idx: self.shift_idx(idx),
             }
         }
@@ -300,7 +300,7 @@ impl<'parent, T> MutableArray<T> for MutArraySlice<'parent, T> {
         unsafe {
             MutArraySlice {
                 idx: self.shift_idx(idx),
-                parent: MutSliceMutParent(cast::transmute(self)),
+                parent: MutSliceMutParent(mem::transmute(self)),
             }
         }
     }
@@ -319,8 +319,8 @@ impl<'parent, T> InternalArray<T> for MutArraySlice<'parent, T> {
         let idx = size * self.idx + idx;
         unsafe {
             match self.parent {
-                MutSliceMutParent(ref p) => cast::transmute(p.raw_get(idx, size)),
-                MutBaseParent(ref p) => cast::transmute(p.raw_get(idx, size))
+                MutSliceMutParent(ref p) => mem::transmute(p.raw_get(idx, size)),
+                MutBaseParent(ref p) => mem::transmute(p.raw_get(idx, size))
             }
         }
     }
@@ -332,8 +332,8 @@ impl<'parent, T> InternalMutableArray<T> for MutArraySlice<'parent, T> {
         let idx = size * self.idx + idx;
         unsafe {
             match self.parent {
-                MutSliceMutParent(ref mut p) => cast::transmute(p.raw_get_mut(idx, size)),
-                MutBaseParent(ref mut p) => cast::transmute(p.raw_get_mut(idx, size))
+                MutSliceMutParent(ref mut p) => mem::transmute(p.raw_get_mut(idx, size)),
+                MutBaseParent(ref mut p) => mem::transmute(p.raw_get_mut(idx, size))
             }
         }
     }
