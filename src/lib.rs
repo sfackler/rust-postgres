@@ -1175,10 +1175,7 @@ impl<'conn> PostgresStatement<'conn> {
                 }
                 CommandComplete { tag } => {
                     let s = tag.split(' ').last().unwrap();
-                    num = match FromStr::from_str(s) {
-                        None => 0,
-                        Some(n) => n
-                    };
+                    num = FromStr::from_str(s).unwrap_or(0);
                     break;
                 }
                 EmptyQueryResponse => {
