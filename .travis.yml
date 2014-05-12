@@ -1,17 +1,11 @@
-env:
-  global:
-    - secure: MDV8QzYhRm55CkEBbpjzqWmw9fLIwDRjf0O/xBC2nBJmpGWhe6v+IumH9SJFVdtSA8j8FZR0qqdCHZOs0Zl5O0SpGWyC3kKHrdW6oeQATKyRGC0HNh3BOGWnkidexvnpv/auDFWA6Vgiorvxq9B162BkEDijh6Eyz0kshsUjgTU=
 addons:
   postgresql: 9.3
-before_install:
-  - yes | sudo add-apt-repository ppa:hansjorg/rust
-  - sudo apt-get update
 install:
-  - sudo apt-get install rust-nightly
+  - curl -O http://static.rust-lang.org/dist/rust-nightly-x86_64-unknown-linux-gnu.tar.gz
+  - tar xfz rust-nightly-x86_64-unknown-linux-gnu.tar.gz
+  - (cd rust-nightly-x86_64-unknown-linux-gnu/ && sudo ./install.sh)
 before_script:
   - ./travis/setup.sh
   - ./configure
 script:
   - make all check doc
-after_success:
-  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
