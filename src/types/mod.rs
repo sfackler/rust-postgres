@@ -269,7 +269,14 @@ impl RawFromSql for Vec<u8> {
 
 impl RawFromSql for ~str {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<~str> {
-        Ok(StrBuf::from_utf8(try_pg!(raw.read_to_end())).unwrap().into_owned())
+        let s: PostgresResult<StrBuf> = RawFromSql::raw_from_sql(raw);
+        s.map(|s| s.into_owned())
+    }
+}
+
+impl RawFromSql for StrBuf {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<StrBuf> {
+        Ok(StrBuf::from_utf8(try_pg!(raw.read_to_end())).unwrap())
     }
 }
 
@@ -399,6 +406,7 @@ macro_rules! from_raw_from_impl(
 from_raw_from_impl!(PgBool, bool)
 from_raw_from_impl!(PgByteA, Vec<u8>)
 from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, ~str)
+from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, StrBuf)
 from_raw_from_impl!(PgChar, i8)
 from_raw_from_impl!(PgInt2, i16)
 from_raw_from_impl!(PgInt4, i32)
@@ -454,6 +462,7 @@ from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
 from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, ~str)
+from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, StrBuf)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgJsonArray, Json)

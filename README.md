@@ -22,7 +22,7 @@ use postgres::types::ToSql;
 
 struct Person {
     id: i32,
-    name: ~str,
+    name: StrBuf,
     time_created: Timespec,
     data: Option<Vec<u8>>
 }
@@ -39,13 +39,13 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".to_owned(),
+        name: "Steven".into_strbuf(),
         time_created: time::get_time(),
         data: None
     };
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name as &ToSql, &me.time_created as &ToSql,
+                 [&me.name.as_slice() as &ToSql, &me.time_created as &ToSql,
                   &me.data as &ToSql]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
