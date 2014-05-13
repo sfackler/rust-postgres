@@ -323,9 +323,9 @@ pub struct PostgresNotification {
     /// The process ID of the notifying backend process
     pub pid: i32,
     /// The name of the channel that the notify has been raised on
-    pub channel: ~str,
+    pub channel: StrBuf,
     /// The "payload" string passed from the notifying process
-    pub payload: ~str,
+    pub payload: StrBuf,
 }
 
 /// An iterator over asynchronous notifications
@@ -1174,7 +1174,7 @@ impl<'conn> PostgresStatement<'conn> {
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
-                    let s = tag.split(' ').last().unwrap();
+                    let s = tag.as_slice().split(' ').last().unwrap();
                     num = FromStr::from_str(s).unwrap_or(0);
                     break;
                 }
@@ -1230,7 +1230,7 @@ impl<'conn> PostgresStatement<'conn> {
 #[deriving(Eq)]
 pub struct ResultDescription {
     /// The name of the column
-    pub name: ~str,
+    pub name: StrBuf,
     /// The type of the data in the column
     pub ty: PostgresType
 }

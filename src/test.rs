@@ -365,8 +365,8 @@ fn test_result_descriptions() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_owned(), ty: PgInt4},
-             ResultDescription { name: "b".to_owned(), ty: PgVarchar}]);
+            [ResultDescription { name: "a".to_strbuf(), ty: PgInt4},
+             ResultDescription { name: "b".to_strbuf(), ty: PgVarchar}]);
 }
 
 #[test]
@@ -869,21 +869,21 @@ fn test_notification_iterator_some() {
 
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_owned(),
-        payload: "hello".to_owned()
+        channel: "test_notification_iterator_one_channel".to_strbuf(),
+        payload: "hello".to_strbuf()
     }, it.next());
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel2".to_owned(),
-        payload: "world".to_owned()
+        channel: "test_notification_iterator_one_channel2".to_strbuf(),
+        payload: "world".to_strbuf()
     }, it.next());
     assert!(it.next().is_none());
 
     or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_owned(),
-        payload: "!".to_owned()
+        channel: "test_notification_iterator_one_channel".to_strbuf(),
+        payload: "!".to_strbuf()
     }, it.next());
     assert!(it.next().is_none());
 }

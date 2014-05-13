@@ -24,30 +24,30 @@ pub enum BackendMessage {
     BindComplete,
     CloseComplete,
     CommandComplete {
-        pub tag: ~str
+        pub tag: StrBuf,
     },
     DataRow {
         pub row: Vec<Option<Vec<u8>>>
     },
     EmptyQueryResponse,
     ErrorResponse {
-        pub fields: Vec<(u8, ~str)>
+        pub fields: Vec<(u8, StrBuf)>
     },
     NoData,
     NoticeResponse {
-        pub fields: Vec<(u8, ~str)>
+        pub fields: Vec<(u8, StrBuf)>
     },
     NotificationResponse {
         pub pid: i32,
-        pub channel: ~str,
-        pub payload: ~str
+        pub channel: StrBuf,
+        pub payload: StrBuf,
     },
     ParameterDescription {
         pub types: Vec<Oid>
     },
     ParameterStatus {
-        pub parameter: ~str,
-        pub value: ~str
+        pub parameter: StrBuf,
+        pub value: StrBuf,
     },
     ParseComplete,
     PortalSuspended,
@@ -60,7 +60,7 @@ pub enum BackendMessage {
 }
 
 pub struct RowDescriptionEntry {
-    pub name: ~str,
+    pub name: StrBuf,
     pub table_oid: Oid,
     pub column_id: i16,
     pub type_oid: Oid,
@@ -237,14 +237,14 @@ impl<W: Writer> WriteMessage for W {
 
 #[doc(hidden)]
 trait ReadCStr {
-    fn read_cstr(&mut self) -> IoResult<~str>;
+    fn read_cstr(&mut self) -> IoResult<StrBuf>;
 }
 
 impl<R: Buffer> ReadCStr for R {
-    fn read_cstr(&mut self) -> IoResult<~str> {
+    fn read_cstr(&mut self) -> IoResult<StrBuf> {
         let mut buf = try!(self.read_until(0));
         buf.pop();
-        Ok(StrBuf::from_utf8(buf).unwrap().into_owned())
+        Ok(StrBuf::from_utf8(buf).unwrap())
     }
 }
 
@@ -294,7 +294,7 @@ impl<R: Reader> ReadMessage for R {
     }
 }
 
-fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, ~str)>> {
+fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, StrBuf)>> {
     let mut fields = Vec::new();
     loop {
         let ty = try!(buf.read_u8());
