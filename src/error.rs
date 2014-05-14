@@ -17,7 +17,7 @@ macro_rules! make_errors(
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
-            UnknownSqlState(~str)
+            UnknownSqlState(StrBuf)
         }
 
         static STATE_MAP: PhfMap<PostgresSqlState> = phf_map!(
@@ -29,7 +29,7 @@ macro_rules! make_errors(
             pub fn from_code(s: &str) -> PostgresSqlState {
                 match STATE_MAP.find(&s) {
                     Some(state) => state.clone(),
-                    None => UnknownSqlState(s.to_owned())
+                    None => UnknownSqlState(s.to_strbuf())
                 }
             }
         }
@@ -362,8 +362,6 @@ pub enum PostgresConnectError {
     InvalidUrl(~str),
     /// The URL was missing a user
     MissingUser,
-    /// DNS lookup failed
-    DnsError(IoError),
     /// There was an error opening a socket to the server
     SocketError(IoError),
     /// An error from the Postgres server itself
@@ -386,7 +384,6 @@ impl fmt::Show for PostgresConnectError {
         match *self {
             InvalidUrl(ref err) => write!(fmt.buf, "Invalid URL: {}", err),
             MissingUser => fmt.buf.write_str("User missing in URL"),
-            DnsError(ref err) => write!(fmt.buf, "DNS lookup failed: {}", err),
             SocketError(ref err) =>
                 write!(fmt.buf, "Unable to open connection to server: {}", err),
             PgConnectDbError(ref err) => err.fmt(fmt),

@@ -1,6 +1,5 @@
 use openssl::ssl::SslStream;
-use std::io::net;
-use std::io::net::ip::{Port, SocketAddr};
+use std::io::net::ip::Port;
 use std::io::net::tcp::TcpStream;
 use std::io::net::unix::UnixStream;
 use std::io::{Stream, IoResult};
@@ -14,7 +13,6 @@ use {PostgresConnectParams,
      TargetUnix};
 use error::{PostgresConnectError,
             PgConnectStreamError,
-            DnsError,
             NoSslSupport,
             SslError,
             SocketError};
@@ -25,20 +23,7 @@ static DEFAULT_PORT: Port = 5432;
 
 fn open_tcp_socket(host: &str, port: Port) -> Result<TcpStream,
                                                      PostgresConnectError> {
-    let addrs = match net::get_host_addresses(host) {
-        Ok(addrs) => addrs,
-        Err(err) => return Err(DnsError(err))
-    };
-
-    let mut err = None;
-    for &addr in addrs.iter() {
-        match TcpStream::connect(SocketAddr { ip: addr, port: port }) {
-            Ok(socket) => return Ok(socket),
-            Err(e) => err = Some(e)
-        }
-    }
-
-    Err(SocketError(err.unwrap()))
+    TcpStream::connect(host, port).map_err(|e| SocketError(e))
 }
 
 fn open_unix_socket(path: &Path, port: Port) -> Result<UnixStream,
@@ -150,4 +135,3 @@ pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
         Err(err) => Err(SslError(err))
     }
 }
-

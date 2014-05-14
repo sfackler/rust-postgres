@@ -25,7 +25,6 @@ use error::{PgConnectDbError,
             PgWrongType,
             PgInvalidColumn,
             PgWasNull,
-            DnsError,
             MissingPassword,
             Position,
             PostgresDbError,
@@ -967,16 +966,6 @@ fn test_md5_pass_wrong_pass() {
     let ret = PostgresConnection::connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
     match ret {
         Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
-        Err(err) => fail!("Unexpected error {}", err),
-        _ => fail!("Expected error")
-    }
-}
-
-#[test]
-fn test_dns_failure() {
-    let ret = PostgresConnection::connect("postgres://postgres@asdfasdfasdf", &NoSsl);
-    match ret {
-        Err(DnsError(_)) => (),
         Err(err) => fail!("Unexpected error {}", err),
         _ => fail!("Expected error")
     }
