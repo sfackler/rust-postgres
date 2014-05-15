@@ -330,7 +330,7 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
         3 => AuthenticationCleartextPassword,
         5 => {
             let mut salt = [0, 0, 0, 0];
-            try!(buf.fill(salt));
+            try!(buf.read_at_least(salt.len(), salt));
             AuthenticationMD5Password { salt: salt }
         },
         6 => AuthenticationSCMCredential,
