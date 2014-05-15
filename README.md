@@ -87,6 +87,15 @@ let conn = try!(PostgresConnection::connect("postgres://user:pass@host:port/data
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password`, and `md5` authentication.
 
+Unix domain sockets can be used as well. The `host` portion of the URI should be
+set to the absolute path to the directory containing the socket file. Since `/`
+is a reserved character in URLs, the path should be URL encoded.
+```rust
+let conn = try!(PosgresConnection::connect("postgres://postgres@%2Frun%2Fpostgres", &NoSsl));
+```
+Paths which contain non-UTF8 characters can be handled in a different manner;
+see the documentation for details.
+
 Statement Preparation
 ---------------------
 Prepared statements can have parameters, represented as `$n` where `n` is an
