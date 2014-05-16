@@ -220,7 +220,7 @@ types. The driver currently supports the following conversions:
             <td>DOUBLE PRECISION</td>
         </tr>
         <tr>
-            <td>str</td>
+            <td>str/StrBuf</td>
             <td>VARCHAR, CHAR(n), TEXT</td>
         </tr>
         <tr>

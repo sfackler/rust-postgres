@@ -567,18 +567,18 @@ impl InnerPostgresConnection {
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> PostgresResult<PostgresStatement<'a>> {
-        let stmt_name = format!("s{}", self.next_stmt_id);
+        let stmt_name = format!("s{}", self.next_stmt_id).into_strbuf();
         self.next_stmt_id += 1;
 
         try_pg!(self.write_messages([
             Parse {
-                name: stmt_name,
+                name: stmt_name.as_slice(),
                 query: query,
                 param_types: []
             },
             Describe {
                 variant: 'S' as u8,
-                name: stmt_name
+                name: stmt_name.as_slice(),
             },
             Sync]));
 
@@ -1031,7 +1031,7 @@ impl<'conn> PostgresTransaction<'conn> {
 /// A prepared statement
 pub struct PostgresStatement<'conn> {
     conn: &'conn PostgresConnection,
-    name: ~str,
+    name: StrBuf,
     param_types: Vec<PostgresType>,
     result_desc: Vec<ResultDescription>,
     next_portal_id: Cell<uint>,
@@ -1117,9 +1117,9 @@ impl<'conn> PostgresStatement<'conn> {
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}p{}", self.name, id);
+        let portal_name = format!("{}p{}", self.name, id).into_strbuf();
 
-        try!(self.inner_execute(portal_name, row_limit, params));
+        try!(self.inner_execute(portal_name.as_slice(), row_limit, params));
 
         let mut result = PostgresRows {
             stmt: self,
@@ -1238,7 +1238,7 @@ pub struct ResultDescription {
 /// An iterator over the resulting rows of a query.
 pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
-    name: ~str,
+    name: StrBuf,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
     row_limit: uint,
     more_rows: bool,
@@ -1298,7 +1298,7 @@ impl<'stmt> PostgresRows<'stmt> {
     fn execute(&mut self) -> PostgresResult<()> {
         try_pg!(self.stmt.conn.write_messages([
             Execute {
-                portal: self.name,
+                portal: self.name.as_slice(),
                 max_rows: self.row_limit as i32
             },
             Sync]));

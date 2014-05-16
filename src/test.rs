@@ -408,8 +408,8 @@ fn test_i8_params() {
 
 #[test]
 fn test_name_params() {
-    test_type("NAME", [(Some("hello world".to_owned()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("NAME", [(Some("hello world".to_strbuf()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -449,15 +449,15 @@ fn test_f64_params() {
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", [(Some("hello world".to_owned()), "'hello world'"),
-                          (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("VARCHAR", [(Some("hello world".to_strbuf()), "'hello world'"),
+                          (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
                           (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", [(Some("hello world".to_owned()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("TEXT", [(Some("hello world".to_strbuf()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -474,7 +474,7 @@ fn test_bpchar_params() {
     let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_fail!(stmt.query([]));
 
-    assert_eq!(vec!(Some("12345".to_owned()), Some("123  ".to_owned()), None),
+    assert_eq!(vec!(Some("12345".to_strbuf()), Some("123  ".to_strbuf()), None),
                res.map(|row| row[1]).collect());
 }
 
@@ -570,13 +570,14 @@ fn test_tstzrange_params() {
 macro_rules! test_array_params(
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
-                      "'{" + $s1 + "," + $s2 + ",NULL}'"),
-                     (None, "NULL".to_owned())];
+                      format!(r"'\{{},{},NULL\}'", $s1, $s2).into_strbuf()),
+                     (None, "NULL".to_strbuf())];
         test_type($name + "[]", tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
-        let tests = [(Some(a), "'[-1:0][0:1]={{" + $s1 + "," + $s2 + "},{NULL," + $s3 + "}}'")];
+        let tests = [(Some(a), format!(r"'[-1:0][0:1]=\{\{{},{}\},\{NULL,{}\}\}'",
+                                       $s1, $s2, $s3).into_strbuf())];
         test_type($name + "[][]", tests);
     })
 )
@@ -600,8 +601,8 @@ fn test_chararray_params() {
 
 #[test]
 fn test_namearray_params() {
-    test_array_params!("NAME", "hello".to_owned(), "hello", "world".to_owned(),
-                       "world", "!".to_owned(), "!");
+    test_array_params!("NAME", "hello".to_strbuf(), "hello", "world".to_strbuf(),
+                       "world", "!".to_strbuf(), "!");
 }
 
 #[test]
@@ -616,20 +617,20 @@ fn test_int4array_params() {
 
 #[test]
 fn test_textarray_params() {
-    test_array_params!("TEXT", "hello".to_owned(), "hello", "world".to_owned(),
-                       "world", "!".to_owned(), "!");
+    test_array_params!("TEXT", "hello".to_strbuf(), "hello", "world".to_strbuf(),
+                       "world", "!".to_strbuf(), "!");
 }
 
 #[test]
 fn test_charnarray_params() {
-    test_array_params!("CHAR(5)", "hello".to_owned(), "hello",
-                       "world".to_owned(), "world", "!    ".to_owned(), "!");
+    test_array_params!("CHAR(5)", "hello".to_strbuf(), "hello",
+                       "world".to_strbuf(), "world", "!    ".to_strbuf(), "!");
 }
 
 #[test]
 fn test_varchararray_params() {
-    test_array_params!("VARCHAR", "hello".to_owned(), "hello",
-                       "world".to_owned(), "world", "!".to_owned(), "!");
+    test_array_params!("VARCHAR", "hello".to_strbuf(), "hello",
+                       "world".to_strbuf(), "world", "!".to_strbuf(), "!");
 }
 
 #[test]
@@ -713,10 +714,10 @@ fn test_hstore_params() {
         })
     )
     test_type("hstore",
-              [(Some(make_map!("a".to_owned() => Some("1".to_owned()))), "'a=>1'"),
-               (Some(make_map!("hello".to_owned() => Some("world!".to_owned()),
-                               "hola".to_owned() => Some("mundo!".to_owned()),
-                               "what".to_owned() => None)),
+              [(Some(make_map!("a".to_strbuf() => Some("1".to_strbuf()))), "'a=>1'"),
+               (Some(make_map!("hello".to_strbuf() => Some("world!".to_strbuf()),
+                               "hola".to_strbuf() => Some("mundo!".to_strbuf()),
+                               "what".to_strbuf() => None)),
                 "'hello=>world!,hola=>mundo!,what=>NULL'"),
                 (None, "NULL")]);
 }
