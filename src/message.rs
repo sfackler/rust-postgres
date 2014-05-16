@@ -110,7 +110,7 @@ pub enum FrontendMessage<'a> {
     },
     StartupMessage {
         pub version: i32,
-        pub parameters: &'a [(~str, ~str)]
+        pub parameters: &'a [(StrBuf, StrBuf)]
     },
     Sync,
     Terminate

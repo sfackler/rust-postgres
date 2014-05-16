@@ -205,7 +205,7 @@ pub type PostgresResult<T> = Result<T, PostgresError>;
 #[deriving(Clone)]
 pub enum PostgresConnectTarget {
     /// Connect via TCP to the specified host.
-    TargetTcp(~str),
+    TargetTcp(StrBuf),
     /// Connect via a Unix domain socket in the specified directory.
     TargetUnix(Path)
 }
@@ -223,13 +223,13 @@ pub struct PostgresConnectParams {
     ///
     /// `PostgresConnection::connect` requires a user but `cancel_query` does
     /// not.
-    pub user: Option<~str>,
+    pub user: Option<StrBuf>,
     /// An optional password used for authentication
-    pub password: Option<~str>,
+    pub password: Option<StrBuf>,
     /// The database to connect to. Defaults the value of `user`.
-    pub database: Option<~str>,
+    pub database: Option<StrBuf>,
     /// Runtime parameters to be passed to the Postgres backend.
-    pub options: Vec<(~str, ~str)>,
+    pub options: Vec<(StrBuf, StrBuf)>,
 }
 
 /// A trait implemented by types that can be converted into a
@@ -262,8 +262,8 @@ impl<'a> IntoConnectParams for &'a str {
             Err(err) => return Err(InvalidUrl(err))
         };
 
-        let maybe_path = url::decode_component(host);
-        let target = if maybe_path.starts_with("/") {
+        let maybe_path = url::decode_component(host.as_slice());
+        let target = if maybe_path.as_slice().starts_with("/") {
             TargetUnix(Path::new(maybe_path))
         } else {
             TargetTcp(host)
@@ -275,17 +275,17 @@ impl<'a> IntoConnectParams for &'a str {
         };
 
         let port = match port {
-            Some(port) => match FromStr::from_str(port) {
+            Some(port) => match FromStr::from_str(port.as_slice()) {
                 Some(port) => Some(port),
-                None => return Err(InvalidUrl("invalid port".to_owned())),
+                None => return Err(InvalidUrl("invalid port".to_strbuf())),
             },
             None => None,
         };
 
         let database = if !path.is_empty() {
             // path contains the leading /
-            let (_, path) = path.slice_shift_char();
-            Some(path.to_owned())
+            let (_, path) = path.as_slice().slice_shift_char();
+            Some(path.to_strbuf())
         } else {
             None
         };
@@ -451,14 +451,14 @@ impl InnerPostgresConnection {
             None => return Err(MissingUser),
         };
 
-        options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
+        options.push(("client_encoding".to_strbuf(), "UTF8".to_strbuf()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
+        options.push(("TimeZone".to_strbuf(), "GMT".to_strbuf()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_owned(), user.clone()));
+        options.push(("user".to_strbuf(), user.clone()));
         match database {
-            Some(database) => options.push(("database".to_owned(), database)),
+            Some(database) => options.push(("database".to_strbuf(), database)),
             None => {}
         }
 
@@ -513,7 +513,7 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: ~str, pass: Option<~str>)
+    fn handle_auth(&mut self, user: StrBuf, pass: Option<StrBuf>)
             -> Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
@@ -523,7 +523,7 @@ impl InnerPostgresConnection {
                     None => return Err(MissingPassword)
                 };
                 try_pg_conn!(self.write_messages([PasswordMessage {
-                        password: pass
+                        password: pass.as_slice(),
                     }]));
             }
             AuthenticationMD5Password { salt } => {

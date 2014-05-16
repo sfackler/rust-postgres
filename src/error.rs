@@ -359,7 +359,7 @@ make_errors!(
 /// Reasons a new Postgres connection could fail
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
-    InvalidUrl(~str),
+    InvalidUrl(StrBuf),
     /// The URL was missing a user
     MissingUser,
     /// There was an error opening a socket to the server
