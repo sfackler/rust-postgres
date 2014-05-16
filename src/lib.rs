@@ -405,7 +405,7 @@ struct InnerPostgresConnection {
     notice_handler: Box<PostgresNoticeHandler:Send>,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
-    unknown_types: HashMap<Oid, ~str>,
+    unknown_types: HashMap<Oid, StrBuf>,
     desynchronized: bool,
     finished: bool,
     canary: u32,
@@ -638,7 +638,7 @@ impl InnerPostgresConnection {
         Ok(())
     }
 
-    fn get_type_name(&mut self, oid: Oid) -> PostgresResult<~str> {
+    fn get_type_name(&mut self, oid: Oid) -> PostgresResult<StrBuf> {
         match self.unknown_types.find(&oid) {
             Some(name) => return Ok(name.clone()),
             None => {}
@@ -666,7 +666,7 @@ impl InnerPostgresConnection {
     }
 
     fn quick_query(&mut self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<~str>>>> {
+            -> PostgresResult<Vec<Vec<Option<StrBuf>>>> {
         check_desync!(self);
         try_pg!(self.write_messages([Query { query: query }]));
 
@@ -676,8 +676,8 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.move_iter().map(|opt| {
-                            opt.map(|b| StrBuf::from_utf8(b).unwrap().into_owned())
-                        }).collect());
+                        opt.map(|b| StrBuf::from_utf8(b).unwrap())
+                    }).collect());
                 }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
@@ -746,7 +746,7 @@ impl PostgresConnection {
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_owned()),
+    ///     user: Some("postgres".to_strbuf()),
     ///     password: None,
     ///     database: None,
     ///     options: Vec::new(),
@@ -882,7 +882,7 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<~str>>>> {
+            -> PostgresResult<Vec<Vec<Option<StrBuf>>>> {
         self.conn.borrow_mut().quick_query(query)
     }
 
@@ -1403,7 +1403,7 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
     /// let foo: i32 = row[1];
-    /// let bar: ~str = row["bar"];
+    /// let bar: StrBuf = row["bar"];
     /// ```
     fn index(&self, idx: &I) -> T {
         match self.get(idx.clone()) {

@@ -112,13 +112,14 @@ fn test_unix_connection() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SHOW unix_socket_directories"));
     let result = or_fail!(stmt.query([]));
-    let unix_socket_directories: ~str = result.map(|row| row[1]).next().unwrap();
+    let unix_socket_directories: StrBuf = result.map(|row| row[1]).next().unwrap();
 
     if unix_socket_directories.is_empty() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
     }
 
-    let unix_socket_directory = unix_socket_directories.splitn(',', 1).next().unwrap();
+    let unix_socket_directory = unix_socket_directories.as_slice()
+            .splitn(',', 1).next().unwrap();
 
     let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
     let conn = or_fail!(PostgresConnection::connect(url.as_slice(), &NoSsl));
@@ -469,7 +470,7 @@ fn test_bpchar_params() {
                            )", []));
     or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
                           [&Some("12345") as &ToSql, &Some("123") as &ToSql,
-                           &None::<~str> as &ToSql]));
+                           &None::<&'static str> as &ToSql]));
     let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_fail!(stmt.query([]));
 
@@ -989,6 +990,6 @@ fn test_pg_database_datname() {
     let mut result = or_fail!(stmt.query([]));
 
     let next = result.next().unwrap();
-    or_fail!(next.get::<uint, ~str>(1));
-    or_fail!(next.get::<&str, ~str>("datname"));
+    or_fail!(next.get::<uint, StrBuf>(1));
+    or_fail!(next.get::<&str, StrBuf>("datname"));
 }

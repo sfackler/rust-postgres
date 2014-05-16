@@ -86,7 +86,7 @@ macro_rules! make_postgres_type(
             /// An unknown type
             PgUnknownType {
                 /// The name of the type
-                pub name: ~str,
+                pub name: StrBuf,
                 /// The OID of the type
                 pub oid: Oid
             }
@@ -98,7 +98,7 @@ macro_rules! make_postgres_type(
                 match oid {
                     $($oid => $variant,)+
                     // We have to load an empty string now, it'll get filled in later
-                    oid => PgUnknownType { name: "".to_owned(), oid: oid }
+                    oid => PgUnknownType { name: "".to_strbuf(), oid: oid }
                 }
             }
 
@@ -122,7 +122,8 @@ macro_rules! make_postgres_type(
             /// Returns the wire format needed for the value of `self`.
             pub fn result_format(&self) -> Format {
                 match *self {
-                    PgUnknownType { name: ref name, .. } if "hstore" == *name => Binary,
+                    PgUnknownType { name: ref name, .. }
+                        if "hstore" == name.as_slice() => Binary,
                     PgUnknownType { .. } => Text,
                     _ => Binary
                 }
@@ -477,7 +478,8 @@ impl FromSql for Option<HashMap<~str, Option<~str>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
                 -> PostgresResult<Option<HashMap<~str, Option<~str>>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            PgUnknownType { name: ref name, .. }
+                if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -792,7 +794,8 @@ impl ToSql for HashMap<~str, Option<~str>> {
     fn to_sql(&self, ty: &PostgresType)
             -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            PgUnknownType { name: ref name, .. }
+                if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -821,7 +824,8 @@ impl ToSql for Option<HashMap<~str, Option<~str>>> {
     fn to_sql(&self, ty: &PostgresType)
             -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == *name => {}
+            PgUnknownType { name: ref name, .. }
+                if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
