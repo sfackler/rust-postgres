@@ -250,6 +250,16 @@ impl IntoConnectParams for PostgresConnectParams {
 impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> Result<PostgresConnectParams,
                                            PostgresConnectError> {
+        match url::from_str(self) {
+            Ok(url) => url.into_connect_params(),
+            Err(err) => return Err(InvalidUrl(err)),
+        }
+    }
+}
+
+impl IntoConnectParams for Url {
+    fn into_connect_params(self) -> Result<PostgresConnectParams,
+                                           PostgresConnectError> {
         let Url {
             host,
             port,
@@ -257,10 +267,7 @@ impl<'a> IntoConnectParams for &'a str {
             path,
             query: options,
             ..
-        } = match url::from_str(self) {
-            Ok(url) => url,
-            Err(err) => return Err(InvalidUrl(err))
-        };
+        } = self;
 
         let maybe_path = url::decode_component(host.as_slice());
         let target = if maybe_path.as_slice().starts_with("/") {
