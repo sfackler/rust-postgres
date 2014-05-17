@@ -192,10 +192,10 @@ impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
 
         match BoundSided::side(None::<S>) {
             Lower => {
-                write!(fmt.buf, "{}{}", chars[0], self.value)
+                write!(fmt, "{}{}", chars[0], self.value)
             }
             Upper => {
-                write!(fmt.buf, "{}{}", self.value, chars[1])
+                write!(fmt, "{}{}", self.value, chars[1])
             }
         }
     }
@@ -270,16 +270,16 @@ enum InnerRange<T> {
 impl<T: fmt::Show> fmt::Show for Range<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.inner {
-            Empty => fmt.buf.write_str("empty"),
+            Empty => write!(fmt, "empty"),
             Normal(ref lower, ref upper) => {
                 match *lower {
                     Some(ref bound) => try!(bound.fmt(fmt)),
-                    None => try!(fmt.buf.write_char('(')),
+                    None => try!(write!(fmt, "(")),
                 }
-                try!(fmt.buf.write_char(','));
+                try!(write!(fmt, ","));
                 match *upper {
                     Some(ref bound) => bound.fmt(fmt),
-                    None => fmt.buf.write_char(')'),
+                    None => write!(fmt, ")"),
                 }
             }
         }

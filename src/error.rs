@@ -382,23 +382,23 @@ pub enum PostgresConnectError {
 impl fmt::Show for PostgresConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InvalidUrl(ref err) => write!(fmt.buf, "Invalid URL: {}", err),
-            MissingUser => fmt.buf.write_str("User missing in URL"),
+            InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
+            MissingUser => write!(fmt, "User missing in URL"),
             SocketError(ref err) =>
-                write!(fmt.buf, "Unable to open connection to server: {}", err),
+                write!(fmt, "Unable to open connection to server: {}", err),
             PgConnectDbError(ref err) => err.fmt(fmt),
             MissingPassword =>
-                fmt.buf.write_str("The server requested a password but none \
-                                   was provided"),
+                write!(fmt, "The server requested a password but none was \
+                             provided"),
             UnsupportedAuthentication =>
-                fmt.buf.write_str("The server requested an unsupporeted \
-                                   authentication method"),
+                write!(fmt, "The server requested an unsupported \
+                             authentication method"),
             NoSslSupport =>
-                fmt.buf.write_str("The server does not support SSL"),
+                write!(fmt, "The server does not support SSL"),
             SslError(ref err) =>
-                write!(fmt.buf, "Error initiating SSL session: {}", err),
+                write!(fmt, "Error initiating SSL session: {}", err),
             PgConnectStreamError(ref err) =>
-                write!(fmt.buf, "Error communicating with server: {}", err),
+                write!(fmt, "Error communicating with server: {}", err),
         }
     }
 }
@@ -506,7 +506,7 @@ impl PostgresDbError {
 
 impl fmt::Show for PostgresDbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt.buf, "{}: {}", self.severity, self.message)
+        write!(fmt, "{}: {}", self.severity, self.message)
     }
 }
 
@@ -542,18 +542,18 @@ impl fmt::Show for PostgresError {
         match *self {
             PgDbError(ref err) => err.fmt(fmt),
             PgStreamError(ref err) => err.fmt(fmt),
-            PgStreamDesynchronized => fmt.buf.write_str(
-                "Communication with the server has desynchronized due to an \
-                 earlier IO error"),
-            PgWrongConnection => fmt.buf.write_str(
-                "A statement was executed with a connection it was not \
-                 prepared with"),
+            PgStreamDesynchronized =>
+                write!(fmt, "Communication with the server has desynchronized \
+                             due to an earlier IO error"),
+            PgWrongConnection =>
+                write!(fmt, "A statement was executed with a connection it was \
+                             not prepared with"),
             PgWrongParamCount { expected, actual } =>
-                write!(fmt.buf, "Expected {} parameters but got {}", expected,
+                write!(fmt, "Expected {} parameters but got {}", expected,
                        actual),
-            PgWrongType(ref ty) => write!(fmt.buf, "Unexpected type {}", ty),
-            PgInvalidColumn => fmt.buf.write_str("Invalid column"),
-            PgWasNull => fmt.buf.write_str("The value was NULL")
+            PgWrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
+            PgInvalidColumn => write!(fmt, "Invalid column"),
+            PgWasNull => write!(fmt, "The value was NULL"),
         }
     }
 }
