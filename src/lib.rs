@@ -567,7 +567,7 @@ impl InnerPostgresConnection {
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> PostgresResult<PostgresStatement<'a>> {
-        let stmt_name = format!("s{}", self.next_stmt_id).into_strbuf();
+        let stmt_name = format_strbuf!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
         try_pg!(self.write_messages([
@@ -1117,7 +1117,7 @@ impl<'conn> PostgresStatement<'conn> {
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}p{}", self.name, id).into_strbuf();
+        let portal_name = format_strbuf!("{}p{}", self.name, id);
 
         try!(self.inner_execute(portal_name.as_slice(), row_limit, params));
 
