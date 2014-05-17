@@ -545,7 +545,8 @@ impl InnerPostgresConnection {
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
-                let output = "md5" + hasher.final().as_slice().to_hex();
+                let output = format_strbuf!("md5{}",
+                                            hasher.final().as_slice().to_hex());
                 try_pg_conn!(self.write_messages([PasswordMessage {
                         password: output.as_slice()
                     }]));
