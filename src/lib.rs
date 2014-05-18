@@ -936,20 +936,14 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
 
 impl<'conn> PostgresTransaction<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
-        if task::failing() || !self.commit.get() {
-            if self.nested {
-                try!(self.conn.quick_query("ROLLBACK TO sp"));
-            } else {
-                try!(self.conn.quick_query("ROLLBACK"));
-            }
-        } else {
-            if self.nested {
-                try!(self.conn.quick_query("RELEASE sp"));
-            } else {
-                try!(self.conn.quick_query("COMMIT"));
-            }
-        }
-        Ok(())
+        let rollback = task::failing() || !self.commit.get();
+        let query = match (rollback, self.nested) {
+            (true, true) => "ROLLBACK TO sp",
+            (true, false) => "ROLLBACK",
+            (false, true) => "RELEASE sp",
+            (false, false) => "COMMIT",
+        };
+        self.conn.quick_query(query).map(|_| ())
     }
 
     /// Like `PostgresConnection::prepare`.
@@ -1317,7 +1311,6 @@ impl<'stmt> PostgresRows<'stmt> {
     ///
     /// Functionally identical to the `Drop` implementation on `PostgresRows`
     /// except that it returns any error to the caller.
-    #[inline]
     pub fn finish(mut self) -> PostgresResult<()> {
         self.finished = true;
         self.finish_inner()
@@ -1452,6 +1445,7 @@ impl RowIndex for int {
 }
 
 impl<'a> RowIndex for &'a str {
+    #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
         for (i, desc) in stmt.result_descriptions().iter().enumerate() {
             if desc.name.as_slice() == *self {
