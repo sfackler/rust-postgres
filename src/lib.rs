@@ -928,7 +928,9 @@ pub enum SslMode {
     RequireSsl(SslContext)
 }
 
-/// Represents a transaction on a database connection
+/// Represents a transaction on a database connection.
+///
+/// The transaction will commit by default.
 pub struct PostgresTransaction<'conn> {
     conn: &'conn PostgresConnection,
     commit: Cell<bool>,

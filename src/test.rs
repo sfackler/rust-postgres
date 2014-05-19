@@ -31,7 +31,8 @@ use error::{PgConnectDbError,
             SyntaxError,
             InvalidPassword,
             QueryCanceled,
-            InvalidCatalogName};
+            InvalidCatalogName,
+            PgWrongTransaction};
 use types::{ToSql, FromSql, PgInt4, PgVarchar};
 use types::array::{ArrayBase};
 use types::range::{Range, Inclusive, Exclusive, RangeBound};
@@ -293,6 +294,39 @@ fn test_nested_transactions_finish() {
     let result = or_fail!(stmt.query([]));
 
     assert_eq!(vec![1i32], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_conn_prepare_with_trans() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let _trans = or_fail!(conn.transaction());
+    match conn.prepare("") {
+        Err(PgWrongTransaction) => {}
+        Err(r) => fail!("Unexpected error {}", r),
+        Ok(_) => fail!("Unexpected success"),
+    }
+    match conn.transaction() {
+        Err(PgWrongTransaction) => {}
+        Err(r) => fail!("Unexpected error {}", r),
+        Ok(_) => fail!("Unexpected success"),
+    }
+}
+
+#[test]
+fn test_trans_prepare_with_nested_trans() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let trans = or_fail!(conn.transaction());
+    let _trans2 = or_fail!(trans.transaction());
+    match trans.prepare("") {
+        Err(PgWrongTransaction) => {}
+        Err(r) => fail!("Unexpected error {}", r),
+        Ok(_) => fail!("Unexpected success"),
+    }
+    match trans.transaction() {
+        Err(PgWrongTransaction) => {}
+        Err(r) => fail!("Unexpected error {}", r),
+        Ok(_) => fail!("Unexpected success"),
+    }
 }
 
 #[test]
