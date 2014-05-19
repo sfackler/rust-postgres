@@ -272,7 +272,7 @@ types. The driver currently supports the following conversions:
             <td>INT4[], INT4[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;~str&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;StrBuf&gt;&gt;</td>
             <td>TEXT[], CHAR(n)[], VARCHAR[], TEXT[][], ...</td>
         </tr>
         <tr>
@@ -312,7 +312,7 @@ types. The driver currently supports the following conversions:
             <td>INT8RANGE[], INT8RANGE[][], ...</td>
         </tr>
         <tr>
-            <td>std::hashmap::HashMap&lt;~str, Option&lt;~str&gt;&gt;</td>
+            <td>std::hashmap::HashMap&lt;StrBuf, Option&lt;StrBuf&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
     </tbody>
