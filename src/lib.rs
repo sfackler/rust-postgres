@@ -105,7 +105,8 @@ use error::{InvalidUrl,
             PostgresDbError,
             PostgresError,
             UnsupportedAuthentication,
-            PgWrongConnection};
+            PgWrongConnection,
+            PgWrongTransaction};
 use io::{MaybeSslStream,
          InternalStream};
 use message::{AuthenticationCleartextPassword,
@@ -415,6 +416,7 @@ struct InnerPostgresConnection {
     unknown_types: HashMap<Oid, StrBuf>,
     desynchronized: bool,
     finished: bool,
+    trans_depth: u32,
     canary: u32,
 }
 
@@ -442,6 +444,7 @@ impl InnerPostgresConnection {
             unknown_types: HashMap::new(),
             desynchronized: false,
             finished: false,
+            trans_depth: 0,
             canary: CANARY,
         };
 
@@ -805,7 +808,11 @@ impl PostgresConnection {
     /// };
     pub fn prepare<'a>(&'a self, query: &str)
             -> PostgresResult<PostgresStatement<'a>> {
-        self.conn.borrow_mut().prepare(query, self)
+        let mut conn = self.conn.borrow_mut();
+        if conn.trans_depth != 0 {
+            return Err(PgWrongTransaction);
+        }
+        conn.prepare(query, self)
     }
 
     /// Begins a new transaction.
@@ -837,11 +844,15 @@ impl PostgresConnection {
     pub fn transaction<'a>(&'a self)
             -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self);
+        if self.conn.borrow().trans_depth != 0 {
+            return Err(PgWrongTransaction);
+        }
         try!(self.quick_query("BEGIN"));
+        self.conn.borrow_mut().trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self,
             commit: Cell::new(true),
-            nested: false,
+            depth: 1,
             finished: false,
         })
     }
@@ -921,7 +932,7 @@ pub enum SslMode {
 pub struct PostgresTransaction<'conn> {
     conn: &'conn PostgresConnection,
     commit: Cell<bool>,
-    nested: bool,
+    depth: u32,
     finished: bool,
 }
 
@@ -936,49 +947,48 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
 
 impl<'conn> PostgresTransaction<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
+        debug_assert!(self.depth == self.conn.conn.borrow().trans_depth);
         let rollback = task::failing() || !self.commit.get();
-        let query = match (rollback, self.nested) {
+        let query = match (rollback, self.depth != 1) {
             (true, true) => "ROLLBACK TO sp",
             (true, false) => "ROLLBACK",
             (false, true) => "RELEASE sp",
             (false, false) => "COMMIT",
         };
+        self.conn.conn.borrow_mut().trans_depth -= 1;
         self.conn.quick_query(query).map(|_| ())
     }
 
     /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str)
             -> PostgresResult<PostgresStatement<'a>> {
-        self.conn.prepare(query)
+        if self.conn.conn.borrow().trans_depth != self.depth {
+            return Err(PgWrongTransaction);
+        }
+        self.conn.conn.borrow_mut().prepare(query, self.conn)
     }
 
     /// Like `PostgresConnection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql])
             -> PostgresResult<uint> {
-        self.conn.execute(query, params)
+        self.prepare(query).and_then(|s| s.execute(params))
     }
 
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self)
             -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self.conn);
+        if self.conn.conn.borrow().trans_depth != self.depth {
+            return Err(PgWrongTransaction);
+        }
         try!(self.conn.quick_query("SAVEPOINT sp"));
+        self.conn.conn.borrow_mut().trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self.conn,
             commit: Cell::new(true),
-            nested: true,
+            depth: self.depth + 1,
             finished: false,
         })
-    }
-
-    /// Like `PostgresConnection::notifications`.
-    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
-        self.conn.notifications()
-    }
-
-    /// Like `PostgresConnection::is_desynchronized`.
-    pub fn is_desynchronized(&self) -> bool {
-        self.conn.is_desynchronized()
     }
 
     /// Determines if the transaction is currently set to commit or roll back.
@@ -1447,12 +1457,8 @@ impl RowIndex for int {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
-        for (i, desc) in stmt.result_descriptions().iter().enumerate() {
-            if desc.name.as_slice() == *self {
-                return Some(i);
-            }
-        }
-        None
+        stmt.result_descriptions().iter()
+            .position(|d| d.name.as_slice() == *self)
     }
 }
 

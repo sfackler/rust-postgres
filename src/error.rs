@@ -535,6 +535,9 @@ pub enum PostgresError {
     PgInvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type
     PgWasNull,
+    /// An attempt was made to prepare a statement or start a transaction on an
+    /// object other than the active transaction
+    PgWrongTransaction,
 }
 
 impl fmt::Show for PostgresError {
@@ -554,6 +557,10 @@ impl fmt::Show for PostgresError {
             PgWrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
             PgInvalidColumn => write!(fmt, "Invalid column"),
             PgWasNull => write!(fmt, "The value was NULL"),
+            PgWrongTransaction =>
+                write!(fmt, "An attempt was made to prepare a statement or \
+                             start a transaction on an object other than the \
+                             active transaction"),
         }
     }
 }

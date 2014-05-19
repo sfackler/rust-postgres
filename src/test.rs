@@ -225,7 +225,7 @@ fn test_nested_transactions() {
             }
         }
 
-        let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+        let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
         let result = or_fail!(stmt.query([]));
 
         assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row[1]).collect());
@@ -277,10 +277,13 @@ fn test_nested_transactions_finish() {
             assert!(trans2.finish().is_ok());
         }
 
-        let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
-        let result = or_fail!(stmt.query([]));
+        // in a block to unborrow trans1 for the finish call
+        {
+            let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
+            let result = or_fail!(stmt.query([]));
 
-        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row[1]).collect());
+            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row[1]).collect());
+        }
 
         trans1.set_rollback();
         assert!(trans1.finish().is_ok());
@@ -332,7 +335,7 @@ fn test_lazy_query() {
     for value in values.iter() {
         or_fail!(stmt.execute([value as &ToSql]));
     }
-    let stmt = or_fail!(conn.prepare("SELECT id FROM foo ORDER BY id"));
+    let stmt = or_fail!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
     assert_eq!(values, result.map(|row| row.unwrap()[1]).collect());
 
