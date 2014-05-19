@@ -111,8 +111,8 @@ Both methods take an array of parameters to bind to the query represented as
 `&ToSql` trait objects. `execute` returns the number of rows affected by the
 query (or 0 if not applicable):
 ```rust
-let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2");
-let updates = stmt.execute([&1i32 as &ToSql, & &"biz" as &ToSql]);
+let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
+let updates = try!(stmt.execute([&1i32 as &ToSql, & &"biz" as &ToSql]));
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
@@ -123,7 +123,7 @@ columns are one-indexed.
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
     let bar: i32 = row[1];
-    let baz: ~str = row["baz"];
+    let baz: StrBuf = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
@@ -131,7 +131,7 @@ In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                [&1i32 as &ToSql, & &"biz" as &ToSql]));
+                                [&1i32 as &ToSql, &(&"biz") as &ToSql]));
 println!("{} rows were updated", updates);
 ```
 
