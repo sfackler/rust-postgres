@@ -21,22 +21,6 @@ use message::{SslRequest, WriteMessage};
 
 static DEFAULT_PORT: Port = 5432;
 
-fn open_tcp_socket(host: &str, port: Port) -> Result<TcpStream,
-                                                     PostgresConnectError> {
-    TcpStream::connect(host, port).map_err(|e| SocketError(e))
-}
-
-fn open_unix_socket(path: &Path, port: Port) -> Result<UnixStream,
-                                                       PostgresConnectError> {
-    let mut socket = path.clone();
-    socket.push(format!(".s.PGSQL.{}", port));
-
-    match UnixStream::connect(&socket) {
-        Ok(unix) => Ok(unix),
-        Err(err) => Err(SocketError(err))
-    }
-}
-
 pub enum MaybeSslStream<S> {
     SslStream(SslStream<S>),
     NormalStream(S),
@@ -100,12 +84,16 @@ impl Writer for InternalStream {
 fn open_socket(params: &PostgresConnectParams)
                -> Result<InternalStream, PostgresConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
-    match params.target {
-        TargetTcp(ref host) => open_tcp_socket(host.as_slice(), port)
-                .map(|s| TcpStream(s)),
-        TargetUnix(ref path) => open_unix_socket(path, port)
-                .map(|s| UnixStream(s)),
-    }
+    let socket = match params.target {
+        TargetTcp(ref host) =>
+            TcpStream::connect(host.as_slice(), port).map(|s| TcpStream(s)),
+        TargetUnix(ref path) => {
+            let mut path = path.clone();
+            path.push(format!(".s.PGSQL.{}", port));
+            UnixStream::connect(&path).map(|s| UnixStream(s))
+        }
+    };
+    socket.map_err(|e| SocketError(e))
 }
 
 pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
