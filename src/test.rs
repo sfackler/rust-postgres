@@ -422,11 +422,11 @@ fn test_execute_counts() {
 fn test_type<T: Eq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)));
+        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type).as_slice()));
         let result = or_fail!(stmt.query([])).next().unwrap()[1];
         assert!(val == &result);
 
-        let stmt = or_fail!(conn.prepare("SELECT $1::" + sql_type));
+        let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
         let result = or_fail!(stmt.query([val as &ToSql])).next().unwrap()[1];
         assert!(val == &result);
     }
@@ -556,21 +556,21 @@ fn test_tm_params() {
 
 macro_rules! test_range(
     ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
-        let tests = [(Some(range!('(', ')')), "'(,)'".to_owned()),
-                     (Some(range!('[' $low, ')')), "'[" + $low_str + ",)'"),
-                     (Some(range!('(' $low, ')')), "'(" + $low_str + ",)'"),
-                     (Some(range!('(', $high ']')), "'(," + $high_str + "]'"),
-                     (Some(range!('(', $high ')')), "'(," + $high_str + ")'"),
+        let tests = [(Some(range!('(', ')')), "'(,)'".to_strbuf()),
+                     (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
+                     (Some(range!('(' $low, ')')), format!("'({},)'", $low_str)),
+                     (Some(range!('(', $high ']')), format!("'(,{}]'", $high_str)),
+                     (Some(range!('(', $high ')')), format!("'(,{})'", $high_str)),
                      (Some(range!('[' $low, $high ']')),
-                      "'[" + $low_str + "," + $high_str + "]'"),
+                      format!("'[{},{}]'", $low_str, $high_str)),
                      (Some(range!('[' $low, $high ')')),
-                      "'[" + $low_str + "," + $high_str + ")'"),
+                      format!("'[{},{})'", $low_str, $high_str)),
                      (Some(range!('(' $low, $high ']')),
-                      "'(" + $low_str + "," + $high_str + "]'"),
+                      format!("'({},{}]'", $low_str, $high_str)),
                      (Some(range!('(' $low, $high ')')),
-                      "'(" + $low_str + "," + $high_str + ")'"),
-                     (Some(range!(empty)), "'empty'".to_owned()),
-                     (None, "NULL".to_owned())];
+                      format!("'({},{})'", $low_str, $high_str)),
+                     (Some(range!(empty)), "'empty'".to_strbuf()),
+                     (None, "NULL".to_strbuf())];
         test_type($name, tests);
     })
 )
@@ -609,13 +609,13 @@ macro_rules! test_array_params(
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
                       format!(r"'\{{},{},NULL\}'", $s1, $s2).into_strbuf()),
                      (None, "NULL".to_strbuf())];
-        test_type($name + "[]", tests);
+        test_type(format!("{}[]", $name).as_slice(), tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
         let tests = [(Some(a), format!(r"'[-1:0][0:1]=\{\{{},{}\},\{NULL,{}\}\}'",
                                        $s1, $s2, $s3).into_strbuf())];
-        test_type($name + "[][]", tests);
+        test_type(format!("{}[][]", $name).as_slice(), tests);
     })
 )
 
@@ -726,9 +726,9 @@ fn test_tsrangearray_params() {
     let r1 = Range::new(None, None);
     let rs1 = "\"(,)\"";
     let r2 = Range::new(Some(RangeBound::new(v1, Inclusive)), None);
-    let rs2 = "\"[" + s1 + ",)\"";
+    let rs2 = format!("\"[{},)\"", s1);
     let r3 = Range::new(None, Some(RangeBound::new(v2, Exclusive)));
-    let rs3 = "\"(," + s2 + ")\"";
+    let rs3 = format!("\"(,{})\"", s2);
     test_array_params!("TSRANGE", r1, rs1, r2, rs2, r3, rs3);
     test_array_params!("TSTZRANGE", r1, rs1, r2, rs2, r3, rs3);
 }
@@ -761,13 +761,13 @@ fn test_hstore_params() {
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let stmt = or_fail!(conn.prepare("SELECT 'NaN'::" + sql_type));
+    let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type).as_slice()));
     let mut result = or_fail!(stmt.query([]));
     let val: T = result.next().unwrap()[1];
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
-    let stmt = or_fail!(conn.prepare("SELECT $1::" + sql_type));
+    let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
     let mut result = or_fail!(stmt.query([&nan as &ToSql]));
     let val: T = result.next().unwrap()[1];
     assert!(val.is_nan())

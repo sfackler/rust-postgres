@@ -548,8 +548,8 @@ impl InnerPostgresConnection {
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
-                let output = format_strbuf!("md5{}",
-                                            hasher.final().as_slice().to_hex());
+                let output = format!("md5{}",
+                                     hasher.final().as_slice().to_hex());
                 try_pg_conn!(self.write_messages([PasswordMessage {
                         password: output.as_slice()
                     }]));
@@ -578,7 +578,7 @@ impl InnerPostgresConnection {
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
             -> PostgresResult<PostgresStatement<'a>> {
-        let stmt_name = format_strbuf!("s{}", self.next_stmt_id);
+        let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
         try_pg!(self.write_messages([
@@ -655,7 +655,7 @@ impl InnerPostgresConnection {
             None => {}
         }
         let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
-                                                  WHERE oid={}", oid)))
+                                                  WHERE oid={}", oid).as_slice()))
             .move_iter().next().unwrap().move_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
@@ -1131,7 +1131,7 @@ impl<'conn> PostgresStatement<'conn> {
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format_strbuf!("{}p{}", self.name, id);
+        let portal_name = format!("{}p{}", self.name, id);
 
         try!(self.inner_execute(portal_name.as_slice(), row_limit, params));
 
