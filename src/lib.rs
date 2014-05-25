@@ -31,7 +31,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".into_strbuf(),
+        name: "Steven".to_owned(),
         time_created: time::get_time(),
         data: None
     };
@@ -285,7 +285,7 @@ impl IntoConnectParams for Url {
         let port = match port {
             Some(port) => match FromStr::from_str(port.as_slice()) {
                 Some(port) => Some(port),
-                None => return Err(InvalidUrl("invalid port".to_strbuf())),
+                None => return Err(InvalidUrl("invalid port".to_owned())),
             },
             None => None,
         };
@@ -293,7 +293,7 @@ impl IntoConnectParams for Url {
         let database = if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path.as_slice().slice_shift_char();
-            Some(path.to_strbuf())
+            Some(path.to_owned())
         } else {
             None
         };
@@ -461,14 +461,14 @@ impl InnerPostgresConnection {
             None => return Err(MissingUser),
         };
 
-        options.push(("client_encoding".to_strbuf(), "UTF8".to_strbuf()));
+        options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_strbuf(), "GMT".to_strbuf()));
+        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_strbuf(), user.clone()));
+        options.push(("user".to_owned(), user.clone()));
         match database {
-            Some(database) => options.push(("database".to_strbuf(), database)),
+            Some(database) => options.push(("database".to_owned(), database)),
             None => {}
         }
 
@@ -757,7 +757,7 @@ impl PostgresConnection {
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_strbuf()),
+    ///     user: Some("postgres".to_owned()),
     ///     password: None,
     ///     database: None,
     ///     options: Vec::new(),

@@ -29,7 +29,7 @@ macro_rules! make_errors(
             pub fn from_code(s: &str) -> PostgresSqlState {
                 match STATE_MAP.find(&s) {
                     Some(state) => state.clone(),
-                    None => UnknownSqlState(s.to_strbuf())
+                    None => UnknownSqlState(s.to_owned())
                 }
             }
         }

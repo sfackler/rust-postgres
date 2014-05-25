@@ -402,8 +402,8 @@ fn test_result_descriptions() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_strbuf(), ty: PgInt4},
-             ResultDescription { name: "b".to_strbuf(), ty: PgVarchar}]);
+            [ResultDescription { name: "a".to_owned(), ty: PgInt4},
+             ResultDescription { name: "b".to_owned(), ty: PgVarchar}]);
 }
 
 #[test]
@@ -445,8 +445,8 @@ fn test_i8_params() {
 
 #[test]
 fn test_name_params() {
-    test_type("NAME", [(Some("hello world".to_strbuf()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("NAME", [(Some("hello world".to_owned()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -486,15 +486,15 @@ fn test_f64_params() {
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", [(Some("hello world".to_strbuf()), "'hello world'"),
-                          (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("VARCHAR", [(Some("hello world".to_owned()), "'hello world'"),
+                          (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                           (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", [(Some("hello world".to_strbuf()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_strbuf()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("TEXT", [(Some("hello world".to_owned()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -511,7 +511,7 @@ fn test_bpchar_params() {
     let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_fail!(stmt.query([]));
 
-    assert_eq!(vec!(Some("12345".to_strbuf()), Some("123  ".to_strbuf()), None),
+    assert_eq!(vec!(Some("12345".to_owned()), Some("123  ".to_owned()), None),
                res.map(|row| row[1]).collect());
 }
 
@@ -556,7 +556,7 @@ fn test_tm_params() {
 
 macro_rules! test_range(
     ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
-        let tests = [(Some(range!('(', ')')), "'(,)'".to_strbuf()),
+        let tests = [(Some(range!('(', ')')), "'(,)'".to_owned()),
                      (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
                      (Some(range!('(' $low, ')')), format!("'({},)'", $low_str)),
                      (Some(range!('(', $high ']')), format!("'(,{}]'", $high_str)),
@@ -569,8 +569,8 @@ macro_rules! test_range(
                       format!("'({},{}]'", $low_str, $high_str)),
                      (Some(range!('(' $low, $high ')')),
                       format!("'({},{})'", $low_str, $high_str)),
-                     (Some(range!(empty)), "'empty'".to_strbuf()),
-                     (None, "NULL".to_strbuf())];
+                     (Some(range!(empty)), "'empty'".to_owned()),
+                     (None, "NULL".to_owned())];
         test_type($name, tests);
     })
 )
@@ -607,14 +607,14 @@ fn test_tstzrange_params() {
 macro_rules! test_array_params(
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
-                      format!(r"'\{{},{},NULL\}'", $s1, $s2).into_strbuf()),
-                     (None, "NULL".to_strbuf())];
+                      format!(r"'\{{},{},NULL\}'", $s1, $s2).into_owned()),
+                     (None, "NULL".to_owned())];
         test_type(format!("{}[]", $name).as_slice(), tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
         let tests = [(Some(a), format!(r"'[-1:0][0:1]=\{\{{},{}\},\{NULL,{}\}\}'",
-                                       $s1, $s2, $s3).into_strbuf())];
+                                       $s1, $s2, $s3).into_owned())];
         test_type(format!("{}[][]", $name).as_slice(), tests);
     })
 )
@@ -638,8 +638,8 @@ fn test_chararray_params() {
 
 #[test]
 fn test_namearray_params() {
-    test_array_params!("NAME", "hello".to_strbuf(), "hello", "world".to_strbuf(),
-                       "world", "!".to_strbuf(), "!");
+    test_array_params!("NAME", "hello".to_owned(), "hello", "world".to_owned(),
+                       "world", "!".to_owned(), "!");
 }
 
 #[test]
@@ -654,20 +654,20 @@ fn test_int4array_params() {
 
 #[test]
 fn test_textarray_params() {
-    test_array_params!("TEXT", "hello".to_strbuf(), "hello", "world".to_strbuf(),
-                       "world", "!".to_strbuf(), "!");
+    test_array_params!("TEXT", "hello".to_owned(), "hello", "world".to_owned(),
+                       "world", "!".to_owned(), "!");
 }
 
 #[test]
 fn test_charnarray_params() {
-    test_array_params!("CHAR(5)", "hello".to_strbuf(), "hello",
-                       "world".to_strbuf(), "world", "!    ".to_strbuf(), "!");
+    test_array_params!("CHAR(5)", "hello".to_owned(), "hello",
+                       "world".to_owned(), "world", "!    ".to_owned(), "!");
 }
 
 #[test]
 fn test_varchararray_params() {
-    test_array_params!("VARCHAR", "hello".to_strbuf(), "hello",
-                       "world".to_strbuf(), "world", "!".to_strbuf(), "!");
+    test_array_params!("VARCHAR", "hello".to_owned(), "hello",
+                       "world".to_owned(), "world", "!".to_owned(), "!");
 }
 
 #[test]
@@ -751,10 +751,10 @@ fn test_hstore_params() {
         })
     )
     test_type("hstore",
-              [(Some(make_map!("a".to_strbuf() => Some("1".to_strbuf()))), "'a=>1'"),
-               (Some(make_map!("hello".to_strbuf() => Some("world!".to_strbuf()),
-                               "hola".to_strbuf() => Some("mundo!".to_strbuf()),
-                               "what".to_strbuf() => None)),
+              [(Some(make_map!("a".to_owned() => Some("1".to_owned()))), "'a=>1'"),
+               (Some(make_map!("hello".to_owned() => Some("world!".to_owned()),
+                               "hola".to_owned() => Some("mundo!".to_owned()),
+                               "what".to_owned() => None)),
                 "'hello=>world!,hola=>mundo!,what=>NULL'"),
                 (None, "NULL")]);
 }
@@ -907,21 +907,21 @@ fn test_notification_iterator_some() {
 
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_strbuf(),
-        payload: "hello".to_strbuf()
+        channel: "test_notification_iterator_one_channel".to_owned(),
+        payload: "hello".to_owned()
     }, it.next());
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel2".to_strbuf(),
-        payload: "world".to_strbuf()
+        channel: "test_notification_iterator_one_channel2".to_owned(),
+        payload: "world".to_owned()
     }, it.next());
     assert!(it.next().is_none());
 
     or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_strbuf(),
-        payload: "!".to_strbuf()
+        channel: "test_notification_iterator_one_channel".to_owned(),
+        payload: "!".to_owned()
     }, it.next());
     assert!(it.next().is_none());
 }

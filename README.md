@@ -39,7 +39,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".into_strbuf(),
+        name: "Steven".to_owned(),
         time_created: time::get_time(),
         data: None
     };
