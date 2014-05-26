@@ -22,7 +22,7 @@ use postgres::types::ToSql;
 
 struct Person {
     id: i32,
-    name: StrBuf,
+    name: String,
     time_created: Timespec,
     data: Option<Vec<u8>>
 }
