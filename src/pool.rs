@@ -61,7 +61,7 @@ impl PostgresConnectionPool {
         let mut pool = InnerConnectionPool {
             params: try!(params.into_connect_params()),
             ssl: ssl,
-            pool: Vec::new(),
+            pool: vec![],
         };
 
         for _ in range(0, pool_size) {

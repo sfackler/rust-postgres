@@ -295,7 +295,7 @@ impl<R: Reader> ReadMessage for R {
 }
 
 fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, String)>> {
-    let mut fields = Vec::new();
+    let mut fields = vec![];
     loop {
         let ty = try!(buf.read_u8());
         if ty == 0 {

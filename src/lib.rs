@@ -617,7 +617,7 @@ impl InnerPostgresConnection {
                         ty: PostgresType::from_oid(type_oid)
                     }
                 }).collect(),
-            NoData => Vec::new(),
+            NoData => vec![],
             _ => unreachable!()
         };
 
@@ -681,7 +681,7 @@ impl InnerPostgresConnection {
         check_desync!(self);
         try_pg!(self.write_messages([Query { query: query }]));
 
-        let mut result = Vec::new();
+        let mut result = vec![];
         loop {
             match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
@@ -760,7 +760,7 @@ impl PostgresConnection {
     ///     user: Some("postgres".to_owned()),
     ///     password: None,
     ///     database: None,
-    ///     options: Vec::new(),
+    ///     options: vec![],
     /// };
     /// let maybe_conn = PostgresConnection::connect(params, &NoSsl);
     /// ```
@@ -1091,8 +1091,8 @@ impl<'conn> PostgresStatement<'conn> {
                 actual: params.len(),
             });
         }
-        let mut formats = Vec::new();
-        let mut values = Vec::new();
+        let mut formats = vec![];
+        let mut values = vec![];
         for (&param, ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = try!(param.to_sql(ty));
             formats.push(format as i16);
