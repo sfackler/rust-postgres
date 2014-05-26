@@ -86,7 +86,7 @@ macro_rules! make_postgres_type(
             /// An unknown type
             PgUnknownType {
                 /// The name of the type
-                pub name: StrBuf,
+                pub name: String,
                 /// The OID of the type
                 pub oid: Oid
             }
@@ -268,9 +268,9 @@ impl RawFromSql for Vec<u8> {
     }
 }
 
-impl RawFromSql for StrBuf {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<StrBuf> {
-        Ok(StrBuf::from_utf8(try_pg!(raw.read_to_end())).unwrap())
+impl RawFromSql for String {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<String> {
+        Ok(String::from_utf8(try_pg!(raw.read_to_end())).unwrap())
     }
 }
 
@@ -399,7 +399,7 @@ macro_rules! from_raw_from_impl(
 
 from_raw_from_impl!(PgBool, bool)
 from_raw_from_impl!(PgByteA, Vec<u8>)
-from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, StrBuf)
+from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, String)
 from_raw_from_impl!(PgChar, i8)
 from_raw_from_impl!(PgInt2, i16)
 from_raw_from_impl!(PgInt4, i32)
@@ -454,7 +454,7 @@ from_array_impl!(PgByteAArray, Vec<u8>)
 from_array_impl!(PgCharArray, i8)
 from_array_impl!(PgInt2Array, i16)
 from_array_impl!(PgInt4Array, i32)
-from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, StrBuf)
+from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, String)
 from_array_impl!(PgInt8Array, i64)
 from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgJsonArray, Json)
@@ -465,9 +465,9 @@ from_array_impl!(PgInt4RangeArray, Range<i32>)
 from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 from_array_impl!(PgInt8RangeArray, Range<i64>)
 
-impl FromSql for Option<HashMap<StrBuf, Option<StrBuf>>> {
+impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
-                -> PostgresResult<Option<HashMap<StrBuf, Option<StrBuf>>>> {
+                -> PostgresResult<Option<HashMap<String, Option<String>>>> {
         match *ty {
             PgUnknownType { name: ref name, .. }
                 if "hstore" == name.as_slice() => {}
@@ -484,14 +484,14 @@ impl FromSql for Option<HashMap<StrBuf, Option<StrBuf>>> {
                 for _ in range(0, count) {
                     let key_len = try_pg!(rdr.read_be_i32());
                     let key = try_pg!(rdr.read_exact(key_len as uint));
-                    let key = StrBuf::from_utf8(key).unwrap();
+                    let key = String::from_utf8(key).unwrap();
 
                     let val_len = try_pg!(rdr.read_be_i32());
                     let val = if val_len < 0 {
                         None
                     } else {
                         let val = try_pg!(rdr.read_exact(val_len as uint));
-                        Some(StrBuf::from_utf8(val).unwrap())
+                        Some(String::from_utf8(val).unwrap())
                     };
 
                     map.insert(key, val);
@@ -503,11 +503,11 @@ impl FromSql for Option<HashMap<StrBuf, Option<StrBuf>>> {
     }
 }
 
-impl FromSql for HashMap<StrBuf, Option<StrBuf>> {
+impl FromSql for HashMap<String, Option<String>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
-                -> PostgresResult<HashMap<StrBuf, Option<StrBuf>>> {
+                -> PostgresResult<HashMap<String, Option<String>>> {
         // FIXME when you can specify Self types properly
-        let ret: PostgresResult<Option<HashMap<StrBuf, Option<StrBuf>>>> =
+        let ret: PostgresResult<Option<HashMap<String, Option<String>>>> =
             FromSql::from_sql(ty, raw);
         match ret {
             Ok(Some(val)) => Ok(val),
@@ -552,7 +552,7 @@ impl RawToSql for Vec<u8> {
     }
 }
 
-impl RawToSql for StrBuf {
+impl RawToSql for String {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> PostgresResult<()> {
         Ok(try_pg!(w.write(self.as_bytes())))
     }
@@ -692,7 +692,7 @@ macro_rules! to_raw_to_impl(
 
 to_raw_to_impl!(PgBool, bool)
 to_raw_to_impl!(PgByteA, Vec<u8>)
-to_raw_to_impl!(PgVarchar | PgText | PgCharN | PgName, StrBuf)
+to_raw_to_impl!(PgVarchar | PgText | PgCharN | PgName, String)
 to_raw_to_impl!(PgJson, Json)
 to_raw_to_impl!(PgChar, i8)
 to_raw_to_impl!(PgInt2, i16)
@@ -771,7 +771,7 @@ to_array_impl!(PgCharArray, i8)
 to_array_impl!(PgInt2Array, i16)
 to_array_impl!(PgInt4Array, i32)
 to_array_impl!(PgInt8Array, i64)
-to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, StrBuf)
+to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, String)
 to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)
@@ -781,7 +781,7 @@ to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)
 to_array_impl!(PgJsonArray, Json)
 
-impl ToSql for HashMap<StrBuf, Option<StrBuf>> {
+impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &PostgresType)
             -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {
@@ -811,7 +811,7 @@ impl ToSql for HashMap<StrBuf, Option<StrBuf>> {
     }
 }
 
-impl ToSql for Option<HashMap<StrBuf, Option<StrBuf>>> {
+impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &PostgresType)
             -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {

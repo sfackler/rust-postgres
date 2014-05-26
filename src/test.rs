@@ -113,7 +113,7 @@ fn test_unix_connection() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SHOW unix_socket_directories"));
     let result = or_fail!(stmt.query([]));
-    let unix_socket_directories: StrBuf = result.map(|row| row[1]).next().unwrap();
+    let unix_socket_directories: String = result.map(|row| row[1]).next().unwrap();
 
     if unix_socket_directories.is_empty() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
@@ -1028,6 +1028,6 @@ fn test_pg_database_datname() {
     let mut result = or_fail!(stmt.query([]));
 
     let next = result.next().unwrap();
-    or_fail!(next.get::<uint, StrBuf>(1));
-    or_fail!(next.get::<&str, StrBuf>("datname"));
+    or_fail!(next.get::<uint, String>(1));
+    or_fail!(next.get::<&str, String>("datname"));
 }

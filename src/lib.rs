@@ -14,7 +14,7 @@ use postgres::types::ToSql;
 
 struct Person {
     id: i32,
-    name: StrBuf,
+    name: String,
     time_created: Timespec,
     data: Option<Vec<u8>>
 }
@@ -206,7 +206,7 @@ pub type PostgresResult<T> = Result<T, PostgresError>;
 #[deriving(Clone)]
 pub enum PostgresConnectTarget {
     /// Connect via TCP to the specified host.
-    TargetTcp(StrBuf),
+    TargetTcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     TargetUnix(Path)
 }
@@ -224,13 +224,13 @@ pub struct PostgresConnectParams {
     ///
     /// `PostgresConnection::connect` requires a user but `cancel_query` does
     /// not.
-    pub user: Option<StrBuf>,
+    pub user: Option<String>,
     /// An optional password used for authentication
-    pub password: Option<StrBuf>,
+    pub password: Option<String>,
     /// The database to connect to. Defaults the value of `user`.
-    pub database: Option<StrBuf>,
+    pub database: Option<String>,
     /// Runtime parameters to be passed to the Postgres backend.
-    pub options: Vec<(StrBuf, StrBuf)>,
+    pub options: Vec<(String, String)>,
 }
 
 /// A trait implemented by types that can be converted into a
@@ -331,9 +331,9 @@ pub struct PostgresNotification {
     /// The process ID of the notifying backend process
     pub pid: i32,
     /// The name of the channel that the notify has been raised on
-    pub channel: StrBuf,
+    pub channel: String,
     /// The "payload" string passed from the notifying process
-    pub payload: StrBuf,
+    pub payload: String,
 }
 
 /// An iterator over asynchronous notifications
@@ -413,7 +413,7 @@ struct InnerPostgresConnection {
     notice_handler: Box<PostgresNoticeHandler:Send>,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
-    unknown_types: HashMap<Oid, StrBuf>,
+    unknown_types: HashMap<Oid, String>,
     desynchronized: bool,
     finished: bool,
     trans_depth: u32,
@@ -523,7 +523,7 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: StrBuf, pass: Option<StrBuf>)
+    fn handle_auth(&mut self, user: String, pass: Option<String>)
             -> Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
@@ -649,7 +649,7 @@ impl InnerPostgresConnection {
         Ok(())
     }
 
-    fn get_type_name(&mut self, oid: Oid) -> PostgresResult<StrBuf> {
+    fn get_type_name(&mut self, oid: Oid) -> PostgresResult<String> {
         match self.unknown_types.find(&oid) {
             Some(name) => return Ok(name.clone()),
             None => {}
@@ -677,7 +677,7 @@ impl InnerPostgresConnection {
     }
 
     fn quick_query(&mut self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<StrBuf>>>> {
+            -> PostgresResult<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         try_pg!(self.write_messages([Query { query: query }]));
 
@@ -687,7 +687,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.move_iter().map(|opt| {
-                        opt.map(|b| StrBuf::from_utf8(b).unwrap())
+                        opt.map(|b| String::from_utf8(b).unwrap())
                     }).collect());
                 }
                 ErrorResponse { fields } => {
@@ -901,7 +901,7 @@ impl PostgresConnection {
     }
 
     fn quick_query(&self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<StrBuf>>>> {
+            -> PostgresResult<Vec<Vec<Option<String>>>> {
         self.conn.borrow_mut().quick_query(query)
     }
 
@@ -1045,7 +1045,7 @@ impl<'conn> PostgresTransaction<'conn> {
 /// A prepared statement
 pub struct PostgresStatement<'conn> {
     conn: &'conn PostgresConnection,
-    name: StrBuf,
+    name: String,
     param_types: Vec<PostgresType>,
     result_desc: Vec<ResultDescription>,
     next_portal_id: Cell<uint>,
@@ -1244,7 +1244,7 @@ impl<'conn> PostgresStatement<'conn> {
 #[deriving(Eq)]
 pub struct ResultDescription {
     /// The name of the column
-    pub name: StrBuf,
+    pub name: String,
     /// The type of the data in the column
     pub ty: PostgresType
 }
@@ -1252,7 +1252,7 @@ pub struct ResultDescription {
 /// An iterator over the resulting rows of a query.
 pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
-    name: StrBuf,
+    name: String,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
     row_limit: uint,
     more_rows: bool,
@@ -1416,7 +1416,7 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
     /// let foo: i32 = row[1];
-    /// let bar: StrBuf = row["bar"];
+    /// let bar: String = row["bar"];
     /// ```
     fn index(&self, idx: &I) -> T {
         match self.get(idx.clone()) {

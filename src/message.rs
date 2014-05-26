@@ -24,30 +24,30 @@ pub enum BackendMessage {
     BindComplete,
     CloseComplete,
     CommandComplete {
-        pub tag: StrBuf,
+        pub tag: String,
     },
     DataRow {
         pub row: Vec<Option<Vec<u8>>>
     },
     EmptyQueryResponse,
     ErrorResponse {
-        pub fields: Vec<(u8, StrBuf)>
+        pub fields: Vec<(u8, String)>
     },
     NoData,
     NoticeResponse {
-        pub fields: Vec<(u8, StrBuf)>
+        pub fields: Vec<(u8, String)>
     },
     NotificationResponse {
         pub pid: i32,
-        pub channel: StrBuf,
-        pub payload: StrBuf,
+        pub channel: String,
+        pub payload: String,
     },
     ParameterDescription {
         pub types: Vec<Oid>
     },
     ParameterStatus {
-        pub parameter: StrBuf,
-        pub value: StrBuf,
+        pub parameter: String,
+        pub value: String,
     },
     ParseComplete,
     PortalSuspended,
@@ -60,7 +60,7 @@ pub enum BackendMessage {
 }
 
 pub struct RowDescriptionEntry {
-    pub name: StrBuf,
+    pub name: String,
     pub table_oid: Oid,
     pub column_id: i16,
     pub type_oid: Oid,
@@ -110,7 +110,7 @@ pub enum FrontendMessage<'a> {
     },
     StartupMessage {
         pub version: i32,
-        pub parameters: &'a [(StrBuf, StrBuf)]
+        pub parameters: &'a [(String, String)]
     },
     Sync,
     Terminate
@@ -237,14 +237,14 @@ impl<W: Writer> WriteMessage for W {
 
 #[doc(hidden)]
 trait ReadCStr {
-    fn read_cstr(&mut self) -> IoResult<StrBuf>;
+    fn read_cstr(&mut self) -> IoResult<String>;
 }
 
 impl<R: Buffer> ReadCStr for R {
-    fn read_cstr(&mut self) -> IoResult<StrBuf> {
+    fn read_cstr(&mut self) -> IoResult<String> {
         let mut buf = try!(self.read_until(0));
         buf.pop();
-        Ok(StrBuf::from_utf8(buf).unwrap())
+        Ok(String::from_utf8(buf).unwrap())
     }
 }
 
@@ -294,7 +294,7 @@ impl<R: Reader> ReadMessage for R {
     }
 }
 
-fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, StrBuf)>> {
+fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, String)>> {
     let mut fields = Vec::new();
     loop {
         let ty = try!(buf.read_u8());
