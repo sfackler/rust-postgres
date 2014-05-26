@@ -37,7 +37,7 @@ fn main() {
     };
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name.as_slice() as &ToSql, &me.time_created as &ToSql,
+                 [&me.name as &ToSql, &me.time_created as &ToSql,
                   &me.data as &ToSql]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
@@ -1449,10 +1449,10 @@ impl RowIndex for int {
     #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
         if *self < 0 {
-            return None;
+            None
+        } else {
+            (*self as uint).idx(stmt)
         }
-
-        (*self as uint).idx(stmt)
     }
 }
 

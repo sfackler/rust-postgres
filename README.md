@@ -45,7 +45,7 @@ fn main() {
     };
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name.as_slice() as &ToSql, &me.time_created as &ToSql,
+                 [&me.name as &ToSql, &me.time_created as &ToSql,
                   &me.data as &ToSql]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
@@ -66,7 +66,7 @@ Requirements
 ============
 
 * **Rust** - Rust-Postgres is developed against the *master* branch of the Rust
-    repository. It will most likely not build against the releases on
+    repository. It will most likely not build against the versioned releases on
     http://www.rust-lang.org.
 
 * **PostgreSQL 7.4 or later** - Rust-Postgres speaks version 3 of the
@@ -123,7 +123,7 @@ columns are one-indexed.
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
     let bar: i32 = row[1];
-    let baz: StrBuf = row["baz"];
+    let baz: String = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
@@ -220,7 +220,7 @@ types. The driver currently supports the following conversions:
             <td>DOUBLE PRECISION</td>
         </tr>
         <tr>
-            <td>str/StrBuf</td>
+            <td>str/String</td>
             <td>VARCHAR, CHAR(n), TEXT</td>
         </tr>
         <tr>
@@ -272,7 +272,7 @@ types. The driver currently supports the following conversions:
             <td>INT4[], INT4[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;StrBuf&gt;&gt;</td>
+            <td>types::array::ArrayBase&lt;Option&lt;String&gt;&gt;</td>
             <td>TEXT[], CHAR(n)[], VARCHAR[], TEXT[][], ...</td>
         </tr>
         <tr>
@@ -312,7 +312,7 @@ types. The driver currently supports the following conversions:
             <td>INT8RANGE[], INT8RANGE[][], ...</td>
         </tr>
         <tr>
-            <td>std::hashmap::HashMap&lt;StrBuf, Option&lt;StrBuf&gt;&gt;</td>
+            <td>std::hashmap::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
     </tbody>
