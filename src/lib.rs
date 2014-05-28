@@ -87,7 +87,6 @@ use std::from_str::FromStr;
 use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::Port;
 use std::mem;
-use std::owned::Box;
 use std::task;
 use std::fmt;
 
@@ -107,8 +106,7 @@ use error::{InvalidUrl,
             UnsupportedAuthentication,
             PgWrongConnection,
             PgWrongTransaction};
-use io::{MaybeSslStream,
-         InternalStream};
+use io::{MaybeSslStream, InternalStream};
 use message::{AuthenticationCleartextPassword,
               AuthenticationGSS,
               AuthenticationKerberosV5,
@@ -435,19 +433,6 @@ impl InnerPostgresConnection {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
 
-        let mut conn = InnerPostgresConnection {
-            stream: BufferedStream::new(stream),
-            next_stmt_id: 0,
-            notice_handler: box DefaultNoticeHandler,
-            notifications: RingBuf::new(),
-            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
-            unknown_types: HashMap::new(),
-            desynchronized: false,
-            finished: false,
-            trans_depth: 0,
-            canary: CANARY,
-        };
-
         let PostgresConnectParams {
             user,
             password,
@@ -459,6 +444,19 @@ impl InnerPostgresConnection {
         let user = match user {
             Some(user) => user,
             None => return Err(MissingUser),
+        };
+
+        let mut conn = InnerPostgresConnection {
+            stream: BufferedStream::new(stream),
+            next_stmt_id: 0,
+            notice_handler: box DefaultNoticeHandler,
+            notifications: RingBuf::new(),
+            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
+            unknown_types: HashMap::new(),
+            desynchronized: false,
+            finished: false,
+            trans_depth: 0,
+            canary: CANARY,
         };
 
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));

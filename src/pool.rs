@@ -79,13 +79,16 @@ impl PostgresConnectionPool {
     pub fn get_connection(&self) -> PooledPostgresConnection {
         let mut pool = self.pool.lock();
 
-        while pool.pool.is_empty() {
-            pool.cond.wait();
-        }
-
-        PooledPostgresConnection {
-            pool: self.clone(),
-            conn: Some(pool.pool.pop().unwrap())
+        loop {
+            match pool.pool.pop() {
+                Some(conn) => {
+                    return PooledPostgresConnection {
+                        pool: self.clone(),
+                        conn: Some(conn),
+                    };
+                }
+                None => pool.cond.wait()
+            }
         }
     }
 }
