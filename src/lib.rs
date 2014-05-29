@@ -31,7 +31,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".to_owned(),
+        name: "Steven".to_string(),
         time_created: time::get_time(),
         data: None
     };
@@ -283,7 +283,7 @@ impl IntoConnectParams for Url {
         let port = match port {
             Some(port) => match FromStr::from_str(port.as_slice()) {
                 Some(port) => Some(port),
-                None => return Err(InvalidUrl("invalid port".to_owned())),
+                None => return Err(InvalidUrl("invalid port".to_string())),
             },
             None => None,
         };
@@ -291,7 +291,7 @@ impl IntoConnectParams for Url {
         let database = if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path.as_slice().slice_shift_char();
-            Some(path.to_owned())
+            Some(path.to_string())
         } else {
             None
         };
@@ -325,6 +325,7 @@ impl PostgresNoticeHandler for DefaultNoticeHandler {
 }
 
 /// An asynchronous notification
+#[deriving(Show)]
 pub struct PostgresNotification {
     /// The process ID of the notifying backend process
     pub pid: i32,
@@ -459,14 +460,14 @@ impl InnerPostgresConnection {
             canary: CANARY,
         };
 
-        options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
+        options.push(("client_encoding".to_string(), "UTF8".to_string()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
+        options.push(("TimeZone".to_string(), "GMT".to_string()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_owned(), user.clone()));
+        options.push(("user".to_string(), user.clone()));
         match database {
-            Some(database) => options.push(("database".to_owned(), database)),
+            Some(database) => options.push(("database".to_string(), database)),
             None => {}
         }
 
@@ -755,7 +756,7 @@ impl PostgresConnection {
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_owned()),
+    ///     user: Some("postgres".to_string()),
     ///     password: None,
     ///     database: None,
     ///     options: vec![],
