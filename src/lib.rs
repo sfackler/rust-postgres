@@ -1240,7 +1240,7 @@ impl<'conn> PostgresStatement<'conn> {
 }
 
 /// Information about a column of the result of a query.
-#[deriving(Eq)]
+#[deriving(PartialEq, TotalEq)]
 pub struct ResultDescription {
     /// The name of the column
     pub name: String,
