@@ -77,7 +77,7 @@ static RANGE_EMPTY: i8           = 0b0000_0001;
 macro_rules! make_postgres_type(
     ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
-        #[deriving(PartialEq, TotalEq, Clone, Show)]
+        #[deriving(PartialEq, Eq, Clone, Show)]
         pub enum PostgresType {
             $(
                 #[$doc]

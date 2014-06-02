@@ -125,7 +125,7 @@ impl Normalizable for Timespec {
     }
 }
 
-#[deriving(PartialEq, TotalEq)]
+#[deriving(PartialEq, Eq)]
 enum BoundSide {
     Upper,
     Lower
@@ -156,7 +156,7 @@ impl BoundSided for LowerBound {
 }
 
 /// The type of a range bound
-#[deriving(PartialEq, TotalEq, Clone)]
+#[deriving(PartialEq, Eq, Clone)]
 pub enum BoundType {
     /// The bound includes its value
     Inclusive,
@@ -207,7 +207,7 @@ impl<S: BoundSided, T: PartialEq> PartialEq for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: TotalEq> TotalEq for RangeBound<S, T> {}
+impl<S: BoundSided, T: Eq> Eq for RangeBound<S, T> {}
 
 impl<S: BoundSided, T: PartialOrd> PartialOrd for RangeBound<S, T> {
     fn lt(&self, other: &RangeBound<S, T>) -> bool {
@@ -219,7 +219,7 @@ impl<S: BoundSided, T: PartialOrd> PartialOrd for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: TotalOrd> TotalOrd for RangeBound<S, T> {
+impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
     fn cmp(&self, other: &RangeBound<S, T>) -> Ordering {
         match (BoundSided::side(None::<S>), self.type_, other.type_,
                 self.value.cmp(&other.value)) {
@@ -256,7 +256,7 @@ impl<'a, S: BoundSided, T: PartialEq> PartialEq for OptBound<'a, S, T> {
     }
 }
 
-impl<'a, S: BoundSided, T: TotalEq> TotalEq for OptBound<'a, S, T> {}
+impl<'a, S: BoundSided, T: Eq> Eq for OptBound<'a, S, T> {}
 
 impl<'a, S: BoundSided, T: PartialOrd> PartialOrd for OptBound<'a, S, T> {
     fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
@@ -270,12 +270,12 @@ impl<'a, S: BoundSided, T: PartialOrd> PartialOrd for OptBound<'a, S, T> {
 }
 
 /// Represents a range of values.
-#[deriving(PartialEq, TotalEq, Clone)]
+#[deriving(PartialEq, Eq, Clone)]
 pub struct Range<T> {
     inner: InnerRange<T>,
 }
 
-#[deriving(PartialEq, TotalEq, Clone)]
+#[deriving(PartialEq, Eq, Clone)]
 enum InnerRange<T> {
     Empty,
     Normal(Option<RangeBound<LowerBound, T>>,

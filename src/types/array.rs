@@ -4,7 +4,7 @@ use std::mem;
 use std::slice;
 
 /// Information about a dimension of an array
-#[deriving(PartialEq, TotalEq, Clone, Show)]
+#[deriving(PartialEq, Eq, Clone, Show)]
 pub struct DimensionInfo {
     /// The size of the dimension
     pub len: uint,
@@ -70,7 +70,7 @@ trait InternalMutableArray<T>: MutableArray<T> {
 }
 
 /// A multi-dimensional array
-#[deriving(PartialEq, TotalEq, Clone)]
+#[deriving(PartialEq, Eq, Clone)]
 pub struct ArrayBase<T> {
     info: Vec<DimensionInfo>,
     data: Vec<T>,
