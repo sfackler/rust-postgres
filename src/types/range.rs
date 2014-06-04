@@ -191,12 +191,8 @@ impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
         };
 
         match BoundSided::side(None::<S>) {
-            Lower => {
-                write!(fmt, "{}{}", chars[0], self.value)
-            }
-            Upper => {
-                write!(fmt, "{}{}", self.value, chars[1])
-            }
+            Lower => write!(fmt, "{}{}", chars[0], self.value),
+            Upper => write!(fmt, "{}{}", self.value, chars[1]),
         }
     }
 }
@@ -205,16 +201,62 @@ impl<S: BoundSided, T: PartialEq> PartialEq for RangeBound<S, T> {
     fn eq(&self, other: &RangeBound<S, T>) -> bool {
         self.value == other.value && self.type_ == other.type_
     }
+
+    fn ne(&self, other: &RangeBound<S, T>) -> bool {
+        self.value != other.value || self.type_ != other.type_
+    }
 }
 
 impl<S: BoundSided, T: Eq> Eq for RangeBound<S, T> {}
 
+fn partial_cmp<T: PartialOrd>(a: &T, b: &T) -> Option<Ordering> {
+    match (a <= b, a >= b) {
+        (false, false) => None,
+        (false, true) => Some(Greater),
+        (true, false) => Some(Less),
+        (true, true) => Some(Equal),
+    }
+}
+
+impl<S: BoundSided, T: PartialOrd> RangeBound<S, T> {
+    fn partial_cmp(&self, other: &RangeBound<S, T>) -> Option<Ordering> {
+        match (BoundSided::side(None::<S>), self.type_, other.type_,
+                partial_cmp(&self.value, &other.value)) {
+            (Upper, Exclusive, Inclusive, Some(Equal))
+            | (Lower, Inclusive, Exclusive, Some(Equal)) => Some(Less),
+            (Upper, Inclusive, Exclusive, Some(Equal))
+            | (Lower, Exclusive, Inclusive, Some(Equal)) => Some(Greater),
+            (_, _, _, cmp) => cmp,
+        }
+    }
+}
+
 impl<S: BoundSided, T: PartialOrd> PartialOrd for RangeBound<S, T> {
     fn lt(&self, other: &RangeBound<S, T>) -> bool {
-        match (BoundSided::side(None::<S>), self.type_, other.type_) {
-            (Upper, Exclusive, Inclusive)
-            | (Lower, Inclusive, Exclusive) => self.value <= other.value,
-            _ => self.value < other.value
+        match self.partial_cmp(other) {
+            Some(Less) => true,
+            _ => false,
+        }
+    }
+
+    fn le(&self, other: &RangeBound<S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Less) | Some(Equal) => true,
+            _ => false,
+        }
+    }
+
+    fn gt(&self, other: &RangeBound<S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Greater) => true,
+            _ => false,
+        }
+    }
+
+    fn ge(&self, other: &RangeBound<S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Greater) | Some(Equal) => true,
+            _ => false,
         }
     }
 }
@@ -223,8 +265,10 @@ impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
     fn cmp(&self, other: &RangeBound<S, T>) -> Ordering {
         match (BoundSided::side(None::<S>), self.type_, other.type_,
                 self.value.cmp(&other.value)) {
-            (Upper, Exclusive, Inclusive, Equal) => Less,
-            (Lower, Inclusive, Exclusive, Equal) => Greater,
+            (Upper, Exclusive, Inclusive, Equal)
+            | (Lower, Inclusive, Exclusive, Equal) => Less,
+            (Upper, Inclusive, Exclusive, Equal)
+            | (Lower, Exclusive, Inclusive, Equal) => Greater,
             (_, _, _, ord) => ord,
         }
     }
@@ -254,17 +298,52 @@ impl<'a, S: BoundSided, T: PartialEq> PartialEq for OptBound<'a, S, T> {
         let &OptBound(ref self_) = self;
         self_ == other
     }
+
+    fn ne(&self, &OptBound(ref other): &OptBound<'a, S, T>) -> bool {
+        let &OptBound(ref self_) = self;
+        self_ != other
+    }
 }
 
-impl<'a, S: BoundSided, T: Eq> Eq for OptBound<'a, S, T> {}
+impl<'a, S: BoundSided, T: PartialOrd> OptBound<'a, S, T> {
+    fn partial_cmp(&self, other: &OptBound<'a, S, T>) -> Option<Ordering> {
+        match (*self, *other, BoundSided::side(None::<S>)) {
+            (OptBound(None), OptBound(None), _) => Some(Equal),
+            (OptBound(None), _, Lower)
+            | (_, OptBound(None), Upper) => Some(Less),
+            (OptBound(None), _, Upper)
+            | (_, OptBound(None), Lower) => Some(Greater),
+            (OptBound(Some(a)), OptBound(Some(b)), _) => partial_cmp(a, b)
+        }
+    }
+}
 
 impl<'a, S: BoundSided, T: PartialOrd> PartialOrd for OptBound<'a, S, T> {
     fn lt(&self, other: &OptBound<'a, S, T>) -> bool {
-        match (*self, *other) {
-            (OptBound(None), OptBound(None)) => false,
-            (OptBound(None), _) => BoundSided::side(None::<S>) == Lower,
-            (_, OptBound(None)) => BoundSided::side(None::<S>) == Upper,
-            (OptBound(Some(a)), OptBound(Some(b))) => a < b
+        match self.partial_cmp(other) {
+            Some(Less) => true,
+            _ => false,
+        }
+    }
+
+    fn le(&self, other: &OptBound<'a, S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Less) | Some(Equal) => true,
+            _ => false,
+        }
+    }
+
+    fn gt(&self, other: &OptBound<'a, S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Greater) => true,
+            _ => false,
+        }
+    }
+
+    fn ge(&self, other: &OptBound<'a, S, T>) -> bool {
+        match self.partial_cmp(other) {
+            Some(Greater) | Some(Equal) => true,
+            _ => false,
         }
     }
 }
