@@ -131,7 +131,7 @@ In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                [&1i32 as &ToSql, &(&"biz") as &ToSql]));
+                                [&1i32 as &ToSql, &"biz" as &ToSql]));
 println!("{} rows were updated", updates);
 ```
 
