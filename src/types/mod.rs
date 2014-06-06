@@ -1,10 +1,10 @@
 //! Traits dealing with Postgres data types
 #![macro_escape]
 
-use collections::HashMap;
 use uuid::Uuid;
 use serialize::json;
 use serialize::json::Json;
+use std::collections::HashMap;
 use std::io::{MemWriter, BufReader};
 use std::io::util::LimitReader;
 use time::Timespec;

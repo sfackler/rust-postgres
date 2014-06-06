@@ -1,6 +1,6 @@
 //! Postgres errors
 
-use collections::HashMap;
+use std::collections::HashMap;
 use std::from_str::FromStr;
 use std::io::IoError;
 use std::fmt;

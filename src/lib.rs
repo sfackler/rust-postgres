@@ -77,12 +77,13 @@ extern crate url;
 extern crate log;
 extern crate uuid;
 
-use collections::{Deque, HashMap, RingBuf};
+use collections::{Deque, RingBuf};
 use url::{UserInfo, Url};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::from_str::FromStr;
 use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::Port;

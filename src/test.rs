@@ -1,4 +1,3 @@
-use collections::HashMap;
 use serialize::json;
 use sync;
 use sync::Future;
@@ -6,6 +5,7 @@ use time;
 use time::Timespec;
 use uuid::Uuid;
 use openssl::ssl::{SslContext, Sslv3};
+use std::collections::HashMap;
 use std::f32;
 use std::f64;
 use std::io::timer;
