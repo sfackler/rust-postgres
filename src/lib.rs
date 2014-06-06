@@ -31,7 +31,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".to_string(),
+        name: "Steven".to_str(),
         time_created: time::get_time(),
         data: None
     };
@@ -284,7 +284,7 @@ impl IntoConnectParams for Url {
         let port = match port {
             Some(port) => match FromStr::from_str(port.as_slice()) {
                 Some(port) => Some(port),
-                None => return Err(InvalidUrl("invalid port".to_string())),
+                None => return Err(InvalidUrl("invalid port".to_str())),
             },
             None => None,
         };
@@ -292,7 +292,7 @@ impl IntoConnectParams for Url {
         let database = if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path.as_slice().slice_shift_char();
-            Some(path.to_string())
+            Some(path.to_str())
         } else {
             None
         };
@@ -461,14 +461,14 @@ impl InnerPostgresConnection {
             canary: CANARY,
         };
 
-        options.push(("client_encoding".to_string(), "UTF8".to_string()));
+        options.push(("client_encoding".to_str(), "UTF8".to_str()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_string(), "GMT".to_string()));
+        options.push(("TimeZone".to_str(), "GMT".to_str()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_string(), user.clone()));
+        options.push(("user".to_str(), user.clone()));
         match database {
-            Some(database) => options.push(("database".to_string(), database)),
+            Some(database) => options.push(("database".to_str(), database)),
             None => {}
         }
 
@@ -757,7 +757,7 @@ impl PostgresConnection {
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_string()),
+    ///     user: Some("postgres".to_str()),
     ///     password: None,
     ///     database: None,
     ///     options: vec![],
