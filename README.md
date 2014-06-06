@@ -112,7 +112,7 @@ Both methods take an array of parameters to bind to the query represented as
 query (or 0 if not applicable):
 ```rust
 let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
-let updates = try!(stmt.execute([&1i32 as &ToSql, & &"biz" as &ToSql]));
+let updates = try!(stmt.execute([&1i32 as &ToSql, &"biz" as &ToSql]));
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
