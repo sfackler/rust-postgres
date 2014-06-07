@@ -92,7 +92,7 @@ pub enum FrontendMessage<'a> {
     },
     Execute {
         pub portal: &'a str,
-        pub max_rows: i32
+        pub max_rows: u32
     },
     Parse {
         pub name: &'a str,
@@ -185,7 +185,7 @@ impl<W: Writer> WriteMessage for W {
             Execute { portal, max_rows } => {
                 ident = Some('E');
                 try!(buf.write_cstr(portal));
-                try!(buf.write_be_i32(max_rows));
+                try!(buf.write_be_u32(max_rows));
             }
             Parse { name, query, param_types } => {
                 ident = Some('P');

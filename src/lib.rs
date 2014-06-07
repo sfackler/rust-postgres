@@ -1026,7 +1026,7 @@ impl<'conn> PostgresTransaction<'conn> {
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
-                                     row_limit: uint)
+                                     row_limit: u32)
                                      -> PostgresResult<PostgresLazyRows
                                                        <'trans, 'stmt>> {
         if self.conn as *_ != stmt.conn as *_ {
@@ -1083,7 +1083,7 @@ impl<'conn> PostgresStatement<'conn> {
         Ok(())
     }
 
-    fn inner_execute(&self, portal_name: &str, row_limit: uint, params: &[&ToSql])
+    fn inner_execute(&self, portal_name: &str, row_limit: u32, params: &[&ToSql])
             -> PostgresResult<()> {
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
@@ -1113,7 +1113,7 @@ impl<'conn> PostgresStatement<'conn> {
             },
             Execute {
                 portal: portal_name,
-                max_rows: row_limit as i32
+                max_rows: row_limit
             },
             Sync]));
 
@@ -1127,7 +1127,7 @@ impl<'conn> PostgresStatement<'conn> {
         }
     }
 
-    fn lazy_query<'a>(&'a self, row_limit: uint, params: &[&ToSql])
+    fn lazy_query<'a>(&'a self, row_limit: u32, params: &[&ToSql])
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
@@ -1254,7 +1254,7 @@ pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
     name: String,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
-    row_limit: uint,
+    row_limit: u32,
     more_rows: bool,
     finished: bool,
 }
@@ -1313,7 +1313,7 @@ impl<'stmt> PostgresRows<'stmt> {
         try_pg!(self.stmt.conn.write_messages([
             Execute {
                 portal: self.name.as_slice(),
-                max_rows: self.row_limit as i32
+                max_rows: self.row_limit
             },
             Sync]));
         self.read_rows()
