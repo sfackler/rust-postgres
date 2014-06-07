@@ -92,12 +92,12 @@ pub enum FrontendMessage<'a> {
     },
     Execute {
         pub portal: &'a str,
-        pub max_rows: u32
+        pub max_rows: i32
     },
     Parse {
         pub name: &'a str,
         pub query: &'a str,
-        pub param_types: &'a [i32]
+        pub param_types: &'a [Oid]
     },
     PasswordMessage {
         pub password: &'a str
@@ -185,7 +185,7 @@ impl<W: Writer> WriteMessage for W {
             Execute { portal, max_rows } => {
                 ident = Some('E');
                 try!(buf.write_cstr(portal));
-                try!(buf.write_be_u32(max_rows));
+                try!(buf.write_be_i32(max_rows));
             }
             Parse { name, query, param_types } => {
                 ident = Some('P');
@@ -193,7 +193,7 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_cstr(query));
                 try!(buf.write_be_i16(param_types.len() as i16));
                 for ty in param_types.iter() {
-                    try!(buf.write_be_i32(*ty));
+                    try!(buf.write_be_u32(*ty));
                 }
             }
             PasswordMessage { password } => {

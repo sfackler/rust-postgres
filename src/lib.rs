@@ -1022,11 +1022,12 @@ impl<'conn> PostgresTransaction<'conn> {
     ///
     /// No more than `row_limit` rows will be stored in memory at a time. Rows
     /// will be pulled from the database in batches of `row_limit` as needed.
-    /// If `row_limit` is 0, `lazy_query` is equivalent to `query`.
+    /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
+    /// to `query`.
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
-                                     row_limit: u32)
+                                     row_limit: i32)
                                      -> PostgresResult<PostgresLazyRows
                                                        <'trans, 'stmt>> {
         if self.conn as *_ != stmt.conn as *_ {
@@ -1083,7 +1084,7 @@ impl<'conn> PostgresStatement<'conn> {
         Ok(())
     }
 
-    fn inner_execute(&self, portal_name: &str, row_limit: u32, params: &[&ToSql])
+    fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
             -> PostgresResult<()> {
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
@@ -1127,7 +1128,7 @@ impl<'conn> PostgresStatement<'conn> {
         }
     }
 
-    fn lazy_query<'a>(&'a self, row_limit: u32, params: &[&ToSql])
+    fn lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql])
             -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
@@ -1254,7 +1255,7 @@ pub struct PostgresRows<'stmt> {
     stmt: &'stmt PostgresStatement<'stmt>,
     name: String,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
-    row_limit: u32,
+    row_limit: i32,
     more_rows: bool,
     finished: bool,
 }
