@@ -884,9 +884,8 @@ impl PostgresConnection {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// # use postgres::{PostgresConnection, PostgresResult};
-    ///
     /// fn init_db(conn: &PostgresConnection) -> PostgresResult<()> {
     ///     static INIT_DB: &'static str = "
     ///         CREATE TABLE person (
