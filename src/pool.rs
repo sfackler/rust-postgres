@@ -124,6 +124,11 @@ impl PooledPostgresConnection {
         self.conn.get_ref().execute(query, params)
     }
 
+    /// Like `PostgresConnection::batch_execute`.
+    pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
+        self.conn.get_ref().batch_execute(query)
+    }
+
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self)
             -> PostgresResult<PostgresTransaction<'a>> {

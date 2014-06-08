@@ -868,6 +868,51 @@ impl PostgresConnection {
         self.prepare(query).and_then(|stmt| stmt.execute(params))
     }
 
+    /// Execute a sequence of SQL statements.
+    ///
+    /// Statements should be separated by `;` characters. If an error occurs,
+    /// execution of the sequence will stop at that point. This is intended for
+    /// execution of batches of non-dynamic statements - for example, creation
+    /// of a schema for a fresh database.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be used for any SQL statement which contains
+    /// user-specified data, as it provides functionality to safely embed that
+    /// data in the statment. Do not form statements via string concatenation
+    /// and feed them into this method.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use postgres::{PostgresConnection, PostgresResult};
+    ///
+    /// fn init_db(conn: &PostgresConnection) -> PostgresResult<()> {
+    ///     static INIT_DB: &'static str = "
+    ///         CREATE TABLE person (
+    ///             id SERIAL PRIMARY KEY,
+    ///             name NOT NULL
+    ///         );
+    ///
+    ///         CREATE TABLE purchase (
+    ///             id SERIAL PRIMARY KEY,
+    ///             person INT NOT NULL REFERENCES person (id),
+    ///             time TIMESTAMPTZ NOT NULL,
+    ///         );
+    ///
+    ///         CREATE INDEX ON purchase (time);
+    ///         ";
+    ///     conn.batch_execute(INIT_DB)
+    /// }
+    /// ```
+    pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
+        let mut conn = self.conn.borrow_mut();
+        if conn.trans_depth != 0 {
+            return Err(PgWrongTransaction);
+        }
+        conn.quick_query(query).map(|_| ())
+    }
+
     /// Returns information used to cancel pending queries.
     ///
     /// Used with the `cancel_query` function. The object returned can be used
@@ -974,6 +1019,14 @@ impl<'conn> PostgresTransaction<'conn> {
     pub fn execute(&self, query: &str, params: &[&ToSql])
             -> PostgresResult<uint> {
         self.prepare(query).and_then(|s| s.execute(params))
+    }
+
+    /// Like `PostgresConnection::batch_execute`.
+    pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
+        if self.conn.conn.borrow().trans_depth != self.depth {
+            return Err(PgWrongTransaction);
+        }
+        self.conn.batch_execute(query)
     }
 
     /// Like `PostgresConnection::transaction`.

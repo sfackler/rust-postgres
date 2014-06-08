@@ -31,6 +31,7 @@ use error::{PgConnectDbError,
             SyntaxError,
             InvalidPassword,
             QueryCanceled,
+            UndefinedTable,
             InvalidCatalogName,
             PgWrongTransaction};
 use types::{ToSql, FromSql, PgInt4, PgVarchar};
@@ -337,6 +338,35 @@ fn test_stmt_finish() {
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     assert!(stmt.finish().is_ok());
+}
+
+#[test]
+fn test_batch_execute() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let query = "CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY);
+                 INSERT INTO foo (id) VALUES (10);";
+    or_fail!(conn.batch_execute(query));
+
+    let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
+    let result = or_fail!(stmt.query([]));
+
+    assert_eq!(vec![10i64], result.map(|row| row[1]).collect());
+}
+
+#[test]
+fn test_batch_execute_error() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let query = "CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY);
+                 INSERT INTO foo (id) VALUES (10);
+                 asdfa;
+                 INSERT INTO foo (id) VALUES (11)";
+    conn.batch_execute(query).unwrap_err();
+
+    match conn.prepare("SELECT * from foo ORDER BY id") {
+        Err(PgDbError(PostgresDbError { code: UndefinedTable, .. })) => {},
+        Err(e) => fail!("unexpected error {}", e),
+        _ => fail!("unexpected success"),
+    }
 }
 
 #[test]
