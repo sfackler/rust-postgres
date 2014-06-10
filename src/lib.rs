@@ -1441,7 +1441,7 @@ impl<'stmt> PostgresRow<'stmt> {
     }
 }
 
-impl<'stmt> Container for PostgresRow<'stmt> {
+impl<'stmt> Collection for PostgresRow<'stmt> {
     #[inline]
     fn len(&self) -> uint {
         self.data.len()
