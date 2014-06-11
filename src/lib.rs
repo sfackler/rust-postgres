@@ -70,10 +70,10 @@ extern crate serialize;
 extern crate sync;
 extern crate time;
 extern crate phf;
-#[phase(syntax)]
+#[phase(plugin)]
 extern crate phf_mac;
 extern crate url;
-#[phase(syntax, link)]
+#[phase(plugin, link)]
 extern crate log;
 extern crate uuid;
 
