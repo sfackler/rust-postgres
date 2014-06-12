@@ -1088,7 +1088,7 @@ impl<'conn> PostgresTransaction<'conn> {
         check_desync!(self.conn);
         stmt.lazy_query(row_limit, params).map(|result| {
             PostgresLazyRows {
-                trans: self,
+                _trans: self,
                 result: result
             }
         })
@@ -1520,7 +1520,7 @@ impl<'a> RowIndex for &'a str {
 /// A lazily-loaded iterator over the resulting rows of a query
 pub struct PostgresLazyRows<'trans, 'stmt> {
     result: PostgresRows<'stmt>,
-    trans: &'trans PostgresTransaction<'trans>,
+    _trans: &'trans PostgresTransaction<'trans>,
 }
 
 impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {

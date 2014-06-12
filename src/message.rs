@@ -52,7 +52,7 @@ pub enum BackendMessage {
     ParseComplete,
     PortalSuspended,
     ReadyForQuery {
-        pub state: u8
+        pub _state: u8
     },
     RowDescription {
         pub descriptions: Vec<RowDescriptionEntry>
@@ -287,7 +287,7 @@ impl<R: Reader> ReadMessage for R {
             },
             't' => try!(read_parameter_description(&mut buf)),
             'T' => try!(read_row_description(&mut buf)),
-            'Z' => ReadyForQuery { state: try!(buf.read_u8()) },
+            'Z' => ReadyForQuery { _state: try!(buf.read_u8()) },
             ident => fail!("Unknown message identifier `{}`", ident)
         };
         Ok(ret)
