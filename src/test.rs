@@ -1,6 +1,6 @@
 use serialize::json;
-use sync;
-use sync::Future;
+use std::comm;
+use std::sync::Future;
 use time;
 use time::Timespec;
 use uuid::Uuid;
@@ -54,7 +54,7 @@ fn test_pool() {
     let pool = or_fail!(PostgresConnectionPool::new("postgres://postgres@localhost",
                                                     NoSsl, 2));
 
-    let (stream1, stream2) = sync::duplex();
+    let (stream1, stream2) = comm::duplex();
 
     let pool1 = pool.clone();
     let mut fut1 = Future::spawn(proc() {

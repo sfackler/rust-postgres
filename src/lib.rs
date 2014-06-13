@@ -67,7 +67,6 @@ fn main() {
 extern crate collections;
 extern crate openssl;
 extern crate serialize;
-extern crate sync;
 extern crate time;
 extern crate phf;
 #[phase(plugin)]

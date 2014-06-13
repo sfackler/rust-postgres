@@ -1,6 +1,6 @@
 //! A simple connection pool
 
-use sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use {PostgresNotifications,
      PostgresConnectParams,
