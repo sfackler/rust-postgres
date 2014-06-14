@@ -639,13 +639,13 @@ fn test_tstzrange_params() {
 macro_rules! test_array_params(
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
-                      format!(r"'\{{},{},NULL\}'", $s1, $s2).into_string()),
+                      format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
                      (None, "NULL".to_str())];
         test_type(format!("{}[]", $name).as_slice(), tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
-        let tests = [(Some(a), format!(r"'[-1:0][0:1]=\{\{{},{}\},\{NULL,{}\}\}'",
+        let tests = [(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
                                        $s1, $s2, $s3).into_string())];
         test_type(format!("{}[][]", $name).as_slice(), tests);
     })
