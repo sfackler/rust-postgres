@@ -88,4 +88,7 @@ install: $(POSTGRES_LIB)
 	$(MAKE) -C $(PHF_DIR) install INSTALL_DIR=$(abspath $(INSTALL_DIR))
 	install $(POSTGRES_LIB) $(INSTALL_DIR)
 
-.PHONY: check-test check-doc check clean clean-deps doc install
+print-targets:
+	@echo $(POSTGRES_LIB)
+
+.PHONY: check-test check-doc check clean clean-deps doc install print-targets
