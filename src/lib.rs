@@ -409,7 +409,7 @@ pub fn cancel_query<T: IntoConnectParams>(params: T, ssl: &SslMode,
 struct InnerPostgresConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: uint,
-    notice_handler: Box<PostgresNoticeHandler:Send>,
+    notice_handler: Box<PostgresNoticeHandler+Send>,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
     unknown_types: HashMap<Oid, String>,
@@ -570,8 +570,8 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: Box<PostgresNoticeHandler:Send>)
-            -> Box<PostgresNoticeHandler:Send> {
+    fn set_notice_handler(&mut self, handler: Box<PostgresNoticeHandler+Send>)
+            -> Box<PostgresNoticeHandler+Send> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
@@ -772,8 +772,8 @@ impl PostgresConnection {
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: Box<PostgresNoticeHandler:Send>)
-            -> Box<PostgresNoticeHandler:Send> {
+    pub fn set_notice_handler(&self, handler: Box<PostgresNoticeHandler+Send>)
+            -> Box<PostgresNoticeHandler+Send> {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 

@@ -78,6 +78,7 @@ clean:
 clean-deps:
 	$(MAKE) -C $(PHF_DIR) clean
 	$(MAKE) -C $(OPENSSL_DIR) clean
+	rm -f $(PHF_STAMP) $(OPENSSL_STAMP)
 
 doc: $(OPENSSL) $(PHF)
 	$(RUSTDOC) $(LINK_ARGS) $(POSTGRES_LIB_FILE)
