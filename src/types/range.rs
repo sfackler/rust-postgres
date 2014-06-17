@@ -367,12 +367,12 @@ impl<T: fmt::Show> fmt::Show for Range<T> {
             Empty => write!(fmt, "empty"),
             Normal(ref lower, ref upper) => {
                 match *lower {
-                    Some(ref bound) => try!(bound.fmt(fmt)),
+                    Some(ref bound) => try!(write!(fmt, "{}", bound)),
                     None => try!(write!(fmt, "(")),
                 }
                 try!(write!(fmt, ","));
                 match *upper {
-                    Some(ref bound) => bound.fmt(fmt),
+                    Some(ref bound) => write!(fmt, "{}", bound),
                     None => write!(fmt, ")"),
                 }
             }
