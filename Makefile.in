@@ -9,29 +9,22 @@ INSTALL_DIR := %PREFIX%
 ###############################################################################
 PHF_DIR := submodules/rust-phf
 PHF := $(foreach file,$(shell $(MAKE) -s -C $(PHF_DIR) print-targets),$(PHF_DIR)/$(file))
-PHF_STAMP := $(BUILDDIR)/phf.stamp
 OPENSSL_DIR := submodules/rust-openssl
 OPENSSL := $(foreach file,$(shell $(MAKE) -s -C $(OPENSSL_DIR) print-target),$(OPENSSL_DIR)/$(file))
-OPENSSL_STAMP := $(BUILDDIR)/openssl.stamp
 
-$(PHF): $(PHF_STAMP)
-
-$(PHF_STAMP): | $(BUILDDIR)
+.NOTPARALLEL: $(PHF)
+$(PHF): | $(BUILDDIR)
 	$(MAKE) -C $(PHF_DIR)
-	touch $(PHF_STAMP)
 
-$(OPENSSL): $(OPENSSL_STAMP)
-
-$(OPENSSL_STAMP): | $(BUILDDIR)
+.NOTPARALLEL: $(OPENSSL)
+$(OPENSSL): | $(BUILDDIR)
 	$(MAKE) -C $(OPENSSL_DIR)
-	touch $(OPENSSL_STAMP)
 
 ###############################################################################
 # Main targets
 ###############################################################################
 POSTGRES_LIB_FILE := src/lib.rs
 POSTGRES_LIB := $(foreach file,$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
-POSTGRES_STAMP := $(BUILDDIR)/postgres.stamp
 POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
 
 POSTGRES_LIB_DEPS := $(BUILDDIR)/postgres.d
@@ -45,12 +38,10 @@ LINK_ARGS := $(foreach file,$(OPENSSL),-L $(dir $(file))) $(foreach file,$(PHF),
 $(BUILDDIR):
 	mkdir -p $@
 
-$(POSTGRES_LIB): $(POSTGRES_STAMP)
-
-$(POSTGRES_STAMP): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
+.NOTPARALLEL: $(POSTGRES_LIB)
+$(POSTGRES_LIB): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_LIB_DEPS) \
 		--out-dir $(@D) $<
-	touch $(POSTGRES_STAMP)
 
 $(POSTGRES_TEST): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_TEST_DEPS) \
