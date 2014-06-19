@@ -1145,7 +1145,7 @@ impl<'conn> PostgresStatement<'conn> {
         }
         let mut formats = vec![];
         let mut values = vec![];
-        for (&param, ty) in params.iter().zip(self.param_types.iter()) {
+        for (param, ty) in params.iter().zip(self.param_types.iter()) {
             let (format, value) = try!(param.to_sql(ty));
             formats.push(format as i16);
             values.push(value);
