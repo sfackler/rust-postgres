@@ -13,7 +13,7 @@ use types::PostgresType;
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(PartialEq, Eq, Clone)]
+        #[deriving(PartialEq, Eq, Clone, Show)]
         #[allow(missing_doc)]
         pub enum PostgresSqlState {
             $($error,)+
