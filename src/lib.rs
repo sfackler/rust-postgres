@@ -62,7 +62,7 @@ fn main() {
 
 #![warn(missing_doc)]
 
-#![feature(macro_rules, struct_variant, phase)]
+#![feature(macro_rules, struct_variant, phase, unsafe_destructor)]
 
 extern crate collections;
 extern crate openssl;
