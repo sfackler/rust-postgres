@@ -2,17 +2,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use {PostgresNotifications,
-     PostgresConnectParams,
-     IntoConnectParams,
-     PostgresResult,
-     PostgresCancelData,
-     PostgresConnection,
-     PostgresStatement,
-     PostgresTransaction,
-     SslMode};
+use {PostgresConnectParams, IntoConnectParams, PostgresConnection, SslMode};
 use error::PostgresConnectError;
-use types::ToSql;
 
 struct InnerConnectionPool {
     params: PostgresConnectParams,
@@ -111,42 +102,8 @@ impl Drop for PooledPostgresConnection {
     }
 }
 
-impl PooledPostgresConnection {
-    /// Like `PostgresConnection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str)
-            -> PostgresResult<PostgresStatement<'a>> {
-        self.conn.get_ref().prepare(query)
-    }
-
-    /// Like `PostgresConnection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> PostgresResult<uint> {
-        self.conn.get_ref().execute(query, params)
-    }
-
-    /// Like `PostgresConnection::batch_execute`.
-    pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
-        self.conn.get_ref().batch_execute(query)
-    }
-
-    /// Like `PostgresConnection::transaction`.
-    pub fn transaction<'a>(&'a self)
-            -> PostgresResult<PostgresTransaction<'a>> {
-        self.conn.get_ref().transaction()
-    }
-
-    /// Like `PostgresConnection::notifications`.
-    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
-        self.conn.get_ref().notifications()
-    }
-
-    /// Like `PostgresConnection::cancel_data`.
-    pub fn cancel_data(&self) -> PostgresCancelData {
-        self.conn.get_ref().cancel_data()
-    }
-
-    /// Like `PostgresConnection::is_desynchronized`.
-    pub fn is_desynchronized(&self) -> bool {
-        self.conn.get_ref().is_desynchronized()
+impl Deref<PostgresConnection> for PooledPostgresConnection {
+    fn deref<'a>(&'a self) -> &'a PostgresConnection {
+        self.conn.get_ref()
     }
 }
