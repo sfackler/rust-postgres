@@ -1,0 +1,19 @@
+[package]
+
+name = "rust-postgres"
+version = "0.10.0"
+authors = [ "Steven Fackler <sfackler@gmail.com>" ]
+
+[[lib]]
+
+name = "postgres"
+path = "src/lib.rs"
+
+[dependencies.openssl]
+
+git = "https://github.com/sfackler/rust-openssl"
+
+[dependencies.phf_mac]
+
+git = "https://github.com/sfackler/rust-phf"
+
