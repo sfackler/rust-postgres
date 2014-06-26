@@ -1,7 +1,7 @@
 [package]
 
 name = "rust-postgres"
-version = "0.10.0"
+version = "0.0.0"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 
 [[lib]]
@@ -17,5 +17,5 @@ ref = "5fb236128c4c552ace49c2d1f72a8996ee8d05d6"
 [dependencies.phf_mac]
 
 git = "https://github.com/sfackler/rust-phf"
-ref = "09e8d0a3375af00a08a632922e4024337a58fc57"
+ref = "bfd8fa2d4c494b1dbbaf6a57ee195cd8c8c0ab76"
 
