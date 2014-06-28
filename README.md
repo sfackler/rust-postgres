@@ -228,15 +228,15 @@ types. The driver currently supports the following conversions:
             <td>BYTEA</td>
         </tr>
         <tr>
-            <td>extra::json::Json</td>
+            <td>serialize::json::Json</td>
             <td>JSON</td>
         </tr>
         <tr>
-            <td>extra::uuid::Uuid</td>
+            <td>uuid::Uuid</td>
             <td>UUID</td>
         </tr>
         <tr>
-            <td>extra::time::Timespec</td>
+            <td>time::Timespec</td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
         <tr>
@@ -312,7 +312,7 @@ types. The driver currently supports the following conversions:
             <td>INT8RANGE[], INT8RANGE[][], ...</td>
         </tr>
         <tr>
-            <td>std::hashmap::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
+            <td>std::collections::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
     </tbody>
