@@ -29,7 +29,7 @@ impl InnerConnectionPool {
 /// # use postgres::pool::PostgresConnectionPool;
 /// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
 ///                                        NoSsl, 5).unwrap();
-/// for _ in range(0, 10) {
+/// for _ in range(0u, 10) {
 ///     let pool = pool.clone();
 ///     spawn(proc() {
 ///         let conn = pool.get_connection();

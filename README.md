@@ -52,10 +52,10 @@ fn main() {
             .unwrap();
     for row in stmt.query([]).unwrap() {
         let person = Person {
-            id: row[1],
-            name: row[2],
-            time_created: row[3],
-            data: row[4]
+            id: row[1u],
+            name: row[2u],
+            time_created: row[3u],
+            data: row[4u]
         };
         println!("Found person {}", person.name);
     }

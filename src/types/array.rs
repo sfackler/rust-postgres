@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     fn test_from_vec() {
-        let a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
+        let a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
         assert!([DimensionInfo { len: 3, lower_bound: -1 }] ==
                 a.dimension_info());
         assert_eq!(&0, a.get(-1));
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_2d_slice_get() {
-        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
+        let mut a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
         a.wrap(1);
         let s = a.slice(1);
         assert_eq!(&0, s.get(-1));
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_push_move_ok() {
-        let mut a = ArrayBase::from_vec(vec!(1, 2), 0);
+        let mut a = ArrayBase::from_vec(vec!(1i, 2), 0);
         a.wrap(0);
         a.push_move(ArrayBase::from_vec(vec!(3, 4), 0));
         let s = a.slice(0);
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn test_3d() {
-        let mut a = ArrayBase::from_vec(vec!(0, 1), 0);
+        let mut a = ArrayBase::from_vec(vec!(0i, 1), 0);
         a.wrap(0);
         a.push_move(ArrayBase::from_vec(vec!(2, 3), 0));
         a.wrap(0);
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_mut() {
-        let mut a = ArrayBase::from_vec(vec!(1, 2), 0);
+        let mut a = ArrayBase::from_vec(vec!(1i, 2), 0);
         a.wrap(0);
         {
             let mut s = a.slice_mut(0);

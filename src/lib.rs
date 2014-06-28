@@ -44,10 +44,10 @@ fn main() {
             .unwrap();
     for row in stmt.query([]).unwrap() {
         let person = Person {
-            id: row[1],
-            name: row[2],
-            time_created: row[3],
-            data: row[4]
+            id: row[1u],
+            name: row[2u],
+            time_created: row[3u],
+            data: row[4u]
         };
         println!("Found person {}", person.name);
     }
@@ -1467,7 +1467,7 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
-    /// let foo: i32 = row[1];
+    /// let foo: i32 = row[1u];
     /// let bar: String = row["bar"];
     /// ```
     fn index(&self, idx: &I) -> T {
@@ -1492,18 +1492,6 @@ impl RowIndex for uint {
             None
         } else {
             Some(*self - 1)
-        }
-    }
-}
-
-// This is a convenience as the 1 in get[1] resolves to int :(
-impl RowIndex for int {
-    #[inline]
-    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
-        if *self < 0 {
-            None
-        } else {
-            (*self as uint).idx(stmt)
         }
     }
 }
