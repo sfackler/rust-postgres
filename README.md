@@ -122,7 +122,7 @@ columns are one-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
-    let bar: i32 = row[1];
+    let bar: i32 = row[1u];
     let baz: String = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
 }
