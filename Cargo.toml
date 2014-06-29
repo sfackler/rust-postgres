@@ -12,10 +12,10 @@ path = "src/lib.rs"
 [dependencies.openssl]
 
 git = "https://github.com/sfackler/rust-openssl"
-rev = "8c40c2ef3527fbcf22f11a517422b371b4626852"
+rev = "b3d9e98fa178b2f8bf28c00a215eecee068e1b3e"
 
 [dependencies.phf_mac]
 
 git = "https://github.com/sfackler/rust-phf"
-rev = "efc5c5602a4edb2c5b2e9a6178cda65e02e93c59"
+rev = "76d740dddfae265e633cb15a4af75e50d924f252"
 

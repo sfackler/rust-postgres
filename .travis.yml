@@ -1,3 +1,6 @@
+env:
+  global:
+    - secure: Dl8GH7HCtwf0iG0EiBlQprZ5wQ7Wz8lfsMGxCSfTCjWoCbYK5+B5xuPnSaj8UYbrbXHmaZms23kSc5ZgQixuKs3zMCRDuEX1safT+t3AlhY/5/T3uyUWd1bv2Brw4TZg7M0Dubsu+3+3jNcDYv6vp+YWUNlKUcxjcX4EPrY0FKI=
 addons:
   postgresql: 9.3
 install:
@@ -9,3 +12,5 @@ before_script:
   - ./configure
 script:
   - make all check doc
+after_script:
+  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
