@@ -1081,7 +1081,7 @@ impl<'conn> PostgresTransaction<'conn> {
                                      row_limit: i32)
                                      -> PostgresResult<PostgresLazyRows
                                                        <'trans, 'stmt>> {
-        if self.conn as *_ != stmt.conn as *_ {
+        if self.conn as *const _ != stmt.conn as *const _ {
             return Err(PgWrongConnection);
         }
         check_desync!(self.conn);
