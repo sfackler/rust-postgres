@@ -52,10 +52,10 @@ fn main() {
             .unwrap();
     for row in stmt.query([]).unwrap() {
         let person = Person {
-            id: row[1u],
-            name: row[2u],
-            time_created: row[3u],
-            data: row[4u]
+            id: row[0u],
+            name: row[1u],
+            time_created: row[2u],
+            data: row[3u]
         };
         println!("Found person {}", person.name);
     }
@@ -117,12 +117,12 @@ println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
 fields in a row can be accessed either by their indices or their column names,
-though access by index is more efficient. Like statement parameters, result
-columns are one-indexed.
+though access by index is more efficient. Unlike statement parameters, result
+columns are zero-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
-    let bar: i32 = row[1u];
+    let bar: i32 = row[0u];
     let baz: String = row["baz"];
     println!("bar: {}, baz: {}", bar, baz);
 }
