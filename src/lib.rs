@@ -1426,7 +1426,7 @@ impl<'stmt> PostgresRow<'stmt> {
     /// Retrieves the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
-    /// access by index is more efficient. Rows are 1-indexed.
+    /// access by index is more efficient. Rows are 0-indexed.
     ///
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
