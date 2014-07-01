@@ -356,7 +356,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_get_2d_fail() {
-        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
+        let mut a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
         a.wrap(1);
         a.get(1);
     }
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_2d_slice_range_fail_low() {
-        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
+        let mut a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
         a.wrap(1);
         a.slice(0);
     }
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_2d_slice_range_fail_high() {
-        let mut a = ArrayBase::from_vec(vec!(0, 1, 2), -1);
+        let mut a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
         a.wrap(1);
         a.slice(2);
     }
@@ -390,14 +390,14 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_push_move_wrong_lower_bound() {
-        let mut a = ArrayBase::from_vec(vec!(1), -1);
+        let mut a = ArrayBase::from_vec(vec!(1i), -1);
         a.push_move(ArrayBase::from_vec(vec!(2), 0));
     }
 
     #[test]
     #[should_fail]
     fn test_push_move_wrong_dims() {
-        let mut a = ArrayBase::from_vec(vec!(1), -1);
+        let mut a = ArrayBase::from_vec(vec!(1i), -1);
         a.wrap(1);
         a.push_move(ArrayBase::from_vec(vec!(1, 2), -1));
     }
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_push_move_wrong_dim_count() {
-        let mut a = ArrayBase::from_vec(vec!(1), -1);
+        let mut a = ArrayBase::from_vec(vec!(1i), -1);
         a.wrap(1);
         let mut b = ArrayBase::from_vec(vec!(2), -1);
         b.wrap(1);
@@ -466,14 +466,14 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_base_overslice() {
-        let a = ArrayBase::from_vec(vec!(1), 0);
+        let a = ArrayBase::from_vec(vec!(1i), 0);
         a.slice(0);
     }
 
     #[test]
     #[should_fail]
     fn test_slice_overslice() {
-        let mut a = ArrayBase::from_vec(vec!(1), 0);
+        let mut a = ArrayBase::from_vec(vec!(1i), 0);
         a.wrap(0);
         let s = a.slice(0);
         s.slice(0);
