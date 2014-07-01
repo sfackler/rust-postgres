@@ -23,9 +23,10 @@ $(OPENSSL): | $(BUILDDIR)
 ###############################################################################
 # Main targets
 ###############################################################################
-POSTGRES_LIB_FILE := src/lib.rs
+POSTGRES_LIB_FILE := src/lib/lib.rs
 POSTGRES_LIB := $(foreach file,$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
-POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_LIB_FILE))
+POSTGRES_TEST_FILE := src/test/test.rs
+POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_TEST_FILE))
 
 POSTGRES_LIB_DEPS := $(BUILDDIR)/postgres.d
 POSTGRES_TEST_DEPS := $(BUILDDIR)/postgres_test.d
@@ -43,8 +44,8 @@ $(POSTGRES_LIB): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
 	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_LIB_DEPS) \
 		--out-dir $(@D) $<
 
-$(POSTGRES_TEST): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
-	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_TEST_DEPS) \
+$(POSTGRES_TEST): $(POSTGRES_TEST_FILE) $(POSTGRES_LIB) | $(BUILDDIR)
+	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) -L $(BUILDDIR) --dep-info $(POSTGRES_TEST_DEPS) \
 		--out-dir $(@D) --test $<
 
 all: $(POSTGRES_LIB)

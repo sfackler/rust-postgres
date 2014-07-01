@@ -1,7 +1,16 @@
+#![feature(macro_rules, phase)]
+
+#[phase(plugin, link)]
+extern crate postgres;
+extern crate serialize;
+extern crate time;
+extern crate url;
+extern crate uuid;
+extern crate openssl;
+
 use serialize::json;
 use std::comm;
 use std::sync::Future;
-use time;
 use time::Timespec;
 use uuid::Uuid;
 use openssl::ssl::{SslContext, Sslv3};
@@ -9,35 +18,34 @@ use std::collections::HashMap;
 use std::f32;
 use std::f64;
 use std::io::timer;
-use url;
 
-use {PostgresNoticeHandler,
-     PostgresNotification,
-     PostgresConnection,
-     ResultDescription,
-     RequireSsl,
-     PreferSsl,
-     NoSsl};
-use error::{PgConnectDbError,
-            PgDbError,
-            PgWrongConnection,
-            PgWrongParamCount,
-            PgWrongType,
-            PgInvalidColumn,
-            PgWasNull,
-            MissingPassword,
-            Position,
-            PostgresDbError,
-            SyntaxError,
-            InvalidPassword,
-            QueryCanceled,
-            UndefinedTable,
-            InvalidCatalogName,
-            PgWrongTransaction};
-use types::{ToSql, FromSql, PgInt4, PgVarchar};
-use types::array::{ArrayBase};
-use types::range::{Range, Inclusive, Exclusive, RangeBound};
-use pool::PostgresConnectionPool;
+use postgres::{PostgresNoticeHandler,
+               PostgresNotification,
+               PostgresConnection,
+               ResultDescription,
+               RequireSsl,
+               PreferSsl,
+               NoSsl};
+use postgres::error::{PgConnectDbError,
+                      PgDbError,
+                      PgWrongConnection,
+                      PgWrongParamCount,
+                      PgWrongType,
+                      PgInvalidColumn,
+                      PgWasNull,
+                      MissingPassword,
+                      Position,
+                      PostgresDbError,
+                      SyntaxError,
+                      InvalidPassword,
+                      QueryCanceled,
+                      UndefinedTable,
+                      InvalidCatalogName,
+                      PgWrongTransaction};
+use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
+use postgres::types::array::{ArrayBase};
+use postgres::types::range::{Range, Inclusive, Exclusive, RangeBound};
+use postgres::pool::PostgresConnectionPool;
 
 macro_rules! or_fail(
     ($e:expr) => (
@@ -966,8 +974,8 @@ fn test_cancel_query() {
 
     spawn(proc() {
         timer::sleep(500);
-        assert!(super::cancel_query("postgres://postgres@localhost", &NoSsl,
-                                    cancel_data).is_ok());
+        assert!(postgres::cancel_query("postgres://postgres@localhost", &NoSsl,
+                                       cancel_data).is_ok());
     });
 
     match conn.execute("SELECT pg_sleep(10)", []) {

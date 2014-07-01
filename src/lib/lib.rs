@@ -192,8 +192,6 @@ mod io;
 pub mod pool;
 mod message;
 pub mod types;
-#[cfg(test)]
-mod test;
 
 static CANARY: u32 = 0xdeadbeef;
 
