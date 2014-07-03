@@ -9,7 +9,6 @@
 //! use time::Timespec;
 //!
 //! use postgres::{PostgresConnection, NoSsl};
-//! use postgres::types::ToSql;
 //!
 //! struct Person {
 //!     id: i32,
@@ -36,8 +35,7 @@
 //!     };
 //!     conn.execute("INSERT INTO person (name, time_created, data)
 //!                     VALUES ($1, $2, $3)",
-//!                  [&me.name as &ToSql, &me.time_created as &ToSql,
-//!                   &me.data as &ToSql]).unwrap();
+//!                  [&me.name, &me.time_created, &me.data]).unwrap();
 //!
 //!     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
 //!             .unwrap();
@@ -1214,12 +1212,11 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// # use postgres::types::ToSql;
     /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
-    /// match stmt.execute([&bar as &ToSql, &baz as &ToSql]) {
+    /// match stmt.execute([&bar, &baz]) {
     ///     Ok(count) => println!("{} row(s) updated", count),
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
@@ -1259,11 +1256,10 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
-    /// # use postgres::types::ToSql;
     /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// let mut rows = match stmt.query([&baz as &ToSql]) {
+    /// let mut rows = match stmt.query([&baz]) {
     ///     Ok(rows) => rows,
     ///     Err(err) => fail!("Error running query: {}", err)
     /// };

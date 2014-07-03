@@ -45,8 +45,7 @@ fn main() {
     };
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name as &ToSql, &me.time_created as &ToSql,
-                  &me.data as &ToSql]).unwrap();
+                 [&me.name, &me.time_created, &me.data]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
             .unwrap();
@@ -112,7 +111,7 @@ Both methods take an array of parameters to bind to the query represented as
 query (or 0 if not applicable):
 ```rust
 let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
-let updates = try!(stmt.execute([&1i32 as &ToSql, &"biz" as &ToSql]));
+let updates = try!(stmt.execute([&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
@@ -131,7 +130,7 @@ In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                [&1i32 as &ToSql, &"biz" as &ToSql]));
+                                [&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
 
