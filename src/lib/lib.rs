@@ -1,59 +1,57 @@
-/*!
-Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
-exposes a high level interface in the vein of JDBC or Go's `database/sql`
-package.
-
-```rust,no_run
-extern crate postgres;
-extern crate time;
-
-use time::Timespec;
-
-use postgres::{PostgresConnection, NoSsl};
-use postgres::types::ToSql;
-
-struct Person {
-    id: i32,
-    name: String,
-    time_created: Timespec,
-    data: Option<Vec<u8>>
-}
-
-fn main() {
-    let conn = PostgresConnection::connect("postgresql://postgres@localhost",
-                                           &NoSsl).unwrap();
-
-    conn.execute("CREATE TABLE person (
-                    id              SERIAL PRIMARY KEY,
-                    name            VARCHAR NOT NULL,
-                    time_created    TIMESTAMP NOT NULL,
-                    data            BYTEA
-                  )", []).unwrap();
-    let me = Person {
-        id: 0,
-        name: "Steven".to_str(),
-        time_created: time::get_time(),
-        data: None
-    };
-    conn.execute("INSERT INTO person (name, time_created, data)
-                    VALUES ($1, $2, $3)",
-                 [&me.name as &ToSql, &me.time_created as &ToSql,
-                  &me.data as &ToSql]).unwrap();
-
-    let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
-            .unwrap();
-    for row in stmt.query([]).unwrap() {
-        let person = Person {
-            id: row[0u],
-            name: row[1u],
-            time_created: row[2u],
-            data: row[3u]
-        };
-        println!("Found person {}", person.name);
-    }
-}
-```
- */
+//! Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
+//! exposes a high level interface in the vein of JDBC or Go's `database/sql`
+//! package.
+//!
+//! ```rust,no_run
+//! extern crate postgres;
+//! extern crate time;
+//!
+//! use time::Timespec;
+//!
+//! use postgres::{PostgresConnection, NoSsl};
+//! use postgres::types::ToSql;
+//!
+//! struct Person {
+//!     id: i32,
+//!     name: String,
+//!     time_created: Timespec,
+//!     data: Option<Vec<u8>>
+//! }
+//!
+//! fn main() {
+//!     let conn = PostgresConnection::connect("postgresql://postgres@localhost",
+//!                                            &NoSsl).unwrap();
+//!
+//!     conn.execute("CREATE TABLE person (
+//!                     id              SERIAL PRIMARY KEY,
+//!                     name            VARCHAR NOT NULL,
+//!                     time_created    TIMESTAMP NOT NULL,
+//!                     data            BYTEA
+//!                   )", []).unwrap();
+//!     let me = Person {
+//!         id: 0,
+//!         name: "Steven".to_str(),
+//!         time_created: time::get_time(),
+//!         data: None
+//!     };
+//!     conn.execute("INSERT INTO person (name, time_created, data)
+//!                     VALUES ($1, $2, $3)",
+//!                  [&me.name as &ToSql, &me.time_created as &ToSql,
+//!                   &me.data as &ToSql]).unwrap();
+//!
+//!     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
+//!             .unwrap();
+//!     for row in stmt.query([]).unwrap() {
+//!         let person = Person {
+//!             id: row[0u],
+//!             name: row[1u],
+//!             time_created: row[2u],
+//!             data: row[3u]
+//!         };
+//!         println!("Found person {}", person.name);
+//!     }
+//! }
+//! ```
 
 #![crate_id="github.com/sfackler/rust-postgres#postgres:0.0"]
 #![crate_type="rlib"]
