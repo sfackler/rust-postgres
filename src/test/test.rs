@@ -62,20 +62,21 @@ fn test_pool() {
     let pool = or_fail!(PostgresConnectionPool::new("postgres://postgres@localhost",
                                                     NoSsl, 2));
 
-    let (stream1, stream2) = comm::duplex();
+    let (s1, r1) = comm::channel();
+    let (s2, r2) = comm::channel();
 
     let pool1 = pool.clone();
     let mut fut1 = Future::spawn(proc() {
         let _conn = pool1.get_connection();
-        stream1.send(());
-        stream1.recv();
+        s1.send(());
+        r2.recv();
     });
 
     let pool2 = pool.clone();
     let mut fut2 = Future::spawn(proc() {
         let _conn = pool2.get_connection();
-        stream2.send(());
-        stream2.recv();
+        s2.send(());
+        r1.recv();
     });
 
     fut1.get();
