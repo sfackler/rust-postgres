@@ -24,9 +24,9 @@ $(OPENSSL): | $(BUILDDIR)
 # Main targets
 ###############################################################################
 POSTGRES_LIB_FILE := src/lib/lib.rs
-POSTGRES_LIB := $(foreach file,$(shell $(RUSTC) --crate-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
+POSTGRES_LIB := $(foreach file,$(shell $(RUSTC) --print-file-name $(POSTGRES_LIB_FILE)),$(BUILDDIR)/$(file))
 POSTGRES_TEST_FILE := src/test/test.rs
-POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --crate-file-name $(POSTGRES_TEST_FILE))
+POSTGRES_TEST := $(BUILDDIR)/$(shell $(RUSTC) --test --print-file-name $(POSTGRES_TEST_FILE))
 
 POSTGRES_LIB_DEPS := $(BUILDDIR)/postgres.d
 POSTGRES_TEST_DEPS := $(BUILDDIR)/postgres_test.d
