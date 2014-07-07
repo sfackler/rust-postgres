@@ -544,6 +544,8 @@ pub enum PostgresError {
     PgWrongTransaction,
     /// The server returned an unexpected response
     PgBadResponse,
+    /// The server provided data that the client could not parse
+    PgBadData,
 }
 
 impl fmt::Show for PostgresError {
@@ -569,6 +571,9 @@ impl fmt::Show for PostgresError {
                              active transaction"),
             PgBadResponse =>
                 write!(fmt, "The server returned an unexpected response"),
+            PgBadData =>
+                write!(fmt, "The server provided data that the client could \
+                             not parse"),
         }
     }
 }

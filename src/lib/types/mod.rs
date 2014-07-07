@@ -10,7 +10,7 @@ use std::io::util::LimitReader;
 use time::Timespec;
 
 use PostgresResult;
-use error::{PgWrongType, PgStreamError, PgWasNull};
+use error::{PgWrongType, PgStreamError, PgWasNull, PgBadData};
 use types::array::{Array, ArrayBase, DimensionInfo};
 use types::range::{RangeBound, Inclusive, Exclusive, Range};
 
@@ -270,7 +270,7 @@ impl RawFromSql for Vec<u8> {
 
 impl RawFromSql for String {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<String> {
-        Ok(String::from_utf8(try_pg!(raw.read_to_end())).unwrap())
+        String::from_utf8(try_pg!(raw.read_to_end())).map_err(|_| PgBadData)
     }
 }
 
@@ -298,7 +298,10 @@ impl RawFromSql for Timespec {
 
 impl RawFromSql for Uuid {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<Uuid> {
-        Ok(Uuid::from_bytes(try_pg!(raw.read_to_end()).as_slice()).unwrap())
+        match Uuid::from_bytes(try_pg!(raw.read_to_end()).as_slice()) {
+            Some(u) => Ok(u),
+            None => Err(PgBadData),
+        }
     }
 }
 
@@ -356,7 +359,7 @@ from_range_impl!(Timespec)
 
 impl RawFromSql for Json {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<Json> {
-        Ok(json::from_reader(raw as &mut Reader).unwrap())
+        json::from_reader(raw).map_err(|_| PgBadData)
     }
 }
 
@@ -484,14 +487,20 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                 for _ in range(0, count) {
                     let key_len = try_pg!(rdr.read_be_i32());
                     let key = try_pg!(rdr.read_exact(key_len as uint));
-                    let key = String::from_utf8(key).unwrap();
+                    let key = match String::from_utf8(key) {
+                        Ok(key) => key,
+                        Err(_) => return Err(PgBadData),
+                    };
 
                     let val_len = try_pg!(rdr.read_be_i32());
                     let val = if val_len < 0 {
                         None
                     } else {
                         let val = try_pg!(rdr.read_exact(val_len as uint));
-                        Some(String::from_utf8(val).unwrap())
+                        match String::from_utf8(val) {
+                            Ok(val) => Some(val),
+                            Err(_) => return Err(PgBadData),
+                        }
                     };
 
                     map.insert(key, val);
