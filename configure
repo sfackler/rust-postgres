@@ -3,7 +3,6 @@
 set -e
 
 TEMP=`getopt -o "" --long prefix: -n "$0" -- "$@"`
-CONFIGURE_ARGS=$@
 
 if [ $? != 0 ]; then exit 1; fi
 
@@ -23,5 +22,4 @@ git submodule update --init
 ./submodules/rust-openssl/configure
 
 sed -e "s|%PREFIX%|$PREFIX|" \
-    -e "s|%CONFIGURE_ARGS%|$CONFIGURE_ARGS|" \
     < Makefile.in > Makefile
