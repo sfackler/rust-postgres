@@ -51,7 +51,7 @@
 //! }
 //! ```
 
-#![crate_id="github.com/sfackler/rust-postgres#postgres:0.0"]
+#![crate_name="postgres"]
 #![crate_type="rlib"]
 #![crate_type="dylib"]
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
@@ -207,7 +207,7 @@ impl IntoConnectParams for PostgresConnectParams {
 impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> Result<PostgresConnectParams,
                                            PostgresConnectError> {
-        match url::from_str(self) {
+        match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => return Err(InvalidUrl(err)),
         }
@@ -221,12 +221,14 @@ impl IntoConnectParams for Url {
             host,
             port,
             user,
-            path,
-            query: options,
+            path: url::Path { path, query: options, .. },
             ..
         } = self;
 
-        let maybe_path = url::decode_component(host.as_slice());
+        let maybe_path = match url::decode_component(host.as_slice()) {
+            Ok(path) => path,
+            Err(err) => return Err(InvalidUrl(err)),
+        };
         let target = if maybe_path.as_slice().starts_with("/") {
             TargetUnix(Path::new(maybe_path))
         } else {
@@ -236,14 +238,6 @@ impl IntoConnectParams for Url {
         let (user, pass) = match user {
             Some(UserInfo { user, pass }) => (Some(user), pass),
             None => (None, None),
-        };
-
-        let port = match port {
-            Some(port) => match FromStr::from_str(port.as_slice()) {
-                Some(port) => Some(port),
-                None => return Err(InvalidUrl("invalid port".to_str())),
-            },
-            None => None,
         };
 
         let database = if !path.is_empty() {
