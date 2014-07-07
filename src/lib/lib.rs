@@ -91,6 +91,7 @@ use error::{InvalidUrl,
             MissingUser,
             PgConnectDbError,
             PgConnectStreamError,
+            PgConnectBadResponse,
             PgDbError,
             PgInvalidColumn,
             PgStreamDesynchronized,
@@ -101,7 +102,8 @@ use error::{InvalidUrl,
             PostgresError,
             UnsupportedAuthentication,
             PgWrongConnection,
-            PgWrongTransaction};
+            PgWrongTransaction,
+            PgBadResponse};
 use io::{MaybeSslStream, InternalStream};
 use message::{AuthenticationCleartextPassword,
               AuthenticationGSS,
@@ -142,46 +144,8 @@ use message::{Bind,
 use message::{WriteMessage, ReadMessage};
 use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
 
-macro_rules! try_pg_conn(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgConnectStreamError(err))
-        }
-    )
-)
-
-macro_rules! try_pg(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgStreamError(err))
-        }
-    )
-)
-
-macro_rules! try_desync(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => {
-                self.desynchronized = true;
-                return Err(err);
-            }
-        }
-    )
-)
-
-macro_rules! check_desync(
-    ($e:expr) => ({
-        if $e.canary() != CANARY {
-            fail!("PostgresConnection use after free. See mozilla/rust#13246.");
-        }
-        if $e.is_desynchronized() {
-            return Err(PgStreamDesynchronized);
-        }
-    })
-)
+#[macro_escape]
+mod macros;
 
 pub mod error;
 mod io;
@@ -481,7 +445,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } =>
                     return Err(PgConnectDbError(PostgresDbError::new(fields))),
-                _ => unreachable!()
+                _ => return Err(PgConnectBadResponse),
             }
         }
 
@@ -553,14 +517,20 @@ impl InnerPostgresConnection {
             | AuthenticationSSPI => return Err(UnsupportedAuthentication),
             ErrorResponse { fields } =>
                 return Err(PgConnectDbError(PostgresDbError::new(fields))),
-            _ => unreachable!()
+            _ => {
+                self.desynchronized = true;
+                return Err(PgConnectBadResponse);
+            }
         }
 
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } =>
                 Err(PgConnectDbError(PostgresDbError::new(fields))),
-            _ => unreachable!()
+            _ => {
+                self.desynchronized = true;
+                return Err(PgConnectBadResponse);
+            }
         }
     }
 
@@ -592,13 +562,13 @@ impl InnerPostgresConnection {
                 try!(self.wait_for_ready());
                 return Err(PgDbError(PostgresDbError::new(fields)));
             }
-            _ => unreachable!()
+            _ => bad_response!(),
         }
 
         let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
             ParameterDescription { types } =>
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
-            _ => unreachable!()
+            _ => bad_response!(),
         };
 
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
@@ -611,7 +581,7 @@ impl InnerPostgresConnection {
                     }
                 }).collect(),
             NoData => vec![],
-            _ => unreachable!()
+            _ => bad_response!()
         };
 
         try!(self.wait_for_ready());
@@ -665,7 +635,7 @@ impl InnerPostgresConnection {
     fn wait_for_ready(&mut self) -> PostgresResult<()> {
         match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
-            _ => unreachable!()
+            _ => bad_response!()
         }
     }
 
@@ -1169,7 +1139,10 @@ impl<'conn> PostgresStatement<'conn> {
                 try!(self.conn.wait_for_ready());
                 Err(PgDbError(PostgresDbError::new(fields)))
             }
-            _ => unreachable!()
+            _ => {
+                self.conn.conn.borrow_mut().desynchronized = true;
+                return Err(PgBadResponse);
+            }
         }
     }
 
@@ -1241,7 +1214,10 @@ impl<'conn> PostgresStatement<'conn> {
                     num = 0;
                     break;
                 }
-                _ => unreachable!()
+                _ => {
+                    self.conn.conn.borrow_mut().desynchronized = true;
+                    return Err(PgBadResponse);
+                }
             }
         }
         try!(self.conn.wait_for_ready());
@@ -1347,7 +1323,10 @@ impl<'stmt> PostgresRows<'stmt> {
                     break;
                 },
                 DataRow { row } => self.data.push_back(row),
-                _ => unreachable!()
+                _ => {
+                    self.stmt.conn.conn.borrow_mut().desynchronized = true;
+                    return Err(PgBadResponse);
+                }
             }
         }
         self.stmt.conn.wait_for_ready()

@@ -377,6 +377,8 @@ pub enum PostgresConnectError {
     SslError(SslError),
     /// There was an error communicating with the server
     PgConnectStreamError(IoError),
+    /// The server sent an unexpected response
+    PgConnectBadResponse,
 }
 
 impl fmt::Show for PostgresConnectError {
@@ -399,6 +401,8 @@ impl fmt::Show for PostgresConnectError {
                 write!(fmt, "Error initiating SSL session: {}", err),
             PgConnectStreamError(ref err) =>
                 write!(fmt, "Error communicating with server: {}", err),
+            PgConnectBadResponse =>
+                write!(fmt, "The server returned an unexpected response"),
         }
     }
 }
@@ -538,6 +542,8 @@ pub enum PostgresError {
     /// An attempt was made to prepare a statement or start a transaction on an
     /// object other than the active transaction
     PgWrongTransaction,
+    /// The server returned an unexpected response
+    PgBadResponse,
 }
 
 impl fmt::Show for PostgresError {
@@ -561,6 +567,8 @@ impl fmt::Show for PostgresError {
                 write!(fmt, "An attempt was made to prepare a statement or \
                              start a transaction on an object other than the \
                              active transaction"),
+            PgBadResponse =>
+                write!(fmt, "The server returned an unexpected response"),
         }
     }
 }
