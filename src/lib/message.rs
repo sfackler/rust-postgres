@@ -1,4 +1,4 @@
-use std::io::{IoResult, MemWriter, MemReader};
+use std::io::{IoResult, IoError, OtherIoError, MemWriter, MemReader};
 use std::mem;
 
 use types::Oid;
@@ -244,7 +244,11 @@ impl<R: Buffer> ReadCStr for R {
     fn read_cstr(&mut self) -> IoResult<String> {
         let mut buf = try!(self.read_until(0));
         buf.pop();
-        Ok(String::from_utf8(buf).unwrap())
+        String::from_utf8(buf).map_err(|_| IoError {
+            kind: OtherIoError,
+            desc: "Received a non-utf8 string from server",
+            detail: None
+        })
     }
 }
 
@@ -288,7 +292,11 @@ impl<R: Reader> ReadMessage for R {
             't' => try!(read_parameter_description(&mut buf)),
             'T' => try!(read_row_description(&mut buf)),
             'Z' => ReadyForQuery { _state: try!(buf.read_u8()) },
-            ident => fail!("Unknown message identifier `{}`", ident)
+            ident => return Err(IoError {
+                kind: OtherIoError,
+                desc: "Unexpected message tag",
+                detail: Some(format!("got {}", ident)),
+            })
         };
         Ok(ret)
     }
@@ -336,7 +344,11 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
-        val => fail!("Invalid authentication identifier `{}`", val)
+        val => return Err(IoError {
+            kind: OtherIoError,
+            desc: "Unexpected authentication tag",
+            detail: Some(format!("got {}", val)),
+        })
     })
 }
 
@@ -364,7 +376,7 @@ fn read_row_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
             type_size: try!(buf.read_be_i16()),
             type_modifier: try!(buf.read_be_i32()),
             format: try!(buf.read_be_i16())
-        });
+        })
     }
 
     Ok(RowDescription { descriptions: types })
