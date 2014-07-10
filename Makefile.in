@@ -3,7 +3,7 @@ RUSTDOC := rustdoc
 RUSTFLAGS := -O --cfg ndebug
 BUILDDIR := build
 INSTALL_DIR := %PREFIX%
-LD_LIBRARY_PATH := $(LD_LIBRARY_PATH):submodules/rust-phf/build:submodules/rust-openssl/target
+LD_LIBRARY_PATH := $(LD_LIBRARY_PATH):build:submodules/rust-phf/build:submodules/rust-openssl/target
 ENV := LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(LD_LIBRARY_PATH)
 
 ###############################################################################
