@@ -3,6 +3,8 @@ RUSTDOC := rustdoc
 RUSTFLAGS := -O --cfg ndebug
 BUILDDIR := build
 INSTALL_DIR := %PREFIX%
+LD_LIBRARY_PATH := $(LD_LIBRARY_PATH):submodules/rust-phf/build:submodules/rust-openssl/target
+ENV := LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(LD_LIBRARY_PATH)
 
 ###############################################################################
 # Dependencies
@@ -41,11 +43,11 @@ $(BUILDDIR):
 
 .NOTPARALLEL: $(POSTGRES_LIB)
 $(POSTGRES_LIB): $(POSTGRES_LIB_FILE) $(PHF) $(OPENSSL) | $(BUILDDIR)
-	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_LIB_DEPS) \
+	$(ENV) $(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) --dep-info $(POSTGRES_LIB_DEPS) \
 		--out-dir $(@D) $<
 
 $(POSTGRES_TEST): $(POSTGRES_TEST_FILE) $(POSTGRES_LIB) | $(BUILDDIR)
-	$(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) -L $(BUILDDIR) --dep-info $(POSTGRES_TEST_DEPS) \
+	$(ENV) $(RUSTC) $(RUSTFLAGS) $(LINK_ARGS) -L $(BUILDDIR) --dep-info $(POSTGRES_TEST_DEPS) \
 		--out-dir $(@D) --test $<
 
 all: $(POSTGRES_LIB)
@@ -60,7 +62,7 @@ check-test: $(POSTGRES_TEST)
 	$(POSTGRES_TEST)
 
 check-doc: $(POSTGRES_LIB)
-	$(RUSTDOC) $(LINK_ARGS) -L $(BUILDDIR) --test $(POSTGRES_LIB_FILE)
+	$(ENV) $(RUSTDOC) $(LINK_ARGS) -L $(BUILDDIR) --test $(POSTGRES_LIB_FILE)
 
 check: check-test check-doc
 
@@ -73,7 +75,7 @@ clean-deps:
 	rm -f $(PHF_STAMP) $(OPENSSL_STAMP)
 
 doc: $(OPENSSL) $(PHF)
-	$(RUSTDOC) $(LINK_ARGS) $(POSTGRES_LIB_FILE)
+	$(ENV) $(RUSTDOC) $(LINK_ARGS) $(POSTGRES_LIB_FILE)
 
 install: $(POSTGRES_LIB)
 	$(MAKE) -C $(PHF_DIR) install INSTALL_DIR=$(abspath $(INSTALL_DIR))
