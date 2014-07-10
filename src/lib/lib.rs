@@ -29,7 +29,7 @@
 //!                   )", []).unwrap();
 //!     let me = Person {
 //!         id: 0,
-//!         name: "Steven".to_str(),
+//!         name: "Steven".to_string(),
 //!         time_created: time::get_time(),
 //!         data: None
 //!     };
@@ -41,10 +41,10 @@
 //!             .unwrap();
 //!     for row in stmt.query([]).unwrap() {
 //!         let person = Person {
-//!             id: row[0u],
-//!             name: row[1u],
-//!             time_created: row[2u],
-//!             data: row[3u]
+//!             id: row.get(0u),
+//!             name: row.get(1u),
+//!             time_created: row.get(2u),
+//!             data: row.get(3u)
 //!         };
 //!         println!("Found person {}", person.name);
 //!     }
@@ -243,7 +243,7 @@ impl IntoConnectParams for Url {
         let database = if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path.as_slice().slice_shift_char();
-            Some(path.to_str())
+            Some(path.to_string())
         } else {
             None
         };
@@ -412,14 +412,14 @@ impl InnerPostgresConnection {
             canary: CANARY,
         };
 
-        options.push(("client_encoding".to_str(), "UTF8".to_str()));
+        options.push(("client_encoding".to_string(), "UTF8".to_string()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_str(), "GMT".to_str()));
+        options.push(("TimeZone".to_string(), "GMT".to_string()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_str(), user.clone()));
+        options.push(("user".to_string(), user.clone()));
         match database {
-            Some(database) => options.push(("database".to_str(), database)),
+            Some(database) => options.push(("database".to_string(), database)),
             None => {}
         }
 
@@ -450,15 +450,15 @@ impl InnerPostgresConnection {
             -> IoResult<()> {
         assert!(!self.desynchronized);
         for message in messages.iter() {
-            try_desync!(self.stream.write_message(message));
+            try_desync!(self, self.stream.write_message(message));
         }
-        Ok(try_desync!(self.stream.flush()))
+        Ok(try_desync!(self, self.stream.flush()))
     }
 
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         assert!(!self.desynchronized);
         loop {
-            match try_desync!(self.stream.read_message()) {
+            match try_desync!(self, self.stream.read_message()) {
                 NoticeResponse { fields } =>
                     self.notice_handler.handle(PostgresDbError::new(fields)),
                 NotificationResponse { pid, channel, payload } =>
@@ -556,13 +556,13 @@ impl InnerPostgresConnection {
                 try!(self.wait_for_ready());
                 return Err(PgDbError(PostgresDbError::new(fields)));
             }
-            _ => bad_response!(),
+            _ => bad_response!(self),
         }
 
         let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
             ParameterDescription { types } =>
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
-            _ => bad_response!(),
+            _ => bad_response!(self),
         };
 
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
@@ -575,7 +575,7 @@ impl InnerPostgresConnection {
                     }
                 }).collect(),
             NoData => vec![],
-            _ => bad_response!()
+            _ => bad_response!(self)
         };
 
         try!(self.wait_for_ready());
@@ -629,7 +629,7 @@ impl InnerPostgresConnection {
     fn wait_for_ready(&mut self) -> PostgresResult<()> {
         match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
-            _ => bad_response!()
+            _ => bad_response!(self)
         }
     }
 
@@ -714,7 +714,7 @@ impl PostgresConnection {
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_str()),
+    ///     user: Some("postgres".to_string()),
     ///     password: None,
     ///     database: None,
     ///     options: vec![],
@@ -1234,7 +1234,7 @@ impl<'conn> PostgresStatement<'conn> {
     ///     Err(err) => fail!("Error running query: {}", err)
     /// };
     /// for row in rows {
-    ///     let foo: i32 = row["foo"];
+    ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }
     /// ```
@@ -1395,7 +1395,7 @@ impl<'stmt> PostgresRow<'stmt> {
     ///
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
-    pub fn get<I: RowIndex, T: FromSql>(&self, idx: I) -> PostgresResult<T> {
+    pub fn get_opt<I: RowIndex, T: FromSql>(&self, idx: I) -> PostgresResult<T> {
         let idx = match idx.idx(self.stmt) {
             Some(idx) => idx,
             None => return Err(PgInvalidColumn)
@@ -1403,18 +1403,8 @@ impl<'stmt> PostgresRow<'stmt> {
         FromSql::from_sql(&self.stmt.result_desc.get(idx).ty,
                           self.data.get(idx))
     }
-}
 
-impl<'stmt> Collection for PostgresRow<'stmt> {
-    #[inline]
-    fn len(&self) -> uint {
-        self.data.len()
-    }
-}
-
-impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
-        for PostgresRow<'stmt> {
-    /// Retreives the contents of a field of the row.
+    /// Retrieves the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
@@ -1432,14 +1422,21 @@ impl<'stmt, I: RowIndex+Clone+fmt::Show, T: FromSql> Index<I, T>
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
-    /// let foo: i32 = row[0u];
-    /// let bar: String = row["bar"];
+    /// let foo: i32 = row.get(0u);
+    /// let bar: String = row.get("bar");
     /// ```
-    fn index(&self, idx: &I) -> T {
-        match self.get(idx.clone()) {
+    pub fn get<I: RowIndex+fmt::Show+Clone, T: FromSql>(&self, idx: I) -> T {
+        match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
             Err(err) => fail!("error retrieving column {}: {}", idx, err)
         }
+    }
+}
+
+impl<'stmt> Collection for PostgresRow<'stmt> {
+    #[inline]
+    fn len(&self) -> uint {
+        self.data.len()
     }
 }
 

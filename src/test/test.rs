@@ -96,7 +96,7 @@ fn test_unix_connection() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SHOW unix_socket_directories"));
     let result = or_fail!(stmt.query([]));
-    let unix_socket_directories: String = result.map(|row| row[0u]).next().unwrap();
+    let unix_socket_directories: String = result.map(|row| row.get(0u)).next().unwrap();
 
     if unix_socket_directories.is_empty() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
@@ -122,7 +122,7 @@ fn test_transaction_commit() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn test_transaction_commit_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn test_transaction_rollback() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn test_transaction_rollback_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn test_nested_transactions() {
         let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
         let result = or_fail!(stmt.query([]));
 
-        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row[0u]).collect());
+        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
 
         trans1.set_rollback();
     }
@@ -220,7 +220,7 @@ fn test_nested_transactions() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -266,7 +266,7 @@ fn test_nested_transactions_finish() {
             let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
             let result = or_fail!(stmt.query([]));
 
-            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row[0u]).collect());
+            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
         }
 
         trans1.set_rollback();
@@ -276,7 +276,7 @@ fn test_nested_transactions_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -330,7 +330,7 @@ fn test_batch_execute() {
     let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![10i64], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![10i64], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -358,7 +358,7 @@ fn test_query() {
     let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i64, 2], result.map(|row| row[0u]).collect());
+    assert_eq!(vec![1i64, 2], result.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -383,7 +383,7 @@ fn test_lazy_query() {
     }
     let stmt = or_fail!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
-    assert_eq!(values, result.map(|row| row.unwrap()[0u]).collect());
+    assert_eq!(values, result.map(|row| row.unwrap().get(0u)).collect());
 
     trans.set_rollback();
 }
@@ -414,8 +414,8 @@ fn test_result_descriptions() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_str(), ty: PgInt4},
-             ResultDescription { name: "b".to_str(), ty: PgVarchar}]);
+            [ResultDescription { name: "a".to_string(), ty: PgInt4},
+             ResultDescription { name: "b".to_string(), ty: PgVarchar}]);
 }
 
 #[test]
@@ -435,11 +435,11 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type).as_slice()));
-        let result = or_fail!(stmt.query([])).next().unwrap()[0u];
+        let result = or_fail!(stmt.query([])).next().unwrap().get(0u);
         assert!(val == &result);
 
         let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
-        let result = or_fail!(stmt.query([val])).next().unwrap()[0u];
+        let result = or_fail!(stmt.query([val])).next().unwrap().get(0u);
         assert!(val == &result);
     }
 }
@@ -457,8 +457,8 @@ fn test_i8_params() {
 
 #[test]
 fn test_name_params() {
-    test_type("NAME", [(Some("hello world".to_str()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_str()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("NAME", [(Some("hello world".to_string()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -498,15 +498,15 @@ fn test_f64_params() {
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", [(Some("hello world".to_str()), "'hello world'"),
-                          (Some("イロハニホヘト チリヌルヲ".to_str()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("VARCHAR", [(Some("hello world".to_string()), "'hello world'"),
+                          (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                           (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", [(Some("hello world".to_str()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_str()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("TEXT", [(Some("hello world".to_string()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -523,8 +523,8 @@ fn test_bpchar_params() {
     let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_fail!(stmt.query([]));
 
-    assert_eq!(vec!(Some("12345".to_str()), Some("123  ".to_str()), None),
-               res.map(|row| row[0u]).collect());
+    assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
+               res.map(|row| row.get(0u)).collect());
 }
 
 #[test]
@@ -568,7 +568,7 @@ fn test_tm_params() {
 
 macro_rules! test_range(
     ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
-        let tests = [(Some(range!('(', ')')), "'(,)'".to_str()),
+        let tests = [(Some(range!('(', ')')), "'(,)'".to_string()),
                      (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
                      (Some(range!('(' $low, ')')), format!("'({},)'", $low_str)),
                      (Some(range!('(', $high ']')), format!("'(,{}]'", $high_str)),
@@ -581,8 +581,8 @@ macro_rules! test_range(
                       format!("'({},{}]'", $low_str, $high_str)),
                      (Some(range!('(' $low, $high ')')),
                       format!("'({},{})'", $low_str, $high_str)),
-                     (Some(range!(empty)), "'empty'".to_str()),
-                     (None, "NULL".to_str())];
+                     (Some(range!(empty)), "'empty'".to_string()),
+                     (None, "NULL".to_string())];
         test_type($name, tests);
     })
 )
@@ -620,7 +620,7 @@ macro_rules! test_array_params(
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
                       format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
-                     (None, "NULL".to_str())];
+                     (None, "NULL".to_string())];
         test_type(format!("{}[]", $name).as_slice(), tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
@@ -650,8 +650,8 @@ fn test_chararray_params() {
 
 #[test]
 fn test_namearray_params() {
-    test_array_params!("NAME", "hello".to_str(), "hello", "world".to_str(),
-                       "world", "!".to_str(), "!");
+    test_array_params!("NAME", "hello".to_string(), "hello", "world".to_string(),
+                       "world", "!".to_string(), "!");
 }
 
 #[test]
@@ -666,20 +666,20 @@ fn test_int4array_params() {
 
 #[test]
 fn test_textarray_params() {
-    test_array_params!("TEXT", "hello".to_str(), "hello", "world".to_str(),
-                       "world", "!".to_str(), "!");
+    test_array_params!("TEXT", "hello".to_string(), "hello", "world".to_string(),
+                       "world", "!".to_string(), "!");
 }
 
 #[test]
 fn test_charnarray_params() {
-    test_array_params!("CHAR(5)", "hello".to_str(), "hello",
-                       "world".to_str(), "world", "!    ".to_str(), "!");
+    test_array_params!("CHAR(5)", "hello".to_string(), "hello",
+                       "world".to_string(), "world", "!    ".to_string(), "!");
 }
 
 #[test]
 fn test_varchararray_params() {
-    test_array_params!("VARCHAR", "hello".to_str(), "hello",
-                       "world".to_str(), "world", "!".to_str(), "!");
+    test_array_params!("VARCHAR", "hello".to_string(), "hello",
+                       "world".to_string(), "world", "!".to_string(), "!");
 }
 
 #[test]
@@ -763,10 +763,10 @@ fn test_hstore_params() {
         })
     )
     test_type("hstore",
-              [(Some(make_map!("a".to_str() => Some("1".to_str()))), "'a=>1'"),
-               (Some(make_map!("hello".to_str() => Some("world!".to_str()),
-                               "hola".to_str() => Some("mundo!".to_str()),
-                               "what".to_str() => None)),
+              [(Some(make_map!("a".to_string() => Some("1".to_string()))), "'a=>1'"),
+               (Some(make_map!("hello".to_string() => Some("world!".to_string()),
+                               "hola".to_string() => Some("mundo!".to_string()),
+                               "what".to_string() => None)),
                 "'hello=>world!,hola=>mundo!,what=>NULL'"),
                 (None, "NULL")]);
 }
@@ -775,13 +775,13 @@ fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type).as_slice()));
     let mut result = or_fail!(stmt.query([]));
-    let val: T = result.next().unwrap()[0u];
+    let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
     let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
     let mut result = or_fail!(stmt.query([&nan]));
-    let val: T = result.next().unwrap()[0u];
+    let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan())
 }
 
@@ -830,7 +830,7 @@ fn test_index_named() {
     let stmt = or_fail!(conn.prepare("SELECT 10::INT as val"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![10i32], result.map(|row| row["val"]).collect());
+    assert_eq!(vec![10i32], result.map(|row| row.get("val")).collect());
 }
 
 #[test]
@@ -840,7 +840,7 @@ fn test_index_named_fail() {
     let stmt = or_fail!(conn.prepare("SELECT 10::INT as id"));
     let mut result = or_fail!(stmt.query([]));
 
-    let _: i32 = result.next().unwrap()["asdf"];
+    let _: i32 = result.next().unwrap().get("asdf");
 }
 
 #[test]
@@ -849,7 +849,7 @@ fn test_get_named_err() {
     let stmt = or_fail!(conn.prepare("SELECT 10::INT as id"));
     let mut result = or_fail!(stmt.query([]));
 
-    match result.next().unwrap().get::<&str, i32>("asdf") {
+    match result.next().unwrap().get_opt::<&str, i32>("asdf") {
         Err(PgInvalidColumn) => {}
         res => fail!("unexpected result {}", res),
     };
@@ -861,7 +861,7 @@ fn test_get_was_null() {
     let stmt = or_fail!(conn.prepare("SELECT NULL::INT as id"));
     let mut result = or_fail!(stmt.query([]));
 
-    match result.next().unwrap().get::<uint, i32>(0) {
+    match result.next().unwrap().get_opt::<uint, i32>(0) {
         Err(PgWasNull) => {}
         res => fail!("unexpected result {}", res),
     };
@@ -919,21 +919,21 @@ fn test_notification_iterator_some() {
 
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_str(),
-        payload: "hello".to_str()
+        channel: "test_notification_iterator_one_channel".to_string(),
+        payload: "hello".to_string()
     }, it.next());
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel2".to_str(),
-        payload: "world".to_str()
+        channel: "test_notification_iterator_one_channel2".to_string(),
+        payload: "world".to_string()
     }, it.next());
     assert!(it.next().is_none());
 
     or_fail!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
     check_notification(PostgresNotification {
         pid: 0,
-        channel: "test_notification_iterator_one_channel".to_str(),
-        payload: "!".to_str()
+        channel: "test_notification_iterator_one_channel".to_string(),
+        payload: "!".to_string()
     }, it.next());
     assert!(it.next().is_none());
 }
@@ -1041,6 +1041,6 @@ fn test_pg_database_datname() {
     let mut result = or_fail!(stmt.query([]));
 
     let next = result.next().unwrap();
-    or_fail!(next.get::<uint, String>(0));
-    or_fail!(next.get::<&str, String>("datname"));
+    or_fail!(next.get_opt::<uint, String>(0));
+    or_fail!(next.get_opt::<&str, String>("datname"));
 }

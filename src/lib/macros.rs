@@ -17,11 +17,11 @@ macro_rules! try_pg(
 )
 
 macro_rules! try_desync(
-    ($e:expr) => (
+    ($s:expr, $e:expr) => (
         match $e {
             Ok(ok) => ok,
             Err(err) => {
-                self.desynchronized = true;
+                $s.desynchronized = true;
                 return Err(err);
             }
         }
@@ -40,9 +40,9 @@ macro_rules! check_desync(
 )
 
 macro_rules! bad_response(
-    () => ({
+    ($s:expr) => ({
         debug!("Unexpected response");
-        self.desynchronized = true;
+        $s.desynchronized = true;
         return Err(PgBadResponse);
     })
 )
