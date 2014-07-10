@@ -17,9 +17,9 @@ rev = "ad915f13ae2ad4217c18328a618ad696fb7014e1"
 [dependencies.phf]
 
 git = "https://github.com/sfackler/rust-phf"
-rev = "a0ab8d7f517305c77cdb1d51076ff4b3e31923e5"
+rev = "cb4ed93175b656f442802c27e039add8e2b86723"
 
 [dependencies.phf_mac]
 
 git = "https://github.com/sfackler/rust-phf"
-rev = "a0ab8d7f517305c77cdb1d51076ff4b3e31923e5"
+rev = "cb4ed93175b656f442802c27e039add8e2b86723"

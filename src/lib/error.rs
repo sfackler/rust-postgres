@@ -20,14 +20,14 @@ macro_rules! make_errors(
             UnknownSqlState(String)
         }
 
-        static STATE_MAP: PhfMap<PostgresSqlState> = phf_map!(
+        static STATE_MAP: PhfMap<&'static str, PostgresSqlState> = phf_map!(
             $($code => $error),+
         );
 
         impl PostgresSqlState {
             #[doc(hidden)]
             pub fn from_code(s: &str) -> PostgresSqlState {
-                match STATE_MAP.find(&s) {
+                match STATE_MAP.find_equiv(&s) {
                     Some(state) => state.clone(),
                     None => UnknownSqlState(s.to_str())
                 }
