@@ -9,6 +9,11 @@ authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 name = "postgres"
 path = "src/lib/lib.rs"
 
+[[test]]
+
+name = "test"
+path = "src/test/test.rs"
+
 [dependencies.openssl]
 
 git = "https://github.com/sfackler/rust-openssl"
