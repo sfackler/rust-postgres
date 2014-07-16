@@ -5,13 +5,12 @@ env:
 addons:
   postgresql: 9.3
 install:
-  - curl -O http://static.rust-lang.org/dist/rust-nightly-x86_64-unknown-linux-gnu.tar.gz
-  - tar xfz rust-nightly-x86_64-unknown-linux-gnu.tar.gz
-  - (cd rust-nightly-x86_64-unknown-linux-gnu/ && sudo ./install.sh)
+  - curl http://www.rust-lang.org/rustup.sh | sudo sh -
 before_script:
   - ./travis/setup.sh
-  - ./configure
 script:
-  - make all check doc
+  - cargo test
+  - rustdoc -L target/test -L target/test/deps --test src/lib/lib.rs
+  - rustdoc -L target/test/deps src/lib/lib.rs
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
