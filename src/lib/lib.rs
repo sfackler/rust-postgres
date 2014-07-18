@@ -1400,8 +1400,8 @@ impl<'stmt> PostgresRow<'stmt> {
             Some(idx) => idx,
             None => return Err(PgInvalidColumn)
         };
-        FromSql::from_sql(&self.stmt.result_desc.get(idx).ty,
-                          self.data.get(idx))
+        FromSql::from_sql(&self.stmt.result_desc[idx].ty,
+                          &self.data[idx])
     }
 
     /// Retrieves the contents of a field of the row.

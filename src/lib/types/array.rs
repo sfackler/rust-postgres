@@ -191,7 +191,7 @@ impl<T> MutableArray<T> for ArrayBase<T> {
 
 impl<T> InternalArray<T> for ArrayBase<T> {
     fn raw_get<'a>(&'a self, idx: uint, _size: uint) -> &'a T {
-        self.data.get(idx)
+        &self.data[idx]
     }
 }
 
