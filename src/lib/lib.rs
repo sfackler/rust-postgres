@@ -1162,12 +1162,12 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     /// Returns a slice containing the expected parameter types.
-    pub fn param_types<'a>(&'a self) -> &'a [PostgresType] {
+    pub fn param_types(&self) -> &[PostgresType] {
         self.param_types.as_slice()
     }
 
     /// Returns a slice describing the columns of the result of the query.
-    pub fn result_descriptions<'a>(&'a self) -> &'a [ResultDescription] {
+    pub fn result_descriptions(&self) -> &[ResultDescription] {
         self.result_desc.as_slice()
     }
 
