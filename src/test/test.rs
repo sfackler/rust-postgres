@@ -906,7 +906,7 @@ fn test_notification_iterator_some() {
                 assert_eq!(&expected.channel, &channel);
                 assert_eq!(&expected.payload, &payload);
             }
-            x => fail!("Expected {} but got {}", expected, x)
+            None => fail!("Unexpected result")
         }
     }
 

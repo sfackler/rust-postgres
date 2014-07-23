@@ -277,7 +277,6 @@ impl PostgresNoticeHandler for DefaultNoticeHandler {
 }
 
 /// An asynchronous notification
-#[deriving(Show)]
 pub struct PostgresNotification {
     /// The process ID of the notifying backend process
     pub pid: i32,
