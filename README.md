@@ -51,10 +51,10 @@ fn main() {
             .unwrap();
     for row in stmt.query([]).unwrap() {
         let person = Person {
-            id: row[0u],
-            name: row[1u],
-            time_created: row[2u],
-            data: row[3u]
+            id: row.get(0u),
+            name: row.get(1u),
+            time_created: row.get(2u),
+            data: row.get(3u)
         };
         println!("Found person {}", person.name);
     }
@@ -121,8 +121,8 @@ columns are zero-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
-    let bar: i32 = row[0u];
-    let baz: String = row["baz"];
+    let bar: i32 = row.get(0u);
+    let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
