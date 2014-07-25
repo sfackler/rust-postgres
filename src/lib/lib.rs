@@ -461,7 +461,7 @@ impl InnerPostgresConnection {
                 NoticeResponse { fields } =>
                     self.notice_handler.handle(PostgresDbError::new(fields)),
                 NotificationResponse { pid, channel, payload } =>
-                    self.notifications.push_back(PostgresNotification {
+                    self.notifications.push(PostgresNotification {
                         pid: pid,
                         channel: channel,
                         payload: payload
@@ -1315,7 +1315,7 @@ impl<'stmt> PostgresRows<'stmt> {
                     self.more_rows = true;
                     break;
                 },
-                DataRow { row } => self.data.push_back(row),
+                DataRow { row } => self.data.push(row),
                 ErrorResponse { fields } => {
                     try!(self.stmt.conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));

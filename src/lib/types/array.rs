@@ -113,7 +113,7 @@ impl<T> ArrayBase<T> {
     /// For example the one-dimensional array `[1,2]` would turn into
     /// the two-dimensional array `[[1,2]]`.
     pub fn wrap(&mut self, lower_bound: int) {
-        self.info.unshift(DimensionInfo {
+        self.info.insert(0, DimensionInfo {
             len: 1,
             lower_bound: lower_bound
         })
