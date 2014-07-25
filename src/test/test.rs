@@ -39,7 +39,8 @@ use postgres::error::{PgConnectDbError,
                       QueryCanceled,
                       UndefinedTable,
                       InvalidCatalogName,
-                      PgWrongTransaction};
+                      PgWrongTransaction,
+                      CardinalityViolation};
 use postgres::types::{ToSql, FromSql, PgInt4, PgVarchar};
 use postgres::types::array::{ArrayBase};
 use postgres::types::range::{Range, Inclusive, Exclusive, RangeBound};
@@ -359,6 +360,23 @@ fn test_query() {
     let result = or_fail!(stmt.query([]));
 
     assert_eq!(vec![1i64, 2], result.map(|row| row.get(0u)).collect());
+}
+
+#[test]
+fn test_error_after_datarow() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_fail!(conn.prepare("
+SELECT
+    (SELECT generate_series(1, ss.i))
+FROM (SELECT gs.i
+      FROM generate_series(1, 2) gs(i)
+      ORDER BY gs.i
+      LIMIT 2) ss"));
+    match stmt.query([]) {
+        Err(PgDbError(PostgresDbError { code: CardinalityViolation, .. })) => {}
+        Err(err) => fail!("Unexpected error {}", err),
+        Ok(_) => fail!("Expected failure"),
+    }
 }
 
 #[test]
