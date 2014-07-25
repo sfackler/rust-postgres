@@ -1316,6 +1316,10 @@ impl<'stmt> PostgresRows<'stmt> {
                     break;
                 },
                 DataRow { row } => self.data.push_back(row),
+                ErrorResponse { fields } => {
+                    try!(self.stmt.conn.wait_for_ready());
+                    return Err(PgDbError(PostgresDbError::new(fields)));
+                }
                 _ => {
                     self.stmt.conn.conn.borrow_mut().desynchronized = true;
                     return Err(PgBadResponse);
