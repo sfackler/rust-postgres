@@ -145,18 +145,14 @@ let trans = try!(conn.transaction());
 try!(trans.execute(...));
 let stmt = try!(trans.prepare(...));
 
-if a_bad_thing_happened {
-    trans.set_rollback();
-}
-
 if the_coast_is_clear {
     trans.set_commit();
 }
 
-drop(trans);
+try!(trans.finish());
 ```
 The transaction will be active until the `PostgresTransaction` object falls out
-of scope. A transaction will commit by default. Nested transactions are
+of scope. A transaction will roll back by default. Nested transactions are
 supported via savepoints.
 
 Connection Pooling
