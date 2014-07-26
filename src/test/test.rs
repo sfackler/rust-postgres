@@ -118,6 +118,7 @@ fn test_transaction_commit() {
 
     let trans = or_fail!(conn.transaction());
     or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32]));
+    trans.set_commit();
     drop(trans);
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -133,7 +134,23 @@ fn test_transaction_commit_finish() {
 
     let trans = or_fail!(conn.transaction());
     or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32]));
+    trans.set_commit();
     assert!(trans.finish().is_ok());
+
+    let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
+    let result = or_fail!(stmt.query([]));
+
+    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+}
+
+#[test]
+fn test_transaction_commit_method() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+
+    let trans = or_fail!(conn.transaction());
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32]));
+    assert!(trans.commit().is_ok());
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
@@ -150,7 +167,6 @@ fn test_transaction_rollback() {
 
     let trans = or_fail!(conn.transaction());
     or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32]));
-    trans.set_rollback();
     drop(trans);
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -168,7 +184,6 @@ fn test_transaction_rollback_finish() {
 
     let trans = or_fail!(conn.transaction());
     or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32]));
-    trans.set_rollback();
     assert!(trans.finish().is_ok());
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -191,7 +206,6 @@ fn test_nested_transactions() {
         {
             let trans2 = or_fail!(trans1.transaction());
             or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
-            trans2.set_rollback();
         }
 
         {
@@ -201,21 +215,21 @@ fn test_nested_transactions() {
             {
                 let trans3 = or_fail!(trans2.transaction());
                 or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
-                trans3.set_rollback();
             }
 
             {
                 let trans3 = or_fail!(trans2.transaction());
                 or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
+                assert!(trans3.commit().is_ok());
             }
+
+            assert!(trans2.commit().is_ok());
         }
 
         let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
         let result = or_fail!(stmt.query([]));
 
         assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
-
-        trans1.set_rollback();
     }
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
@@ -238,7 +252,6 @@ fn test_nested_transactions_finish() {
         {
             let trans2 = or_fail!(trans1.transaction());
             or_fail!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
-            trans2.set_rollback();
             assert!(trans2.finish().is_ok());
         }
 
@@ -249,16 +262,17 @@ fn test_nested_transactions_finish() {
             {
                 let trans3 = or_fail!(trans2.transaction());
                 or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
-                trans3.set_rollback();
                 assert!(trans3.finish().is_ok());
             }
 
             {
                 let trans3 = or_fail!(trans2.transaction());
                 or_fail!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
+                trans3.set_commit();
                 assert!(trans3.finish().is_ok());
             }
 
+            trans2.set_commit();
             assert!(trans2.finish().is_ok());
         }
 
@@ -270,7 +284,6 @@ fn test_nested_transactions_finish() {
             assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
         }
 
-        trans1.set_rollback();
         assert!(trans1.finish().is_ok());
     }
 

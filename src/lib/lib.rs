@@ -83,7 +83,6 @@ use std::from_str::FromStr;
 use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::Port;
 use std::mem;
-use std::task;
 use std::fmt;
 
 use error::{InvalidUrl,
@@ -784,8 +783,10 @@ impl PostgresConnection {
     /// Returns a `PostgresTransaction` object which should be used instead of
     /// the connection for the duration of the transaction. The transaction
     /// is active until the `PostgresTransaction` object falls out of scope.
-    /// A transaction will commit by default unless the task fails or the
-    /// transaction is set to roll back.
+    ///
+    /// # Note
+    /// A transaction will roll back by default. Use the `set_commit` method to
+    /// set the transaction to commit.
     ///
     /// # Example
     ///
@@ -795,13 +796,10 @@ impl PostgresConnection {
     /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", []));
+    /// // ...
     ///
-    /// # let something_bad_happened = true;
-    /// if something_bad_happened {
-    ///     trans.set_rollback();
-    /// }
-    ///
-    /// drop(trans);
+    /// trans.set_commit();
+    /// try!(trans.finish());
     /// # Ok(())
     /// # }
     /// ```
@@ -815,7 +813,7 @@ impl PostgresConnection {
         self.conn.borrow_mut().trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self,
-            commit: Cell::new(true),
+            commit: Cell::new(false),
             depth: 1,
             finished: false,
         })
@@ -937,7 +935,7 @@ pub enum SslMode {
 
 /// Represents a transaction on a database connection.
 ///
-/// The transaction will commit by default.
+/// The transaction will roll back by default.
 pub struct PostgresTransaction<'conn> {
     conn: &'conn PostgresConnection,
     commit: Cell<bool>,
@@ -957,12 +955,11 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
 impl<'conn> PostgresTransaction<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
         debug_assert!(self.depth == self.conn.conn.borrow().trans_depth);
-        let rollback = task::failing() || !self.commit.get();
-        let query = match (rollback, self.depth != 1) {
-            (true, true) => "ROLLBACK TO sp",
-            (true, false) => "ROLLBACK",
-            (false, true) => "RELEASE sp",
-            (false, false) => "COMMIT",
+        let query = match (self.commit.get(), self.depth != 1) {
+            (false, true) => "ROLLBACK TO sp",
+            (false, false) => "ROLLBACK",
+            (true, true) => "RELEASE sp",
+            (true, false) => "COMMIT",
         };
         self.conn.conn.borrow_mut().trans_depth -= 1;
         self.conn.quick_query(query).map(|_| ())
@@ -1002,7 +999,7 @@ impl<'conn> PostgresTransaction<'conn> {
         self.conn.conn.borrow_mut().trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self.conn,
-            commit: Cell::new(true),
+            commit: Cell::new(false),
             depth: self.depth + 1,
             finished: false,
         })
@@ -1021,6 +1018,12 @@ impl<'conn> PostgresTransaction<'conn> {
     /// Sets the transaction to roll back at its completion.
     pub fn set_rollback(&self) {
         self.commit.set(false);
+    }
+
+    /// A convenience method which consumes and commits a transaction.
+    pub fn commit(self) -> PostgresResult<()> {
+        self.set_commit();
+        self.finish()
     }
 
     /// Consumes the transaction, commiting or rolling it back as appropriate.
