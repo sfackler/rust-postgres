@@ -851,7 +851,7 @@ impl PostgresConnection {
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, PostgresResult};
     /// fn init_db(conn: &PostgresConnection) -> PostgresResult<()> {
-    ///     static INIT_DB: &'static str = "
+    ///     conn.batch_execute("
     ///         CREATE TABLE person (
     ///             id SERIAL PRIMARY KEY,
     ///             name NOT NULL
@@ -864,8 +864,7 @@ impl PostgresConnection {
     ///         );
     ///
     ///         CREATE INDEX ON purchase (time);
-    ///         ";
-    ///     conn.batch_execute(INIT_DB)
+    ///         ")
     /// }
     /// ```
     pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
