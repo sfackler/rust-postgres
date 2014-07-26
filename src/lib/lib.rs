@@ -167,6 +167,15 @@ pub enum PostgresConnectTarget {
     TargetUnix(Path)
 }
 
+/// Authentication information
+#[deriving(Clone)]
+pub struct PostgresUserInfo {
+    /// The username
+    pub user: String,
+    /// An optional password
+    pub password: Option<String>,
+}
+
 /// Information necessary to open a new connection to a Postgres server.
 #[deriving(Clone)]
 pub struct PostgresConnectParams {
@@ -180,9 +189,7 @@ pub struct PostgresConnectParams {
     ///
     /// `PostgresConnection::connect` requires a user but `cancel_query` does
     /// not.
-    pub user: Option<String>,
-    /// An optional password used for authentication
-    pub password: Option<String>,
+    pub user: Option<PostgresUserInfo>,
     /// The database to connect to. Defaults the value of `user`.
     pub database: Option<String>,
     /// Runtime parameters to be passed to the Postgres backend.
@@ -235,9 +242,10 @@ impl IntoConnectParams for Url {
             TargetTcp(host)
         };
 
-        let (user, pass) = match user {
-            Some(UserInfo { user, pass }) => (Some(user), pass),
-            None => (None, None),
+        let user = match user {
+            Some(UserInfo { user, pass }) =>
+                Some(PostgresUserInfo { user: user, password: pass }),
+            None => None,
         };
 
         let database = if !path.is_empty() {
@@ -252,7 +260,6 @@ impl IntoConnectParams for Url {
             target: target,
             port: port,
             user: user,
-            password: pass,
             database: database,
             options: options,
         })
@@ -387,7 +394,6 @@ impl InnerPostgresConnection {
 
         let PostgresConnectParams {
             user,
-            password,
             database,
             mut options,
             ..
@@ -416,7 +422,7 @@ impl InnerPostgresConnection {
         // WITH TIME ZONE values. Timespec converts to GMT internally.
         options.push(("TimeZone".to_string(), "GMT".to_string()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_string(), user.clone()));
+        options.push(("user".to_string(), user.user.clone()));
         match database {
             Some(database) => options.push(("database".to_string(), database)),
             None => {}
@@ -427,7 +433,7 @@ impl InnerPostgresConnection {
             parameters: options.as_slice()
         }]));
 
-        try!(conn.handle_auth(user, password));
+        try!(conn.handle_auth(user));
 
         loop {
             match try_pg_conn!(conn.read_message()) {
@@ -473,12 +479,12 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: String, pass: Option<String>)
+    fn handle_auth(&mut self, user: PostgresUserInfo)
             -> Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
-                let pass = match pass {
+                let pass = match user.password {
                     Some(pass) => pass,
                     None => return Err(MissingPassword)
                 };
@@ -487,13 +493,13 @@ impl InnerPostgresConnection {
                     }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = match pass {
+                let pass = match user.password {
                     Some(pass) => pass,
                     None => return Err(MissingPassword)
                 };
                 let hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
-                hasher.update(user.as_bytes());
+                hasher.update(user.user.as_bytes());
                 let output = hasher.final().as_slice().to_hex();
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
@@ -708,13 +714,15 @@ impl PostgresConnection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, PostgresConnectParams, NoSsl, TargetUnix};
+    /// # use postgres::{PostgresConnection, PostgresUserInfo, PostgresConnectParams, NoSsl, TargetUnix};
     /// # let some_crazy_path = Path::new("");
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some("postgres".to_string()),
-    ///     password: None,
+    ///     user: Some(PostgresUserInfo {
+    ///         user: "postgres".to_string(),
+    ///         password: None
+    ///     }),
     ///     database: None,
     ///     options: vec![],
     /// };
