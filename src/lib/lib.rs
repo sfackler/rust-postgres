@@ -453,7 +453,7 @@ impl InnerPostgresConnection {
 
     fn write_messages(&mut self, messages: &[FrontendMessage])
             -> IoResult<()> {
-        assert!(!self.desynchronized);
+        debug_assert!(!self.desynchronized);
         for message in messages.iter() {
             try_desync!(self, self.stream.write_message(message));
         }
@@ -461,7 +461,7 @@ impl InnerPostgresConnection {
     }
 
     fn read_message(&mut self) -> IoResult<BackendMessage> {
-        assert!(!self.desynchronized);
+        debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 NoticeResponse { fields } =>
