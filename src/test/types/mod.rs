@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use postgres::{PostgresConnection, NoSsl};
 use postgres::types::array::ArrayBase;
-use postgres::types::range::{RangeBound, Inclusive, Exclusive, Range};
 use postgres::types::{ToSql, FromSql};
 
 mod array;
@@ -306,9 +305,9 @@ fn test_uuidarray_params() {
 #[test]
 fn test_int4rangearray_params() {
     test_array_params!("INT4RANGE",
-                       Range::new(None, None), "\"(,)\"",
-                       Range::new(Some(RangeBound::new(10i32, Inclusive)), None), "\"[10,)\"",
-                       Range::new(None, Some(RangeBound::new(10i32, Exclusive))), "\"(,10)\"");
+                       range!('(', ')'), "\"(,)\"",
+                       range!('[' 10i32, ')'), "\"[10,)\"",
+                       range!('(', 10i32 ')'), "\"(,10)\"");
 }
 
 #[test]
@@ -318,11 +317,11 @@ fn test_tsrangearray_params() {
     }
     let (v1, s1) = make_check("1970-10-11");
     let (v2, s2) = make_check("1990-01-01");
-    let r1 = Range::new(None, None);
+    let r1 = range!('(', ')');
     let rs1 = "\"(,)\"";
-    let r2 = Range::new(Some(RangeBound::new(v1, Inclusive)), None);
+    let r2 = range!('[' v1, ')');
     let rs2 = format!("\"[{},)\"", s1);
-    let r3 = Range::new(None, Some(RangeBound::new(v2, Exclusive)));
+    let r3 = range!('(', v2 ')');
     let rs3 = format!("\"(,{})\"", s2);
     test_array_params!("TSRANGE", r1, rs1, r2, rs2, r3, rs3);
     test_array_params!("TSTZRANGE", r1, rs1, r2, rs2, r3, rs3);
@@ -331,9 +330,9 @@ fn test_tsrangearray_params() {
 #[test]
 fn test_int8rangearray_params() {
     test_array_params!("INT8RANGE",
-                       Range::new(None, None), "\"(,)\"",
-                       Range::new(Some(RangeBound::new(10i64, Inclusive)), None), "\"[10,)\"",
-                       Range::new(None, Some(RangeBound::new(10i64, Exclusive))), "\"(,10)\"");
+                       range!('(', ')'), "\"(,)\"",
+                       range!('[' 10i64, ')'), "\"[10,)\"",
+                       range!('(', 10i64 ')'), "\"(,10)\"");
 }
 
 #[test]
