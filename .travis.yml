@@ -10,6 +10,7 @@ before_script:
 script:
   - cargo test
   - rustdoc -L target/test -L target/test/deps --test src/lib/lib.rs
-  - rustdoc -L target/test/deps src/lib/lib.rs
+  - cargo doc --no-deps
 after_script:
+  - mv target/doc .
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh

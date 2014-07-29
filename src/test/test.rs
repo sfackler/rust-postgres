@@ -407,8 +407,6 @@ fn test_lazy_query() {
     let stmt = or_fail!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
     assert_eq!(values, result.map(|row| row.unwrap().get(0u)).collect());
-
-    trans.set_rollback();
 }
 
 #[test]
@@ -475,9 +473,7 @@ fn test_too_few_params() {
 #[test]
 fn test_too_many_params() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    match conn.execute("SELECT $1::INT, $2::INT", [&1i32,
-                                                   &2i32,
-                                                   &3i32]) {
+    match conn.execute("SELECT $1::INT, $2::INT", [&1i32, &2i32, &3i32]) {
         Err(PgWrongParamCount { expected: 2, actual: 3 }) => {},
         res => fail!("unexpected result {}", res)
     }
@@ -538,7 +534,8 @@ fn test_custom_notice_handler() {
         }
     }
 
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl));
+    let conn = or_fail!(PostgresConnection::connect(
+            "postgres://postgres@localhost?client_min_messages=NOTICE", &NoSsl));
     conn.set_notice_handler(box Handler);
     or_fail!(conn.execute("CREATE FUNCTION pg_temp.note() RETURNS INT AS $$
                            BEGIN
