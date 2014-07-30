@@ -22,7 +22,7 @@ impl InnerConnectionPool {
 ///
 /// It can be shared across tasks.
 ///
-/// # Example
+/// ## Example
 ///
 /// ```rust,no_run
 /// # use postgres::NoSsl;

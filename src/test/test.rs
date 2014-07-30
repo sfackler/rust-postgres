@@ -356,6 +356,20 @@ fn test_batch_execute_error() {
 }
 
 #[test]
+fn test_transaction_batch_execute() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let trans = or_fail!(conn.transaction());
+    let query = "CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY);
+                 INSERT INTO foo (id) VALUES (10);";
+    or_fail!(trans.batch_execute(query));
+
+    let stmt = or_fail!(trans.prepare("SELECT * from foo ORDER BY id"));
+    let result = or_fail!(stmt.query([]));
+
+    assert_eq!(vec![10i64], result.map(|row| row.get(0u)).collect());
+}
+
+#[test]
 fn test_query() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));

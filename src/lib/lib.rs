@@ -300,7 +300,7 @@ pub struct PostgresNotifications<'conn> {
 impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
     /// Returns the oldest pending notification or `None` if there are none.
     ///
-    /// # Note
+    /// ## Note
     ///
     /// `next` may return `Some` notification after returning `None` if a new
     /// notification was received.
@@ -330,7 +330,7 @@ pub struct PostgresCancelData {
 /// Only the host and port of the connetion info are used. See
 /// `PostgresConnection::connect` for details of the `params` argument.
 ///
-/// # Example
+/// ## Example
 ///
 /// ```rust,no_run
 /// # use postgres::{PostgresConnection, NoSsl};
@@ -694,7 +694,7 @@ impl PostgresConnection {
     /// should be created manually and passed in. Note that Postgres does not
     /// support SSL over Unix sockets.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
@@ -759,7 +759,7 @@ impl PostgresConnection {
     /// The statement is associated with the connection that created it and may
     /// not outlive that connection.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
@@ -784,11 +784,11 @@ impl PostgresConnection {
     /// the connection for the duration of the transaction. The transaction
     /// is active until the `PostgresTransaction` object falls out of scope.
     ///
-    /// # Note
+    /// ## Note
     /// A transaction will roll back by default. Use the `set_commit` method to
     /// set the transaction to commit.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
@@ -837,14 +837,14 @@ impl PostgresConnection {
     /// execution of batches of non-dynamic statements - for example, creation
     /// of a schema for a fresh database.
     ///
-    /// # Warning
+    /// ## Warning
     ///
     /// Prepared statements should be used for any SQL statement which contains
     /// user-specified data, as it provides functionality to safely embed that
     /// data in the statment. Do not form statements via string concatenation
     /// and feed them into this method.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, PostgresResult};
@@ -982,10 +982,11 @@ impl<'conn> PostgresTransaction<'conn> {
 
     /// Like `PostgresConnection::batch_execute`.
     pub fn batch_execute(&self, query: &str) -> PostgresResult<()> {
-        if self.conn.conn.borrow().trans_depth != self.depth {
+        let mut conn = self.conn.conn.borrow_mut();
+        if conn.trans_depth != self.depth {
             return Err(PgWrongTransaction);
         }
-        self.conn.batch_execute(query)
+        conn.quick_query(query).map(|_| ())
     }
 
     /// Like `PostgresConnection::transaction`.
@@ -1184,7 +1185,7 @@ impl<'conn> PostgresStatement<'conn> {
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
@@ -1231,7 +1232,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// Executes the prepared statement, returning an iterator over the
     /// resulting rows.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
@@ -1422,12 +1423,12 @@ impl<'stmt> PostgresRow<'stmt> {
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
     ///
-    /// # Example
+    /// ## Example
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};

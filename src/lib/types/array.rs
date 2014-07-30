@@ -19,7 +19,7 @@ pub trait Array<T> {
 
     /// Slices into this array, returning an immutable view of a subarray.
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the array is one-dimensional or the index is out of bounds.
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T>;
@@ -27,7 +27,7 @@ pub trait Array<T> {
     /// Retrieves an immutable reference to a value in this array.
     ///
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the array is multi-dimensional or the index is out of bounds.
     fn get<'a>(&'a self, idx: int) -> &'a T;
@@ -37,7 +37,7 @@ pub trait Array<T> {
 pub trait MutableArray<T> : Array<T> {
     /// Slices into this array, returning a mutable view of a subarray.
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the array is one-dimensional or the index is out of bounds.
     fn slice_mut<'a>(&'a mut self, idx: int) -> MutArraySlice<'a, T>;
@@ -45,7 +45,7 @@ pub trait MutableArray<T> : Array<T> {
     /// Retrieves a mutable reference to a value in this array.
     ///
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the array is multi-dimensional or the index is out of bounds.
     fn get_mut<'a>(&'a mut self, idx: int) -> &'a mut T;
@@ -82,7 +82,7 @@ impl<T> ArrayBase<T> {
     /// The data array should be provided in the higher-dimensional equivalent
     /// of row-major order.
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if there are 0 dimensions or the number of elements provided does
     /// not match the number of elements specified.
@@ -129,7 +129,7 @@ impl<T> ArrayBase<T> {
     /// For example, if `[3,4]` is pushed onto `[[1,2]]`, the result is
     /// `[[1,2],[3,4]]`.
     ///
-    /// # Failure
+    /// ## Failure
     ///
     /// Fails if the other array does not have dimensions identical to the
     /// dimensions of a slice of this array.
