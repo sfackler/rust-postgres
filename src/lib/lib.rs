@@ -1006,6 +1006,31 @@ impl<'conn> PostgresTransaction<'conn> {
         })
     }
 
+    /// Executes a prepared statement, returning a lazily loaded iterator over
+    /// the resulting rows.
+    ///
+    /// No more than `row_limit` rows will be stored in memory at a time. Rows
+    /// will be pulled from the database in batches of `row_limit` as needed.
+    /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
+    /// to `query`.
+    pub fn lazy_query<'trans, 'stmt>(&'trans self,
+                                     stmt: &'stmt PostgresStatement,
+                                     params: &[&ToSql],
+                                     row_limit: i32)
+                                     -> PostgresResult<PostgresLazyRows
+                                                       <'trans, 'stmt>> {
+        if self.conn as *const _ != stmt.conn as *const _ {
+            return Err(PgWrongConnection);
+        }
+        check_desync!(self.conn);
+        stmt.lazy_query(row_limit, params).map(|result| {
+            PostgresLazyRows {
+                _trans: self,
+                result: result
+            }
+        })
+    }
+
     /// Determines if the transaction is currently set to commit or roll back.
     pub fn will_commit(&self) -> bool {
         self.commit.get()
@@ -1034,31 +1059,6 @@ impl<'conn> PostgresTransaction<'conn> {
     pub fn finish(mut self) -> PostgresResult<()> {
         self.finished = true;
         self.finish_inner()
-    }
-
-    /// Executes a prepared statement, returning a lazily loaded iterator over
-    /// the resulting rows.
-    ///
-    /// No more than `row_limit` rows will be stored in memory at a time. Rows
-    /// will be pulled from the database in batches of `row_limit` as needed.
-    /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
-    /// to `query`.
-    pub fn lazy_query<'trans, 'stmt>(&'trans self,
-                                     stmt: &'stmt PostgresStatement,
-                                     params: &[&ToSql],
-                                     row_limit: i32)
-                                     -> PostgresResult<PostgresLazyRows
-                                                       <'trans, 'stmt>> {
-        if self.conn as *const _ != stmt.conn as *const _ {
-            return Err(PgWrongConnection);
-        }
-        check_desync!(self.conn);
-        stmt.lazy_query(row_limit, params).map(|result| {
-            PostgresLazyRows {
-                _trans: self,
-                result: result
-            }
-        })
     }
 }
 
