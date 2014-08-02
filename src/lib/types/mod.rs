@@ -1,7 +1,6 @@
 //! Traits dealing with Postgres data types
 #![macro_escape]
 
-use uuid::Uuid;
 use serialize::json;
 use serialize::json::Json;
 use std::collections::HashMap;
@@ -296,15 +295,6 @@ impl RawFromSql for Timespec {
     }
 }
 
-impl RawFromSql for Uuid {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> PostgresResult<Uuid> {
-        match Uuid::from_bytes(try_pg!(raw.read_to_end()).as_slice()) {
-            Some(u) => Ok(u),
-            None => Err(PgBadData),
-        }
-    }
-}
-
 macro_rules! from_range_impl(
     ($t:ty) => (
         impl RawFromSql for Range<$t> {
@@ -409,7 +399,6 @@ from_raw_from_impl!(PgInt4, i32)
 from_raw_from_impl!(PgInt8, i64)
 from_raw_from_impl!(PgFloat4, f32)
 from_raw_from_impl!(PgFloat8, f64)
-from_raw_from_impl!(PgUuid, Uuid)
 from_raw_from_impl!(PgJson, Json)
 
 from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
@@ -463,7 +452,6 @@ from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 from_array_impl!(PgJsonArray, Json)
 from_array_impl!(PgFloat4Array, f32)
 from_array_impl!(PgFloat8Array, f64)
-from_array_impl!(PgUuidArray, Uuid)
 from_array_impl!(PgInt4RangeArray, Range<i32>)
 from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 from_array_impl!(PgInt8RangeArray, Range<i64>)
@@ -579,12 +567,6 @@ impl RawToSql for Timespec {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
             + self.nsec as i64 / NSEC_PER_USEC;
         Ok(try_pg!(w.write_be_i64(t)))
-    }
-}
-
-impl RawToSql for Uuid {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> PostgresResult<()> {
-        Ok(try_pg!(w.write(self.as_bytes())))
     }
 }
 
@@ -734,7 +716,6 @@ impl<'a> ToSql for &'a [u8] {
 to_option_impl_lifetime!(PgByteA, &'a [u8])
 
 to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
-to_raw_to_impl!(PgUuid, Uuid)
 
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -784,7 +765,6 @@ to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, String
 to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
 to_array_impl!(PgFloat4Array, f32)
 to_array_impl!(PgFloat8Array, f64)
-to_array_impl!(PgUuidArray, Uuid)
 to_array_impl!(PgInt4RangeArray, Range<i32>)
 to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)

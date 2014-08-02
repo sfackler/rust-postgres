@@ -5,7 +5,6 @@ extern crate postgres;
 extern crate serialize;
 extern crate time;
 extern crate url;
-extern crate uuid;
 extern crate openssl;
 
 use openssl::ssl::{SslContext, Sslv3};

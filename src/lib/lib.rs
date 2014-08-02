@@ -70,7 +70,6 @@ extern crate phf_mac;
 extern crate url;
 #[phase(plugin, link)]
 extern crate log;
-extern crate uuid;
 
 use collections::{Deque, RingBuf};
 use url::{UserInfo, Url};

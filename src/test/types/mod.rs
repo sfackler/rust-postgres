@@ -4,7 +4,6 @@ use std::f32;
 use std::f64;
 use time;
 use time::Timespec;
-use uuid::Uuid;
 
 use postgres::{PostgresConnection, NoSsl};
 use postgres::types::array::ArrayBase;
@@ -121,13 +120,6 @@ fn test_json_params() {
                         "'[10, 11, 12]'"),
                        (Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
                         "'{\"f\": \"asd\"}'"),
-                       (None, "NULL")])
-}
-
-#[test]
-fn test_uuid_params() {
-    test_type("UUID", [(Some(Uuid::parse_string("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
-                        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'"),
                        (None, "NULL")])
 }
 
@@ -289,17 +281,6 @@ fn test_float4array_params() {
 #[test]
 fn test_float8array_params() {
     test_array_params!("FLOAT8", 0f64, "0", 1.5f64, "1.5", 0.009f64, ".009");
-}
-
-#[test]
-fn test_uuidarray_params() {
-    fn make_check<'a>(uuid: &'a str) -> (Uuid, &'a str) {
-        (Uuid::parse_string(uuid).unwrap(), uuid)
-    }
-    let (v1, s1) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
-    let (v2, s2) = make_check("00000000-0000-0000-0000-000000000000");
-    let (v3, s3) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
-    test_array_params!("UUID", v1, s1, v2, s2, v3, s3);
 }
 
 #[test]
