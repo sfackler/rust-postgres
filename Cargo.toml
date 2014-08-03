@@ -7,13 +7,13 @@ authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 [[lib]]
 
 name = "postgres"
-path = "src/lib/lib.rs"
+path = "src/lib.rs"
 test = false
 
 [[test]]
 
 name = "test"
-path = "src/test/test.rs"
+path = "tests/test.rs"
 
 [dependencies.openssl]
 
