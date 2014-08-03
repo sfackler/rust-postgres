@@ -227,10 +227,6 @@ types. The driver currently supports the following conversions:
             <td>JSON</td>
         </tr>
         <tr>
-            <td>uuid::Uuid</td>
-            <td>UUID</td>
-        </tr>
-        <tr>
             <td>time::Timespec</td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
@@ -289,10 +285,6 @@ types. The driver currently supports the following conversions:
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;f64&gt;&gt;</td>
             <td>FLOAT8[], FLOAT8[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Uuid&gt;&gt;</td>
-            <td>UUID[], UUID[][], ...</td>
         </tr>
         <tr>
             <td>types::array::ArrayBase&lt;Option&lt;Range&lt;i32&gt;&gt;&gt;</td>
