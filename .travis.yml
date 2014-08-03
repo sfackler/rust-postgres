@@ -6,7 +6,7 @@ addons:
 install:
   - curl http://www.rust-lang.org/rustup.sh | sudo sh -
 before_script:
-  - ./travis/setup.sh
+  - ./.travis/setup.sh
 script:
   - cargo test
   - rustdoc -L target/test -L target/test/deps --test src/lib/lib.rs
