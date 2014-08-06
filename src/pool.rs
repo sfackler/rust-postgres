@@ -26,6 +26,7 @@ impl InnerConnectionPool {
 /// ## Example
 ///
 /// ```rust,no_run
+/// # #![allow(deprecated)]
 /// # use postgres::NoSsl;
 /// # use postgres::pool::PostgresConnectionPool;
 /// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
