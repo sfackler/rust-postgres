@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::comm;
 use std::sync::Future;
 
