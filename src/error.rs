@@ -357,6 +357,7 @@ make_errors!(
 )
 
 /// Reasons a new Postgres connection could fail
+#[deriving(Clone, PartialEq, Eq)]
 pub enum PostgresConnectError {
     /// The provided URL could not be parsed
     InvalidUrl(String),
@@ -408,6 +409,7 @@ impl fmt::Show for PostgresConnectError {
 }
 
 /// Represents the position of an error in a query
+#[deriving(Clone, PartialEq, Eq)]
 pub enum PostgresErrorPosition {
     /// A position in the original query
     Position(uint),
@@ -421,6 +423,7 @@ pub enum PostgresErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
+#[deriving(Clone, PartialEq, Eq)]
 pub struct PostgresDbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -515,6 +518,7 @@ impl fmt::Show for PostgresDbError {
 }
 
 /// An error encountered when communicating with the Postgres server
+#[deriving(Clone, PartialEq, Eq)]
 pub enum PostgresError {
     /// An error reported by the Postgres server
     PgDbError(PostgresDbError),
