@@ -1,6 +1,6 @@
 [package]
 
-name = "rust-postgres"
+name = "postgres"
 version = "0.0.0"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 
