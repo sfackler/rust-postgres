@@ -8,6 +8,7 @@ authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 
 name = "postgres"
 path = "src/lib.rs"
+test = false
 
 [[test]]
 
