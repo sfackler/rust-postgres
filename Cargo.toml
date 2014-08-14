@@ -1,31 +1,25 @@
 [package]
-
 name = "postgres"
 version = "0.0.0"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 
 [[lib]]
-
 name = "postgres"
 path = "src/lib.rs"
 test = false
 
 [[test]]
-
 name = "test"
 path = "tests/test.rs"
 
 [dependencies.openssl]
-
 git = "https://github.com/sfackler/rust-openssl"
 rev = "39343df472b4b0c99055d371f42beceeef527bd6"
 
 [dependencies.phf]
-
 git = "https://github.com/sfackler/rust-phf"
 rev = "b2220d9a428049fb9c52b51c16d8f6b15cd02487"
 
 [dependencies.phf_mac]
-
 git = "https://github.com/sfackler/rust-phf"
 rev = "b2220d9a428049fb9c52b51c16d8f6b15cd02487"
