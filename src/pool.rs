@@ -1,5 +1,6 @@
 //! A simple connection pool
 #![deprecated="Use https://github.com/sfackler/r2d2-postgres instead"]
+#![allow(deprecated)]
 
 use std::sync::{Arc, Mutex};
 
