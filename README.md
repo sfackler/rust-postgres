@@ -1,13 +1,11 @@
-Rust-Postgres
-=============
+# Rust-Postgres
 A native PostgreSQL driver for Rust.
 
 Documentation is available at http://www.rust-ci.org/sfackler/rust-postgres/doc/postgres/.
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres)
 
-Overview
-========
+## Overview
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
 exposes a high level interface in the vein of JDBC or Go's `database/sql`
 package.
@@ -61,9 +59,7 @@ fn main() {
 }
 ```
 
-Requirements
-============
-
+## Requirements
 * **Rust** - Rust-Postgres is developed against the *master* branch of the Rust
     repository. It will most likely not build against the versioned releases on
     http://www.rust-lang.org.
@@ -72,11 +68,9 @@ Requirements
     PostgreSQL protocol, which corresponds to versions 7.4 and later. If your
     version of Postgres was compiled in the last decade, you should be okay.
 
-Usage
-=====
+## Usage
 
-Connecting
-----------
+### Connecting
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
@@ -95,16 +89,14 @@ let conn = try!(PosgresConnection::connect("postgres://postgres@%2Frun%2Fpostgre
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
 
-Statement Preparation
----------------------
+### Statement Preparation
 Prepared statements can have parameters, represented as `$n` where `n` is an
 index into the parameter array starting from 1:
 ```rust
 let stmt = try!(conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2"));
 ```
 
-Querying
---------
+### Querying
 A prepared statement can be executed with the `query` and `execute` methods.
 Both methods take an array of parameters to bind to the query represented as
 `&ToSql` trait objects. `execute` returns the number of rows affected by the
@@ -134,8 +126,7 @@ let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
 println!("{} rows were updated", updates);
 ```
 
-Transactions
-------------
+### Transactions
 The `transaction` method will start a new transaction. It returns a
 `PostgresTransaction` object which has the functionality of a
 `PostgresConnection` as well as methods to control the result of the
@@ -155,8 +146,7 @@ The transaction will be active until the `PostgresTransaction` object falls out
 of scope. A transaction will roll back by default. Nested transactions are
 supported via savepoints.
 
-Connection Pooling
-------------------
+### Connection Pooling
 A very basic fixed-size connection pool is provided in the `pool` module. A
 single pool can be shared across tasks and `get_connection` will block until a
 connection is available.
@@ -173,8 +163,7 @@ for _ in range(0, 10) {
 }
 ```
 
-Type Correspondence
--------------------
+### Type Correspondence
 Rust-Postgres enforces a strict correspondence between Rust types and Postgres
 types. The driver currently supports the following conversions:
 
@@ -308,8 +297,7 @@ types. The driver currently supports the following conversions:
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
-Development
-===========
+## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so
 don't be surprised if APIs change and things break. If something's not working
 properly, file an issue or submit a pull request!

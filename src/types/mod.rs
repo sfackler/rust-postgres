@@ -220,8 +220,7 @@ pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
     ///
     /// If the value was `NULL`, the buffer will be `None`.
-    fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
-            -> PostgresResult<Self>;
+    fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>) -> PostgresResult<Self>;
 }
 
 #[doc(hidden)]
@@ -282,8 +281,7 @@ impl RawFromSql for Timespec {
 macro_rules! from_range_impl(
     ($t:ty) => (
         impl RawFromSql for Range<$t> {
-            fn raw_from_sql<R: Reader>(rdr: &mut R)
-                    -> PostgresResult<Range<$t>> {
+            fn raw_from_sql<R: Reader>(rdr: &mut R) -> PostgresResult<Range<$t>> {
                 let t = try_pg!(rdr.read_i8());
 
                 if t & RANGE_EMPTY != 0 {
@@ -444,8 +442,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
                 -> PostgresResult<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. }
-                if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -548,8 +545,7 @@ raw_to_impl!(f64, write_be_f64)
 
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> PostgresResult<()> {
-        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC
-            + self.nsec as i64 / NSEC_PER_USEC;
+        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
         Ok(try_pg!(w.write_be_i64(t)))
     }
 }
@@ -557,22 +553,19 @@ impl RawToSql for Timespec {
 macro_rules! to_range_impl(
     ($t:ty) => (
         impl RawToSql for Range<$t> {
-            fn raw_to_sql<W: Writer>(&self, buf: &mut W)
-                    -> PostgresResult<()> {
+            fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> PostgresResult<()> {
                 let mut tag = 0;
                 if self.is_empty() {
                     tag |= RANGE_EMPTY;
                 } else {
                     match self.lower() {
                         None => tag |= RANGE_LOWER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) =>
-                            tag |= RANGE_LOWER_INCLUSIVE,
+                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_LOWER_INCLUSIVE,
                         _ => {}
                     }
                     match self.upper() {
                         None => tag |= RANGE_UPPER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) =>
-                            tag |= RANGE_UPPER_INCLUSIVE,
+                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_UPPER_INCLUSIVE,
                         _ => {}
                     }
                 }
@@ -619,8 +612,7 @@ impl RawToSql for Json {
 macro_rules! to_option_impl(
     ($($oid:pat)|+, $t:ty) => (
         impl ToSql for Option<$t> {
-            fn to_sql(&self, ty: &PostgresType)
-                    -> PostgresResult<(Format, Option<Vec<u8>>)> {
+            fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -635,8 +627,7 @@ macro_rules! to_option_impl(
 macro_rules! to_option_impl_lifetime(
     ($($oid:pat)|+, $t:ty) => (
         impl<'a> ToSql for Option<$t> {
-            fn to_sql(&self, ty: &PostgresType)
-                    -> PostgresResult<(Format, Option<Vec<u8>>)> {
+            fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -651,8 +642,7 @@ macro_rules! to_option_impl_lifetime(
 macro_rules! to_raw_to_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for $t {
-            fn to_sql(&self, ty: &PostgresType)
-                    -> PostgresResult<(Format, Option<Vec<u8>>)> {
+            fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
                 check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
@@ -680,8 +670,7 @@ to_raw_to_impl!(PgInt8Range, Range<i64>)
 to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 
 impl<'a> ToSql for &'a str {
-    fn to_sql(&self, ty: &PostgresType)
-            -> PostgresResult<(Format, Option<Vec<u8>>)> {
+    fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         check_types!(PgVarchar | PgText | PgCharN | PgName, ty)
         Ok((Text, Some(Vec::from_slice(self.as_bytes()))))
     }
@@ -690,8 +679,7 @@ impl<'a> ToSql for &'a str {
 to_option_impl_lifetime!(PgVarchar | PgText | PgCharN | PgName, &'a str)
 
 impl<'a> ToSql for &'a [u8] {
-    fn to_sql(&self, ty: &PostgresType)
-            -> PostgresResult<(Format, Option<Vec<u8>>)> {
+    fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         check_types!(PgByteA, ty)
         Ok((Binary, Some(Vec::from_slice(*self))))
     }
@@ -704,8 +692,7 @@ to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for ArrayBase<Option<$t>> {
-            fn to_sql(&self, ty: &PostgresType)
-                    -> PostgresResult<(Format, Option<Vec<u8>>)> {
+            fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
@@ -755,11 +742,9 @@ to_array_impl!(PgInt8RangeArray, Range<i64>)
 to_array_impl!(PgJsonArray, Json)
 
 impl ToSql for HashMap<String, Option<String>> {
-    fn to_sql(&self, ty: &PostgresType)
-            -> PostgresResult<(Format, Option<Vec<u8>>)> {
+    fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {
-            PgUnknownType { name: ref name, .. }
-                if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -785,11 +770,9 @@ impl ToSql for HashMap<String, Option<String>> {
 }
 
 impl ToSql for Option<HashMap<String, Option<String>>> {
-    fn to_sql(&self, ty: &PostgresType)
-            -> PostgresResult<(Format, Option<Vec<u8>>)> {
+    fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         match *ty {
-            PgUnknownType { name: ref name, .. }
-                if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
