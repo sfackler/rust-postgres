@@ -140,7 +140,7 @@ use message::{Bind,
               Sync,
               Terminate};
 use message::{WriteMessage, ReadMessage};
-use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
+use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType, Binary};
 
 #[macro_escape]
 mod macros;
@@ -1118,9 +1118,7 @@ impl<'conn> PostgresStatement<'conn> {
             values.push(value);
         };
 
-        let result_formats: Vec<i16> = self.result_desc.iter().map(|desc| {
-            desc.ty.result_format() as i16
-        }).collect();
+        let result_formats = Vec::from_elem(self.result_desc.len(), Binary as i16);
 
         try_pg!(self.conn.write_messages([
             Bind {

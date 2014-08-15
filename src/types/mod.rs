@@ -115,16 +115,6 @@ macro_rules! make_postgres_type(
                     _ => unreachable!()
                 }
             }
-
-            /// Returns the wire format needed for the value of `self`.
-            pub fn result_format(&self) -> Format {
-                match *self {
-                    PgUnknownType { name: ref name, .. }
-                        if "hstore" == name.as_slice() => Binary,
-                    PgUnknownType { .. } => Text,
-                    _ => Binary
-                }
-            }
         }
     )
 )
