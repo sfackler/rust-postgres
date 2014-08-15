@@ -9,6 +9,7 @@ extern crate openssl;
 
 use openssl::ssl::{SslContext, Sslv3};
 use std::io::timer;
+use std::time::Duration;
 
 use postgres::{PostgresNoticeHandler,
                PostgresNotification,
@@ -614,7 +615,7 @@ fn test_cancel_query() {
     let cancel_data = conn.cancel_data();
 
     spawn(proc() {
-        timer::sleep(500);
+        timer::sleep(Duration::milliseconds(500));
         assert!(postgres::cancel_query("postgres://postgres@localhost", &NoSsl,
                                        cancel_data).is_ok());
     });
