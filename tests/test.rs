@@ -96,7 +96,7 @@ fn test_unix_connection() {
     }
 
     let unix_socket_directory = unix_socket_directories.as_slice()
-            .splitn(',', 1).next().unwrap();
+            .split(',').next().unwrap();
 
     let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
     let conn = or_fail!(PostgresConnection::connect(url.as_slice(), &NoSsl));
