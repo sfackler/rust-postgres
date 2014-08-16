@@ -97,8 +97,7 @@ fn open_socket(params: &PostgresConnectParams)
 }
 
 pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
-                         -> Result<MaybeSslStream<InternalStream>,
-                                   PostgresConnectError> {
+                         -> Result<MaybeSslStream<InternalStream>, PostgresConnectError> {
     let mut socket = try!(open_socket(params));
 
     let (ssl_required, ctx) = match *ssl {

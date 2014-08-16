@@ -3,7 +3,7 @@ name = "postgres"
 version = "0.0.0"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 
-[[lib]]
+[lib]
 name = "postgres"
 path = "src/lib.rs"
 test = false
