@@ -192,20 +192,17 @@ pub struct PostgresConnectParams {
 /// `PostgresConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `PostgresConnectParams`.
-    fn into_connect_params(self) -> Result<PostgresConnectParams,
-                                           PostgresConnectError>;
+    fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError>;
 }
 
 impl IntoConnectParams for PostgresConnectParams {
-    fn into_connect_params(self) -> Result<PostgresConnectParams,
-                                           PostgresConnectError> {
+    fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> Result<PostgresConnectParams,
-                                           PostgresConnectError> {
+    fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => return Err(InvalidUrl(err)),
@@ -214,8 +211,7 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> Result<PostgresConnectParams,
-                                           PostgresConnectError> {
+    fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         let Url {
             host,
             port,
@@ -336,8 +332,7 @@ pub struct PostgresCancelData {
 /// # let _ =
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
 /// ```
-pub fn cancel_query<T: IntoConnectParams>(params: T, ssl: &SslMode,
-                                          data: PostgresCancelData)
+pub fn cancel_query<T: IntoConnectParams>(params: T, ssl: &SslMode, data: PostgresCancelData)
                                           -> Result<(), PostgresConnectError> {
     let params = try!(params.into_connect_params());
 
@@ -379,8 +374,7 @@ impl Drop for InnerPostgresConnection {
 
 impl InnerPostgresConnection {
     fn connect<T: IntoConnectParams>(params: T, ssl: &SslMode)
-                                     -> Result<InnerPostgresConnection,
-                                               PostgresConnectError> {
+                                     -> Result<InnerPostgresConnection, PostgresConnectError> {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
 
@@ -456,23 +450,25 @@ impl InnerPostgresConnection {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
-                NoticeResponse { fields } =>
-                    self.notice_handler.handle(PostgresDbError::new(fields)),
-                NotificationResponse { pid, channel, payload } =>
+                NoticeResponse { fields } => {
+                    self.notice_handler.handle(PostgresDbError::new(fields))
+                }
+                NotificationResponse { pid, channel, payload } => {
                     self.notifications.push(PostgresNotification {
                         pid: pid,
                         channel: channel,
                         payload: payload
-                    }),
-                ParameterStatus { parameter, value } =>
-                    debug!("Parameter {} = {}", parameter, value),
+                    })
+                }
+                ParameterStatus { parameter, value } => {
+                    debug!("Parameter {} = {}", parameter, value)
+                }
                 val => return Ok(val)
             }
         }
     }
 
-    fn handle_auth(&mut self, user: PostgresUserInfo)
-            -> Result<(), PostgresConnectError> {
+    fn handle_auth(&mut self, user: PostgresUserInfo) -> Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
@@ -506,8 +502,7 @@ impl InnerPostgresConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(UnsupportedAuthentication),
-            ErrorResponse { fields } =>
-                return Err(PgConnectDbError(PostgresDbError::new(fields))),
+            ErrorResponse { fields } => return Err(PgConnectDbError(PostgresDbError::new(fields))),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -516,8 +511,7 @@ impl InnerPostgresConnection {
 
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } =>
-                Err(PgConnectDbError(PostgresDbError::new(fields))),
+            ErrorResponse { fields } => Err(PgConnectDbError(PostgresDbError::new(fields))),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -526,12 +520,12 @@ impl InnerPostgresConnection {
     }
 
     fn set_notice_handler(&mut self, handler: Box<PostgresNoticeHandler+Send>)
-            -> Box<PostgresNoticeHandler+Send> {
+                          -> Box<PostgresNoticeHandler+Send> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
-            -> PostgresResult<PostgresStatement<'a>> {
+                   -> PostgresResult<PostgresStatement<'a>> {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
@@ -557,20 +551,22 @@ impl InnerPostgresConnection {
         }
 
         let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
-            ParameterDescription { types } =>
-                types.iter().map(|ty| PostgresType::from_oid(*ty)).collect(),
+            ParameterDescription { types } => {
+                types.iter().map(|ty| PostgresType::from_oid(*ty)).collect()
+            }
             _ => bad_response!(self),
         };
 
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
-            RowDescription { descriptions } =>
+            RowDescription { descriptions } => {
                 descriptions.move_iter().map(|desc| {
                     let RowDescriptionEntry { name, type_oid, .. } = desc;
                     ResultDescription {
                         name: name,
                         ty: PostgresType::from_oid(type_oid)
                     }
-                }).collect(),
+                }).collect()
+            }
             NoData => vec![],
             _ => bad_response!(self)
         };
@@ -592,14 +588,14 @@ impl InnerPostgresConnection {
     }
 
     fn set_type_names<'a, I: Iterator<&'a mut PostgresType>>(&mut self, mut it: I)
-            -> PostgresResult<()> {
+                                                             -> PostgresResult<()> {
         for ty in it {
             match *ty {
-                PgUnknownType { oid, ref mut name } =>
-                    *name = try!(self.get_type_name(oid)),
+                PgUnknownType { oid, ref mut name } => *name = try!(self.get_type_name(oid)),
                 _ => {}
             }
         }
+
         Ok(())
     }
 
@@ -721,8 +717,7 @@ impl PostgresConnection {
     /// let maybe_conn = PostgresConnection::connect(params, &NoSsl);
     /// ```
     pub fn connect<T: IntoConnectParams>(params: T, ssl: &SslMode)
-                                         -> Result<PostgresConnection,
-                                                   PostgresConnectError> {
+                                         -> Result<PostgresConnection, PostgresConnectError> {
         InnerPostgresConnection::connect(params, ssl).map(|conn| {
             PostgresConnection { conn: RefCell::new(conn) }
         })
@@ -730,7 +725,7 @@ impl PostgresConnection {
 
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: Box<PostgresNoticeHandler+Send>)
-            -> Box<PostgresNoticeHandler+Send> {
+                              -> Box<PostgresNoticeHandler+Send> {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
@@ -762,8 +757,7 @@ impl PostgresConnection {
     ///     Ok(stmt) => stmt,
     ///     Err(err) => fail!("Error preparing statement: {}", err)
     /// };
-    pub fn prepare<'a>(&'a self, query: &str)
-            -> PostgresResult<PostgresStatement<'a>> {
+    pub fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
             return Err(PgWrongTransaction);
@@ -796,8 +790,7 @@ impl PostgresConnection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn transaction<'a>(&'a self)
-            -> PostgresResult<PostgresTransaction<'a>> {
+    pub fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self);
         if self.conn.borrow().trans_depth != 0 {
             return Err(PgWrongTransaction);
@@ -818,8 +811,7 @@ impl PostgresConnection {
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
-    pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> PostgresResult<uint> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> PostgresResult<uint> {
         self.prepare(query).and_then(|stmt| stmt.execute(params))
     }
 
@@ -898,8 +890,7 @@ impl PostgresConnection {
         self.conn.borrow().canary()
     }
 
-    fn quick_query(&self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<String>>>> {
+    fn quick_query(&self, query: &str) -> PostgresResult<Vec<Vec<Option<String>>>> {
         self.conn.borrow_mut().quick_query(query)
     }
 
@@ -959,8 +950,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `PostgresConnection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str)
-            -> PostgresResult<PostgresStatement<'a>> {
+    pub fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
         if self.conn.conn.borrow().trans_depth != self.depth {
             return Err(PgWrongTransaction);
         }
@@ -968,8 +958,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `PostgresConnection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql])
-            -> PostgresResult<uint> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> PostgresResult<uint> {
         self.prepare(query).and_then(|s| s.execute(params))
     }
 
@@ -983,8 +972,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `PostgresConnection::transaction`.
-    pub fn transaction<'a>(&'a self)
-            -> PostgresResult<PostgresTransaction<'a>> {
+    pub fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
         check_desync!(self.conn);
         if self.conn.conn.borrow().trans_depth != self.depth {
             return Err(PgWrongTransaction);
@@ -1010,8 +998,7 @@ impl<'conn> PostgresTransaction<'conn> {
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
                                      row_limit: i32)
-                                     -> PostgresResult<PostgresLazyRows
-                                                       <'trans, 'stmt>> {
+                                     -> PostgresResult<PostgresLazyRows <'trans, 'stmt>> {
         if self.conn as *const _ != stmt.conn as *const _ {
             return Err(PgWrongConnection);
         }
@@ -1097,7 +1084,7 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
-            -> PostgresResult<()> {
+                     -> PostgresResult<()> {
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
                 expected: self.param_types.len(),
@@ -1142,7 +1129,7 @@ impl<'conn> PostgresStatement<'conn> {
     }
 
     fn lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql])
-            -> PostgresResult<PostgresRows<'a>> {
+                      -> PostgresResult<PostgresRows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
@@ -1239,8 +1226,7 @@ impl<'conn> PostgresStatement<'conn> {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn query<'a>(&'a self, params: &[&ToSql])
-            -> PostgresResult<PostgresRows<'a>> {
+    pub fn query<'a>(&'a self, params: &[&ToSql]) -> PostgresResult<PostgresRows<'a>> {
         check_desync!(self.conn);
         self.lazy_query(0, params)
     }
@@ -1308,8 +1294,7 @@ impl<'stmt> PostgresRows<'stmt> {
     fn read_rows(&mut self) -> PostgresResult<()> {
         loop {
             match try_pg!(self.stmt.conn.read_message()) {
-                EmptyQueryResponse |
-                CommandComplete { .. } => {
+                EmptyQueryResponse | CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
                 },
