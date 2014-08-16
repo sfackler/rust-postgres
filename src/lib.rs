@@ -274,7 +274,7 @@ impl PostgresNoticeHandler for DefaultNoticeHandler {
 /// An asynchronous notification
 pub struct PostgresNotification {
     /// The process ID of the notifying backend process
-    pub pid: i32,
+    pub pid: u32,
     /// The name of the channel that the notify has been raised on
     pub channel: String,
     /// The "payload" string passed from the notifying process
@@ -301,9 +301,9 @@ impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
 /// Contains information necessary to cancel queries for a session
 pub struct PostgresCancelData {
     /// The process ID of the session
-    pub process_id: i32,
+    pub process_id: u32,
     /// The secret key for the session
-    pub secret_key: i32,
+    pub secret_key: u32,
 }
 
 /// Attempts to cancel an in-progress query.

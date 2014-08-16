@@ -3,9 +3,9 @@ use std::mem;
 
 use types::Oid;
 
-pub static PROTOCOL_VERSION: i32 = 0x0003_0000;
-pub static CANCEL_CODE: i32 = 80877102;
-pub static SSL_CODE: i32 = 80877103;
+pub static PROTOCOL_VERSION: u32 = 0x0003_0000;
+pub static CANCEL_CODE: u32 = 80877102;
+pub static SSL_CODE: u32 = 80877103;
 
 pub enum BackendMessage {
     AuthenticationCleartextPassword,
@@ -18,8 +18,8 @@ pub enum BackendMessage {
     AuthenticationSCMCredential,
     AuthenticationSSPI,
     BackendKeyData {
-        pub process_id: i32,
-        pub secret_key: i32
+        pub process_id: u32,
+        pub secret_key: u32
     },
     BindComplete,
     CloseComplete,
@@ -38,7 +38,7 @@ pub enum BackendMessage {
         pub fields: Vec<(u8, String)>
     },
     NotificationResponse {
-        pub pid: i32,
+        pub pid: u32,
         pub channel: String,
         pub payload: String,
     },
@@ -78,9 +78,9 @@ pub enum FrontendMessage<'a> {
         pub result_formats: &'a [i16]
     },
     CancelRequest {
-        pub code: i32,
-        pub process_id: i32,
-        pub secret_key: i32,
+        pub code: u32,
+        pub process_id: u32,
+        pub secret_key: u32,
     },
     Close {
         pub variant: u8,
@@ -106,10 +106,10 @@ pub enum FrontendMessage<'a> {
         pub query: &'a str
     },
     SslRequest {
-        pub code: i32
+        pub code: u32
     },
     StartupMessage {
-        pub version: i32,
+        pub version: u32,
         pub parameters: &'a [(String, String)]
     },
     Sync,
@@ -168,9 +168,9 @@ impl<W: Writer> WriteMessage for W {
                 }
             }
             CancelRequest { code, process_id, secret_key } => {
-                try!(buf.write_be_i32(code));
-                try!(buf.write_be_i32(process_id));
-                try!(buf.write_be_i32(secret_key));
+                try!(buf.write_be_u32(code));
+                try!(buf.write_be_u32(process_id));
+                try!(buf.write_be_u32(secret_key));
             }
             Close { variant, name } => {
                 ident = Some('C');
@@ -205,14 +205,14 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_cstr(query));
             }
             StartupMessage { version, parameters } => {
-                try!(buf.write_be_i32(version));
+                try!(buf.write_be_u32(version));
                 for &(ref k, ref v) in parameters.iter() {
                     try!(buf.write_cstr(k.as_slice()));
                     try!(buf.write_cstr(v.as_slice()));
                 }
                 try!(buf.write_u8(0));
             }
-            SslRequest { code } => try!(buf.write_be_i32(code)),
+            SslRequest { code } => try!(buf.write_be_u32(code)),
             Sync => {
                 ident = Some('S');
             }
@@ -261,7 +261,7 @@ impl<R: Reader> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         let ident = try!(self.read_u8());
         // subtract size of length value
-        let len = try!(self.read_be_i32()) as uint - mem::size_of::<i32>();
+        let len = try!(self.read_be_u32()) as uint - mem::size_of::<i32>();
         let mut buf = MemReader::new(try!(self.read_exact(len)));
 
         let ret = match ident as char {
@@ -269,7 +269,7 @@ impl<R: Reader> ReadMessage for R {
             '2' => BindComplete,
             '3' => CloseComplete,
             'A' => NotificationResponse {
-                pid: try!(buf.read_be_i32()),
+                pid: try!(buf.read_be_u32()),
                 channel: try!(buf.read_cstr()),
                 payload: try!(buf.read_cstr())
             },
@@ -278,8 +278,8 @@ impl<R: Reader> ReadMessage for R {
             'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
             'I' => EmptyQueryResponse,
             'K' => BackendKeyData {
-                process_id: try!(buf.read_be_i32()),
-                secret_key: try!(buf.read_be_i32())
+                process_id: try!(buf.read_be_u32()),
+                secret_key: try!(buf.read_be_u32())
             },
             'n' => NoData,
             'N' => NoticeResponse { fields: try!(read_fields(&mut buf)) },
