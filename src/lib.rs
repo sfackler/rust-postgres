@@ -50,15 +50,9 @@
 //!     }
 //! }
 //! ```
-
-#![crate_name="postgres"]
-#![crate_type="rlib"]
-#![crate_type="dylib"]
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
-
-#![warn(missing_doc)]
-
 #![feature(macro_rules, struct_variant, phase, unsafe_destructor)]
+#![warn(missing_doc)]
 
 extern crate collections;
 extern crate openssl;
