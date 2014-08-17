@@ -448,7 +448,7 @@ pub struct PostgresDbError {
     /// this includes a call stack traceback of active procedural language
     /// functions and internally-generated queries. The trace is one entry per
     /// line, most recent first.
-    pub where: Option<String>,
+    pub where_: Option<String>,
     /// If the error was associated with a specific database object, the name
     /// of the schema containing that object, if any. (PostgreSQL 9.3+)
     pub schema: Option<String>,
@@ -498,7 +498,7 @@ impl PostgresDbError {
                     None => None
                 }
             },
-            where: map.pop(&('W' as u8)),
+            where_: map.pop(&('W' as u8)),
             schema: map.pop(&('s' as u8)),
             table: map.pop(&('t' as u8)),
             column: map.pop(&('c' as u8)),
