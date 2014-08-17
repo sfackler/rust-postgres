@@ -332,8 +332,8 @@ pub struct PostgresCancelData {
 /// # let _ =
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
 /// ```
-pub fn cancel_query<T: IntoConnectParams>(params: T, ssl: &SslMode, data: PostgresCancelData)
-                                          -> Result<(), PostgresConnectError> {
+pub fn cancel_query<T>(params: T, ssl: &SslMode, data: PostgresCancelData)
+                       -> Result<(), PostgresConnectError> where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
 
     let mut socket = match io::initialize_stream(&params, ssl) {
@@ -373,8 +373,9 @@ impl Drop for InnerPostgresConnection {
 }
 
 impl InnerPostgresConnection {
-    fn connect<T: IntoConnectParams>(params: T, ssl: &SslMode)
-                                     -> Result<InnerPostgresConnection, PostgresConnectError> {
+    fn connect<T>(params: T, ssl: &SslMode)
+                  -> Result<InnerPostgresConnection, PostgresConnectError>
+            where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
 
@@ -716,8 +717,8 @@ impl PostgresConnection {
     /// };
     /// let maybe_conn = PostgresConnection::connect(params, &NoSsl);
     /// ```
-    pub fn connect<T: IntoConnectParams>(params: T, ssl: &SslMode)
-                                         -> Result<PostgresConnection, PostgresConnectError> {
+    pub fn connect<T>(params: T, ssl: &SslMode) -> Result<PostgresConnection, PostgresConnectError>
+            where T: IntoConnectParams {
         InnerPostgresConnection::connect(params, ssl).map(|conn| {
             PostgresConnection { conn: RefCell::new(conn) }
         })
@@ -998,7 +999,7 @@ impl<'conn> PostgresTransaction<'conn> {
                                      stmt: &'stmt PostgresStatement,
                                      params: &[&ToSql],
                                      row_limit: i32)
-                                     -> PostgresResult<PostgresLazyRows <'trans, 'stmt>> {
+                                     -> PostgresResult<PostgresLazyRows<'trans, 'stmt>> {
         if self.conn as *const _ != stmt.conn as *const _ {
             return Err(PgWrongConnection);
         }
@@ -1385,13 +1386,12 @@ impl<'stmt> PostgresRow<'stmt> {
     ///
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
-    pub fn get_opt<I: RowIndex, T: FromSql>(&self, idx: I) -> PostgresResult<T> {
+    pub fn get_opt<I, T>(&self, idx: I) -> PostgresResult<T> where I: RowIndex, T: FromSql {
         let idx = match idx.idx(self.stmt) {
             Some(idx) => idx,
             None => return Err(PgInvalidColumn)
         };
-        FromSql::from_sql(&self.stmt.result_desc[idx].ty,
-                          &self.data[idx])
+        FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 
     /// Retrieves the contents of a field of the row.
@@ -1415,7 +1415,7 @@ impl<'stmt> PostgresRow<'stmt> {
     /// let foo: i32 = row.get(0u);
     /// let bar: String = row.get("bar");
     /// ```
-    pub fn get<I: RowIndex+fmt::Show+Clone, T: FromSql>(&self, idx: I) -> T {
+    pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Show + Clone, T: FromSql {
         match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
             Err(err) => fail!("error retrieving column {}: {}", idx, err)
@@ -1451,8 +1451,7 @@ impl RowIndex for uint {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
-        stmt.result_descriptions().iter()
-            .position(|d| d.name.as_slice() == *self)
+        stmt.result_descriptions().iter().position(|d| d.name.as_slice() == *self)
     }
 }
 
