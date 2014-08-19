@@ -4,7 +4,7 @@ use std::io::net::tcp::TcpStream;
 use std::io::net::unix::UnixStream;
 use std::io::{Stream, IoResult};
 
-use {PostgresConnectParams,
+use {ConnectParams,
      SslMode,
      NoSsl,
      PreferSsl,
@@ -81,8 +81,7 @@ impl Writer for InternalStream {
     }
 }
 
-fn open_socket(params: &PostgresConnectParams)
-               -> Result<InternalStream, PostgresConnectError> {
+fn open_socket(params: &ConnectParams) -> Result<InternalStream, PostgresConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         TargetTcp(ref host) =>
@@ -96,7 +95,7 @@ fn open_socket(params: &PostgresConnectParams)
     socket.map_err(|e| SocketError(e))
 }
 
-pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
+pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
                          -> Result<MaybeSslStream<InternalStream>, PostgresConnectError> {
     let mut socket = try!(open_socket(params));
 

@@ -5,7 +5,7 @@ use std::f64;
 use time;
 use time::Timespec;
 
-use postgres::{PostgresConnection, NoSsl};
+use postgres::{mod, NoSsl};
 use postgres::types::array::ArrayBase;
 use postgres::types::{ToSql, FromSql};
 
@@ -13,7 +13,7 @@ mod array;
 mod range;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_fail!(postgres::Connection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type).as_slice()));
         let result = or_fail!(stmt.query([])).next().unwrap().get(0u);
@@ -93,7 +93,7 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_fail!(postgres::Connection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
@@ -335,7 +335,7 @@ fn test_hstore_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_fail!(postgres::Connection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type).as_slice()));
     let mut result = or_fail!(stmt.query([]));
     let val: T = result.next().unwrap().get(0u);
@@ -371,7 +371,7 @@ fn test_jsonarray_params() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_fail!(postgres::Connection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT datname FROM pg_database"));
     let mut result = or_fail!(stmt.query([]));
 
