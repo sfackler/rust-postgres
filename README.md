@@ -15,7 +15,7 @@ extern crate time;
 
 use time::Timespec;
 
-use postgres::NoSsl;
+use postgres::{PostgresConnection, NoSsl};
 use postgres::types::ToSql;
 
 struct Person {
@@ -26,8 +26,8 @@ struct Person {
 }
 
 fn main() {
-    let conn = postgres::Connection::connect("postgres://postgres@localhost",
-                                             &NoSsl).unwrap();
+    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+                                           &NoSsl).unwrap();
 
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,

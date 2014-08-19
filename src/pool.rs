@@ -4,18 +4,19 @@
 
 use std::sync::{Arc, Mutex};
 
-use {ConnectParams, IntoConnectParams, Connection, SslMode};
+use {PostgresConnectParams, IntoConnectParams, PostgresConnection, SslMode};
 use error::PostgresConnectError;
 
 struct InnerConnectionPool {
-    params: ConnectParams,
+    params: PostgresConnectParams,
     ssl: SslMode,
-    pool: Vec<Connection>,
+    pool: Vec<PostgresConnection>,
 }
 
 impl InnerConnectionPool {
     fn add_connection(&mut self) -> Result<(), PostgresConnectError> {
-        Connection::connect(self.params.clone(), &self.ssl).map(|c| self.pool.push(c))
+        PostgresConnection::connect(self.params.clone(), &self.ssl)
+            .map(|c| self.pool.push(c))
     }
 }
 
@@ -93,7 +94,7 @@ impl PostgresConnectionPool {
 pub struct PooledPostgresConnection {
     pool: PostgresConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
-    conn: Option<Connection>
+    conn: Option<PostgresConnection>
 }
 
 impl Drop for PooledPostgresConnection {
@@ -104,8 +105,8 @@ impl Drop for PooledPostgresConnection {
     }
 }
 
-impl Deref<Connection> for PooledPostgresConnection {
-    fn deref<'a>(&'a self) -> &'a Connection {
+impl Deref<PostgresConnection> for PooledPostgresConnection {
+    fn deref<'a>(&'a self) -> &'a PostgresConnection {
         self.conn.get_ref()
     }
 }

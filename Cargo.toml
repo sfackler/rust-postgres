@@ -14,12 +14,12 @@ path = "tests/test.rs"
 
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
-rev = "182ec4a6e77a53381e8b5e161f5d9c8fb3d965ff"
+rev = "39343df472b4b0c99055d371f42beceeef527bd6"
 
 [dependencies.phf]
 git = "https://github.com/sfackler/rust-phf"
-rev = "9fd8d24f59b1af976526fc43baf6635a3714c71e"
+rev = "b2220d9a428049fb9c52b51c16d8f6b15cd02487"
 
 [dependencies.phf_mac]
 git = "https://github.com/sfackler/rust-phf"
-rev = "9fd8d24f59b1af976526fc43baf6635a3714c71e"
+rev = "b2220d9a428049fb9c52b51c16d8f6b15cd02487"
