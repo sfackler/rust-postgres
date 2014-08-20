@@ -438,8 +438,7 @@ impl InnerPostgresConnection {
         Ok(conn)
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage])
-            -> IoResult<()> {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
         debug_assert!(!self.desynchronized);
         for message in messages.iter() {
             try_desync!(self, self.stream.write_message(message));
@@ -627,8 +626,7 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn quick_query(&mut self, query: &str)
-            -> PostgresResult<Vec<Vec<Option<String>>>> {
+    fn quick_query(&mut self, query: &str) -> PostgresResult<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         try_pg!(self.write_messages([Query { query: query }]));
 
@@ -688,22 +686,23 @@ impl PostgresConnection {
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
+    /// # let _ = || {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let maybe_conn = PostgresConnection::connect(url, &NoSsl);
-    /// let conn = match maybe_conn {
-    ///     Ok(conn) => conn,
-    ///     Err(err) => fail!("Error connecting: {}", err)
-    /// };
+    /// let conn = try!(PostgresConnection::connect(url, &NoSsl));
+    /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, NoSsl};
+    /// # let _ = || {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let maybe_conn = PostgresConnection::connect(url, &NoSsl);
+    /// let conn = try!(PostgresConnection::connect(url, &NoSsl));
+    /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
     /// # use postgres::{PostgresConnection, PostgresUserInfo, PostgresConnectParams, NoSsl, TargetUnix};
+    /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
@@ -715,7 +714,8 @@ impl PostgresConnection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let maybe_conn = PostgresConnection::connect(params, &NoSsl);
+    /// let conn = try!(PostgresConnection::connect(params, &NoSsl));
+    /// # Ok(()) };
     /// ```
     pub fn connect<T>(params: T, ssl: &SslMode) -> Result<PostgresConnection, PostgresConnectError>
             where T: IntoConnectParams {
