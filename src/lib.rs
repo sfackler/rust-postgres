@@ -231,8 +231,7 @@ impl IntoConnectParams for Url {
         };
 
         let user = match user {
-            Some(UserInfo { user, pass }) =>
-                Some(PostgresUserInfo { user: user, password: pass }),
+            Some(UserInfo { user, pass }) => Some(PostgresUserInfo { user: user, password: pass }),
             None => None,
         };
 
@@ -316,7 +315,7 @@ pub struct PostgresCancelData {
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
 ///
-/// Only the host and port of the connetion info are used. See
+/// Only the host and port of the connection info are used. See
 /// `PostgresConnection::connect` for details of the `params` argument.
 ///
 /// ## Example
