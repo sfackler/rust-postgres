@@ -267,7 +267,7 @@ impl<S: BoundSided, T: PartialOrd> RangeBound<S, T> {
     }
 }
 
-struct OptBound<'a, S, T>(Option<&'a RangeBound<S, T>>);
+struct OptBound<'a, S, T:'a>(Option<&'a RangeBound<S, T>>);
 
 impl<'a, S: BoundSided, T: PartialEq> PartialEq for OptBound<'a, S, T> {
     fn eq(&self, &OptBound(ref other): &OptBound<'a, S, T>) -> bool {

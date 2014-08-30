@@ -201,14 +201,14 @@ impl<T> InternalMutableArray<T> for ArrayBase<T> {
     }
 }
 
-enum ArrayParent<'parent, T> {
+enum ArrayParent<'parent, T:'parent> {
     SliceParent(&'parent ArraySlice<'static, T>),
     MutSliceParent(&'parent MutArraySlice<'static, T>),
     BaseParent(&'parent ArrayBase<T>),
 }
 
 /// An immutable slice of a multi-dimensional array
-pub struct ArraySlice<'parent, T> {
+pub struct ArraySlice<'parent, T:'parent> {
     parent: ArrayParent<'parent, T>,
     idx: uint,
 }
