@@ -43,7 +43,7 @@ fn main() {
     };
     conn.execute("INSERT INTO person (name, time_created, data)
                     VALUES ($1, $2, $3)",
-                 [&me.name, &me.time_created, &me.data]).unwrap();
+                 &[&me.name, &me.time_created, &me.data]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
             .unwrap();
@@ -103,7 +103,7 @@ Both methods take an array of parameters to bind to the query represented as
 query (or 0 if not applicable):
 ```rust
 let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
-let updates = try!(stmt.execute([&1i32, &"biz"]));
+let updates = try!(stmt.execute(&[&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
 `query` returns an iterator over the rows returned from the database. The
@@ -122,7 +122,7 @@ In addition, `PostgresConnection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                [&1i32, &"biz"]));
+                                &[&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
 
@@ -145,23 +145,6 @@ try!(trans.finish());
 The transaction will be active until the `PostgresTransaction` object falls out
 of scope. A transaction will roll back by default. Nested transactions are
 supported via savepoints.
-
-### Connection Pooling
-A very basic fixed-size connection pool is provided in the `pool` module. A
-single pool can be shared across tasks and `get_connection` will block until a
-connection is available.
-```rust
-let pool = try!(PostgresConnectionPool::new("postgres://postgres@localhost",
-                                            NoSsl, 5));
-
-for _ in range(0, 10) {
-    let pool = pool.clone();
-    spawn(proc() {
-        let conn = pool.get_connection();
-        conn.query(...).unwrap();
-    })
-}
-```
 
 ### Type Correspondence
 Rust-Postgres enforces a strict correspondence between Rust types and Postgres
