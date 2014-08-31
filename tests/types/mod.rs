@@ -20,7 +20,7 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S
         assert!(val == &result);
 
         let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
-        let result = or_fail!(stmt.query([val as &ToSql])).next().unwrap().get(0u);
+        let result = or_fail!(stmt.query(&[val])).next().unwrap().get(0u);
         assert!(val == &result);
     }
 }
@@ -99,8 +99,7 @@ fn test_bpchar_params() {
                             b CHAR(5)
                            )", []));
     or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                          [&Some("12345") as &ToSql, &Some("123") as &ToSql,
-                           &None::<&'static str> as &ToSql]));
+                          &[&Some("12345"), &Some("123"), &None::<&'static str>]));
     let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_fail!(stmt.query([]));
 
@@ -345,7 +344,7 @@ fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
 
     let nan: T = Float::nan();
     let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
-    let mut result = or_fail!(stmt.query([&nan as &ToSql]));
+    let mut result = or_fail!(stmt.query(&[&nan]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan())
 }

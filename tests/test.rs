@@ -35,7 +35,7 @@ use postgres::error::{PgConnectDbError,
                       InvalidCatalogName,
                       PgWrongTransaction,
                       CardinalityViolation};
-use postgres::types::{PgInt4, PgVarchar, ToSql};
+use postgres::types::{PgInt4, PgVarchar};
 
 macro_rules! or_fail(
     ($e:expr) => (
@@ -108,7 +108,7 @@ fn test_transaction_commit() {
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
     let trans = or_fail!(conn.transaction());
-    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
     trans.set_commit();
     drop(trans);
 
@@ -124,7 +124,7 @@ fn test_transaction_commit_finish() {
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
     let trans = or_fail!(conn.transaction());
-    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
     trans.set_commit();
     assert!(trans.finish().is_ok());
 
@@ -140,7 +140,7 @@ fn test_transaction_commit_method() {
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
     let trans = or_fail!(conn.transaction());
-    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
     assert!(trans.commit().is_ok());
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -154,10 +154,10 @@ fn test_transaction_rollback() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
 
     let trans = or_fail!(conn.transaction());
-    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]));
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&2i32]));
     drop(trans);
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -171,10 +171,10 @@ fn test_transaction_rollback_finish() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
 
-    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", [&1i32 as &ToSql]));
+    or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
 
     let trans = or_fail!(conn.transaction());
-    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", [&2i32 as &ToSql]));
+    or_fail!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&2i32]));
     assert!(trans.finish().is_ok());
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
@@ -373,7 +373,7 @@ fn test_query() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
     or_fail!(conn.execute("INSERT INTO foo (id) VALUES ($1), ($2)",
-                          [&1i64 as &ToSql, &2i64 as &ToSql]));
+                          &[&1i64, &2i64]));
     let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
@@ -415,7 +415,7 @@ fn test_lazy_query() {
     let stmt = or_fail!(trans.prepare("INSERT INTO foo (id) VALUES ($1)"));
     let values = vec!(0i32, 1, 2, 3, 4, 5);
     for value in values.iter() {
-        or_fail!(stmt.execute([value as &ToSql]));
+        or_fail!(stmt.execute(&[value]));
     }
     let stmt = or_fail!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
@@ -460,7 +460,7 @@ fn test_execute_counts() {
                                             b INT
                                          )", [])));
     assert_eq!(3, or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($2)",
-                                        [&1i32 as &ToSql, &2i32 as &ToSql])));
+                                        &[&1i32, &2i32])));
     assert_eq!(2, or_fail!(conn.execute("UPDATE foo SET b = 0 WHERE b = 2", [])));
     assert_eq!(3, or_fail!(conn.execute("SELECT * FROM foo", [])));
 }
@@ -468,7 +468,7 @@ fn test_execute_counts() {
 #[test]
 fn test_wrong_param_type() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    match conn.execute("SELECT $1::VARCHAR", [&1i32 as &ToSql]) {
+    match conn.execute("SELECT $1::VARCHAR", &[&1i32]) {
         Err(PgWrongType(_)) => {}
         res => fail!("unexpected result {}", res)
     }
@@ -477,7 +477,7 @@ fn test_wrong_param_type() {
 #[test]
 fn test_too_few_params() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    match conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql]) {
+    match conn.execute("SELECT $1::INT, $2::INT", &[&1i32]) {
         Err(PgWrongParamCount { expected: 2, actual: 1 }) => {},
         res => fail!("unexpected result {}", res)
     }
@@ -486,7 +486,7 @@ fn test_too_few_params() {
 #[test]
 fn test_too_many_params() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    match conn.execute("SELECT $1::INT, $2::INT", [&1i32 as &ToSql, &2i32 as &ToSql, &3i32 as &ToSql]) {
+    match conn.execute("SELECT $1::INT, $2::INT", &[&1i32, &2i32, &3i32]) {
         Err(PgWrongParamCount { expected: 2, actual: 3 }) => {},
         res => fail!("unexpected result {}", res)
     }
