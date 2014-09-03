@@ -10,6 +10,7 @@ extern crate openssl;
 use openssl::ssl::{SslContext, Sslv3};
 use std::io::timer;
 use std::time::Duration;
+use url::Url;
 
 use postgres::{PostgresNoticeHandler,
                PostgresNotification,
@@ -95,10 +96,12 @@ fn test_unix_connection() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
     }
 
-    let unix_socket_directory = unix_socket_directories.as_slice() .split(',').next().unwrap();
+    let unix_socket_directory = unix_socket_directories.as_slice().split(',').next().unwrap();
 
-    let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
-    let conn = or_fail!(PostgresConnection::connect(url.as_slice(), &NoSsl));
+    let mut url = or_fail!(Url::from_file_path(&Path::new(unix_socket_directory)));
+    *url.username_mut().unwrap() = "postgres".to_string();
+    url.scheme = "postgres".to_string();
+    let conn = or_fail!(PostgresConnection::connect(url, &NoSsl));
     assert!(conn.finish().is_ok());
 }
 
