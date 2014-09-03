@@ -67,7 +67,7 @@ extern crate url;
 extern crate log;
 
 use collections::{Deque, RingBuf};
-use url::{UserInfo, Url};
+use url::{Url, UrlParser};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
@@ -204,52 +204,51 @@ impl IntoConnectParams for PostgresConnectParams {
 
 impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
-        match Url::parse(self) {
+        return match UrlParser::new().scheme_type_mapper(mapper).parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(InvalidUrl(err)),
+            Err(err) => return Err(InvalidUrl(err.to_string())),
+        };
+
+        fn mapper(s: &str) -> url::SchemeType {
+            match s {
+                "postgresql" | "postgres" => url::RelativeScheme(5432),
+                s => url::whatwg_scheme_type_mapper(s),
+            }
         }
     }
 }
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
-        let Url {
-            host,
-            port,
-            user,
-            path: url::Path { path, query: options, .. },
-            ..
-        } = self;
+        // FIXME(servo/rust-url#24): this shouldn't check for localhost
+        let is_localhost = self.host().map(|h| {
+            h.serialize().as_slice() == "localhost"
+        }).unwrap_or(false);
+        let target = match (is_localhost, self.to_file_path()) {
+            (false, Ok(path)) => TargetUnix(path),
+            _ => match self.host() {
+                Some(host) => TargetTcp(host.to_string()),
+                None => return Err(InvalidUrl(format!("missing host in url: {}",
+                                                      self)))
+            },
+        };
+        let user = self.username().map(|user| {
+            PostgresUserInfo {
+                user: user.to_string(),
+                password: self.password().map(|s| s.to_string()),
+            }
+        });
 
-        let maybe_path = match url::decode_component(host.as_slice()) {
-            Ok(path) => path,
-            Err(err) => return Err(InvalidUrl(err)),
-        };
-        let target = if maybe_path.as_slice().starts_with("/") {
-            TargetUnix(Path::new(maybe_path))
-        } else {
-            TargetTcp(host)
-        };
-
-        let user = match user {
-            Some(UserInfo { user, pass }) => Some(PostgresUserInfo { user: user, password: pass }),
-            None => None,
-        };
-
-        let database = if !path.is_empty() {
-            // path contains the leading /
-            let (_, path) = path.as_slice().slice_shift_char();
-            Some(path.to_string())
-        } else {
-            None
-        };
+        let database = self.path().and_then(|path| {
+            if path.len() == 0 {None} else {Some(path.connect("/"))}
+        });
 
         Ok(PostgresConnectParams {
             target: target,
-            port: port,
+            port: self.port(),
             user: user,
             database: database,
-            options: options,
+            options: self.query_pairs().unwrap_or(Vec::new()),
         })
     }
 }

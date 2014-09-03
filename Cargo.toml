@@ -20,3 +20,6 @@ git = "https://github.com/sfackler/rust-phf"
 
 [dependencies.phf_mac]
 git = "https://github.com/sfackler/rust-phf"
+
+[dependencies.url]
+git = "https://github.com/servo/rust-url"
