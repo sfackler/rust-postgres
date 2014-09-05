@@ -98,7 +98,8 @@ fn test_unix_connection() {
 
     let unix_socket_directory = unix_socket_directories[].split(',').next().unwrap();
 
-    let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
+    let url = format!("postgres://postgres@{}",
+                      url::percent_encode(unix_socket_directory.as_bytes(), url::DEFAULT_ENCODE_SET));
     let conn = or_fail!(PostgresConnection::connect(url[], &NoSsl));
     assert!(conn.finish().is_ok());
 }
