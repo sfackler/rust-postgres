@@ -4,7 +4,7 @@ use std::mem;
 use std::slice;
 
 /// Information about a dimension of an array
-#[deriving(PartialEq, Eq, Clone, Show)]
+#[deriving(PartialEq, Eq, Clone)]
 pub struct DimensionInfo {
     /// The size of the dimension
     pub len: uint,

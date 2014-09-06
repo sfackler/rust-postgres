@@ -140,7 +140,7 @@ impl<W: Writer> WriteMessage for W {
 
         match *message {
             Bind { portal, statement, formats, values, result_formats } => {
-                ident = Some('B');
+                ident = Some(b'B');
                 try!(buf.write_cstr(portal));
                 try!(buf.write_cstr(statement));
 
@@ -173,22 +173,22 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_be_u32(secret_key));
             }
             Close { variant, name } => {
-                ident = Some('C');
+                ident = Some(b'C');
                 try!(buf.write_u8(variant));
                 try!(buf.write_cstr(name));
             }
             Describe { variant, name } => {
-                ident = Some('D');
+                ident = Some(b'D');
                 try!(buf.write_u8(variant));
                 try!(buf.write_cstr(name));
             }
             Execute { portal, max_rows } => {
-                ident = Some('E');
+                ident = Some(b'E');
                 try!(buf.write_cstr(portal));
                 try!(buf.write_be_i32(max_rows));
             }
             Parse { name, query, param_types } => {
-                ident = Some('P');
+                ident = Some(b'P');
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
                 try!(buf.write_be_i16(param_types.len() as i16));
@@ -197,11 +197,11 @@ impl<W: Writer> WriteMessage for W {
                 }
             }
             PasswordMessage { password } => {
-                ident = Some('p');
+                ident = Some(b'p');
                 try!(buf.write_cstr(password));
             }
             Query { query } => {
-                ident = Some('Q');
+                ident = Some(b'Q');
                 try!(buf.write_cstr(query));
             }
             StartupMessage { version, parameters } => {
@@ -214,15 +214,15 @@ impl<W: Writer> WriteMessage for W {
             }
             SslRequest { code } => try!(buf.write_be_u32(code)),
             Sync => {
-                ident = Some('S');
+                ident = Some(b'S');
             }
             Terminate => {
-                ident = Some('X');
+                ident = Some(b'X');
             }
         }
 
         match ident {
-            Some(ident) => try!(self.write_u8(ident as u8)),
+            Some(ident) => try!(self.write_u8(ident)),
             None => ()
         }
 
@@ -264,34 +264,34 @@ impl<R: Reader> ReadMessage for R {
         let len = try!(self.read_be_u32()) as uint - mem::size_of::<i32>();
         let mut buf = MemReader::new(try!(self.read_exact(len)));
 
-        let ret = match ident as char {
-            '1' => ParseComplete,
-            '2' => BindComplete,
-            '3' => CloseComplete,
-            'A' => NotificationResponse {
+        let ret = match ident {
+            b'1' => ParseComplete,
+            b'2' => BindComplete,
+            b'3' => CloseComplete,
+            b'A' => NotificationResponse {
                 pid: try!(buf.read_be_u32()),
                 channel: try!(buf.read_cstr()),
                 payload: try!(buf.read_cstr())
             },
-            'C' => CommandComplete { tag: try!(buf.read_cstr()) },
-            'D' => try!(read_data_row(&mut buf)),
-            'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
-            'I' => EmptyQueryResponse,
-            'K' => BackendKeyData {
+            b'C' => CommandComplete { tag: try!(buf.read_cstr()) },
+            b'D' => try!(read_data_row(&mut buf)),
+            b'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
+            b'I' => EmptyQueryResponse,
+            b'K' => BackendKeyData {
                 process_id: try!(buf.read_be_u32()),
                 secret_key: try!(buf.read_be_u32())
             },
-            'n' => NoData,
-            'N' => NoticeResponse { fields: try!(read_fields(&mut buf)) },
-            'R' => try!(read_auth_message(&mut buf)),
-            's' => PortalSuspended,
-            'S' => ParameterStatus {
+            b'n' => NoData,
+            b'N' => NoticeResponse { fields: try!(read_fields(&mut buf)) },
+            b'R' => try!(read_auth_message(&mut buf)),
+            b's' => PortalSuspended,
+            b'S' => ParameterStatus {
                 parameter: try!(buf.read_cstr()),
                 value: try!(buf.read_cstr())
             },
-            't' => try!(read_parameter_description(&mut buf)),
-            'T' => try!(read_row_description(&mut buf)),
-            'Z' => ReadyForQuery { _state: try!(buf.read_u8()) },
+            b't' => try!(read_parameter_description(&mut buf)),
+            b'T' => try!(read_row_description(&mut buf)),
+            b'Z' => ReadyForQuery { _state: try!(buf.read_u8()) },
             ident => return Err(IoError {
                 kind: OtherIoError,
                 desc: "Unexpected message tag",
@@ -337,7 +337,7 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
         5 => {
-            let mut salt = [0, 0, 0, 0];
+            let mut salt = [0, ..4];
             try!(buf.read_at_least(salt.len(), salt));
             AuthenticationMD5Password { salt: salt }
         },

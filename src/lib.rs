@@ -221,10 +221,7 @@ impl IntoConnectParams for Url {
             ..
         } = self;
 
-        let maybe_path = match url::decode_component(host.as_slice()) {
-            Ok(path) => path,
-            Err(err) => return Err(InvalidUrl(err)),
-        };
+        let maybe_path = try!(url::decode_component(host.as_slice()).map_err(InvalidUrl));
         let target = if maybe_path.as_slice().starts_with("/") {
             TargetUnix(Path::new(maybe_path))
         } else {
@@ -335,11 +332,7 @@ pub struct PostgresCancelData {
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: PostgresCancelData)
                        -> Result<(), PostgresConnectError> where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
-
-    let mut socket = match io::initialize_stream(&params, ssl) {
-        Ok(socket) => socket,
-        Err(err) => return Err(err)
-    };
+    let mut socket = try!(io::initialize_stream(&params, ssl));
 
     try_pg_conn!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
@@ -536,7 +529,7 @@ impl InnerPostgresConnection {
                 param_types: []
             },
             Describe {
-                variant: 'S' as u8,
+                variant: b'S',
                 name: stmt_name.as_slice(),
             },
             Sync]));
@@ -559,8 +552,7 @@ impl InnerPostgresConnection {
 
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } => {
-                descriptions.move_iter().map(|desc| {
-                    let RowDescriptionEntry { name, type_oid, .. } = desc;
+                descriptions.move_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
                         name: name,
                         ty: PostgresType::from_oid(type_oid)
@@ -587,8 +579,8 @@ impl InnerPostgresConnection {
         })
     }
 
-    fn set_type_names<'a, I: Iterator<&'a mut PostgresType>>(&mut self, mut it: I)
-                                                             -> PostgresResult<()> {
+    fn set_type_names<'a, I>(&mut self, mut it: I) -> PostgresResult<()>
+            where I: Iterator<&'a mut PostgresType> {
         for ty in it {
             match *ty {
                 PgUnknownType { oid, ref mut name } => *name = try!(self.get_type_name(oid)),
@@ -734,9 +726,7 @@ impl PostgresConnection {
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
     pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
-        PostgresNotifications {
-            conn: self
-        }
+        PostgresNotifications { conn: self }
     }
 
     /// Creates a new prepared statement.
@@ -1067,7 +1057,7 @@ impl<'conn> PostgresStatement<'conn> {
         check_desync!(self.conn);
         try_pg!(self.conn.write_messages([
             Close {
-                variant: 'S' as u8,
+                variant: b'S',
                 name: self.name.as_slice()
             },
             Sync]));
@@ -1275,7 +1265,7 @@ impl<'stmt> PostgresRows<'stmt> {
         check_desync!(self.stmt.conn);
         try_pg!(self.stmt.conn.write_messages([
             Close {
-                variant: 'P' as u8,
+                variant: b'P',
                 name: self.name.as_slice()
             },
             Sync]));
