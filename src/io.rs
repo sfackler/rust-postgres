@@ -117,7 +117,7 @@ pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
         }
     }
 
-    match SslStream::try_new(ctx, socket) {
+    match SslStream::new(ctx, socket) {
         Ok(stream) => Ok(SslStream(stream)),
         Err(err) => Err(SslError(err))
     }

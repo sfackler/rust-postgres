@@ -628,7 +628,7 @@ fn test_cancel_query() {
 
 #[test]
 fn test_require_ssl_conn() {
-    let ctx = SslContext::new(Sslv3);
+    let ctx = SslContext::new(Sslv3).unwrap();
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost",
                                                     &RequireSsl(ctx)));
     or_fail!(conn.execute("SELECT 1::VARCHAR", []));
@@ -636,7 +636,7 @@ fn test_require_ssl_conn() {
 
 #[test]
 fn test_prefer_ssl_conn() {
-    let ctx = SslContext::new(Sslv3);
+    let ctx = SslContext::new(Sslv3).unwrap();
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost",
                                                     &PreferSsl(ctx)));
     or_fail!(conn.execute("SELECT 1::VARCHAR", []));
