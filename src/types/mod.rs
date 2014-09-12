@@ -10,10 +10,10 @@ use time::Timespec;
 
 use PostgresResult;
 use error::{PgWrongType, PgStreamError, PgWasNull, PgBadData};
-//use types::array::{Array, ArrayBase, DimensionInfo};
+use types::array::{Array, ArrayBase, DimensionInfo};
 use types::range::{RangeBound, Inclusive, Exclusive, Range};
 
-//pub mod array;
+pub mod array;
 pub mod range;
 
 /// A Postgres OID
@@ -107,7 +107,6 @@ macro_rules! make_postgres_type(
                 }
             }
 
-            /*
             fn member_type(&self) -> PostgresType {
                 match *self {
                     $(
@@ -116,7 +115,6 @@ macro_rules! make_postgres_type(
                     _ => unreachable!()
                 }
             }
-            */
         }
     )
 )
@@ -425,7 +423,6 @@ macro_rules! from_array_impl(
     )
 )
 
-/*
 from_array_impl!(PgBoolArray, bool)
 from_array_impl!(PgByteAArray, Vec<u8>)
 from_array_impl!(PgCharArray, i8)
@@ -440,7 +437,6 @@ from_array_impl!(PgFloat8Array, f64)
 from_array_impl!(PgInt4RangeArray, Range<i32>)
 from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 from_array_impl!(PgInt8RangeArray, Range<i64>)
-*/
 
 impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
@@ -730,7 +726,6 @@ macro_rules! to_array_impl(
     )
 )
 
-/*
 to_array_impl!(PgBoolArray, bool)
 to_array_impl!(PgByteAArray, Vec<u8>)
 to_array_impl!(PgCharArray, i8)
@@ -745,7 +740,6 @@ to_array_impl!(PgInt4RangeArray, Range<i32>)
 to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
 to_array_impl!(PgInt8RangeArray, Range<i64>)
 to_array_impl!(PgJsonArray, Json)
-*/
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {

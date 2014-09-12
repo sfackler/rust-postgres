@@ -6,10 +6,10 @@ use time;
 use time::Timespec;
 
 use postgres::{PostgresConnection, NoSsl};
-//use postgres::types::array::ArrayBase;
+use postgres::types::array::ArrayBase;
 use postgres::types::{ToSql, FromSql};
 
-//mod array;
+mod array;
 mod range;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
@@ -204,7 +204,6 @@ macro_rules! test_array_params(
     })
 )
 
-/*
 #[test]
 fn test_boolarray_params() {
     test_array_params!("BOOL", false, "f", true, "t", true, "t");
@@ -315,7 +314,6 @@ fn test_int8rangearray_params() {
                        range!('[' 10i64, ')'), "\"[10,)\"",
                        range!('(', 10i64 ')'), "\"(,10)\"");
 }
-*/
 
 #[test]
 fn test_hstore_params() {
@@ -359,7 +357,6 @@ fn test_f64_nan_param() {
     test_nan_param::<f64>("DOUBLE PRECISION");
 }
 
-/*
 #[test]
 fn test_jsonarray_params() {
     test_array_params!("JSON",
@@ -370,7 +367,6 @@ fn test_jsonarray_params() {
                        json::from_str(r#"{"a": [10], "b": true}"#).unwrap(),
                        r#""{\"a\": [10], \"b\": true}""#);
 }
-*/
 
 #[test]
 fn test_pg_database_datname() {
