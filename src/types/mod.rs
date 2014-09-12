@@ -107,6 +107,7 @@ macro_rules! make_postgres_type(
                 }
             }
 
+            /*
             fn member_type(&self) -> PostgresType {
                 match *self {
                     $(
@@ -115,6 +116,7 @@ macro_rules! make_postgres_type(
                     _ => unreachable!()
                 }
             }
+            */
         }
     )
 )

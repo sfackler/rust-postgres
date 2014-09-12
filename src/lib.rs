@@ -203,6 +203,7 @@ impl IntoConnectParams for PostgresConnectParams {
 }
 
 impl<'a> IntoConnectParams for &'a str {
+    #[allow(deprecated)]
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
