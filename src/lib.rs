@@ -629,7 +629,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.move_iter().map(|opt| {
-                        opt.map(|b| String::from_utf8(b).unwrap())
+                        opt.map(|b| String::from_utf8_lossy(b.as_slice()).into_string())
                     }).collect());
                 }
                 ErrorResponse { fields } => {
@@ -783,12 +783,13 @@ impl PostgresConnection {
     /// # }
     /// ```
     pub fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
-        check_desync!(self);
-        if self.conn.borrow().trans_depth != 0 {
+        let mut conn = self.conn.borrow_mut();
+        check_desync!(conn);
+        if conn.trans_depth != 0 {
             return Err(PgWrongTransaction);
         }
-        try!(self.quick_query("BEGIN"));
-        self.conn.borrow_mut().trans_depth += 1;
+        try!(conn.quick_query("BEGIN"));
+        conn.trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self,
             commit: Cell::new(false),
@@ -882,10 +883,6 @@ impl PostgresConnection {
         self.conn.borrow().canary()
     }
 
-    fn quick_query(&self, query: &str) -> PostgresResult<Vec<Vec<Option<String>>>> {
-        self.conn.borrow_mut().quick_query(query)
-    }
-
     fn wait_for_ready(&self) -> PostgresResult<()> {
         self.conn.borrow_mut().wait_for_ready()
     }
@@ -930,23 +927,25 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
 
 impl<'conn> PostgresTransaction<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
-        debug_assert!(self.depth == self.conn.conn.borrow().trans_depth);
+        let mut conn = self.conn.conn.borrow_mut();
+        debug_assert!(self.depth == conn.trans_depth);
         let query = match (self.commit.get(), self.depth != 1) {
             (false, true) => "ROLLBACK TO sp",
             (false, false) => "ROLLBACK",
             (true, true) => "RELEASE sp",
             (true, false) => "COMMIT",
         };
-        self.conn.conn.borrow_mut().trans_depth -= 1;
-        self.conn.quick_query(query).map(|_| ())
+        conn.trans_depth -= 1;
+        conn.quick_query(query).map(|_| ())
     }
 
     /// Like `PostgresConnection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
-        if self.conn.conn.borrow().trans_depth != self.depth {
+        let mut conn = self.conn.conn.borrow_mut();
+        if conn.trans_depth != self.depth {
             return Err(PgWrongTransaction);
         }
-        self.conn.conn.borrow_mut().prepare(query, self.conn)
+        conn.prepare(query, self.conn)
     }
 
     /// Like `PostgresConnection::execute`.
@@ -965,12 +964,13 @@ impl<'conn> PostgresTransaction<'conn> {
 
     /// Like `PostgresConnection::transaction`.
     pub fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
-        check_desync!(self.conn);
-        if self.conn.conn.borrow().trans_depth != self.depth {
+        let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+        if conn.trans_depth != self.depth {
             return Err(PgWrongTransaction);
         }
-        try!(self.conn.quick_query("SAVEPOINT sp"));
-        self.conn.conn.borrow_mut().trans_depth += 1;
+        try!(conn.quick_query("SAVEPOINT sp"));
+        conn.trans_depth += 1;
         Ok(PostgresTransaction {
             conn: self.conn,
             commit: Cell::new(false),
@@ -1077,6 +1077,7 @@ impl<'conn> PostgresStatement<'conn> {
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
                      -> PostgresResult<()> {
+        let mut conn = self.conn.conn.borrow_mut();
         if self.param_types.len() != params.len() {
             return Err(PgWrongParamCount {
                 expected: self.param_types.len(),
@@ -1093,7 +1094,7 @@ impl<'conn> PostgresStatement<'conn> {
 
         let result_formats = Vec::from_elem(self.result_desc.len(), Binary as i16);
 
-        try_pg!(self.conn.write_messages([
+        try_pg!(conn.write_messages([
             Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
@@ -1107,14 +1108,14 @@ impl<'conn> PostgresStatement<'conn> {
             },
             Sync]));
 
-        match try_pg!(self.conn.read_message()) {
+        match try_pg!(conn.read_message()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(self.conn.wait_for_ready());
                 Err(PgDbError(PostgresDbError::new(fields)))
             }
             _ => {
-                self.conn.conn.borrow_mut().desynchronized = true;
+                conn.desynchronized = true;
                 return Err(PgBadResponse);
             }
         }
@@ -1171,12 +1172,13 @@ impl<'conn> PostgresStatement<'conn> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
 
+        let mut conn = self.conn.conn.borrow_mut();
         let num;
         loop {
-            match try_pg!(self.conn.read_message()) {
+            match try_pg!(conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
-                    try!(self.conn.wait_for_ready());
+                    try!(conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
@@ -1189,12 +1191,12 @@ impl<'conn> PostgresStatement<'conn> {
                     break;
                 }
                 _ => {
-                    self.conn.conn.borrow_mut().desynchronized = true;
+                    conn.desynchronized = true;
                     return Err(PgBadResponse);
                 }
             }
         }
-        try!(self.conn.wait_for_ready());
+        try!(conn.wait_for_ready());
 
         Ok(num)
     }
@@ -1263,29 +1265,33 @@ impl<'stmt> Drop for PostgresRows<'stmt> {
 
 impl<'stmt> PostgresRows<'stmt> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
-        check_desync!(self.stmt.conn);
-        try_pg!(self.stmt.conn.write_messages([
+        let mut conn = self.stmt.conn.conn.borrow_mut();
+        check_desync!(conn);
+        try_pg!(conn.write_messages([
             Close {
                 variant: b'P',
                 name: self.name.as_slice()
             },
             Sync]));
+
         loop {
-            match try_pg!(self.stmt.conn.read_message()) {
+            match try_pg!(conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
-                    try!(self.stmt.conn.wait_for_ready());
+                    try!(conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 _ => {}
             }
         }
+
         Ok(())
     }
 
     fn read_rows(&mut self) -> PostgresResult<()> {
+        let mut conn = self.stmt.conn.conn.borrow_mut();
         loop {
-            match try_pg!(self.stmt.conn.read_message()) {
+            match try_pg!(conn.read_message()) {
                 EmptyQueryResponse | CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
@@ -1296,16 +1302,16 @@ impl<'stmt> PostgresRows<'stmt> {
                 },
                 DataRow { row } => self.data.push(row),
                 ErrorResponse { fields } => {
-                    try!(self.stmt.conn.wait_for_ready());
+                    try!(conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 _ => {
-                    self.stmt.conn.conn.borrow_mut().desynchronized = true;
+                    conn.desynchronized = true;
                     return Err(PgBadResponse);
                 }
             }
         }
-        self.stmt.conn.wait_for_ready()
+        conn.wait_for_ready()
     }
 
     fn execute(&mut self) -> PostgresResult<()> {
