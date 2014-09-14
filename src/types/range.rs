@@ -105,15 +105,13 @@ pub trait Normalizable {
     ///
     /// The logic here should match the logic performed by the equivalent
     /// Postgres type.
-    fn normalize<S: BoundSided>(bound: RangeBound<S, Self>)
-            -> RangeBound<S, Self>;
+    fn normalize<S>(bound: RangeBound<S, Self>) -> RangeBound<S, Self> where S: BoundSided;
 }
 
 macro_rules! bounded_normalizable(
     ($t:ident) => (
         impl Normalizable for $t {
-            fn normalize<S: BoundSided>(bound: RangeBound<S, $t>)
-                    -> RangeBound<S, $t> {
+            fn normalize<S: BoundSided>(bound: RangeBound<S, $t>) -> RangeBound<S, $t> {
                 match (BoundSided::side(None::<S>), bound.type_) {
                     (Upper, Inclusive) => {
                         assert!(bound.value != $t::MAX);
@@ -134,8 +132,7 @@ bounded_normalizable!(i32)
 bounded_normalizable!(i64)
 
 impl Normalizable for Timespec {
-    fn normalize<S: BoundSided>(bound: RangeBound<S, Timespec>)
-            -> RangeBound<S, Timespec> {
+    fn normalize<S: BoundSided>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> {
         bound
     }
 }
@@ -182,14 +179,14 @@ pub enum BoundType {
 /// Represents a one-sided bound.
 ///
 /// The side is determined by the `S` phantom parameter.
-pub struct RangeBound<S, T> {
+pub struct RangeBound<S: BoundSided, T> {
     /// The value of the bound
     pub value: T,
     /// The type of the bound
     pub type_: BoundType
 }
 
-impl<S: BoundSided, T: Clone> Clone for RangeBound<S, T> {
+impl<S, T> Clone for RangeBound<S, T> where S: BoundSided, T: Clone {
     fn clone(&self) -> RangeBound<S, T> {
         RangeBound {
             value: self.value.clone(),
@@ -198,7 +195,7 @@ impl<S: BoundSided, T: Clone> Clone for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
+impl<S, T> fmt::Show for RangeBound<S, T> where S: BoundSided, T: fmt::Show {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let chars = match self.type_ {
             Inclusive => ['[', ']'],
@@ -212,7 +209,7 @@ impl<S: BoundSided, T: fmt::Show> fmt::Show for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: PartialEq> PartialEq for RangeBound<S, T> {
+impl<S, T> PartialEq for RangeBound<S, T> where S: BoundSided, T: PartialEq {
     fn eq(&self, other: &RangeBound<S, T>) -> bool {
         self.value == other.value && self.type_ == other.type_
     }
@@ -222,9 +219,9 @@ impl<S: BoundSided, T: PartialEq> PartialEq for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: Eq> Eq for RangeBound<S, T> {}
+impl<S, T> Eq for RangeBound<S, T> where S: BoundSided, T: Eq {}
 
-impl<S: BoundSided, T: PartialOrd> PartialOrd for RangeBound<S, T> {
+impl<S, T> PartialOrd for RangeBound<S, T> where S: BoundSided, T: PartialOrd {
     fn partial_cmp(&self, other: &RangeBound<S, T>) -> Option<Ordering> {
         match (BoundSided::side(None::<S>), self.type_, other.type_,
                 self.value.partial_cmp(&other.value)) {
@@ -237,7 +234,7 @@ impl<S: BoundSided, T: PartialOrd> PartialOrd for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
+impl<S, T> Ord for RangeBound<S, T> where S: BoundSided, T: Ord {
     fn cmp(&self, other: &RangeBound<S, T>) -> Ordering {
         match (BoundSided::side(None::<S>), self.type_, other.type_,
                 self.value.cmp(&other.value)) {
@@ -250,7 +247,7 @@ impl<S: BoundSided, T: Ord> Ord for RangeBound<S, T> {
     }
 }
 
-impl<S: BoundSided, T: PartialOrd> RangeBound<S, T> {
+impl<S, T> RangeBound<S, T> where S: BoundSided, T: PartialOrd {
     /// Constructs a new range bound
     pub fn new(value: T, type_: BoundType) -> RangeBound<S, T> {
         RangeBound { value: value, type_: type_ }
@@ -267,9 +264,9 @@ impl<S: BoundSided, T: PartialOrd> RangeBound<S, T> {
     }
 }
 
-struct OptBound<'a, S, T:'a>(Option<&'a RangeBound<S, T>>);
+struct OptBound<'a, S: BoundSided, T:'a>(Option<&'a RangeBound<S, T>>);
 
-impl<'a, S: BoundSided, T: PartialEq> PartialEq for OptBound<'a, S, T> {
+impl<'a, S, T> PartialEq for OptBound<'a, S, T> where S: BoundSided, T: PartialEq {
     fn eq(&self, &OptBound(ref other): &OptBound<'a, S, T>) -> bool {
         let &OptBound(ref self_) = self;
         self_ == other
@@ -281,7 +278,7 @@ impl<'a, S: BoundSided, T: PartialEq> PartialEq for OptBound<'a, S, T> {
     }
 }
 
-impl<'a, S: BoundSided, T: PartialOrd> PartialOrd for OptBound<'a, S, T> {
+impl<'a, S, T> PartialOrd for OptBound<'a, S, T> where S: BoundSided, T: PartialOrd {
     fn partial_cmp(&self, other: &OptBound<'a, S, T>) -> Option<Ordering> {
         match (*self, *other, BoundSided::side(None::<S>)) {
             (OptBound(None), OptBound(None), _) => Some(Equal),
@@ -307,7 +304,7 @@ enum InnerRange<T> {
            Option<RangeBound<UpperBound, T>>)
 }
 
-impl<T: fmt::Show> fmt::Show for Range<T> {
+impl<T> fmt::Show for Range<T> where T: fmt::Show {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.inner {
             Empty => write!(fmt, "empty"),
@@ -326,14 +323,14 @@ impl<T: fmt::Show> fmt::Show for Range<T> {
     }
 }
 
-impl<T: PartialOrd+Normalizable> Range<T> {
+impl<T> Range<T> where T: PartialOrd+Normalizable{
     /// Creates a new range.
     ///
     /// If a bound is `None`, the range is unbounded in that direction.
     pub fn new(lower: Option<RangeBound<LowerBound, T>>,
                upper: Option<RangeBound<UpperBound, T>>) -> Range<T> {
-        let lower = lower.map(|bound| Normalizable::normalize(bound));
-        let upper = upper.map(|bound| Normalizable::normalize(bound));
+        let lower = lower.map(Normalizable::normalize);
+        let upper = upper.map(Normalizable::normalize);
 
         match (&lower, &upper) {
             (&Some(ref lower), &Some(ref upper)) => {
@@ -365,7 +362,7 @@ impl<T: PartialOrd+Normalizable> Range<T> {
     }
 
     /// Returns the lower bound if it exists.
-    pub fn lower<'a>(&'a self) -> Option<&'a RangeBound<LowerBound, T>> {
+    pub fn lower(&self) -> Option<&RangeBound<LowerBound, T>> {
         match self.inner {
             Normal(Some(ref lower), _) => Some(lower),
             _ => None
@@ -373,7 +370,7 @@ impl<T: PartialOrd+Normalizable> Range<T> {
     }
 
     /// Returns the upper bound if it exists.
-    pub fn upper<'a>(&'a self) -> Option<&'a RangeBound<UpperBound, T>> {
+    pub fn upper(&self) -> Option<&RangeBound<UpperBound, T>> {
         match self.inner {
             Normal(_, Some(ref upper)) => Some(upper),
             _ => None
@@ -406,7 +403,7 @@ impl<T: PartialOrd+Normalizable> Range<T> {
     }
 }
 
-fn order<T:PartialOrd>(a: T, b: T) -> (T, T) {
+fn order<T>(a: T, b: T) -> (T, T) where T: PartialOrd {
     if a < b {
         (a, b)
     } else {
@@ -414,7 +411,7 @@ fn order<T:PartialOrd>(a: T, b: T) -> (T, T) {
     }
 }
 
-impl<T: PartialOrd+Normalizable+Clone> Range<T> {
+impl<T> Range<T> where T: PartialOrd+Normalizable+Clone {
     /// Returns the intersection of this range with another
     pub fn intersect(&self, other: &Range<T>) -> Range<T> {
         if self.is_empty() || other.is_empty() {
@@ -455,8 +452,7 @@ impl<T: PartialOrd+Normalizable+Clone> Range<T> {
         if discontiguous {
             None
         } else {
-            Some(Range::new(l_lower.map(|v| v.clone()),
-                            u_upper.map(|v| v.clone())))
+            Some(Range::new(l_lower.map(|v| v.clone()), u_upper.map(|v| v.clone())))
         }
     }
 }
