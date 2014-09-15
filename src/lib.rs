@@ -53,7 +53,6 @@
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
 #![feature(macro_rules, struct_variant, phase, unsafe_destructor)]
 #![warn(missing_doc)]
-#![crate_name="postgres"]
 
 extern crate collections;
 extern crate openssl;
