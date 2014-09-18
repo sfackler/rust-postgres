@@ -481,7 +481,7 @@ pub struct PostgresDbError {
 impl PostgresDbError {
     #[doc(hidden)]
     pub fn new(fields: Vec<(u8, String)>) -> PostgresDbError {
-        let mut map: HashMap<_, _> = fields.move_iter().collect();
+        let mut map: HashMap<_, _> = fields.into_iter().collect();
         PostgresDbError {
             severity: map.pop(&('S' as u8)).unwrap(),
             code: PostgresSqlState::from_code(map.pop(&('C' as u8)).unwrap().as_slice()),

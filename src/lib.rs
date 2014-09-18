@@ -552,7 +552,7 @@ impl InnerPostgresConnection {
 
         let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } => {
-                descriptions.move_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
+                descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
                         name: name,
                         ty: PostgresType::from_oid(type_oid)
@@ -598,7 +598,7 @@ impl InnerPostgresConnection {
         }
         let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
                                                   WHERE oid={}", oid).as_slice()))
-            .move_iter().next().unwrap().move_iter().next().unwrap().unwrap();
+            .into_iter().next().unwrap().into_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
     }
@@ -627,7 +627,7 @@ impl InnerPostgresConnection {
             match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
-                    result.push(row.move_iter().map(|opt| {
+                    result.push(row.into_iter().map(|opt| {
                         opt.map(|b| String::from_utf8_lossy(b.as_slice()).into_string())
                     }).collect());
                 }
