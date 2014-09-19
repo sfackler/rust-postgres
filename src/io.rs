@@ -1,7 +1,7 @@
 use openssl::ssl::SslStream;
 use std::io::net::ip::Port;
 use std::io::net::tcp::TcpStream;
-use std::io::net::unix::UnixStream;
+use std::io::net::pipe::UnixStream;
 use std::io::{Stream, IoResult};
 
 use {PostgresConnectParams,
