@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 use std::from_str::FromStr;
-use std::io::IoError;
+use std::io;
 use std::fmt;
 
-use openssl::ssl::error::SslError;
+use openssl::ssl::error;
 use phf::PhfMap;
 
 use types::PostgresType;
@@ -364,7 +364,7 @@ pub enum PostgresConnectError {
     /// The URL was missing a user
     MissingUser,
     /// There was an error opening a socket to the server
-    SocketError(IoError),
+    SocketError(io::IoError),
     /// An error from the Postgres server itself
     PgConnectDbError(PostgresDbError),
     /// A password was required but not provided in the URL
@@ -375,9 +375,9 @@ pub enum PostgresConnectError {
     /// The Postgres server does not support SSL encryption
     NoSslSupport,
     /// There was an error initializing the SSL session
-    SslError(SslError),
+    SslError(error::SslError),
     /// There was an error communicating with the server
-    PgConnectStreamError(IoError),
+    PgConnectStreamError(io::IoError),
     /// The server sent an unexpected response
     PgConnectBadResponse,
 }
@@ -523,7 +523,7 @@ pub enum PostgresError {
     /// An error reported by the Postgres server
     PgDbError(PostgresDbError),
     /// An error communicating with the Postgres server
-    PgStreamError(IoError),
+    PgStreamError(io::IoError),
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
     PgStreamDesynchronized,

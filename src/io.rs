@@ -1,7 +1,7 @@
-use openssl::ssl::SslStream;
+use openssl::ssl;
 use std::io::net::ip::Port;
-use std::io::net::tcp::TcpStream;
-use std::io::net::pipe::UnixStream;
+use std::io::net::tcp;
+use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
 use {PostgresConnectParams,
@@ -22,7 +22,7 @@ use message::{SslRequest, WriteMessage};
 static DEFAULT_PORT: Port = 5432;
 
 pub enum MaybeSslStream<S> {
-    SslStream(SslStream<S>),
+    SslStream(ssl::SslStream<S>),
     NormalStream(S),
 }
 
@@ -52,8 +52,8 @@ impl<S: Stream> Writer for MaybeSslStream<S> {
 }
 
 pub enum InternalStream {
-    TcpStream(TcpStream),
-    UnixStream(UnixStream),
+    TcpStream(tcp::TcpStream),
+    UnixStream(pipe::UnixStream),
 }
 
 impl Reader for InternalStream {
@@ -86,11 +86,11 @@ fn open_socket(params: &PostgresConnectParams)
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         TargetTcp(ref host) =>
-            TcpStream::connect(host.as_slice(), port).map(|s| TcpStream(s)),
+            tcp::TcpStream::connect(host.as_slice(), port).map(|s| TcpStream(s)),
         TargetUnix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
-            UnixStream::connect(&path).map(|s| UnixStream(s))
+            pipe::UnixStream::connect(&path).map(|s| UnixStream(s))
         }
     };
     socket.map_err(|e| SocketError(e))
@@ -117,7 +117,7 @@ pub fn initialize_stream(params: &PostgresConnectParams, ssl: &SslMode)
         }
     }
 
-    match SslStream::new(ctx, socket) {
+    match ssl::SslStream::new(ctx, socket) {
         Ok(stream) => Ok(SslStream(stream)),
         Err(err) => Err(SslError(err))
     }
