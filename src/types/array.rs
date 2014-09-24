@@ -140,7 +140,7 @@ impl<T> ArrayBase<T> {
             assert!(info1 == info2, "Cannot join differently shaped arrays");
         }
         self.info.get_mut(0).len += 1;
-        self.data.push_all_move(other.data);
+        self.data.extend(other.data.into_iter());
     }
 
     /// Returns an iterator over the values in this array, in the

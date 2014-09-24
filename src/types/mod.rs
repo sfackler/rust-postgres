@@ -672,7 +672,7 @@ to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         check_types!(PgVarchar | PgText | PgCharN | PgName, ty)
-        Ok((Text, Some(Vec::from_slice(self.as_bytes()))))
+        Ok((Text, Some(self.as_bytes().to_vec())))
     }
 }
 
@@ -681,7 +681,7 @@ to_option_impl_lifetime!(PgVarchar | PgText | PgCharN | PgName, &'a str)
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<(Format, Option<Vec<u8>>)> {
         check_types!(PgByteA, ty)
-        Ok((Binary, Some(Vec::from_slice(*self))))
+        Ok((Binary, Some(self.to_vec())))
     }
 }
 

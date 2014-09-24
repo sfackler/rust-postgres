@@ -212,6 +212,7 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
+    #[allow(deprecated)]
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         let Url {
             host,
@@ -566,8 +567,8 @@ impl InnerPostgresConnection {
         try!(self.wait_for_ready());
 
         // now that the connection is ready again, get unknown type names
-        try!(self.set_type_names(param_types.mut_iter()));
-        try!(self.set_type_names(result_desc.mut_iter().map(|d| &mut d.ty)));
+        try!(self.set_type_names(param_types.iter_mut()));
+        try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
 
         Ok(PostgresStatement {
             conn: conn,
