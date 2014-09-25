@@ -137,14 +137,19 @@ impl Normalizable for Timespec {
     }
 }
 
+/// The possible sides of a bound
 #[deriving(PartialEq, Eq)]
-enum BoundSide {
+pub enum BoundSide {
+    /// An upper bound
     Upper,
+    /// A lower bound
     Lower
 }
 
+/// A trait implemented by phantom types indicating the type of the bound
 #[doc(hidden)]
-trait BoundSided {
+pub trait BoundSided {
+    /// Returns the bound side this type corresponds to
     // param is a hack to get around lack of hints for self type
     fn side(_: Option<Self>) -> BoundSide;
 }
