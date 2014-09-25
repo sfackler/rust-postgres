@@ -202,14 +202,14 @@ impl<S, T> Clone for RangeBound<S, T> where S: BoundSided, T: Clone {
 
 impl<S, T> fmt::Show for RangeBound<S, T> where S: BoundSided, T: fmt::Show {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let chars = match self.type_ {
-            Inclusive => ['[', ']'],
-            Exclusive => ['(', ')'],
+        let (lower, upper) = match self.type_ {
+            Inclusive => ('[', ']'),
+            Exclusive => ('(', ')'),
         };
 
         match BoundSided::side(None::<S>) {
-            Lower => write!(fmt, "{}{}", chars[0], self.value),
-            Upper => write!(fmt, "{}{}", self.value, chars[1]),
+            Lower => write!(fmt, "{}{}", lower, self.value),
+            Upper => write!(fmt, "{}{}", self.value, upper),
         }
     }
 }
