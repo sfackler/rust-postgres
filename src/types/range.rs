@@ -6,7 +6,7 @@ use std::i32;
 use std::i64;
 use time::Timespec;
 
-/// The `quote!` macro can make it easier to create ranges. It roughly mirrors
+/// The `range!` macro can make it easier to create ranges. It roughly mirrors
 /// traditional mathematic range syntax.
 ///
 /// ## Example
