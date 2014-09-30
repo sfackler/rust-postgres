@@ -1016,6 +1016,16 @@ impl<'conn> PostgresTransaction<'conn> {
         conn.prepare(query, self.conn)
     }
 
+    /// Like `PostgresConnection::prepare_copy_in`.
+    pub fn prepare_copy_in<'a>(&'a self, table: &str, cols: &[&str])
+                               -> PostgresResult<PostgresCopyInStatement<'a>> {
+        let mut conn = self.conn.conn.borrow_mut();
+        if conn.trans_depth != self.depth {
+            return Err(PgWrongTransaction);
+        }
+        conn.prepare_copy_in(table, cols, self.conn)
+    }
+
     /// Like `PostgresConnection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> PostgresResult<uint> {
         self.prepare(query).and_then(|s| s.execute(params))
