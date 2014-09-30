@@ -1111,7 +1111,7 @@ impl<'conn> PostgresStatement<'conn> {
         match try_pg!(conn.read_message_()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
-                try!(self.conn.wait_for_ready());
+                try!(conn.wait_for_ready());
                 Err(PgDbError(PostgresDbError::new(fields)))
             }
             _ => {
