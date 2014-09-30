@@ -26,6 +26,10 @@ pub enum BackendMessage {
     CommandComplete {
         pub tag: String,
     },
+    CopyInResponse {
+        pub format: u8,
+        pub column_formats: Vec<u16>,
+    },
     DataRow {
         pub row: Vec<Option<Vec<u8>>>
     },
@@ -85,6 +89,13 @@ pub enum FrontendMessage<'a> {
     Close {
         pub variant: u8,
         pub name: &'a str
+    },
+    CopyData {
+        pub data: &'a [u8],
+    },
+    CopyDone,
+    CopyFail {
+        pub message: &'a str
     },
     Describe {
         pub variant: u8,
@@ -176,6 +187,17 @@ impl<W: Writer> WriteMessage for W {
                 ident = Some(b'C');
                 try!(buf.write_u8(variant));
                 try!(buf.write_cstr(name));
+            }
+            CopyData { data } => {
+                ident = Some(b'd');
+                try!(buf.write(data));
+            }
+            CopyDone => {
+                ident = Some(b'C');
+            }
+            CopyFail { message } => {
+                ident = Some(b'f');
+                try!(buf.write_cstr(message));
             }
             Describe { variant, name } => {
                 ident = Some(b'D');
@@ -276,6 +298,17 @@ impl<R: Reader> ReadMessage for R {
             b'C' => CommandComplete { tag: try!(buf.read_cstr()) },
             b'D' => try!(read_data_row(&mut buf)),
             b'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
+            b'G' => {
+                let format = try!(buf.read_u8());
+                let mut column_formats = vec![];
+                for _ in range(0, try!(buf.read_be_u16())) {
+                    column_formats.push(try!(buf.read_be_u16()));
+                }
+                CopyInResponse {
+                    format: format,
+                    column_formats: column_formats,
+                }
+            }
             b'I' => EmptyQueryResponse,
             b'K' => BackendKeyData {
                 process_id: try!(buf.read_be_u32()),

@@ -691,3 +691,20 @@ fn test_md5_pass_wrong_pass() {
         _ => fail!("Expected error")
     }
 }
+
+#[test]
+fn test_execute_copy_from_err() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));
+    let stmt = or_fail!(conn.prepare("COPY foo (id) FROM STDIN"));
+    match stmt.execute([]) {
+        Err(PgDbError(ref err)) if err.message.as_slice().contains("COPY") => {}
+        Err(err) => fail!("Unexptected error {}", err),
+        _ => fail!("Expected error"),
+    }
+    match stmt.query([]) {
+        Err(PgDbError(ref err)) if err.message.as_slice().contains("COPY") => {}
+        Err(err) => fail!("Unexptected error {}", err),
+        _ => fail!("Expected error"),
+    }
+}

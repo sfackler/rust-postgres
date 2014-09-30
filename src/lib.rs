@@ -108,6 +108,7 @@ use message::{AuthenticationCleartextPassword,
               BackendMessage,
               BindComplete,
               CommandComplete,
+              CopyInResponse,
               DataRow,
               EmptyQueryResponse,
               ErrorResponse,
@@ -124,6 +125,7 @@ use message::{AuthenticationCleartextPassword,
 use message::{Bind,
               CancelRequest,
               Close,
+              CopyFail,
               Describe,
               Execute,
               FrontendMessage,
@@ -1116,7 +1118,7 @@ impl<'conn> PostgresStatement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(PgBadResponse);
+                Err(PgBadResponse)
             }
         }
     }
@@ -1189,6 +1191,13 @@ impl<'conn> PostgresStatement<'conn> {
                 EmptyQueryResponse => {
                     num = 0;
                     break;
+                }
+                CopyInResponse { .. } => {
+                    try_pg!(conn.write_messages([
+                        CopyFail {
+                            message: "COPY queries cannot be directly executed",
+                        },
+                        Sync]));
                 }
                 _ => {
                     conn.desynchronized = true;
@@ -1304,6 +1313,14 @@ impl<'stmt> PostgresRows<'stmt> {
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
                     return Err(PgDbError(PostgresDbError::new(fields)));
+                }
+                CopyInResponse { .. } => {
+                    try_pg!(conn.write_messages([
+                        CopyFail {
+                            message: "COPY queries cannot be directly executed",
+                        },
+                        Sync]));
+                    continue;
                 }
                 _ => {
                     conn.desynchronized = true;
