@@ -974,14 +974,6 @@ impl PostgresConnection {
         self.conn.borrow().canary()
     }
 
-    fn wait_for_ready(&self) -> PostgresResult<()> {
-        self.conn.borrow_mut().wait_for_ready()
-    }
-
-    fn read_message_(&self) -> IoResult<BackendMessage> {
-        self.conn.borrow_mut().read_message_()
-    }
-
     fn write_messages(&self, messages: &[FrontendMessage]) -> IoResult<()> {
         self.conn.borrow_mut().write_messages(messages)
     }
