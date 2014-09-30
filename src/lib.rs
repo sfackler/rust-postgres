@@ -1589,6 +1589,11 @@ impl<'a> PostgresCopyInStatement<'a> {
         conn.close_statement(self.name.as_slice())
     }
 
+    /// Returns a slice containing the expected column types.
+    pub fn column_types(&self) -> &[PostgresType] {
+        self.column_types.as_slice()
+    }
+
     /// Executes the prepared statement.
     ///
     /// Each iterator retuned by the `rows` iterator will be interpreted as
