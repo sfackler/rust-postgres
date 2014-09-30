@@ -1614,26 +1614,33 @@ impl<'a> PostgresCopyInStatement<'a> {
         let _ = buf.write_be_i32(0);
         let _ = buf.write_be_i32(0);
 
-        for mut row in rows {
+        for row in rows {
             let _ = buf.write_be_i16(self.column_types.len() as i16);
 
-            let mut count = 0;
-            for (i, (val, ty)) in row.by_ref().zip(self.column_types.iter()).enumerate() {
-                match try!(val.to_sql(ty)) {
-                    (_, None) => {
-                        let _ = buf.write_be_i32(-1);
+            let mut row = row.fuse();
+            let mut types = self.column_types.iter();
+            loop {
+                match (row.next(), types.next()) {
+                    (Some(val), Some(ty)) => {
+                        match try!(val.to_sql(ty)) {
+                            (_, None) => {
+                                let _ = buf.write_be_i32(-1);
+                            }
+                            (_, Some(val)) => {
+                                let _ = buf.write_be_i32(val.len() as i32);
+                                let _ = buf.write(val.as_slice());
+                            }
+                        }
                     }
-                    (_, Some(val)) => {
-                        let _ = buf.write_be_i32(val.len() as i32);
-                        let _ = buf.write(val.as_slice());
+                    (Some(_), None) | (None, Some(_)) => {
+                        try_pg!(conn.stream.write_message(
+                            &CopyFail {
+                                message: "Invalid column count",
+                            }));
+                        break;
                     }
+                    (None, None) => break
                 }
-                count = i+1;
-            }
-
-            if row.next().is_some() || count != self.column_types.len() {
-                // FIXME
-                fail!()
             }
 
             try_pg!(conn.stream.write_message(

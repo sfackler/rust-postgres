@@ -723,3 +723,30 @@ fn test_copy_in() {
     assert_eq!(vec![(0i32, Some("Steven".to_string())), (1, None)],
                or_fail!(stmt.query([])).map(|r| (r.get(0u), r.get(1u))).collect());
 }
+
+#[test]
+fn test_copy_in_bad_column_count() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+
+    let stmt = or_fail!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32]];
+
+    let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
+    match res {
+        Err(PgDbError(ref err)) if err.message.as_slice().contains("Invalid column count") => {}
+        Err(err) => fail!("unexpected error {}", err),
+        _ => fail!("Expected error"),
+    }
+
+    let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &"Steven".to_string(), &1i32]];
+
+    let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
+    match res {
+        Err(PgDbError(ref err)) if err.message.as_slice().contains("Invalid column count") => {}
+        Err(err) => fail!("unexpected error {}", err),
+        _ => fail!("Expected error"),
+    }
+
+    or_fail!(conn.execute("SELECT 1", []));
+}
