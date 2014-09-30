@@ -1636,20 +1636,21 @@ impl<'a> PostgresCopyInStatement<'a> {
                 fail!()
             }
 
-            try_pg!(conn.write_messages([
-                CopyData {
+            try_pg!(conn.stream.write_message(
+                &CopyData {
                     data: buf.unwrap().as_slice()
-                }]));
+                }));
             buf = MemWriter::new();
         }
 
         let _ = buf.write_be_i16(-1);
-        try_pg!(conn.write_messages([
-            CopyData {
+        try_pg!(conn.stream.write_message(
+            &CopyData {
                 data: buf.unwrap().as_slice(),
-            },
-            CopyDone,
-            Sync]));
+            }));
+        try_pg!(conn.stream.write_message(&CopyDone));
+        try_pg!(conn.stream.write_message(&Sync));
+        try_pg!(conn.stream.flush());
 
         match try_pg!(conn.read_message_()) {
             CommandComplete { .. } => {},
