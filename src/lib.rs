@@ -73,7 +73,7 @@ use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::from_str::FromStr;
-use std::io::{BufferedStream, IoResult};
+use std::io::{BufferedStream, IoResult, MemWriter};
 use std::io::net::ip::Port;
 use std::mem;
 use std::fmt;
@@ -125,6 +125,8 @@ use message::{AuthenticationCleartextPassword,
 use message::{Bind,
               CancelRequest,
               Close,
+              CopyData,
+              CopyDone,
               CopyFail,
               Describe,
               Execute,
@@ -146,6 +148,7 @@ mod io;
 pub mod pool;
 mod message;
 pub mod types;
+mod util;
 
 static CANARY: u32 = 0xdeadbeef;
 
@@ -520,8 +523,8 @@ impl InnerPostgresConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
-                   -> PostgresResult<PostgresStatement<'a>> {
+    fn raw_prepare(&mut self, query: &str)
+                   -> PostgresResult<(String, Vec<PostgresType>, Vec<ResultDescription>)> {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
@@ -572,6 +575,12 @@ impl InnerPostgresConnection {
         try!(self.set_type_names(param_types.iter_mut()));
         try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
 
+        Ok((stmt_name, param_types, result_desc))
+    }
+
+    fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
+                   -> PostgresResult<PostgresStatement<'a>> {
+        let (stmt_name, param_types, result_desc) = try!(self.raw_prepare(query));
         Ok(PostgresStatement {
             conn: conn,
             name: stmt_name,
@@ -580,6 +589,54 @@ impl InnerPostgresConnection {
             next_portal_id: Cell::new(0),
             finished: false,
         })
+    }
+
+    fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a PostgresConnection)
+                           -> PostgresResult<PostgresCopyInStatement<'a>> {
+        let mut query = MemWriter::new();
+        let _ = write!(query, "SELECT ");
+        let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
+        let _ = write!(query, " FROM {}", table);
+        let query = String::from_utf8(query.unwrap()).unwrap();
+        let (stmt_name, _, result_desc) = try!(self.raw_prepare(query.as_slice()));
+
+        let column_types = result_desc.iter().map(|desc| desc.ty.clone()).collect();
+        try!(self.close_statement(stmt_name.as_slice()));
+
+        let mut query = MemWriter::new();
+        let _ = write!(query, "COPY {} (", table);
+        let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
+        let _ = write!(query, ") FROM STDIN WITH (FORMAT binary)");
+        let query = String::from_utf8(query.unwrap()).unwrap();
+        let (stmt_name, _, _) = try!(self.raw_prepare(query.as_slice()));
+
+        Ok(PostgresCopyInStatement {
+            conn: conn,
+            name: stmt_name,
+            column_types: column_types,
+            next_portal_id: Cell::new(0),
+            finished: false,
+        })
+    }
+
+    fn close_statement(&mut self, stmt_name: &str) -> PostgresResult<()> {
+        try_pg!(self.write_messages([
+            Close {
+                variant: b'S',
+                name: stmt_name,
+            },
+            Sync]));
+        loop {
+            match try_pg!(self.read_message_()) {
+                ReadyForQuery { .. } => break,
+                ErrorResponse { fields } => {
+                    try!(self.wait_for_ready());
+                    return Err(PgDbError(PostgresDbError::new(fields)));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     fn set_type_names<'a, I>(&mut self, mut it: I) -> PostgresResult<()>
@@ -757,6 +814,15 @@ impl PostgresConnection {
             return Err(PgWrongTransaction);
         }
         conn.prepare(query, self)
+    }
+
+    pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
+                               -> PostgresResult<PostgresCopyInStatement<'a>> {
+        let mut conn = self.conn.borrow_mut();
+        if conn.trans_depth != 0 {
+            return Err(PgWrongTransaction);
+        }
+        conn.prepare_copy_in(table, rows, self)
     }
 
     /// Begins a new transaction.
@@ -1057,24 +1123,9 @@ impl<'conn> Drop for PostgresStatement<'conn> {
 
 impl<'conn> PostgresStatement<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
-        check_desync!(self.conn);
-        try_pg!(self.conn.write_messages([
-            Close {
-                variant: b'S',
-                name: self.name.as_slice()
-            },
-            Sync]));
-        loop {
-            match try_pg!(self.conn.read_message_()) {
-                ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => {
-                    try!(self.conn.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
-                }
-                _ => {}
-            }
-        }
-        Ok(())
+        let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+        conn.close_statement(self.name.as_slice())
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
@@ -1493,5 +1544,135 @@ impl<'trans, 'stmt> Iterator<PostgresResult<PostgresRow<'stmt>>>
     #[inline]
     fn size_hint(&self) -> (uint, Option<uint>) {
         self.result.size_hint()
+    }
+}
+
+pub struct PostgresCopyInStatement<'a> {
+    conn: &'a PostgresConnection,
+    name: String,
+    column_types: Vec<PostgresType>,
+    next_portal_id: Cell<uint>,
+    finished: bool,
+}
+
+#[unsafe_destructor]
+impl<'a> Drop for PostgresCopyInStatement<'a> {
+    fn drop(&mut self) {
+        if !self.finished {
+            let _ = self.finish_inner();
+        }
+    }
+}
+
+impl<'a> PostgresCopyInStatement<'a> {
+    fn finish_inner(&mut self) -> PostgresResult<()> {
+        let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+        conn.close_statement(self.name.as_slice())
+    }
+
+    pub fn execute<'b, I, J>(&self, mut rows: I) -> PostgresResult<()>
+            where I: Iterator<J>, J: Iterator<&'b ToSql + 'b> {
+        let mut conn = self.conn.conn.borrow_mut();
+
+        try_pg!(conn.write_messages([
+            Bind {
+                portal: "",
+                statement: self.name.as_slice(),
+                formats: [],
+                values: [],
+                result_formats: []
+            },
+            Execute {
+                portal: "",
+                max_rows: 0,
+            },
+            Sync]));
+
+        match try_pg!(conn.read_message_()) {
+            BindComplete => {},
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return Err(PgDbError(PostgresDbError::new(fields)));
+            }
+            _ => {
+                conn.desynchronized = true;
+                return Err(PgBadResponse);
+            }
+        }
+
+        match try_pg!(conn.read_message_()) {
+            CopyInResponse { .. } => {}
+            _ => {
+                conn.desynchronized = true;
+                return Err(PgBadResponse);
+            }
+        }
+
+        let mut buf = MemWriter::new();
+        let _ = buf.write(b"PGCOPY\n\xff\r\n\x00");
+        let _ = buf.write_be_i32(0);
+        let _ = buf.write_be_i32(0);
+
+        for mut row in rows {
+            let _ = buf.write_be_i16(self.column_types.len() as i16);
+
+            let mut count = 0;
+            for (i, (val, ty)) in row.by_ref().zip(self.column_types.iter()).enumerate() {
+                match try!(val.to_sql(ty)) {
+                    (_, None) => {
+                        let _ = buf.write_be_i32(-1);
+                    }
+                    (_, Some(val)) => {
+                        let _ = buf.write_be_i32(val.len() as i32);
+                        let _ = buf.write(val.as_slice());
+                    }
+                }
+                count = i+1;
+            }
+
+            if row.next().is_some() || count != self.column_types.len() {
+                // FIXME
+                fail!()
+            }
+
+            try_pg!(conn.write_messages([
+                CopyData {
+                    data: buf.unwrap().as_slice()
+                }]));
+            buf = MemWriter::new();
+        }
+
+        let _ = buf.write_be_i16(-1);
+        try_pg!(conn.write_messages([
+            CopyData {
+                data: buf.unwrap().as_slice(),
+            },
+            CopyDone,
+            Sync]));
+
+        match try_pg!(conn.read_message_()) {
+            CommandComplete { .. } => {},
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return Err(PgDbError(PostgresDbError::new(fields)));
+            }
+            _ => {
+                conn.desynchronized = true;
+                return Err(PgBadResponse);
+            }
+        }
+
+        conn.wait_for_ready()
+    }
+
+    /// Consumes the statement, clearing it from the Postgres session.
+    ///
+    /// Functionally identical to the `Drop` implementation of the
+    /// `PostgresCopyInStatement` except that it returns any error to the
+    /// caller.
+    pub fn finish(mut self) -> PostgresResult<()> {
+        self.finished = true;
+        self.finish_inner()
     }
 }

@@ -35,7 +35,7 @@ use postgres::error::{PgConnectDbError,
                       InvalidCatalogName,
                       PgWrongTransaction,
                       CardinalityViolation};
-use postgres::types::{PgInt4, PgVarchar};
+use postgres::types::{PgInt4, PgVarchar, ToSql};
 
 macro_rules! or_fail(
     ($e:expr) => (
@@ -707,4 +707,19 @@ fn test_execute_copy_from_err() {
         Err(err) => fail!("Unexptected error {}", err),
         _ => fail!("Expected error"),
     }
+}
+
+#[test]
+fn test_copy_in() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+
+    let stmt = or_fail!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &None::<String>]];
+
+    or_fail!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
+
+    let stmt = or_fail!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
+    assert_eq!(vec![(0i32, Some("Steven".to_string())), (1, None)],
+               or_fail!(stmt.query([])).map(|r| (r.get(0u), r.get(1u))).collect());
 }

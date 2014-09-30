@@ -193,7 +193,7 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write(data));
             }
             CopyDone => {
-                ident = Some(b'C');
+                ident = Some(b'c');
             }
             CopyFail { message } => {
                 ident = Some(b'f');
