@@ -816,6 +816,29 @@ impl PostgresConnection {
         conn.prepare(query, self)
     }
 
+    /// Creates a new COPY FROM STDIN prepared statement.
+    ///
+    /// These statements provide a method to efficiently bulk-upload data to
+    /// the database.
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # use postgres::types::ToSql;
+    /// # let _ = || {
+    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// try!(conn.execute("CREATE TABLE foo (
+    ///                     bar INT PRIMARY KEY,
+    ///                     baz VARCHAR
+    ///                    )", []));
+    ///
+    /// let stmt = try!(conn.prepare_copy_in("foo", ["bar", "baz"]));
+    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah".to_string()],
+    ///                            &[&1i32, &None::<String>]];
+    /// try!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
+    /// # Ok(()) };
+    /// ```
     pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
                                -> PostgresResult<PostgresCopyInStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
