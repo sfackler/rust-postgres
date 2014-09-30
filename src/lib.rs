@@ -138,7 +138,7 @@ use message::{Bind,
               Sync,
               Terminate};
 use message::{WriteMessage, ReadMessage};
-use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType, Binary};
+use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
 
 #[macro_escape]
 mod macros;
@@ -1137,23 +1137,19 @@ impl<'conn> PostgresStatement<'conn> {
                 actual: params.len(),
             });
         }
-        let mut formats = vec![];
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
-            let (format, value) = try!(param.to_sql(ty));
-            formats.push(format as i16);
+            let value = try!(param.to_sql(ty));
             values.push(value);
         };
-
-        let result_formats = Vec::from_elem(self.result_desc.len(), Binary as i16);
 
         try_pg!(conn.write_messages([
             Bind {
                 portal: portal_name,
                 statement: self.name.as_slice(),
-                formats: formats.as_slice(),
+                formats: [1],
                 values: values.as_slice(),
-                result_formats: result_formats.as_slice()
+                result_formats: [1]
             },
             Execute {
                 portal: portal_name,
@@ -1623,10 +1619,10 @@ impl<'a> PostgresCopyInStatement<'a> {
                 match (row.next(), types.next()) {
                     (Some(val), Some(ty)) => {
                         match try!(val.to_sql(ty)) {
-                            (_, None) => {
+                            None => {
                                 let _ = buf.write_be_i32(-1);
                             }
-                            (_, Some(val)) => {
+                            Some(val) => {
                                 let _ = buf.write_be_i32(val.len() as i32);
                                 let _ = buf.write(val.as_slice());
                             }
