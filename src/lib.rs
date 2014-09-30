@@ -72,7 +72,6 @@ use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::from_str::FromStr;
 use std::io::{BufferedStream, IoResult, MemWriter};
 use std::io::net::ip::Port;
 use std::mem;
@@ -614,7 +613,6 @@ impl InnerPostgresConnection {
             conn: conn,
             name: stmt_name,
             column_types: column_types,
-            next_portal_id: Cell::new(0),
             finished: false,
         })
     }
@@ -1256,8 +1254,7 @@ impl<'conn> PostgresStatement<'conn> {
                     return Err(PgDbError(PostgresDbError::new(fields)));
                 }
                 CommandComplete { tag } => {
-                    let s = tag.as_slice().split(' ').last().unwrap();
-                    num = FromStr::from_str(s).unwrap_or(0);
+                    num = util::parse_update_count(tag);
                     break;
                 }
                 EmptyQueryResponse => {
@@ -1568,11 +1565,11 @@ impl<'trans, 'stmt> Iterator<PostgresResult<PostgresRow<'stmt>>>
     }
 }
 
+/// A prepared COPY FROM STDIN statement
 pub struct PostgresCopyInStatement<'a> {
     conn: &'a PostgresConnection,
     name: String,
     column_types: Vec<PostgresType>,
-    next_portal_id: Cell<uint>,
     finished: bool,
 }
 
@@ -1592,7 +1589,13 @@ impl<'a> PostgresCopyInStatement<'a> {
         conn.close_statement(self.name.as_slice())
     }
 
-    pub fn execute<'b, I, J>(&self, mut rows: I) -> PostgresResult<()>
+    /// Executes the prepared statement.
+    ///
+    /// Each iterator retuned by the `rows` iterator will be interpreted as
+    /// providing a single result row.
+    ///
+    /// Returns the number of rows copied.
+    pub fn execute<'b, I, J>(&self, mut rows: I) -> PostgresResult<uint>
             where I: Iterator<J>, J: Iterator<&'b ToSql + 'b> {
         let mut conn = self.conn.conn.borrow_mut();
 
@@ -1680,8 +1683,8 @@ impl<'a> PostgresCopyInStatement<'a> {
         try_pg!(conn.stream.write_message(&Sync));
         try_pg!(conn.stream.flush());
 
-        match try_pg!(conn.read_message_()) {
-            CommandComplete { .. } => {},
+        let num = match try_pg!(conn.read_message_()) {
+            CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
                 return Err(PgDbError(PostgresDbError::new(fields)));
@@ -1690,9 +1693,10 @@ impl<'a> PostgresCopyInStatement<'a> {
                 conn.desynchronized = true;
                 return Err(PgBadResponse);
             }
-        }
+        };
 
-        conn.wait_for_ready()
+        try!(conn.wait_for_ready());
+        Ok(num)
     }
 
     /// Consumes the statement, clearing it from the Postgres session.

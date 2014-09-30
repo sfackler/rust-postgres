@@ -717,7 +717,7 @@ fn test_copy_in() {
     let stmt = or_fail!(conn.prepare_copy_in("foo", ["id", "name"]));
     let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &None::<String>]];
 
-    or_fail!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
+    assert_eq!(Ok(2), stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
 
     let stmt = or_fail!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
     assert_eq!(vec![(0i32, Some("Steven".to_string())), (1, None)],

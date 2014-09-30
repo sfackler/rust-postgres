@@ -12,3 +12,8 @@ pub fn comma_join<'a, W, I>(writer: &mut W, mut strs: I) -> IoResult<()>
     }
     Ok(())
 }
+
+pub fn parse_update_count(tag: String) -> uint {
+    let s = tag.as_slice().split(' ').last().unwrap();
+    from_str(s).unwrap_or(0)
+}
