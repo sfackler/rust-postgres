@@ -80,10 +80,8 @@ use std::fmt;
 use error::{InvalidUrl,
             MissingPassword,
             MissingUser,
-            PgConnectDbError,
             PgConnectStreamError,
             PgConnectBadResponse,
-            PgDbError,
             PgInvalidColumn,
             PgStreamDesynchronized,
             PgStreamError,
@@ -428,7 +426,7 @@ impl InnerPostgresConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } =>
-                    return Err(PgConnectDbError(PostgresDbError::new(fields))),
+                    return PostgresDbError::new_connect(fields),
                 _ => return Err(PgConnectBadResponse),
             }
         }
@@ -449,7 +447,10 @@ impl InnerPostgresConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 NoticeResponse { fields } => {
-                    self.notice_handler.handle(PostgresDbError::new(fields))
+                    match PostgresDbError::new_raw(fields) {
+                        Ok(err) => self.notice_handler.handle(err),
+                        Err(()) => {}
+                    }
                 }
                 NotificationResponse { pid, channel, payload } => {
                     self.notifications.push(PostgresNotification {
@@ -500,7 +501,7 @@ impl InnerPostgresConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(UnsupportedAuthentication),
-            ErrorResponse { fields } => return Err(PgConnectDbError(PostgresDbError::new(fields))),
+            ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -509,7 +510,7 @@ impl InnerPostgresConnection {
 
         match try_pg_conn!(self.read_message_()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => Err(PgConnectDbError(PostgresDbError::new(fields))),
+            ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -543,7 +544,7 @@ impl InnerPostgresConnection {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return Err(PgDbError(PostgresDbError::new(fields)));
+                return PostgresDbError::new(fields);
             }
             _ => bad_response!(self),
         }
@@ -629,7 +630,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
+                    return PostgresDbError::new(fields);
                 }
                 _ => {}
             }
@@ -691,7 +692,7 @@ impl InnerPostgresConnection {
                 }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
+                    return PostgresDbError::new(fields);
                 }
                 _ => {}
             }
@@ -1184,7 +1185,7 @@ impl<'conn> PostgresStatement<'conn> {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                Err(PgDbError(PostgresDbError::new(fields)))
+                PostgresDbError::new(fields)
             }
             _ => {
                 conn.desynchronized = true;
@@ -1251,7 +1252,7 @@ impl<'conn> PostgresStatement<'conn> {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
+                    return PostgresDbError::new(fields);
                 }
                 CommandComplete { tag } => {
                     num = util::parse_update_count(tag);
@@ -1357,7 +1358,7 @@ impl<'stmt> PostgresRows<'stmt> {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
+                    return PostgresDbError::new(fields);
                 }
                 _ => {}
             }
@@ -1381,7 +1382,7 @@ impl<'stmt> PostgresRows<'stmt> {
                 DataRow { row } => self.data.push(row),
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return Err(PgDbError(PostgresDbError::new(fields)));
+                    return PostgresDbError::new(fields);
                 }
                 CopyInResponse { .. } => {
                     try_pg!(conn.write_messages([
@@ -1622,7 +1623,7 @@ impl<'a> PostgresCopyInStatement<'a> {
             BindComplete => {},
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return Err(PgDbError(PostgresDbError::new(fields)));
+                return PostgresDbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;
@@ -1692,7 +1693,7 @@ impl<'a> PostgresCopyInStatement<'a> {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return Err(PgDbError(PostgresDbError::new(fields)));
+                return PostgresDbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;

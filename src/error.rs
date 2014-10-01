@@ -1,13 +1,13 @@
 //! Postgres errors
 
 use std::collections::HashMap;
-use std::from_str::FromStr;
 use std::io;
 use std::fmt;
 
 use openssl::ssl::error;
 use phf::PhfMap;
 
+use PostgresResult;
 use types::PostgresType;
 
 macro_rules! make_errors(
@@ -480,33 +480,49 @@ pub struct PostgresDbError {
 
 impl PostgresDbError {
     #[doc(hidden)]
-    pub fn new(fields: Vec<(u8, String)>) -> PostgresDbError {
+    pub fn new_raw(fields: Vec<(u8, String)>) -> Result<PostgresDbError, ()> {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
-        PostgresDbError {
-            severity: map.pop(&('S' as u8)).unwrap(),
-            code: PostgresSqlState::from_code(map.pop(&('C' as u8)).unwrap().as_slice()),
-            message: map.pop(&('M' as u8)).unwrap(),
-            detail: map.pop(&('D' as u8)),
-            hint: map.pop(&('H' as u8)),
-            position: match map.pop(&('P' as u8)) {
-                Some(pos) => Some(Position(FromStr::from_str(pos.as_slice()).unwrap())),
-                None => match map.pop(&('p' as u8)) {
+        Ok(PostgresDbError {
+            severity: try!(map.pop(&b'S').ok_or(())),
+            code: PostgresSqlState::from_code(try!(map.pop(&b'C').ok_or(())).as_slice()),
+            message: try!(map.pop(&b'M').ok_or(())),
+            detail: map.pop(&b'D'),
+            hint: map.pop(&b'H'),
+            position: match map.pop(&b'P') {
+                Some(pos) => Some(Position(try!(from_str(pos.as_slice()).ok_or(())))),
+                None => match map.pop(&b'p') {
                     Some(pos) => Some(InternalPosition {
-                        position: FromStr::from_str(pos.as_slice()).unwrap(),
-                        query: map.pop(&('q' as u8)).unwrap()
+                        position: try!(from_str(pos.as_slice()).ok_or(())),
+                        query: try!(map.pop(&b'q').ok_or(()))
                     }),
                     None => None
                 }
             },
-            where_: map.pop(&('W' as u8)),
-            schema: map.pop(&('s' as u8)),
-            table: map.pop(&('t' as u8)),
-            column: map.pop(&('c' as u8)),
-            datatype: map.pop(&('d' as u8)),
-            constraint: map.pop(&('n' as u8)),
-            file: map.pop(&('F' as u8)).unwrap(),
-            line: FromStr::from_str(map.pop(&('L' as u8)).unwrap().as_slice()).unwrap(),
-            routine: map.pop(&('R' as u8)).unwrap()
+            where_: map.pop(&b'W'),
+            schema: map.pop(&b's'),
+            table: map.pop(&b't'),
+            column: map.pop(&b'c'),
+            datatype: map.pop(&b'd'),
+            constraint: map.pop(&b'n'),
+            file: try!(map.pop(&b'F').ok_or(())),
+            line: try!(map.pop(&b'L').and_then(|l| from_str(l.as_slice())).ok_or(())),
+            routine: map.pop(&b'R').unwrap()
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn new_connect<T>(fields: Vec<(u8, String)>) -> Result<T, PostgresConnectError> {
+        match PostgresDbError::new_raw(fields) {
+            Ok(err) => Err(PgConnectDbError(err)),
+            Err(()) => Err(PgConnectBadResponse),
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn new<T>(fields: Vec<(u8, String)>) -> PostgresResult<T> {
+        match PostgresDbError::new_raw(fields) {
+            Ok(err) => Err(PgDbError(err)),
+            Err(()) => Err(PgBadData),
         }
     }
 }
