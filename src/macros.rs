@@ -28,6 +28,18 @@ macro_rules! try_desync(
     )
 )
 
+macro_rules! try_pg_desync(
+    ($s:expr, $e:expr) => (
+        match $e {
+            Ok(ok) => ok,
+            Err(err) => {
+                $s.desynchronized = true;
+                return Err(PgStreamError(err))
+            }
+        }
+    )
+)
+
 macro_rules! check_desync(
     ($e:expr) => ({
         if $e.canary() != CANARY {

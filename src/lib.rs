@@ -1644,7 +1644,7 @@ impl<'a> PostgresCopyInStatement<'a> {
         let _ = buf.write_be_i32(0);
         let _ = buf.write_be_i32(0);
 
-        for mut row in rows {
+        'l: for mut row in rows {
             let _ = buf.write_be_i16(self.column_types.len() as i16);
 
             let mut types = self.column_types.iter();
@@ -1662,17 +1662,17 @@ impl<'a> PostgresCopyInStatement<'a> {
                         }
                     }
                     (Some(_), None) | (None, Some(_)) => {
-                        try_pg!(conn.stream.write_message(
+                        try_pg_desync!(conn, conn.stream.write_message(
                             &CopyFail {
                                 message: "Invalid column count",
                             }));
-                        break;
+                        break 'l;
                     }
                     (None, None) => break
                 }
             }
 
-            try_pg!(conn.stream.write_message(
+            try_pg_desync!(conn, conn.stream.write_message(
                 &CopyData {
                     data: buf.unwrap().as_slice()
                 }));
@@ -1680,13 +1680,12 @@ impl<'a> PostgresCopyInStatement<'a> {
         }
 
         let _ = buf.write_be_i16(-1);
-        try_pg!(conn.stream.write_message(
-            &CopyData {
+        try_pg!(conn.write_messages([
+            CopyData {
                 data: buf.unwrap().as_slice(),
-            }));
-        try_pg!(conn.stream.write_message(&CopyDone));
-        try_pg!(conn.stream.write_message(&Sync));
-        try_pg!(conn.stream.flush());
+            },
+            CopyDone,
+            Sync]));
 
         let num = match try_pg!(conn.read_message_()) {
             CommandComplete { tag } => util::parse_update_count(tag),
