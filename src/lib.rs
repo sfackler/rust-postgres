@@ -1644,10 +1644,9 @@ impl<'a> PostgresCopyInStatement<'a> {
         let _ = buf.write_be_i32(0);
         let _ = buf.write_be_i32(0);
 
-        for row in rows {
+        for mut row in rows {
             let _ = buf.write_be_i16(self.column_types.len() as i16);
 
-            let mut row = row.fuse();
             let mut types = self.column_types.iter();
             loop {
                 match (row.next(), types.next()) {
