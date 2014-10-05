@@ -1390,7 +1390,6 @@ impl<'stmt> PostgresRows<'stmt> {
                             message: "COPY queries cannot be directly executed",
                         },
                         Sync]));
-                    continue;
                 }
                 _ => {
                     conn.desynchronized = true;

@@ -95,7 +95,7 @@ fn test_unix_connection() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
     }
 
-    let unix_socket_directory = unix_socket_directories[] .split(',').next().unwrap();
+    let unix_socket_directory = unix_socket_directories[].split(',').next().unwrap();
 
     let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
     let conn = or_fail!(PostgresConnection::connect(url[], &NoSsl));
