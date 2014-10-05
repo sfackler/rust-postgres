@@ -358,7 +358,7 @@ macro_rules! from_map_impl(
 macro_rules! from_raw_from_impl(
     ($($expected:pat)|+, $t:ty) => (
         from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
-            let mut reader = BufReader::new(buf.as_slice());
+            let mut reader = BufReader::new(buf[]);
             RawFromSql::raw_from_sql(&mut reader)
         })
     )
@@ -383,7 +383,7 @@ from_raw_from_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 macro_rules! from_array_impl(
     ($($oid:ident)|+, $t:ty) => (
         from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
-            let mut rdr = BufReader::new(buf.as_slice());
+            let mut rdr = BufReader::new(buf[]);
 
             let ndim = try_pg!(rdr.read_be_i32()) as uint;
             let _has_null = try_pg!(rdr.read_be_i32()) == 1;
@@ -434,13 +434,13 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
                 -> PostgresResult<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
         match *raw {
             Some(ref buf) => {
-                let mut rdr = BufReader::new(buf.as_slice());
+                let mut rdr = BufReader::new(buf[]);
                 let mut map = HashMap::new();
 
                 let count = try_pg!(rdr.read_be_i32());
@@ -517,7 +517,7 @@ impl RawToSql for bool {
 
 impl RawToSql for Vec<u8> {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> PostgresResult<()> {
-        Ok(try_pg!(w.write(self.as_slice())))
+        Ok(try_pg!(w.write(self[])))
     }
 }
 
@@ -569,7 +569,7 @@ macro_rules! to_range_impl(
                         try!(bound.value.raw_to_sql(&mut inner_buf));
                         let inner_buf = inner_buf.unwrap();
                         try_pg!(buf.write_be_i32(inner_buf.len() as i32));
-                        try_pg!(buf.write(inner_buf.as_slice()));
+                        try_pg!(buf.write(inner_buf[]));
                     }
                     None => {}
                 }
@@ -579,7 +579,7 @@ macro_rules! to_range_impl(
                         try!(bound.value.raw_to_sql(&mut inner_buf));
                         let inner_buf = inner_buf.unwrap();
                         try_pg!(buf.write_be_i32(inner_buf.len() as i32));
-                        try_pg!(buf.write(inner_buf.as_slice()));
+                        try_pg!(buf.write(inner_buf[]));
                     }
                     None => {}
                 }
@@ -703,7 +703,7 @@ macro_rules! to_array_impl(
                             try!(val.raw_to_sql(&mut inner_buf));
                             let inner_buf = inner_buf.unwrap();
                             try_pg!(buf.write_be_i32(inner_buf.len() as i32));
-                            try_pg!(buf.write(inner_buf.as_slice()));
+                            try_pg!(buf.write(inner_buf[]));
                         }
                         None => try_pg!(buf.write_be_i32(-1))
                     }
@@ -735,7 +735,7 @@ to_array_impl!(PgJsonArray, Json)
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -763,7 +763,7 @@ impl ToSql for HashMap<String, Option<String>> {
 impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name.as_slice() => {}
+            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 

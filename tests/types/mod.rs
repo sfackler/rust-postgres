@@ -15,11 +15,11 @@ mod range;
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type).as_slice()));
+        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
         let result = or_fail!(stmt.query([])).next().unwrap().get(0u);
         assert!(val == &result);
 
-        let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
+        let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
         let result = or_fail!(stmt.query(&[val])).next().unwrap().get(0u);
         assert!(val == &result);
     }
@@ -194,13 +194,13 @@ macro_rules! test_array_params(
         let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
                       format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
                      (None, "NULL".to_string())];
-        test_type(format!("{}[]", $name).as_slice(), tests);
+        test_type(format!("{}[]", $name)[], tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
         let tests = [(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
                                        $s1, $s2, $s3).into_string())];
-        test_type(format!("{}[][]", $name).as_slice(), tests);
+        test_type(format!("{}[][]", $name)[], tests);
     })
 )
 
@@ -335,13 +335,13 @@ fn test_hstore_params() {
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type).as_slice()));
+    let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
     let mut result = or_fail!(stmt.query([]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
-    let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type).as_slice()));
+    let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
     let mut result = or_fail!(stmt.query(&[&nan]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan())

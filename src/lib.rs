@@ -224,8 +224,8 @@ impl IntoConnectParams for Url {
             ..
         } = self;
 
-        let maybe_path = try!(url::decode_component(host.as_slice()).map_err(InvalidUrl));
-        let target = if maybe_path.as_slice().starts_with("/") {
+        let maybe_path = try!(url::decode_component(host[]).map_err(InvalidUrl));
+        let target = if maybe_path[].starts_with("/") {
             TargetUnix(Path::new(maybe_path))
         } else {
             TargetTcp(host)
@@ -238,7 +238,7 @@ impl IntoConnectParams for Url {
 
         let database = if !path.is_empty() {
             // path contains the leading /
-            let (_, path) = path.as_slice().slice_shift_char();
+            let (_, path) = path[].slice_shift_char();
             Some(path.to_string())
         } else {
             None
@@ -413,7 +413,7 @@ impl InnerPostgresConnection {
 
         try_pg_conn!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
-            parameters: options.as_slice()
+            parameters: options[]
         }]));
 
         try!(conn.handle_auth(user));
@@ -476,7 +476,7 @@ impl InnerPostgresConnection {
                     None => return Err(MissingPassword)
                 };
                 try_pg_conn!(self.write_messages([PasswordMessage {
-                        password: pass.as_slice(),
+                        password: pass[],
                     }]));
             }
             AuthenticationMD5Password { salt } => {
@@ -487,14 +487,14 @@ impl InnerPostgresConnection {
                 let hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
-                let output = hasher.final().as_slice().to_hex();
+                let output = hasher.final()[].to_hex();
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
                 let output = format!("md5{}",
-                                     hasher.final().as_slice().to_hex());
+                                     hasher.final()[].to_hex());
                 try_pg_conn!(self.write_messages([PasswordMessage {
-                        password: output.as_slice()
+                        password: output[]
                     }]));
             }
             AuthenticationKerberosV5
@@ -530,13 +530,13 @@ impl InnerPostgresConnection {
 
         try_pg!(self.write_messages([
             Parse {
-                name: stmt_name.as_slice(),
+                name: stmt_name[],
                 query: query,
                 param_types: []
             },
             Describe {
                 variant: b'S',
-                name: stmt_name.as_slice(),
+                name: stmt_name[],
             },
             Sync]));
 
@@ -598,17 +598,17 @@ impl InnerPostgresConnection {
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(query, " FROM {}", table);
         let query = String::from_utf8(query.unwrap()).unwrap();
-        let (stmt_name, _, result_desc) = try!(self.raw_prepare(query.as_slice()));
+        let (stmt_name, _, result_desc) = try!(self.raw_prepare(query[]));
 
         let column_types = result_desc.iter().map(|desc| desc.ty.clone()).collect();
-        try!(self.close_statement(stmt_name.as_slice()));
+        try!(self.close_statement(stmt_name[]));
 
         let mut query = MemWriter::new();
         let _ = write!(query, "COPY {} (", table);
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query.unwrap()).unwrap();
-        let (stmt_name, _, _) = try!(self.raw_prepare(query.as_slice()));
+        let (stmt_name, _, _) = try!(self.raw_prepare(query[]));
 
         Ok(PostgresCopyInStatement {
             conn: conn,
@@ -656,7 +656,7 @@ impl InnerPostgresConnection {
             None => {}
         }
         let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
-                                                  WHERE oid={}", oid).as_slice()))
+                                                  WHERE oid={}", oid)[]))
             .into_iter().next().unwrap().into_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
@@ -687,7 +687,7 @@ impl InnerPostgresConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.into_iter().map(|opt| {
-                        opt.map(|b| String::from_utf8_lossy(b.as_slice()).into_string())
+                        opt.map(|b| String::from_utf8_lossy(b[]).into_string())
                     }).collect());
                 }
                 ErrorResponse { fields } => {
@@ -1149,7 +1149,7 @@ impl<'conn> PostgresStatement<'conn> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name.as_slice())
+        conn.close_statement(self.name[])
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
@@ -1170,9 +1170,9 @@ impl<'conn> PostgresStatement<'conn> {
         try_pg!(conn.write_messages([
             Bind {
                 portal: portal_name,
-                statement: self.name.as_slice(),
+                statement: self.name[],
                 formats: [1],
-                values: values.as_slice(),
+                values: values[],
                 result_formats: [1]
             },
             Execute {
@@ -1200,7 +1200,7 @@ impl<'conn> PostgresStatement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
 
-        try!(self.inner_execute(portal_name.as_slice(), row_limit, params));
+        try!(self.inner_execute(portal_name[], row_limit, params));
 
         let mut result = PostgresRows {
             stmt: self,
@@ -1217,12 +1217,12 @@ impl<'conn> PostgresStatement<'conn> {
 
     /// Returns a slice containing the expected parameter types.
     pub fn param_types(&self) -> &[PostgresType] {
-        self.param_types.as_slice()
+        self.param_types[]
     }
 
     /// Returns a slice describing the columns of the result of the query.
     pub fn result_descriptions(&self) -> &[ResultDescription] {
-        self.result_desc.as_slice()
+        self.result_desc[]
     }
 
     /// Executes the prepared statement, returning the number of rows modified.
@@ -1349,7 +1349,7 @@ impl<'stmt> PostgresRows<'stmt> {
         try_pg!(conn.write_messages([
             Close {
                 variant: b'P',
-                name: self.name.as_slice()
+                name: self.name[]
             },
             Sync]));
 
@@ -1404,7 +1404,7 @@ impl<'stmt> PostgresRows<'stmt> {
     fn execute(&mut self) -> PostgresResult<()> {
         try_pg!(self.stmt.conn.write_messages([
             Execute {
-                portal: self.name.as_slice(),
+                portal: self.name[],
                 max_rows: self.row_limit
             },
             Sync]));
@@ -1535,7 +1535,7 @@ impl RowIndex for uint {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
-        stmt.result_descriptions().iter().position(|d| d.name.as_slice() == *self)
+        stmt.result_descriptions().iter().position(|d| d.name[] == *self)
     }
 }
 
@@ -1587,12 +1587,12 @@ impl<'a> PostgresCopyInStatement<'a> {
     fn finish_inner(&mut self) -> PostgresResult<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name.as_slice())
+        conn.close_statement(self.name[])
     }
 
     /// Returns a slice containing the expected column types.
     pub fn column_types(&self) -> &[PostgresType] {
-        self.column_types.as_slice()
+        self.column_types[]
     }
 
     /// Executes the prepared statement.
@@ -1608,7 +1608,7 @@ impl<'a> PostgresCopyInStatement<'a> {
         try_pg!(conn.write_messages([
             Bind {
                 portal: "",
-                statement: self.name.as_slice(),
+                statement: self.name[],
                 formats: [],
                 values: [],
                 result_formats: []
@@ -1657,7 +1657,7 @@ impl<'a> PostgresCopyInStatement<'a> {
                             }
                             Some(val) => {
                                 let _ = buf.write_be_i32(val.len() as i32);
-                                let _ = buf.write(val.as_slice());
+                                let _ = buf.write(val[]);
                             }
                         }
                     }
@@ -1674,7 +1674,7 @@ impl<'a> PostgresCopyInStatement<'a> {
 
             try_pg_desync!(conn, conn.stream.write_message(
                 &CopyData {
-                    data: buf.unwrap().as_slice()
+                    data: buf.unwrap()[]
                 }));
             buf = MemWriter::new();
         }
@@ -1682,7 +1682,7 @@ impl<'a> PostgresCopyInStatement<'a> {
         let _ = buf.write_be_i16(-1);
         try_pg!(conn.write_messages([
             CopyData {
-                data: buf.unwrap().as_slice(),
+                data: buf.unwrap()[],
             },
             CopyDone,
             Sync]));

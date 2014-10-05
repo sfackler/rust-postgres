@@ -205,7 +205,6 @@ make_errors!(
     "38003" => ProhibitedSqlStatementAttemptedExternalRoutine,
     "38004" => ReadingSqlDataNotPermittedExternalRoutine,
 
-
     // Class 39 — External Routine Invocation Exception
     "39000" => ExternalRoutineInvocationException,
     "39001" => InvalidSqlstateReturned,
@@ -484,15 +483,15 @@ impl PostgresDbError {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
         Ok(PostgresDbError {
             severity: try!(map.pop(&b'S').ok_or(())),
-            code: PostgresSqlState::from_code(try!(map.pop(&b'C').ok_or(())).as_slice()),
+            code: PostgresSqlState::from_code(try!(map.pop(&b'C').ok_or(()))[]),
             message: try!(map.pop(&b'M').ok_or(())),
             detail: map.pop(&b'D'),
             hint: map.pop(&b'H'),
             position: match map.pop(&b'P') {
-                Some(pos) => Some(Position(try!(from_str(pos.as_slice()).ok_or(())))),
+                Some(pos) => Some(Position(try!(from_str(pos[]).ok_or(())))),
                 None => match map.pop(&b'p') {
                     Some(pos) => Some(InternalPosition {
-                        position: try!(from_str(pos.as_slice()).ok_or(())),
+                        position: try!(from_str(pos[]).ok_or(())),
                         query: try!(map.pop(&b'q').ok_or(()))
                     }),
                     None => None
@@ -505,7 +504,7 @@ impl PostgresDbError {
             datatype: map.pop(&b'd'),
             constraint: map.pop(&b'n'),
             file: try!(map.pop(&b'F').ok_or(())),
-            line: try!(map.pop(&b'L').and_then(|l| from_str(l.as_slice())).ok_or(())),
+            line: try!(map.pop(&b'L').and_then(|l| from_str(l[])).ok_or(())),
             routine: map.pop(&b'R').unwrap()
         })
     }

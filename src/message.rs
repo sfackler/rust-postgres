@@ -168,7 +168,7 @@ impl<W: Writer> WriteMessage for W {
                         }
                         Some(ref value) => {
                             try!(buf.write_be_i32(value.len() as i32));
-                            try!(buf.write(value.as_slice()));
+                            try!(buf.write(value[]));
                         }
                     }
                 }
@@ -229,8 +229,8 @@ impl<W: Writer> WriteMessage for W {
             StartupMessage { version, parameters } => {
                 try!(buf.write_be_u32(version));
                 for &(ref k, ref v) in parameters.iter() {
-                    try!(buf.write_cstr(k.as_slice()));
-                    try!(buf.write_cstr(v.as_slice()));
+                    try!(buf.write_cstr(k[]));
+                    try!(buf.write_cstr(v[]));
                 }
                 try!(buf.write_u8(0));
             }
@@ -251,7 +251,7 @@ impl<W: Writer> WriteMessage for W {
         let buf = buf.unwrap();
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
-        try!(self.write(buf.as_slice()));
+        try!(self.write(buf[]));
 
         Ok(())
     }

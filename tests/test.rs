@@ -95,10 +95,10 @@ fn test_unix_connection() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
     }
 
-    let unix_socket_directory = unix_socket_directories.as_slice() .split(',').next().unwrap();
+    let unix_socket_directory = unix_socket_directories[] .split(',').next().unwrap();
 
     let url = format!("postgres://postgres@{}", url::encode_component(unix_socket_directory));
-    let conn = or_fail!(PostgresConnection::connect(url.as_slice(), &NoSsl));
+    let conn = or_fail!(PostgresConnection::connect(url[], &NoSsl));
     assert!(conn.finish().is_ok());
 }
 
@@ -440,7 +440,7 @@ fn test_lazy_query_wrong_conn() {
 fn test_param_types() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
-    assert_eq!(stmt.param_types(), [PgInt4, PgVarchar].as_slice());
+    assert_eq!(stmt.param_types(), [PgInt4, PgVarchar][]);
 }
 
 #[test]
@@ -542,7 +542,7 @@ fn test_custom_notice_handler() {
 
     impl PostgresNoticeHandler for Handler {
         fn handle(&mut self, notice: PostgresDbError) {
-            assert_eq!("note", notice.message.as_slice());
+            assert_eq!("note", notice.message[]);
             unsafe { count += 1; }
         }
     }
@@ -698,12 +698,12 @@ fn test_execute_copy_from_err() {
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));
     let stmt = or_fail!(conn.prepare("COPY foo (id) FROM STDIN"));
     match stmt.execute([]) {
-        Err(PgDbError(ref err)) if err.message.as_slice().contains("COPY") => {}
+        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => fail!("Unexptected error {}", err),
         _ => fail!("Expected error"),
     }
     match stmt.query([]) {
-        Err(PgDbError(ref err)) if err.message.as_slice().contains("COPY") => {}
+        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => fail!("Unexptected error {}", err),
         _ => fail!("Expected error"),
     }
@@ -734,7 +734,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message.as_slice().contains("Invalid column count") => {}
+        Err(PgDbError(ref err)) if err.message[].contains("Invalid column count") => {}
         Err(err) => fail!("unexpected error {}", err),
         _ => fail!("Expected error"),
     }
@@ -743,7 +743,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message.as_slice().contains("Invalid column count") => {}
+        Err(PgDbError(ref err)) if err.message[].contains("Invalid column count") => {}
         Err(err) => fail!("unexpected error {}", err),
         _ => fail!("Expected error"),
     }

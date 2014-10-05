@@ -86,7 +86,7 @@ fn open_socket(params: &PostgresConnectParams)
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         TargetTcp(ref host) =>
-            tcp::TcpStream::connect(host.as_slice(), port).map(|s| TcpStream(s)),
+            tcp::TcpStream::connect(host[], port).map(|s| TcpStream(s)),
         TargetUnix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));

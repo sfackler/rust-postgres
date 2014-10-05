@@ -152,7 +152,7 @@ impl<T> ArrayBase<T> {
 
 impl<T> Array<T> for ArrayBase<T> {
     fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
-        self.info.as_slice()
+        self.info[]
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
@@ -220,7 +220,7 @@ impl<'parent, T> Array<T> for ArraySlice<'parent, T> {
             MutSliceParent(p) => p.dimension_info(),
             BaseParent(p) => p.dimension_info()
         };
-        info.slice_from(1)
+        info[1..]
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
@@ -272,7 +272,7 @@ impl<'parent, T> Array<T> for MutArraySlice<'parent, T> {
                 MutBaseParent(ref p) => mem::transmute(p.dimension_info()),
             }
         };
-        info.slice_from(1)
+        info[1..]
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
