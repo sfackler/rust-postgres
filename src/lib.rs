@@ -861,8 +861,8 @@ impl PostgresConnection {
     /// is active until the `PostgresTransaction` object falls out of scope.
     ///
     /// ## Note
-    /// A transaction will roll back by default. Use the `set_commit` method to
-    /// set the transaction to commit.
+    /// A transaction will roll back by default. The `set_commit`,
+    /// `set_rollback`, and `commit` methods alter this behavior.
     ///
     /// ## Example
     ///
