@@ -874,8 +874,7 @@ impl PostgresConnection {
     /// try!(trans.execute("UPDATE foo SET bar = 10", []));
     /// // ...
     ///
-    /// trans.set_commit();
-    /// try!(trans.finish());
+    /// try!(trans.commit());
     /// # Ok(())
     /// # }
     /// ```
