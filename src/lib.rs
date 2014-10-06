@@ -690,6 +690,13 @@ impl InnerPostgresConnection {
                         opt.map(|b| String::from_utf8_lossy(b[]).into_string())
                     }).collect());
                 }
+                CopyInResponse { .. } => {
+                    try_pg!(self.write_messages([
+                        CopyFail {
+                            message: "COPY queries cannot be directly executed",
+                        },
+                        Sync]));
+                }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return PostgresDbError::new(fields);

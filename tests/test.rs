@@ -750,3 +750,14 @@ fn test_copy_in_bad_column_count() {
 
     or_fail!(conn.execute("SELECT 1", []));
 }
+
+#[test]
+fn test_batch_execute_copy_from_err() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));
+    match conn.batch_execute("COPY foo (id) FROM STDIN") {
+        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(err) => fail!("Unexptected error {}", err),
+        _ => fail!("Expected error"),
+    }
+}
