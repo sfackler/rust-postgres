@@ -1718,3 +1718,62 @@ impl<'a> PostgresCopyInStatement<'a> {
         self.finish_inner()
     }
 }
+
+/// A trait allowing abstraction over connections and transactions
+pub trait GenericConnection {
+    /// Like `PostgresConnection::prepare`.
+    fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>>;
+
+    /// Like `PostgresConnection::execute`.
+    fn execute(&self, query: &str, params: &[&ToSql]) -> PostgresResult<uint> {
+        self.prepare(query).and_then(|s| s.execute(params))
+    }
+
+    /// Like `PostgresConnection::prepare_copy_in`.
+    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
+                           -> PostgresResult<PostgresCopyInStatement<'a>>;
+
+    /// Like `PostgresConnection::transaction`.
+    fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>>;
+
+    /// Like `PostgresConnection::batch_execute`.
+    fn batch_execute(&self, query: &str) -> PostgresResult<()>;
+}
+
+impl GenericConnection for PostgresConnection {
+    fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
+        self.prepare(query)
+    }
+
+    fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
+        self.transaction()
+    }
+
+    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
+                           -> PostgresResult<PostgresCopyInStatement<'a>> {
+        self.prepare_copy_in(table, columns)
+    }
+
+    fn batch_execute(&self, query: &str) -> PostgresResult<()> {
+        self.batch_execute(query)
+    }
+}
+
+impl<'a> GenericConnection for PostgresTransaction<'a> {
+    fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
+        self.prepare(query)
+    }
+
+    fn transaction<'a>(&'a self) -> PostgresResult<PostgresTransaction<'a>> {
+        self.transaction()
+    }
+
+    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
+                           -> PostgresResult<PostgresCopyInStatement<'a>> {
+        self.prepare_copy_in(table, columns)
+    }
+
+    fn batch_execute(&self, query: &str) -> PostgresResult<()> {
+        self.batch_execute(query)
+    }
+}

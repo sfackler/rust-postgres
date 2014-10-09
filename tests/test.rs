@@ -14,6 +14,7 @@ use std::time::Duration;
 use postgres::{PostgresNoticeHandler,
                PostgresNotification,
                PostgresConnection,
+               GenericConnection,
                ResultDescription,
                RequireSsl,
                PreferSsl,
@@ -760,4 +761,17 @@ fn test_batch_execute_copy_from_err() {
         Err(err) => fail!("Unexptected error {}", err),
         _ => fail!("Expected error"),
     }
+}
+
+#[test]
+// Just make sure the impls don't infinite loop
+fn test_generic_connection() {
+    fn f<T>(t: &T) where T: GenericConnection {
+        or_fail!(t.execute("SELECT 1", []));
+    }
+
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    f(&conn);
+    let trans = or_fail!(conn.transaction());
+    f(&trans);
 }
