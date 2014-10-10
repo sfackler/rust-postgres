@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
-#![feature(macro_rules, struct_variant, phase, unsafe_destructor)]
+#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax)]
 #![warn(missing_doc)]
 
 extern crate collections;
@@ -487,12 +487,12 @@ impl InnerPostgresConnection {
                 let hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
-                let output = hasher.final()[].to_hex();
+                let output = hasher.finalize()[].to_hex();
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
                 let output = format!("md5{}",
-                                     hasher.final()[].to_hex());
+                                     hasher.finalize()[].to_hex());
                 try_pg_conn!(self.write_messages([PasswordMessage {
                         password: output[]
                     }]));

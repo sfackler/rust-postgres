@@ -1,4 +1,4 @@
-#![feature(macro_rules, phase)]
+#![feature(macro_rules, phase, slicing_syntax)]
 
 #[phase(plugin, link)]
 extern crate postgres;
