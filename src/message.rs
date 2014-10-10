@@ -3,9 +3,9 @@ use std::mem;
 
 use types::Oid;
 
-pub static PROTOCOL_VERSION: u32 = 0x0003_0000;
-pub static CANCEL_CODE: u32 = 80877102;
-pub static SSL_CODE: u32 = 80877103;
+pub const PROTOCOL_VERSION: u32 = 0x0003_0000;
+pub const CANCEL_CODE: u32 = 80877102;
+pub const SSL_CODE: u32 = 80877103;
 
 pub enum BackendMessage {
     AuthenticationCleartextPassword,

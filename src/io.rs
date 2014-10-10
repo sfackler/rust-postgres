@@ -19,7 +19,7 @@ use error::{PostgresConnectError,
 use message;
 use message::{SslRequest, WriteMessage};
 
-static DEFAULT_PORT: Port = 5432;
+const DEFAULT_PORT: Port = 5432;
 
 pub enum MaybeSslStream<S> {
     SslStream(ssl::SslStream<S>),
