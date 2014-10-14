@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
-#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax)]
+#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, if_let)]
 #![warn(missing_doc)]
 
 extern crate collections;
@@ -382,10 +382,7 @@ impl InnerPostgresConnection {
             ..
         } = params;
 
-        let user = match user {
-            Some(user) => user,
-            None => return Err(MissingUser),
-        };
+        let user = try!(user.ok_or(MissingUser));
 
         let mut conn = InnerPostgresConnection {
             stream: BufferedStream::new(stream),
@@ -447,9 +444,8 @@ impl InnerPostgresConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 NoticeResponse { fields } => {
-                    match PostgresDbError::new_raw(fields) {
-                        Ok(err) => self.notice_handler.handle(err),
-                        Err(()) => {}
+                    if let Ok(err) = PostgresDbError::new_raw(fields) {
+                        self.notice_handler.handle(err);
                     }
                 }
                 NotificationResponse { pid, channel, payload } => {
@@ -471,19 +467,13 @@ impl InnerPostgresConnection {
         match try_pg_conn!(self.read_message_()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
-                let pass = match user.password {
-                    Some(pass) => pass,
-                    None => return Err(MissingPassword)
-                };
+                let pass = try!(user.password.ok_or(MissingPassword));
                 try_pg_conn!(self.write_messages([PasswordMessage {
                         password: pass[],
                     }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = match user.password {
-                    Some(pass) => pass,
-                    None => return Err(MissingPassword)
-                };
+                let pass = try!(user.password.ok_or(MissingPassword));
                 let hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
@@ -651,9 +641,8 @@ impl InnerPostgresConnection {
     }
 
     fn get_type_name(&mut self, oid: Oid) -> PostgresResult<String> {
-        match self.unknown_types.find(&oid) {
-            Some(name) => return Ok(name.clone()),
-            None => {}
+        if let Some(name) = self.unknown_types.find(&oid) {
+            return Ok(name.clone());
         }
         let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
                                                   WHERE oid={}", oid)[]))
@@ -1169,8 +1158,7 @@ impl<'conn> PostgresStatement<'conn> {
         }
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
-            let value = try!(param.to_sql(ty));
-            values.push(value);
+            values.push(try!(param.to_sql(ty)));
         };
 
         try_pg!(conn.write_messages([
@@ -1427,9 +1415,8 @@ impl<'stmt> PostgresRows<'stmt> {
 
     fn try_next(&mut self) -> Option<PostgresResult<PostgresRow<'stmt>>> {
         if self.data.is_empty() && self.more_rows {
-            match self.execute() {
-                Ok(()) => {}
-                Err(err) => return Some(Err(err))
+            if let Err(err) = self.execute() {
+                return Some(Err(err));
             }
         }
 
@@ -1476,10 +1463,7 @@ impl<'stmt> PostgresRow<'stmt> {
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> PostgresResult<T> where I: RowIndex, T: FromSql {
-        let idx = match idx.idx(self.stmt) {
-            Some(idx) => idx,
-            None => return Err(PgInvalidColumn)
-        };
+        let idx = try!(idx.idx(self.stmt).ok_or(PgInvalidColumn));
         FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 
