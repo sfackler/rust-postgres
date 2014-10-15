@@ -65,7 +65,7 @@ extern crate phf_mac;
 extern crate log;
 
 use collections::{Deque, RingBuf};
-use url::{UserInfo, Url};
+use url::{Url, UrlParser, SchemeType, RelativeScheme, NonRelativeScheme, RelativeSchemeData, UrlRelativeSchemeData};
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
@@ -205,33 +205,49 @@ impl IntoConnectParams for PostgresConnectParams {
 
 impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
-        match Url::parse(self) {
+        fn mapper(scheme: &str) -> SchemeType {
+            match scheme {
+                "postgresql"|"postgres" => RelativeScheme(5432),
+                _ => NonRelativeScheme,
+            }
+        }
+
+        match UrlParser::new().scheme_type_mapper(mapper).parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(InvalidUrl(err)),
+            Err(err) => return Err(InvalidUrl(err.to_string())),
         }
     }
 }
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
-        let Url {
+        let options = self.query_pairs().unwrap_or(vec![]);
+        let scheme_data = match self.scheme_data {
+            RelativeSchemeData(d) => d,
+            _ => return Err(InvalidUrl("expected relative scheme".to_string())),
+        };
+        let path = scheme_data.serialize_path();
+
+        let UrlRelativeSchemeData {
+            username,
+            password,
             host,
             port,
-            user,
-            path: url::Path { path, query: options, .. },
             ..
-        } = self;
+        } = scheme_data;
 
-        let maybe_path = try!(url::decode_component(host[]).map_err(InvalidUrl));
-        let target = if maybe_path[].starts_with("/") {
+        let host = host.serialize();
+        let maybe_path = url::percent_decode(host.as_bytes());
+        let target = if maybe_path[].starts_with([b'/']) {
             TargetUnix(Path::new(maybe_path))
         } else {
             TargetTcp(host)
         };
 
-        let user = match user {
-            Some(UserInfo { user, pass }) => Some(PostgresUserInfo { user: user, password: pass }),
-            None => None,
+        let user = if username.is_empty() {
+            None
+        } else {
+            Some(PostgresUserInfo { user: username, password: password })
         };
 
         let database = if !path.is_empty() {

@@ -46,6 +46,7 @@ const FLOAT4ARRAYOID: Oid = 1021;
 const FLAOT8ARRAYOID: Oid = 1022;
 const BPCHAROID: Oid = 1042;
 const VARCHAROID: Oid = 1043;
+const DATEOID: Oid = 1082;
 const TIMESTAMPOID: Oid = 1114;
 const TIMESTAMPARRAYOID: Oid = 1115;
 const TIMESTAMPZOID: Oid = 1184;
@@ -168,6 +169,8 @@ make_postgres_type!(
     FLOAT4ARRAYOID => PgFloat4Array member PgFloat4,
     #[doc="FLOAT8[]"]
     FLAOT8ARRAYOID => PgFloat8Array member PgFloat8,
+    #[doc="DATE"]
+    DATEOID => PgDate,
     #[doc="TIMESTAMP"]
     TIMESTAMPOID => PgTimestamp,
     #[doc="TIMESTAMP[]"]
@@ -375,7 +378,7 @@ from_raw_from_impl!(PgFloat4, f32)
 from_raw_from_impl!(PgFloat8, f64)
 from_raw_from_impl!(PgJson, Json)
 
-from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
+from_raw_from_impl!(PgDate | PgTimestamp | PgTimestampTZ, Timespec)
 from_raw_from_impl!(PgInt4Range, Range<i32>)
 from_raw_from_impl!(PgInt8Range, Range<i64>)
 from_raw_from_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
@@ -678,7 +681,7 @@ impl<'a> ToSql for &'a [u8] {
 
 to_option_impl_lifetime!(PgByteA, &'a [u8])
 
-to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
+to_raw_to_impl!(PgDate | PgTimestamp | PgTimestampTZ, Timespec)
 
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $t:ty) => (
