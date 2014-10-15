@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
-#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, if_let)]
+#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
 #![warn(missing_doc)]
 
 extern crate collections;
@@ -61,7 +61,6 @@ extern crate time;
 extern crate phf;
 #[phase(plugin)]
 extern crate phf_mac;
-extern crate url;
 #[phase(plugin, link)]
 extern crate log;
 
@@ -140,12 +139,13 @@ use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
 #[macro_escape]
 mod macros;
 
-pub mod error;
 mod io;
-pub mod pool;
 mod message;
-pub mod types;
+mod url;
 mod util;
+pub mod error;
+pub mod pool;
+pub mod types;
 
 static CANARY: u32 = 0xdeadbeef;
 
@@ -204,7 +204,6 @@ impl IntoConnectParams for PostgresConnectParams {
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    #[allow(deprecated)]
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
@@ -214,7 +213,6 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    #[allow(deprecated)]
     fn into_connect_params(self) -> Result<PostgresConnectParams, PostgresConnectError> {
         let Url {
             host,
