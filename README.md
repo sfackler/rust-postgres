@@ -37,7 +37,7 @@ fn main() {
                   )", []).unwrap();
     let me = Person {
         id: 0,
-        name: "Steven".to_string(),
+        name: "Steven".into_string(),
         time_created: time::get_time(),
         data: None
     };

@@ -95,7 +95,7 @@ macro_rules! make_postgres_type(
                 match oid {
                     $($oid => $variant,)+
                     // We have to load an empty string now, it'll get filled in later
-                    oid => PgUnknownType { name: "".to_string(), oid: oid }
+                    oid => PgUnknownType { name: String::new(), oid: oid }
                 }
             }
 

@@ -29,7 +29,7 @@
 //!                   )", []).unwrap();
 //!     let me = Person {
 //!         id: 0,
-//!         name: "Steven".to_string(),
+//!         name: "Steven".into_string(),
 //!         time_created: time::get_time(),
 //!         data: None
 //!     };
@@ -237,7 +237,7 @@ impl IntoConnectParams for Url {
         let database = if !path.is_empty() {
             // path contains the leading /
             let (_, path) = path[].slice_shift_char();
-            Some(path.to_string())
+            Some(path.into_string())
         } else {
             None
         };
@@ -395,14 +395,14 @@ impl InnerPostgresConnection {
             canary: CANARY,
         };
 
-        options.push(("client_encoding".to_string(), "UTF8".to_string()));
+        options.push(("client_encoding".into_string(), "UTF8".into_string()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_string(), "GMT".to_string()));
+        options.push(("TimeZone".into_string(), "GMT".into_string()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_string(), user.user.clone()));
+        options.push(("user".into_string(), user.user.clone()));
         match database {
-            Some(database) => options.push(("database".to_string(), database)),
+            Some(database) => options.push(("database".into_string(), database)),
             None => {}
         }
 
@@ -753,7 +753,7 @@ impl PostgresConnection {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
     ///     user: Some(PostgresUserInfo {
-    ///         user: "postgres".to_string(),
+    ///         user: "postgres".into_string(),
     ///         password: None
     ///     }),
     ///     database: None,
@@ -827,7 +827,7 @@ impl PostgresConnection {
     ///                    )", []));
     ///
     /// let stmt = try!(conn.prepare_copy_in("foo", ["bar", "baz"]));
-    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah".to_string()],
+    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah".into_string()],
     ///                            &[&1i32, &None::<String>]];
     /// try!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
     /// # Ok(()) };
