@@ -505,7 +505,7 @@ impl PostgresDbError {
             constraint: map.pop(&b'n'),
             file: try!(map.pop(&b'F').ok_or(())),
             line: try!(map.pop(&b'L').and_then(|l| from_str(l[])).ok_or(())),
-            routine: map.pop(&b'R').unwrap()
+            routine: try!(map.pop(&b'R').ok_or(())),
         })
     }
 
