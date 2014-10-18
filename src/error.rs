@@ -390,11 +390,9 @@ impl fmt::Show for PostgresConnectError {
                 write!(fmt, "Unable to open connection to server: {}", err),
             PgConnectDbError(ref err) => err.fmt(fmt),
             MissingPassword =>
-                write!(fmt, "The server requested a password but none was \
-                             provided"),
+                write!(fmt, "The server requested a password but none was provided"),
             UnsupportedAuthentication =>
-                write!(fmt, "The server requested an unsupported \
-                             authentication method"),
+                write!(fmt, "The server requested an unsupported authentication method"),
             NoSslSupport =>
                 write!(fmt, "The server does not support SSL"),
             SslError(ref err) =>
@@ -573,26 +571,22 @@ impl fmt::Show for PostgresError {
             PgDbError(ref err) => err.fmt(fmt),
             PgStreamError(ref err) => err.fmt(fmt),
             PgStreamDesynchronized =>
-                write!(fmt, "Communication with the server has desynchronized \
-                             due to an earlier IO error"),
+                write!(fmt, "Communication with the server has desynchronized due to an earlier \
+                             IO error"),
             PgWrongConnection =>
-                write!(fmt, "A statement was executed with a connection it was \
-                             not prepared with"),
+                write!(fmt, "A statement was executed with a connection it was not prepared with"),
             PgWrongParamCount { expected, actual } =>
-                write!(fmt, "Expected {} parameters but got {}", expected,
-                       actual),
+                write!(fmt, "Expected {} parameters but got {}", expected, actual),
             PgWrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
             PgInvalidColumn => write!(fmt, "Invalid column"),
             PgWasNull => write!(fmt, "The value was NULL"),
             PgWrongTransaction =>
-                write!(fmt, "An attempt was made to prepare a statement or \
-                             start a transaction on an object other than the \
-                             active transaction"),
+                write!(fmt, "An attempt was made to prepare a statement or start a transaction on \
+                             an object other than the active transaction"),
             PgBadResponse =>
                 write!(fmt, "The server returned an unexpected response"),
             PgBadData =>
-                write!(fmt, "The server provided data that the client could \
-                             not parse"),
+                write!(fmt, "The server provided data that the client could not parse"),
         }
     }
 }
