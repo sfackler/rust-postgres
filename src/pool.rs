@@ -100,13 +100,13 @@ pub struct PooledPostgresConnection {
 impl Drop for PooledPostgresConnection {
     fn drop(&mut self) {
         let mut pool = self.pool.pool.lock();
-        pool.pool.push(self.conn.take_unwrap());
+        pool.pool.push(self.conn.take().unwrap());
         pool.cond.signal();
     }
 }
 
 impl Deref<PostgresConnection> for PooledPostgresConnection {
     fn deref<'a>(&'a self) -> &'a PostgresConnection {
-        self.conn.get_ref()
+        self.conn.as_ref().unwrap()
     }
 }
