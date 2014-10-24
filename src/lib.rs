@@ -414,7 +414,7 @@ impl InnerPostgresConnection {
         try!(conn.handle_auth(user));
 
         loop {
-            match try_pg_conn!(conn.read_message_()) {
+            match try_pg_conn!(conn.read_message()) {
                 BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
@@ -437,7 +437,7 @@ impl InnerPostgresConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_message_(&mut self) -> IoResult<BackendMessage> {
+    fn read_message(&mut self) -> IoResult<BackendMessage> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
@@ -462,7 +462,7 @@ impl InnerPostgresConnection {
     }
 
     fn handle_auth(&mut self, user: PostgresUserInfo) -> Result<(), PostgresConnectError> {
-        match try_pg_conn!(self.read_message_()) {
+        match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or(MissingPassword));
@@ -496,7 +496,7 @@ impl InnerPostgresConnection {
             }
         }
 
-        match try_pg_conn!(self.read_message_()) {
+        match try_pg_conn!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
             _ => {
@@ -528,7 +528,7 @@ impl InnerPostgresConnection {
             },
             Sync]));
 
-        match try_pg!(self.read_message_()) {
+        match try_pg!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -537,14 +537,14 @@ impl InnerPostgresConnection {
             _ => bad_response!(self),
         }
 
-        let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message_()) {
+        let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
             ParameterDescription { types } => {
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect()
             }
             _ => bad_response!(self),
         };
 
-        let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message_()) {
+        let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } => {
                 descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
@@ -614,7 +614,7 @@ impl InnerPostgresConnection {
             },
             Sync]));
         loop {
-            match try_pg!(self.read_message_()) {
+            match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
@@ -658,7 +658,7 @@ impl InnerPostgresConnection {
     }
 
     fn wait_for_ready(&mut self) -> PostgresResult<()> {
-        match try_pg!(self.read_message_()) {
+        match try_pg!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
             _ => bad_response!(self)
         }
@@ -670,7 +670,7 @@ impl InnerPostgresConnection {
 
         let mut result = vec![];
         loop {
-            match try_pg!(self.read_message_()) {
+            match try_pg!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.into_iter().map(|opt| {
@@ -1173,7 +1173,7 @@ impl<'conn> PostgresStatement<'conn> {
             },
             Sync]));
 
-        match try_pg!(conn.read_message_()) {
+        match try_pg!(conn.read_message()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -1240,7 +1240,7 @@ impl<'conn> PostgresStatement<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         let num;
         loop {
-            match try_pg!(conn.read_message_()) {
+            match try_pg!(conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
@@ -1346,7 +1346,7 @@ impl<'stmt> PostgresRows<'stmt> {
             Sync]));
 
         loop {
-            match try_pg!(conn.read_message_()) {
+            match try_pg!(conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
@@ -1362,7 +1362,7 @@ impl<'stmt> PostgresRows<'stmt> {
     fn read_rows(&mut self) -> PostgresResult<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         loop {
-            match try_pg!(conn.read_message_()) {
+            match try_pg!(conn.read_message()) {
                 EmptyQueryResponse | CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
@@ -1606,7 +1606,7 @@ impl<'a> PostgresCopyInStatement<'a> {
             },
             Sync]));
 
-        match try_pg!(conn.read_message_()) {
+        match try_pg!(conn.read_message()) {
             BindComplete => {},
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -1618,7 +1618,7 @@ impl<'a> PostgresCopyInStatement<'a> {
             }
         }
 
-        match try_pg!(conn.read_message_()) {
+        match try_pg!(conn.read_message()) {
             CopyInResponse { .. } => {}
             _ => {
                 conn.desynchronized = true;
@@ -1674,7 +1674,7 @@ impl<'a> PostgresCopyInStatement<'a> {
             CopyDone,
             Sync]));
 
-        let num = match try_pg!(conn.read_message_()) {
+        let num = match try_pg!(conn.read_message()) {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
