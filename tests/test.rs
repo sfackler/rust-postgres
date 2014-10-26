@@ -753,6 +753,24 @@ fn test_copy_in_bad_column_count() {
 }
 
 #[test]
+fn test_copy_in_bad_type() {
+    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+
+    let stmt = or_fail!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &2i32]];
+
+    let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
+    match res {
+        Err(PgDbError(ref err)) if err.message[].contains("Unexpected type PgVarchar") => {}
+        Err(err) => fail!("unexpected error {}", err),
+        _ => fail!("Expected error"),
+    }
+
+    or_fail!(conn.execute("SELECT 1", []));
+}
+
+#[test]
 fn test_batch_execute_copy_from_err() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));

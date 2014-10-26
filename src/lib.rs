@@ -1583,7 +1583,7 @@ impl<'a> PostgresCopyInStatement<'a> {
 
     /// Executes the prepared statement.
     ///
-    /// Each iterator retuned by the `rows` iterator will be interpreted as
+    /// Each iterator returned by the `rows` iterator will be interpreted as
     /// providing a single result row.
     ///
     /// Returns the number of rows copied.
@@ -1637,13 +1637,21 @@ impl<'a> PostgresCopyInStatement<'a> {
             loop {
                 match (row.next(), types.next()) {
                     (Some(val), Some(ty)) => {
-                        match try!(val.to_sql(ty)) {
-                            None => {
+                        match val.to_sql(ty) {
+                            Ok(None) => {
                                 let _ = buf.write_be_i32(-1);
                             }
-                            Some(val) => {
+                            Ok(Some(val)) => {
                                 let _ = buf.write_be_i32(val.len() as i32);
                                 let _ = buf.write(val[]);
+                            }
+                            Err(err) => {
+                                // FIXME this is not the right way to handle this
+                                try_pg_desync!(conn, conn.stream.write_message(
+                                    &CopyFail {
+                                        message: err.to_string()[],
+                                    }));
+                                break 'l;
                             }
                         }
                     }
