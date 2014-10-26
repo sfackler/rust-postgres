@@ -50,7 +50,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="http://www.rust-ci.org/sfackler/rust-postgres/doc")]
+#![doc(html_root_url="https://sfackler.github.io/doc")]
 #![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
 #![warn(missing_doc)]
 
