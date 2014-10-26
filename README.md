@@ -113,7 +113,7 @@ columns are zero-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in try!(stmt.query([])) {
-    let bar: i32 = row.get(0u);
+    let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
 }
