@@ -49,10 +49,10 @@ fn main() {
             .unwrap();
     for row in stmt.query([]).unwrap() {
         let person = Person {
-            id: row.get(0u),
-            name: row.get(1u),
-            time_created: row.get(2u),
-            data: row.get(3u)
+            id: row.get(0),
+            name: row.get(1),
+            time_created: row.get(2),
+            data: row.get(3)
         };
         println!("Found person {}", person.name);
     }

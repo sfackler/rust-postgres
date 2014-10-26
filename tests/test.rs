@@ -90,7 +90,7 @@ fn test_unix_connection() {
     let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_fail!(conn.prepare("SHOW unix_socket_directories"));
     let result = or_fail!(stmt.query([]));
-    let unix_socket_directories: String = result.map(|row| row.get(0u)).next().unwrap();
+    let unix_socket_directories: String = result.map(|row| row.get(0)).next().unwrap();
 
     if unix_socket_directories.is_empty() {
         fail!("can't test connect_unix; unix_socket_directories is empty");
@@ -116,7 +116,7 @@ fn test_transaction_commit() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn test_transaction_commit_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn test_transaction_commit_method() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn test_transaction_rollback() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -181,7 +181,7 @@ fn test_transaction_rollback_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -221,13 +221,13 @@ fn test_nested_transactions() {
         let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
         let result = or_fail!(stmt.query([]));
 
-        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
+        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect());
     }
 
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn test_nested_transactions_finish() {
             let stmt = or_fail!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
             let result = or_fail!(stmt.query([]));
 
-            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0u)).collect());
+            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect());
         }
 
         assert!(trans1.finish().is_ok());
@@ -282,7 +282,7 @@ fn test_nested_transactions_finish() {
     let stmt = or_fail!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -336,7 +336,7 @@ fn test_batch_execute() {
     let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![10i64], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -366,7 +366,7 @@ fn test_transaction_batch_execute() {
     let stmt = or_fail!(trans.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![10i64], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -378,7 +378,7 @@ fn test_query() {
     let stmt = or_fail!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_fail!(stmt.query([]));
 
-    assert_eq!(vec![1i64, 2], result.map(|row| row.get(0u)).collect());
+    assert_eq!(vec![1i64, 2], result.map(|row| row.get(0)).collect());
 }
 
 #[test]
@@ -420,7 +420,7 @@ fn test_lazy_query() {
     }
     let stmt = or_fail!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_fail!(trans.lazy_query(&stmt, [], 2));
-    assert_eq!(values, result.map(|row| row.unwrap().get(0u)).collect());
+    assert_eq!(values, result.map(|row| row.unwrap().get(0)).collect());
 }
 
 #[test]
@@ -722,7 +722,7 @@ fn test_copy_in() {
 
     let stmt = or_fail!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
     assert_eq!(vec![(0i32, Some("Steven".to_string())), (1, None)],
-               or_fail!(stmt.query([])).map(|r| (r.get(0u), r.get(1u))).collect());
+               or_fail!(stmt.query([])).map(|r| (r.get(0), r.get(1))).collect());
 }
 
 #[test]
