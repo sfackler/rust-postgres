@@ -434,7 +434,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
                 -> PostgresResult<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
+            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -735,7 +735,7 @@ to_array_impl!(PgJsonArray, Json)
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
+            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -763,7 +763,7 @@ impl ToSql for HashMap<String, Option<String>> {
 impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { name: ref name, .. } if "hstore" == name[] => {}
+            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
