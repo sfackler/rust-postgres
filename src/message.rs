@@ -243,9 +243,8 @@ impl<W: Writer> WriteMessage for W {
             }
         }
 
-        match ident {
-            Some(ident) => try!(self.write_u8(ident)),
-            None => ()
+        if let Some(ident) = ident {
+            try!(self.write_u8(ident));
         }
 
         let buf = buf.unwrap();

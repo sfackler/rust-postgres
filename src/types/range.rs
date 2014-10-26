@@ -337,17 +337,14 @@ impl<T> Range<T> where T: PartialOrd+Normalizable{
         let lower = lower.map(Normalizable::normalize);
         let upper = upper.map(Normalizable::normalize);
 
-        match (&lower, &upper) {
-            (&Some(ref lower), &Some(ref upper)) => {
-                let empty = match (lower.type_, upper.type_) {
-                    (Inclusive, Inclusive) => lower.value > upper.value,
-                    _ => lower.value >= upper.value
-                };
-                if empty {
-                    return Range { inner: Empty };
-                }
+        if let (&Some(ref lower), &Some(ref upper)) = (&lower, &upper) {
+            let empty = match (lower.type_, upper.type_) {
+                (Inclusive, Inclusive) => lower.value > upper.value,
+                _ => lower.value >= upper.value
+            };
+            if empty {
+                return Range { inner: Empty };
             }
-            _ => {}
         }
 
         Range { inner: Normal(lower, upper) }

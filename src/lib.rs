@@ -629,9 +629,8 @@ impl InnerPostgresConnection {
     fn set_type_names<'a, I>(&mut self, mut it: I) -> PostgresResult<()>
             where I: Iterator<&'a mut PostgresType> {
         for ty in it {
-            match *ty {
-                PgUnknownType { oid, ref mut name } => *name = try!(self.get_type_name(oid)),
-                _ => {}
+            if let &PgUnknownType { oid, ref mut name } = ty {
+                *name = try!(self.get_type_name(oid));
             }
         }
 
