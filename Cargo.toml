@@ -22,4 +22,4 @@ git = "https://github.com/sfackler/rust-phf"
 git = "https://github.com/sfackler/rust-phf"
 
 [dev-dependencies.url]
-git = "https://github.com/rust-lang/url"
+git = "https://github.com/servo/rust-url"
