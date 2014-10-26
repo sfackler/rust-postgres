@@ -488,14 +488,14 @@ impl FromSql for HashMap<String, Option<String>> {
 }
 
 /// A trait for types that can be converted into Postgres values
-pub trait ToSql for Sized? {
+pub trait ToSql {
     /// Converts the value of `self` into the binary format appropriate for the
     /// Postgres backend.
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>>;
 }
 
 #[doc(hidden)]
-trait RawToSql for Sized? {
+trait RawToSql {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> PostgresResult<()>;
 }
 
@@ -660,7 +660,7 @@ to_raw_to_impl!(PgInt4Range, Range<i32>)
 to_raw_to_impl!(PgInt8Range, Range<i64>)
 to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
 
-impl<'a> ToSql for str {
+impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         check_types!(PgVarchar | PgText | PgCharN | PgName, ty)
         Ok(Some(self.as_bytes().to_vec()))
@@ -669,7 +669,7 @@ impl<'a> ToSql for str {
 
 to_option_impl_lifetime!(PgVarchar | PgText | PgCharN | PgName, &'a str)
 
-impl<'a> ToSql for [u8] {
+impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &PostgresType) -> PostgresResult<Option<Vec<u8>>> {
         check_types!(PgByteA, ty)
         Ok(Some(self.to_vec()))
