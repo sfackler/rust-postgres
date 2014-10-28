@@ -1666,11 +1666,13 @@ impl<'a> PostgresCopyInStatement<'a> {
                 }
             }
 
+            let mut data = buf.unwrap();
             try_pg_desync!(conn, conn.stream.write_message(
                 &CopyData {
-                    data: buf.unwrap()[]
+                    data: data[]
                 }));
-            buf = MemWriter::new();
+            data.clear();
+            buf = MemWriter::from_vec(data);
         }
 
         let _ = buf.write_be_i16(-1);
