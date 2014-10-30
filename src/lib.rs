@@ -798,7 +798,7 @@ impl PostgresConnection {
     /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
-    ///     Err(err) => fail!("Error preparing statement: {}", err)
+    ///     Err(err) => panic!("Error preparing statement: {}", err)
     /// };
     pub fn prepare<'a>(&'a self, query: &str) -> PostgresResult<PostgresStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
@@ -1283,7 +1283,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// # let baz = true;
     /// let mut rows = match stmt.query(&[&baz]) {
     ///     Ok(rows) => rows,
-    ///     Err(err) => fail!("Error running query: {}", err)
+    ///     Err(err) => panic!("Error running query: {}", err)
     /// };
     /// for row in rows {
     ///     let foo: i32 = row.get("foo");
@@ -1488,7 +1488,7 @@ impl<'stmt> PostgresRow<'stmt> {
     pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Show + Clone, T: FromSql {
         match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => fail!("error retrieving column {}: {}", idx, err)
+            Err(err) => panic!("error retrieving column {}: {}", idx, err)
         }
     }
 }
