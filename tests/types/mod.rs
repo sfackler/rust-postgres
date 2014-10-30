@@ -13,14 +13,14 @@ mod array;
 mod range;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_panic!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = or_fail!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
-        let result = or_fail!(stmt.query([])).next().unwrap().get(0u);
+        let stmt = or_panic!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
+        let result = or_panic!(stmt.query([])).next().unwrap().get(0u);
         assert!(val == &result);
 
-        let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
-        let result = or_fail!(stmt.query(&[val])).next().unwrap().get(0u);
+        let stmt = or_panic!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
+        let result = or_panic!(stmt.query(&[val])).next().unwrap().get(0u);
         assert!(val == &result);
     }
 }
@@ -93,15 +93,15 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    or_fail!(conn.execute("CREATE TEMPORARY TABLE foo (
+    let conn = or_panic!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
                            )", []));
-    or_fail!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+    or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
                           &[&Some("12345"), &Some("123"), &None::<&'static str>]));
-    let stmt = or_fail!(conn.prepare("SELECT b FROM foo ORDER BY id"));
-    let res = or_fail!(stmt.query([]));
+    let stmt = or_panic!(conn.prepare("SELECT b FROM foo ORDER BY id"));
+    let res = or_panic!(stmt.query([]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
                res.map(|row| row.get(0u)).collect());
@@ -334,15 +334,15 @@ fn test_hstore_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let stmt = or_fail!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
-    let mut result = or_fail!(stmt.query([]));
+    let conn = or_panic!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_panic!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
+    let mut result = or_panic!(stmt.query([]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
-    let stmt = or_fail!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
-    let mut result = or_fail!(stmt.query(&[&nan]));
+    let stmt = or_panic!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
+    let mut result = or_panic!(stmt.query(&[&nan]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan())
 }
@@ -370,11 +370,11 @@ fn test_jsonarray_params() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_fail!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
-    let stmt = or_fail!(conn.prepare("SELECT datname FROM pg_database"));
-    let mut result = or_fail!(stmt.query([]));
+    let conn = or_panic!(PostgresConnection::connect("postgres://postgres@localhost", &NoSsl));
+    let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
+    let mut result = or_panic!(stmt.query([]));
 
     let next = result.next().unwrap();
-    or_fail!(next.get_opt::<uint, String>(0));
-    or_fail!(next.get_opt::<&str, String>("datname"));
+    or_panic!(next.get_opt::<uint, String>(0));
+    or_panic!(next.get_opt::<&str, String>("datname"));
 }
