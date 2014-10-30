@@ -38,7 +38,7 @@ use postgres::error::{PgConnectDbError,
                       CardinalityViolation};
 use postgres::types::{PgInt4, PgVarchar, ToSql};
 
-macro_rules! or_fail(
+macro_rules! or_panic(
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
