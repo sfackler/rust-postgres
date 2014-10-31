@@ -139,7 +139,7 @@ impl<T> ArrayBase<T> {
         for (info1, info2) in self.info.iter().skip(1).zip(other.info.iter()) {
             assert!(info1 == info2, "Cannot join differently shaped arrays");
         }
-        self.info.get_mut(0).len += 1;
+        self.info[0].len += 1;
         self.data.extend(other.data.into_iter());
     }
 
@@ -197,7 +197,7 @@ impl<T> InternalArray<T> for ArrayBase<T> {
 
 impl<T> InternalMutableArray<T> for ArrayBase<T> {
     fn raw_get_mut<'a>(&'a mut self, idx: uint, _size: uint) -> &'a mut T {
-        self.data.get_mut(idx)
+        &mut self.data[idx]
     }
 }
 

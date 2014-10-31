@@ -4,7 +4,7 @@
 use serialize::json;
 use serialize::json::Json;
 use std::collections::HashMap;
-use std::io::{MemWriter, BufReader};
+use std::io::{AsRefReader, MemWriter, BufReader};
 use std::io::util::LimitReader;
 use time::Timespec;
 

@@ -14,7 +14,7 @@ macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
         #[deriving(PartialEq, Eq, Clone, Show)]
-        #[allow(missing_doc)]
+        #[allow(missing_docs)]
         pub enum PostgresSqlState {
             $($error,)+
             UnknownSqlState(String)
