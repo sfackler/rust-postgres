@@ -65,7 +65,7 @@ extern crate phf_mac;
 extern crate log;
 
 use collections::{Deque, RingBuf};
-use url::{UserInfo, Url};
+use url::Url;
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
@@ -164,7 +164,7 @@ pub enum ConnectTarget {
 
 /// Authentication information
 #[deriving(Clone)]
-pub struct PostgresUserInfo {
+pub struct UserInfo {
     /// The username
     pub user: String,
     /// An optional password
@@ -184,7 +184,7 @@ pub struct PostgresConnectParams {
     ///
     /// `PostgresConnection::connect` requires a user but `cancel_query` does
     /// not.
-    pub user: Option<PostgresUserInfo>,
+    pub user: Option<UserInfo>,
     /// The database to connect to. Defaults the value of `user`.
     pub database: Option<String>,
     /// Runtime parameters to be passed to the Postgres backend.
@@ -231,7 +231,7 @@ impl IntoConnectParams for Url {
         };
 
         let user = match user {
-            Some(UserInfo { user, pass }) => Some(PostgresUserInfo { user: user, password: pass }),
+            Some(url::UserInfo { user, pass }) => Some(UserInfo { user: user, password: pass }),
             None => None,
         };
 
@@ -462,7 +462,7 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: PostgresUserInfo) -> result::Result<(), PostgresConnectError> {
+    fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), PostgresConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
@@ -746,13 +746,13 @@ impl PostgresConnection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, PostgresUserInfo, PostgresConnectParams, NoSsl, TargetUnix};
+    /// # use postgres::{PostgresConnection, UserInfo, PostgresConnectParams, NoSsl, TargetUnix};
     /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
     /// let params = PostgresConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
-    ///     user: Some(PostgresUserInfo {
+    ///     user: Some(UserInfo {
     ///         user: "postgres".into_string(),
     ///         password: None
     ///     }),
