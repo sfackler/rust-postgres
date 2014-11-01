@@ -298,7 +298,7 @@ impl<'conn> Iterator<Notification> for Notifications<'conn> {
 }
 
 /// Contains information necessary to cancel queries for a session
-pub struct PostgresCancelData {
+pub struct CancelData {
     /// The process ID of the session
     pub process_id: u32,
     /// The secret key for the session
@@ -311,7 +311,7 @@ pub struct PostgresCancelData {
 /// was successful or not. An error will only be returned if the driver was
 /// unable to connect to the database.
 ///
-/// A `PostgresCancelData` object can be created via
+/// A `CancelData` object can be created via
 /// `PostgresConnection::cancel_data`. The object can cancel any query made on
 /// that connection.
 ///
@@ -331,7 +331,7 @@ pub struct PostgresCancelData {
 /// # let _ =
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
 /// ```
-pub fn cancel_query<T>(params: T, ssl: &SslMode, data: PostgresCancelData)
+pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
                        -> result::Result<(), PostgresConnectError> where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
     let mut socket = try!(io::initialize_stream(&params, ssl));
@@ -351,7 +351,7 @@ struct InnerPostgresConnection {
     next_stmt_id: uint,
     notice_handler: Box<NoticeHandler+Send>,
     notifications: RingBuf<Notification>,
-    cancel_data: PostgresCancelData,
+    cancel_data: CancelData,
     unknown_types: HashMap<Oid, String>,
     desynchronized: bool,
     finished: bool,
@@ -388,7 +388,7 @@ impl InnerPostgresConnection {
             next_stmt_id: 0,
             notice_handler: box DefaultNoticeHandler,
             notifications: RingBuf::new(),
-            cancel_data: PostgresCancelData { process_id: 0, secret_key: 0 },
+            cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
             desynchronized: false,
             finished: false,
@@ -938,7 +938,7 @@ impl PostgresConnection {
     ///
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
-    pub fn cancel_data(&self) -> PostgresCancelData {
+    pub fn cancel_data(&self) -> CancelData {
         self.conn.borrow().cancel_data
     }
 
