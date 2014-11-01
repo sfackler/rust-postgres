@@ -173,7 +173,7 @@ pub struct UserInfo {
 
 /// Information necessary to open a new connection to a Postgres server.
 #[deriving(Clone)]
-pub struct PostgresConnectParams {
+pub struct ConnectParams {
     /// The target server
     pub target: ConnectTarget,
     /// The target port.
@@ -192,20 +192,20 @@ pub struct PostgresConnectParams {
 }
 
 /// A trait implemented by types that can be converted into a
-/// `PostgresConnectParams`.
+/// `ConnectParams`.
 pub trait IntoConnectParams {
-    /// Converts the value of `self` into a `PostgresConnectParams`.
-    fn into_connect_params(self) -> result::Result<PostgresConnectParams, PostgresConnectError>;
+    /// Converts the value of `self` into a `ConnectParams`.
+    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError>;
 }
 
-impl IntoConnectParams for PostgresConnectParams {
-    fn into_connect_params(self) -> result::Result<PostgresConnectParams, PostgresConnectError> {
+impl IntoConnectParams for ConnectParams {
+    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<PostgresConnectParams, PostgresConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => return Err(InvalidUrl(err)),
@@ -214,7 +214,7 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<PostgresConnectParams, PostgresConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
         let Url {
             host,
             port,
@@ -243,7 +243,7 @@ impl IntoConnectParams for Url {
             None
         };
 
-        Ok(PostgresConnectParams {
+        Ok(ConnectParams {
             target: target,
             port: port,
             user: user,
@@ -374,7 +374,7 @@ impl InnerPostgresConnection {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
 
-        let PostgresConnectParams {
+        let ConnectParams {
             user,
             database,
             mut options,
@@ -723,7 +723,7 @@ impl PostgresConnection {
     /// To connect to the server via Unix sockets, `host` should be set to the
     /// absolute path of the directory containing the socket file. Since `/` is
     /// a reserved character in URLs, the path should be URL encoded.  If the
-    /// path contains non-UTF 8 characters, a `PostgresConnectParams` struct
+    /// path contains non-UTF 8 characters, a `ConnectParams` struct
     /// should be created manually and passed in. Note that Postgres does not
     /// support SSL over Unix sockets.
     ///
@@ -746,10 +746,10 @@ impl PostgresConnection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, UserInfo, PostgresConnectParams, NoSsl, TargetUnix};
+    /// # use postgres::{PostgresConnection, UserInfo, ConnectParams, NoSsl, TargetUnix};
     /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
-    /// let params = PostgresConnectParams {
+    /// let params = ConnectParams {
     ///     target: TargetUnix(some_crazy_path),
     ///     port: None,
     ///     user: Some(UserInfo {

@@ -4,11 +4,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use {PostgresConnectParams, IntoConnectParams, PostgresConnection, SslMode};
+use {ConnectParams, IntoConnectParams, PostgresConnection, SslMode};
 use error::PostgresConnectError;
 
 struct InnerConnectionPool {
-    params: PostgresConnectParams,
+    params: ConnectParams,
     ssl: SslMode,
     pool: Vec<PostgresConnection>,
 }
