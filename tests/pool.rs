@@ -4,12 +4,12 @@ use std::comm;
 use std::sync::Future;
 
 use postgres::NoSsl;
-use postgres::pool::PostgresConnectionPool;
+use postgres::pool::ConnectionPool;
 
 #[test]
 // Make sure we can take both connections at once and can still get one after
 fn test_pool() {
-    let pool = or_panic!(PostgresConnectionPool::new("postgres://postgres@localhost",
+    let pool = or_panic!(ConnectionPool::new("postgres://postgres@localhost",
                                                     NoSsl, 2));
 
     let (s1, r1) = comm::channel();

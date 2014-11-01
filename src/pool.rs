@@ -4,18 +4,18 @@
 
 use std::sync::{Arc, Mutex};
 
-use {ConnectParams, IntoConnectParams, PostgresConnection, SslMode};
+use {ConnectParams, IntoConnectParams, Connection, SslMode};
 use error::PostgresConnectError;
 
 struct InnerConnectionPool {
     params: ConnectParams,
     ssl: SslMode,
-    pool: Vec<PostgresConnection>,
+    pool: Vec<Connection>,
 }
 
 impl InnerConnectionPool {
     fn add_connection(&mut self) -> Result<(), PostgresConnectError> {
-        PostgresConnection::connect(self.params.clone(), &self.ssl)
+        Connection::connect(self.params.clone(), &self.ssl)
             .map(|c| self.pool.push(c))
     }
 }
@@ -29,8 +29,8 @@ impl InnerConnectionPool {
 /// ```rust,no_run
 /// # #![allow(deprecated)]
 /// # use postgres::NoSsl;
-/// # use postgres::pool::PostgresConnectionPool;
-/// let pool = PostgresConnectionPool::new("postgres://postgres@localhost",
+/// # use postgres::pool::ConnectionPool;
+/// let pool = ConnectionPool::new("postgres://postgres@localhost",
 ///                                        NoSsl, 5).unwrap();
 /// for _ in range(0u, 10) {
 ///     let pool = pool.clone();
@@ -41,17 +41,17 @@ impl InnerConnectionPool {
 /// }
 /// ```
 #[deriving(Clone)]
-pub struct PostgresConnectionPool {
+pub struct ConnectionPool {
     pool: Arc<Mutex<InnerConnectionPool>>
 }
 
-impl PostgresConnectionPool {
+impl ConnectionPool {
     /// Creates a new pool with the specified number of connections.
     ///
     /// Returns an error if the specified number of connections cannot be
     /// created.
     pub fn new<T: IntoConnectParams>(params: T, ssl: SslMode, pool_size: uint)
-            -> Result<PostgresConnectionPool, PostgresConnectError> {
+            -> Result<ConnectionPool, PostgresConnectError> {
         let mut pool = InnerConnectionPool {
             params: try!(params.into_connect_params()),
             ssl: ssl,
@@ -62,7 +62,7 @@ impl PostgresConnectionPool {
             try!(pool.add_connection());
         }
 
-        Ok(PostgresConnectionPool {
+        Ok(ConnectionPool {
             pool: Arc::new(Mutex::new(pool))
         })
     }
@@ -70,13 +70,13 @@ impl PostgresConnectionPool {
     /// Retrieves a connection from the pool.
     ///
     /// If all connections are in use, blocks until one becomes available.
-    pub fn get_connection(&self) -> PooledPostgresConnection {
+    pub fn get_connection(&self) -> PooledConnection {
         let mut pool = self.pool.lock();
 
         loop {
             match pool.pool.pop() {
                 Some(conn) => {
-                    return PooledPostgresConnection {
+                    return PooledConnection {
                         pool: self.clone(),
                         conn: Some(conn),
                     };
@@ -91,13 +91,13 @@ impl PostgresConnectionPool {
 ///
 /// It will be returned to the pool when it falls out of scope, even due to
 /// task failure.
-pub struct PooledPostgresConnection {
-    pool: PostgresConnectionPool,
+pub struct PooledConnection {
+    pool: ConnectionPool,
     // TODO remove the Option wrapper when drop takes self by value
-    conn: Option<PostgresConnection>
+    conn: Option<Connection>
 }
 
-impl Drop for PooledPostgresConnection {
+impl Drop for PooledConnection {
     fn drop(&mut self) {
         let mut pool = self.pool.pool.lock();
         pool.pool.push(self.conn.take().unwrap());
@@ -105,8 +105,8 @@ impl Drop for PooledPostgresConnection {
     }
 }
 
-impl Deref<PostgresConnection> for PooledPostgresConnection {
-    fn deref<'a>(&'a self) -> &'a PostgresConnection {
+impl Deref<Connection> for PooledConnection {
+    fn deref<'a>(&'a self) -> &'a Connection {
         self.conn.as_ref().unwrap()
     }
 }

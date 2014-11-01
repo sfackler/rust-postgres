@@ -8,7 +8,7 @@
 //!
 //! use time::Timespec;
 //!
-//! use postgres::{PostgresConnection, NoSsl};
+//! use postgres::{Connection, NoSsl};
 //!
 //! struct Person {
 //!     id: i32,
@@ -18,7 +18,7 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = PostgresConnection::connect("postgresql://postgres@localhost",
+//!     let conn = Connection::connect("postgresql://postgres@localhost",
 //!                                            &NoSsl).unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
@@ -182,7 +182,7 @@ pub struct ConnectParams {
     pub port: Option<Port>,
     /// The user to login as.
     ///
-    /// `PostgresConnection::connect` requires a user but `cancel_query` does
+    /// `Connection::connect` requires a user but `cancel_query` does
     /// not.
     pub user: Option<UserInfo>,
     /// The database to connect to. Defaults the value of `user`.
@@ -261,7 +261,7 @@ pub trait NoticeHandler {
 
 /// A notice handler which logs at the `info` level.
 ///
-/// This is the default handler used by a `PostgresConnection`.
+/// This is the default handler used by a `Connection`.
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
@@ -282,7 +282,7 @@ pub struct Notification {
 
 /// An iterator over asynchronous notifications
 pub struct Notifications<'conn> {
-    conn: &'conn PostgresConnection
+    conn: &'conn Connection
 }
 
 impl<'conn> Iterator<Notification> for Notifications<'conn> {
@@ -312,18 +312,18 @@ pub struct CancelData {
 /// unable to connect to the database.
 ///
 /// A `CancelData` object can be created via
-/// `PostgresConnection::cancel_data`. The object can cancel any query made on
+/// `Connection::cancel_data`. The object can cancel any query made on
 /// that connection.
 ///
 /// Only the host and port of the connection info are used. See
-/// `PostgresConnection::connect` for details of the `params` argument.
+/// `Connection::connect` for details of the `params` argument.
 ///
 /// ## Example
 ///
 /// ```rust,no_run
-/// # use postgres::{PostgresConnection, NoSsl};
+/// # use postgres::{Connection, NoSsl};
 /// # let url = "";
-/// let conn = PostgresConnection::connect(url, &NoSsl).unwrap();
+/// let conn = Connection::connect(url, &NoSsl).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// spawn(proc() {
 ///     conn.execute("SOME EXPENSIVE QUERY", []).unwrap();
@@ -346,7 +346,7 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     Ok(())
 }
 
-struct InnerPostgresConnection {
+struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: uint,
     notice_handler: Box<NoticeHandler+Send>,
@@ -359,7 +359,7 @@ struct InnerPostgresConnection {
     canary: u32,
 }
 
-impl Drop for InnerPostgresConnection {
+impl Drop for InnerConnection {
     fn drop(&mut self) {
         if !self.finished {
             let _ = self.finish_inner();
@@ -367,9 +367,9 @@ impl Drop for InnerPostgresConnection {
     }
 }
 
-impl InnerPostgresConnection {
+impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode)
-                  -> result::Result<InnerPostgresConnection, PostgresConnectError>
+                  -> result::Result<InnerConnection, PostgresConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
@@ -383,7 +383,7 @@ impl InnerPostgresConnection {
 
         let user = try!(user.ok_or(MissingUser));
 
-        let mut conn = InnerPostgresConnection {
+        let mut conn = InnerConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
             notice_handler: box DefaultNoticeHandler,
@@ -567,7 +567,7 @@ impl InnerPostgresConnection {
         Ok((stmt_name, param_types, result_desc))
     }
 
-    fn prepare<'a>(&mut self, query: &str, conn: &'a PostgresConnection)
+    fn prepare<'a>(&mut self, query: &str, conn: &'a Connection)
                    -> Result<PostgresStatement<'a>> {
         let (stmt_name, param_types, result_desc) = try!(self.raw_prepare(query));
         Ok(PostgresStatement {
@@ -580,7 +580,7 @@ impl InnerPostgresConnection {
         })
     }
 
-    fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a PostgresConnection)
+    fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a Connection)
                            -> Result<PostgresCopyInStatement<'a>> {
         let mut query = MemWriter::new();
         let _ = write!(query, "SELECT ");
@@ -703,11 +703,11 @@ impl InnerPostgresConnection {
 }
 
 /// A connection to a Postgres database.
-pub struct PostgresConnection {
-    conn: RefCell<InnerPostgresConnection>
+pub struct Connection {
+    conn: RefCell<InnerConnection>
 }
 
-impl PostgresConnection {
+impl Connection {
     /// Creates a new connection to a Postgres database.
     ///
     /// Most applications can use a URL string in the normal format:
@@ -730,23 +730,23 @@ impl PostgresConnection {
     /// ## Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # use postgres::{Connection, NoSsl};
     /// # let _ = || {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let conn = try!(PostgresConnection::connect(url, &NoSsl));
+    /// let conn = try!(Connection::connect(url, &NoSsl));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # use postgres::{Connection, NoSsl};
     /// # let _ = || {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let conn = try!(PostgresConnection::connect(url, &NoSsl));
+    /// let conn = try!(Connection::connect(url, &NoSsl));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, UserInfo, ConnectParams, NoSsl, TargetUnix};
+    /// # use postgres::{Connection, UserInfo, ConnectParams, NoSsl, TargetUnix};
     /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
@@ -759,14 +759,14 @@ impl PostgresConnection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let conn = try!(PostgresConnection::connect(params, &NoSsl));
+    /// let conn = try!(Connection::connect(params, &NoSsl));
     /// # Ok(()) };
     /// ```
     pub fn connect<T>(params: T, ssl: &SslMode)
-            -> result::Result<PostgresConnection, PostgresConnectError>
+            -> result::Result<Connection, PostgresConnectError>
             where T: IntoConnectParams {
-        InnerPostgresConnection::connect(params, ssl).map(|conn| {
-            PostgresConnection { conn: RefCell::new(conn) }
+        InnerConnection::connect(params, ssl).map(|conn| {
+            Connection { conn: RefCell::new(conn) }
         })
     }
 
@@ -794,8 +794,8 @@ impl PostgresConnection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, NoSsl};
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
@@ -817,10 +817,10 @@ impl PostgresConnection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # use postgres::{Connection, NoSsl};
     /// # use postgres::types::ToSql;
     /// # let _ = || {
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// try!(conn.execute("CREATE TABLE foo (
     ///                     bar INT PRIMARY KEY,
     ///                     baz VARCHAR
@@ -854,9 +854,9 @@ impl PostgresConnection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
+    /// # use postgres::{Connection, NoSsl};
     /// # fn foo() -> Result<(), postgres::error::PostgresError> {
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", []));
     /// // ...
@@ -908,8 +908,8 @@ impl PostgresConnection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, Result};
-    /// fn init_db(conn: &PostgresConnection) -> Result<()> {
+    /// # use postgres::{Connection, Result};
+    /// fn init_db(conn: &Connection) -> Result<()> {
     ///     conn.batch_execute("
     ///         CREATE TABLE person (
     ///             id SERIAL PRIMARY KEY,
@@ -954,7 +954,7 @@ impl PostgresConnection {
     /// Consumes the connection, closing it.
     ///
     /// Functionally equivalent to the `Drop` implementation for
-    /// `PostgresConnection` except that it returns any error encountered to
+    /// `Connection` except that it returns any error encountered to
     /// the caller.
     pub fn finish(self) -> Result<()> {
         let mut conn = self.conn.borrow_mut();
@@ -985,7 +985,7 @@ pub enum SslMode {
 ///
 /// The transaction will roll back by default.
 pub struct PostgresTransaction<'conn> {
-    conn: &'conn PostgresConnection,
+    conn: &'conn Connection,
     commit: Cell<bool>,
     depth: u32,
     finished: bool,
@@ -1014,7 +1014,7 @@ impl<'conn> PostgresTransaction<'conn> {
         conn.quick_query(query).map(|_| ())
     }
 
-    /// Like `PostgresConnection::prepare`.
+    /// Like `Connection::prepare`.
     pub fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
@@ -1023,7 +1023,7 @@ impl<'conn> PostgresTransaction<'conn> {
         conn.prepare(query, self.conn)
     }
 
-    /// Like `PostgresConnection::prepare_copy_in`.
+    /// Like `Connection::prepare_copy_in`.
     pub fn prepare_copy_in<'a>(&'a self, table: &str, cols: &[&str])
                                -> Result<PostgresCopyInStatement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
@@ -1033,12 +1033,12 @@ impl<'conn> PostgresTransaction<'conn> {
         conn.prepare_copy_in(table, cols, self.conn)
     }
 
-    /// Like `PostgresConnection::execute`.
+    /// Like `Connection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
         self.prepare(query).and_then(|s| s.execute(params))
     }
 
-    /// Like `PostgresConnection::batch_execute`.
+    /// Like `Connection::batch_execute`.
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
@@ -1047,7 +1047,7 @@ impl<'conn> PostgresTransaction<'conn> {
         conn.quick_query(query).map(|_| ())
     }
 
-    /// Like `PostgresConnection::transaction`.
+    /// Like `Connection::transaction`.
     pub fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
@@ -1121,7 +1121,7 @@ impl<'conn> PostgresTransaction<'conn> {
 
 /// A prepared statement
 pub struct PostgresStatement<'conn> {
-    conn: &'conn PostgresConnection,
+    conn: &'conn Connection,
     name: String,
     param_types: Vec<PostgresType>,
     result_desc: Vec<ResultDescription>,
@@ -1224,8 +1224,8 @@ impl<'conn> PostgresStatement<'conn> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, NoSsl};
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -1278,8 +1278,8 @@ impl<'conn> PostgresStatement<'conn> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, NoSsl};
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
     /// let mut rows = match stmt.query(&[&baz]) {
@@ -1484,8 +1484,8 @@ impl<'stmt> PostgresRow<'stmt> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{PostgresConnection, NoSsl};
-    /// # let conn = PostgresConnection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, NoSsl};
+    /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
@@ -1554,7 +1554,7 @@ impl<'trans, 'stmt> Iterator<Result<PostgresRow<'stmt>>>
 
 /// A prepared COPY FROM STDIN statement
 pub struct PostgresCopyInStatement<'a> {
-    conn: &'a PostgresConnection,
+    conn: &'a Connection,
     name: String,
     column_types: Vec<PostgresType>,
     finished: bool,
@@ -1712,26 +1712,26 @@ impl<'a> PostgresCopyInStatement<'a> {
 
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericConnection {
-    /// Like `PostgresConnection::prepare`.
+    /// Like `Connection::prepare`.
     fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>>;
 
-    /// Like `PostgresConnection::execute`.
+    /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
         self.prepare(query).and_then(|s| s.execute(params))
     }
 
-    /// Like `PostgresConnection::prepare_copy_in`.
+    /// Like `Connection::prepare_copy_in`.
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
                            -> Result<PostgresCopyInStatement<'a>>;
 
-    /// Like `PostgresConnection::transaction`.
+    /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>>;
 
-    /// Like `PostgresConnection::batch_execute`.
+    /// Like `Connection::batch_execute`.
     fn batch_execute(&self, query: &str) -> Result<()>;
 }
 
-impl GenericConnection for PostgresConnection {
+impl GenericConnection for Connection {
     fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
         self.prepare(query)
     }
