@@ -15,7 +15,7 @@ extern crate time;
 
 use time::Timespec;
 
-use postgres::{PostgresConnection, NoSsl};
+use postgres::{Connection, NoSsl};
 use postgres::types::ToSql;
 
 struct Person {
@@ -26,7 +26,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = PostgresConnection::connect("postgres://postgres@localhost",
+    let conn = Connection::connect("postgres://postgres@localhost",
                                            &NoSsl).unwrap();
 
     conn.execute("CREATE TABLE person (
@@ -73,7 +73,7 @@ fn main() {
 ### Connecting
 Connect to a Postgres server using the standard URI format:
 ```rust
-let conn = try!(PostgresConnection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
+let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
                                             &NoSsl));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
@@ -84,7 +84,7 @@ Unix domain sockets can be used as well. The `host` portion of the URI should be
 set to the absolute path to the directory containing the socket file. Since `/`
 is a reserved character in URLs, the path should be URL encoded.
 ```rust
-let conn = try!(PostgresConnection::connect("postgres://postgres@%2Frun%2Fpostgres", &NoSsl));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", &NoSsl));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
@@ -118,7 +118,7 @@ for row in try!(stmt.query([])) {
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `PostgresConnection` has a utility `execute` method which is useful
+In addition, `Connection` has a utility `execute` method which is useful
 if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
@@ -128,8 +128,8 @@ println!("{} rows were updated", updates);
 
 ### Transactions
 The `transaction` method will start a new transaction. It returns a
-`PostgresTransaction` object which has the functionality of a
-`PostgresConnection` as well as methods to control the result of the
+`Transaction` object which has the functionality of a
+`Connection` as well as methods to control the result of the
 transaction:
 ```rust
 let trans = try!(conn.transaction());
@@ -142,7 +142,7 @@ if the_coast_is_clear {
 
 try!(trans.finish());
 ```
-The transaction will be active until the `PostgresTransaction` object falls out
+The transaction will be active until the `Transaction` object falls out
 of scope. A transaction will roll back by default. Nested transactions are
 supported via savepoints.
 
