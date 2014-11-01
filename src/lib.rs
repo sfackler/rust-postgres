@@ -271,7 +271,7 @@ impl NoticeHandler for DefaultNoticeHandler {
 }
 
 /// An asynchronous notification
-pub struct PostgresNotification {
+pub struct Notification {
     /// The process ID of the notifying backend process
     pub pid: u32,
     /// The name of the channel that the notify has been raised on
@@ -281,18 +281,18 @@ pub struct PostgresNotification {
 }
 
 /// An iterator over asynchronous notifications
-pub struct PostgresNotifications<'conn> {
+pub struct Notifications<'conn> {
     conn: &'conn PostgresConnection
 }
 
-impl<'conn> Iterator<PostgresNotification> for PostgresNotifications<'conn> {
+impl<'conn> Iterator<Notification> for Notifications<'conn> {
     /// Returns the oldest pending notification or `None` if there are none.
     ///
     /// ## Note
     ///
     /// `next` may return `Some` notification after returning `None` if a new
     /// notification was received.
-    fn next(&mut self) -> Option<PostgresNotification> {
+    fn next(&mut self) -> Option<Notification> {
         self.conn.conn.borrow_mut().notifications.pop_front()
     }
 }
@@ -350,7 +350,7 @@ struct InnerPostgresConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: uint,
     notice_handler: Box<NoticeHandler+Send>,
-    notifications: RingBuf<PostgresNotification>,
+    notifications: RingBuf<Notification>,
     cancel_data: PostgresCancelData,
     unknown_types: HashMap<Oid, String>,
     desynchronized: bool,
@@ -448,7 +448,7 @@ impl InnerPostgresConnection {
                     }
                 }
                 NotificationResponse { pid, channel, payload } => {
-                    self.notifications.push(PostgresNotification {
+                    self.notifications.push(Notification {
                         pid: pid,
                         channel: channel,
                         payload: payload
@@ -778,8 +778,8 @@ impl PostgresConnection {
     /// Returns an iterator over asynchronous notification messages.
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
-    pub fn notifications<'a>(&'a self) -> PostgresNotifications<'a> {
-        PostgresNotifications { conn: self }
+    pub fn notifications<'a>(&'a self) -> Notifications<'a> {
+        Notifications { conn: self }
     }
 
     /// Creates a new prepared statement.

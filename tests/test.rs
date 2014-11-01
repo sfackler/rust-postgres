@@ -12,7 +12,7 @@ use std::io::timer;
 use std::time::Duration;
 
 use postgres::{NoticeHandler,
-               PostgresNotification,
+               Notification,
                PostgresConnection,
                GenericConnection,
                ResultDescription,
@@ -570,10 +570,10 @@ fn test_notification_iterator_none() {
 
 #[test]
 fn test_notification_iterator_some() {
-    fn check_notification(expected: PostgresNotification,
-                          actual: Option<PostgresNotification>) {
+    fn check_notification(expected: Notification,
+                          actual: Option<Notification>) {
         match actual {
-            Some(PostgresNotification { channel, payload, .. }) => {
+            Some(Notification { channel, payload, .. }) => {
                 assert_eq!(&expected.channel, &channel);
                 assert_eq!(&expected.payload, &payload);
             }
@@ -588,12 +588,12 @@ fn test_notification_iterator_some() {
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", []));
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", []));
 
-    check_notification(PostgresNotification {
+    check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "hello".to_string()
     }, it.next());
-    check_notification(PostgresNotification {
+    check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel2".to_string(),
         payload: "world".to_string()
@@ -601,7 +601,7 @@ fn test_notification_iterator_some() {
     assert!(it.next().is_none());
 
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
-    check_notification(PostgresNotification {
+    check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "!".to_string()
