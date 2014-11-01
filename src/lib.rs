@@ -1074,13 +1074,13 @@ impl<'conn> Transaction<'conn> {
                                      stmt: &'stmt Statement,
                                      params: &[&ToSql],
                                      row_limit: i32)
-                                     -> Result<PostgresLazyRows<'trans, 'stmt>> {
+                                     -> Result<LazyRows<'trans, 'stmt>> {
         if self.conn as *const _ != stmt.conn as *const _ {
             return Err(PgWrongConnection);
         }
         check_desync!(self.conn);
         stmt.lazy_query(row_limit, params).map(|result| {
-            PostgresLazyRows {
+            LazyRows {
                 _trans: self,
                 result: result
             }
@@ -1525,12 +1525,12 @@ impl<'a> RowIndex for &'a str {
 }
 
 /// A lazily-loaded iterator over the resulting rows of a query
-pub struct PostgresLazyRows<'trans, 'stmt> {
+pub struct LazyRows<'trans, 'stmt> {
     result: Rows<'stmt>,
     _trans: &'trans Transaction<'trans>,
 }
 
-impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
+impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     /// Like `Rows::finish`.
     #[inline]
     pub fn finish(self) -> Result<()> {
@@ -1538,8 +1538,7 @@ impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
     }
 }
 
-impl<'trans, 'stmt> Iterator<Result<Row<'stmt>>>
-        for PostgresLazyRows<'trans, 'stmt> {
+impl<'trans, 'stmt> Iterator<Result<Row<'stmt>>> for LazyRows<'trans, 'stmt> {
     #[inline]
     fn next(&mut self) -> Option<Result<Row<'stmt>>> {
         self.result.try_next()
