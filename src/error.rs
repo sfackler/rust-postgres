@@ -3,11 +3,12 @@
 use std::collections::HashMap;
 use std::io;
 use std::fmt;
+use std::result;
 
 use openssl::ssl::error;
 use phf;
 
-use PostgresResult;
+use Result;
 use types::PostgresType;
 
 macro_rules! make_errors(
@@ -477,7 +478,7 @@ pub struct PostgresDbError {
 
 impl PostgresDbError {
     #[doc(hidden)]
-    pub fn new_raw(fields: Vec<(u8, String)>) -> Result<PostgresDbError, ()> {
+    pub fn new_raw(fields: Vec<(u8, String)>) -> result::Result<PostgresDbError, ()> {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
         Ok(PostgresDbError {
             severity: try!(map.pop(&b'S').ok_or(())),
@@ -508,7 +509,7 @@ impl PostgresDbError {
     }
 
     #[doc(hidden)]
-    pub fn new_connect<T>(fields: Vec<(u8, String)>) -> Result<T, PostgresConnectError> {
+    pub fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, PostgresConnectError> {
         match PostgresDbError::new_raw(fields) {
             Ok(err) => Err(PgConnectDbError(err)),
             Err(()) => Err(PgConnectBadResponse),
@@ -516,7 +517,7 @@ impl PostgresDbError {
     }
 
     #[doc(hidden)]
-    pub fn new<T>(fields: Vec<(u8, String)>) -> PostgresResult<T> {
+    pub fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
         match PostgresDbError::new_raw(fields) {
             Ok(err) => Err(PgDbError(err)),
             Err(()) => Err(PgBadData),
