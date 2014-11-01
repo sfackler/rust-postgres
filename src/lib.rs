@@ -842,9 +842,9 @@ impl Connection {
 
     /// Begins a new transaction.
     ///
-    /// Returns a `PostgresTransaction` object which should be used instead of
+    /// Returns a `Transaction` object which should be used instead of
     /// the connection for the duration of the transaction. The transaction
-    /// is active until the `PostgresTransaction` object falls out of scope.
+    /// is active until the `Transaction` object falls out of scope.
     ///
     /// ## Note
     /// A transaction will roll back by default. The `set_commit`,
@@ -864,7 +864,7 @@ impl Connection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>> {
+    pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != 0 {
@@ -872,7 +872,7 @@ impl Connection {
         }
         try!(conn.quick_query("BEGIN"));
         conn.trans_depth += 1;
-        Ok(PostgresTransaction {
+        Ok(Transaction {
             conn: self,
             commit: Cell::new(false),
             depth: 1,
@@ -983,7 +983,7 @@ pub enum SslMode {
 /// Represents a transaction on a database connection.
 ///
 /// The transaction will roll back by default.
-pub struct PostgresTransaction<'conn> {
+pub struct Transaction<'conn> {
     conn: &'conn Connection,
     commit: Cell<bool>,
     depth: u32,
@@ -991,7 +991,7 @@ pub struct PostgresTransaction<'conn> {
 }
 
 #[unsafe_destructor]
-impl<'conn> Drop for PostgresTransaction<'conn> {
+impl<'conn> Drop for Transaction<'conn> {
     fn drop(&mut self) {
         if !self.finished {
             let _ = self.finish_inner();
@@ -999,7 +999,7 @@ impl<'conn> Drop for PostgresTransaction<'conn> {
     }
 }
 
-impl<'conn> PostgresTransaction<'conn> {
+impl<'conn> Transaction<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
@@ -1047,7 +1047,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `Connection::transaction`.
-    pub fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>> {
+    pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != self.depth {
@@ -1055,7 +1055,7 @@ impl<'conn> PostgresTransaction<'conn> {
         }
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
-        Ok(PostgresTransaction {
+        Ok(Transaction {
             conn: self.conn,
             commit: Cell::new(false),
             depth: self.depth + 1,
@@ -1111,7 +1111,7 @@ impl<'conn> PostgresTransaction<'conn> {
     /// Consumes the transaction, commiting or rolling it back as appropriate.
     ///
     /// Functionally equivalent to the `Drop` implementation of
-    /// `PostgresTransaction` except that it returns any error to the caller.
+    /// `Transaction` except that it returns any error to the caller.
     pub fn finish(mut self) -> Result<()> {
         self.finished = true;
         self.finish_inner()
@@ -1527,7 +1527,7 @@ impl<'a> RowIndex for &'a str {
 /// A lazily-loaded iterator over the resulting rows of a query
 pub struct PostgresLazyRows<'trans, 'stmt> {
     result: PostgresRows<'stmt>,
-    _trans: &'trans PostgresTransaction<'trans>,
+    _trans: &'trans Transaction<'trans>,
 }
 
 impl<'trans, 'stmt> PostgresLazyRows<'trans, 'stmt> {
@@ -1724,7 +1724,7 @@ pub trait GenericConnection {
                            -> Result<PostgresCopyInStatement<'a>>;
 
     /// Like `Connection::transaction`.
-    fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>>;
+    fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
 
     /// Like `Connection::batch_execute`.
     fn batch_execute(&self, query: &str) -> Result<()>;
@@ -1735,7 +1735,7 @@ impl GenericConnection for Connection {
         self.prepare(query)
     }
 
-    fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>> {
+    fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         self.transaction()
     }
 
@@ -1749,12 +1749,12 @@ impl GenericConnection for Connection {
     }
 }
 
-impl<'a> GenericConnection for PostgresTransaction<'a> {
+impl<'a> GenericConnection for Transaction<'a> {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
     }
 
-    fn transaction<'a>(&'a self) -> Result<PostgresTransaction<'a>> {
+    fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         self.transaction()
     }
 
