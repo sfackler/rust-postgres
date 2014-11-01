@@ -18,8 +18,8 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = Connection::connect("postgresql://postgres@localhost",
-//!                                            &NoSsl).unwrap();
+//!     let conn = Connection::connect("postgresql://postgres@localhost", &NoSsl)
+//!             .unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
 //!                     id              SERIAL PRIMARY KEY,

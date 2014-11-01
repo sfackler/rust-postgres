@@ -26,8 +26,8 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost",
-                                           &NoSsl).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", &NoSsl)
+            .unwrap();
 
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
@@ -74,7 +74,7 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                            &NoSsl));
+                                    &NoSsl));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -118,8 +118,8 @@ for row in try!(stmt.query([])) {
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `Connection` has a utility `execute` method which is useful
-if a statement is only going to be executed once:
+In addition, `Connection` has a utility `execute` method which is useful if a
+statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
                                 &[&1i32, &"biz"]));
@@ -142,8 +142,8 @@ if the_coast_is_clear {
 
 try!(trans.finish());
 ```
-The transaction will be active until the `Transaction` object falls out
-of scope. A transaction will roll back by default. Nested transactions are
+The transaction will be active until the `Transaction` object falls out of
+scope. A transaction will roll back by default. Nested transactions are
 supported via savepoints.
 
 ### Type Correspondence
