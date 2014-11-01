@@ -1452,6 +1452,12 @@ pub struct PostgresRow<'stmt> {
 }
 
 impl<'stmt> PostgresRow<'stmt> {
+    /// Returns the number of values in the row
+    #[inline]
+    pub fn len(&self) -> uint {
+        self.data.len()
+    }
+
     /// Retrieves the contents of a field of the row.
     ///
     /// A field can be accessed by the name or index of its column, though
@@ -1490,13 +1496,6 @@ impl<'stmt> PostgresRow<'stmt> {
             Ok(ok) => ok,
             Err(err) => panic!("error retrieving column {}: {}", idx, err)
         }
-    }
-}
-
-impl<'stmt> Collection for PostgresRow<'stmt> {
-    #[inline]
-    fn len(&self) -> uint {
-        self.data.len()
     }
 }
 
