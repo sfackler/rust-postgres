@@ -5,7 +5,7 @@ use std::io;
 use std::fmt;
 
 use openssl::ssl::error;
-use phf::PhfMap;
+use phf;
 
 use PostgresResult;
 use types::PostgresType;
@@ -20,7 +20,7 @@ macro_rules! make_errors(
             UnknownSqlState(String)
         }
 
-        static STATE_MAP: PhfMap<&'static str, PostgresSqlState> = phf_map!(
+        static STATE_MAP: phf::Map<&'static str, PostgresSqlState> = phf_map!(
             $($code => $error),+
         );
 
