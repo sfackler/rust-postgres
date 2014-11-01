@@ -11,7 +11,7 @@ use openssl::ssl::{SslContext, Sslv3};
 use std::io::timer;
 use std::time::Duration;
 
-use postgres::{PostgresNoticeHandler,
+use postgres::{NoticeHandler,
                PostgresNotification,
                PostgresConnection,
                GenericConnection,
@@ -542,7 +542,7 @@ fn test_custom_notice_handler() {
     static mut count: uint = 0;
     struct Handler;
 
-    impl PostgresNoticeHandler for Handler {
+    impl NoticeHandler for Handler {
         fn handle(&mut self, notice: PostgresDbError) {
             assert_eq!("note", notice.message[]);
             unsafe { count += 1; }

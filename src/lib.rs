@@ -254,7 +254,7 @@ impl IntoConnectParams for Url {
 }
 
 /// Trait for types that can handle Postgres notice messages
-pub trait PostgresNoticeHandler {
+pub trait NoticeHandler {
     /// Handle a Postgres notice message
     fn handle(&mut self, notice: PostgresDbError);
 }
@@ -264,7 +264,7 @@ pub trait PostgresNoticeHandler {
 /// This is the default handler used by a `PostgresConnection`.
 pub struct DefaultNoticeHandler;
 
-impl PostgresNoticeHandler for DefaultNoticeHandler {
+impl NoticeHandler for DefaultNoticeHandler {
     fn handle(&mut self, notice: PostgresDbError) {
         info!("{}: {}", notice.severity, notice.message);
     }
@@ -349,7 +349,7 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: PostgresCancelData)
 struct InnerPostgresConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: uint,
-    notice_handler: Box<PostgresNoticeHandler+Send>,
+    notice_handler: Box<NoticeHandler+Send>,
     notifications: RingBuf<PostgresNotification>,
     cancel_data: PostgresCancelData,
     unknown_types: HashMap<Oid, String>,
@@ -507,8 +507,8 @@ impl InnerPostgresConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: Box<PostgresNoticeHandler+Send>)
-                          -> Box<PostgresNoticeHandler+Send> {
+    fn set_notice_handler(&mut self, handler: Box<NoticeHandler+Send>)
+                          -> Box<NoticeHandler+Send> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
@@ -771,8 +771,7 @@ impl PostgresConnection {
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: Box<PostgresNoticeHandler+Send>)
-                              -> Box<PostgresNoticeHandler+Send> {
+    pub fn set_notice_handler(&self, handler: Box<NoticeHandler+Send>) -> Box<NoticeHandler+Send> {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
