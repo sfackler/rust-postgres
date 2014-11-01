@@ -145,7 +145,6 @@ mod message;
 mod url;
 mod util;
 pub mod error;
-pub mod pool;
 pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;

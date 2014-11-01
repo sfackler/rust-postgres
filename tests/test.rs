@@ -48,7 +48,6 @@ macro_rules! or_panic(
 )
 
 mod types;
-mod pool;
 
 #[test]
 fn test_non_default_database() {
