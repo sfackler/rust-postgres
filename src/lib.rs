@@ -147,7 +147,7 @@ pub mod error;
 pub mod pool;
 pub mod types;
 
-static CANARY: u32 = 0xdeadbeef;
+const CANARY: u32 = 0xdeadbeef;
 
 /// A typedef of the result returned by many methods.
 pub type PostgresResult<T> = Result<T, PostgresError>;
