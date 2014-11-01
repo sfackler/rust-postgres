@@ -155,7 +155,7 @@ pub type Result<T> = result::Result<T, PostgresError>;
 
 /// Specifies the target server to connect to.
 #[deriving(Clone)]
-pub enum PostgresConnectTarget {
+pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
     TargetTcp(String),
     /// Connect via a Unix domain socket in the specified directory.
@@ -175,7 +175,7 @@ pub struct PostgresUserInfo {
 #[deriving(Clone)]
 pub struct PostgresConnectParams {
     /// The target server
-    pub target: PostgresConnectTarget,
+    pub target: ConnectTarget,
     /// The target port.
     ///
     /// Defaults to 5432 if not specified.
