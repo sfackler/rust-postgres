@@ -567,9 +567,9 @@ impl InnerConnection {
     }
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a Connection)
-                   -> Result<PostgresStatement<'a>> {
+                   -> Result<Statement<'a>> {
         let (stmt_name, param_types, result_desc) = try!(self.raw_prepare(query));
-        Ok(PostgresStatement {
+        Ok(Statement {
             conn: conn,
             name: stmt_name,
             param_types: param_types,
@@ -800,7 +800,7 @@ impl Connection {
     ///     Ok(stmt) => stmt,
     ///     Err(err) => panic!("Error preparing statement: {}", err)
     /// };
-    pub fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
+    pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
             return Err(PgWrongTransaction);
@@ -1014,7 +1014,7 @@ impl<'conn> PostgresTransaction<'conn> {
     }
 
     /// Like `Connection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
+    pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
             return Err(PgWrongTransaction);
@@ -1071,7 +1071,7 @@ impl<'conn> PostgresTransaction<'conn> {
     /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
     /// to `query`.
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
-                                     stmt: &'stmt PostgresStatement,
+                                     stmt: &'stmt Statement,
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<PostgresLazyRows<'trans, 'stmt>> {
@@ -1119,7 +1119,7 @@ impl<'conn> PostgresTransaction<'conn> {
 }
 
 /// A prepared statement
-pub struct PostgresStatement<'conn> {
+pub struct Statement<'conn> {
     conn: &'conn Connection,
     name: String,
     param_types: Vec<PostgresType>,
@@ -1129,7 +1129,7 @@ pub struct PostgresStatement<'conn> {
 }
 
 #[unsafe_destructor]
-impl<'conn> Drop for PostgresStatement<'conn> {
+impl<'conn> Drop for Statement<'conn> {
     fn drop(&mut self) {
         if !self.finished {
             let _ = self.finish_inner();
@@ -1137,7 +1137,7 @@ impl<'conn> Drop for PostgresStatement<'conn> {
     }
 }
 
-impl<'conn> PostgresStatement<'conn> {
+impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
@@ -1298,7 +1298,7 @@ impl<'conn> PostgresStatement<'conn> {
     /// Consumes the statement, clearing it from the Postgres session.
     ///
     /// Functionally identical to the `Drop` implementation of the
-    /// `PostgresStatement` except that it returns any error to the caller.
+    /// `Statement` except that it returns any error to the caller.
     pub fn finish(mut self) -> Result<()> {
         self.finished = true;
         self.finish_inner()
@@ -1316,7 +1316,7 @@ pub struct ResultDescription {
 
 /// An iterator over the resulting rows of a query.
 pub struct PostgresRows<'stmt> {
-    stmt: &'stmt PostgresStatement<'stmt>,
+    stmt: &'stmt Statement<'stmt>,
     name: String,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
     row_limit: i32,
@@ -1447,7 +1447,7 @@ impl<'stmt> Iterator<PostgresRow<'stmt>> for PostgresRows<'stmt> {
 
 /// A single result row of a query.
 pub struct PostgresRow<'stmt> {
-    stmt: &'stmt PostgresStatement<'stmt>,
+    stmt: &'stmt Statement<'stmt>,
     data: Vec<Option<Vec<u8>>>
 }
 
@@ -1503,12 +1503,12 @@ impl<'stmt> PostgresRow<'stmt> {
 pub trait RowIndex {
     /// Returns the index of the appropriate column, or `None` if no such
     /// column exists.
-    fn idx(&self, stmt: &PostgresStatement) -> Option<uint>;
+    fn idx(&self, stmt: &Statement) -> Option<uint>;
 }
 
 impl RowIndex for uint {
     #[inline]
-    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
+    fn idx(&self, stmt: &Statement) -> Option<uint> {
         if *self > stmt.result_desc.len() {
             None
         } else {
@@ -1519,7 +1519,7 @@ impl RowIndex for uint {
 
 impl<'a> RowIndex for &'a str {
     #[inline]
-    fn idx(&self, stmt: &PostgresStatement) -> Option<uint> {
+    fn idx(&self, stmt: &Statement) -> Option<uint> {
         stmt.result_descriptions().iter().position(|d| d.name[] == *self)
     }
 }
@@ -1712,7 +1712,7 @@ impl<'a> PostgresCopyInStatement<'a> {
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericConnection {
     /// Like `Connection::prepare`.
-    fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>>;
+    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
@@ -1731,7 +1731,7 @@ pub trait GenericConnection {
 }
 
 impl GenericConnection for Connection {
-    fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
+    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
     }
 
@@ -1750,7 +1750,7 @@ impl GenericConnection for Connection {
 }
 
 impl<'a> GenericConnection for PostgresTransaction<'a> {
-    fn prepare<'a>(&'a self, query: &str) -> Result<PostgresStatement<'a>> {
+    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
     }
 
