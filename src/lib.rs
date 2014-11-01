@@ -580,7 +580,7 @@ impl InnerConnection {
     }
 
     fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a Connection)
-                           -> Result<PostgresCopyInStatement<'a>> {
+                           -> Result<CopyInStatement<'a>> {
         let mut query = MemWriter::new();
         let _ = write!(query, "SELECT ");
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
@@ -598,7 +598,7 @@ impl InnerConnection {
         let query = String::from_utf8(query.unwrap()).unwrap();
         let (stmt_name, _, _) = try!(self.raw_prepare(query[]));
 
-        Ok(PostgresCopyInStatement {
+        Ok(CopyInStatement {
             conn: conn,
             name: stmt_name,
             column_types: column_types,
@@ -832,7 +832,7 @@ impl Connection {
     /// # Ok(()) };
     /// ```
     pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
-                               -> Result<PostgresCopyInStatement<'a>> {
+                               -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
             return Err(PgWrongTransaction);
@@ -1024,7 +1024,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::prepare_copy_in`.
     pub fn prepare_copy_in<'a>(&'a self, table: &str, cols: &[&str])
-                               -> Result<PostgresCopyInStatement<'a>> {
+                               -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
             return Err(PgWrongTransaction);
@@ -1552,7 +1552,7 @@ impl<'trans, 'stmt> Iterator<Result<PostgresRow<'stmt>>>
 }
 
 /// A prepared COPY FROM STDIN statement
-pub struct PostgresCopyInStatement<'a> {
+pub struct CopyInStatement<'a> {
     conn: &'a Connection,
     name: String,
     column_types: Vec<PostgresType>,
@@ -1560,7 +1560,7 @@ pub struct PostgresCopyInStatement<'a> {
 }
 
 #[unsafe_destructor]
-impl<'a> Drop for PostgresCopyInStatement<'a> {
+impl<'a> Drop for CopyInStatement<'a> {
     fn drop(&mut self) {
         if !self.finished {
             let _ = self.finish_inner();
@@ -1568,7 +1568,7 @@ impl<'a> Drop for PostgresCopyInStatement<'a> {
     }
 }
 
-impl<'a> PostgresCopyInStatement<'a> {
+impl<'a> CopyInStatement<'a> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
@@ -1701,7 +1701,7 @@ impl<'a> PostgresCopyInStatement<'a> {
     /// Consumes the statement, clearing it from the Postgres session.
     ///
     /// Functionally identical to the `Drop` implementation of the
-    /// `PostgresCopyInStatement` except that it returns any error to the
+    /// `CopyInStatement` except that it returns any error to the
     /// caller.
     pub fn finish(mut self) -> Result<()> {
         self.finished = true;
@@ -1721,7 +1721,7 @@ pub trait GenericConnection {
 
     /// Like `Connection::prepare_copy_in`.
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<PostgresCopyInStatement<'a>>;
+                           -> Result<CopyInStatement<'a>>;
 
     /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
@@ -1740,7 +1740,7 @@ impl GenericConnection for Connection {
     }
 
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<PostgresCopyInStatement<'a>> {
+                           -> Result<CopyInStatement<'a>> {
         self.prepare_copy_in(table, columns)
     }
 
@@ -1759,7 +1759,7 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<PostgresCopyInStatement<'a>> {
+                           -> Result<CopyInStatement<'a>> {
         self.prepare_copy_in(table, columns)
     }
 
