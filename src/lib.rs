@@ -54,7 +54,6 @@
 #![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
 #![warn(missing_docs)]
 
-extern crate collections;
 extern crate openssl;
 extern crate serialize;
 extern crate time;
@@ -64,13 +63,12 @@ extern crate phf_mac;
 #[phase(plugin, link)]
 extern crate log;
 
-use collections::RingBuf;
 use url::Url;
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{RingBuf, HashMap};
 use std::io::{BufferedStream, IoResult, MemWriter};
 use std::io::net::ip::Port;
 use std::mem;
