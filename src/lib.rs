@@ -64,7 +64,7 @@ extern crate phf_mac;
 #[phase(plugin, link)]
 extern crate log;
 
-use collections::{Deque, RingBuf};
+use collections::RingBuf;
 use url::Url;
 use openssl::crypto::hash::{MD5, Hasher};
 use openssl::ssl::SslContext;
@@ -181,8 +181,7 @@ pub struct ConnectParams {
     pub port: Option<Port>,
     /// The user to login as.
     ///
-    /// `Connection::connect` requires a user but `cancel_query` does
-    /// not.
+    /// `Connection::connect` requires a user but `cancel_query` does not.
     pub user: Option<UserInfo>,
     /// The database to connect to. Defaults the value of `user`.
     pub database: Option<String>,
@@ -190,8 +189,7 @@ pub struct ConnectParams {
     pub options: Vec<(String, String)>,
 }
 
-/// A trait implemented by types that can be converted into a
-/// `ConnectParams`.
+/// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
     fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError>;
@@ -229,10 +227,9 @@ impl IntoConnectParams for Url {
             TargetTcp(host)
         };
 
-        let user = match user {
-            Some(url::UserInfo { user, pass }) => Some(UserInfo { user: user, password: pass }),
-            None => None,
-        };
+        let user = user.map(|url::UserInfo { user, pass }| {
+            UserInfo { user: user, password: pass }
+        });
 
         let database = if !path.is_empty() {
             // path contains the leading /
@@ -506,8 +503,7 @@ impl InnerConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: Box<NoticeHandler+Send>)
-                          -> Box<NoticeHandler+Send> {
+    fn set_notice_handler(&mut self, handler: Box<NoticeHandler+Send>) -> Box<NoticeHandler+Send> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
