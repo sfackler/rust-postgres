@@ -305,9 +305,8 @@ pub struct CancelData {
 /// was successful or not. An error will only be returned if the driver was
 /// unable to connect to the database.
 ///
-/// A `CancelData` object can be created via
-/// `Connection::cancel_data`. The object can cancel any query made on
-/// that connection.
+/// A `CancelData` object can be created via `Connection::cancel_data`. The
+/// object can cancel any query made on that connection.
 ///
 /// Only the host and port of the connection info are used. See
 /// `Connection::connect` for details of the `params` argument.
@@ -415,8 +414,7 @@ impl InnerConnection {
                     conn.cancel_data.secret_key = secret_key;
                 }
                 ReadyForQuery { .. } => break,
-                ErrorResponse { fields } =>
-                    return PostgresDbError::new_connect(fields),
+                ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
                 _ => return Err(PgConnectBadResponse),
             }
         }
@@ -531,14 +529,14 @@ impl InnerConnection {
             _ => bad_response!(self),
         }
 
-        let mut param_types: Vec<PostgresType> = match try_pg!(self.read_message()) {
+        let mut param_types: Vec<_> = match try_pg!(self.read_message()) {
             ParameterDescription { types } => {
                 types.iter().map(|ty| PostgresType::from_oid(*ty)).collect()
             }
             _ => bad_response!(self),
         };
 
-        let mut result_desc: Vec<ResultDescription> = match try_pg!(self.read_message()) {
+        let mut result_desc: Vec<_> = match try_pg!(self.read_message()) {
             RowDescription { descriptions } => {
                 descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
@@ -560,8 +558,7 @@ impl InnerConnection {
         Ok((stmt_name, param_types, result_desc))
     }
 
-    fn prepare<'a>(&mut self, query: &str, conn: &'a Connection)
-                   -> Result<Statement<'a>> {
+    fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
         let (stmt_name, param_types, result_desc) = try!(self.raw_prepare(query));
         Ok(Statement {
             conn: conn,
@@ -755,8 +752,7 @@ impl Connection {
     /// let conn = try!(Connection::connect(params, &NoSsl));
     /// # Ok(()) };
     /// ```
-    pub fn connect<T>(params: T, ssl: &SslMode)
-            -> result::Result<Connection, PostgresConnectError>
+    pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, PostgresConnectError>
             where T: IntoConnectParams {
         InnerConnection::connect(params, ssl).map(|conn| {
             Connection { conn: RefCell::new(conn) }
@@ -946,9 +942,8 @@ impl Connection {
 
     /// Consumes the connection, closing it.
     ///
-    /// Functionally equivalent to the `Drop` implementation for
-    /// `Connection` except that it returns any error encountered to
-    /// the caller.
+    /// Functionally equivalent to the `Drop` implementation for `Connection`
+    /// except that it returns any error encountered to the caller.
     pub fn finish(self) -> Result<()> {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
@@ -1411,12 +1406,7 @@ impl<'stmt> Rows<'stmt> {
             }
         }
 
-        self.data.pop_front().map(|row| {
-            Ok(Row {
-                stmt: self.stmt,
-                data: row
-            })
-        })
+        self.data.pop_front().map(|row| Ok(Row { stmt: self.stmt, data: row }))
     }
 }
 

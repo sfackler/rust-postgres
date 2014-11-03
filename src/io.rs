@@ -4,18 +4,8 @@ use std::io::net::tcp;
 use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
-use {ConnectParams,
-     SslMode,
-     NoSsl,
-     PreferSsl,
-     RequireSsl,
-     TargetTcp,
-     TargetUnix};
-use error::{PostgresConnectError,
-            PgConnectStreamError,
-            NoSslSupport,
-            SslError,
-            SocketError};
+use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, TargetTcp, TargetUnix};
+use error::{PostgresConnectError, PgConnectStreamError, NoSslSupport, SslError, SocketError};
 use message;
 use message::{SslRequest, WriteMessage};
 
@@ -86,14 +76,14 @@ fn open_socket(params: &ConnectParams)
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         TargetTcp(ref host) =>
-            tcp::TcpStream::connect(host[], port).map(|s| TcpStream(s)),
+            tcp::TcpStream::connect(host[], port).map(TcpStream),
         TargetUnix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
-            pipe::UnixStream::connect(&path).map(|s| UnixStream(s))
+            pipe::UnixStream::connect(&path).map(UnixStream)
         }
     };
-    socket.map_err(|e| SocketError(e))
+    socket.map_err(SocketError)
 }
 
 pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
