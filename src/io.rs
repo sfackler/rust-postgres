@@ -4,7 +4,7 @@ use std::io::net::tcp;
 use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
-use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, TargetTcp, TargetUnix};
+use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, ConnectTarget};
 use error::{PostgresConnectError, PgConnectStreamError, NoSslSupport, SslError, SocketError};
 use message;
 use message::{SslRequest, WriteMessage};
@@ -12,15 +12,15 @@ use message::{SslRequest, WriteMessage};
 const DEFAULT_PORT: Port = 5432;
 
 pub enum MaybeSslStream<S> {
-    SslStream(ssl::SslStream<S>),
-    NormalStream(S),
+    Ssl(ssl::SslStream<S>),
+    Normal(S),
 }
 
 impl<S: Stream> Reader for MaybeSslStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {
-            SslStream(ref mut s) => s.read(buf),
-            NormalStream(ref mut s) => s.read(buf),
+            MaybeSslStream::Ssl(ref mut s) => s.read(buf),
+            MaybeSslStream::Normal(ref mut s) => s.read(buf),
         }
     }
 }
@@ -28,15 +28,15 @@ impl<S: Stream> Reader for MaybeSslStream<S> {
 impl<S: Stream> Writer for MaybeSslStream<S> {
     fn write(&mut self, buf: &[u8]) -> IoResult<()> {
         match *self {
-            SslStream(ref mut s) => s.write(buf),
-            NormalStream(ref mut s) => s.write(buf),
+            MaybeSslStream::Ssl(ref mut s) => s.write(buf),
+            MaybeSslStream::Normal(ref mut s) => s.write(buf),
         }
     }
 
     fn flush(&mut self) -> IoResult<()> {
         match *self {
-            SslStream(ref mut s) => s.flush(),
-            NormalStream(ref mut s) => s.flush(),
+            MaybeSslStream::Ssl(ref mut s) => s.flush(),
+            MaybeSslStream::Normal(ref mut s) => s.flush(),
         }
     }
 }
@@ -75,9 +75,9 @@ fn open_socket(params: &ConnectParams)
                -> Result<InternalStream, PostgresConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
-        TargetTcp(ref host) =>
+        ConnectTarget::Tcp(ref host) =>
             tcp::TcpStream::connect(host[], port).map(TcpStream),
-        TargetUnix(ref path) => {
+        ConnectTarget::Unix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
             pipe::UnixStream::connect(&path).map(UnixStream)
@@ -91,7 +91,7 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
     let mut socket = try!(open_socket(params));
 
     let (ssl_required, ctx) = match *ssl {
-        NoSsl => return Ok(NormalStream(socket)),
+        NoSsl => return Ok(MaybeSslStream::Normal(socket)),
         PreferSsl(ref ctx) => (false, ctx),
         RequireSsl(ref ctx) => (true, ctx)
     };
@@ -103,12 +103,12 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
         if ssl_required {
             return Err(NoSslSupport);
         } else {
-            return Ok(NormalStream(socket));
+            return Ok(MaybeSslStream::Normal(socket));
         }
     }
 
     match ssl::SslStream::new(ctx, socket) {
-        Ok(stream) => Ok(SslStream(stream)),
+        Ok(stream) => Ok(MaybeSslStream::Ssl(stream)),
         Err(err) => Err(SslError(err))
     }
 }

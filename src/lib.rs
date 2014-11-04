@@ -155,9 +155,9 @@ pub type Result<T> = result::Result<T, PostgresError>;
 #[deriving(Clone)]
 pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
-    TargetTcp(String),
+    Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
-    TargetUnix(Path)
+    Unix(Path)
 }
 
 /// Authentication information
@@ -221,9 +221,9 @@ impl IntoConnectParams for Url {
 
         let maybe_path = try!(url::decode_component(host[]).map_err(InvalidUrl));
         let target = if maybe_path[].starts_with("/") {
-            TargetUnix(Path::new(maybe_path))
+            ConnectTarget::Unix(Path::new(maybe_path))
         } else {
-            TargetTcp(host)
+            ConnectTarget::Tcp(host)
         };
 
         let user = user.map(|url::UserInfo { user, pass }| {
@@ -737,11 +737,11 @@ impl Connection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, UserInfo, ConnectParams, NoSsl, TargetUnix};
+    /// # use postgres::{Connection, UserInfo, ConnectParams, NoSsl, ConnectTarget};
     /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
-    ///     target: TargetUnix(some_crazy_path),
+    ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
     ///     user: Some(UserInfo {
     ///         user: "postgres".into_string(),
