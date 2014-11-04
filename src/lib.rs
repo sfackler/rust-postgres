@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
+#![feature(globs, macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
 #![warn(missing_docs)]
 
 extern crate openssl;
@@ -92,46 +92,9 @@ use error::{InvalidUrl,
             PgWrongTransaction,
             PgBadResponse};
 use io::{MaybeSslStream, InternalStream};
-use message::{AuthenticationCleartextPassword,
-              AuthenticationGSS,
-              AuthenticationKerberosV5,
-              AuthenticationMD5Password,
-              AuthenticationOk,
-              AuthenticationSCMCredential,
-              AuthenticationSSPI,
-              BackendKeyData,
-              BackendMessage,
-              BindComplete,
-              CommandComplete,
-              CopyInResponse,
-              DataRow,
-              EmptyQueryResponse,
-              ErrorResponse,
-              NoData,
-              NoticeResponse,
-              NotificationResponse,
-              ParameterDescription,
-              ParameterStatus,
-              ParseComplete,
-              PortalSuspended,
-              ReadyForQuery,
-              RowDescription,
-              RowDescriptionEntry};
-use message::{Bind,
-              CancelRequest,
-              Close,
-              CopyData,
-              CopyDone,
-              CopyFail,
-              Describe,
-              Execute,
-              FrontendMessage,
-              Parse,
-              PasswordMessage,
-              Query,
-              StartupMessage,
-              Sync,
-              Terminate};
+use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
+use message::FrontendMessage::*;
+use message::BackendMessage::*;
 use message::{WriteMessage, ReadMessage};
 #[doc(inline)]
 pub use types::{Oid, Type, ToSql, FromSql};
