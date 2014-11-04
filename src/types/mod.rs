@@ -2,7 +2,6 @@
 #![macro_escape]
 
 use serialize::json;
-use serialize::json::Json;
 use std::collections::HashMap;
 use std::io::{AsRefReader, MemWriter, BufReader};
 use std::io::util::LimitReader;
@@ -75,13 +74,13 @@ macro_rules! make_postgres_type(
     ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
         #[deriving(PartialEq, Eq, Clone, Show)]
-        pub enum PostgresType {
+        pub enum Type {
             $(
                 #[$doc]
                 $variant,
             )+
             /// An unknown type
-            PgUnknownType {
+            Unknown {
                 /// The name of the type
                 pub name: String,
                 /// The OID of the type
@@ -89,28 +88,28 @@ macro_rules! make_postgres_type(
             }
         }
 
-        impl PostgresType {
+        impl Type {
             #[doc(hidden)]
-            pub fn from_oid(oid: Oid) -> PostgresType {
+            pub fn from_oid(oid: Oid) -> Type {
                 match oid {
-                    $($oid => $variant,)+
+                    $($oid => Type::$variant,)+
                     // We have to load an empty string now, it'll get filled in later
-                    oid => PgUnknownType { name: String::new(), oid: oid }
+                    oid => Type::Unknown { name: String::new(), oid: oid }
                 }
             }
 
             #[doc(hidden)]
             pub fn to_oid(&self) -> Oid {
                 match *self {
-                    $($variant => $oid,)+
-                    PgUnknownType { oid, .. } => oid
+                    $(Type::$variant => $oid,)+
+                    Type::Unknown { oid, .. } => oid
                 }
             }
 
-            fn member_type(&self) -> PostgresType {
+            fn member_type(&self) -> Type {
                 match *self {
                     $(
-                        $($variant => $member,)*
+                        $(Type::$variant => Type::$member,)*
                     )+
                     _ => unreachable!()
                 }
@@ -121,81 +120,81 @@ macro_rules! make_postgres_type(
 
 make_postgres_type!(
     #[doc="BOOL"]
-    BOOLOID => PgBool,
+    BOOLOID => Bool,
     #[doc="BYTEA"]
-    BYTEAOID => PgByteA,
+    BYTEAOID => ByteA,
     #[doc="\"char\""]
-    CHAROID => PgChar,
+    CHAROID => Char,
     #[doc="NAME"]
-    NAMEOID => PgName,
+    NAMEOID => Name,
     #[doc="INT8/BIGINT"]
-    INT8OID => PgInt8,
+    INT8OID => Int8,
     #[doc="INT2/SMALLINT"]
-    INT2OID => PgInt2,
+    INT2OID => Int2,
     #[doc="INT4/INT"]
-    INT4OID => PgInt4,
+    INT4OID => Int4,
     #[doc="TEXT"]
-    TEXTOID => PgText,
+    TEXTOID => Text,
     #[doc="JSON"]
-    JSONOID => PgJson,
+    JSONOID => Json,
     #[doc="JSON[]"]
-    JSONARRAYOID => PgJsonArray member PgJson,
+    JSONARRAYOID => JsonArray member Json,
     #[doc="FLOAT4/REAL"]
-    FLOAT4OID => PgFloat4,
+    FLOAT4OID => Float4,
     #[doc="FLOAT8/DOUBLE PRECISION"]
-    FLOAT8OID => PgFloat8,
+    FLOAT8OID => Float8,
     #[doc="BOOL[]"]
-    BOOLARRAYOID => PgBoolArray member PgBool,
+    BOOLARRAYOID => BoolArray member Bool,
     #[doc="BYTEA[]"]
-    BYTEAARRAYOID => PgByteAArray member PgByteA,
+    BYTEAARRAYOID => ByteAArray member ByteA,
     #[doc="\"char\"[]"]
-    CHARARRAYOID => PgCharArray member PgChar,
+    CHARARRAYOID => CharArray member Char,
     #[doc="NAME[]"]
-    NAMEARRAYOID => PgNameArray member PgName,
+    NAMEARRAYOID => NameArray member Name,
     #[doc="INT2[]"]
-    INT2ARRAYOID => PgInt2Array member PgInt2,
+    INT2ARRAYOID => Int2Array member Int2,
     #[doc="INT4[]"]
-    INT4ARRAYOID => PgInt4Array member PgInt4,
+    INT4ARRAYOID => Int4Array member Int4,
     #[doc="TEXT[]"]
-    TEXTARRAYOID => PgTextArray member PgText,
+    TEXTARRAYOID => TextArray member Text,
     #[doc="CHAR(n)[]"]
-    BPCHARARRAYOID => PgCharNArray member PgCharN,
+    BPCHARARRAYOID => CharNArray member CharN,
     #[doc="VARCHAR[]"]
-    VARCHARARRAYOID => PgVarcharArray member PgVarchar,
+    VARCHARARRAYOID => VarcharArray member Varchar,
     #[doc="INT8[]"]
-    INT8ARRAYOID => PgInt8Array member PgInt8,
+    INT8ARRAYOID => Int8Array member Int8,
     #[doc="FLOAT4[]"]
-    FLOAT4ARRAYOID => PgFloat4Array member PgFloat4,
+    FLOAT4ARRAYOID => Float4Array member Float4,
     #[doc="FLOAT8[]"]
-    FLAOT8ARRAYOID => PgFloat8Array member PgFloat8,
+    FLAOT8ARRAYOID => Float8Array member Float8,
     #[doc="TIMESTAMP"]
-    TIMESTAMPOID => PgTimestamp,
+    TIMESTAMPOID => Timestamp,
     #[doc="TIMESTAMP[]"]
-    TIMESTAMPARRAYOID => PgTimestampArray member PgTimestamp,
+    TIMESTAMPARRAYOID => TimestampArray member Timestamp,
     #[doc="TIMESTAMP WITH TIME ZONE"]
-    TIMESTAMPZOID => PgTimestampTZ,
+    TIMESTAMPZOID => TimestampTZ,
     #[doc="TIMESTAMP WITH TIME ZONE[]"]
-    TIMESTAMPZARRAYOID => PgTimestampTZArray member PgTimestampTZ,
+    TIMESTAMPZARRAYOID => TimestampTZArray member TimestampTZ,
     #[doc="CHAR(n)/CHARACTER(n)"]
-    BPCHAROID => PgCharN,
+    BPCHAROID => CharN,
     #[doc="VARCHAR/CHARACTER VARYING"]
-    VARCHAROID => PgVarchar,
+    VARCHAROID => Varchar,
     #[doc="INT4RANGE"]
-    INT4RANGEOID => PgInt4Range,
+    INT4RANGEOID => Int4Range,
     #[doc="INT4RANGE[]"]
-    INT4RANGEARRAYOID => PgInt4RangeArray member PgInt4Range,
+    INT4RANGEARRAYOID => Int4RangeArray member Int4Range,
     #[doc="TSRANGE"]
-    TSRANGEOID => PgTsRange,
+    TSRANGEOID => TsRange,
     #[doc="TSRANGE[]"]
-    TSRANGEARRAYOID => PgTsRangeArray member PgTsRange,
+    TSRANGEARRAYOID => TsRangeArray member TsRange,
     #[doc="TSTZRANGE"]
-    TSTZRANGEOID => PgTstzRange,
+    TSTZRANGEOID => TstzRange,
     #[doc="TSTZRANGE[]"]
-    TSTZRANGEARRAYOID => PgTstzRangeArray member PgTstzRange,
+    TSTZRANGEARRAYOID => TstzRangeArray member TstzRange,
     #[doc="INT8RANGE"]
-    INT8RANGEOID => PgInt8Range,
+    INT8RANGEOID => Int8Range,
     #[doc="INT8RANGE[]"]
-    INT8RANGEARRAYOID => PgInt8RangeArray member PgInt8Range
+    INT8RANGEARRAYOID => Int8RangeArray member Int8Range
 )
 
 macro_rules! check_types(
@@ -212,7 +211,7 @@ pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
     ///
     /// If the value was `NULL`, the buffer will be `None`.
-    fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>) -> Result<Self>;
+    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Self>;
 }
 
 #[doc(hidden)]
@@ -321,8 +320,8 @@ from_range_impl!(i32)
 from_range_impl!(i64)
 from_range_impl!(Timespec)
 
-impl RawFromSql for Json {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Json> {
+impl RawFromSql for json::Json {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<json::Json> {
         json::from_reader(raw).map_err(|_| PgBadData)
     }
 }
@@ -330,7 +329,7 @@ impl RawFromSql for Json {
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr) => (
         impl FromSql for Option<$t> {
-            fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                     -> Result<Option<$t>> {
                 check_types!($($expected)|+, ty)
                 match *raw {
@@ -341,7 +340,7 @@ macro_rules! from_map_impl(
         }
 
         impl FromSql for $t {
-            fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                     -> Result<$t> {
                 // FIXME when you can specify Self types properly
                 let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
@@ -364,21 +363,21 @@ macro_rules! from_raw_from_impl(
     )
 )
 
-from_raw_from_impl!(PgBool, bool)
-from_raw_from_impl!(PgByteA, Vec<u8>)
-from_raw_from_impl!(PgVarchar | PgText | PgCharN | PgName, String)
-from_raw_from_impl!(PgChar, i8)
-from_raw_from_impl!(PgInt2, i16)
-from_raw_from_impl!(PgInt4, i32)
-from_raw_from_impl!(PgInt8, i64)
-from_raw_from_impl!(PgFloat4, f32)
-from_raw_from_impl!(PgFloat8, f64)
-from_raw_from_impl!(PgJson, Json)
+from_raw_from_impl!(Bool, bool)
+from_raw_from_impl!(ByteA, Vec<u8>)
+from_raw_from_impl!(Varchar | Text | CharN | Name, String)
+from_raw_from_impl!(Char, i8)
+from_raw_from_impl!(Int2, i16)
+from_raw_from_impl!(Int4, i32)
+from_raw_from_impl!(Int8, i64)
+from_raw_from_impl!(Float4, f32)
+from_raw_from_impl!(Float8, f64)
+from_raw_from_impl!(Json, json::Json)
 
-from_raw_from_impl!(PgTimestamp | PgTimestampTZ, Timespec)
-from_raw_from_impl!(PgInt4Range, Range<i32>)
-from_raw_from_impl!(PgInt8Range, Range<i64>)
-from_raw_from_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
+from_raw_from_impl!(Timestamp | TimestampTZ, Timespec)
+from_raw_from_impl!(Int4Range, Range<i32>)
+from_raw_from_impl!(Int8Range, Range<i64>)
+from_raw_from_impl!(TsRange | TstzRange, Range<Timespec>)
 
 macro_rules! from_array_impl(
     ($($oid:ident)|+, $t:ty) => (
@@ -415,26 +414,26 @@ macro_rules! from_array_impl(
     )
 )
 
-from_array_impl!(PgBoolArray, bool)
-from_array_impl!(PgByteAArray, Vec<u8>)
-from_array_impl!(PgCharArray, i8)
-from_array_impl!(PgInt2Array, i16)
-from_array_impl!(PgInt4Array, i32)
-from_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, String)
-from_array_impl!(PgInt8Array, i64)
-from_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
-from_array_impl!(PgJsonArray, Json)
-from_array_impl!(PgFloat4Array, f32)
-from_array_impl!(PgFloat8Array, f64)
-from_array_impl!(PgInt4RangeArray, Range<i32>)
-from_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
-from_array_impl!(PgInt8RangeArray, Range<i64>)
+from_array_impl!(BoolArray, bool)
+from_array_impl!(ByteAArray, Vec<u8>)
+from_array_impl!(CharArray, i8)
+from_array_impl!(Int2Array, i16)
+from_array_impl!(Int4Array, i32)
+from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
+from_array_impl!(Int8Array, i64)
+from_array_impl!(TimestampArray | TimestampTZArray, Timespec)
+from_array_impl!(JsonArray, json::Json)
+from_array_impl!(Float4Array, f32)
+from_array_impl!(Float8Array, f64)
+from_array_impl!(Int4RangeArray, Range<i32>)
+from_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
+from_array_impl!(Int8RangeArray, Range<i64>)
 
 impl FromSql for Option<HashMap<String, Option<String>>> {
-    fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
+    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -474,7 +473,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
 }
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql(ty: &PostgresType, raw: &Option<Vec<u8>>)
+    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                 -> Result<HashMap<String, Option<String>>> {
         // FIXME when you can specify Self types properly
         let ret: Result<Option<HashMap<String, Option<String>>>> =
@@ -491,7 +490,7 @@ impl FromSql for HashMap<String, Option<String>> {
 pub trait ToSql {
     /// Converts the value of `self` into the binary format appropriate for the
     /// Postgres backend.
-    fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>>;
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>>;
 }
 
 #[doc(hidden)]
@@ -594,7 +593,7 @@ to_range_impl!(i32)
 to_range_impl!(i64)
 to_range_impl!(Timespec)
 
-impl RawToSql for Json {
+impl RawToSql for json::Json {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
         Ok(try_pg!(self.to_writer(raw as &mut Writer)))
     }
@@ -603,7 +602,7 @@ impl RawToSql for Json {
 macro_rules! to_option_impl(
     ($($oid:pat)|+, $t:ty) => (
         impl ToSql for Option<$t> {
-            fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -618,7 +617,7 @@ macro_rules! to_option_impl(
 macro_rules! to_option_impl_lifetime(
     ($($oid:pat)|+, $t:ty) => (
         impl<'a> ToSql for Option<$t> {
-            fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
 
                 match *self {
@@ -633,7 +632,7 @@ macro_rules! to_option_impl_lifetime(
 macro_rules! to_raw_to_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for $t {
-            fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
@@ -646,44 +645,44 @@ macro_rules! to_raw_to_impl(
     )
 )
 
-to_raw_to_impl!(PgBool, bool)
-to_raw_to_impl!(PgByteA, Vec<u8>)
-to_raw_to_impl!(PgVarchar | PgText | PgCharN | PgName, String)
-to_raw_to_impl!(PgJson, Json)
-to_raw_to_impl!(PgChar, i8)
-to_raw_to_impl!(PgInt2, i16)
-to_raw_to_impl!(PgInt4, i32)
-to_raw_to_impl!(PgInt8, i64)
-to_raw_to_impl!(PgFloat4, f32)
-to_raw_to_impl!(PgFloat8, f64)
-to_raw_to_impl!(PgInt4Range, Range<i32>)
-to_raw_to_impl!(PgInt8Range, Range<i64>)
-to_raw_to_impl!(PgTsRange | PgTstzRange, Range<Timespec>)
+to_raw_to_impl!(Bool, bool)
+to_raw_to_impl!(ByteA, Vec<u8>)
+to_raw_to_impl!(Varchar | Text | CharN | Name, String)
+to_raw_to_impl!(Json, json::Json)
+to_raw_to_impl!(Char, i8)
+to_raw_to_impl!(Int2, i16)
+to_raw_to_impl!(Int4, i32)
+to_raw_to_impl!(Int8, i64)
+to_raw_to_impl!(Float4, f32)
+to_raw_to_impl!(Float8, f64)
+to_raw_to_impl!(Int4Range, Range<i32>)
+to_raw_to_impl!(Int8Range, Range<i64>)
+to_raw_to_impl!(TsRange | TstzRange, Range<Timespec>)
 
 impl<'a> ToSql for &'a str {
-    fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
-        check_types!(PgVarchar | PgText | PgCharN | PgName, ty)
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+        check_types!(Varchar | Text | CharN | Name, ty)
         Ok(Some(self.as_bytes().to_vec()))
     }
 }
 
-to_option_impl_lifetime!(PgVarchar | PgText | PgCharN | PgName, &'a str)
+to_option_impl_lifetime!(Varchar | Text | CharN | Name, &'a str)
 
 impl<'a> ToSql for &'a [u8] {
-    fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
-        check_types!(PgByteA, ty)
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+        check_types!(ByteA, ty)
         Ok(Some(self.to_vec()))
     }
 }
 
-to_option_impl_lifetime!(PgByteA, &'a [u8])
+to_option_impl_lifetime!(ByteA, &'a [u8])
 
-to_raw_to_impl!(PgTimestamp | PgTimestampTZ, Timespec)
+to_raw_to_impl!(Timestamp | TimestampTZ, Timespec)
 
 macro_rules! to_array_impl(
     ($($oid:ident)|+, $t:ty) => (
         impl ToSql for ArrayBase<Option<$t>> {
-            fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
@@ -717,25 +716,25 @@ macro_rules! to_array_impl(
     )
 )
 
-to_array_impl!(PgBoolArray, bool)
-to_array_impl!(PgByteAArray, Vec<u8>)
-to_array_impl!(PgCharArray, i8)
-to_array_impl!(PgInt2Array, i16)
-to_array_impl!(PgInt4Array, i32)
-to_array_impl!(PgInt8Array, i64)
-to_array_impl!(PgTextArray | PgCharNArray | PgVarcharArray | PgNameArray, String)
-to_array_impl!(PgTimestampArray | PgTimestampTZArray, Timespec)
-to_array_impl!(PgFloat4Array, f32)
-to_array_impl!(PgFloat8Array, f64)
-to_array_impl!(PgInt4RangeArray, Range<i32>)
-to_array_impl!(PgTsRangeArray | PgTstzRangeArray, Range<Timespec>)
-to_array_impl!(PgInt8RangeArray, Range<i64>)
-to_array_impl!(PgJsonArray, Json)
+to_array_impl!(BoolArray, bool)
+to_array_impl!(ByteAArray, Vec<u8>)
+to_array_impl!(CharArray, i8)
+to_array_impl!(Int2Array, i16)
+to_array_impl!(Int4Array, i32)
+to_array_impl!(Int8Array, i64)
+to_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
+to_array_impl!(TimestampArray | TimestampTZArray, Timespec)
+to_array_impl!(Float4Array, f32)
+to_array_impl!(Float8Array, f64)
+to_array_impl!(Int4RangeArray, Range<i32>)
+to_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
+to_array_impl!(Int8RangeArray, Range<i64>)
+to_array_impl!(JsonArray, json::Json)
 
 impl ToSql for HashMap<String, Option<String>> {
-    fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 
@@ -761,9 +760,9 @@ impl ToSql for HashMap<String, Option<String>> {
 }
 
 impl ToSql for Option<HashMap<String, Option<String>>> {
-    fn to_sql(&self, ty: &PostgresType) -> Result<Option<Vec<u8>>> {
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            PgUnknownType { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
             _ => return Err(PgWrongType(ty.clone()))
         }
 

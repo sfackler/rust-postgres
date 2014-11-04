@@ -9,7 +9,7 @@ use openssl::ssl::error;
 use phf;
 
 use Result;
-use types::PostgresType;
+use types::Type;
 
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
@@ -552,7 +552,7 @@ pub enum PostgresError {
     },
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types
-    PgWrongType(PostgresType),
+    PgWrongType(Type),
     /// An attempt was made to read from a column that does not exist
     PgInvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type

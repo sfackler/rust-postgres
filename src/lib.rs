@@ -133,7 +133,8 @@ use message::{Bind,
               Sync,
               Terminate};
 use message::{WriteMessage, ReadMessage};
-use types::{Oid, PostgresType, ToSql, FromSql, PgUnknownType};
+#[doc(inline)]
+pub use types::{Oid, Type, ToSql, FromSql};
 
 #[macro_escape]
 mod macros;
@@ -504,7 +505,7 @@ impl InnerConnection {
     }
 
     fn raw_prepare(&mut self, query: &str)
-                   -> Result<(String, Vec<PostgresType>, Vec<ResultDescription>)> {
+                   -> Result<(String, Vec<Type>, Vec<ResultDescription>)> {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
@@ -531,7 +532,7 @@ impl InnerConnection {
 
         let mut param_types: Vec<_> = match try_pg!(self.read_message()) {
             ParameterDescription { types } => {
-                types.iter().map(|ty| PostgresType::from_oid(*ty)).collect()
+                types.iter().map(|ty| Type::from_oid(*ty)).collect()
             }
             _ => bad_response!(self),
         };
@@ -541,7 +542,7 @@ impl InnerConnection {
                 descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
                         name: name,
-                        ty: PostgresType::from_oid(type_oid)
+                        ty: Type::from_oid(type_oid)
                     }
                 }).collect()
             }
@@ -618,9 +619,9 @@ impl InnerConnection {
     }
 
     fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()>
-            where I: Iterator<&'a mut PostgresType> {
+            where I: Iterator<&'a mut Type> {
         for ty in it {
-            if let &PgUnknownType { oid, ref mut name } = ty {
+            if let &Type::Unknown { oid, ref mut name } = ty {
                 *name = try!(self.get_type_name(oid));
             }
         }
@@ -1111,7 +1112,7 @@ impl<'conn> Transaction<'conn> {
 pub struct Statement<'conn> {
     conn: &'conn Connection,
     name: String,
-    param_types: Vec<PostgresType>,
+    param_types: Vec<Type>,
     result_desc: Vec<ResultDescription>,
     next_portal_id: Cell<uint>,
     finished: bool,
@@ -1196,7 +1197,7 @@ impl<'conn> Statement<'conn> {
     }
 
     /// Returns a slice containing the expected parameter types.
-    pub fn param_types(&self) -> &[PostgresType] {
+    pub fn param_types(&self) -> &[Type] {
         self.param_types[]
     }
 
@@ -1300,7 +1301,7 @@ pub struct ResultDescription {
     /// The name of the column
     pub name: String,
     /// The type of the data in the column
-    pub ty: PostgresType
+    pub ty: Type
 }
 
 /// An iterator over the resulting rows of a query.
@@ -1538,7 +1539,7 @@ impl<'trans, 'stmt> Iterator<Result<Row<'stmt>>> for LazyRows<'trans, 'stmt> {
 pub struct CopyInStatement<'a> {
     conn: &'a Connection,
     name: String,
-    column_types: Vec<PostgresType>,
+    column_types: Vec<Type>,
     finished: bool,
 }
 
@@ -1559,7 +1560,7 @@ impl<'a> CopyInStatement<'a> {
     }
 
     /// Returns a slice containing the expected column types.
-    pub fn column_types(&self) -> &[PostgresType] {
+    pub fn column_types(&self) -> &[Type] {
         self.column_types[]
     }
 

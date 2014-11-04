@@ -18,7 +18,9 @@ use postgres::{NoticeHandler,
                ResultDescription,
                RequireSsl,
                PreferSsl,
-               NoSsl};
+               NoSsl,
+               Type,
+               ToSql};
 use postgres::error::{PgConnectDbError,
                       PgDbError,
                       PgWrongConnection,
@@ -36,7 +38,6 @@ use postgres::error::{PgConnectDbError,
                       InvalidCatalogName,
                       PgWrongTransaction,
                       CardinalityViolation};
-use postgres::types::{PgInt4, PgVarchar, ToSql};
 
 macro_rules! or_panic(
     ($e:expr) => (
@@ -441,7 +442,7 @@ fn test_lazy_query_wrong_conn() {
 fn test_param_types() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_panic!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
-    assert_eq!(stmt.param_types(), [PgInt4, PgVarchar][]);
+    assert_eq!(stmt.param_types(), [Type::Int4, Type::Varchar][]);
 }
 
 #[test]
@@ -449,8 +450,8 @@ fn test_result_descriptions() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
     let stmt = or_panic!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_string(), ty: PgInt4},
-             ResultDescription { name: "b".to_string(), ty: PgVarchar}]);
+            [ResultDescription { name: "a".to_string(), ty: Type::Int4},
+             ResultDescription { name: "b".to_string(), ty: Type::Varchar}]);
 }
 
 #[test]
@@ -762,7 +763,7 @@ fn test_copy_in_bad_type() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message[].contains("Unexpected type PgVarchar") => {}
+        Err(PgDbError(ref err)) if err.message[].contains("Unexpected type Varchar") => {}
         Err(err) => panic!("unexpected error {}", err),
         _ => panic!("Expected error"),
     }
