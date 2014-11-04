@@ -5,7 +5,7 @@ use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
 use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, ConnectTarget};
-use error::{PostgresConnectError, PgConnectStreamError, NoSslSupport, SslError, SocketError};
+use error::{ConnectError, PgConnectStreamError, NoSslSupport, SslError, SocketError};
 use message;
 use message::{SslRequest, WriteMessage};
 
@@ -72,7 +72,7 @@ impl Writer for InternalStream {
 }
 
 fn open_socket(params: &ConnectParams)
-               -> Result<InternalStream, PostgresConnectError> {
+               -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         ConnectTarget::Tcp(ref host) =>
@@ -87,7 +87,7 @@ fn open_socket(params: &ConnectParams)
 }
 
 pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
-                         -> Result<MaybeSslStream<InternalStream>, PostgresConnectError> {
+                         -> Result<MaybeSslStream<InternalStream>, ConnectError> {
     let mut socket = try!(open_socket(params));
 
     let (ssl_required, ctx) = match *ssl {

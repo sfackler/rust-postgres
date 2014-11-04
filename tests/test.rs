@@ -20,24 +20,24 @@ use postgres::{NoticeHandler,
                PreferSsl,
                NoSsl,
                Type,
-               ToSql};
-use postgres::error::{PgConnectDbError,
-                      PgDbError,
+               ToSql,
+               DbError};
+use postgres::ConnectError::{PgConnectDbError,
+                             MissingPassword};
+use postgres::Error::{PgDbError,
                       PgWrongConnection,
                       PgWrongParamCount,
                       PgWrongType,
                       PgInvalidColumn,
                       PgWasNull,
-                      MissingPassword,
-                      Position,
-                      PostgresDbError,
-                      SyntaxError,
-                      InvalidPassword,
-                      QueryCanceled,
-                      UndefinedTable,
-                      InvalidCatalogName,
-                      PgWrongTransaction,
-                      CardinalityViolation};
+                      PgWrongTransaction};
+use postgres::SqlState::{SyntaxError,
+                         QueryCanceled,
+                         UndefinedTable,
+                         InvalidCatalogName,
+                         InvalidPassword,
+                         CardinalityViolation};
+use postgres::ErrorPosition::Normal;
 
 macro_rules! or_panic(
     ($e:expr) => (
@@ -64,7 +64,7 @@ fn test_url_terminating_slash() {
 fn test_prepare_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
     match conn.prepare("invalid sql statment") {
-        Err(PgDbError(PostgresDbError { code: SyntaxError, position: Some(Position(1)), .. })) => (),
+        Err(PgDbError(DbError { code: SyntaxError, position: Some(Normal(1)), .. })) => (),
         Err(e) => panic!("Unexpected result {}", e),
         _ => panic!("Unexpected result"),
     }
@@ -73,7 +73,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost/asdf", &NoSsl) {
-        Err(PgConnectDbError(PostgresDbError { code: InvalidCatalogName, .. })) => {}
+        Err(PgConnectDbError(DbError { code: InvalidCatalogName, .. })) => {}
         Err(resp) => panic!("Unexpected result {}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -350,7 +350,7 @@ fn test_batch_execute_error() {
     conn.batch_execute(query).unwrap_err();
 
     match conn.prepare("SELECT * from foo ORDER BY id") {
-        Err(PgDbError(PostgresDbError { code: UndefinedTable, .. })) => {},
+        Err(PgDbError(DbError { code: UndefinedTable, .. })) => {},
         Err(e) => panic!("unexpected error {}", e),
         _ => panic!("unexpected success"),
     }
@@ -393,7 +393,7 @@ FROM (SELECT gs.i
       ORDER BY gs.i
       LIMIT 2) ss"));
     match stmt.query([]) {
-        Err(PgDbError(PostgresDbError { code: CardinalityViolation, .. })) => {}
+        Err(PgDbError(DbError { code: CardinalityViolation, .. })) => {}
         Err(err) => panic!("Unexpected error {}", err),
         Ok(_) => panic!("Expected failure"),
     }
@@ -543,7 +543,7 @@ fn test_custom_notice_handler() {
     struct Handler;
 
     impl NoticeHandler for Handler {
-        fn handle(&mut self, notice: PostgresDbError) {
+        fn handle(&mut self, notice: DbError) {
             assert_eq!("note", notice.message[]);
             unsafe { count += 1; }
         }
@@ -622,7 +622,7 @@ fn test_cancel_query() {
     });
 
     match conn.execute("SELECT pg_sleep(10)", []) {
-        Err(PgDbError(PostgresDbError { code: QueryCanceled, .. })) => {}
+        Err(PgDbError(DbError { code: QueryCanceled, .. })) => {}
         Err(res) => panic!("Unexpected result {}", res),
         _ => panic!("Unexpected result"),
     }
@@ -663,7 +663,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = Connection::connect("postgres://pass_user:asdf@localhost/postgres", &NoSsl);
     match ret {
-        Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
+        Err(PgConnectDbError(DbError { code: InvalidPassword, .. })) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }
@@ -688,7 +688,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = Connection::connect("postgres://md5_user:asdf@localhost/postgres", &NoSsl);
     match ret {
-        Err(PgConnectDbError(PostgresDbError { code: InvalidPassword, .. })) => (),
+        Err(PgConnectDbError(DbError { code: InvalidPassword, .. })) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }

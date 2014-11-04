@@ -84,9 +84,6 @@ use error::{InvalidUrl,
             PgStreamDesynchronized,
             PgStreamError,
             PgWrongParamCount,
-            PostgresConnectError,
-            PostgresDbError,
-            PostgresError,
             UnsupportedAuthentication,
             PgWrongConnection,
             PgWrongTransaction,
@@ -98,6 +95,7 @@ use message::BackendMessage::*;
 use message::{WriteMessage, ReadMessage};
 #[doc(inline)]
 pub use types::{Oid, Type, ToSql, FromSql};
+pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 
 #[macro_escape]
 mod macros;
@@ -106,13 +104,13 @@ mod io;
 mod message;
 mod url;
 mod util;
-pub mod error;
+mod error;
 pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;
 
 /// A typedef of the result returned by many methods.
-pub type Result<T> = result::Result<T, PostgresError>;
+pub type Result<T> = result::Result<T, Error>;
 
 /// Specifies the target server to connect to.
 #[deriving(Clone)]
@@ -154,17 +152,17 @@ pub struct ConnectParams {
 /// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError>;
+    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError>;
 }
 
 impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => return Err(InvalidUrl(err)),
@@ -173,7 +171,7 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, PostgresConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
         let Url {
             host,
             port,
@@ -214,7 +212,7 @@ impl IntoConnectParams for Url {
 /// Trait for types that can handle Postgres notice messages
 pub trait NoticeHandler {
     /// Handle a Postgres notice message
-    fn handle(&mut self, notice: PostgresDbError);
+    fn handle(&mut self, notice: DbError);
 }
 
 /// A notice handler which logs at the `info` level.
@@ -223,7 +221,7 @@ pub trait NoticeHandler {
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
-    fn handle(&mut self, notice: PostgresDbError) {
+    fn handle(&mut self, notice: DbError) {
         info!("{}: {}", notice.severity, notice.message);
     }
 }
@@ -289,7 +287,7 @@ pub struct CancelData {
 /// postgres::cancel_query(url, &NoSsl, cancel_data);
 /// ```
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
-                       -> result::Result<(), PostgresConnectError> where T: IntoConnectParams {
+                       -> result::Result<(), ConnectError> where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
     let mut socket = try!(io::initialize_stream(&params, ssl));
 
@@ -326,7 +324,7 @@ impl Drop for InnerConnection {
 
 impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode)
-                  -> result::Result<InnerConnection, PostgresConnectError>
+                  -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
@@ -378,7 +376,7 @@ impl InnerConnection {
                     conn.cancel_data.secret_key = secret_key;
                 }
                 ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
+                ErrorResponse { fields } => return DbError::new_connect(fields),
                 _ => return Err(PgConnectBadResponse),
             }
         }
@@ -399,7 +397,7 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 NoticeResponse { fields } => {
-                    if let Ok(err) = PostgresDbError::new_raw(fields) {
+                    if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle(err);
                     }
                 }
@@ -418,7 +416,7 @@ impl InnerConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), PostgresConnectError> {
+    fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
@@ -446,7 +444,7 @@ impl InnerConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(UnsupportedAuthentication),
-            ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
+            ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -455,7 +453,7 @@ impl InnerConnection {
 
         match try_pg_conn!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => return PostgresDbError::new_connect(fields),
+            ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
                 return Err(PgConnectBadResponse);
@@ -488,7 +486,7 @@ impl InnerConnection {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return PostgresDbError::new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self),
         }
@@ -573,7 +571,7 @@ impl InnerConnection {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return PostgresDbError::new(fields);
+                    return DbError::new(fields);
                 }
                 _ => {}
             }
@@ -640,7 +638,7 @@ impl InnerConnection {
                 }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return PostgresDbError::new(fields);
+                    return DbError::new(fields);
                 }
                 _ => {}
             }
@@ -716,7 +714,7 @@ impl Connection {
     /// let conn = try!(Connection::connect(params, &NoSsl));
     /// # Ok(()) };
     /// ```
-    pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, PostgresConnectError>
+    pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, ConnectError>
             where T: IntoConnectParams {
         InnerConnection::connect(params, ssl).map(|conn| {
             Connection { conn: RefCell::new(conn) }
@@ -808,7 +806,7 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, NoSsl};
-    /// # fn foo() -> Result<(), postgres::error::PostgresError> {
+    /// # fn foo() -> Result<(), postgres::Error> {
     /// # let conn = Connection::connect("", &NoSsl).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", []));
@@ -1129,7 +1127,7 @@ impl<'conn> Statement<'conn> {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                PostgresDbError::new(fields)
+                DbError::new(fields)
             }
             _ => {
                 conn.desynchronized = true;
@@ -1196,7 +1194,7 @@ impl<'conn> Statement<'conn> {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return PostgresDbError::new(fields);
+                    return DbError::new(fields);
                 }
                 CommandComplete { tag } => {
                     num = util::parse_update_count(tag);
@@ -1302,7 +1300,7 @@ impl<'stmt> Rows<'stmt> {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return PostgresDbError::new(fields);
+                    return DbError::new(fields);
                 }
                 _ => {}
             }
@@ -1326,7 +1324,7 @@ impl<'stmt> Rows<'stmt> {
                 DataRow { row } => self.data.push(row),
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return PostgresDbError::new(fields);
+                    return DbError::new(fields);
                 }
                 CopyInResponse { .. } => {
                     try_pg!(conn.write_messages([
@@ -1555,7 +1553,7 @@ impl<'a> CopyInStatement<'a> {
             BindComplete => {},
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return PostgresDbError::new(fields);
+                return DbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;
@@ -1633,7 +1631,7 @@ impl<'a> CopyInStatement<'a> {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return PostgresDbError::new(fields);
+                return DbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;
