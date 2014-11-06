@@ -3,7 +3,7 @@ use postgres::types::array::{DimensionInfo, ArrayBase, Array, MutableArray};
 #[test]
 fn test_from_vec() {
     let a = ArrayBase::from_vec(vec!(0i, 1, 2), -1);
-    assert!([DimensionInfo { len: 3, lower_bound: -1 }] ==
+    assert!([DimensionInfo { len: 3, lower_bound: -1 }][] ==
             a.dimension_info());
     assert_eq!(&0, a.get(-1));
     assert_eq!(&1, a.get(0));
