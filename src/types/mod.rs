@@ -346,7 +346,8 @@ impl RawFromSql for json::Json {
 }
 
 macro_rules! from_map_impl(
-    ($($expected:pat)|+, $t:ty, $blk:expr) => (
+    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
+        $(#[$a])*
         impl FromSql for Option<$t> {
             fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                     -> Result<Option<$t>> {
@@ -358,6 +359,7 @@ macro_rules! from_map_impl(
             }
         }
 
+        $(#[$a])*
         impl FromSql for $t {
             fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                     -> Result<$t> {
@@ -374,11 +376,11 @@ macro_rules! from_map_impl(
 )
 
 macro_rules! from_raw_from_impl(
-    ($($expected:pat)|+, $t:ty) => (
+    ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
         from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
             let mut reader = BufReader::new(buf[]);
             RawFromSql::raw_from_sql(&mut reader)
-        })
+        } $(, $a)*)
     )
 )
 
@@ -392,7 +394,7 @@ from_raw_from_impl!(Int8, i64)
 from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
 #[cfg(feature = "uuid_type")]
-from_raw_from_impl!(Uuid, uuid::Uuid)
+from_raw_from_impl!(Uuid, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 from_raw_from_impl!(Json, json::Json)
 
 from_raw_from_impl!(Timestamp | TimestampTZ, Timespec)
@@ -401,7 +403,7 @@ from_raw_from_impl!(Int8Range, Range<i64>)
 from_raw_from_impl!(TsRange | TstzRange, Range<Timespec>)
 
 macro_rules! from_array_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
         from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
             let mut rdr = BufReader::new(buf[]);
 
@@ -431,7 +433,7 @@ macro_rules! from_array_impl(
             }
 
             Ok(ArrayBase::from_raw(elements, dim_info))
-        })
+        } $(, $a)*)
     )
 )
 
@@ -444,7 +446,7 @@ from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
 from_array_impl!(Int8Array, i64)
 from_array_impl!(TimestampArray | TimestampTZArray, Timespec)
 #[cfg(feature = "uuid_type")]
-from_array_impl!(UuidArray, uuid::Uuid)
+from_array_impl!(UuidArray, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 from_array_impl!(JsonArray, json::Json)
 from_array_impl!(Float4Array, f32)
 from_array_impl!(Float8Array, f64)
@@ -630,7 +632,8 @@ impl RawToSql for json::Json {
 }
 
 macro_rules! to_option_impl(
-    ($($oid:pat)|+, $t:ty) => (
+    ($($oid:pat)|+, $t:ty $(,$a:meta)*) => (
+        $(#[$a])*
         impl ToSql for Option<$t> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
@@ -660,7 +663,8 @@ macro_rules! to_option_impl_lifetime(
 )
 
 macro_rules! to_raw_to_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
+        $(#[$a])*
         impl ToSql for $t {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
@@ -671,7 +675,7 @@ macro_rules! to_raw_to_impl(
             }
         }
 
-        to_option_impl!($($oid)|+, $t)
+        to_option_impl!($($oid)|+, $t $(, $a)*)
     )
 )
 
@@ -679,7 +683,7 @@ to_raw_to_impl!(Bool, bool)
 to_raw_to_impl!(ByteA, Vec<u8>)
 to_raw_to_impl!(Varchar | Text | CharN | Name, String)
 #[cfg(feature = "uuid_type")]
-to_raw_to_impl!(Uuid, uuid::Uuid)
+to_raw_to_impl!(Uuid, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 to_raw_to_impl!(Json, json::Json)
 to_raw_to_impl!(Char, i8)
 to_raw_to_impl!(Int2, i16)
@@ -712,7 +716,8 @@ to_option_impl_lifetime!(ByteA, &'a [u8])
 to_raw_to_impl!(Timestamp | TimestampTZ, Timespec)
 
 macro_rules! to_array_impl(
-    ($($oid:ident)|+, $t:ty) => (
+    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
+        $(#[$a])*
         impl ToSql for ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
@@ -744,7 +749,7 @@ macro_rules! to_array_impl(
             }
         }
 
-        to_option_impl!($($oid)|+, ArrayBase<Option<$t>>)
+        to_option_impl!($($oid)|+, ArrayBase<Option<$t>> $(, $a)*)
     )
 )
 
@@ -762,7 +767,7 @@ to_array_impl!(Int4RangeArray, Range<i32>)
 to_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
 to_array_impl!(Int8RangeArray, Range<i64>)
 #[cfg(feature = "uuid_type")]
-to_array_impl!(UuidArray, uuid::Uuid)
+to_array_impl!(UuidArray, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 to_array_impl!(JsonArray, json::Json)
 
 impl ToSql for HashMap<String, Option<String>> {
