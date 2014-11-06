@@ -1,3 +1,6 @@
+#[cfg(feature = "uuid_type")]
+extern crate uuid;
+
 use serialize::json;
 use std::collections::HashMap;
 use std::f32;
@@ -121,6 +124,15 @@ fn test_json_params() {
                         "'{\"f\": \"asd\"}'"),
                        (None, "NULL")])
 }
+
+#[test]
+#[cfg(feature = "uuid_type")]
+fn test_uuid_params() {
+    test_type("UUID", [(Some(uuid::Uuid::parse_str("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
+                        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'"),
+                       (None, "NULL")])
+}
+
 
 #[test]
 fn test_tm_params() {
@@ -288,6 +300,18 @@ fn test_int4rangearray_params() {
                        range!('(', ')'), "\"(,)\"",
                        range!('[' 10i32, ')'), "\"[10,)\"",
                        range!('(', 10i32 ')'), "\"(,10)\"");
+}
+
+#[test]
+#[cfg(feature = "uuid_type")]
+fn test_uuidarray_params() {
+    fn make_check<'a>(uuid: &'a str) -> (uuid::Uuid, &'a str) {
+        (uuid::Uuid::parse_str(uuid).unwrap(), uuid)
+    }
+    let (v1, s1) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
+    let (v2, s2) = make_check("00000000-0000-0000-0000-000000000000");
+    let (v3, s3) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
+    test_array_params!("UUID", v1, s1, v2, s2, v3, s3);
 }
 
 #[test]

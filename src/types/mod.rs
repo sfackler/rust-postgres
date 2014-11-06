@@ -1,6 +1,9 @@
 //! Traits dealing with Postgres data types
 #![macro_escape]
 
+#[cfg(feature = "uuid_type")]
+extern crate uuid;
+
 use serialize::json;
 use std::collections::HashMap;
 use std::io::{AsRefReader, MemWriter, BufReader};
@@ -49,6 +52,8 @@ const TIMESTAMPOID: Oid = 1114;
 const TIMESTAMPARRAYOID: Oid = 1115;
 const TIMESTAMPZOID: Oid = 1184;
 const TIMESTAMPZARRAYOID: Oid = 1185;
+const UUIDOID: Oid = 2950;
+const UUIDARRAYOID: Oid = 2951;
 const INT4RANGEOID: Oid = 3904;
 const INT4RANGEARRAYOID: Oid = 3905;
 const TSRANGEOID: Oid = 3908;
@@ -175,6 +180,10 @@ make_postgres_type!(
     TIMESTAMPZOID => TimestampTZ,
     #[doc="TIMESTAMP WITH TIME ZONE[]"]
     TIMESTAMPZARRAYOID => TimestampTZArray member TimestampTZ,
+    #[doc="UUID"]
+    UUIDOID => Uuid,
+    #[doc="UUID[]"]
+    UUIDARRAYOID => UuidArray member Uuid,
     #[doc="CHAR(n)/CHARACTER(n)"]
     BPCHAROID => CharN,
     #[doc="VARCHAR/CHARACTER VARYING"]
@@ -266,6 +275,16 @@ impl RawFromSql for Timespec {
         }
 
         Ok(Timespec::new(sec, (usec * NSEC_PER_USEC) as i32))
+    }
+}
+
+#[cfg(feature = "uuid_type")]
+impl RawFromSql for uuid::Uuid {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<uuid::Uuid> {
+        match uuid::Uuid::from_bytes(try_pg!(raw.read_to_end())[]) {
+            Some(u) => Ok(u),
+            None => Err(PgBadData),
+        }
     }
 }
 
@@ -372,6 +391,8 @@ from_raw_from_impl!(Int4, i32)
 from_raw_from_impl!(Int8, i64)
 from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
+#[cfg(feature = "uuid_type")]
+from_raw_from_impl!(Uuid, uuid::Uuid)
 from_raw_from_impl!(Json, json::Json)
 
 from_raw_from_impl!(Timestamp | TimestampTZ, Timespec)
@@ -422,6 +443,8 @@ from_array_impl!(Int4Array, i32)
 from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
 from_array_impl!(Int8Array, i64)
 from_array_impl!(TimestampArray | TimestampTZArray, Timespec)
+#[cfg(feature = "uuid_type")]
+from_array_impl!(UuidArray, uuid::Uuid)
 from_array_impl!(JsonArray, json::Json)
 from_array_impl!(Float4Array, f32)
 from_array_impl!(Float8Array, f64)
@@ -540,6 +563,13 @@ impl RawToSql for Timespec {
     }
 }
 
+#[cfg(feature = "uuid_type")]
+impl RawToSql for uuid::Uuid {
+    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+        Ok(try_pg!(w.write(self.as_bytes())))
+    }
+}
+
 macro_rules! to_range_impl(
     ($t:ty) => (
         impl RawToSql for Range<$t> {
@@ -648,6 +678,8 @@ macro_rules! to_raw_to_impl(
 to_raw_to_impl!(Bool, bool)
 to_raw_to_impl!(ByteA, Vec<u8>)
 to_raw_to_impl!(Varchar | Text | CharN | Name, String)
+#[cfg(feature = "uuid_type")]
+to_raw_to_impl!(Uuid, uuid::Uuid)
 to_raw_to_impl!(Json, json::Json)
 to_raw_to_impl!(Char, i8)
 to_raw_to_impl!(Int2, i16)
@@ -729,6 +761,8 @@ to_array_impl!(Float8Array, f64)
 to_array_impl!(Int4RangeArray, Range<i32>)
 to_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
 to_array_impl!(Int8RangeArray, Range<i64>)
+#[cfg(feature = "uuid_type")]
+to_array_impl!(UuidArray, uuid::Uuid)
 to_array_impl!(JsonArray, json::Json)
 
 impl ToSql for HashMap<String, Option<String>> {

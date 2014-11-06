@@ -12,6 +12,9 @@ test = false
 name = "test"
 path = "tests/test.rs"
 
+[features]
+uuid_type = ["uuid"]
+
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
 
@@ -21,5 +24,10 @@ git = "https://github.com/sfackler/rust-phf"
 [dependencies.phf_mac]
 git = "https://github.com/sfackler/rust-phf"
 
+[dependencies.uuid]
+git = "https://github.com/rust-lang/uuid"
+optional = true
+
 [dev-dependencies.url]
 git = "https://github.com/servo/rust-url"
+
