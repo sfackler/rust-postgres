@@ -76,7 +76,7 @@ fn open_socket(params: &ConnectParams)
     let port = params.port.unwrap_or(DEFAULT_PORT);
     let socket = match params.target {
         ConnectTarget::Tcp(ref host) =>
-            tcp::TcpStream::connect(host[], port).map(TcpStream),
+            tcp::TcpStream::connect((host[], port)).map(TcpStream),
         ConnectTarget::Unix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
