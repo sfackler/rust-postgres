@@ -402,7 +402,7 @@ impl InnerConnection {
                     }
                 }
                 NotificationResponse { pid, channel, payload } => {
-                    self.notifications.push(Notification {
+                    self.notifications.push_back(Notification {
                         pid: pid,
                         channel: channel,
                         payload: payload
@@ -591,7 +591,7 @@ impl InnerConnection {
     }
 
     fn get_type_name(&mut self, oid: Oid) -> Result<String> {
-        if let Some(name) = self.unknown_types.find(&oid) {
+        if let Some(name) = self.unknown_types.get(&oid) {
             return Ok(name.clone());
         }
         let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
@@ -1321,7 +1321,7 @@ impl<'stmt> Rows<'stmt> {
                     self.more_rows = true;
                     break;
                 },
-                DataRow { row } => self.data.push(row),
+                DataRow { row } => self.data.push_back(row),
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
                     return DbError::new(fields);

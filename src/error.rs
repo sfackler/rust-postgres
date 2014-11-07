@@ -481,30 +481,30 @@ impl DbError {
     pub fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()> {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
         Ok(DbError {
-            severity: try!(map.pop(&b'S').ok_or(())),
-            code: SqlState::from_code(try!(map.pop(&b'C').ok_or(()))[]),
-            message: try!(map.pop(&b'M').ok_or(())),
-            detail: map.pop(&b'D'),
-            hint: map.pop(&b'H'),
-            position: match map.pop(&b'P') {
+            severity: try!(map.remove(&b'S').ok_or(())),
+            code: SqlState::from_code(try!(map.remove(&b'C').ok_or(()))[]),
+            message: try!(map.remove(&b'M').ok_or(())),
+            detail: map.remove(&b'D'),
+            hint: map.remove(&b'H'),
+            position: match map.remove(&b'P') {
                 Some(pos) => Some(ErrorPosition::Normal(try!(from_str(pos[]).ok_or(())))),
-                None => match map.pop(&b'p') {
+                None => match map.remove(&b'p') {
                     Some(pos) => Some(ErrorPosition::Internal {
                         position: try!(from_str(pos[]).ok_or(())),
-                        query: try!(map.pop(&b'q').ok_or(()))
+                        query: try!(map.remove(&b'q').ok_or(()))
                     }),
                     None => None
                 }
             },
-            where_: map.pop(&b'W'),
-            schema: map.pop(&b's'),
-            table: map.pop(&b't'),
-            column: map.pop(&b'c'),
-            datatype: map.pop(&b'd'),
-            constraint: map.pop(&b'n'),
-            file: try!(map.pop(&b'F').ok_or(())),
-            line: try!(map.pop(&b'L').and_then(|l| from_str(l[])).ok_or(())),
-            routine: try!(map.pop(&b'R').ok_or(())),
+            where_: map.remove(&b'W'),
+            schema: map.remove(&b's'),
+            table: map.remove(&b't'),
+            column: map.remove(&b'c'),
+            datatype: map.remove(&b'd'),
+            constraint: map.remove(&b'n'),
+            file: try!(map.remove(&b'F').ok_or(())),
+            line: try!(map.remove(&b'L').and_then(|l| from_str(l[])).ok_or(())),
+            routine: try!(map.remove(&b'R').ok_or(())),
         })
     }
 
