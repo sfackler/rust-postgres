@@ -5,6 +5,17 @@ Documentation is available at https://sfackler.github.io/doc/postgres
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres)
 
+```toml
+# Cargo.toml
+[dependencies.postgres]
+git = "https://github.com/sfackler/rust-postgres.git"
+```
+
+```toml
+# Optional features
+features = ["uuid_type"]
+```
+
 ## Overview
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
 exposes a high level interface in the vein of JDBC or Go's `database/sql`
@@ -202,6 +213,13 @@ types. The driver currently supports the following conversions:
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
         <tr>
+            <td>
+                <a href="https://github.com/rust-lang/uuid">uuid::Uuid</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>UUID</td>
+        </tr>
+        <tr>
             <td>types::range::Range&lt;i32&gt;</td>
             <td>INT4RANGE</td>
         </tr>
@@ -278,6 +296,18 @@ types. The driver currently supports the following conversions:
 
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
+
+## Optional features
+
+### UUID type
+
+To enable the [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) type just add "uuid_type" to features list:
+
+```toml
+[dependencies.postgres]
+git = ...
+features = ["uuid_type"]
+```
 
 ## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so
