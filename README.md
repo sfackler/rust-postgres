@@ -163,8 +163,8 @@ types. The driver currently supports the following conversions:
 <table>
     <thead>
         <tr>
-            <td>Rust Type</td>
-            <td>Postgres Type</td>
+            <th>Rust Type</th>
+            <th>Postgres Type</th>
         </tr>
     </thead>
     <tbody>
