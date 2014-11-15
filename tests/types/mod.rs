@@ -7,6 +7,7 @@ use std::f32;
 use std::f64;
 use time;
 use time::Timespec;
+use std::num::Float;
 
 use postgres::{Connection, NoSsl};
 use postgres::types::array::ArrayBase;

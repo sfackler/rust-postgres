@@ -28,7 +28,7 @@ macro_rules! make_errors(
         impl SqlState {
             #[doc(hidden)]
             pub fn from_code(s: &str) -> SqlState {
-                match STATE_MAP.find_equiv(s) {
+                match STATE_MAP.get_equiv(s) {
                     Some(state) => state.clone(),
                     None => SqlState::Unknown(s.into_string())
                 }
