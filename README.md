@@ -11,11 +11,6 @@ Documentation is available at https://sfackler.github.io/doc/postgres
 git = "https://github.com/sfackler/rust-postgres.git"
 ```
 
-```toml
-# Optional features (on by default)
-features = ["uuid"]
-```
-
 ## Overview
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
 exposes a high level interface in the vein of JDBC or Go's `database/sql`
@@ -301,12 +296,15 @@ traits.
 
 ### UUID type
 
-To enable the [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) type just add "uuid_type" to features list:
+[UUID][http://www.postgresql.org/docs/9.4/static/datatype-uuid.html] support is
+provided optionally by the `uuid` feature. It is enabled by default.  To
+disable `UUID` support, add `default-features = false` to your Cargo manifest:
 
 ```toml
 [dependencies.postgres]
 git = ...
-features = ["uuid_type"]
+default-features = false
+features = [...]
 ```
 
 ## Development
