@@ -79,7 +79,7 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    &NoSsl));
+                                    &SslMode::None));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -89,7 +89,7 @@ Unix domain sockets can be used as well. The `host` portion of the URI should be
 set to the absolute path to the directory containing the socket file. Since `/`
 is a reserved character in URLs, the path should be URL encoded.
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", &NoSsl));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", &SslMode::None));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
