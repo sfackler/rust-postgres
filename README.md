@@ -296,7 +296,7 @@ traits.
 
 ### UUID type
 
-[UUID][http://www.postgresql.org/docs/9.4/static/datatype-uuid.html] support is
+[UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
 provided optionally by the `uuid` feature. It is enabled by default.  To
 disable `UUID` support, add `default-features = false` to your Cargo manifest:
 
