@@ -6,7 +6,7 @@ use time;
 use time::Timespec;
 use std::num::Float;
 
-use postgres::{Connection, NoSsl};
+use postgres::{Connection, SslMode};
 use postgres::types::array::ArrayBase;
 use postgres::types::{ToSql, FromSql};
 
@@ -31,7 +31,7 @@ mod range;
 mod uuid;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
         let result = or_panic!(stmt.query([])).next().unwrap().get(0u);
@@ -111,7 +111,7 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
@@ -337,7 +337,7 @@ fn test_hstore_params() {
 }
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
     let mut result = or_panic!(stmt.query([]));
     let val: T = result.next().unwrap().get(0u);
@@ -373,7 +373,7 @@ fn test_jsonarray_params() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
     let mut result = or_panic!(stmt.query([]));
 

@@ -4,8 +4,7 @@ use std::io::net::tcp;
 use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
-use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, ConnectTarget};
-use error::{ConnectError, NoSslSupport, SslError};
+use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
 use message::{SslRequest, WriteMessage};
 
@@ -90,9 +89,9 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
     let mut socket = try!(open_socket(params));
 
     let (ssl_required, ctx) = match *ssl {
-        NoSsl => return Ok(MaybeSslStream::Normal(socket)),
-        PreferSsl(ref ctx) => (false, ctx),
-        RequireSsl(ref ctx) => (true, ctx)
+        SslMode::None => return Ok(MaybeSslStream::Normal(socket)),
+        SslMode::Prefer(ref ctx) => (false, ctx),
+        SslMode::Require(ref ctx) => (true, ctx)
     };
 
     try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
@@ -100,7 +99,7 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
 
     if try!(socket.read_u8()) == 'N' as u8 {
         if ssl_required {
-            return Err(NoSslSupport);
+            return Err(ConnectError::NoSslSupport);
         } else {
             return Ok(MaybeSslStream::Normal(socket));
         }
@@ -108,6 +107,6 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
 
     match ssl::SslStream::new(ctx, socket) {
         Ok(stream) => Ok(MaybeSslStream::Ssl(stream)),
-        Err(err) => Err(SslError(err))
+        Err(err) => Err(ConnectError::SslError(err))
     }
 }

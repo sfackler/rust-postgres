@@ -8,7 +8,7 @@
 //!
 //! use time::Timespec;
 //!
-//! use postgres::{Connection, NoSsl};
+//! use postgres::{Connection, SslMode};
 //!
 //! struct Person {
 //!     id: i32,
@@ -18,7 +18,7 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = Connection::connect("postgresql://postgres@localhost", &NoSsl)
+//!     let conn = Connection::connect("postgresql://postgres@localhost", &SslMode::None)
 //!             .unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
@@ -75,17 +75,6 @@ use std::mem;
 use std::fmt;
 use std::result;
 
-use error::{InvalidUrl,
-            MissingPassword,
-            MissingUser,
-            PgConnectBadResponse,
-            PgInvalidColumn,
-            PgStreamDesynchronized,
-            PgWrongParamCount,
-            UnsupportedAuthentication,
-            PgWrongConnection,
-            PgWrongTransaction,
-            PgBadResponse};
 use io::{MaybeSslStream, InternalStream};
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::FrontendMessage::*;
@@ -163,7 +152,7 @@ impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(InvalidUrl(err)),
+            Err(err) => return Err(ConnectError::InvalidUrl(err)),
         }
     }
 }
@@ -178,7 +167,7 @@ impl IntoConnectParams for Url {
             ..
         } = self;
 
-        let maybe_path = try!(url::decode_component(host[]).map_err(InvalidUrl));
+        let maybe_path = try!(url::decode_component(host[]).map_err(ConnectError::InvalidUrl));
         let target = if maybe_path[].starts_with("/") {
             ConnectTarget::Unix(Path::new(maybe_path))
         } else {
@@ -194,7 +183,7 @@ impl IntoConnectParams for Url {
             let (_, path) = path[].slice_shift_char();
             Some(path.into_string())
         } else {
-            None
+            Option::None
         };
 
         Ok(ConnectParams {
@@ -274,15 +263,15 @@ pub struct CancelData {
 /// ## Example
 ///
 /// ```rust,no_run
-/// # use postgres::{Connection, NoSsl};
+/// # use postgres::{Connection, SslMode};
 /// # let url = "";
-/// let conn = Connection::connect(url, &NoSsl).unwrap();
+/// let conn = Connection::connect(url, &SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// spawn(proc() {
 ///     conn.execute("SOME EXPENSIVE QUERY", []).unwrap();
 /// });
 /// # let _ =
-/// postgres::cancel_query(url, &NoSsl, cancel_data);
+/// postgres::cancel_query(url, &SslMode::None, cancel_data);
 /// ```
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
                        -> result::Result<(), ConnectError> where T: IntoConnectParams {
@@ -334,7 +323,7 @@ impl InnerConnection {
             ..
         } = params;
 
-        let user = try!(user.ok_or(MissingUser));
+        let user = try!(user.ok_or(ConnectError::MissingUser));
 
         let mut conn = InnerConnection {
             stream: BufferedStream::new(stream),
@@ -357,7 +346,7 @@ impl InnerConnection {
         options.push(("user".into_string(), user.user.clone()));
         match database {
             Some(database) => options.push(("database".into_string(), database)),
-            None => {}
+            Option::None => {}
         }
 
         try!(conn.write_messages([StartupMessage {
@@ -375,7 +364,7 @@ impl InnerConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => return DbError::new_connect(fields),
-                _ => return Err(PgConnectBadResponse),
+                _ => return Err(ConnectError::PgConnectBadResponse),
             }
         }
 
@@ -418,13 +407,13 @@ impl InnerConnection {
         match try!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
-                let pass = try!(user.password.ok_or(MissingPassword));
+                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
                 try!(self.write_messages([PasswordMessage {
                         password: pass[],
                     }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = try!(user.password.ok_or(MissingPassword));
+                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
                 let hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
@@ -440,11 +429,11 @@ impl InnerConnection {
             AuthenticationKerberosV5
             | AuthenticationSCMCredential
             | AuthenticationGSS
-            | AuthenticationSSPI => return Err(UnsupportedAuthentication),
+            | AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
-                return Err(PgConnectBadResponse);
+                return Err(ConnectError::PgConnectBadResponse);
             }
         }
 
@@ -453,7 +442,7 @@ impl InnerConnection {
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
-                return Err(PgConnectBadResponse);
+                return Err(ConnectError::PgConnectBadResponse);
             }
         }
     }
@@ -679,23 +668,23 @@ impl Connection {
     /// ## Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
+    /// # use postgres::{Connection, SslMode};
     /// # let _ = || {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let conn = try!(Connection::connect(url, &NoSsl));
+    /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
+    /// # use postgres::{Connection, SslMode};
     /// # let _ = || {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let conn = try!(Connection::connect(url, &NoSsl));
+    /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, UserInfo, ConnectParams, NoSsl, ConnectTarget};
+    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
     /// # let _ = || {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
@@ -708,7 +697,7 @@ impl Connection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let conn = try!(Connection::connect(params, &NoSsl));
+    /// let conn = try!(Connection::connect(params, &SslMode::None));
     /// # Ok(()) };
     /// ```
     pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, ConnectError>
@@ -742,8 +731,8 @@ impl Connection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
@@ -752,7 +741,7 @@ impl Connection {
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.prepare(query, self)
     }
@@ -765,10 +754,10 @@ impl Connection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
+    /// # use postgres::{Connection, SslMode};
     /// # use postgres::types::ToSql;
     /// # let _ = || {
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// try!(conn.execute("CREATE TABLE foo (
     ///                     bar INT PRIMARY KEY,
     ///                     baz VARCHAR
@@ -784,7 +773,7 @@ impl Connection {
                                -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.prepare_copy_in(table, rows, self)
     }
@@ -802,9 +791,9 @@ impl Connection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
+    /// # use postgres::{Connection, SslMode};
     /// # fn foo() -> Result<(), postgres::Error> {
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", []));
     /// // ...
@@ -817,7 +806,7 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != 0 {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         try!(conn.quick_query("BEGIN"));
         conn.trans_depth += 1;
@@ -877,7 +866,7 @@ impl Connection {
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.quick_query(query).map(|_| ())
     }
@@ -921,11 +910,11 @@ impl Connection {
 /// Specifies the SSL support requested for a new connection
 pub enum SslMode {
     /// The connection will not use SSL
-    NoSsl,
+    None,
     /// The connection will use SSL if the backend supports it
-    PreferSsl(SslContext),
+    Prefer(SslContext),
     /// The connection must use SSL
-    RequireSsl(SslContext)
+    Require(SslContext)
 }
 
 /// Represents a transaction on a database connection.
@@ -965,7 +954,7 @@ impl<'conn> Transaction<'conn> {
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.prepare(query, self.conn)
     }
@@ -975,7 +964,7 @@ impl<'conn> Transaction<'conn> {
                                -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.prepare_copy_in(table, cols, self.conn)
     }
@@ -989,7 +978,7 @@ impl<'conn> Transaction<'conn> {
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         conn.quick_query(query).map(|_| ())
     }
@@ -999,7 +988,7 @@ impl<'conn> Transaction<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != self.depth {
-            return Err(PgWrongTransaction);
+            return Err(Error::PgWrongTransaction);
         }
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
@@ -1024,7 +1013,7 @@ impl<'conn> Transaction<'conn> {
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
         if self.conn as *const _ != stmt.conn as *const _ {
-            return Err(PgWrongConnection);
+            return Err(Error::PgWrongConnection);
         }
         check_desync!(self.conn);
         stmt.lazy_query(row_limit, params).map(|result| {
@@ -1096,7 +1085,7 @@ impl<'conn> Statement<'conn> {
                      -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if self.param_types.len() != params.len() {
-            return Err(PgWrongParamCount {
+            return Err(Error::PgWrongParamCount {
                 expected: self.param_types.len(),
                 actual: params.len(),
             });
@@ -1128,7 +1117,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                Err(PgBadResponse)
+                Err(Error::PgBadResponse)
             }
         }
     }
@@ -1171,8 +1160,8 @@ impl<'conn> Statement<'conn> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -1210,7 +1199,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(PgBadResponse);
+                    return Err(Error::PgBadResponse);
                 }
             }
         }
@@ -1225,8 +1214,8 @@ impl<'conn> Statement<'conn> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
     /// let mut rows = match stmt.query(&[&baz]) {
@@ -1332,7 +1321,7 @@ impl<'stmt> Rows<'stmt> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(PgBadResponse);
+                    return Err(Error::PgBadResponse);
                 }
             }
         }
@@ -1380,7 +1369,7 @@ impl<'stmt> Iterator<Row<'stmt>> for Rows<'stmt> {
     fn size_hint(&self) -> (uint, Option<uint>) {
         let lower = self.data.len();
         let upper = if self.more_rows {
-            None
+            Option::None
          } else {
             Some(lower)
          };
@@ -1409,7 +1398,7 @@ impl<'stmt> Row<'stmt> {
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
-        let idx = try!(idx.idx(self.stmt).ok_or(PgInvalidColumn));
+        let idx = try!(idx.idx(self.stmt).ok_or(Error::PgInvalidColumn));
         FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 
@@ -1426,8 +1415,8 @@ impl<'stmt> Row<'stmt> {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, NoSsl};
-    /// # let conn = Connection::connect("", &NoSsl).unwrap();
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query([]).unwrap();
     /// # let row = result.next().unwrap();
@@ -1453,7 +1442,7 @@ impl RowIndex for uint {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<uint> {
         if *self > stmt.result_desc.len() {
-            None
+            Option::None
         } else {
             Some(*self)
         }
@@ -1554,7 +1543,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(PgBadResponse);
+                return Err(Error::PgBadResponse);
             }
         }
 
@@ -1562,7 +1551,7 @@ impl<'a> CopyInStatement<'a> {
             CopyInResponse { .. } => {}
             _ => {
                 conn.desynchronized = true;
-                return Err(PgBadResponse);
+                return Err(Error::PgBadResponse);
             }
         }
 
@@ -1579,7 +1568,7 @@ impl<'a> CopyInStatement<'a> {
                 match (row.next(), types.next()) {
                     (Some(val), Some(ty)) => {
                         match val.to_sql(ty) {
-                            Ok(None) => {
+                            Ok(Option::None) => {
                                 let _ = buf.write_be_i32(-1);
                             }
                             Ok(Some(val)) => {
@@ -1596,14 +1585,14 @@ impl<'a> CopyInStatement<'a> {
                             }
                         }
                     }
-                    (Some(_), None) | (None, Some(_)) => {
+                    (Some(_), Option::None) | (Option::None, Some(_)) => {
                         try_desync!(conn, conn.stream.write_message(
                             &CopyFail {
                                 message: "Invalid column count",
                             }));
                         break 'l;
                     }
-                    (None, None) => break
+                    (Option::None, Option::None) => break
                 }
             }
 
@@ -1632,7 +1621,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(PgBadResponse);
+                return Err(Error::PgBadResponse);
             }
         };
 

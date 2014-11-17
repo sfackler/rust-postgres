@@ -21,7 +21,7 @@ extern crate time;
 
 use time::Timespec;
 
-use postgres::{Connection, NoSsl};
+use postgres::{Connection, SslMode};
 
 struct Person {
     id: i32,
@@ -31,7 +31,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", &NoSsl)
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None)
             .unwrap();
 
     conn.execute("CREATE TABLE person (
@@ -297,8 +297,8 @@ traits.
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature. It is enabled by default.  To
-disable `UUID` support, add `default-features = false` to your Cargo manifest:
+provided optionally by the `uuid` feature. It is enabled by default. To disable
+`UUID` support, add `default-features = false` to your Cargo manifest:
 
 ```toml
 [dependencies.postgres]
