@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use std::fmt;
-use std::from_str::FromStr;
+use std::str::FromStr;
 use std::hash;
 use std::path::BytesContainer;
 use std::num;

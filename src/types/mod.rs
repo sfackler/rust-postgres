@@ -87,9 +87,9 @@ macro_rules! make_postgres_type(
             /// An unknown type
             Unknown {
                 /// The name of the type
-                pub name: String,
+                name: String,
                 /// The OID of the type
-                pub oid: Oid
+                oid: Oid
             }
         }
 

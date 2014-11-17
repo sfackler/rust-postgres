@@ -432,8 +432,7 @@ impl InnerConnection {
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(salt);
-                let output = format!("md5{}",
-                                     hasher.finalize()[].to_hex());
+                let output = format!("md5{}", hasher.finalize()[].to_hex());
                 try!(self.write_messages([PasswordMessage {
                         password: output[]
                     }]));
