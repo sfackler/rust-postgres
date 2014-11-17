@@ -1,9 +1,6 @@
 //! Traits dealing with Postgres data types
 #![macro_escape]
 
-#[cfg(feature = "uuid_type")]
-extern crate uuid;
-
 use serialize::json;
 use std::collections::HashMap;
 use std::io::{AsRefReader, MemWriter, BufReader};
@@ -15,8 +12,295 @@ use error::{PgWrongType, PgWasNull, PgBadData};
 use types::array::{Array, ArrayBase, DimensionInfo};
 use types::range::{RangeBound, Inclusive, Exclusive, Range};
 
+macro_rules! check_types(
+    ($($expected:pat)|+, $actual:ident) => (
+        match $actual {
+            $(&$expected)|+ => {}
+            actual => return Err(PgWrongType(actual.clone()))
+        }
+    )
+)
+
+macro_rules! raw_from_impl(
+    ($t:ty, $f:ident) => (
+        impl RawFromSql for $t {
+            fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<$t> {
+                Ok(try!(raw.$f()))
+            }
+        }
+    )
+)
+
+macro_rules! from_range_impl(
+    ($t:ty) => (
+        impl RawFromSql for Range<$t> {
+            fn raw_from_sql<R: Reader>(rdr: &mut R) -> Result<Range<$t>> {
+                let t = try!(rdr.read_i8());
+
+                if t & RANGE_EMPTY != 0 {
+                    Ok(Range::empty())
+                } else {
+                    let lower = match t & RANGE_LOWER_UNBOUNDED {
+                        0 => {
+                            let type_ = match t & RANGE_LOWER_INCLUSIVE {
+                                0 => Exclusive,
+                                _ => Inclusive
+                            };
+                            let len = try!(rdr.read_be_i32()) as uint;
+                            let mut limit = LimitReader::new(rdr.by_ref(), len);
+                            let lower = try!(RawFromSql::raw_from_sql(&mut limit));
+                            let lower = Some(RangeBound::new(lower, type_));
+                            assert!(limit.limit() == 0);
+                            lower
+                        }
+                        _ => None
+                    };
+                    let upper = match t & RANGE_UPPER_UNBOUNDED {
+                        0 => {
+                            let type_ = match t & RANGE_UPPER_INCLUSIVE {
+                                0 => Exclusive,
+                                _ => Inclusive
+                            };
+                            let len = try!(rdr.read_be_i32()) as uint;
+                            let mut limit = LimitReader::new(rdr.by_ref(), len);
+                            let upper = try!(RawFromSql::raw_from_sql(&mut limit));
+                            let upper = Some(RangeBound::new(upper, type_));
+                            assert!(limit.limit() == 0);
+                            upper
+                        }
+                        _ => None
+                    };
+
+                    Ok(Range::new(lower, upper))
+                }
+            }
+        }
+    )
+)
+
+macro_rules! from_map_impl(
+    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
+        $(#[$a])*
+        impl FromSql for Option<$t> {
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
+                    -> Result<Option<$t>> {
+                check_types!($($expected)|+, ty)
+                match *raw {
+                    Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
+                    None => Ok(None)
+                }
+            }
+        }
+
+        $(#[$a])*
+        impl FromSql for $t {
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
+                    -> Result<$t> {
+                // FIXME when you can specify Self types properly
+                let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
+                match ret {
+                    Ok(Some(val)) => Ok(val),
+                    Ok(None) => Err(PgWasNull),
+                    Err(err) => Err(err)
+                }
+            }
+        }
+    )
+)
+
+macro_rules! from_raw_from_impl(
+    ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
+        from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
+            let mut reader = BufReader::new(buf[]);
+            RawFromSql::raw_from_sql(&mut reader)
+        } $(, $a)*)
+    )
+)
+
+macro_rules! from_array_impl(
+    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
+        from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
+            let mut rdr = BufReader::new(buf[]);
+
+            let ndim = try!(rdr.read_be_i32()) as uint;
+            let _has_null = try!(rdr.read_be_i32()) == 1;
+            let _element_type: Oid = try!(rdr.read_be_u32());
+
+            let mut dim_info = Vec::with_capacity(ndim);
+            for _ in range(0, ndim) {
+                dim_info.push(DimensionInfo {
+                    len: try!(rdr.read_be_i32()) as uint,
+                    lower_bound: try!(rdr.read_be_i32()) as int
+                });
+            }
+            let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
+
+            let mut elements = Vec::with_capacity(nele);
+            for _ in range(0, nele) {
+                let len = try!(rdr.read_be_i32());
+                if len < 0 {
+                    elements.push(None);
+                } else {
+                    let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
+                    elements.push(Some(try!(RawFromSql::raw_from_sql(&mut limit))));
+                    assert!(limit.limit() == 0);
+                }
+            }
+
+            Ok(ArrayBase::from_raw(elements, dim_info))
+        } $(, $a)*)
+    )
+)
+
+macro_rules! raw_to_impl(
+    ($t:ty, $f:ident) => (
+        impl RawToSql for $t {
+            fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+                Ok(try!(w.$f(*self)))
+            }
+        }
+    )
+)
+
+macro_rules! to_range_impl(
+    ($t:ty) => (
+        impl RawToSql for Range<$t> {
+            fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
+                let mut tag = 0;
+                if self.is_empty() {
+                    tag |= RANGE_EMPTY;
+                } else {
+                    match self.lower() {
+                        None => tag |= RANGE_LOWER_UNBOUNDED,
+                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_LOWER_INCLUSIVE,
+                        _ => {}
+                    }
+                    match self.upper() {
+                        None => tag |= RANGE_UPPER_UNBOUNDED,
+                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_UPPER_INCLUSIVE,
+                        _ => {}
+                    }
+                }
+
+                try!(buf.write_i8(tag));
+
+                match self.lower() {
+                    Some(bound) => {
+                        let mut inner_buf = MemWriter::new();
+                        try!(bound.value.raw_to_sql(&mut inner_buf));
+                        let inner_buf = inner_buf.unwrap();
+                        try!(buf.write_be_i32(inner_buf.len() as i32));
+                        try!(buf.write(inner_buf[]));
+                    }
+                    None => {}
+                }
+                match self.upper() {
+                    Some(bound) => {
+                        let mut inner_buf = MemWriter::new();
+                        try!(bound.value.raw_to_sql(&mut inner_buf));
+                        let inner_buf = inner_buf.unwrap();
+                        try!(buf.write_be_i32(inner_buf.len() as i32));
+                        try!(buf.write(inner_buf[]));
+                    }
+                    None => {}
+                }
+
+                Ok(())
+            }
+        }
+    )
+)
+
+macro_rules! to_option_impl(
+    ($($oid:pat)|+, $t:ty $(,$a:meta)*) => (
+        $(#[$a])*
+        impl ToSql for Option<$t> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                check_types!($($oid)|+, ty)
+
+                match *self {
+                    None => Ok(None),
+                    Some(ref val) => val.to_sql(ty)
+                }
+            }
+        }
+    )
+)
+
+macro_rules! to_option_impl_lifetime(
+    ($($oid:pat)|+, $t:ty) => (
+        impl<'a> ToSql for Option<$t> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                check_types!($($oid)|+, ty)
+
+                match *self {
+                    None => Ok(None),
+                    Some(ref val) => val.to_sql(ty)
+                }
+            }
+        }
+    )
+)
+
+macro_rules! to_raw_to_impl(
+    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
+        $(#[$a])*
+        impl ToSql for $t {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                check_types!($($oid)|+, ty)
+
+                let mut writer = MemWriter::new();
+                try!(self.raw_to_sql(&mut writer));
+                Ok(Some(writer.unwrap()))
+            }
+        }
+
+        to_option_impl!($($oid)|+, $t $(, $a)*)
+    )
+)
+
+macro_rules! to_array_impl(
+    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
+        $(#[$a])*
+        impl ToSql for ArrayBase<Option<$t>> {
+            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                check_types!($($oid)|+, ty)
+                let mut buf = MemWriter::new();
+
+                try!(buf.write_be_i32(self.dimension_info().len() as i32));
+                try!(buf.write_be_i32(1));
+                try!(buf.write_be_u32(ty.member_type().to_oid()));
+
+                for info in self.dimension_info().iter() {
+                    try!(buf.write_be_i32(info.len as i32));
+                    try!(buf.write_be_i32(info.lower_bound as i32));
+                }
+
+                for v in self.values() {
+                    match *v {
+                        Some(ref val) => {
+                            let mut inner_buf = MemWriter::new();
+                            try!(val.raw_to_sql(&mut inner_buf));
+                            let inner_buf = inner_buf.unwrap();
+                            try!(buf.write_be_i32(inner_buf.len() as i32));
+                            try!(buf.write(inner_buf[]));
+                        }
+                        None => try!(buf.write_be_i32(-1))
+                    }
+                }
+
+                Ok(Some(buf.unwrap()))
+            }
+        }
+
+        to_option_impl!($($oid)|+, ArrayBase<Option<$t>> $(, $a)*)
+    )
+)
+
 pub mod array;
 pub mod range;
+#[cfg(feature = "uuid")]
+mod uuid;
 
 /// A Postgres OID
 pub type Oid = u32;
@@ -206,15 +490,6 @@ make_postgres_type!(
     INT8RANGEARRAYOID => Int8RangeArray member Int8Range
 )
 
-macro_rules! check_types(
-    ($($expected:pat)|+, $actual:ident) => (
-        match $actual {
-            $(&$expected)|+ => {}
-            actual => return Err(PgWrongType(actual.clone()))
-        }
-    )
-)
-
 /// A trait for types that can be created from a Postgres value
 pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
@@ -227,16 +502,6 @@ pub trait FromSql {
 trait RawFromSql {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Self>;
 }
-
-macro_rules! raw_from_impl(
-    ($t:ty, $f:ident) => (
-        impl RawFromSql for $t {
-            fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<$t> {
-                Ok(try!(raw.$f()))
-            }
-        }
-    )
-)
 
 impl RawFromSql for bool {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<bool> {
@@ -278,63 +543,6 @@ impl RawFromSql for Timespec {
     }
 }
 
-#[cfg(feature = "uuid_type")]
-impl RawFromSql for uuid::Uuid {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<uuid::Uuid> {
-        match uuid::Uuid::from_bytes(try!(raw.read_to_end())[]) {
-            Some(u) => Ok(u),
-            None => Err(PgBadData),
-        }
-    }
-}
-
-macro_rules! from_range_impl(
-    ($t:ty) => (
-        impl RawFromSql for Range<$t> {
-            fn raw_from_sql<R: Reader>(rdr: &mut R) -> Result<Range<$t>> {
-                let t = try!(rdr.read_i8());
-
-                if t & RANGE_EMPTY != 0 {
-                    Ok(Range::empty())
-                } else {
-                    let lower = match t & RANGE_LOWER_UNBOUNDED {
-                        0 => {
-                            let type_ = match t & RANGE_LOWER_INCLUSIVE {
-                                0 => Exclusive,
-                                _ => Inclusive
-                            };
-                            let len = try!(rdr.read_be_i32()) as uint;
-                            let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            let lower = try!(RawFromSql::raw_from_sql(&mut limit));
-                            let lower = Some(RangeBound::new(lower, type_));
-                            assert!(limit.limit() == 0);
-                            lower
-                        }
-                        _ => None
-                    };
-                    let upper = match t & RANGE_UPPER_UNBOUNDED {
-                        0 => {
-                            let type_ = match t & RANGE_UPPER_INCLUSIVE {
-                                0 => Exclusive,
-                                _ => Inclusive
-                            };
-                            let len = try!(rdr.read_be_i32()) as uint;
-                            let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            let upper = try!(RawFromSql::raw_from_sql(&mut limit));
-                            let upper = Some(RangeBound::new(upper, type_));
-                            assert!(limit.limit() == 0);
-                            upper
-                        }
-                        _ => None
-                    };
-
-                    Ok(Range::new(lower, upper))
-                }
-            }
-        }
-    )
-)
-
 from_range_impl!(i32)
 from_range_impl!(i64)
 from_range_impl!(Timespec)
@@ -345,45 +553,6 @@ impl RawFromSql for json::Json {
     }
 }
 
-macro_rules! from_map_impl(
-    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
-        $(#[$a])*
-        impl FromSql for Option<$t> {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
-                    -> Result<Option<$t>> {
-                check_types!($($expected)|+, ty)
-                match *raw {
-                    Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
-                    None => Ok(None)
-                }
-            }
-        }
-
-        $(#[$a])*
-        impl FromSql for $t {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
-                    -> Result<$t> {
-                // FIXME when you can specify Self types properly
-                let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
-                match ret {
-                    Ok(Some(val)) => Ok(val),
-                    Ok(None) => Err(PgWasNull),
-                    Err(err) => Err(err)
-                }
-            }
-        }
-    )
-)
-
-macro_rules! from_raw_from_impl(
-    ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
-            let mut reader = BufReader::new(buf[]);
-            RawFromSql::raw_from_sql(&mut reader)
-        } $(, $a)*)
-    )
-)
-
 from_raw_from_impl!(Bool, bool)
 from_raw_from_impl!(ByteA, Vec<u8>)
 from_raw_from_impl!(Varchar | Text | CharN | Name, String)
@@ -393,49 +562,12 @@ from_raw_from_impl!(Int4, i32)
 from_raw_from_impl!(Int8, i64)
 from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
-#[cfg(feature = "uuid_type")]
-from_raw_from_impl!(Uuid, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 from_raw_from_impl!(Json, json::Json)
 
 from_raw_from_impl!(Timestamp | TimestampTZ, Timespec)
 from_raw_from_impl!(Int4Range, Range<i32>)
 from_raw_from_impl!(Int8Range, Range<i64>)
 from_raw_from_impl!(TsRange | TstzRange, Range<Timespec>)
-
-macro_rules! from_array_impl(
-    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
-            let mut rdr = BufReader::new(buf[]);
-
-            let ndim = try!(rdr.read_be_i32()) as uint;
-            let _has_null = try!(rdr.read_be_i32()) == 1;
-            let _element_type: Oid = try!(rdr.read_be_u32());
-
-            let mut dim_info = Vec::with_capacity(ndim);
-            for _ in range(0, ndim) {
-                dim_info.push(DimensionInfo {
-                    len: try!(rdr.read_be_i32()) as uint,
-                    lower_bound: try!(rdr.read_be_i32()) as int
-                });
-            }
-            let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
-
-            let mut elements = Vec::with_capacity(nele);
-            for _ in range(0, nele) {
-                let len = try!(rdr.read_be_i32());
-                if len < 0 {
-                    elements.push(None);
-                } else {
-                    let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
-                    elements.push(Some(try!(RawFromSql::raw_from_sql(&mut limit))));
-                    assert!(limit.limit() == 0);
-                }
-            }
-
-            Ok(ArrayBase::from_raw(elements, dim_info))
-        } $(, $a)*)
-    )
-)
 
 from_array_impl!(BoolArray, bool)
 from_array_impl!(ByteAArray, Vec<u8>)
@@ -445,8 +577,6 @@ from_array_impl!(Int4Array, i32)
 from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
 from_array_impl!(Int8Array, i64)
 from_array_impl!(TimestampArray | TimestampTZArray, Timespec)
-#[cfg(feature = "uuid_type")]
-from_array_impl!(UuidArray, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 from_array_impl!(JsonArray, json::Json)
 from_array_impl!(Float4Array, f32)
 from_array_impl!(Float8Array, f64)
@@ -523,16 +653,6 @@ trait RawToSql {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()>;
 }
 
-macro_rules! raw_to_impl(
-    ($t:ty, $f:ident) => (
-        impl RawToSql for $t {
-            fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
-                Ok(try!(w.$f(*self)))
-            }
-        }
-    )
-)
-
 impl RawToSql for bool {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
         Ok(try!(w.write_u8(*self as u8)))
@@ -565,62 +685,6 @@ impl RawToSql for Timespec {
     }
 }
 
-#[cfg(feature = "uuid_type")]
-impl RawToSql for uuid::Uuid {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
-        Ok(try!(w.write(self.as_bytes())))
-    }
-}
-
-macro_rules! to_range_impl(
-    ($t:ty) => (
-        impl RawToSql for Range<$t> {
-            fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
-                let mut tag = 0;
-                if self.is_empty() {
-                    tag |= RANGE_EMPTY;
-                } else {
-                    match self.lower() {
-                        None => tag |= RANGE_LOWER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_LOWER_INCLUSIVE,
-                        _ => {}
-                    }
-                    match self.upper() {
-                        None => tag |= RANGE_UPPER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_UPPER_INCLUSIVE,
-                        _ => {}
-                    }
-                }
-
-                try!(buf.write_i8(tag));
-
-                match self.lower() {
-                    Some(bound) => {
-                        let mut inner_buf = MemWriter::new();
-                        try!(bound.value.raw_to_sql(&mut inner_buf));
-                        let inner_buf = inner_buf.unwrap();
-                        try!(buf.write_be_i32(inner_buf.len() as i32));
-                        try!(buf.write(inner_buf[]));
-                    }
-                    None => {}
-                }
-                match self.upper() {
-                    Some(bound) => {
-                        let mut inner_buf = MemWriter::new();
-                        try!(bound.value.raw_to_sql(&mut inner_buf));
-                        let inner_buf = inner_buf.unwrap();
-                        try!(buf.write_be_i32(inner_buf.len() as i32));
-                        try!(buf.write(inner_buf[]));
-                    }
-                    None => {}
-                }
-
-                Ok(())
-            }
-        }
-    )
-)
-
 to_range_impl!(i32)
 to_range_impl!(i64)
 to_range_impl!(Timespec)
@@ -631,59 +695,9 @@ impl RawToSql for json::Json {
     }
 }
 
-macro_rules! to_option_impl(
-    ($($oid:pat)|+, $t:ty $(,$a:meta)*) => (
-        $(#[$a])*
-        impl ToSql for Option<$t> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty)
-
-                match *self {
-                    None => Ok(None),
-                    Some(ref val) => val.to_sql(ty)
-                }
-            }
-        }
-    )
-)
-
-macro_rules! to_option_impl_lifetime(
-    ($($oid:pat)|+, $t:ty) => (
-        impl<'a> ToSql for Option<$t> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty)
-
-                match *self {
-                    None => Ok(None),
-                    Some(ref val) => val.to_sql(ty)
-                }
-            }
-        }
-    )
-)
-
-macro_rules! to_raw_to_impl(
-    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
-        $(#[$a])*
-        impl ToSql for $t {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty)
-
-                let mut writer = MemWriter::new();
-                try!(self.raw_to_sql(&mut writer));
-                Ok(Some(writer.unwrap()))
-            }
-        }
-
-        to_option_impl!($($oid)|+, $t $(, $a)*)
-    )
-)
-
 to_raw_to_impl!(Bool, bool)
 to_raw_to_impl!(ByteA, Vec<u8>)
 to_raw_to_impl!(Varchar | Text | CharN | Name, String)
-#[cfg(feature = "uuid_type")]
-to_raw_to_impl!(Uuid, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 to_raw_to_impl!(Json, json::Json)
 to_raw_to_impl!(Char, i8)
 to_raw_to_impl!(Int2, i16)
@@ -715,44 +729,6 @@ to_option_impl_lifetime!(ByteA, &'a [u8])
 
 to_raw_to_impl!(Timestamp | TimestampTZ, Timespec)
 
-macro_rules! to_array_impl(
-    ($($oid:ident)|+, $t:ty $(, $a:meta)*) => (
-        $(#[$a])*
-        impl ToSql for ArrayBase<Option<$t>> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty)
-                let mut buf = MemWriter::new();
-
-                try!(buf.write_be_i32(self.dimension_info().len() as i32));
-                try!(buf.write_be_i32(1));
-                try!(buf.write_be_u32(ty.member_type().to_oid()));
-
-                for info in self.dimension_info().iter() {
-                    try!(buf.write_be_i32(info.len as i32));
-                    try!(buf.write_be_i32(info.lower_bound as i32));
-                }
-
-                for v in self.values() {
-                    match *v {
-                        Some(ref val) => {
-                            let mut inner_buf = MemWriter::new();
-                            try!(val.raw_to_sql(&mut inner_buf));
-                            let inner_buf = inner_buf.unwrap();
-                            try!(buf.write_be_i32(inner_buf.len() as i32));
-                            try!(buf.write(inner_buf[]));
-                        }
-                        None => try!(buf.write_be_i32(-1))
-                    }
-                }
-
-                Ok(Some(buf.unwrap()))
-            }
-        }
-
-        to_option_impl!($($oid)|+, ArrayBase<Option<$t>> $(, $a)*)
-    )
-)
-
 to_array_impl!(BoolArray, bool)
 to_array_impl!(ByteAArray, Vec<u8>)
 to_array_impl!(CharArray, i8)
@@ -766,8 +742,6 @@ to_array_impl!(Float8Array, f64)
 to_array_impl!(Int4RangeArray, Range<i32>)
 to_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
 to_array_impl!(Int8RangeArray, Range<i64>)
-#[cfg(feature = "uuid_type")]
-to_array_impl!(UuidArray, uuid::Uuid, doc = "requires the \"uuid_type\" feature")
 to_array_impl!(JsonArray, json::Json)
 
 impl ToSql for HashMap<String, Option<String>> {

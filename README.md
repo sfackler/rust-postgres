@@ -12,8 +12,8 @@ git = "https://github.com/sfackler/rust-postgres.git"
 ```
 
 ```toml
-# Optional features
-features = ["uuid_type"]
+# Optional features (on by default)
+features = ["uuid"]
 ```
 
 ## Overview

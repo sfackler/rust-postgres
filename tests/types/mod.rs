@@ -1,6 +1,3 @@
-#[cfg(feature = "uuid_type")]
-extern crate uuid;
-
 use serialize::json;
 use std::collections::HashMap;
 use std::f32;
@@ -13,8 +10,25 @@ use postgres::{Connection, NoSsl};
 use postgres::types::array::ArrayBase;
 use postgres::types::{ToSql, FromSql};
 
+macro_rules! test_array_params(
+    ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
+        let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
+                      format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
+                     (None, "NULL".to_string())];
+        test_type(format!("{}[]", $name)[], tests);
+        let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
+        a.wrap(-1);
+        a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
+        let tests = [(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
+                                       $s1, $s2, $s3).into_string())];
+        test_type(format!("{}[][]", $name)[], tests);
+    })
+)
+
 mod array;
 mod range;
+#[cfg(feature = "uuid")]
+mod uuid;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &NoSsl));
@@ -127,15 +141,6 @@ fn test_json_params() {
 }
 
 #[test]
-#[cfg(feature = "uuid_type")]
-fn test_uuid_params() {
-    test_type("UUID", [(Some(uuid::Uuid::parse_str("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11").unwrap()),
-                        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'"),
-                       (None, "NULL")])
-}
-
-
-#[test]
 fn test_tm_params() {
     fn make_check<'a>(time: &'a str) -> (Option<Timespec>, &'a str) {
         (Some(time::strptime(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap().to_timespec()), time)
@@ -201,21 +206,6 @@ fn test_tsrange_params() {
 fn test_tstzrange_params() {
     test_timespec_range_params("TSTZRANGE");
 }
-
-macro_rules! test_array_params(
-    ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
-        let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
-                      format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
-                     (None, "NULL".to_string())];
-        test_type(format!("{}[]", $name)[], tests);
-        let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
-        a.wrap(-1);
-        a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
-        let tests = [(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
-                                       $s1, $s2, $s3).into_string())];
-        test_type(format!("{}[][]", $name)[], tests);
-    })
-)
 
 #[test]
 fn test_boolarray_params() {
@@ -301,18 +291,6 @@ fn test_int4rangearray_params() {
                        range!('(', ')'), "\"(,)\"",
                        range!('[' 10i32, ')'), "\"[10,)\"",
                        range!('(', 10i32 ')'), "\"(,10)\"");
-}
-
-#[test]
-#[cfg(feature = "uuid_type")]
-fn test_uuidarray_params() {
-    fn make_check<'a>(uuid: &'a str) -> (uuid::Uuid, &'a str) {
-        (uuid::Uuid::parse_str(uuid).unwrap(), uuid)
-    }
-    let (v1, s1) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
-    let (v2, s2) = make_check("00000000-0000-0000-0000-000000000000");
-    let (v3, s3) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
-    test_array_params!("UUID", v1, s1, v2, s2, v3, s3);
 }
 
 #[test]

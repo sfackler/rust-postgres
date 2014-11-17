@@ -13,7 +13,7 @@ name = "test"
 path = "tests/test.rs"
 
 [features]
-uuid_type = ["uuid"]
+default = ["uuid"]
 
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
