@@ -1,40 +1,10 @@
-macro_rules! try_pg_conn(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgConnectStreamError(err))
-        }
-    )
-)
-
-macro_rules! try_pg(
-    ($e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => return Err(PgStreamError(err))
-        }
-    )
-)
-
 macro_rules! try_desync(
     ($s:expr, $e:expr) => (
         match $e {
             Ok(ok) => ok,
             Err(err) => {
                 $s.desynchronized = true;
-                return Err(err);
-            }
-        }
-    )
-)
-
-macro_rules! try_pg_desync(
-    ($s:expr, $e:expr) => (
-        match $e {
-            Ok(ok) => ok,
-            Err(err) => {
-                $s.desynchronized = true;
-                return Err(PgStreamError(err))
+                return Err(::std::error::FromError::from_error(err));
             }
         }
     )

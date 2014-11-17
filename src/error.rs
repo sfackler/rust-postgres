@@ -364,8 +364,6 @@ pub enum ConnectError {
     InvalidUrl(String),
     /// The URL was missing a user
     MissingUser,
-    /// There was an error opening a socket to the server
-    SocketError(io::IoError),
     /// An error from the Postgres server itself
     PgConnectDbError(DbError),
     /// A password was required but not provided in the URL
@@ -388,7 +386,6 @@ impl error::Error for ConnectError {
         match *self {
             InvalidUrl(_) => "Invalid URL",
             MissingUser => "User missing in URL",
-            SocketError(_) => "Unable to open connection to server",
             PgConnectDbError(_) => "An error from the Postgres server itself",
             MissingPassword => "The server requested a password but none was provided",
             UnsupportedAuthentication => {
@@ -410,7 +407,6 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            SocketError(ref err) => Some(err as &error::Error),
             PgConnectDbError(ref err) => Some(err as &error::Error),
             SslError(ref err) => Some(err as &error::Error),
             PgConnectStreamError(ref err) => Some(err as &error::Error),
@@ -419,13 +415,29 @@ impl error::Error for ConnectError {
     }
 }
 
+impl error::FromError<io::IoError> for ConnectError {
+    fn from_error(err: io::IoError) -> ConnectError {
+        PgConnectStreamError(err)
+    }
+}
+
+impl error::FromError<DbError> for ConnectError {
+    fn from_error(err: DbError) -> ConnectError {
+        PgConnectDbError(err)
+    }
+}
+
+impl error::FromError<sslerror::SslError> for ConnectError {
+    fn from_error(err: sslerror::SslError) -> ConnectError {
+        SslError(err)
+    }
+}
+
 impl fmt::Show for ConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
             MissingUser => write!(fmt, "User missing in URL"),
-            SocketError(ref err) =>
-                write!(fmt, "Unable to open connection to server: {}", err),
             PgConnectDbError(ref err) => err.fmt(fmt),
             MissingPassword =>
                 write!(fmt, "The server requested a password but none was provided"),
@@ -678,5 +690,17 @@ impl error::Error for Error {
             PgStreamError(ref err) => Some(err as &error::Error),
             _ => None
         }
+    }
+}
+
+impl error::FromError<DbError> for Error {
+    fn from_error(err: DbError) -> Error {
+        PgDbError(err)
+    }
+}
+
+impl error::FromError<io::IoError> for Error {
+    fn from_error(err: io::IoError) -> Error {
+        PgStreamError(err)
     }
 }

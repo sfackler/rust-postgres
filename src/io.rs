@@ -5,7 +5,7 @@ use std::io::net::pipe;
 use std::io::{Stream, IoResult};
 
 use {ConnectParams, SslMode, NoSsl, PreferSsl, RequireSsl, ConnectTarget};
-use error::{ConnectError, PgConnectStreamError, NoSslSupport, SslError, SocketError};
+use error::{ConnectError, NoSslSupport, SslError};
 use message;
 use message::{SslRequest, WriteMessage};
 
@@ -74,16 +74,15 @@ impl Writer for InternalStream {
 fn open_socket(params: &ConnectParams)
                -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
-    let socket = match params.target {
+    match params.target {
         ConnectTarget::Tcp(ref host) =>
-            tcp::TcpStream::connect((host[], port)).map(TcpStream),
+            Ok(try!(tcp::TcpStream::connect((host[], port)).map(TcpStream))),
         ConnectTarget::Unix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
-            pipe::UnixStream::connect(&path).map(UnixStream)
+            Ok(try!(pipe::UnixStream::connect(&path).map(UnixStream)))
         }
-    };
-    socket.map_err(SocketError)
+    }
 }
 
 pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
@@ -96,10 +95,10 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
         RequireSsl(ref ctx) => (true, ctx)
     };
 
-    try_pg_conn!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
-    try_pg_conn!(socket.flush());
+    try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
+    try!(socket.flush());
 
-    if try_pg_conn!(socket.read_u8()) == 'N' as u8 {
+    if try!(socket.read_u8()) == 'N' as u8 {
         if ssl_required {
             return Err(NoSslSupport);
         } else {

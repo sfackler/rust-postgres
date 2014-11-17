@@ -78,11 +78,9 @@ use std::result;
 use error::{InvalidUrl,
             MissingPassword,
             MissingUser,
-            PgConnectStreamError,
             PgConnectBadResponse,
             PgInvalidColumn,
             PgStreamDesynchronized,
-            PgStreamError,
             PgWrongParamCount,
             UnsupportedAuthentication,
             PgWrongConnection,
@@ -291,12 +289,12 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     let params = try!(params.into_connect_params());
     let mut socket = try!(io::initialize_stream(&params, ssl));
 
-    try_pg_conn!(socket.write_message(&CancelRequest {
+    try!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
         process_id: data.process_id,
         secret_key: data.secret_key
     }));
-    try_pg_conn!(socket.flush());
+    try!(socket.flush());
 
     Ok(())
 }
@@ -362,7 +360,7 @@ impl InnerConnection {
             None => {}
         }
 
-        try_pg_conn!(conn.write_messages([StartupMessage {
+        try!(conn.write_messages([StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: options[]
         }]));
@@ -370,7 +368,7 @@ impl InnerConnection {
         try!(conn.handle_auth(user));
 
         loop {
-            match try_pg_conn!(conn.read_message()) {
+            match try!(conn.read_message()) {
                 BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
@@ -417,11 +415,11 @@ impl InnerConnection {
     }
 
     fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
-        match try_pg_conn!(self.read_message()) {
+        match try!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or(MissingPassword));
-                try_pg_conn!(self.write_messages([PasswordMessage {
+                try!(self.write_messages([PasswordMessage {
                         password: pass[],
                     }]));
             }
@@ -436,7 +434,7 @@ impl InnerConnection {
                 hasher.update(salt);
                 let output = format!("md5{}",
                                      hasher.finalize()[].to_hex());
-                try_pg_conn!(self.write_messages([PasswordMessage {
+                try!(self.write_messages([PasswordMessage {
                         password: output[]
                     }]));
             }
@@ -451,7 +449,7 @@ impl InnerConnection {
             }
         }
 
-        match try_pg_conn!(self.read_message()) {
+        match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
@@ -470,7 +468,7 @@ impl InnerConnection {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
-        try_pg!(self.write_messages([
+        try!(self.write_messages([
             Parse {
                 name: stmt_name[],
                 query: query,
@@ -482,7 +480,7 @@ impl InnerConnection {
             },
             Sync]));
 
-        match try_pg!(self.read_message()) {
+        match try!(self.read_message()) {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -491,14 +489,14 @@ impl InnerConnection {
             _ => bad_response!(self),
         }
 
-        let mut param_types: Vec<_> = match try_pg!(self.read_message()) {
+        let mut param_types: Vec<_> = match try!(self.read_message()) {
             ParameterDescription { types } => {
                 types.iter().map(|ty| Type::from_oid(*ty)).collect()
             }
             _ => bad_response!(self),
         };
 
-        let mut result_desc: Vec<_> = match try_pg!(self.read_message()) {
+        let mut result_desc: Vec<_> = match try!(self.read_message()) {
             RowDescription { descriptions } => {
                 descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
                     ResultDescription {
@@ -560,14 +558,14 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, stmt_name: &str) -> Result<()> {
-        try_pg!(self.write_messages([
+        try!(self.write_messages([
             Close {
                 variant: b'S',
                 name: stmt_name,
             },
             Sync]));
         loop {
-            match try_pg!(self.read_message()) {
+            match try!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
@@ -610,7 +608,7 @@ impl InnerConnection {
     }
 
     fn wait_for_ready(&mut self) -> Result<()> {
-        match try_pg!(self.read_message()) {
+        match try!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
             _ => bad_response!(self)
         }
@@ -618,11 +616,11 @@ impl InnerConnection {
 
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
-        try_pg!(self.write_messages([Query { query: query }]));
+        try!(self.write_messages([Query { query: query }]));
 
         let mut result = vec![];
         loop {
-            match try_pg!(self.read_message()) {
+            match try!(self.read_message()) {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.into_iter().map(|opt| {
@@ -630,7 +628,7 @@ impl InnerConnection {
                     }).collect());
                 }
                 CopyInResponse { .. } => {
-                    try_pg!(self.write_messages([
+                    try!(self.write_messages([
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -649,7 +647,7 @@ impl InnerConnection {
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
         self.canary = 0;
-        try_pg!(self.write_messages([Terminate]));
+        try!(self.write_messages([Terminate]));
         Ok(())
     }
 }
@@ -1109,7 +1107,7 @@ impl<'conn> Statement<'conn> {
             values.push(try!(param.to_sql(ty)));
         };
 
-        try_pg!(conn.write_messages([
+        try!(conn.write_messages([
             Bind {
                 portal: portal_name,
                 statement: self.name[],
@@ -1123,7 +1121,7 @@ impl<'conn> Statement<'conn> {
             },
             Sync]));
 
-        match try_pg!(conn.read_message()) {
+        match try!(conn.read_message()) {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -1190,7 +1188,7 @@ impl<'conn> Statement<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         let num;
         loop {
-            match try_pg!(conn.read_message()) {
+            match try!(conn.read_message()) {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
@@ -1205,7 +1203,7 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 CopyInResponse { .. } => {
-                    try_pg!(conn.write_messages([
+                    try!(conn.write_messages([
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -1288,7 +1286,7 @@ impl<'stmt> Rows<'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         check_desync!(conn);
-        try_pg!(conn.write_messages([
+        try!(conn.write_messages([
             Close {
                 variant: b'P',
                 name: self.name[]
@@ -1296,7 +1294,7 @@ impl<'stmt> Rows<'stmt> {
             Sync]));
 
         loop {
-            match try_pg!(conn.read_message()) {
+            match try!(conn.read_message()) {
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
@@ -1312,7 +1310,7 @@ impl<'stmt> Rows<'stmt> {
     fn read_rows(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         loop {
-            match try_pg!(conn.read_message()) {
+            match try!(conn.read_message()) {
                 EmptyQueryResponse | CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
@@ -1327,7 +1325,7 @@ impl<'stmt> Rows<'stmt> {
                     return DbError::new(fields);
                 }
                 CopyInResponse { .. } => {
-                    try_pg!(conn.write_messages([
+                    try!(conn.write_messages([
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -1343,7 +1341,7 @@ impl<'stmt> Rows<'stmt> {
     }
 
     fn execute(&mut self) -> Result<()> {
-        try_pg!(self.stmt.conn.write_messages([
+        try!(self.stmt.conn.write_messages([
             Execute {
                 portal: self.name[],
                 max_rows: self.row_limit
@@ -1535,7 +1533,7 @@ impl<'a> CopyInStatement<'a> {
             where I: Iterator<J>, J: Iterator<&'b ToSql + 'b> {
         let mut conn = self.conn.conn.borrow_mut();
 
-        try_pg!(conn.write_messages([
+        try!(conn.write_messages([
             Bind {
                 portal: "",
                 statement: self.name[],
@@ -1549,7 +1547,7 @@ impl<'a> CopyInStatement<'a> {
             },
             Sync]));
 
-        match try_pg!(conn.read_message()) {
+        match try!(conn.read_message()) {
             BindComplete => {},
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -1561,7 +1559,7 @@ impl<'a> CopyInStatement<'a> {
             }
         }
 
-        match try_pg!(conn.read_message()) {
+        match try!(conn.read_message()) {
             CopyInResponse { .. } => {}
             _ => {
                 conn.desynchronized = true;
@@ -1591,7 +1589,7 @@ impl<'a> CopyInStatement<'a> {
                             }
                             Err(err) => {
                                 // FIXME this is not the right way to handle this
-                                try_pg_desync!(conn, conn.stream.write_message(
+                                try_desync!(conn, conn.stream.write_message(
                                     &CopyFail {
                                         message: err.to_string()[],
                                     }));
@@ -1600,7 +1598,7 @@ impl<'a> CopyInStatement<'a> {
                         }
                     }
                     (Some(_), None) | (None, Some(_)) => {
-                        try_pg_desync!(conn, conn.stream.write_message(
+                        try_desync!(conn, conn.stream.write_message(
                             &CopyFail {
                                 message: "Invalid column count",
                             }));
@@ -1611,7 +1609,7 @@ impl<'a> CopyInStatement<'a> {
             }
 
             let mut data = buf.unwrap();
-            try_pg_desync!(conn, conn.stream.write_message(
+            try_desync!(conn, conn.stream.write_message(
                 &CopyData {
                     data: data[]
                 }));
@@ -1620,14 +1618,14 @@ impl<'a> CopyInStatement<'a> {
         }
 
         let _ = buf.write_be_i16(-1);
-        try_pg!(conn.write_messages([
+        try!(conn.write_messages([
             CopyData {
                 data: buf.unwrap()[],
             },
             CopyDone,
             Sync]));
 
-        let num = match try_pg!(conn.read_message()) {
+        let num = match try!(conn.read_message()) {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
