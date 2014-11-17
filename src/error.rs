@@ -1,11 +1,12 @@
 //! Postgres errors
 
 use std::collections::HashMap;
+use std::error;
 use std::io;
 use std::fmt;
 use std::result;
 
-use openssl::ssl::error;
+use openssl::ssl::error as sslerror;
 use phf;
 
 use Result;
@@ -375,11 +376,47 @@ pub enum ConnectError {
     /// The Postgres server does not support SSL encryption
     NoSslSupport,
     /// There was an error initializing the SSL session
-    SslError(error::SslError),
+    SslError(sslerror::SslError),
     /// There was an error communicating with the server
     PgConnectStreamError(io::IoError),
     /// The server sent an unexpected response
     PgConnectBadResponse,
+}
+
+impl error::Error for ConnectError {
+    fn description(&self) -> &str {
+        match *self {
+            InvalidUrl(_) => "Invalid URL",
+            MissingUser => "User missing in URL",
+            SocketError(_) => "Unable to open connection to server",
+            PgConnectDbError(_) => "An error from the Postgres server itself",
+            MissingPassword => "The server requested a password but none was provided",
+            UnsupportedAuthentication => {
+                "The server requested an unsupported authentication method"
+            }
+            NoSslSupport => "The server does not support SSL",
+            SslError(_) => "Error initiating SSL session",
+            PgConnectStreamError(_) => "Error communicating with server",
+            PgConnectBadResponse => "The server returned an unexpected response",
+        }
+    }
+
+    fn detail(&self) -> Option<String> {
+        match *self {
+            InvalidUrl(ref msg) => Some(msg.clone()),
+            _ => None,
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            SocketError(ref err) => Some(err as &error::Error),
+            PgConnectDbError(ref err) => Some(err as &error::Error),
+            SslError(ref err) => Some(err as &error::Error),
+            PgConnectStreamError(ref err) => Some(err as &error::Error),
+            _ => None
+        }
+    }
 }
 
 impl fmt::Show for ConnectError {
@@ -531,6 +568,16 @@ impl fmt::Show for DbError {
     }
 }
 
+impl error::Error for DbError {
+    fn description(&self) -> &str {
+        &*self.message
+    }
+
+    fn detail(&self) -> Option<String> {
+        self.detail.clone()
+    }
+}
+
 /// An error encountered when communicating with the Postgres server
 #[deriving(Clone, PartialEq, Eq)]
 pub enum Error {
@@ -588,6 +635,48 @@ impl fmt::Show for Error {
                 write!(fmt, "The server returned an unexpected response"),
             PgBadData =>
                 write!(fmt, "The server provided data that the client could not parse"),
+        }
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            PgDbError(_) => "An error reported by the Postgres server",
+            PgStreamError(_) => "An error communicating with the Postgres server",
+            PgStreamDesynchronized => {
+                "Communication with the server has desynchronized due to an earlier IO error"
+            }
+            PgWrongConnection => {
+                "A statement was executed with a connection with which it was not prepared"
+            }
+            PgWrongParamCount { .. } => "Wrong number of parameters",
+            PgWrongType(_) => "Unexpected type",
+            PgInvalidColumn => "Invalid column",
+            PgWasNull => "The value was NULL",
+            PgWrongTransaction => {
+                "An attempt was made to use an object other than the active transaction"
+            }
+            PgBadResponse => "The server returned an unexpected response",
+            PgBadData => "The server provided data that the client could not parse",
+        }
+    }
+
+    fn detail(&self) -> Option<String> {
+        match *self {
+            PgWrongParamCount { expected, actual } => {
+                Some(format!("expected: {}, actual: {}", expected, actual))
+            }
+            PgWrongType(ref ty) => Some(format!("saw type {}", ty)),
+            _ => None
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            PgDbError(ref err) => Some(err as &error::Error),
+            PgStreamError(ref err) => Some(err as &error::Error),
+            _ => None
         }
     }
 }
