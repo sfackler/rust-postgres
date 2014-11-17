@@ -12,54 +12,54 @@ pub enum BackendMessage {
     AuthenticationGSS,
     AuthenticationKerberosV5,
     AuthenticationMD5Password {
-        pub salt: [u8, ..4]
+        salt: [u8, ..4]
     },
     AuthenticationOk,
     AuthenticationSCMCredential,
     AuthenticationSSPI,
     BackendKeyData {
-        pub process_id: u32,
-        pub secret_key: u32
+        process_id: u32,
+        secret_key: u32
     },
     BindComplete,
     CloseComplete,
     CommandComplete {
-        pub tag: String,
+        tag: String,
     },
     CopyInResponse {
-        pub format: u8,
-        pub column_formats: Vec<u16>,
+        format: u8,
+        column_formats: Vec<u16>,
     },
     DataRow {
-        pub row: Vec<Option<Vec<u8>>>
+        row: Vec<Option<Vec<u8>>>
     },
     EmptyQueryResponse,
     ErrorResponse {
-        pub fields: Vec<(u8, String)>
+        fields: Vec<(u8, String)>
     },
     NoData,
     NoticeResponse {
-        pub fields: Vec<(u8, String)>
+        fields: Vec<(u8, String)>
     },
     NotificationResponse {
-        pub pid: u32,
-        pub channel: String,
-        pub payload: String,
+        pid: u32,
+        channel: String,
+        payload: String,
     },
     ParameterDescription {
-        pub types: Vec<Oid>
+        types: Vec<Oid>
     },
     ParameterStatus {
-        pub parameter: String,
-        pub value: String,
+        parameter: String,
+        value: String,
     },
     ParseComplete,
     PortalSuspended,
     ReadyForQuery {
-        pub _state: u8
+        _state: u8
     },
     RowDescription {
-        pub descriptions: Vec<RowDescriptionEntry>
+        descriptions: Vec<RowDescriptionEntry>
     }
 }
 
@@ -75,53 +75,53 @@ pub struct RowDescriptionEntry {
 
 pub enum FrontendMessage<'a> {
     Bind {
-        pub portal: &'a str,
-        pub statement: &'a str,
-        pub formats: &'a [i16],
-        pub values: &'a [Option<Vec<u8>>],
-        pub result_formats: &'a [i16]
+        portal: &'a str,
+        statement: &'a str,
+        formats: &'a [i16],
+        values: &'a [Option<Vec<u8>>],
+        result_formats: &'a [i16]
     },
     CancelRequest {
-        pub code: u32,
-        pub process_id: u32,
-        pub secret_key: u32,
+        code: u32,
+        process_id: u32,
+        secret_key: u32,
     },
     Close {
-        pub variant: u8,
-        pub name: &'a str
+        variant: u8,
+        name: &'a str
     },
     CopyData {
-        pub data: &'a [u8],
+        data: &'a [u8],
     },
     CopyDone,
     CopyFail {
-        pub message: &'a str
+        message: &'a str
     },
     Describe {
-        pub variant: u8,
-        pub name: &'a str
+        variant: u8,
+        name: &'a str
     },
     Execute {
-        pub portal: &'a str,
-        pub max_rows: i32
+        portal: &'a str,
+        max_rows: i32
     },
     Parse {
-        pub name: &'a str,
-        pub query: &'a str,
-        pub param_types: &'a [Oid]
+        name: &'a str,
+        query: &'a str,
+        param_types: &'a [Oid]
     },
     PasswordMessage {
-        pub password: &'a str
+        password: &'a str
     },
     Query {
-        pub query: &'a str
+        query: &'a str
     },
     SslRequest {
-        pub code: u32
+        code: u32
     },
     StartupMessage {
-        pub version: u32,
-        pub parameters: &'a [(String, String)]
+        version: u32,
+        parameters: &'a [(String, String)]
     },
     Sync,
     Terminate
