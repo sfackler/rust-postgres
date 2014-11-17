@@ -1,7 +1,4 @@
 language: rust
-  matrix:
-    - FEATURES=""
-    - FEATURES="uuid_type"
 addons:
   postgresql: 9.3
 before_script:
