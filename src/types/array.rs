@@ -3,6 +3,9 @@
 use std::mem;
 use std::slice;
 
+use self::ArrayParent::{SliceParent, MutSliceParent, BaseParent};
+use self::MutArrayParent::{MutSliceMutParent, MutBaseParent};
+
 /// Information about a dimension of an array
 #[deriving(PartialEq, Eq, Clone)]
 pub struct DimensionInfo {

@@ -6,7 +6,10 @@ use std::io::{Stream, IoResult};
 
 use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
-use message::{SslRequest, WriteMessage};
+use message::WriteMessage;
+use message::FrontendMessage::SslRequest;
+
+use self::InternalStream::{TcpStream, UnixStream};
 
 const DEFAULT_PORT: Port = 5432;
 

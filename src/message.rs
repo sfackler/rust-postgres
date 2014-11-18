@@ -3,6 +3,9 @@ use std::mem;
 
 use types::Oid;
 
+use self::BackendMessage::*;
+use self::FrontendMessage::*;
+
 pub const PROTOCOL_VERSION: u32 = 0x0003_0000;
 pub const CANCEL_CODE: u32 = 80877102;
 pub const SSL_CODE: u32 = 80877103;

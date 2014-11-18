@@ -12,6 +12,9 @@ use phf;
 use Result;
 use types::Type;
 
+use self::ConnectError::*;
+use self::Error::*;
+
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
