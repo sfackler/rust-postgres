@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(globs, macro_rules, struct_variant, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
+#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
 #![warn(missing_docs)]
 
 extern crate openssl;
@@ -310,8 +310,7 @@ impl Drop for InnerConnection {
 }
 
 impl InnerConnection {
-    fn connect<T>(params: T, ssl: &SslMode)
-                  -> result::Result<InnerConnection, ConnectError>
+    fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
@@ -565,8 +564,7 @@ impl InnerConnection {
         Ok(())
     }
 
-    fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()>
-            where I: Iterator<&'a mut Type> {
+    fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()> where I: Iterator<&'a mut Type> {
         for ty in it {
             if let &Type::Unknown { oid, ref mut name } = ty {
                 *name = try!(self.get_type_name(oid));
@@ -1081,8 +1079,7 @@ impl<'conn> Statement<'conn> {
         conn.close_statement(self.name[])
     }
 
-    fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql])
-                     -> Result<()> {
+    fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if self.param_types.len() != params.len() {
             return Err(Error::PgWrongParamCount {
@@ -1122,8 +1119,7 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    fn lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql])
-                      -> Result<Rows<'a>> {
+    fn lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql]) -> Result<Rows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
