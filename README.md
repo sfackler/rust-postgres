@@ -204,7 +204,10 @@ types. The driver currently supports the following conversions:
             <td>JSON</td>
         </tr>
         <tr>
-            <td>time::Timespec</td>
+            <td>
+                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
         <tr>
@@ -223,7 +226,10 @@ types. The driver currently supports the following conversions:
             <td>INT8RANGE</td>
         </tr>
         <tr>
-            <td>types::range::Range&lt;Timespec&gt;</td>
+            <td>
+                <a href="https://github.com/rust-lang/time">types::range::Range&lt;Timespec&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
             <td>TSRANGE, TSTZRANGE</td>
         </tr>
         <tr>
@@ -259,7 +265,10 @@ types. The driver currently supports the following conversions:
             <td>INT8[], INT8[][], ...</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</td>
+            <td>
+                <a href="https://github.com/rust-lang/time">types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
             <td>TIMESTAMP[], TIMESTAMPTZ[], TIMESTAMP[][], ...</td>
         </tr>
         <tr>
