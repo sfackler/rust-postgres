@@ -5,6 +5,7 @@ use serialize::json;
 use std::collections::HashMap;
 use std::io::{ByRefReader, MemWriter, BufReader};
 
+use self::Type::*;
 use Result;
 use error::{PgWrongType, PgWasNull, PgBadData};
 use types::range::{Inclusive, Exclusive, Range};
