@@ -5,8 +5,9 @@ use std::io::{ByRefReader, MemWriter, BufReader};
 
 use self::Type::*;
 use Result;
-use error::{PgWrongType, PgWasNull, PgBadData};
-use types::range::{Inclusive, Exclusive, Range};
+use error::Error::{PgWrongType, PgWasNull, PgBadData};
+use types::range::Range;
+use types::range::BoundType::{Inclusive, Exclusive};
 
 macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (

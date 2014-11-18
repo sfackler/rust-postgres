@@ -278,8 +278,8 @@ fn get_authority(rawurl: &str) ->
     }
 
     let len = rawurl.len();
-    let mut st = Start;
-    let mut input = Digit; // most restricted, start here.
+    let mut st = State::Start;
+    let mut input = Input::Digit; // most restricted, start here.
 
     let mut userinfo = None;
     let mut host = "";
@@ -298,15 +298,15 @@ fn get_authority(rawurl: &str) ->
             '0' ... '9' => (),
             'A' ... 'F'
             | 'a' ... 'f' => {
-                if input == Digit {
-                    input = Hex;
+                if input == Input::Digit {
+                    input = Input::Hex;
                 }
             }
             'G' ... 'Z'
             | 'g' ... 'z'
             | '-' | '.' | '_' | '~' | '%'
             | '&' |'\'' | '(' | ')' | '+'
-            | '!' | '*' | ',' | ';' | '=' => input = Unreserved,
+            | '!' | '*' | ',' | ';' | '=' => input = Input::Unreserved,
             ':' | '@' | '?' | '#' | '/' => {
                 // separators, don't change anything
             }
@@ -318,61 +318,61 @@ fn get_authority(rawurl: &str) ->
           ':' => {
             colon_count += 1;
             match st {
-              Start => {
+              State::Start => {
                 pos = i;
-                st = PassHostPort;
+                st = State::PassHostPort;
               }
-              PassHostPort => {
+              State::PassHostPort => {
                 // multiple colons means ipv6 address.
-                if input == Unreserved {
+                if input == Input::Unreserved {
                     return Err(
                         "Illegal characters in IPv6 address.".to_string());
                 }
-                st = Ip6Host;
+                st = State::Ip6Host;
               }
-              InHost => {
+              State::InHost => {
                 pos = i;
-                if input == Unreserved {
+                if input == Input::Unreserved {
                     // must be port
                     host = rawurl.slice(begin, i);
-                    st = InPort;
+                    st = State::InPort;
                 } else {
                     // can't be sure whether this is an ipv6 address or a port
-                    st = Ip6Port;
+                    st = State::Ip6Port;
                 }
               }
-              Ip6Port => {
-                if input == Unreserved {
+              State::Ip6Port => {
+                if input == Input::Unreserved {
                     return Err("Illegal characters in authority.".to_string());
                 }
-                st = Ip6Host;
+                st = State::Ip6Host;
               }
-              Ip6Host => {
+              State::Ip6Host => {
                 if colon_count > 7 {
                     host = rawurl.slice(begin, i);
                     pos = i;
-                    st = InPort;
+                    st = State::InPort;
                 }
               }
               _ => return Err("Invalid ':' in authority.".to_string()),
             }
-            input = Digit; // reset input class
+            input = Input::Digit; // reset input class
           }
 
           '@' => {
-            input = Digit; // reset input class
+            input = Input::Digit; // reset input class
             colon_count = 0; // reset count
             match st {
-              Start => {
+              State::Start => {
                 let user = rawurl.slice(begin, i).to_string();
                 userinfo = Some(UserInfo::new(user, None));
-                st = InHost;
+                st = State::InHost;
               }
-              PassHostPort => {
+              State::PassHostPort => {
                 let user = rawurl.slice(begin, pos).to_string();
                 let pass = rawurl.slice(pos+1, i).to_string();
                 userinfo = Some(UserInfo::new(user, Some(pass)));
-                st = InHost;
+                st = State::InHost;
               }
               _ => return Err("Invalid '@' in authority.".to_string()),
             }
@@ -389,19 +389,19 @@ fn get_authority(rawurl: &str) ->
 
     // finish up
     match st {
-      Start => host = rawurl.slice(begin, end),
-      PassHostPort
-      | Ip6Port => {
-        if input != Digit {
+      State::Start => host = rawurl.slice(begin, end),
+      State::PassHostPort
+      | State::Ip6Port => {
+        if input != Input::Digit {
             return Err("Non-digit characters in port.".to_string());
         }
         host = rawurl.slice(begin, pos);
         port = Some(rawurl.slice(pos+1, end));
       }
-      Ip6Host
-      | InHost => host = rawurl.slice(begin, end),
-      InPort => {
-        if input != Digit {
+      State::Ip6Host
+      | State::InHost => host = rawurl.slice(begin, end),
+      State::InPort => {
+        if input != Input::Digit {
             return Err("Non-digit characters in port.".to_string());
         }
         port = Some(rawurl.slice(pos+1, end));

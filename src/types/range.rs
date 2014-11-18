@@ -3,6 +3,10 @@ use std::fmt;
 use std::i32;
 use std::i64;
 
+use self::BoundSide::{Lower, Upper};
+use self::BoundType::{Inclusive, Exclusive};
+use self::InnerRange::{Empty, Normal};
+
 /// The `range!` macro can make it easier to create ranges. It roughly mirrors
 /// traditional mathematic range syntax.
 ///
