@@ -70,8 +70,7 @@ impl Writer for InternalStream {
     }
 }
 
-fn open_socket(params: &ConnectParams)
-               -> Result<InternalStream, ConnectError> {
+fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     match params.target {
         ConnectTarget::Tcp(ref host) =>
