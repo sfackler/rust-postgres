@@ -3,7 +3,6 @@
 #[phase(plugin, link)]
 extern crate postgres;
 extern crate serialize;
-extern crate time;
 extern crate url;
 extern crate openssl;
 

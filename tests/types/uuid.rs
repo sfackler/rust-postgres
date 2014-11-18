@@ -1,7 +1,5 @@
 extern crate uuid;
 
-use postgres::types::array::ArrayBase;
-
 use types::test_type;
 
 #[test]

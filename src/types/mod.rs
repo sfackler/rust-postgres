@@ -3,20 +3,17 @@
 
 use serialize::json;
 use std::collections::HashMap;
-use std::io::{AsRefReader, MemWriter, BufReader};
-use std::io::util::LimitReader;
-use time::Timespec;
+use std::io::{ByRefReader, MemWriter, BufReader};
 
 use Result;
 use error::{PgWrongType, PgWasNull, PgBadData};
-use types::array::{Array, ArrayBase, DimensionInfo};
-use types::range::{RangeBound, Inclusive, Exclusive, Range};
+use types::range::{Inclusive, Exclusive, Range};
 
 macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
         match $actual {
             $(&$expected)|+ => {}
-            actual => return Err(PgWrongType(actual.clone()))
+            actual => return Err(::Error::PgWrongType(actual.clone()))
         }
     )
 )
@@ -33,8 +30,14 @@ macro_rules! raw_from_impl(
 
 macro_rules! from_range_impl(
     ($t:ty) => (
-        impl RawFromSql for Range<$t> {
+        impl ::types::RawFromSql for ::types::range::Range<$t> {
             fn raw_from_sql<R: Reader>(rdr: &mut R) -> Result<Range<$t>> {
+                use std::io::ByRefReader;
+                use std::io::util::LimitReader;
+                use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
+                            RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
+                use types::range::{BoundType, Range, RangeBound};
+
                 let t = try!(rdr.read_i8());
 
                 if t & RANGE_EMPTY != 0 {
@@ -43,8 +46,8 @@ macro_rules! from_range_impl(
                     let lower = match t & RANGE_LOWER_UNBOUNDED {
                         0 => {
                             let type_ = match t & RANGE_LOWER_INCLUSIVE {
-                                0 => Exclusive,
-                                _ => Inclusive
+                                0 => BoundType::Exclusive,
+                                _ => BoundType::Inclusive
                             };
                             let len = try!(rdr.read_be_i32()) as uint;
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
@@ -58,8 +61,8 @@ macro_rules! from_range_impl(
                     let upper = match t & RANGE_UPPER_UNBOUNDED {
                         0 => {
                             let type_ = match t & RANGE_UPPER_INCLUSIVE {
-                                0 => Exclusive,
-                                _ => Inclusive
+                                0 => BoundType::Exclusive,
+                                _ => BoundType::Inclusive
                             };
                             let len = try!(rdr.read_be_i32()) as uint;
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
@@ -81,9 +84,8 @@ macro_rules! from_range_impl(
 macro_rules! from_map_impl(
     ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
         $(#[$a])*
-        impl FromSql for Option<$t> {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
-                    -> Result<Option<$t>> {
+        impl ::types::FromSql for Option<$t> {
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<$t>> {
                 check_types!($($expected)|+, ty)
                 match *raw {
                     Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
@@ -93,14 +95,16 @@ macro_rules! from_map_impl(
         }
 
         $(#[$a])*
-        impl FromSql for $t {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
-                    -> Result<$t> {
+        impl ::types::FromSql for $t {
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<$t> {
+                use Error;
+                use types::FromSql;
+
                 // FIXME when you can specify Self types properly
                 let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
                 match ret {
                     Ok(Some(val)) => Ok(val),
-                    Ok(None) => Err(PgWasNull),
+                    Ok(None) => Err(Error::PgWasNull),
                     Err(err) => Err(err)
                 }
             }
@@ -111,6 +115,9 @@ macro_rules! from_map_impl(
 macro_rules! from_raw_from_impl(
     ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
         from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
+            use std::io::BufReader;
+            use types::RawFromSql;
+
             let mut reader = BufReader::new(buf[]);
             RawFromSql::raw_from_sql(&mut reader)
         } $(, $a)*)
@@ -119,7 +126,12 @@ macro_rules! from_raw_from_impl(
 
 macro_rules! from_array_impl(
     ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($oid)|+, ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
+        from_map_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
+            use std::io::{BufReader, ByRefReader};
+            use std::io::util::LimitReader;
+            use types::{Oid, RawFromSql};
+            use types::array::{ArrayBase, DimensionInfo};
+
             let mut rdr = BufReader::new(buf[]);
 
             let ndim = try!(rdr.read_be_i32()) as uint;
@@ -164,20 +176,29 @@ macro_rules! raw_to_impl(
 
 macro_rules! to_range_impl(
     ($t:ty) => (
-        impl RawToSql for Range<$t> {
+        impl ::types::RawToSql for ::types::range::Range<$t> {
             fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
+                use std::io::MemWriter;
+                use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
+                            RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
+                use types::range::{BoundType, RangeBound};
+
                 let mut tag = 0;
                 if self.is_empty() {
                     tag |= RANGE_EMPTY;
                 } else {
                     match self.lower() {
                         None => tag |= RANGE_LOWER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_LOWER_INCLUSIVE,
+                        Some(&RangeBound { type_: BoundType::Inclusive, .. }) => {
+                            tag |= RANGE_LOWER_INCLUSIVE
+                        }
                         _ => {}
                     }
                     match self.upper() {
                         None => tag |= RANGE_UPPER_UNBOUNDED,
-                        Some(&RangeBound { type_: Inclusive, .. }) => tag |= RANGE_UPPER_INCLUSIVE,
+                        Some(&RangeBound { type_: BoundType::Inclusive, .. }) => {
+                            tag |= RANGE_UPPER_INCLUSIVE
+                        }
                         _ => {}
                     }
                 }
@@ -214,7 +235,7 @@ macro_rules! to_range_impl(
 macro_rules! to_option_impl(
     ($($oid:pat)|+, $t:ty $(,$a:meta)*) => (
         $(#[$a])*
-        impl ToSql for Option<$t> {
+        impl ::types::ToSql for Option<$t> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
                 check_types!($($oid)|+, ty)
 
@@ -245,8 +266,10 @@ macro_rules! to_option_impl_lifetime(
 macro_rules! to_raw_to_impl(
     ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
         $(#[$a])*
-        impl ToSql for $t {
+        impl ::types::ToSql for $t {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                use std::io::MemWriter;
+
                 check_types!($($oid)|+, ty)
 
                 let mut writer = MemWriter::new();
@@ -262,8 +285,11 @@ macro_rules! to_raw_to_impl(
 macro_rules! to_array_impl(
     ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
         $(#[$a])*
-        impl ToSql for ArrayBase<Option<$t>> {
+        impl ::types::ToSql for ::types::array::ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+                use std::io::MemWriter;
+                use types::array::Array;
+
                 check_types!($($oid)|+, ty)
                 let mut buf = MemWriter::new();
 
@@ -293,7 +319,7 @@ macro_rules! to_array_impl(
             }
         }
 
-        to_option_impl!($($oid)|+, ArrayBase<Option<$t>> $(, $a)*)
+        to_option_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>> $(, $a)*)
     )
 )
 
@@ -301,6 +327,8 @@ pub mod array;
 pub mod range;
 #[cfg(feature = "uuid")]
 mod uuid;
+#[cfg(feature = "time")]
+mod time;
 
 /// A Postgres OID
 pub type Oid = u32;
@@ -346,12 +374,6 @@ const TSTZRANGEOID: Oid = 3910;
 const TSTZRANGEARRAYOID: Oid = 3911;
 const INT8RANGEOID: Oid = 3926;
 const INT8RANGEARRAYOID: Oid = 3927;
-
-const USEC_PER_SEC: i64 = 1_000_000;
-const NSEC_PER_USEC: i64 = 1_000;
-
-// Number of seconds from 1970-01-01 to 2000-01-01
-const TIME_SEC_CONVERSION: i64 = 946684800;
 
 const RANGE_UPPER_UNBOUNDED: i8 = 0b0001_0000;
 const RANGE_LOWER_UNBOUNDED: i8 = 0b0000_1000;
@@ -528,24 +550,8 @@ raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
 raw_from_impl!(f64, read_be_f64)
 
-impl RawFromSql for Timespec {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Timespec> {
-        let t = try!(raw.read_be_i64());
-        let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
-        let mut usec = t % USEC_PER_SEC;
-
-        if usec < 0 {
-            sec -= 1;
-            usec = USEC_PER_SEC + usec;
-        }
-
-        Ok(Timespec::new(sec, (usec * NSEC_PER_USEC) as i32))
-    }
-}
-
 from_range_impl!(i32)
 from_range_impl!(i64)
-from_range_impl!(Timespec)
 
 impl RawFromSql for json::Json {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<json::Json> {
@@ -564,10 +570,8 @@ from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
 from_raw_from_impl!(Json, json::Json)
 
-from_raw_from_impl!(Timestamp | TimestampTZ, Timespec)
 from_raw_from_impl!(Int4Range, Range<i32>)
 from_raw_from_impl!(Int8Range, Range<i64>)
-from_raw_from_impl!(TsRange | TstzRange, Range<Timespec>)
 
 from_array_impl!(BoolArray, bool)
 from_array_impl!(ByteAArray, Vec<u8>)
@@ -576,12 +580,10 @@ from_array_impl!(Int2Array, i16)
 from_array_impl!(Int4Array, i32)
 from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
 from_array_impl!(Int8Array, i64)
-from_array_impl!(TimestampArray | TimestampTZArray, Timespec)
 from_array_impl!(JsonArray, json::Json)
 from_array_impl!(Float4Array, f32)
 from_array_impl!(Float8Array, f64)
 from_array_impl!(Int4RangeArray, Range<i32>)
-from_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
 from_array_impl!(Int8RangeArray, Range<i64>)
 
 impl FromSql for Option<HashMap<String, Option<String>>> {
@@ -678,16 +680,8 @@ raw_to_impl!(i64, write_be_i64)
 raw_to_impl!(f32, write_be_f32)
 raw_to_impl!(f64, write_be_f64)
 
-impl RawToSql for Timespec {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
-        let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
-        Ok(try!(w.write_be_i64(t)))
-    }
-}
-
 to_range_impl!(i32)
 to_range_impl!(i64)
-to_range_impl!(Timespec)
 
 impl RawToSql for json::Json {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
@@ -707,7 +701,6 @@ to_raw_to_impl!(Float4, f32)
 to_raw_to_impl!(Float8, f64)
 to_raw_to_impl!(Int4Range, Range<i32>)
 to_raw_to_impl!(Int8Range, Range<i64>)
-to_raw_to_impl!(TsRange | TstzRange, Range<Timespec>)
 
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
@@ -727,8 +720,6 @@ impl<'a> ToSql for &'a [u8] {
 
 to_option_impl_lifetime!(ByteA, &'a [u8])
 
-to_raw_to_impl!(Timestamp | TimestampTZ, Timespec)
-
 to_array_impl!(BoolArray, bool)
 to_array_impl!(ByteAArray, Vec<u8>)
 to_array_impl!(CharArray, i8)
@@ -736,11 +727,9 @@ to_array_impl!(Int2Array, i16)
 to_array_impl!(Int4Array, i32)
 to_array_impl!(Int8Array, i64)
 to_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
-to_array_impl!(TimestampArray | TimestampTZArray, Timespec)
 to_array_impl!(Float4Array, f32)
 to_array_impl!(Float8Array, f64)
 to_array_impl!(Int4RangeArray, Range<i32>)
-to_array_impl!(TsRangeArray | TstzRangeArray, Range<Timespec>)
 to_array_impl!(Int8RangeArray, Range<i64>)
 to_array_impl!(JsonArray, json::Json)
 

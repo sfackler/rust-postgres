@@ -13,7 +13,7 @@ name = "test"
 path = "tests/test.rs"
 
 [features]
-default = ["uuid"]
+default = ["uuid", "time"]
 
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
@@ -30,6 +30,7 @@ optional = true
 
 [dependencies.time]
 git = "https://github.com/rust-lang/time"
+optional = true
 
 [dev-dependencies.url]
 git = "https://github.com/servo/rust-url"

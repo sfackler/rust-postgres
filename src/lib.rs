@@ -4,8 +4,11 @@
 //!
 //! ```rust,no_run
 //! extern crate postgres;
+//! # #[cfg(feature = "time")]
 //! extern crate time;
 //!
+//! # #[cfg(not(feature = "time"))] fn main() {}
+//! # #[cfg(feature = "time")] fn main() {
 //! use time::Timespec;
 //!
 //! use postgres::{Connection, SslMode};
@@ -49,6 +52,7 @@
 //!         println!("Found person {}", person.name);
 //!     }
 //! }
+//! # }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
 #![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
@@ -56,7 +60,6 @@
 
 extern crate openssl;
 extern crate serialize;
-extern crate time;
 extern crate phf;
 #[phase(plugin)]
 extern crate phf_mac;

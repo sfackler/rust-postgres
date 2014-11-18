@@ -297,8 +297,14 @@ traits.
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature. It is enabled by default. To disable
-`UUID` support, add `default-features = false` to your Cargo manifest:
+provided optionally by the `uuid` feature. It is enabled by default.
+
+### Time types
+[Time](http://www.postgresql.org/docs/9.3/static/datatype-datetime.html)
+support is provided optionally by the `time` feature. It is enabled by default.
+
+To disable support for optional features, add `default-features = false` to
+your Cargo manifest:
 
 ```toml
 [dependencies.postgres]

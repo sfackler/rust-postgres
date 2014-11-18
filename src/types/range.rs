@@ -4,7 +4,6 @@
 use std::fmt;
 use std::i32;
 use std::i64;
-use time::Timespec;
 
 /// The `range!` macro can make it easier to create ranges. It roughly mirrors
 /// traditional mathematic range syntax.
@@ -130,12 +129,6 @@ macro_rules! bounded_normalizable(
 
 bounded_normalizable!(i32)
 bounded_normalizable!(i64)
-
-impl Normalizable for Timespec {
-    fn normalize<S: BoundSided>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> {
-        bound
-    }
-}
 
 /// The possible sides of a bound
 #[deriving(PartialEq, Eq)]

@@ -1,13 +1,8 @@
 extern crate uuid;
 
-use std::io::{MemWriter, BufReader};
-use std::io::util::LimitReader;
-use std::io::ByRefReader;
-
 use self::uuid::Uuid;
-use types::{RawFromSql, FromSql, ToSql, RawToSql, Type, Oid};
-use Error::{PgWasNull, PgWrongType, PgBadData};
-use types::array::{ArrayBase, DimensionInfo, Array};
+use types::{RawFromSql, ToSql, RawToSql, Type};
+use Error::{PgWasNull, PgBadData};
 use Result;
 
 impl RawFromSql for Uuid {
