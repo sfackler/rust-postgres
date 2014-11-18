@@ -1,6 +1,4 @@
 //! Traits dealing with Postgres data types
-#![macro_escape]
-
 use serialize::json;
 use std::collections::HashMap;
 use std::io::{ByRefReader, MemWriter, BufReader};
