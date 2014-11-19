@@ -181,13 +181,8 @@ impl IntoConnectParams for Url {
             UserInfo { user: user, password: pass }
         });
 
-        let database = if !path.is_empty() {
-            // path contains the leading /
-            let (_, path) = path[].slice_shift_char();
-            Some(path.into_string())
-        } else {
-            Option::None
-        };
+        // path contains the leading /
+        let database = path.slice_shift_char().map(|(_, path)| path.into_string());
 
         Ok(ConnectParams {
             target: target,
