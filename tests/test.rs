@@ -86,7 +86,7 @@ fn test_connection_finish() {
 fn test_unix_connection() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SHOW unix_socket_directories"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
     let unix_socket_directories: String = result.map(|row| row.get(0)).next().unwrap();
 
     if unix_socket_directories.is_empty() {
@@ -104,7 +104,7 @@ fn test_unix_connection() {
 #[test]
 fn test_transaction_commit() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
     let trans = or_panic!(conn.transaction());
     or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
@@ -112,7 +112,7 @@ fn test_transaction_commit() {
     drop(trans);
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -120,7 +120,7 @@ fn test_transaction_commit() {
 #[test]
 fn test_transaction_commit_finish() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
     let trans = or_panic!(conn.transaction());
     or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
@@ -128,7 +128,7 @@ fn test_transaction_commit_finish() {
     assert!(trans.finish().is_ok());
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -136,14 +136,14 @@ fn test_transaction_commit_finish() {
 #[test]
 fn test_transaction_commit_method() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
     let trans = or_panic!(conn.transaction());
     or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
     assert!(trans.commit().is_ok());
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -151,7 +151,7 @@ fn test_transaction_commit_method() {
 #[test]
 fn test_transaction_rollback() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
 
@@ -160,7 +160,7 @@ fn test_transaction_rollback() {
     drop(trans);
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -168,7 +168,7 @@ fn test_transaction_rollback() {
 #[test]
 fn test_transaction_rollback_finish() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
 
@@ -177,7 +177,7 @@ fn test_transaction_rollback_finish() {
     assert!(trans.finish().is_ok());
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -185,31 +185,31 @@ fn test_transaction_rollback_finish() {
 #[test]
 fn test_nested_transactions() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
-    or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1)", []));
+    or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1)", &[]));
 
     {
         let trans1 = or_panic!(conn.transaction());
-        or_panic!(trans1.execute("INSERT INTO foo (id) VALUES (2)", []));
+        or_panic!(trans1.execute("INSERT INTO foo (id) VALUES (2)", &[]));
 
         {
             let trans2 = or_panic!(trans1.transaction());
-            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
+            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (3)", &[]));
         }
 
         {
             let trans2 = or_panic!(trans1.transaction());
-            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (4)", []));
+            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (4)", &[]));
 
             {
                 let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
+                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (5)", &[]));
             }
 
             {
                 let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
+                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", &[]));
                 assert!(trans3.commit().is_ok());
             }
 
@@ -217,13 +217,13 @@ fn test_nested_transactions() {
         }
 
         let stmt = or_panic!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
-        let result = or_panic!(stmt.query([]));
+        let result = or_panic!(stmt.query(&[]));
 
         assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect());
     }
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo ORDER BY id"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -231,33 +231,33 @@ fn test_nested_transactions() {
 #[test]
 fn test_nested_transactions_finish() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
 
-    or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1)", []));
+    or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1)", &[]));
 
     {
         let trans1 = or_panic!(conn.transaction());
-        or_panic!(trans1.execute("INSERT INTO foo (id) VALUES (2)", []));
+        or_panic!(trans1.execute("INSERT INTO foo (id) VALUES (2)", &[]));
 
         {
             let trans2 = or_panic!(trans1.transaction());
-            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (3)", []));
+            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (3)", &[]));
             assert!(trans2.finish().is_ok());
         }
 
         {
             let trans2 = or_panic!(trans1.transaction());
-            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (4)", []));
+            or_panic!(trans2.execute("INSERT INTO foo (id) VALUES (4)", &[]));
 
             {
                 let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (5)", []));
+                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (5)", &[]));
                 assert!(trans3.finish().is_ok());
             }
 
             {
                 let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", []));
+                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", &[]));
                 trans3.set_commit();
                 assert!(trans3.finish().is_ok());
             }
@@ -269,7 +269,7 @@ fn test_nested_transactions_finish() {
         // in a block to unborrow trans1 for the finish call
         {
             let stmt = or_panic!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
-            let result = or_panic!(stmt.query([]));
+            let result = or_panic!(stmt.query(&[]));
 
             assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect());
         }
@@ -278,7 +278,7 @@ fn test_nested_transactions_finish() {
     }
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo ORDER BY id"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect());
 }
@@ -319,7 +319,7 @@ fn test_trans_prepare_with_nested_trans() {
 #[test]
 fn test_stmt_finish() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", &[]));
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     assert!(stmt.finish().is_ok());
 }
@@ -332,7 +332,7 @@ fn test_batch_execute() {
     or_panic!(conn.batch_execute(query));
 
     let stmt = or_panic!(conn.prepare("SELECT * from foo ORDER BY id"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect());
 }
@@ -362,7 +362,7 @@ fn test_transaction_batch_execute() {
     or_panic!(trans.batch_execute(query));
 
     let stmt = or_panic!(trans.prepare("SELECT * from foo ORDER BY id"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect());
 }
@@ -370,11 +370,11 @@ fn test_transaction_batch_execute() {
 #[test]
 fn test_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", &[]));
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES ($1), ($2)",
                           &[&1i64, &2i64]));
     let stmt = or_panic!(conn.prepare("SELECT * from foo ORDER BY id"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![1i64, 2], result.map(|row| row.get(0)).collect());
 }
@@ -389,7 +389,7 @@ FROM (SELECT gs.i
       FROM generate_series(1, 2) gs(i)
       ORDER BY gs.i
       LIMIT 2) ss"));
-    match stmt.query([]) {
+    match stmt.query(&[]) {
         Err(PgDbError(DbError { code: CardinalityViolation, .. })) => {}
         Err(err) => panic!("Unexpected error {}", err),
         Ok(_) => panic!("Expected failure"),
@@ -399,9 +399,9 @@ FROM (SELECT gs.i
 #[test]
 fn test_result_finish() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", &[]));
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
     assert!(result.finish().is_ok());
 }
 
@@ -410,14 +410,14 @@ fn test_lazy_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
 
     let trans = or_panic!(conn.transaction());
-    or_panic!(trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", []));
+    or_panic!(trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
     let stmt = or_panic!(trans.prepare("INSERT INTO foo (id) VALUES ($1)"));
     let values = vec!(0i32, 1, 2, 3, 4, 5);
     for value in values.iter() {
         or_panic!(stmt.execute(&[value]));
     }
     let stmt = or_panic!(trans.prepare("SELECT id FROM foo ORDER BY id"));
-    let result = or_panic!(trans.lazy_query(&stmt, [], 2));
+    let result = or_panic!(trans.lazy_query(&stmt, &[], 2));
     assert_eq!(values, result.map(|row| row.unwrap().get(0)).collect());
 }
 
@@ -428,7 +428,7 @@ fn test_lazy_query_wrong_conn() {
 
     let trans = or_panic!(conn1.transaction());
     let stmt = or_panic!(conn2.prepare("SELECT 1::INT"));
-    match trans.lazy_query(&stmt, [], 1) {
+    match trans.lazy_query(&stmt, &[], 1) {
         Err(PgWrongConnection) => {}
         Err(err) => panic!("Unexpected error {}", err),
         Ok(_) => panic!("Expected failure")
@@ -447,7 +447,7 @@ fn test_result_descriptions() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
     assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_string(), ty: Type::Int4},
+            &[ResultDescription { name: "a".to_string(), ty: Type::Int4},
              ResultDescription { name: "b".to_string(), ty: Type::Varchar}]);
 }
 
@@ -457,11 +457,11 @@ fn test_execute_counts() {
     assert_eq!(0, or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                                             id SERIAL PRIMARY KEY,
                                             b INT
-                                         )", [])));
+                                         )", &[])));
     assert_eq!(3, or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($2)",
                                         &[&1i32, &2i32])));
-    assert_eq!(2, or_panic!(conn.execute("UPDATE foo SET b = 0 WHERE b = 2", [])));
-    assert_eq!(3, or_panic!(conn.execute("SELECT * FROM foo", [])));
+    assert_eq!(2, or_panic!(conn.execute("UPDATE foo SET b = 0 WHERE b = 2", &[])));
+    assert_eq!(3, or_panic!(conn.execute("SELECT * FROM foo", &[])));
 }
 
 #[test]
@@ -495,7 +495,7 @@ fn test_too_many_params() {
 fn test_index_named() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as val"));
-    let result = or_panic!(stmt.query([]));
+    let result = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec![10i32], result.map(|row| row.get("val")).collect());
 }
@@ -505,7 +505,7 @@ fn test_index_named() {
 fn test_index_named_fail() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
-    let mut result = or_panic!(stmt.query([]));
+    let mut result = or_panic!(stmt.query(&[]));
 
     let _: i32 = result.next().unwrap().get("asdf");
 }
@@ -514,7 +514,7 @@ fn test_index_named_fail() {
 fn test_get_named_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
-    let mut result = or_panic!(stmt.query([]));
+    let mut result = or_panic!(stmt.query(&[]));
 
     match result.next().unwrap().get_opt::<&str, i32>("asdf") {
         Err(PgInvalidColumn) => {}
@@ -526,7 +526,7 @@ fn test_get_named_err() {
 fn test_get_was_null() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT NULL::INT as id"));
-    let mut result = or_panic!(stmt.query([]));
+    let mut result = or_panic!(stmt.query(&[]));
 
     match result.next().unwrap().get_opt::<uint, i32>(0) {
         Err(PgWasNull) => {}
@@ -553,8 +553,8 @@ fn test_custom_notice_handler() {
                            BEGIN
                             RAISE NOTICE 'note';
                             RETURN 1;
-                           END; $$ LANGUAGE plpgsql", []));
-    or_panic!(conn.execute("SELECT pg_temp.note()", []));
+                           END; $$ LANGUAGE plpgsql", &[]));
+    or_panic!(conn.execute("SELECT pg_temp.note()", &[]));
 
     assert_eq!(unsafe { count }, 1);
 }
@@ -580,10 +580,10 @@ fn test_notification_iterator_some() {
 
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let mut it = conn.notifications();
-    or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel", []));
-    or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel2", []));
-    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", []));
-    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", []));
+    or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel", &[]));
+    or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel2", &[]));
+    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", &[]));
+    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", &[]));
 
     check_notification(Notification {
         pid: 0,
@@ -597,7 +597,7 @@ fn test_notification_iterator_some() {
     }, it.next());
     assert!(it.next().is_none());
 
-    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", []));
+    or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", &[]));
     check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
@@ -618,7 +618,7 @@ fn test_cancel_query() {
                                        cancel_data).is_ok());
     });
 
-    match conn.execute("SELECT pg_sleep(10)", []) {
+    match conn.execute("SELECT pg_sleep(10)", &[]) {
         Err(PgDbError(DbError { code: QueryCanceled, .. })) => {}
         Err(res) => panic!("Unexpected result {}", res),
         _ => panic!("Unexpected result"),
@@ -630,7 +630,7 @@ fn test_require_ssl_conn() {
     let ctx = SslContext::new(Sslv3).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                                     &SslMode::Require(ctx)));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", []));
+    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
 #[test]
@@ -638,7 +638,7 @@ fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(Sslv3).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                                     &SslMode::Prefer(ctx)));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", []));
+    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
 #[test]
@@ -694,14 +694,14 @@ fn test_md5_pass_wrong_pass() {
 #[test]
 fn test_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
-    match stmt.execute([]) {
+    match stmt.execute(&[]) {
         Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
         _ => panic!("Expected error"),
     }
-    match stmt.query([]) {
+    match stmt.query(&[]) {
         Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
         _ => panic!("Expected error"),
@@ -711,24 +711,24 @@ fn test_execute_copy_from_err() {
 #[test]
 fn test_copy_in() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
 
-    let stmt = or_panic!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
     let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &None::<String>]];
 
     assert_eq!(Ok(2), stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
 
     let stmt = or_panic!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
     assert_eq!(vec![(0i32, Some("Steven".to_string())), (1, None)],
-               or_panic!(stmt.query([])).map(|r| (r.get(0), r.get(1))).collect());
+               or_panic!(stmt.query(&[])).map(|r| (r.get(0), r.get(1))).collect());
 }
 
 #[test]
 fn test_copy_in_bad_column_count() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
 
-    let stmt = or_panic!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
     let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32]];
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
@@ -747,15 +747,15 @@ fn test_copy_in_bad_column_count() {
         _ => panic!("Expected error"),
     }
 
-    or_panic!(conn.execute("SELECT 1", []));
+    or_panic!(conn.execute("SELECT 1", &[]));
 }
 
 #[test]
 fn test_copy_in_bad_type() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
 
-    let stmt = or_panic!(conn.prepare_copy_in("foo", ["id", "name"]));
+    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
     let data: &[&[&ToSql]] = &[&[&0i32, &"Steven".to_string()], &[&1i32, &2i32]];
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
@@ -765,13 +765,13 @@ fn test_copy_in_bad_type() {
         _ => panic!("Expected error"),
     }
 
-    or_panic!(conn.execute("SELECT 1", []));
+    or_panic!(conn.execute("SELECT 1", &[]));
 }
 
 #[test]
 fn test_batch_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", []));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     match conn.batch_execute("COPY foo (id) FROM STDIN") {
         Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
@@ -783,7 +783,7 @@ fn test_batch_execute_copy_from_err() {
 // Just make sure the impls don't infinite loop
 fn test_generic_connection() {
     fn f<T>(t: &T) where T: GenericConnection {
-        or_panic!(t.execute("SELECT 1", []));
+        or_panic!(t.execute("SELECT 1", &[]));
     }
 
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
