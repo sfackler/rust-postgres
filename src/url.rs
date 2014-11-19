@@ -159,7 +159,7 @@ fn decode_inner<T: BytesContainer>(c: T, full_url: bool) -> DecodeResult<String>
                     };
 
                     // Only decode some characters if full_url:
-                    match num::from_str_radix::<uint>(str::from_utf8(bytes).unwrap(), 16u).unwrap() as u8 as char {
+                    match num::from_str_radix::<uint>(str::from_utf8(&bytes).unwrap(), 16u).unwrap() as u8 as char {
                         // gen-delims:
                         ':' | '/' | '?' | '#' | '[' | ']' | '@' |
 
@@ -463,8 +463,8 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
     };
 
     match before_fragment.slice_shift_char() {
-        (Some('?'), rest) => Ok((try!(query_from_str(rest)), fragment)),
-        (None, "") => Ok((vec!(), fragment)),
+        Some(('?', rest)) => Ok((try!(query_from_str(rest)), fragment)),
+        None => Ok((vec!(), fragment)),
         _ => Err(format!("Query didn't start with '?': '{}..'", before_fragment)),
     }
 }

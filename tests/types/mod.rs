@@ -12,14 +12,14 @@ macro_rules! test_array_params(
         use postgres::types::array::ArrayBase;
         use types::test_type;
 
-        let tests = [(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
+        let tests = &[(Some(ArrayBase::from_vec(vec!(Some($v1), Some($v2), None), 1)),
                       format!("'{{{},{},NULL}}'", $s1, $s2).into_string()),
                      (None, "NULL".to_string())];
         test_type(format!("{}[]", $name)[], tests);
         let mut a = ArrayBase::from_vec(vec!(Some($v1), Some($v2)), 0);
         a.wrap(-1);
         a.push_move(ArrayBase::from_vec(vec!(None, Some($v3)), 0));
-        let tests = [(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
+        let tests = &[(Some(a), format!("'[-1:0][0:1]={{{{{},{}}},{{NULL,{}}}}}'",
                                        $s1, $s2, $s3).into_string())];
         test_type(format!("{}[][]", $name)[], tests);
     })
@@ -27,7 +27,7 @@ macro_rules! test_array_params(
 
 macro_rules! test_range(
     ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
-        let tests = [(Some(range!('(', ')')), "'(,)'".to_string()),
+        let tests = &[(Some(range!('(', ')')), "'(,)'".to_string()),
                      (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
                      (Some(range!('(' $low, ')')), format!("'({},)'", $low_str)),
                      (Some(range!('(', $high ']')), format!("'(,{}]'", $high_str)),
@@ -57,7 +57,7 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
-        let result = or_panic!(stmt.query([])).next().unwrap().get(0u);
+        let result = or_panic!(stmt.query(&[])).next().unwrap().get(0u);
         assert!(val == &result);
 
         let stmt = or_panic!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
@@ -68,51 +68,51 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S
 
 #[test]
 fn test_bool_params() {
-    test_type("BOOL", [(Some(true), "'t'"), (Some(false), "'f'"),
+    test_type("BOOL", &[(Some(true), "'t'"), (Some(false), "'f'"),
                        (None, "NULL")]);
 }
 
 #[test]
 fn test_i8_params() {
-    test_type("\"char\"", [(Some('a' as i8), "'a'"), (None, "NULL")]);
+    test_type("\"char\"", &[(Some('a' as i8), "'a'"), (None, "NULL")]);
 }
 
 #[test]
 fn test_name_params() {
-    test_type("NAME", [(Some("hello world".to_string()), "'hello world'"),
+    test_type("NAME", &[(Some("hello world".to_string()), "'hello world'"),
                        (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
 #[test]
 fn test_i16_params() {
-    test_type("SMALLINT", [(Some(15001i16), "15001"),
+    test_type("SMALLINT", &[(Some(15001i16), "15001"),
                            (Some(-15001i16), "-15001"), (None, "NULL")]);
 }
 
 #[test]
 fn test_i32_params() {
-    test_type("INT", [(Some(2147483548i32), "2147483548"),
+    test_type("INT", &[(Some(2147483548i32), "2147483548"),
                       (Some(-2147483548i32), "-2147483548"), (None, "NULL")]);
 }
 
 #[test]
 fn test_i64_params() {
-    test_type("BIGINT", [(Some(9223372036854775708i64), "9223372036854775708"),
+    test_type("BIGINT", &[(Some(9223372036854775708i64), "9223372036854775708"),
                          (Some(-9223372036854775708i64), "-9223372036854775708"),
                          (None, "NULL")]);
 }
 
 #[test]
 fn test_f32_params() {
-    test_type("REAL", [(Some(f32::INFINITY), "'infinity'"),
+    test_type("REAL", &[(Some(f32::INFINITY), "'infinity'"),
                        (Some(f32::NEG_INFINITY), "'-infinity'"),
                        (Some(1000.55), "1000.55"), (None, "NULL")]);
 }
 
 #[test]
 fn test_f64_params() {
-    test_type("DOUBLE PRECISION", [(Some(f64::INFINITY), "'infinity'"),
+    test_type("DOUBLE PRECISION", &[(Some(f64::INFINITY), "'infinity'"),
                                    (Some(f64::NEG_INFINITY), "'-infinity'"),
                                    (Some(10000.55), "10000.55"),
                                    (None, "NULL")]);
@@ -120,14 +120,14 @@ fn test_f64_params() {
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", [(Some("hello world".to_string()), "'hello world'"),
+    test_type("VARCHAR", &[(Some("hello world".to_string()), "'hello world'"),
                           (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                           (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", [(Some("hello world".to_string()), "'hello world'"),
+    test_type("TEXT", &[(Some("hello world".to_string()), "'hello world'"),
                        (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
@@ -138,11 +138,11 @@ fn test_bpchar_params() {
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
-                           )", []));
+                           )", &[]));
     or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
                           &[&Some("12345"), &Some("123"), &None::<&'static str>]));
     let stmt = or_panic!(conn.prepare("SELECT b FROM foo ORDER BY id"));
-    let res = or_panic!(stmt.query([]));
+    let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
                res.map(|row| row.get(0u)).collect());
@@ -150,13 +150,13 @@ fn test_bpchar_params() {
 
 #[test]
 fn test_bytea_params() {
-    test_type("BYTEA", [(Some(vec!(0u8, 1, 2, 3, 254, 255)), "'\\x00010203feff'"),
+    test_type("BYTEA", &[(Some(vec!(0u8, 1, 2, 3, 254, 255)), "'\\x00010203feff'"),
                         (None, "NULL")]);
 }
 
 #[test]
 fn test_json_params() {
-    test_type("JSON", [(Some(json::from_str("[10, 11, 12]").unwrap()),
+    test_type("JSON", &[(Some(json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
                        (Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
                         "'{\"f\": \"asd\"}'"),
@@ -265,7 +265,7 @@ fn test_hstore_params() {
         })
     )
     test_type("hstore",
-              [(Some(make_map!("a".to_string() => Some("1".to_string()))), "'a=>1'"),
+              &[(Some(make_map!("a".to_string() => Some("1".to_string()))), "'a=>1'"),
                (Some(make_map!("hello".to_string() => Some("world!".to_string()),
                                "hola".to_string() => Some("mundo!".to_string()),
                                "what".to_string() => None)),
@@ -276,7 +276,7 @@ fn test_hstore_params() {
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
-    let mut result = or_panic!(stmt.query([]));
+    let mut result = or_panic!(stmt.query(&[]));
     let val: T = result.next().unwrap().get(0u);
     assert!(val.is_nan());
 
@@ -312,7 +312,7 @@ fn test_jsonarray_params() {
 fn test_pg_database_datname() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
-    let mut result = or_panic!(stmt.query([]));
+    let mut result = or_panic!(stmt.query(&[]));
 
     let next = result.next().unwrap();
     or_panic!(next.get_opt::<uint, String>(0));
