@@ -159,7 +159,7 @@ fn decode_inner<T: BytesContainer>(c: T, full_url: bool) -> DecodeResult<String>
                     };
 
                     // Only decode some characters if full_url:
-                    match num::from_str_radix::<uint>(str::from_utf8(bytes).unwrap(), 16u).unwrap() as u8 as char {
+                    match num::from_str_radix::<uint>(str::from_utf8(&bytes).unwrap(), 16u).unwrap() as u8 as char {
                         // gen-delims:
                         ':' | '/' | '?' | '#' | '[' | ']' | '@' |
 
