@@ -266,7 +266,7 @@ pub struct CancelData {
 /// let conn = Connection::connect(url, &SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// spawn(proc() {
-///     conn.execute("SOME EXPENSIVE QUERY", []).unwrap();
+///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
 /// # let _ =
 /// postgres::cancel_query(url, &SslMode::None, cancel_data);
@@ -757,9 +757,9 @@ impl Connection {
     /// try!(conn.execute("CREATE TABLE foo (
     ///                     bar INT PRIMARY KEY,
     ///                     baz VARCHAR
-    ///                    )", []));
+    ///                    )", &[]));
     ///
-    /// let stmt = try!(conn.prepare_copy_in("foo", ["bar", "baz"]));
+    /// let stmt = try!(conn.prepare_copy_in("foo", &["bar", "baz"]));
     /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah".into_string()],
     ///                            &[&1i32, &None::<String>]];
     /// try!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
@@ -791,7 +791,7 @@ impl Connection {
     /// # fn foo() -> Result<(), postgres::Error> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let trans = try!(conn.transaction());
-    /// try!(trans.execute("UPDATE foo SET bar = 10", []));
+    /// try!(trans.execute("UPDATE foo SET bar = 10", &[]));
     /// // ...
     ///
     /// try!(trans.commit());
@@ -1412,7 +1412,7 @@ impl<'stmt> Row<'stmt> {
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// # let stmt = conn.prepare("").unwrap();
-    /// # let mut result = stmt.query([]).unwrap();
+    /// # let mut result = stmt.query(&[]).unwrap();
     /// # let row = result.next().unwrap();
     /// let foo: i32 = row.get(0u);
     /// let bar: String = row.get("bar");
