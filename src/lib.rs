@@ -183,7 +183,7 @@ impl IntoConnectParams for Url {
 
         let database = if !path.is_empty() {
             // path contains the leading /
-            let (_, path) = path[].slice_shift_char();
+            let (_, path) = path[].slice_shift_char().unwrap();
             Some(path.into_string())
         } else {
             Option::None
@@ -351,7 +351,7 @@ impl InnerConnection {
             Option::None => {}
         }
 
-        try!(conn.write_messages([StartupMessage {
+        try!(conn.write_messages(&[StartupMessage {
             version: message::PROTOCOL_VERSION,
             parameters: options[]
         }]));
@@ -410,7 +410,7 @@ impl InnerConnection {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                try!(self.write_messages([PasswordMessage {
+                try!(self.write_messages(&[PasswordMessage {
                         password: pass[],
                     }]));
             }
@@ -422,9 +422,9 @@ impl InnerConnection {
                 let output = hasher.finalize()[].to_hex();
                 let hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
-                hasher.update(salt);
+                hasher.update(&salt);
                 let output = format!("md5{}", hasher.finalize()[].to_hex());
-                try!(self.write_messages([PasswordMessage {
+                try!(self.write_messages(&[PasswordMessage {
                         password: output[]
                     }]));
             }
@@ -458,11 +458,11 @@ impl InnerConnection {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
 
-        try!(self.write_messages([
+        try!(self.write_messages(&[
             Parse {
                 name: stmt_name[],
                 query: query,
-                param_types: []
+                param_types: &[]
             },
             Describe {
                 variant: b'S',
@@ -548,7 +548,7 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, stmt_name: &str) -> Result<()> {
-        try!(self.write_messages([
+        try!(self.write_messages(&[
             Close {
                 variant: b'S',
                 name: stmt_name,
@@ -605,7 +605,7 @@ impl InnerConnection {
 
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
-        try!(self.write_messages([Query { query: query }]));
+        try!(self.write_messages(&[Query { query: query }]));
 
         let mut result = vec![];
         loop {
@@ -617,7 +617,7 @@ impl InnerConnection {
                     }).collect());
                 }
                 CopyInResponse { .. } => {
-                    try!(self.write_messages([
+                    try!(self.write_messages(&[
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -636,7 +636,7 @@ impl InnerConnection {
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
         self.canary = 0;
-        try!(self.write_messages([Terminate]));
+        try!(self.write_messages(&[Terminate]));
         Ok(())
     }
 }
@@ -1095,13 +1095,13 @@ impl<'conn> Statement<'conn> {
             values.push(try!(param.to_sql(ty)));
         };
 
-        try!(conn.write_messages([
+        try!(conn.write_messages(&[
             Bind {
                 portal: portal_name,
                 statement: self.name[],
-                formats: [1],
+                formats: &[1],
                 values: values[],
-                result_formats: [1]
+                result_formats: &[1]
             },
             Execute {
                 portal: portal_name,
@@ -1190,7 +1190,7 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 CopyInResponse { .. } => {
-                    try!(conn.write_messages([
+                    try!(conn.write_messages(&[
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -1273,7 +1273,7 @@ impl<'stmt> Rows<'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         check_desync!(conn);
-        try!(conn.write_messages([
+        try!(conn.write_messages(&[
             Close {
                 variant: b'P',
                 name: self.name[]
@@ -1312,7 +1312,7 @@ impl<'stmt> Rows<'stmt> {
                     return DbError::new(fields);
                 }
                 CopyInResponse { .. } => {
-                    try!(conn.write_messages([
+                    try!(conn.write_messages(&[
                         CopyFail {
                             message: "COPY queries cannot be directly executed",
                         },
@@ -1328,7 +1328,7 @@ impl<'stmt> Rows<'stmt> {
     }
 
     fn execute(&mut self) -> Result<()> {
-        try!(self.stmt.conn.write_messages([
+        try!(self.stmt.conn.write_messages(&[
             Execute {
                 portal: self.name[],
                 max_rows: self.row_limit
@@ -1417,7 +1417,7 @@ impl<'stmt> Row<'stmt> {
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// # let stmt = conn.prepare("").unwrap();
-    /// # let mut result = stmt.query([]).unwrap();
+    /// # let mut result = stmt.query(&[]).unwrap();
     /// # let row = result.next().unwrap();
     /// let foo: i32 = row.get(0u);
     /// let bar: String = row.get("bar");
@@ -1520,13 +1520,13 @@ impl<'a> CopyInStatement<'a> {
             where I: Iterator<J>, J: Iterator<&'b ToSql + 'b> {
         let mut conn = self.conn.conn.borrow_mut();
 
-        try!(conn.write_messages([
+        try!(conn.write_messages(&[
             Bind {
                 portal: "",
                 statement: self.name[],
-                formats: [],
-                values: [],
-                result_formats: []
+                formats: &[],
+                values: &[],
+                result_formats: &[]
             },
             Execute {
                 portal: "",
@@ -1605,7 +1605,7 @@ impl<'a> CopyInStatement<'a> {
         }
 
         let _ = buf.write_be_i16(-1);
-        try!(conn.write_messages([
+        try!(conn.write_messages(&[
             CopyData {
                 data: buf.unwrap()[],
             },
