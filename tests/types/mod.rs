@@ -2,6 +2,7 @@ use serialize::json;
 use std::collections::HashMap;
 use std::f32;
 use std::f64;
+use std::fmt;
 use std::num::Float;
 
 use postgres::{Connection, SslMode};
@@ -53,10 +54,10 @@ mod uuid;
 #[cfg(feature = "time")]
 mod time;
 
-fn test_type<T: PartialEq+FromSql+ToSql, S: Str>(sql_type: &str, checks: &[(T, S)]) {
+fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Show>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = or_panic!(conn.prepare(format!("SELECT {:s}::{}", *repr, sql_type)[]));
+        let stmt = or_panic!(conn.prepare(format!("SELECT {}::{}", *repr, sql_type)[]));
         let result = or_panic!(stmt.query(&[])).next().unwrap().get(0u);
         assert!(val == &result);
 

@@ -518,9 +518,9 @@ impl InnerConnection {
     fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a Connection)
                            -> Result<CopyInStatement<'a>> {
         let mut query = vec![];
-        let _ = write!(query, "SELECT ");
+        let _ = write!(&mut query, "SELECT ");
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
-        let _ = write!(query, " FROM {}", table);
+        let _ = write!(&mut query, " FROM {}", table);
         let query = String::from_utf8(query).unwrap();
         let (stmt_name, _, result_desc) = try!(self.raw_prepare(query[]));
 
@@ -528,9 +528,9 @@ impl InnerConnection {
         try!(self.close_statement(stmt_name[]));
 
         let mut query = vec![];
-        let _ = write!(query, "COPY {} (", table);
+        let _ = write!(&mut query, "COPY {} (", table);
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
-        let _ = write!(query, ") FROM STDIN WITH (FORMAT binary)");
+        let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query).unwrap();
         let (stmt_name, _, _) = try!(self.raw_prepare(query[]));
 
