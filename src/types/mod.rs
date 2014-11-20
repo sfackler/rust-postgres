@@ -1,7 +1,7 @@
 //! Traits dealing with Postgres data types
 use serialize::json;
 use std::collections::HashMap;
-use std::io::{ByRefReader, MemWriter, BufReader};
+use std::io::{ByRefReader, BufReader};
 
 use self::Type::*;
 use Result;
@@ -178,7 +178,6 @@ macro_rules! to_range_impl(
     ($t:ty) => (
         impl ::types::RawToSql for ::types::range::Range<$t> {
             fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
-                use std::io::MemWriter;
                 use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
                             RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
                 use types::range::{BoundType, RangeBound};
@@ -207,9 +206,8 @@ macro_rules! to_range_impl(
 
                 match self.lower() {
                     Some(bound) => {
-                        let mut inner_buf = MemWriter::new();
+                        let mut inner_buf = vec![];
                         try!(bound.value.raw_to_sql(&mut inner_buf));
-                        let inner_buf = inner_buf.unwrap();
                         try!(buf.write_be_i32(inner_buf.len() as i32));
                         try!(buf.write(inner_buf[]));
                     }
@@ -217,9 +215,8 @@ macro_rules! to_range_impl(
                 }
                 match self.upper() {
                     Some(bound) => {
-                        let mut inner_buf = MemWriter::new();
+                        let mut inner_buf = vec![];
                         try!(bound.value.raw_to_sql(&mut inner_buf));
-                        let inner_buf = inner_buf.unwrap();
                         try!(buf.write_be_i32(inner_buf.len() as i32));
                         try!(buf.write(inner_buf[]));
                     }
@@ -268,13 +265,11 @@ macro_rules! to_raw_to_impl(
         $(#[$a])*
         impl ::types::ToSql for $t {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                use std::io::MemWriter;
-
                 check_types!($($oid)|+, ty)
 
-                let mut writer = MemWriter::new();
+                let mut writer = vec![];
                 try!(self.raw_to_sql(&mut writer));
-                Ok(Some(writer.unwrap()))
+                Ok(Some(writer))
             }
         }
 
@@ -287,11 +282,10 @@ macro_rules! to_array_impl(
         $(#[$a])*
         impl ::types::ToSql for ::types::array::ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                use std::io::MemWriter;
                 use types::array::Array;
 
                 check_types!($($oid)|+, ty)
-                let mut buf = MemWriter::new();
+                let mut buf = vec![];
 
                 try!(buf.write_be_i32(self.dimension_info().len() as i32));
                 try!(buf.write_be_i32(1));
@@ -305,9 +299,8 @@ macro_rules! to_array_impl(
                 for v in self.values() {
                     match *v {
                         Some(ref val) => {
-                            let mut inner_buf = MemWriter::new();
+                            let mut inner_buf = vec![];
                             try!(val.raw_to_sql(&mut inner_buf));
-                            let inner_buf = inner_buf.unwrap();
                             try!(buf.write_be_i32(inner_buf.len() as i32));
                             try!(buf.write(inner_buf[]));
                         }
@@ -315,7 +308,7 @@ macro_rules! to_array_impl(
                     }
                 }
 
-                Ok(Some(buf.unwrap()))
+                Ok(Some(buf))
             }
         }
 
@@ -740,7 +733,7 @@ impl ToSql for HashMap<String, Option<String>> {
             _ => return Err(PgWrongType(ty.clone()))
         }
 
-        let mut buf = MemWriter::new();
+        let mut buf = vec![];
 
         try!(buf.write_be_i32(self.len() as i32));
 
@@ -757,7 +750,7 @@ impl ToSql for HashMap<String, Option<String>> {
             }
         }
 
-        Ok(Some(buf.unwrap()))
+        Ok(Some(buf))
     }
 }
 

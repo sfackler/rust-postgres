@@ -72,7 +72,7 @@ use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::{RingBuf, HashMap};
-use std::io::{BufferedStream, IoResult, MemWriter};
+use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::Port;
 use std::mem;
 use std::fmt;
@@ -517,21 +517,21 @@ impl InnerConnection {
 
     fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a Connection)
                            -> Result<CopyInStatement<'a>> {
-        let mut query = MemWriter::new();
+        let mut query = vec![];
         let _ = write!(query, "SELECT ");
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(query, " FROM {}", table);
-        let query = String::from_utf8(query.unwrap()).unwrap();
+        let query = String::from_utf8(query).unwrap();
         let (stmt_name, _, result_desc) = try!(self.raw_prepare(query[]));
 
         let column_types = result_desc.iter().map(|desc| desc.ty.clone()).collect();
         try!(self.close_statement(stmt_name[]));
 
-        let mut query = MemWriter::new();
+        let mut query = vec![];
         let _ = write!(query, "COPY {} (", table);
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(query, ") FROM STDIN WITH (FORMAT binary)");
-        let query = String::from_utf8(query.unwrap()).unwrap();
+        let query = String::from_utf8(query).unwrap();
         let (stmt_name, _, _) = try!(self.raw_prepare(query[]));
 
         Ok(CopyInStatement {
@@ -1549,7 +1549,7 @@ impl<'a> CopyInStatement<'a> {
             }
         }
 
-        let mut buf = MemWriter::new();
+        let mut buf = vec![];
         let _ = buf.write(b"PGCOPY\n\xff\r\n\x00");
         let _ = buf.write_be_i32(0);
         let _ = buf.write_be_i32(0);
@@ -1590,19 +1590,17 @@ impl<'a> CopyInStatement<'a> {
                 }
             }
 
-            let mut data = buf.unwrap();
             try_desync!(conn, conn.stream.write_message(
                 &CopyData {
-                    data: data[]
+                    data: buf[]
                 }));
-            data.clear();
-            buf = MemWriter::from_vec(data);
+            buf.clear();
         }
 
         let _ = buf.write_be_i16(-1);
         try!(conn.write_messages(&[
             CopyData {
-                data: buf.unwrap()[],
+                data: buf[],
             },
             CopyDone,
             Sync]));

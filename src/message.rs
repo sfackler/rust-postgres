@@ -1,4 +1,4 @@
-use std::io::{IoResult, IoError, OtherIoError, MemWriter, MemReader};
+use std::io::{IoResult, IoError, OtherIoError, MemReader};
 use std::mem;
 
 use types::Oid;
@@ -149,7 +149,7 @@ pub trait WriteMessage {
 
 impl<W: Writer> WriteMessage for W {
     fn write_message(&mut self, message: &FrontendMessage) -> IoResult<()> {
-        let mut buf = MemWriter::new();
+        let mut buf = vec![];
         let mut ident = None;
 
         match *message {
@@ -250,7 +250,6 @@ impl<W: Writer> WriteMessage for W {
             try!(self.write_u8(ident));
         }
 
-        let buf = buf.unwrap();
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
         try!(self.write(buf[]));
