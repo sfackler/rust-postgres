@@ -343,7 +343,7 @@ impl InnerConnection {
         options.push(("user".into_string(), user.user.clone()));
         match database {
             Some(database) => options.push(("database".into_string(), database)),
-            Option::None => {}
+            None => {}
         }
 
         try!(conn.write_messages(&[StartupMessage {
@@ -1363,7 +1363,7 @@ impl<'stmt> Iterator<Row<'stmt>> for Rows<'stmt> {
     fn size_hint(&self) -> (uint, Option<uint>) {
         let lower = self.data.len();
         let upper = if self.more_rows {
-            Option::None
+            None
          } else {
             Some(lower)
          };
@@ -1436,7 +1436,7 @@ impl RowIndex for uint {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<uint> {
         if *self > stmt.result_desc.len() {
-            Option::None
+            None
         } else {
             Some(*self)
         }
@@ -1562,7 +1562,7 @@ impl<'a> CopyInStatement<'a> {
                 match (row.next(), types.next()) {
                     (Some(val), Some(ty)) => {
                         match val.to_sql(ty) {
-                            Ok(Option::None) => {
+                            Ok(None) => {
                                 let _ = buf.write_be_i32(-1);
                             }
                             Ok(Some(val)) => {
@@ -1579,14 +1579,14 @@ impl<'a> CopyInStatement<'a> {
                             }
                         }
                     }
-                    (Some(_), Option::None) | (Option::None, Some(_)) => {
+                    (Some(_), None) | (None, Some(_)) => {
                         try_desync!(conn, conn.stream.write_message(
                             &CopyFail {
                                 message: "Invalid column count",
                             }));
                         break 'l;
                     }
-                    (Option::None, Option::None) => break
+                    (None, None) => break
                 }
             }
 
