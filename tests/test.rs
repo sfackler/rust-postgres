@@ -18,16 +18,9 @@ use postgres::{NoticeHandler,
                SslMode,
                Type,
                ToSql,
+               Error,
+               ConnectError,
                DbError};
-use postgres::ConnectError::{PgConnectDbError,
-                             MissingPassword};
-use postgres::Error::{PgDbError,
-                      PgWrongConnection,
-                      PgWrongParamCount,
-                      PgWrongType,
-                      PgInvalidColumn,
-                      PgWasNull,
-                      PgWrongTransaction};
 use postgres::SqlState::{SyntaxError,
                          QueryCanceled,
                          UndefinedTable,
@@ -61,7 +54,7 @@ fn test_url_terminating_slash() {
 fn test_prepare_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     match conn.prepare("invalid sql statment") {
-        Err(PgDbError(DbError { code: SyntaxError, position: Some(Normal(1)), .. })) => (),
+        Err(Error::DbError(DbError { code: SyntaxError, position: Some(Normal(1)), .. })) => (),
         Err(e) => panic!("Unexpected result {}", e),
         _ => panic!("Unexpected result"),
     }
@@ -70,7 +63,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost/asdf", &SslMode::None) {
-        Err(PgConnectDbError(DbError { code: InvalidCatalogName, .. })) => {}
+        Err(ConnectError::DbError(DbError { code: InvalidCatalogName, .. })) => {}
         Err(resp) => panic!("Unexpected result {}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -288,12 +281,12 @@ fn test_conn_prepare_with_trans() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _trans = or_panic!(conn.transaction());
     match conn.prepare("") {
-        Err(PgWrongTransaction) => {}
+        Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
     }
     match conn.transaction() {
-        Err(PgWrongTransaction) => {}
+        Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
     }
@@ -305,12 +298,12 @@ fn test_trans_prepare_with_nested_trans() {
     let trans = or_panic!(conn.transaction());
     let _trans2 = or_panic!(trans.transaction());
     match trans.prepare("") {
-        Err(PgWrongTransaction) => {}
+        Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
     }
     match trans.transaction() {
-        Err(PgWrongTransaction) => {}
+        Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
     }
@@ -347,7 +340,7 @@ fn test_batch_execute_error() {
     conn.batch_execute(query).unwrap_err();
 
     match conn.prepare("SELECT * from foo ORDER BY id") {
-        Err(PgDbError(DbError { code: UndefinedTable, .. })) => {},
+        Err(Error::DbError(DbError { code: UndefinedTable, .. })) => {},
         Err(e) => panic!("unexpected error {}", e),
         _ => panic!("unexpected success"),
     }
@@ -390,7 +383,7 @@ FROM (SELECT gs.i
       ORDER BY gs.i
       LIMIT 2) ss"));
     match stmt.query(&[]) {
-        Err(PgDbError(DbError { code: CardinalityViolation, .. })) => {}
+        Err(Error::DbError(DbError { code: CardinalityViolation, .. })) => {}
         Err(err) => panic!("Unexpected error {}", err),
         Ok(_) => panic!("Expected failure"),
     }
@@ -429,7 +422,7 @@ fn test_lazy_query_wrong_conn() {
     let trans = or_panic!(conn1.transaction());
     let stmt = or_panic!(conn2.prepare("SELECT 1::INT"));
     match trans.lazy_query(&stmt, &[], 1) {
-        Err(PgWrongConnection) => {}
+        Err(Error::WrongConnection) => {}
         Err(err) => panic!("Unexpected error {}", err),
         Ok(_) => panic!("Expected failure")
     }
@@ -468,7 +461,7 @@ fn test_execute_counts() {
 fn test_wrong_param_type() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     match conn.execute("SELECT $1::VARCHAR", &[&1i32]) {
-        Err(PgWrongType(_)) => {}
+        Err(Error::WrongType(_)) => {}
         res => panic!("unexpected result {}", res)
     }
 }
@@ -477,7 +470,7 @@ fn test_wrong_param_type() {
 fn test_too_few_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     match conn.execute("SELECT $1::INT, $2::INT", &[&1i32]) {
-        Err(PgWrongParamCount { expected: 2, actual: 1 }) => {},
+        Err(Error::WrongParamCount { expected: 2, actual: 1 }) => {},
         res => panic!("unexpected result {}", res)
     }
 }
@@ -486,7 +479,7 @@ fn test_too_few_params() {
 fn test_too_many_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     match conn.execute("SELECT $1::INT, $2::INT", &[&1i32, &2i32, &3i32]) {
-        Err(PgWrongParamCount { expected: 2, actual: 3 }) => {},
+        Err(Error::WrongParamCount { expected: 2, actual: 3 }) => {},
         res => panic!("unexpected result {}", res)
     }
 }
@@ -517,7 +510,7 @@ fn test_get_named_err() {
     let mut result = or_panic!(stmt.query(&[]));
 
     match result.next().unwrap().get_opt::<&str, i32>("asdf") {
-        Err(PgInvalidColumn) => {}
+        Err(Error::InvalidColumn) => {}
         res => panic!("unexpected result {}", res),
     };
 }
@@ -529,7 +522,7 @@ fn test_get_was_null() {
     let mut result = or_panic!(stmt.query(&[]));
 
     match result.next().unwrap().get_opt::<uint, i32>(0) {
-        Err(PgWasNull) => {}
+        Err(Error::WasNull) => {}
         res => panic!("unexpected result {}", res),
     };
 }
@@ -619,7 +612,7 @@ fn test_cancel_query() {
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
-        Err(PgDbError(DbError { code: QueryCanceled, .. })) => {}
+        Err(Error::DbError(DbError { code: QueryCanceled, .. })) => {}
         Err(res) => panic!("Unexpected result {}", res),
         _ => panic!("Unexpected result"),
     }
@@ -650,7 +643,7 @@ fn test_plaintext_pass() {
 fn test_plaintext_pass_no_pass() {
     let ret = Connection::connect("postgres://pass_user@localhost/postgres", &SslMode::None);
     match ret {
-        Err(MissingPassword) => (),
+        Err(ConnectError::MissingPassword) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }
@@ -660,7 +653,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = Connection::connect("postgres://pass_user:asdf@localhost/postgres", &SslMode::None);
     match ret {
-        Err(PgConnectDbError(DbError { code: InvalidPassword, .. })) => (),
+        Err(ConnectError::DbError(DbError { code: InvalidPassword, .. })) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }
@@ -675,7 +668,7 @@ fn test_md5_pass() {
 fn test_md5_pass_no_pass() {
     let ret = Connection::connect("postgres://md5_user@localhost/postgres", &SslMode::None);
     match ret {
-        Err(MissingPassword) => (),
+        Err(ConnectError::MissingPassword) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }
@@ -685,7 +678,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = Connection::connect("postgres://md5_user:asdf@localhost/postgres", &SslMode::None);
     match ret {
-        Err(PgConnectDbError(DbError { code: InvalidPassword, .. })) => (),
+        Err(ConnectError::DbError(DbError { code: InvalidPassword, .. })) => (),
         Err(err) => panic!("Unexpected error {}", err),
         _ => panic!("Expected error")
     }
@@ -697,12 +690,12 @@ fn test_execute_copy_from_err() {
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
     match stmt.execute(&[]) {
-        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
         _ => panic!("Expected error"),
     }
     match stmt.query(&[]) {
-        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
         _ => panic!("Expected error"),
     }
@@ -733,7 +726,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message[].contains("Invalid column count") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("Invalid column count") => {}
         Err(err) => panic!("unexpected error {}", err),
         _ => panic!("Expected error"),
     }
@@ -742,7 +735,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message[].contains("Invalid column count") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("Invalid column count") => {}
         Err(err) => panic!("unexpected error {}", err),
         _ => panic!("Expected error"),
     }
@@ -760,7 +753,7 @@ fn test_copy_in_bad_type() {
 
     let res = stmt.execute(data.iter().map(|r| r.iter().map(|&e| e)));
     match res {
-        Err(PgDbError(ref err)) if err.message[].contains("Unexpected type Varchar") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("Unexpected type Varchar") => {}
         Err(err) => panic!("unexpected error {}", err),
         _ => panic!("Expected error"),
     }
@@ -773,7 +766,7 @@ fn test_batch_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     match conn.batch_execute("COPY foo (id) FROM STDIN") {
-        Err(PgDbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
         Err(err) => panic!("Unexptected error {}", err),
         _ => panic!("Expected error"),
     }

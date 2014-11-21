@@ -5,7 +5,7 @@ use std::io::{ByRefReader, BufReader};
 
 use self::Type::*;
 use Result;
-use error::Error::{PgWrongType, PgWasNull, PgBadData};
+use error::Error;
 use types::range::Range;
 use types::range::BoundType::{Inclusive, Exclusive};
 
@@ -13,7 +13,7 @@ macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
         match $actual {
             $(&$expected)|+ => {}
-            actual => return Err(::Error::PgWrongType(actual.clone()))
+            actual => return Err(::Error::WrongType(actual.clone()))
         }
     )
 )
@@ -104,7 +104,7 @@ macro_rules! from_map_impl(
                 let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
                 match ret {
                     Ok(Some(val)) => Ok(val),
-                    Ok(None) => Err(Error::PgWasNull),
+                    Ok(None) => Err(Error::WasNull),
                     Err(err) => Err(err)
                 }
             }
@@ -532,7 +532,7 @@ impl RawFromSql for Vec<u8> {
 
 impl RawFromSql for String {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<String> {
-        String::from_utf8(try!(raw.read_to_end())).map_err(|_| PgBadData)
+        String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadData)
     }
 }
 
@@ -548,7 +548,7 @@ from_range_impl!(i64)
 
 impl RawFromSql for json::Json {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<json::Json> {
-        json::from_reader(raw).map_err(|_| PgBadData)
+        json::from_reader(raw).map_err(|_| Error::BadData)
     }
 }
 
@@ -584,7 +584,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
             Type::Unknown { ref name, .. } if "hstore" == name[] => {}
-            _ => return Err(PgWrongType(ty.clone()))
+            _ => return Err(Error::WrongType(ty.clone()))
         }
 
         match *raw {
@@ -599,7 +599,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                     let key = try!(rdr.read_exact(key_len as uint));
                     let key = match String::from_utf8(key) {
                         Ok(key) => key,
-                        Err(_) => return Err(PgBadData),
+                        Err(_) => return Err(Error::BadData),
                     };
 
                     let val_len = try!(rdr.read_be_i32());
@@ -609,7 +609,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                         let val = try!(rdr.read_exact(val_len as uint));
                         match String::from_utf8(val) {
                             Ok(val) => Some(val),
-                            Err(_) => return Err(PgBadData),
+                            Err(_) => return Err(Error::BadData),
                         }
                     };
 
@@ -630,7 +630,7 @@ impl FromSql for HashMap<String, Option<String>> {
             FromSql::from_sql(ty, raw);
         match ret {
             Ok(Some(val)) => Ok(val),
-            Ok(None) => Err(PgWasNull),
+            Ok(None) => Err(Error::WasNull),
             Err(err) => Err(err)
         }
     }
@@ -730,7 +730,7 @@ impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
             Type::Unknown { ref name, .. } if "hstore" == name[] => {}
-            _ => return Err(PgWrongType(ty.clone()))
+            _ => return Err(Error::WrongType(ty.clone()))
         }
 
         let mut buf = vec![];
@@ -758,7 +758,7 @@ impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
             Type::Unknown { ref name, .. } if "hstore" == name[] => {}
-            _ => return Err(PgWrongType(ty.clone()))
+            _ => return Err(Error::WrongType(ty.clone()))
         }
 
         match *self {

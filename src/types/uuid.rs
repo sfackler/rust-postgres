@@ -2,14 +2,14 @@ extern crate uuid;
 
 use self::uuid::Uuid;
 use types::{RawFromSql, ToSql, RawToSql, Type};
-use Error::{PgWasNull, PgBadData};
+use Error;
 use Result;
 
 impl RawFromSql for Uuid {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Uuid> {
         match Uuid::from_bytes(try!(raw.read_to_end())[]) {
             Some(u) => Ok(u),
-            None => Err(PgBadData),
+            None => Err(Error::BadData),
         }
     }
 }

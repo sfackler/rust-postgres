@@ -16,7 +16,7 @@ macro_rules! check_desync(
             panic!("Connection use after free. See mozilla/rust#13246.");
         }
         if $e.is_desynchronized() {
-            return Err(::Error::PgStreamDesynchronized);
+            return Err(::Error::StreamDesynchronized);
         }
     })
 )
@@ -25,6 +25,6 @@ macro_rules! bad_response(
     ($s:expr) => ({
         debug!("Unexpected response");
         $s.desynchronized = true;
-        return Err(::Error::PgBadResponse);
+        return Err(::Error::BadResponse);
     })
 )

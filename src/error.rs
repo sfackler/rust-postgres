@@ -12,9 +12,6 @@ use phf;
 use Result;
 use types::Type;
 
-use self::ConnectError::*;
-use self::Error::*;
-
 macro_rules! make_errors(
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
@@ -368,7 +365,7 @@ pub enum ConnectError {
     /// The URL was missing a user
     MissingUser,
     /// An error from the Postgres server itself
-    PgConnectDbError(DbError),
+    DbError(::error::DbError),
     /// A password was required but not provided in the URL
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
@@ -379,40 +376,40 @@ pub enum ConnectError {
     /// There was an error initializing the SSL session
     SslError(sslerror::SslError),
     /// There was an error communicating with the server
-    PgConnectStreamError(io::IoError),
+    IoError(io::IoError),
     /// The server sent an unexpected response
-    PgConnectBadResponse,
+    BadResponse,
 }
 
 impl error::Error for ConnectError {
     fn description(&self) -> &str {
         match *self {
-            InvalidUrl(_) => "Invalid URL",
-            MissingUser => "User missing in URL",
-            PgConnectDbError(_) => "An error from the Postgres server itself",
-            MissingPassword => "The server requested a password but none was provided",
-            UnsupportedAuthentication => {
+            ConnectError::InvalidUrl(_) => "Invalid URL",
+            ConnectError::MissingUser => "User missing in URL",
+            ConnectError::DbError(_) => "An error from the Postgres server itself",
+            ConnectError::MissingPassword => "The server requested a password but none was provided",
+            ConnectError::UnsupportedAuthentication => {
                 "The server requested an unsupported authentication method"
             }
-            NoSslSupport => "The server does not support SSL",
-            SslError(_) => "Error initiating SSL session",
-            PgConnectStreamError(_) => "Error communicating with server",
-            PgConnectBadResponse => "The server returned an unexpected response",
+            ConnectError::NoSslSupport => "The server does not support SSL",
+            ConnectError::SslError(_) => "Error initiating SSL session",
+            ConnectError::IoError(_) => "Error communicating with server",
+            ConnectError::BadResponse => "The server returned an unexpected response",
         }
     }
 
     fn detail(&self) -> Option<String> {
         match *self {
-            InvalidUrl(ref msg) => Some(msg.clone()),
+            ConnectError::InvalidUrl(ref msg) => Some(msg.clone()),
             _ => None,
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            PgConnectDbError(ref err) => Some(err as &error::Error),
-            SslError(ref err) => Some(err as &error::Error),
-            PgConnectStreamError(ref err) => Some(err as &error::Error),
+            ConnectError::DbError(ref err) => Some(err as &error::Error),
+            ConnectError::SslError(ref err) => Some(err as &error::Error),
+            ConnectError::IoError(ref err) => Some(err as &error::Error),
             _ => None
         }
     }
@@ -420,39 +417,39 @@ impl error::Error for ConnectError {
 
 impl error::FromError<io::IoError> for ConnectError {
     fn from_error(err: io::IoError) -> ConnectError {
-        PgConnectStreamError(err)
+        ConnectError::IoError(err)
     }
 }
 
 impl error::FromError<DbError> for ConnectError {
     fn from_error(err: DbError) -> ConnectError {
-        PgConnectDbError(err)
+        ConnectError::DbError(err)
     }
 }
 
 impl error::FromError<sslerror::SslError> for ConnectError {
     fn from_error(err: sslerror::SslError) -> ConnectError {
-        SslError(err)
+        ConnectError::SslError(err)
     }
 }
 
 impl fmt::Show for ConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
-            MissingUser => write!(fmt, "User missing in URL"),
-            PgConnectDbError(ref err) => err.fmt(fmt),
-            MissingPassword =>
+            ConnectError::InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
+            ConnectError::MissingUser => write!(fmt, "User missing in URL"),
+            ConnectError::DbError(ref err) => err.fmt(fmt),
+            ConnectError::MissingPassword =>
                 write!(fmt, "The server requested a password but none was provided"),
-            UnsupportedAuthentication =>
+            ConnectError::UnsupportedAuthentication =>
                 write!(fmt, "The server requested an unsupported authentication method"),
-            NoSslSupport =>
+            ConnectError::NoSslSupport =>
                 write!(fmt, "The server does not support SSL"),
-            SslError(ref err) =>
+            ConnectError::SslError(ref err) =>
                 write!(fmt, "Error initiating SSL session: {}", err),
-            PgConnectStreamError(ref err) =>
+            ConnectError::IoError(ref err) =>
                 write!(fmt, "Error communicating with server: {}", err),
-            PgConnectBadResponse =>
+            ConnectError::BadResponse =>
                 write!(fmt, "The server returned an unexpected response"),
         }
     }
@@ -563,16 +560,16 @@ impl DbError {
     #[doc(hidden)]
     pub fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(PgConnectDbError(err)),
-            Err(()) => Err(PgConnectBadResponse),
+            Ok(err) => Err(ConnectError::DbError(err)),
+            Err(()) => Err(ConnectError::BadResponse),
         }
     }
 
     #[doc(hidden)]
     pub fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(PgDbError(err)),
-            Err(()) => Err(PgBadData),
+            Ok(err) => Err(Error::DbError(err)),
+            Err(()) => Err(Error::BadData),
         }
     }
 }
@@ -597,16 +594,16 @@ impl error::Error for DbError {
 #[deriving(Clone, PartialEq, Eq)]
 pub enum Error {
     /// An error reported by the Postgres server
-    PgDbError(DbError),
+    DbError(::error::DbError),
     /// An error communicating with the Postgres server
-    PgStreamError(io::IoError),
+    IoError(io::IoError),
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
-    PgStreamDesynchronized,
+    StreamDesynchronized,
     /// A prepared statement was executed on a connection it does not belong to
-    PgWrongConnection,
+    WrongConnection,
     /// An incorrect number of parameters were bound to a statement
-    PgWrongParamCount {
+    WrongParamCount {
         /// The expected number of parameters
         expected: uint,
         /// The actual number of parameters
@@ -614,41 +611,41 @@ pub enum Error {
     },
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types
-    PgWrongType(Type),
+    WrongType(Type),
     /// An attempt was made to read from a column that does not exist
-    PgInvalidColumn,
+    InvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type
-    PgWasNull,
+    WasNull,
     /// An attempt was made to prepare a statement or start a transaction on an
     /// object other than the active transaction
-    PgWrongTransaction,
+    WrongTransaction,
     /// The server returned an unexpected response
-    PgBadResponse,
+    BadResponse,
     /// The server provided data that the client could not parse
-    PgBadData,
+    BadData,
 }
 
 impl fmt::Show for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PgDbError(ref err) => err.fmt(fmt),
-            PgStreamError(ref err) => err.fmt(fmt),
-            PgStreamDesynchronized =>
+            Error::DbError(ref err) => err.fmt(fmt),
+            Error::IoError(ref err) => err.fmt(fmt),
+            Error::StreamDesynchronized =>
                 write!(fmt, "Communication with the server has desynchronized due to an earlier \
                              IO error"),
-            PgWrongConnection =>
+            Error::WrongConnection =>
                 write!(fmt, "A statement was executed with a connection it was not prepared with"),
-            PgWrongParamCount { expected, actual } =>
+            Error::WrongParamCount { expected, actual } =>
                 write!(fmt, "Expected {} parameters but got {}", expected, actual),
-            PgWrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
-            PgInvalidColumn => write!(fmt, "Invalid column"),
-            PgWasNull => write!(fmt, "The value was NULL"),
-            PgWrongTransaction =>
+            Error::WrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
+            Error::InvalidColumn => write!(fmt, "Invalid column"),
+            Error::WasNull => write!(fmt, "The value was NULL"),
+            Error::WrongTransaction =>
                 write!(fmt, "An attempt was made to prepare a statement or start a transaction on \
                              an object other than the active transaction"),
-            PgBadResponse =>
+            Error::BadResponse =>
                 write!(fmt, "The server returned an unexpected response"),
-            PgBadData =>
+            Error::BadData =>
                 write!(fmt, "The server provided data that the client could not parse"),
         }
     }
@@ -657,40 +654,40 @@ impl fmt::Show for Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            PgDbError(_) => "An error reported by the Postgres server",
-            PgStreamError(_) => "An error communicating with the Postgres server",
-            PgStreamDesynchronized => {
+            Error::DbError(_) => "An error reported by the Postgres server",
+            Error::IoError(_) => "An error communicating with the Postgres server",
+            Error::StreamDesynchronized => {
                 "Communication with the server has desynchronized due to an earlier IO error"
             }
-            PgWrongConnection => {
+            Error::WrongConnection => {
                 "A statement was executed with a connection with which it was not prepared"
             }
-            PgWrongParamCount { .. } => "Wrong number of parameters",
-            PgWrongType(_) => "Unexpected type",
-            PgInvalidColumn => "Invalid column",
-            PgWasNull => "The value was NULL",
-            PgWrongTransaction => {
+            Error::WrongParamCount { .. } => "Wrong number of parameters",
+            Error::WrongType(_) => "Unexpected type",
+            Error::InvalidColumn => "Invalid column",
+            Error::WasNull => "The value was NULL",
+            Error::WrongTransaction => {
                 "An attempt was made to use an object other than the active transaction"
             }
-            PgBadResponse => "The server returned an unexpected response",
-            PgBadData => "The server provided data that the client could not parse",
+            Error::BadResponse => "The server returned an unexpected response",
+            Error::BadData => "The server provided data that the client could not parse",
         }
     }
 
     fn detail(&self) -> Option<String> {
         match *self {
-            PgWrongParamCount { expected, actual } => {
+            Error::WrongParamCount { expected, actual } => {
                 Some(format!("expected: {}, actual: {}", expected, actual))
             }
-            PgWrongType(ref ty) => Some(format!("saw type {}", ty)),
+            Error::WrongType(ref ty) => Some(format!("saw type {}", ty)),
             _ => None
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            PgDbError(ref err) => Some(err as &error::Error),
-            PgStreamError(ref err) => Some(err as &error::Error),
+            Error::DbError(ref err) => Some(err as &error::Error),
+            Error::IoError(ref err) => Some(err as &error::Error),
             _ => None
         }
     }
@@ -698,12 +695,12 @@ impl error::Error for Error {
 
 impl error::FromError<DbError> for Error {
     fn from_error(err: DbError) -> Error {
-        PgDbError(err)
+        Error::DbError(err)
     }
 }
 
 impl error::FromError<io::IoError> for Error {
     fn from_error(err: io::IoError) -> Error {
-        PgStreamError(err)
+        Error::IoError(err)
     }
 }

@@ -361,7 +361,7 @@ impl InnerConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => return DbError::new_connect(fields),
-                _ => return Err(ConnectError::PgConnectBadResponse),
+                _ => return Err(ConnectError::BadResponse),
             }
         }
 
@@ -430,7 +430,7 @@ impl InnerConnection {
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
-                return Err(ConnectError::PgConnectBadResponse);
+                return Err(ConnectError::BadResponse);
             }
         }
 
@@ -439,7 +439,7 @@ impl InnerConnection {
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => {
                 self.desynchronized = true;
-                return Err(ConnectError::PgConnectBadResponse);
+                return Err(ConnectError::BadResponse);
             }
         }
     }
@@ -737,7 +737,7 @@ impl Connection {
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.prepare(query, self)
     }
@@ -769,7 +769,7 @@ impl Connection {
                                -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.prepare_copy_in(table, rows, self)
     }
@@ -802,7 +802,7 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != 0 {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         try!(conn.quick_query("BEGIN"));
         conn.trans_depth += 1;
@@ -862,7 +862,7 @@ impl Connection {
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         let mut conn = self.conn.borrow_mut();
         if conn.trans_depth != 0 {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.quick_query(query).map(|_| ())
     }
@@ -950,7 +950,7 @@ impl<'conn> Transaction<'conn> {
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.prepare(query, self.conn)
     }
@@ -960,7 +960,7 @@ impl<'conn> Transaction<'conn> {
                                -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.prepare_copy_in(table, cols, self.conn)
     }
@@ -974,7 +974,7 @@ impl<'conn> Transaction<'conn> {
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if conn.trans_depth != self.depth {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         conn.quick_query(query).map(|_| ())
     }
@@ -984,7 +984,7 @@ impl<'conn> Transaction<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != self.depth {
-            return Err(Error::PgWrongTransaction);
+            return Err(Error::WrongTransaction);
         }
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
@@ -1009,7 +1009,7 @@ impl<'conn> Transaction<'conn> {
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
         if self.conn as *const _ != stmt.conn as *const _ {
-            return Err(Error::PgWrongConnection);
+            return Err(Error::WrongConnection);
         }
         check_desync!(self.conn);
         stmt.lazy_query(row_limit, params).map(|result| {
@@ -1080,7 +1080,7 @@ impl<'conn> Statement<'conn> {
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         if self.param_types.len() != params.len() {
-            return Err(Error::PgWrongParamCount {
+            return Err(Error::WrongParamCount {
                 expected: self.param_types.len(),
                 actual: params.len(),
             });
@@ -1112,7 +1112,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                Err(Error::PgBadResponse)
+                Err(Error::BadResponse)
             }
         }
     }
@@ -1193,7 +1193,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::PgBadResponse);
+                    return Err(Error::BadResponse);
                 }
             }
         }
@@ -1315,7 +1315,7 @@ impl<'stmt> Rows<'stmt> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::PgBadResponse);
+                    return Err(Error::BadResponse);
                 }
             }
         }
@@ -1392,7 +1392,7 @@ impl<'stmt> Row<'stmt> {
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
-        let idx = try!(idx.idx(self.stmt).ok_or(Error::PgInvalidColumn));
+        let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
         FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
     }
 
@@ -1537,7 +1537,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::PgBadResponse);
+                return Err(Error::BadResponse);
             }
         }
 
@@ -1545,7 +1545,7 @@ impl<'a> CopyInStatement<'a> {
             CopyInResponse { .. } => {}
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::PgBadResponse);
+                return Err(Error::BadResponse);
             }
         }
 
@@ -1613,7 +1613,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::PgBadResponse);
+                return Err(Error::BadResponse);
             }
         };
 
