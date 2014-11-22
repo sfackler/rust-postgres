@@ -29,11 +29,9 @@ phf = "*"
 phf_mac = "*"
 
 [dependencies.uuid]
-git = "https://github.com/rust-lang/uuid"
 optional = true
 
 [dependencies.time]
-git = "https://github.com/rust-lang/time"
 optional = true
 
 [dev-dependencies]
