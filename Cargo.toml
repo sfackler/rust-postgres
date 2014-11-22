@@ -1,9 +1,13 @@
 [package]
 name = "postgres"
-version = "0.0.0"
+version = "0.0.1"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 license = "MIT"
 description = "A native PostgreSQL driver"
+repository = "https://github.com/sfackler/rust-postgres"
+documentation = "https://sfackler.github.io/doc/postgres"
+readme = "README.md"
+keywords = ["database", "sql"]
 
 [lib]
 name = "postgres"
@@ -20,11 +24,9 @@ default = ["uuid", "time"]
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
 
-[dependencies.phf]
-git = "https://github.com/sfackler/rust-phf"
-
-[dependencies.phf_mac]
-git = "https://github.com/sfackler/rust-phf"
+[dependencies]
+phf = "*"
+phf_mac = "*"
 
 [dependencies.uuid]
 git = "https://github.com/rust-lang/uuid"
@@ -34,6 +36,6 @@ optional = true
 git = "https://github.com/rust-lang/time"
 optional = true
 
-[dev-dependencies.url]
-git = "https://github.com/servo/rust-url"
+[dev-dependencies]
+url = "*"
 
