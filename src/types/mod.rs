@@ -37,6 +37,7 @@ macro_rules! from_range_impl(
                 use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
                             RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
                 use types::range::{BoundType, Range, RangeBound};
+                use Error;
 
                 let t = try!(rdr.read_i8());
 
@@ -53,7 +54,9 @@ macro_rules! from_range_impl(
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
                             let lower = try!(RawFromSql::raw_from_sql(&mut limit));
                             let lower = Some(RangeBound::new(lower, type_));
-                            assert!(limit.limit() == 0);
+                            if limit.limit() != 0 {
+                                return Err(Error::BadData);
+                            }
                             lower
                         }
                         _ => None
@@ -68,7 +71,9 @@ macro_rules! from_range_impl(
                             let mut limit = LimitReader::new(rdr.by_ref(), len);
                             let upper = try!(RawFromSql::raw_from_sql(&mut limit));
                             let upper = Some(RangeBound::new(upper, type_));
-                            assert!(limit.limit() == 0);
+                            if limit.limit() != 0 {
+                                return Err(Error::BadData);
+                            }
                             upper
                         }
                         _ => None
@@ -131,6 +136,7 @@ macro_rules! from_array_impl(
             use std::io::util::LimitReader;
             use types::{Oid, RawFromSql};
             use types::array::{ArrayBase, DimensionInfo};
+            use Error;
 
             let mut rdr = BufReader::new(buf[]);
 
@@ -155,7 +161,9 @@ macro_rules! from_array_impl(
                 } else {
                     let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
                     elements.push(Some(try!(RawFromSql::raw_from_sql(&mut limit))));
-                    assert!(limit.limit() == 0);
+                    if limit.limit() != 0 {
+                        return Err(Error::BadData);
+                    }
                 }
             }
 
