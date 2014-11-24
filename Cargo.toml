@@ -1,6 +1,6 @@
 [package]
 name = "postgres"
-version = "0.0.1"
+version = "0.1.0"
 authors = [ "Steven Fackler <sfackler@gmail.com>" ]
 license = "MIT"
 description = "A native PostgreSQL driver"
@@ -21,12 +21,10 @@ path = "tests/test.rs"
 [features]
 default = ["uuid", "time"]
 
-[dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl"
-
 [dependencies]
 phf = "*"
 phf_mac = "*"
+openssl = "*"
 
 [dependencies.uuid]
 optional = true
