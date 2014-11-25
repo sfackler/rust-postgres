@@ -36,51 +36,38 @@ macro_rules! from_range_impl(
                 use std::io::util::LimitReader;
                 use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
                             RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
-                use types::range::{BoundType, Range, RangeBound};
+                use types::range::{BoundType, Range, RangeBound, BoundSided};
                 use Error;
 
                 let t = try!(rdr.read_i8());
 
                 if t & RANGE_EMPTY != 0 {
-                    Ok(Range::empty())
-                } else {
-                    let lower = match t & RANGE_LOWER_UNBOUNDED {
-                        0 => {
-                            let type_ = match t & RANGE_LOWER_INCLUSIVE {
-                                0 => BoundType::Exclusive,
-                                _ => BoundType::Inclusive
-                            };
-                            let len = try!(rdr.read_be_i32()) as uint;
-                            let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            let lower = try!(RawFromSql::raw_from_sql(&mut limit));
-                            let lower = Some(RangeBound::new(lower, type_));
-                            if limit.limit() != 0 {
-                                return Err(Error::BadData);
-                            }
-                            lower
-                        }
-                        _ => None
-                    };
-                    let upper = match t & RANGE_UPPER_UNBOUNDED {
-                        0 => {
-                            let type_ = match t & RANGE_UPPER_INCLUSIVE {
-                                0 => BoundType::Exclusive,
-                                _ => BoundType::Inclusive
-                            };
-                            let len = try!(rdr.read_be_i32()) as uint;
-                            let mut limit = LimitReader::new(rdr.by_ref(), len);
-                            let upper = try!(RawFromSql::raw_from_sql(&mut limit));
-                            let upper = Some(RangeBound::new(upper, type_));
-                            if limit.limit() != 0 {
-                                return Err(Error::BadData);
-                            }
-                            upper
-                        }
-                        _ => None
-                    };
-
-                    Ok(Range::new(lower, upper))
+                    return Ok(Range::empty());
                 }
+
+                fn make_bound<T, R>(rdr: &mut R, tag: i8, bound_flag: i8, inclusive_flag: i8)
+                        -> Result<Option<RangeBound<T, $t>>> where T: BoundSided, R: Reader {
+                    match tag & bound_flag {
+                        0 => {
+                            let type_ = match tag & inclusive_flag {
+                                0 => BoundType::Exclusive,
+                                _ => BoundType::Inclusive,
+                            };
+                            let len = try!(rdr.read_be_i32()) as uint;
+                            let mut limit = LimitReader::new(rdr.by_ref(), len);
+                            let bound = try!(RawFromSql::raw_from_sql(&mut limit));
+                            if limit.limit() != 0 {
+                                return Err(Error::BadData);
+                            }
+                            Ok(Some(RangeBound::new(bound, type_)))
+                        }
+                        _ => Ok(None)
+                    }
+                }
+
+                let lower = try!(make_bound(rdr, t, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE));
+                let upper = try!(make_bound(rdr, t, RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE));
+                Ok(Range::new(lower, upper))
             }
         }
     )
