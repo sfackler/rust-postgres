@@ -39,7 +39,7 @@ fn main() {
                     name            VARCHAR NOT NULL,
                     time_created    TIMESTAMP NOT NULL,
                     data            BYTEA
-                  )", []).unwrap();
+                  )", &[]).unwrap();
     let me = Person {
         id: 0,
         name: "Steven".into_string(),
@@ -52,7 +52,7 @@ fn main() {
 
     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
             .unwrap();
-    for row in stmt.query([]).unwrap() {
+    for row in stmt.query(&[]).unwrap() {
         let person = Person {
             id: row.get(0),
             name: row.get(1),
@@ -117,7 +117,7 @@ though access by index is more efficient. Unlike statement parameters, result
 columns are zero-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
-for row in try!(stmt.query([])) {
+for row in try!(stmt.query(&[])) {
     let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
