@@ -1,12 +1,10 @@
-//! Postgres errors
-
 use std::collections::HashMap;
 use std::error;
-use std::io;
+use std::io::IoError;
 use std::fmt;
 use std::result;
 
-use openssl::ssl::error as sslerror;
+use openssl::ssl::error::SslError;
 use phf;
 
 use Result;
@@ -365,7 +363,7 @@ pub enum ConnectError {
     /// The URL was missing a user
     MissingUser,
     /// An error from the Postgres server itself
-    DbError(::error::DbError),
+    DbError(DbError),
     /// A password was required but not provided in the URL
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
@@ -374,9 +372,9 @@ pub enum ConnectError {
     /// The Postgres server does not support SSL encryption
     NoSslSupport,
     /// There was an error initializing the SSL session
-    SslError(sslerror::SslError),
+    SslError(SslError),
     /// There was an error communicating with the server
-    IoError(io::IoError),
+    IoError(IoError),
     /// The server sent an unexpected response
     BadResponse,
 }
@@ -415,8 +413,8 @@ impl error::Error for ConnectError {
     }
 }
 
-impl error::FromError<io::IoError> for ConnectError {
-    fn from_error(err: io::IoError) -> ConnectError {
+impl error::FromError<IoError> for ConnectError {
+    fn from_error(err: IoError) -> ConnectError {
         ConnectError::IoError(err)
     }
 }
@@ -427,8 +425,8 @@ impl error::FromError<DbError> for ConnectError {
     }
 }
 
-impl error::FromError<sslerror::SslError> for ConnectError {
-    fn from_error(err: sslerror::SslError) -> ConnectError {
+impl error::FromError<SslError> for ConnectError {
+    fn from_error(err: SslError) -> ConnectError {
         ConnectError::SslError(err)
     }
 }
@@ -596,7 +594,7 @@ pub enum Error {
     /// An error reported by the Postgres server
     DbError(::error::DbError),
     /// An error communicating with the Postgres server
-    IoError(io::IoError),
+    IoError(IoError),
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
     StreamDesynchronized,
@@ -699,8 +697,8 @@ impl error::FromError<DbError> for Error {
     }
 }
 
-impl error::FromError<io::IoError> for Error {
-    fn from_error(err: io::IoError) -> Error {
+impl error::FromError<IoError> for Error {
+    fn from_error(err: IoError) -> Error {
         Error::IoError(err)
     }
 }

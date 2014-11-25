@@ -29,7 +29,7 @@
 //!                     name            VARCHAR NOT NULL,
 //!                     time_created    TIMESTAMP NOT NULL,
 //!                     data            BYTEA
-//!                   )", []).unwrap();
+//!                   )", &[]).unwrap();
 //!     let me = Person {
 //!         id: 0,
 //!         name: "Steven".into_string(),
@@ -42,7 +42,7 @@
 //!
 //!     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
 //!             .unwrap();
-//!     for row in stmt.query([]).unwrap() {
+//!     for row in stmt.query(&[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
