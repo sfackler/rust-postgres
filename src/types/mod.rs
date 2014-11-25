@@ -121,6 +121,7 @@ macro_rules! from_array_impl(
         from_map_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
             use std::io::{BufReader, ByRefReader};
             use std::io::util::LimitReader;
+            use std::iter::MultiplicativeIterator;
             use types::{Oid, RawFromSql};
             use types::array::{ArrayBase, DimensionInfo};
             use Error;
@@ -138,7 +139,7 @@ macro_rules! from_array_impl(
                     lower_bound: try!(rdr.read_be_i32()) as int
                 });
             }
-            let nele = dim_info.iter().fold(1, |acc, info| acc * info.len);
+            let nele = dim_info.iter().map(|info| info.len).product();
 
             let mut elements = Vec::with_capacity(nele);
             for _ in range(0, nele) {
@@ -175,48 +176,39 @@ macro_rules! to_range_impl(
             fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
                 use types::{RANGE_EMPTY, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE,
                             RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE};
-                use types::range::{BoundType, RangeBound};
+                use types::range::{BoundType, RangeBound, BoundSided};
 
                 let mut tag = 0;
                 if self.is_empty() {
                     tag |= RANGE_EMPTY;
                 } else {
-                    match self.lower() {
-                        None => tag |= RANGE_LOWER_UNBOUNDED,
-                        Some(&RangeBound { type_: BoundType::Inclusive, .. }) => {
-                            tag |= RANGE_LOWER_INCLUSIVE
+                    fn make_tag<T>(bound: Option<&RangeBound<T, $t>>, unbounded_tag: i8,
+                                   inclusive_tag: i8) -> i8 where T: BoundSided {
+                        match bound {
+                            None => unbounded_tag,
+                            Some(&RangeBound { type_: BoundType::Inclusive, .. }) => inclusive_tag,
+                            _ => 0
                         }
-                        _ => {}
                     }
-                    match self.upper() {
-                        None => tag |= RANGE_UPPER_UNBOUNDED,
-                        Some(&RangeBound { type_: BoundType::Inclusive, .. }) => {
-                            tag |= RANGE_UPPER_INCLUSIVE
-                        }
-                        _ => {}
-                    }
+                    tag |= make_tag(self.lower(), RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE);
+                    tag |= make_tag(self.upper(), RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE);
                 }
 
                 try!(buf.write_i8(tag));
 
-                match self.lower() {
-                    Some(bound) => {
+                fn write_value<T, W>(buf: &mut W, v: Option<&RangeBound<T, $t>>) -> Result<()>
+                        where T: BoundSided, W: Writer {
+                    if let Some(bound) = v {
                         let mut inner_buf = vec![];
                         try!(bound.value.raw_to_sql(&mut inner_buf));
-                        try!(buf.write_be_i32(inner_buf.len() as i32));
+                        try!(buf.write_be_u32(inner_buf.len() as u32));
                         try!(buf.write(inner_buf[]));
                     }
-                    None => {}
+                    Ok(())
                 }
-                match self.upper() {
-                    Some(bound) => {
-                        let mut inner_buf = vec![];
-                        try!(bound.value.raw_to_sql(&mut inner_buf));
-                        try!(buf.write_be_i32(inner_buf.len() as i32));
-                        try!(buf.write(inner_buf[]));
-                    }
-                    None => {}
-                }
+
+                try!(write_value(buf, self.lower()));
+                try!(write_value(buf, self.upper()));
 
                 Ok(())
             }
