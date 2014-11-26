@@ -33,5 +33,5 @@ optional = true
 optional = true
 
 [dev-dependencies]
-url = "*"
+url = "0.2"
 
