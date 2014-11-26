@@ -238,6 +238,28 @@ impl<'conn> Iterator<Notification> for Notifications<'conn> {
     }
 }
 
+impl<'conn> Notifications<'conn> {
+    /// Returns the oldest pending notification.
+    ///
+    /// If no notifications are pending, blocks until one arrives.
+    pub fn next_block(&mut self) -> Result<Notification> {
+        if let Some(notification) = self.next() {
+            return Ok(notification);
+        }
+
+        match try!(self.conn.conn.borrow_mut().read_message_with_notification()) {
+            NotificationResponse { pid, channel, payload } => {
+                Ok(Notification {
+                    pid: pid,
+                    channel: channel,
+                    payload: payload
+                })
+            }
+            _ => unreachable!()
+        }
+    }
+}
+
 /// Contains information necessary to cancel queries for a session
 pub struct CancelData {
     /// The process ID of the session
@@ -376,7 +398,7 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_message(&mut self) -> IoResult<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> IoResult<BackendMessage> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
@@ -385,15 +407,24 @@ impl InnerConnection {
                         self.notice_handler.handle(err);
                     }
                 }
+                ParameterStatus { parameter, value } => {
+                    debug!("Parameter {} = {}", parameter, value)
+                }
+                val => return Ok(val)
+            }
+        }
+    }
+
+    fn read_message(&mut self) -> IoResult<BackendMessage> {
+        debug_assert!(!self.desynchronized);
+        loop {
+            match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {
                     self.notifications.push_back(Notification {
                         pid: pid,
                         channel: channel,
                         payload: payload
                     })
-                }
-                ParameterStatus { parameter, value } => {
-                    debug!("Parameter {} = {}", parameter, value)
                 }
                 val => return Ok(val)
             }

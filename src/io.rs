@@ -43,6 +43,16 @@ impl<S: Stream> Writer for MaybeSslStream<S> {
     }
 }
 
+impl MaybeSslStream<InternalStream> {
+    #[allow(dead_code)]
+    pub fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
+        match *self {
+            MaybeSslStream::Ssl(ref mut s) => s.get_inner().set_read_timeout(timeout_ms),
+            MaybeSslStream::Normal(ref mut s) => s.set_read_timeout(timeout_ms),
+        }
+    }
+}
+
 pub enum InternalStream {
     TcpStream(tcp::TcpStream),
     UnixStream(pipe::UnixStream),
@@ -69,6 +79,15 @@ impl Writer for InternalStream {
         match *self {
             TcpStream(ref mut s) => s.flush(),
             UnixStream(ref mut s) => s.flush(),
+        }
+    }
+}
+
+impl InternalStream {
+    pub fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
+        match *self {
+            TcpStream(ref mut s) => s.set_read_timeout(timeout_ms),
+            UnixStream(ref mut s) => s.set_read_timeout(timeout_ms),
         }
     }
 }

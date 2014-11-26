@@ -558,19 +558,14 @@ fn test_notification_iterator_none() {
     assert!(conn.notifications().next().is_none());
 }
 
+fn check_notification(expected: Notification,
+                      actual: Notification) {
+    assert_eq!(&expected.channel, &actual.channel);
+    assert_eq!(&expected.payload, &actual.payload);
+}
+
 #[test]
 fn test_notification_iterator_some() {
-    fn check_notification(expected: Notification,
-                          actual: Option<Notification>) {
-        match actual {
-            Some(Notification { channel, payload, .. }) => {
-                assert_eq!(&expected.channel, &channel);
-                assert_eq!(&expected.payload, &payload);
-            }
-            None => panic!("Unexpected result")
-        }
-    }
-
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let mut it = conn.notifications();
     or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel", &[]));
@@ -582,12 +577,12 @@ fn test_notification_iterator_some() {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "hello".to_string()
-    }, it.next());
+    }, it.next().unwrap());
     check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel2".to_string(),
         payload: "world".to_string()
-    }, it.next());
+    }, it.next().unwrap());
     assert!(it.next().is_none());
 
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", &[]));
@@ -595,8 +590,27 @@ fn test_notification_iterator_some() {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "!".to_string()
-    }, it.next());
+    }, it.next().unwrap());
     assert!(it.next().is_none());
+}
+
+#[test]
+fn test_notifications_next_block() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("LISTEN test_notifications_next_block", &[]));
+
+    spawn(proc() {
+        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+        timer::sleep(Duration::milliseconds(500));
+        or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
+    });
+
+    let mut notifications = conn.notifications();
+    check_notification(Notification {
+        pid: 0,
+        channel: "test_notifications_next_block".to_string(),
+        payload: "foo".to_string()
+    }, or_panic!(notifications.next_block()));
 }
 
 #[test]
