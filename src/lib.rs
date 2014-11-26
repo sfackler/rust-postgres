@@ -1364,6 +1364,11 @@ impl<'stmt> Rows<'stmt> {
         self.read_rows()
     }
 
+    /// Returns a slice describing the columns of the `Rows`.
+    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
+        self.stmt.result_descriptions()
+    }
+
     /// Consumes the `Rows`, cleaning up associated state.
     ///
     /// Functionally identical to the `Drop` implementation on `Rows`
@@ -1414,6 +1419,11 @@ impl<'stmt> Row<'stmt> {
     #[inline]
     pub fn len(&self) -> uint {
         self.data.len()
+    }
+
+    /// Returns a slice describing the columns of the `Row`.
+    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
+        self.stmt.result_descriptions()
     }
 
     /// Retrieves the contents of a field of the row.
