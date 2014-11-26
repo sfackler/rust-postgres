@@ -247,6 +247,7 @@ impl<'conn> Notifications<'conn> {
             return Ok(notification);
         }
 
+        check_desync!(self.conn.conn.borrow());
         match try!(self.conn.conn.borrow_mut().read_message_with_notification()) {
             NotificationResponse { pid, channel, payload } => {
                 Ok(Notification {
