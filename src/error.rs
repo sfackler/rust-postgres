@@ -592,7 +592,7 @@ impl error::Error for DbError {
 #[deriving(Clone, PartialEq, Eq)]
 pub enum Error {
     /// An error reported by the Postgres server
-    DbError(::error::DbError),
+    DbError(DbError),
     /// An error communicating with the Postgres server
     IoError(IoError),
     /// The communication channel with the Postgres server has desynchronized
