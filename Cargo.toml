@@ -22,8 +22,8 @@ path = "tests/test.rs"
 default = ["uuid", "time"]
 
 [dependencies]
-phf = "*"
-phf_mac = "*"
+phf = "0.1"
+phf_mac = "0.1"
 openssl = "0.1"
 
 [dependencies.uuid]
