@@ -28,9 +28,11 @@ openssl = "0.1"
 
 [dependencies.uuid]
 optional = true
+version = "0.1"
 
 [dependencies.time]
 optional = true
+version = "0.1"
 
 [dev-dependencies]
 url = "0.2"
