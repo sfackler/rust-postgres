@@ -853,7 +853,10 @@ impl Connection {
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
-        self.prepare(query).and_then(|stmt| stmt.execute(params))
+        let stmt = try!(self.prepare(query));
+        let out = try!(stmt.execute(params));
+        try!(stmt.finish());
+        Ok(out)
     }
 
     /// Execute a sequence of SQL statements.
@@ -999,7 +1002,10 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
-        self.prepare(query).and_then(|s| s.execute(params))
+        let stmt = try!(self.prepare(query));
+        let out = try!(stmt.execute(params));
+        try!(stmt.finish());
+        Ok(out)
     }
 
     /// Like `Connection::batch_execute`.
@@ -1680,9 +1686,7 @@ pub trait GenericConnection {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::execute`.
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
-        self.prepare(query).and_then(|s| s.execute(params))
-    }
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint>;
 
     /// Like `Connection::prepare_copy_in`.
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
@@ -1698,6 +1702,10 @@ pub trait GenericConnection {
 impl GenericConnection for Connection {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
+    }
+
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+        self.execute(query, params)
     }
 
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
@@ -1717,6 +1725,10 @@ impl GenericConnection for Connection {
 impl<'a> GenericConnection for Transaction<'a> {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
+    }
+
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+        self.execute(query, params)
     }
 
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
