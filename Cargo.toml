@@ -1,7 +1,7 @@
 [package]
 name = "postgres"
 version = "0.1.0"
-authors = [ "Steven Fackler <sfackler@gmail.com>" ]
+authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"

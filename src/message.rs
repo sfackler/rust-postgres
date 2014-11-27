@@ -166,9 +166,7 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_be_i16(values.len() as i16));
                 for value in values.iter() {
                     match *value {
-                        None => {
-                            try!(buf.write_be_i32(-1));
-                        }
+                        None => try!(buf.write_be_i32(-1)),
                         Some(ref value) => {
                             try!(buf.write_be_i32(value.len() as i32));
                             try!(buf.write(value[]));
@@ -195,9 +193,7 @@ impl<W: Writer> WriteMessage for W {
                 ident = Some(b'd');
                 try!(buf.write(data));
             }
-            CopyDone => {
-                ident = Some(b'c');
-            }
+            CopyDone => ident = Some(b'c'),
             CopyFail { message } => {
                 ident = Some(b'f');
                 try!(buf.write_cstr(message));
@@ -238,12 +234,8 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_u8(0));
             }
             SslRequest { code } => try!(buf.write_be_u32(code)),
-            Sync => {
-                ident = Some(b'S');
-            }
-            Terminate => {
-                ident = Some(b'X');
-            }
+            Sync => ident = Some(b'S'),
+            Terminate => ident = Some(b'X'),
         }
 
         if let Some(ident) = ident {
