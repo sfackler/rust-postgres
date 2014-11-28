@@ -68,7 +68,7 @@ extern crate log;
 
 use url::Url;
 use openssl::crypto::hash::{HashType, Hasher};
-use openssl::ssl::SslContext;
+use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::{RingBuf, HashMap};
@@ -78,7 +78,7 @@ use std::mem;
 use std::fmt;
 use std::result;
 
-use io::{MaybeSslStream, InternalStream};
+use io::InternalStream;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
@@ -583,9 +583,7 @@ impl InnerConnection {
             Sync]));
         let resp = match try!(self.read_message()) {
             CloseComplete => Ok(()),
-            ErrorResponse { fields } => {
-                DbError::new(fields)
-            }
+            ErrorResponse { fields } => DbError::new(fields),
             _ => {
                 self.desynchronized = true;
                 return Err(Error::BadResponse);

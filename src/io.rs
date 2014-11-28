@@ -1,8 +1,8 @@
-use openssl::ssl;
+use openssl::ssl::{SslStream, MaybeSslStream};
 use std::io::net::ip::Port;
 use std::io::net::tcp::TcpStream;
 use std::io::net::pipe::UnixStream;
-use std::io::{Stream, IoResult};
+use std::io::IoResult;
 
 use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
@@ -10,46 +10,6 @@ use message::WriteMessage;
 use message::FrontendMessage::SslRequest;
 
 const DEFAULT_PORT: Port = 5432;
-
-pub enum MaybeSslStream<S> {
-    Ssl(ssl::SslStream<S>),
-    Normal(S),
-}
-
-impl<S: Stream> Reader for MaybeSslStream<S> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
-        match *self {
-            MaybeSslStream::Ssl(ref mut s) => s.read(buf),
-            MaybeSslStream::Normal(ref mut s) => s.read(buf),
-        }
-    }
-}
-
-impl<S: Stream> Writer for MaybeSslStream<S> {
-    fn write(&mut self, buf: &[u8]) -> IoResult<()> {
-        match *self {
-            MaybeSslStream::Ssl(ref mut s) => s.write(buf),
-            MaybeSslStream::Normal(ref mut s) => s.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> IoResult<()> {
-        match *self {
-            MaybeSslStream::Ssl(ref mut s) => s.flush(),
-            MaybeSslStream::Normal(ref mut s) => s.flush(),
-        }
-    }
-}
-
-impl MaybeSslStream<InternalStream> {
-    #[allow(dead_code)]
-    pub fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
-        match *self {
-            MaybeSslStream::Ssl(ref mut s) => s.get_inner().set_read_timeout(timeout_ms),
-            MaybeSslStream::Normal(ref mut s) => s.set_read_timeout(timeout_ms),
-        }
-    }
-}
 
 pub enum InternalStream {
     Tcp(TcpStream),
@@ -82,6 +42,7 @@ impl Writer for InternalStream {
 }
 
 impl InternalStream {
+    #[allow(dead_code)]
     pub fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
         match *self {
             InternalStream::Tcp(ref mut s) => s.set_read_timeout(timeout_ms),
@@ -124,7 +85,7 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
         }
     }
 
-    match ssl::SslStream::new(ctx, socket) {
+    match SslStream::new(ctx, socket) {
         Ok(stream) => Ok(MaybeSslStream::Ssl(stream)),
         Err(err) => Err(ConnectError::SslError(err))
     }
