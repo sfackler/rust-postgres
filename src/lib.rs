@@ -67,7 +67,7 @@ extern crate phf_mac;
 extern crate log;
 
 use url::Url;
-use openssl::crypto::hash::{MD5, Hasher};
+use openssl::crypto::hash::{HashType, Hasher};
 use openssl::ssl::SslContext;
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
@@ -443,11 +443,11 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Hasher::new(MD5);
+                let mut hasher = Hasher::new(HashType::MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
                 let output = hasher.finalize()[].to_hex();
-                let mut hasher = Hasher::new(MD5);
+                let mut hasher = Hasher::new(HashType::MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(&salt);
                 let output = format!("md5{}", hasher.finalize()[].to_hex());
@@ -1560,7 +1560,7 @@ impl<'a> CopyInStatement<'a> {
     ///
     /// Returns the number of rows copied.
     pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<uint>
-            where I: Iterator<J>, J: Iterator<&'b ToSql + 'b> {
+            where I: Iterator<J>, J: Iterator<&'b (ToSql + 'b)> {
         let mut conn = self.conn.conn.borrow_mut();
 
         try!(conn.write_messages(&[

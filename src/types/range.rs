@@ -49,50 +49,50 @@ macro_rules! range(
     ('(', $h:expr ')') => (
         ::postgres::types::range::Range::new(None,
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Exclusive)))
+                ::postgres::types::range::BoundType::Exclusive)))
     );
     ('(', $h:expr ']') => (
         ::postgres::types::range::Range::new(None,
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Inclusive)))
+                ::postgres::types::range::BoundType::Inclusive)))
     );
     ('(' $l:expr, ')') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Exclusive)), None)
+                ::postgres::types::range::BoundType::Exclusive)), None)
     );
     ('[' $l:expr, ')') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Inclusive)), None)
+                ::postgres::types::range::BoundType::Inclusive)), None)
     );
     ('(' $l:expr, $h:expr ')') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Exclusive)),
+                ::postgres::types::range::BoundType::Exclusive)),
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Exclusive)))
+                ::postgres::types::range::BoundType::Exclusive)))
     );
     ('(' $l:expr, $h:expr ']') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Exclusive)),
+                ::postgres::types::range::BoundType::Exclusive)),
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Inclusive)))
+                ::postgres::types::range::BoundType::Inclusive)))
     );
     ('[' $l:expr, $h:expr ')') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Inclusive)),
+                ::postgres::types::range::BoundType::Inclusive)),
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Exclusive)))
+                ::postgres::types::range::BoundType::Exclusive)))
     );
     ('[' $l:expr, $h:expr ']') => (
         ::postgres::types::range::Range::new(
             Some(::postgres::types::range::RangeBound::new($l,
-                ::postgres::types::range::Inclusive)),
+                ::postgres::types::range::BoundType::Inclusive)),
             Some(::postgres::types::range::RangeBound::new($h,
-                ::postgres::types::range::Inclusive)))
+                ::postgres::types::range::BoundType::Inclusive)))
     )
 )
 

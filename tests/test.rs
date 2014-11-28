@@ -6,7 +6,8 @@ extern crate serialize;
 extern crate url;
 extern crate openssl;
 
-use openssl::ssl::{SslContext, Sslv3};
+use openssl::ssl::SslContext;
+use openssl::ssl::SslMethod::Sslv3;
 use std::io::timer;
 use std::time::Duration;
 

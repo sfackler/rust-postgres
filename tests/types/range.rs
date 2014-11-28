@@ -2,12 +2,11 @@ use std::i32;
 
 use postgres::types::range::{RangeBound,
                              Range,
-                             Inclusive,
-                             Exclusive,
                              UpperBound,
                              LowerBound,
                              Normalizable,
                              BoundType};
+use postgres::types::range::BoundType::{Inclusive, Exclusive};
 
 #[test]
 fn test_range_bound_lower_lt() {
