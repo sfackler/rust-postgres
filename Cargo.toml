@@ -24,7 +24,7 @@ default = ["uuid", "time"]
 [dependencies]
 phf = "0.1"
 phf_mac = "0.1"
-openssl = "0.1"
+openssl = "0.2"
 
 [dependencies.uuid]
 optional = true

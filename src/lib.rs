@@ -443,11 +443,11 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let hasher = Hasher::new(MD5);
+                let mut hasher = Hasher::new(MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
                 let output = hasher.finalize()[].to_hex();
-                let hasher = Hasher::new(MD5);
+                let mut hasher = Hasher::new(MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(&salt);
                 let output = format!("md5{}", hasher.finalize()[].to_hex());
