@@ -559,8 +559,7 @@ fn test_notification_iterator_none() {
     assert!(conn.notifications().next().is_none());
 }
 
-fn check_notification(expected: Notification,
-                      actual: Notification) {
+fn check_notification(expected: Notification, actual: Notification) {
     assert_eq!(&expected.channel, &actual.channel);
     assert_eq!(&expected.payload, &actual.payload);
 }

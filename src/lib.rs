@@ -557,7 +557,7 @@ impl InnerConnection {
         let (stmt_name, _, result_desc) = try!(self.raw_prepare(query[]));
 
         let column_types = result_desc.iter().map(|desc| desc.ty.clone()).collect();
-        try!(self.close_statement(stmt_name[]));
+        try!(self.close_statement(stmt_name[], b'S'));
 
         let mut query = vec![];
         let _ = write!(&mut query, "COPY {} (", table);
@@ -574,24 +574,25 @@ impl InnerConnection {
         })
     }
 
-    fn close_statement(&mut self, stmt_name: &str) -> Result<()> {
+    fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
         try!(self.write_messages(&[
             Close {
-                variant: b'S',
-                name: stmt_name,
+                variant: type_,
+                name: name,
             },
             Sync]));
-        loop {
-            match try!(self.read_message()) {
-                ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => {
-                    try!(self.wait_for_ready());
-                    return DbError::new(fields);
-                }
-                _ => {}
+        let resp = match try!(self.read_message()) {
+            CloseComplete => Ok(()),
+            ErrorResponse { fields } => {
+                DbError::new(fields)
             }
-        }
-        Ok(())
+            _ => {
+                self.desynchronized = true;
+                return Err(Error::BadResponse);
+            }
+        };
+        try!(self.wait_for_ready());
+        resp
     }
 
     fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()> where I: Iterator<&'a mut Type> {
@@ -1112,7 +1113,7 @@ impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name[])
+        conn.close_statement(self.name[], b'S')
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
@@ -1306,25 +1307,7 @@ impl<'stmt> Rows<'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         check_desync!(conn);
-        try!(conn.write_messages(&[
-            Close {
-                variant: b'P',
-                name: self.name[]
-            },
-            Sync]));
-
-        loop {
-            match try!(conn.read_message()) {
-                ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => {
-                    try!(conn.wait_for_ready());
-                    return DbError::new(fields);
-                }
-                _ => {}
-            }
-        }
-
-        Ok(())
+        conn.close_statement(self.name[], b'P')
     }
 
     fn read_rows(&mut self) -> Result<()> {
@@ -1545,7 +1528,7 @@ impl<'a> CopyInStatement<'a> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name[])
+        conn.close_statement(self.name[], b'S')
     }
 
     /// Returns a slice containing the expected column types.
