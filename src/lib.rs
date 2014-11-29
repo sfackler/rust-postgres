@@ -417,7 +417,6 @@ impl InnerConnection {
     }
 
     fn read_message(&mut self) -> IoResult<BackendMessage> {
-        debug_assert!(!self.desynchronized);
         loop {
             match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {
@@ -460,19 +459,13 @@ impl InnerConnection {
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => {
-                self.desynchronized = true;
-                return Err(ConnectError::BadResponse);
-            }
+            _ => return Err(ConnectError::BadResponse)
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => {
-                self.desynchronized = true;
-                return Err(ConnectError::BadResponse);
-            }
+            _ => return Err(ConnectError::BadResponse)
         }
     }
 
@@ -584,10 +577,7 @@ impl InnerConnection {
         let resp = match try!(self.read_message()) {
             CloseComplete => Ok(()),
             ErrorResponse { fields } => DbError::new(fields),
-            _ => {
-                self.desynchronized = true;
-                return Err(Error::BadResponse);
-            }
+            _ => bad_response!(self)
         };
         try!(self.wait_for_ready());
         resp
