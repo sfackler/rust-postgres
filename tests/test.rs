@@ -298,7 +298,8 @@ fn test_trans_prepare_with_nested_trans() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let trans = or_panic!(conn.transaction());
     let _trans2 = or_panic!(trans.transaction());
-    match trans.prepare("") {
+    let stmt = or_panic!(trans.prepare("SELECT 1"));
+    match trans.lazy_query(&stmt, &[], 10) {
         Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
@@ -308,6 +309,16 @@ fn test_trans_prepare_with_nested_trans() {
         Err(r) => panic!("Unexpected error {}", r),
         Ok(_) => panic!("Unexpected success"),
     }
+}
+
+#[test]
+fn test_stmt_execute_after_transaction() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let trans = or_panic!(conn.transaction());
+    let stmt = or_panic!(trans.prepare("SELECT 1"));
+    or_panic!(trans.finish());
+    let mut result = or_panic!(stmt.query(&[]));
+    assert_eq!(1i32, result.next().unwrap().get(0));
 }
 
 #[test]

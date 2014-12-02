@@ -614,8 +614,8 @@ pub enum Error {
     InvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type
     WasNull,
-    /// An attempt was made to prepare a statement or start a transaction on an
-    /// object other than the active transaction
+    /// An attempt was made to start a transaction or execute a lazy query on
+    /// an object other than the active transaction
     WrongTransaction,
     /// The server returned an unexpected response
     BadResponse,
@@ -639,8 +639,8 @@ impl fmt::Show for Error {
             Error::InvalidColumn => write!(fmt, "Invalid column"),
             Error::WasNull => write!(fmt, "The value was NULL"),
             Error::WrongTransaction =>
-                write!(fmt, "An attempt was made to prepare a statement or start a transaction on \
-                             an object other than the active transaction"),
+                write!(fmt, "An attempt was made to start a transaction or execute a lazy query \
+                             on an object other than the active transaction"),
             Error::BadResponse =>
                 write!(fmt, "The server returned an unexpected response"),
             Error::BadData =>
@@ -665,7 +665,8 @@ impl error::Error for Error {
             Error::InvalidColumn => "Invalid column",
             Error::WasNull => "The value was NULL",
             Error::WrongTransaction => {
-                "An attempt was made to use an object other than the active transaction"
+                "An attempt was made to start a transaction or execute a lazy query on an object \
+                 other than the active transaction"
             }
             Error::BadResponse => "The server returned an unexpected response",
             Error::BadData => "The server provided data that the client could not parse",

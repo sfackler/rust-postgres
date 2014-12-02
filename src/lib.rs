@@ -979,22 +979,14 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::prepare`.
-    pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        let mut conn = self.conn.conn.borrow_mut();
-        if conn.trans_depth != self.depth {
-            return Err(Error::WrongTransaction);
-        }
-        conn.prepare(query, self.conn)
+    pub fn prepare(&self, query: &str) -> Result<Statement<'conn>> {
+        self.conn.conn.borrow_mut().prepare(query, self.conn)
     }
 
     /// Like `Connection::prepare_copy_in`.
-    pub fn prepare_copy_in<'a>(&'a self, table: &str, cols: &[&str])
-                               -> Result<CopyInStatement<'a>> {
-        let mut conn = self.conn.conn.borrow_mut();
-        if conn.trans_depth != self.depth {
-            return Err(Error::WrongTransaction);
-        }
-        conn.prepare_copy_in(table, cols, self.conn)
+    pub fn prepare_copy_in(&self, table: &str, cols: &[&str])
+                               -> Result<CopyInStatement<'conn>> {
+        self.conn.conn.borrow_mut().prepare_copy_in(table, cols, self.conn)
     }
 
     /// Like `Connection::execute`.
@@ -1004,11 +996,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::batch_execute`.
     pub fn batch_execute(&self, query: &str) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
-        if conn.trans_depth != self.depth {
-            return Err(Error::WrongTransaction);
-        }
-        conn.quick_query(query).map(|_| ())
+        self.conn.conn.borrow_mut().quick_query(query).map(|_| ())
     }
 
     /// Like `Connection::transaction`.
@@ -1043,7 +1031,12 @@ impl<'conn> Transaction<'conn> {
         if self.conn as *const _ != stmt.conn as *const _ {
             return Err(Error::WrongConnection);
         }
-        check_desync!(self.conn);
+        let conn = self.conn.conn.borrow();
+        check_desync!(conn);
+        if conn.trans_depth != self.depth {
+            return Err(Error::WrongTransaction);
+        }
+        drop(conn);
         stmt.lazy_query(row_limit, params).map(|result| {
             LazyRows {
                 _trans: self,
