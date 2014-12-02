@@ -74,6 +74,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{RingBuf, HashMap};
 use std::io::{BufferedStream, IoResult};
 use std::io::net::ip::Port;
+use std::iter::IteratorCloneExt;
 use std::mem;
 use std::fmt;
 use std::result;
@@ -512,9 +513,13 @@ impl InnerConnection {
 
         try!(self.wait_for_ready());
 
-        // now that the connection is ready again, get unknown type names
-        try!(self.set_type_names(param_types.iter_mut()));
-        try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
+        // now that the connection is ready again, get unknown type names,
+        // but not if stmt_name is "" since that'll blow away the statement
+        // and we don't care about result values anyway
+        if stmt_name != "" {
+            try!(self.set_type_names(param_types.iter_mut()));
+            try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
+        }
 
         Ok((param_types, result_desc))
     }
@@ -542,7 +547,7 @@ impl InnerConnection {
                            -> Result<CopyInStatement<'a>> {
         let mut query = vec![];
         let _ = write!(&mut query, "SELECT ");
-        let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
+        let _ = util::comma_join(&mut query, rows.iter().cloned());
         let _ = write!(&mut query, " FROM {}", table);
         let query = String::from_utf8(query).unwrap();
         let (_, result_desc) = try!(self.raw_prepare("", query[]));
@@ -550,7 +555,7 @@ impl InnerConnection {
 
         let mut query = vec![];
         let _ = write!(&mut query, "COPY {} (", table);
-        let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
+        let _ = util::comma_join(&mut query, rows.iter().cloned());
         let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query).unwrap();
         let stmt_name = self.make_stmt_name();
@@ -839,10 +844,16 @@ impl Connection {
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
-        let stmt = try!(self.prepare(query));
-        let out = try!(stmt.execute(params));
-        try!(stmt.finish());
-        Ok(out)
+        let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let stmt = Statement {
+            conn: self,
+            name: "".into_string(),
+            param_types: param_types,
+            result_desc: result_desc,
+            next_portal_id: Cell::new(0),
+            finished: true, // << !!
+        };
+        stmt.execute(params)
     }
 
     /// Execute a sequence of SQL statements.
@@ -988,10 +999,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
-        let stmt = try!(self.prepare(query));
-        let out = try!(stmt.execute(params));
-        try!(stmt.finish());
-        Ok(out)
+        self.conn.execute(query, params)
     }
 
     /// Like `Connection::batch_execute`.

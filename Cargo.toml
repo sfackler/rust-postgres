@@ -13,6 +13,7 @@ keywords = ["database", "sql"]
 name = "postgres"
 path = "src/lib.rs"
 test = false
+bench = false
 
 [[test]]
 name = "test"
