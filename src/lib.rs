@@ -336,12 +336,7 @@ impl InnerConnection {
         let params = try!(params.into_connect_params());
         let stream = try!(io::initialize_stream(&params, ssl));
 
-        let ConnectParams {
-            user,
-            database,
-            mut options,
-            ..
-        } = params;
+        let ConnectParams { user, database, mut options, .. } = params;
 
         let user = try!(user.ok_or(ConnectError::MissingUser));
 
@@ -364,9 +359,8 @@ impl InnerConnection {
         options.push(("TimeZone".into_string(), "GMT".into_string()));
         // We have to clone here since we need the user again for auth
         options.push(("user".into_string(), user.user.clone()));
-        match database {
-            Some(database) => options.push(("database".into_string(), database)),
-            None => {}
+        if let Some(database) = database {
+            options.push(("database".into_string(), database));
         }
 
         try!(conn.write_messages(&[StartupMessage {
@@ -473,11 +467,8 @@ impl InnerConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn raw_prepare(&mut self, query: &str)
-                   -> Result<(String, Vec<Type>, Vec<ResultDescription>)> {
-        let stmt_name = format!("s{}", self.next_stmt_id);
-        self.next_stmt_id += 1;
-
+    fn raw_prepare(&mut self, stmt_name: &str, query: &str)
+                   -> Result<(Vec<Type>, Vec<ResultDescription>)> {
         try!(self.write_messages(&[
             Parse {
                 name: stmt_name[],
@@ -525,11 +516,18 @@ impl InnerConnection {
         try!(self.set_type_names(param_types.iter_mut()));
         try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
 
-        Ok((stmt_name, param_types, result_desc))
+        Ok((param_types, result_desc))
+    }
+
+    fn make_stmt_name(&mut self) -> String {
+        let stmt_name = format!("s{}", self.next_stmt_id);
+        self.next_stmt_id += 1;
+        stmt_name
     }
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
-        let (stmt_name, param_types, result_desc) = try!(self.raw_prepare(query));
+        let stmt_name = self.make_stmt_name();
+        let (param_types, result_desc) = try!(self.raw_prepare(&*stmt_name, query));
         Ok(Statement {
             conn: conn,
             name: stmt_name,
@@ -547,17 +545,16 @@ impl InnerConnection {
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(&mut query, " FROM {}", table);
         let query = String::from_utf8(query).unwrap();
-        let (stmt_name, _, result_desc) = try!(self.raw_prepare(query[]));
-
-        let column_types = result_desc.iter().map(|desc| desc.ty.clone()).collect();
-        try!(self.close_statement(stmt_name[], b'S'));
+        let (_, result_desc) = try!(self.raw_prepare("", query[]));
+        let column_types = result_desc.into_iter().map(|desc| desc.ty).collect();
 
         let mut query = vec![];
         let _ = write!(&mut query, "COPY {} (", table);
         let _ = util::comma_join(&mut query, rows.iter().map(|&e| e));
         let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query).unwrap();
-        let (stmt_name, _, _) = try!(self.raw_prepare(query[]));
+        let stmt_name = self.make_stmt_name();
+        try!(self.raw_prepare(&*stmt_name, query[]));
 
         Ok(CopyInStatement {
             conn: conn,
