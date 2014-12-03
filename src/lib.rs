@@ -521,13 +521,13 @@ impl InnerConnection {
                    -> Result<(Vec<Type>, Vec<ResultDescription>)> {
         try!(self.write_messages(&[
             Parse {
-                name: &*stmt_name,
+                name: stmt_name,
                 query: query,
                 param_types: &[]
             },
             Describe {
                 variant: b'S',
-                name: &*stmt_name,
+                name: stmt_name,
             },
             Sync]));
 
@@ -542,7 +542,7 @@ impl InnerConnection {
 
         let mut param_types: Vec<_> = match try!(self.read_message()) {
             ParameterDescription { types } => {
-                types.iter().map(|ty| Type::from_oid(*ty)).collect()
+                types.into_iter().map(Type::from_oid).collect()
             }
             _ => bad_response!(self),
         };
@@ -1033,8 +1033,7 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::prepare_copy_in`.
-    pub fn prepare_copy_in(&self, table: &str, cols: &[&str])
-                               -> Result<CopyInStatement<'conn>> {
+    pub fn prepare_copy_in(&self, table: &str, cols: &[&str]) -> Result<CopyInStatement<'conn>> {
         self.conn.conn.borrow_mut().prepare_copy_in(table, cols, self.conn)
     }
 
@@ -1117,8 +1116,8 @@ impl<'conn> Transaction<'conn> {
 
     /// Consumes the transaction, commiting or rolling it back as appropriate.
     ///
-    /// Functionally equivalent to the `Drop` implementation of
-    /// `Transaction` except that it returns any error to the caller.
+    /// Functionally equivalent to the `Drop` implementation of `Transaction`
+    /// except that it returns any error to the caller.
     pub fn finish(mut self) -> Result<()> {
         self.finished = true;
         self.finish_inner()
@@ -1237,6 +1236,7 @@ impl<'conn> Statement<'conn> {
     ///     Ok(count) => println!("{} row(s) updated", count),
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
+    /// ```
     pub fn execute(&self, params: &[&ToSql]) -> Result<uint> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
@@ -1352,11 +1352,11 @@ impl<'stmt> Rows<'stmt> {
                 EmptyQueryResponse | CommandComplete { .. } => {
                     self.more_rows = false;
                     break;
-                },
+                }
                 PortalSuspended => {
                     self.more_rows = true;
                     break;
-                },
+                }
                 DataRow { row } => self.data.push_back(row),
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
@@ -1440,7 +1440,6 @@ pub struct Row<'stmt> {
 
 impl<'stmt> Row<'stmt> {
     /// Returns the number of values in the row
-    #[inline]
     pub fn len(&self) -> uint {
         self.data.len()
     }
@@ -1524,19 +1523,16 @@ pub struct LazyRows<'trans, 'stmt> {
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     /// Like `Rows::finish`.
-    #[inline]
     pub fn finish(self) -> Result<()> {
         self.result.finish()
     }
 }
 
 impl<'trans, 'stmt> Iterator<Result<Row<'stmt>>> for LazyRows<'trans, 'stmt> {
-    #[inline]
     fn next(&mut self) -> Option<Result<Row<'stmt>>> {
         self.result.try_next()
     }
 
-    #[inline]
     fn size_hint(&self) -> (uint, Option<uint>) {
         self.result.size_hint()
     }

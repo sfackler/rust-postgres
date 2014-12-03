@@ -276,7 +276,7 @@ pub trait ReadMessage {
 impl<R: Reader+Timeout> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         // The first byte read is a bit complex to make
-        // Notifications#next_block_for work.
+        // Notifications::next_block_for work.
         let ident = self.read_u8();
         // At this point we've got to turn off any read timeout to prevent
         // stream desynchronization. We're assuming that if we've got the first

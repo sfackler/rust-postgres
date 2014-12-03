@@ -71,8 +71,9 @@ impl Timeout for InternalStream {
 fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     match params.target {
-        ConnectTarget::Tcp(ref host) =>
-            Ok(try!(TcpStream::connect((host[], port)).map(InternalStream::Tcp))),
+        ConnectTarget::Tcp(ref host) => {
+            Ok(try!(TcpStream::connect((&**host, port)).map(InternalStream::Tcp)))
+        }
         ConnectTarget::Unix(ref path) => {
             let mut path = path.clone();
             path.push(format!(".s.PGSQL.{}", port));
