@@ -1,4 +1,5 @@
-use std::io::{IoResult, IoError, OtherIoError, MemReader};
+use std::io::{IoResult, IoError, OtherIoError, ByRefReader};
+use std::io::util::LimitReader;
 use std::mem;
 
 use io::Timeout;
@@ -273,7 +274,7 @@ pub trait ReadMessage {
     fn read_message(&mut self) -> IoResult<BackendMessage>;
 }
 
-impl<R: Reader+Timeout> ReadMessage for R {
+impl<R: Buffer+Timeout> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
         // The first byte read is a bit complex to make
         // Notifications::next_block_for work.
@@ -286,25 +287,25 @@ impl<R: Reader+Timeout> ReadMessage for R {
 
         // subtract size of length value
         let len = try!(self.read_be_u32()) as uint - mem::size_of::<i32>();
-        let mut buf = MemReader::new(try!(self.read_exact(len)));
+        let mut rdr = LimitReader::new(self.by_ref(), len);
 
         let ret = match ident {
             b'1' => ParseComplete,
             b'2' => BindComplete,
             b'3' => CloseComplete,
             b'A' => NotificationResponse {
-                pid: try!(buf.read_be_u32()),
-                channel: try!(buf.read_cstr()),
-                payload: try!(buf.read_cstr())
+                pid: try!(rdr.read_be_u32()),
+                channel: try!(rdr.read_cstr()),
+                payload: try!(rdr.read_cstr())
             },
-            b'C' => CommandComplete { tag: try!(buf.read_cstr()) },
-            b'D' => try!(read_data_row(&mut buf)),
-            b'E' => ErrorResponse { fields: try!(read_fields(&mut buf)) },
+            b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
+            b'D' => try!(read_data_row(&mut rdr)),
+            b'E' => ErrorResponse { fields: try!(read_fields(&mut rdr)) },
             b'G' => {
-                let format = try!(buf.read_u8());
+                let format = try!(rdr.read_u8());
                 let mut column_formats = vec![];
-                for _ in range(0, try!(buf.read_be_u16())) {
-                    column_formats.push(try!(buf.read_be_u16()));
+                for _ in range(0, try!(rdr.read_be_u16())) {
+                    column_formats.push(try!(rdr.read_be_u16()));
                 }
                 CopyInResponse {
                     format: format,
@@ -313,31 +314,38 @@ impl<R: Reader+Timeout> ReadMessage for R {
             }
             b'I' => EmptyQueryResponse,
             b'K' => BackendKeyData {
-                process_id: try!(buf.read_be_u32()),
-                secret_key: try!(buf.read_be_u32())
+                process_id: try!(rdr.read_be_u32()),
+                secret_key: try!(rdr.read_be_u32())
             },
             b'n' => NoData,
-            b'N' => NoticeResponse { fields: try!(read_fields(&mut buf)) },
-            b'R' => try!(read_auth_message(&mut buf)),
+            b'N' => NoticeResponse { fields: try!(read_fields(&mut rdr)) },
+            b'R' => try!(read_auth_message(&mut rdr)),
             b's' => PortalSuspended,
             b'S' => ParameterStatus {
-                parameter: try!(buf.read_cstr()),
-                value: try!(buf.read_cstr())
+                parameter: try!(rdr.read_cstr()),
+                value: try!(rdr.read_cstr())
             },
-            b't' => try!(read_parameter_description(&mut buf)),
-            b'T' => try!(read_row_description(&mut buf)),
-            b'Z' => ReadyForQuery { _state: try!(buf.read_u8()) },
+            b't' => try!(read_parameter_description(&mut rdr)),
+            b'T' => try!(read_row_description(&mut rdr)),
+            b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
             ident => return Err(IoError {
                 kind: OtherIoError,
                 desc: "Unexpected message tag",
                 detail: Some(format!("got {}", ident)),
             })
         };
+        if rdr.limit() != 0 {
+            return Err(IoError {
+                kind: OtherIoError,
+                desc: "didn't read entire message",
+                detail: None,
+            });
+        }
         Ok(ret)
     }
 }
 
-fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, String)>> {
+fn read_fields<R: Buffer>(buf: &mut R) -> IoResult<Vec<(u8, String)>> {
     let mut fields = vec![];
     loop {
         let ty = try!(buf.read_u8());
@@ -351,7 +359,7 @@ fn read_fields(buf: &mut MemReader) -> IoResult<Vec<(u8, String)>> {
     Ok(fields)
 }
 
-fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
+fn read_data_row<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
     let mut values = Vec::with_capacity(len);
 
@@ -366,7 +374,7 @@ fn read_data_row(buf: &mut MemReader) -> IoResult<BackendMessage> {
     Ok(DataRow { row: values })
 }
 
-fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
+fn read_auth_message<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     Ok(match try!(buf.read_be_i32()) {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
@@ -387,7 +395,7 @@ fn read_auth_message(buf: &mut MemReader) -> IoResult<BackendMessage> {
     })
 }
 
-fn read_parameter_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
+fn read_parameter_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
     let mut types = Vec::with_capacity(len);
 
@@ -398,7 +406,7 @@ fn read_parameter_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
     Ok(ParameterDescription { types: types })
 }
 
-fn read_row_description(buf: &mut MemReader) -> IoResult<BackendMessage> {
+fn read_row_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as uint;
     let mut types = Vec::with_capacity(len);
 
