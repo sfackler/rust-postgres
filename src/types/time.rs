@@ -1,6 +1,4 @@
-extern crate time;
-
-use self::time::Timespec;
+use time::Timespec;
 use Result;
 use types::{RawFromSql, Type, RawToSql};
 use types::range::{Range, RangeBound, BoundSided, Normalizable};

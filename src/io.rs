@@ -1,8 +1,9 @@
 use openssl::ssl::{SslStream, MaybeSslStream};
+use std::io::BufferedStream;
 use std::io::net::ip::Port;
 use std::io::net::tcp::TcpStream;
 use std::io::net::pipe::UnixStream;
-use std::io::IoResult;
+use std::io::{IoResult, Stream};
 
 use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
@@ -10,6 +11,23 @@ use message::WriteMessage;
 use message::FrontendMessage::SslRequest;
 
 const DEFAULT_PORT: Port = 5432;
+
+#[doc(hidden)]
+pub trait Timeout {
+    fn set_read_timeout(&mut self, timeout_ms: Option<u64>);
+}
+
+impl<S: Stream+Timeout> Timeout for MaybeSslStream<S> {
+    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
+        self.get_mut().set_read_timeout(timeout_ms);
+    }
+}
+
+impl<S: Stream+Timeout> Timeout for BufferedStream<S> {
+    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
+        self.get_mut().set_read_timeout(timeout_ms);
+    }
+}
 
 pub enum InternalStream {
     Tcp(TcpStream),
@@ -41,9 +59,8 @@ impl Writer for InternalStream {
     }
 }
 
-impl InternalStream {
-    #[allow(dead_code)]
-    pub fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
+impl Timeout for InternalStream {
+    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
         match *self {
             InternalStream::Tcp(ref mut s) => s.set_read_timeout(timeout_ms),
             InternalStream::Unix(ref mut s) => s.set_read_timeout(timeout_ms),

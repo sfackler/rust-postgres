@@ -307,7 +307,6 @@ pub mod array;
 pub mod range;
 #[cfg(feature = "uuid")]
 mod uuid;
-#[cfg(feature = "time")]
 mod time;
 
 /// A Postgres OID

@@ -65,6 +65,7 @@ extern crate phf;
 extern crate phf_mac;
 #[phase(plugin, link)]
 extern crate log;
+extern crate time;
 
 use url::Url;
 use openssl::crypto::hash::{HashType, Hasher};
@@ -72,14 +73,15 @@ use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::{RingBuf, HashMap};
-use std::io::{BufferedStream, IoResult};
+use std::io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::io::net::ip::Port;
 use std::iter::IteratorCloneExt;
+use std::time::Duration;
 use std::mem;
 use std::fmt;
 use std::result;
 
-use io::InternalStream;
+use io::{InternalStream, Timeout};
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
@@ -248,8 +250,9 @@ impl<'conn> Notifications<'conn> {
             return Ok(notification);
         }
 
-        check_desync!(self.conn.conn.borrow());
-        match try!(self.conn.conn.borrow_mut().read_message_with_notification()) {
+        let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+        match try!(conn.read_message_with_notification()) {
             NotificationResponse { pid, channel, payload } => {
                 Ok(Notification {
                     pid: pid,
@@ -258,6 +261,42 @@ impl<'conn> Notifications<'conn> {
                 })
             }
             _ => unreachable!()
+        }
+    }
+
+    /// Returns the oldest pending notification
+    ///
+    /// If no notifications are pending, blocks for up to `timeout` time, after
+    /// which an `IoError` with the `TimedOut` kind is returned.
+    pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
+        if let Some(notification) = self.next() {
+            return Ok(notification);
+        }
+
+        let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+
+        let end = time::now().to_timespec() + timeout;
+        loop {
+            let now = time::now().to_timespec();
+            conn.stream.set_read_timeout(Some((end - now).num_milliseconds() as u64));
+            match conn.read_one_message() {
+                Ok(Some(NotificationResponse { pid, channel, payload })) => {
+                    return Ok(Notification {
+                        pid: pid,
+                        channel: channel,
+                        payload: payload
+                    })
+                }
+                Ok(Some(_)) => unreachable!(),
+                Ok(None) => {}
+                Err(e @ IoError { kind: IoErrorKind::TimedOut, .. }) => {
+                    conn.desynchronized = false;
+                    return Err(Error::IoError(e));
+                }
+                Err(e) => return Err(Error::IoError(e)),
+            }
+
         }
     }
 }
@@ -394,19 +433,27 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_message_with_notification(&mut self) -> IoResult<BackendMessage> {
+    fn read_one_message(&mut self) -> IoResult<Option<BackendMessage>> {
         debug_assert!(!self.desynchronized);
+        match try_desync!(self, self.stream.read_message()) {
+            NoticeResponse { fields } => {
+                if let Ok(err) = DbError::new_raw(fields) {
+                    self.notice_handler.handle(err);
+                }
+                Ok(None)
+            }
+            ParameterStatus { parameter, value } => {
+                debug!("Parameter {} = {}", parameter, value);
+                Ok(None)
+            }
+            val => Ok(Some(val))
+        }
+    }
+
+    fn read_message_with_notification(&mut self) -> IoResult<BackendMessage> {
         loop {
-            match try_desync!(self, self.stream.read_message()) {
-                NoticeResponse { fields } => {
-                    if let Ok(err) = DbError::new_raw(fields) {
-                        self.notice_handler.handle(err);
-                    }
-                }
-                ParameterStatus { parameter, value } => {
-                    debug!("Parameter {} = {}", parameter, value)
-                }
-                val => return Ok(val)
+            if let Some(msg) = try!(self.read_one_message()) {
+                return Ok(msg);
             }
         }
     }

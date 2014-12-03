@@ -204,10 +204,7 @@ types. The driver currently supports the following conversions:
             <td>JSON</td>
         </tr>
         <tr>
-            <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>
-                (<a href="#optional-features">optional</a>)
-            </td>
+            <td>time::Timespec</td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
         <tr>
@@ -226,10 +223,7 @@ types. The driver currently supports the following conversions:
             <td>INT8RANGE</td>
         </tr>
         <tr>
-            <td>
-                <a href="https://github.com/rust-lang/time">types::range::Range&lt;Timespec&gt;</a>
-                (<a href="#optional-features">optional</a>)
-            </td>
+            <td>types::range::Range&lt;Timespec&gt;</td>
             <td>TSRANGE, TSTZRANGE</td>
         </tr>
         <tr>
@@ -265,10 +259,7 @@ types. The driver currently supports the following conversions:
             <td>INT8[], INT8[][], ...</td>
         </tr>
         <tr>
-            <td>
-                <a href="https://github.com/rust-lang/time">types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</a>
-                (<a href="#optional-features">optional</a>)
-            </td>
+            <td>types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</td>
             <td>TIMESTAMP[], TIMESTAMPTZ[], TIMESTAMP[][], ...</td>
         </tr>
         <tr>
@@ -307,10 +298,6 @@ traits.
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
 provided optionally by the `uuid` feature. It is enabled by default.
-
-### Time types
-[Time](http://www.postgresql.org/docs/9.3/static/datatype-datetime.html)
-support is provided optionally by the `time` feature. It is enabled by default.
 
 To disable support for optional features, add `default-features = false` to
 your Cargo manifest:

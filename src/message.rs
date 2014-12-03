@@ -1,6 +1,7 @@
 use std::io::{IoResult, IoError, OtherIoError, MemReader};
 use std::mem;
 
+use io::Timeout;
 use types::Oid;
 
 use self::BackendMessage::*;
@@ -272,9 +273,17 @@ pub trait ReadMessage {
     fn read_message(&mut self) -> IoResult<BackendMessage>;
 }
 
-impl<R: Reader> ReadMessage for R {
+impl<R: Reader+Timeout> ReadMessage for R {
     fn read_message(&mut self) -> IoResult<BackendMessage> {
-        let ident = try!(self.read_u8());
+        // The first byte read is a bit complex to make
+        // Notifications#next_block_for work.
+        let ident = self.read_u8();
+        // At this point we've got to turn off any read timeout to prevent
+        // stream desynchronization. We're assuming that if we've got the first
+        // byte, there's more stuff to follow.
+        self.set_read_timeout(None);
+        let ident = try!(ident);
+
         // subtract size of length value
         let len = try!(self.read_be_u32()) as uint - mem::size_of::<i32>();
         let mut buf = MemReader::new(try!(self.read_exact(len)));
