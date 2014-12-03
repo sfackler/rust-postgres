@@ -73,7 +73,7 @@ use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::collections::{RingBuf, HashMap};
-use std::io::{BufferedStream, IoResult, IoError, IoErrorKind};
+use std::io::{BufferedStream, IoResult, IoError, IoErrorKind, standard_error};
 use std::io::net::ip::Port;
 use std::iter::IteratorCloneExt;
 use std::time::Duration;
@@ -279,6 +279,9 @@ impl<'conn> Notifications<'conn> {
         let end = time::now().to_timespec() + timeout;
         loop {
             let now = time::now().to_timespec();
+            if now > end {
+                return Err(Error::IoError(standard_error(IoErrorKind::TimedOut)));
+            }
             conn.stream.set_read_timeout(Some((end - now).num_milliseconds() as u64));
             match conn.read_one_message() {
                 Ok(Some(NotificationResponse { pid, channel, payload })) => {
