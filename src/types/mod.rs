@@ -110,7 +110,7 @@ macro_rules! from_raw_from_impl(
             use std::io::BufReader;
             use types::RawFromSql;
 
-            let mut reader = BufReader::new(buf[]);
+            let mut reader = BufReader::new(&**buf);
             RawFromSql::raw_from_sql(&mut reader)
         } $(, $a)*)
     )
@@ -126,7 +126,7 @@ macro_rules! from_array_impl(
             use types::array::{ArrayBase, DimensionInfo};
             use Error;
 
-            let mut rdr = BufReader::new(buf[]);
+            let mut rdr = BufReader::new(&**buf);
 
             let ndim = try!(rdr.read_be_i32()) as uint;
             let _has_null = try!(rdr.read_be_i32()) == 1;
@@ -202,7 +202,7 @@ macro_rules! to_range_impl(
                         let mut inner_buf = vec![];
                         try!(bound.value.raw_to_sql(&mut inner_buf));
                         try!(buf.write_be_u32(inner_buf.len() as u32));
-                        try!(buf.write(inner_buf[]));
+                        try!(buf.write(&*inner_buf));
                     }
                     Ok(())
                 }
@@ -289,7 +289,7 @@ macro_rules! to_array_impl(
                             let mut inner_buf = vec![];
                             try!(val.raw_to_sql(&mut inner_buf));
                             try!(buf.write_be_i32(inner_buf.len() as i32));
-                            try!(buf.write(inner_buf[]));
+                            try!(buf.write(&*inner_buf));
                         }
                         None => try!(buf.write_be_i32(-1))
                     }
@@ -569,13 +569,13 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
         match *raw {
             Some(ref buf) => {
-                let mut rdr = BufReader::new(buf[]);
+                let mut rdr = BufReader::new(&**buf);
                 let mut map = HashMap::new();
 
                 let count = try!(rdr.read_be_i32());
@@ -642,7 +642,7 @@ impl RawToSql for bool {
 
 impl RawToSql for Vec<u8> {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
-        Ok(try!(w.write(self[])))
+        Ok(try!(w.write(&**self)))
     }
 }
 
@@ -715,7 +715,7 @@ to_array_impl!(JsonArray, json::Json)
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -743,7 +743,7 @@ impl ToSql for HashMap<String, Option<String>> {
 impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == name[] => {}
+            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 

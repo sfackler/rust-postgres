@@ -174,8 +174,8 @@ impl IntoConnectParams for Url {
             ..
         } = self;
 
-        let maybe_path = try!(url::decode_component(host[]).map_err(ConnectError::InvalidUrl));
-        let target = if maybe_path[].starts_with("/") {
+        let maybe_path = try!(url::decode_component(&*host).map_err(ConnectError::InvalidUrl));
+        let target = if maybe_path.starts_with("/") {
             ConnectTarget::Unix(Path::new(maybe_path))
         } else {
             ConnectTarget::Tcp(host)
@@ -407,7 +407,7 @@ impl InnerConnection {
 
         try!(conn.write_messages(&[StartupMessage {
             version: message::PROTOCOL_VERSION,
-            parameters: options[]
+            parameters: &*options
         }]));
 
         try!(conn.handle_auth(user));
@@ -481,7 +481,7 @@ impl InnerConnection {
             AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
                 try!(self.write_messages(&[PasswordMessage {
-                        password: pass[],
+                        password: &*pass,
                     }]));
             }
             AuthenticationMD5Password { salt } => {
@@ -489,13 +489,13 @@ impl InnerConnection {
                 let mut hasher = Hasher::new(HashType::MD5);
                 hasher.update(pass.as_bytes());
                 hasher.update(user.user.as_bytes());
-                let output = hasher.finalize()[].to_hex();
+                let output = hasher.finalize().to_hex();
                 let mut hasher = Hasher::new(HashType::MD5);
                 hasher.update(output.as_bytes());
                 hasher.update(&salt);
-                let output = format!("md5{}", hasher.finalize()[].to_hex());
+                let output = format!("md5{}", hasher.finalize().to_hex());
                 try!(self.write_messages(&[PasswordMessage {
-                        password: output[]
+                        password: &*output
                     }]));
             }
             AuthenticationKerberosV5
@@ -521,13 +521,13 @@ impl InnerConnection {
                    -> Result<(Vec<Type>, Vec<ResultDescription>)> {
         try!(self.write_messages(&[
             Parse {
-                name: stmt_name[],
+                name: &*stmt_name,
                 query: query,
                 param_types: &[]
             },
             Describe {
                 variant: b'S',
-                name: stmt_name[],
+                name: &*stmt_name,
             },
             Sync]));
 
@@ -599,7 +599,7 @@ impl InnerConnection {
         let _ = util::comma_join(&mut query, rows.iter().cloned());
         let _ = write!(&mut query, " FROM {}", table);
         let query = String::from_utf8(query).unwrap();
-        let (_, result_desc) = try!(self.raw_prepare("", query[]));
+        let (_, result_desc) = try!(self.raw_prepare("", &*query));
         let column_types = result_desc.into_iter().map(|desc| desc.ty).collect();
 
         let mut query = vec![];
@@ -608,7 +608,7 @@ impl InnerConnection {
         let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query).unwrap();
         let stmt_name = self.make_stmt_name();
-        try!(self.raw_prepare(&*stmt_name, query[]));
+        try!(self.raw_prepare(&*stmt_name, &*query));
 
         Ok(CopyInStatement {
             conn: conn,
@@ -648,8 +648,8 @@ impl InnerConnection {
         if let Some(name) = self.unknown_types.get(&oid) {
             return Ok(name.clone());
         }
-        let name = try!(self.quick_query(format!("SELECT typname FROM pg_type \
-                                                  WHERE oid={}", oid)[]))
+        let name = try!(self.quick_query(&*format!("SELECT typname FROM pg_type \
+                                                    WHERE oid={}", oid)))
             .into_iter().next().unwrap().into_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
@@ -680,7 +680,7 @@ impl InnerConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.into_iter().map(|opt| {
-                        opt.map(|b| String::from_utf8_lossy(b[]).into_string())
+                        opt.map(|b| String::from_utf8_lossy(&*b).into_string())
                     }).collect());
                 }
                 CopyInResponse { .. } => {
@@ -1148,7 +1148,7 @@ impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name[], b'S')
+        conn.close_statement(&*self.name, b'S')
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
@@ -1167,9 +1167,9 @@ impl<'conn> Statement<'conn> {
         try!(conn.write_messages(&[
             Bind {
                 portal: portal_name,
-                statement: self.name[],
+                statement: &*self.name,
                 formats: &[1],
-                values: values[],
+                values: &*values,
                 result_formats: &[1]
             },
             Execute {
@@ -1196,7 +1196,7 @@ impl<'conn> Statement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
 
-        try!(self.inner_execute(portal_name[], row_limit, params));
+        try!(self.inner_execute(&*portal_name, row_limit, params));
 
         let mut result = Rows {
             stmt: self,
@@ -1213,12 +1213,12 @@ impl<'conn> Statement<'conn> {
 
     /// Returns a slice containing the expected parameter types.
     pub fn param_types(&self) -> &[Type] {
-        self.param_types[]
+        &*self.param_types
     }
 
     /// Returns a slice describing the columns of the result of the query.
     pub fn result_descriptions(&self) -> &[ResultDescription] {
-        self.result_desc[]
+        &*self.result_desc
     }
 
     /// Executes the prepared statement, returning the number of rows modified.
@@ -1342,7 +1342,7 @@ impl<'stmt> Rows<'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name[], b'P')
+        conn.close_statement(&*self.name, b'P')
     }
 
     fn read_rows(&mut self) -> Result<()> {
@@ -1381,7 +1381,7 @@ impl<'stmt> Rows<'stmt> {
     fn execute(&mut self) -> Result<()> {
         try!(self.stmt.conn.write_messages(&[
             Execute {
-                portal: self.name[],
+                portal: &*self.name,
                 max_rows: self.row_limit
             },
             Sync]));
@@ -1512,7 +1512,7 @@ impl RowIndex for uint {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<uint> {
-        stmt.result_descriptions().iter().position(|d| d.name[] == *self)
+        stmt.result_descriptions().iter().position(|d| &*d.name == *self)
     }
 }
 
@@ -1563,12 +1563,12 @@ impl<'a> CopyInStatement<'a> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        conn.close_statement(self.name[], b'S')
+        conn.close_statement(&*self.name, b'S')
     }
 
     /// Returns a slice containing the expected column types.
     pub fn column_types(&self) -> &[Type] {
-        self.column_types[]
+        &*self.column_types
     }
 
     /// Executes the prepared statement.
@@ -1584,7 +1584,7 @@ impl<'a> CopyInStatement<'a> {
         try!(conn.write_messages(&[
             Bind {
                 portal: "",
-                statement: self.name[],
+                statement: &*self.name,
                 formats: &[],
                 values: &[],
                 result_formats: &[]
@@ -1633,13 +1633,13 @@ impl<'a> CopyInStatement<'a> {
                             }
                             Ok(Some(val)) => {
                                 let _ = buf.write_be_i32(val.len() as i32);
-                                let _ = buf.write(val[]);
+                                let _ = buf.write(&*val);
                             }
                             Err(err) => {
                                 // FIXME this is not the right way to handle this
                                 try_desync!(conn, conn.stream.write_message(
                                     &CopyFail {
-                                        message: err.to_string()[],
+                                        message: &*err.to_string(),
                                     }));
                                 break 'l;
                             }
@@ -1658,7 +1658,7 @@ impl<'a> CopyInStatement<'a> {
 
             try_desync!(conn, conn.stream.write_message(
                 &CopyData {
-                    data: buf[]
+                    data: &*buf
                 }));
             buf.clear();
         }
@@ -1666,7 +1666,7 @@ impl<'a> CopyInStatement<'a> {
         let _ = buf.write_be_i16(-1);
         try!(conn.write_messages(&[
             CopyData {
-                data: buf[],
+                data: &*buf,
             },
             CopyDone,
             Sync]));
