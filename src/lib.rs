@@ -270,6 +270,10 @@ impl<'conn> Notifications<'conn> {
     /// If no notifications are pending, blocks for up to `timeout` time, after
     /// which an `IoError` with the `TimedOut` kind is returned.
     pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
+        fn now() -> i64 {
+            (time::precise_time_ns() / 100_000) as i64
+        }
+
         if let Some(notification) = self.next() {
             return Ok(notification);
         }
@@ -277,10 +281,10 @@ impl<'conn> Notifications<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
 
-        let end = time::now().to_timespec() + timeout;
+        let end = now() + timeout.num_milliseconds();
         loop {
-            let now = time::now().to_timespec();
-            let timeout = max(0, (end - now).num_milliseconds()) as u64;
+            let now = now();
+            let timeout = max(0, end - now) as u64;
             conn.stream.set_read_timeout(Some(timeout));
             match conn.read_one_message() {
                 Ok(Some(NotificationResponse { pid, channel, payload })) => {
