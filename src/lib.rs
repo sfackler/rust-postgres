@@ -269,6 +269,24 @@ impl<'conn> Notifications<'conn> {
     ///
     /// If no notifications are pending, blocks for up to `timeout` time, after
     /// which an `IoError` with the `TimedOut` kind is returned.
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// use std::io::{IoError, IoErrorKind};
+    /// use std::time::Duration;
+    ///
+    /// use postgres::Error;
+    ///
+    /// # let conn = postgres::Connection::connect("", &postgres::SslMode::None).unwrap();
+    /// match conn.notifications().next_block_for(Duration::seconds(2)) {
+    ///     Ok(notification) => println!("notification: {}", notification.payload),
+    ///     Err(Error::IoError(IoError { kind: IoErrorKind::TimedOut, .. })) => {
+    ///         println!("Wait for notification timed out");
+    ///     }
+    ///     Err(e) => println!("Other error: {}", e),
+    /// }
+    /// ```
     pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
         fn now() -> i64 {
             (time::precise_time_ns() / 100_000) as i64
@@ -283,8 +301,7 @@ impl<'conn> Notifications<'conn> {
 
         let end = now() + timeout.num_milliseconds();
         loop {
-            let now = now();
-            let timeout = max(0, end - now) as u64;
+            let timeout = max(0, end - now()) as u64;
             conn.stream.set_read_timeout(Some(timeout));
             match conn.read_one_message() {
                 Ok(Some(NotificationResponse { pid, channel, payload })) => {
