@@ -146,7 +146,7 @@ fn test_bpchar_params() {
     let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
-               res.map(|row| row.get(0u)).collect());
+               res.map(|row| row.get(0u)).collect::<Vec<_>>());
 }
 
 #[test]
