@@ -1532,7 +1532,7 @@ impl RowIndex for uint {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<uint> {
-        stmt.result_descriptions().iter().position(|d| &*d.name == *self)
+        stmt.result_descriptions().iter().position(|d| d.name == *self)
     }
 }
 

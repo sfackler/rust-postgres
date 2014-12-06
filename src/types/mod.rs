@@ -569,7 +569,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
+            Type::Unknown { ref name, .. } if "hstore" == *name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -715,7 +715,7 @@ to_array_impl!(JsonArray, json::Json)
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
+            Type::Unknown { ref name, .. } if "hstore" == *name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -743,7 +743,7 @@ impl ToSql for HashMap<String, Option<String>> {
 impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == &**name => {}
+            Type::Unknown { ref name, .. } if "hstore" == *name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
