@@ -55,7 +55,7 @@
 //! # }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, if_let)]
+#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params)]
 #![warn(missing_docs)]
 
 extern crate openssl;
