@@ -529,12 +529,12 @@ impl DbError {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
         Ok(DbError {
             severity: try!(map.remove(&b'S').ok_or(())),
-            code: SqlState::from_code(try!(map.remove(&b'C').ok_or(()))[]),
+            code: SqlState::from_code(&*try!(map.remove(&b'C').ok_or(()))),
             message: try!(map.remove(&b'M').ok_or(())),
             detail: map.remove(&b'D'),
             hint: map.remove(&b'H'),
             position: match map.remove(&b'P') {
-                Some(pos) => Some(ErrorPosition::Normal(try!(from_str(pos[]).ok_or(())))),
+                Some(pos) => Some(ErrorPosition::Normal(try!(from_str(&*pos).ok_or(())))),
                 None => match map.remove(&b'p') {
                     Some(pos) => Some(ErrorPosition::Internal {
                         position: try!(from_str(pos[]).ok_or(())),

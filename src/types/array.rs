@@ -155,7 +155,7 @@ impl<T> ArrayBase<T> {
 
 impl<T> Array<T> for ArrayBase<T> {
     fn dimension_info<'a>(&'a self) -> &'a [DimensionInfo] {
-        self.info[]
+        &*self.info
     }
 
     fn slice<'a>(&'a self, idx: int) -> ArraySlice<'a, T> {
