@@ -1521,7 +1521,7 @@ pub trait RowIndex {
 impl RowIndex for uint {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<uint> {
-        if *self > stmt.result_desc.len() {
+        if *self >= stmt.result_desc.len() {
             None
         } else {
             Some(*self)

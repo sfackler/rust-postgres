@@ -541,6 +541,18 @@ fn test_get_was_null() {
 }
 
 #[test]
+fn test_get_off_by_one() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
+    let mut result = or_panic!(stmt.query(&[]));
+
+    match result.next().unwrap().get_opt::<uint, i32>(1) {
+        Err(Error::InvalidColumn) => {}
+        res => panic!("unexpected result {}", res),
+    };
+}
+
+#[test]
 fn test_custom_notice_handler() {
     static mut count: uint = 0;
     struct Handler;
