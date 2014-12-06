@@ -537,7 +537,7 @@ impl DbError {
                 Some(pos) => Some(ErrorPosition::Normal(try!(from_str(&*pos).ok_or(())))),
                 None => match map.remove(&b'p') {
                     Some(pos) => Some(ErrorPosition::Internal {
-                        position: try!(from_str(pos[]).ok_or(())),
+                        position: try!(from_str(&*pos).ok_or(())),
                         query: try!(map.remove(&b'q').ok_or(()))
                     }),
                     None => None
@@ -550,7 +550,7 @@ impl DbError {
             datatype: map.remove(&b'd'),
             constraint: map.remove(&b'n'),
             file: try!(map.remove(&b'F').ok_or(())),
-            line: try!(map.remove(&b'L').and_then(|l| from_str(l[])).ok_or(())),
+            line: try!(map.remove(&b'L').and_then(|l| from_str(&*l)).ok_or(())),
             routine: try!(map.remove(&b'R').ok_or(())),
         })
     }
