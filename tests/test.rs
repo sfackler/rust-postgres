@@ -737,7 +737,7 @@ fn test_plaintext_pass_wrong_pass() {
     }
 }
 
- #[test]
+#[test]
 fn test_md5_pass() {
     or_panic!(Connection::connect("postgres://md5_user:password@localhost/postgres", &SslMode::None));
 }
