@@ -4,11 +4,8 @@
 //!
 //! ```rust,no_run
 //! extern crate postgres;
-//! # #[cfg(feature = "time")]
 //! extern crate time;
 //!
-//! # #[cfg(not(feature = "time"))] fn main() {}
-//! # #[cfg(feature = "time")] fn main() {
 //! use time::Timespec;
 //!
 //! use postgres::{Connection, SslMode};
@@ -36,8 +33,7 @@
 //!         time_created: time::get_time(),
 //!         data: None
 //!     };
-//!     conn.execute("INSERT INTO person (name, time_created, data)
-//!                     VALUES ($1, $2, $3)",
+//!     conn.execute("INSERT INTO person (name, time_created, data) VALUES ($1, $2, $3)",
 //!                  &[&me.name, &me.time_created, &me.data]).unwrap();
 //!
 //!     let stmt = conn.prepare("SELECT id, name, time_created, data FROM person")
@@ -52,53 +48,52 @@
 //!         println!("Found person {}", person.name);
 //!     }
 //! }
-//! # }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
 #![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params)]
 #![warn(missing_docs)]
 
+#[phase(plugin, link)]
+extern crate log;
 extern crate openssl;
-extern crate serialize;
 extern crate phf;
 #[phase(plugin)]
 extern crate phf_mac;
-#[phase(plugin, link)]
-extern crate log;
+extern crate serialize;
 extern crate time;
 
-use url::Url;
 use openssl::crypto::hash::{HashType, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::collections::{RingBuf, HashMap};
+use std::fmt;
 use std::io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::io::net::ip::Port;
 use std::iter::IteratorCloneExt;
-use std::time::Duration;
 use std::mem;
-use std::fmt;
 use std::result;
+use std::time::Duration;
+use url::Url;
 
-use io::{InternalStream, Timeout};
-use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
-use message::FrontendMessage::*;
-use message::BackendMessage::*;
-use message::{WriteMessage, ReadMessage};
+pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, ToSql, FromSql};
-pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
+use io::{InternalStream, Timeout};
+use message::BackendMessage::*;
+use message::FrontendMessage::*;
+use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
+use message::{WriteMessage, ReadMessage};
 
 #[macro_escape]
 mod macros;
 
+mod error;
 mod io;
 mod message;
 mod url;
 mod util;
-mod error;
 pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;
@@ -319,7 +314,6 @@ impl<'conn> Notifications<'conn> {
                 }
                 Err(e) => return Err(Error::IoError(e)),
             }
-
         }
     }
 }
@@ -669,8 +663,8 @@ impl InnerConnection {
         if let Some(name) = self.unknown_types.get(&oid) {
             return Ok(name.clone());
         }
-        let name = try!(self.quick_query(&*format!("SELECT typname FROM pg_type \
-                                                    WHERE oid={}", oid)))
+        let name = try!(self.quick_query(&*format!("SELECT typname FROM pg_type WHERE oid={}",
+                                                   oid)))
             .into_iter().next().unwrap().into_iter().next().unwrap().unwrap();
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
