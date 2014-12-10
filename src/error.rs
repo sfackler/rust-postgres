@@ -26,10 +26,10 @@ macro_rules! make_errors(
 
         impl SqlState {
             #[doc(hidden)]
-            pub fn from_code(s: &str) -> SqlState {
-                match STATE_MAP.get(s) {
+            pub fn from_code(s: String) -> SqlState {
+                match STATE_MAP.get(&*s) {
                     Some(state) => state.clone(),
-                    None => SqlState::Unknown(s.into_string())
+                    None => SqlState::Unknown(s)
                 }
             }
         }
@@ -529,7 +529,7 @@ impl DbError {
         let mut map: HashMap<_, _> = fields.into_iter().collect();
         Ok(DbError {
             severity: try!(map.remove(&b'S').ok_or(())),
-            code: SqlState::from_code(&*try!(map.remove(&b'C').ok_or(()))),
+            code: SqlState::from_code(try!(map.remove(&b'C').ok_or(()))),
             message: try!(map.remove(&b'M').ok_or(())),
             detail: map.remove(&b'D'),
             hint: map.remove(&b'H'),
