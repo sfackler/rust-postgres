@@ -133,7 +133,7 @@ bounded_normalizable!(i32)
 bounded_normalizable!(i64)
 
 /// The possible sides of a bound
-#[deriving(PartialEq, Eq)]
+#[deriving(PartialEq, Eq, Copy)]
 pub enum BoundSide {
     /// An upper bound
     Upper,
@@ -150,9 +150,11 @@ pub trait BoundSided {
 }
 
 /// A tag type representing an upper bound
+#[allow(missing_copy_implementations)]
 pub enum UpperBound {}
 
 /// A tag type representing a lower bound
+#[allow(missing_copy_implementations)]
 pub enum LowerBound {}
 
 impl BoundSided for UpperBound {
@@ -168,7 +170,7 @@ impl BoundSided for LowerBound {
 }
 
 /// The type of a range bound
-#[deriving(PartialEq, Eq, Clone)]
+#[deriving(PartialEq, Eq, Clone, Copy)]
 pub enum BoundType {
     /// The bound includes its value
     Inclusive,
@@ -185,6 +187,8 @@ pub struct RangeBound<S: BoundSided, T> {
     /// The type of the bound
     pub type_: BoundType
 }
+
+impl<S, T> Copy for RangeBound<S, T> where S: BoundSided, T: Copy {}
 
 impl<S, T> Clone for RangeBound<S, T> where S: BoundSided, T: Clone {
     fn clone(&self) -> RangeBound<S, T> {
@@ -280,24 +284,24 @@ impl<'a, S, T> PartialEq for OptBound<'a, S, T> where S: BoundSided, T: PartialE
 
 impl<'a, S, T> PartialOrd for OptBound<'a, S, T> where S: BoundSided, T: PartialOrd {
     fn partial_cmp(&self, other: &OptBound<'a, S, T>) -> Option<Ordering> {
-        match (*self, *other, BoundSided::side(None::<S>)) {
-            (OptBound(None), OptBound(None), _) => Some(Equal),
-            (OptBound(None), _, Lower)
-            | (_, OptBound(None), Upper) => Some(Less),
-            (OptBound(None), _, Upper)
-            | (_, OptBound(None), Lower) => Some(Greater),
-            (OptBound(Some(a)), OptBound(Some(b)), _) => a.partial_cmp(b)
+        match (self, other, BoundSided::side(None::<S>)) {
+            (&OptBound(None), &OptBound(None), _) => Some(Equal),
+            (&OptBound(None), _, Lower)
+            | (_, &OptBound(None), Upper) => Some(Less),
+            (&OptBound(None), _, Upper)
+            | (_, &OptBound(None), Lower) => Some(Greater),
+            (&OptBound(Some(a)), &OptBound(Some(b)), _) => a.partial_cmp(b)
         }
     }
 }
 
 /// Represents a range of values.
-#[deriving(PartialEq, Eq, Clone)]
+#[deriving(PartialEq, Eq, Clone, Copy)]
 pub struct Range<T> {
     inner: InnerRange<T>,
 }
 
-#[deriving(PartialEq, Eq, Clone)]
+#[deriving(PartialEq, Eq, Clone, Copy)]
 enum InnerRange<T> {
     Empty,
     Normal(Option<RangeBound<LowerBound, T>>,

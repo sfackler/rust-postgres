@@ -202,6 +202,7 @@ pub trait NoticeHandler: Send {
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
+#[deriving(Copy)]
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
@@ -319,6 +320,7 @@ impl<'conn> Notifications<'conn> {
 }
 
 /// Contains information necessary to cancel queries for a session
+#[deriving(Copy)]
 pub struct CancelData {
     /// The process ID of the session
     pub process_id: u32,

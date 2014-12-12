@@ -17,6 +17,6 @@ fn test_uuidarray_params() {
     let (v1, s1) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     let (v2, s2) = make_check("00000000-0000-0000-0000-000000000000");
     let (v3, s3) = make_check("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
-    test_array_params!("UUID", v1, s1, v2, s2, v3, s3);
+    test_array_params!("UUID", v1.clone(), s1, v2.clone(), s2, v3.clone(), s3);
 }
 

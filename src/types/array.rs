@@ -7,7 +7,7 @@ use self::ArrayParent::{SliceParent, MutSliceParent, BaseParent};
 use self::MutArrayParent::{MutSliceMutParent, MutBaseParent};
 
 /// Information about a dimension of an array
-#[deriving(PartialEq, Eq, Clone)]
+#[deriving(PartialEq, Eq, Clone, Copy)]
 pub struct DimensionInfo {
     /// The size of the dimension
     pub len: uint,
