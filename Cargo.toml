@@ -27,6 +27,7 @@ phf = "0.2"
 phf_mac = "0.2"
 openssl = "0.2.1"
 time = "0.1"
+log = "0.1"
 
 [dependencies.uuid]
 optional = true
