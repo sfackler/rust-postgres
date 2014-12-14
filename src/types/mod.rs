@@ -548,7 +548,9 @@ impl RawFromSql for IpAddr {
         let _bits = try!(raw.read_u8());
         let _is_cidr = try!(raw.read_u8());
         let nb = try!(raw.read_u8());
-        let mut buf = &*try!(raw.read_exact(nb as uint));
+        let mut buf: &mut [u8] = &mut [0u8, ..16];
+        try!(raw.read_at_least(nb as uint, buf));
+        let mut buf: &[u8] = buf;
 
         match family {
             2 if nb == 4 => Ok(IpAddr::Ipv4Addr(buf[0], buf[1], buf[2], buf[3])),
