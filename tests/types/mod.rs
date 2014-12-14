@@ -4,6 +4,7 @@ use std::f32;
 use std::f64;
 use std::fmt;
 use std::num::Float;
+use std::io::net::ip::IpAddr;
 
 use postgres::{Connection, SslMode};
 use postgres::types::{ToSql, FromSql};
@@ -162,6 +163,15 @@ fn test_json_params() {
                        (Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
                         "'{\"f\": \"asd\"}'"),
                        (None, "NULL")])
+}
+
+#[test]
+fn test_inet_params() {
+    test_type("INET", &[(Some(from_str::<IpAddr>("127.0.0.1").unwrap()),
+                         "'127.0.0.1'"),
+                        (Some(from_str("2001:0db8:85a3:0000:0000:8a2e:0370:7334").unwrap()),
+                        "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
+                        (None, "NULL")])
 }
 
 #[test]

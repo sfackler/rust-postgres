@@ -98,7 +98,7 @@ pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;
 
-/// A typedef of the result returned by many methods.
+/// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
 
 /// Specifies the target server to connect to.

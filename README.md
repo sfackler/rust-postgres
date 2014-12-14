@@ -205,6 +205,10 @@ types. The driver currently supports the following conversions:
             <td>JSON</td>
         </tr>
         <tr>
+            <td>IpAddr</td>
+            <td>INET</td>
+        </tr>
+        <tr>
             <td>time::Timespec</td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>

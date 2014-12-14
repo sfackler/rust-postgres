@@ -2,6 +2,7 @@
 use serialize::json;
 use std::collections::HashMap;
 use std::io::{ByRefReader, BufReader};
+use std::io::net::ip::IpAddr;
 
 use self::Type::*;
 use Result;
@@ -325,6 +326,7 @@ const JSONOID: Oid = 114;
 const JSONARRAYOID: Oid = 199;
 const FLOAT4OID: Oid = 700;
 const FLOAT8OID: Oid = 701;
+const INETOID: Oid = 869;
 const BOOLARRAYOID: Oid = 1000;
 const BYTEAARRAYOID: Oid = 1001;
 const CHARARRAYOID: Oid = 1002;
@@ -433,6 +435,8 @@ make_postgres_type!(
     FLOAT4OID => Float4,
     #[doc="FLOAT8/DOUBLE PRECISION"]
     FLOAT8OID => Float8,
+    #[doc="INET"]
+    INETOID => Inet,
     #[doc="BOOL[]"]
     BOOLARRAYOID => BoolArray member Bool,
     #[doc="BYTEA[]"]
@@ -538,6 +542,29 @@ impl RawFromSql for json::Json {
     }
 }
 
+impl RawFromSql for IpAddr {
+    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<IpAddr> {
+        let family = try!(raw.read_u8());
+        let _bits = try!(raw.read_u8());
+        let _is_cidr = try!(raw.read_u8());
+        let nb = try!(raw.read_u8());
+        let mut buf = &*try!(raw.read_exact(nb as uint));
+
+        match family {
+            2 if nb == 4 => Ok(IpAddr::Ipv4Addr(buf[0], buf[1], buf[2], buf[3])),
+            3 if nb == 16 => Ok(IpAddr::Ipv6Addr(try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()),
+                                                 try!(buf.read_be_u16()))),
+            _ => Err(Error::BadData),
+        }
+    }
+}
+
 from_raw_from_impl!(Bool, bool)
 from_raw_from_impl!(ByteA, Vec<u8>)
 from_raw_from_impl!(Varchar | Text | CharN | Name, String)
@@ -548,6 +575,7 @@ from_raw_from_impl!(Int8, i64)
 from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
 from_raw_from_impl!(Json, json::Json)
+from_raw_from_impl!(Inet, IpAddr)
 
 from_raw_from_impl!(Int4Range, Range<i32>)
 from_raw_from_impl!(Int8Range, Range<i64>)
@@ -668,10 +696,44 @@ impl RawToSql for json::Json {
     }
 }
 
+impl RawToSql for IpAddr {
+    fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
+        match *self {
+            IpAddr::Ipv4Addr(a, b, c, d) => {
+                let buf = [2, // family
+                           32, // bits
+                           0, // is_cidr
+                           4, // nb
+                           a, b, c, d // addr
+                          ];
+                try!(raw.write(&buf));
+            }
+            IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
+                let buf = [3, // family
+                           128, // bits
+                           0, // is_cidr
+                           16, // nb
+                          ];
+                try!(raw.write(&buf));
+                try!(raw.write_be_u16(a));
+                try!(raw.write_be_u16(b));
+                try!(raw.write_be_u16(c));
+                try!(raw.write_be_u16(d));
+                try!(raw.write_be_u16(e));
+                try!(raw.write_be_u16(f));
+                try!(raw.write_be_u16(g));
+                try!(raw.write_be_u16(h));
+            }
+        }
+        Ok(())
+    }
+}
+
 to_raw_to_impl!(Bool, bool)
 to_raw_to_impl!(ByteA, Vec<u8>)
 to_raw_to_impl!(Varchar | Text | CharN | Name, String)
 to_raw_to_impl!(Json, json::Json)
+to_raw_to_impl!(Inet, IpAddr)
 to_raw_to_impl!(Char, i8)
 to_raw_to_impl!(Int2, i16)
 to_raw_to_impl!(Int4, i32)
