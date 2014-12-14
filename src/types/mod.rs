@@ -324,6 +324,7 @@ const INT4OID: Oid = 23;
 const TEXTOID: Oid = 25;
 const JSONOID: Oid = 114;
 const JSONARRAYOID: Oid = 199;
+const CIDROID: Oid = 650;
 const FLOAT4OID: Oid = 700;
 const FLOAT8OID: Oid = 701;
 const INETOID: Oid = 869;
@@ -429,6 +430,8 @@ make_postgres_type!(
     TEXTOID => Text,
     #[doc="JSON"]
     JSONOID => Json,
+    #[doc="CIDR"]
+    CIDROID => Cidr,
     #[doc="JSON[]"]
     JSONARRAYOID => JsonArray member Json,
     #[doc="FLOAT4/REAL"]
@@ -580,7 +583,7 @@ from_raw_from_impl!(Int8, i64)
 from_raw_from_impl!(Float4, f32)
 from_raw_from_impl!(Float8, f64)
 from_raw_from_impl!(Json, json::Json)
-from_raw_from_impl!(Inet, IpAddr)
+from_raw_from_impl!(Inet | Cidr, IpAddr)
 
 from_raw_from_impl!(Int4Range, Range<i32>)
 from_raw_from_impl!(Int8Range, Range<i64>)
@@ -738,7 +741,7 @@ to_raw_to_impl!(Bool, bool)
 to_raw_to_impl!(ByteA, Vec<u8>)
 to_raw_to_impl!(Varchar | Text | CharN | Name, String)
 to_raw_to_impl!(Json, json::Json)
-to_raw_to_impl!(Inet, IpAddr)
+to_raw_to_impl!(Inet | Cidr, IpAddr)
 to_raw_to_impl!(Char, i8)
 to_raw_to_impl!(Int2, i16)
 to_raw_to_impl!(Int4, i32)

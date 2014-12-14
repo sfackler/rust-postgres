@@ -206,7 +206,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>IpAddr</td>
-            <td>INET</td>
+            <td>INET/CIDR</td>
         </tr>
         <tr>
             <td>time::Timespec</td>
