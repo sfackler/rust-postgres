@@ -24,7 +24,6 @@ impl RawFromSql for Timespec {
     }
 }
 
-from_range_impl!(Timespec)
 from_raw_from_impl!(Type::Timestamp | Type::TimestampTZ, Timespec)
 from_raw_from_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>)
 from_array_impl!(Type::TimestampArray | Type::TimestampTZArray, Timespec)
@@ -37,7 +36,6 @@ impl RawToSql for Timespec {
     }
 }
 
-to_range_impl!(Timespec)
 to_raw_to_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>)
 to_raw_to_impl!(Type::Timestamp | Type::TimestampTZ, Timespec)
 to_array_impl!(Type::TimestampArray | Type::TimestampTZArray, Timespec)
