@@ -548,6 +548,9 @@ impl RawFromSql for IpAddr {
         let _bits = try!(raw.read_u8());
         let _is_cidr = try!(raw.read_u8());
         let nb = try!(raw.read_u8());
+        if nb > 16 {
+            return Err(Error::BadData);
+        }
         let mut buf: &mut [u8] = &mut [0u8, ..16];
         try!(raw.read_at_least(nb as uint, buf));
         let mut buf: &[u8] = buf;
