@@ -66,8 +66,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the *master* branch of the Rust
-    repository. It will most likely not build against the versioned releases on
+* **Rust** - Rust-Postgres is developed against the nightly releases on
     http://www.rust-lang.org.
 
 * **PostgreSQL 7.4 or later** - Rust-Postgres speaks version 3 of the
