@@ -5,11 +5,11 @@ Documentation is available at https://sfackler.github.io/doc/postgres
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres)
 
-You can integrate Rust-Postgres into your project through the releases on crates.io:
+You can integrate Rust-Postgres into your project through the [releases on crates.io](https://crates.io/crates/postgres):
 ```toml
 # Cargo.toml
 [dependencies]
-postgres = "0.1"
+postgres = "0.2"
 ```
 
 ## Overview
