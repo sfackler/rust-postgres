@@ -623,7 +623,7 @@ fn test_notifications_next_block() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("LISTEN test_notifications_next_block", &[]));
 
-    spawn(proc() {
+    spawn(|| {
         let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
         timer::sleep(Duration::milliseconds(500));
         or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
@@ -642,7 +642,7 @@ fn test_notifications_next_block_for() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("LISTEN test_notifications_next_block_for", &[]));
 
-    spawn(proc() {
+    spawn(|| {
         let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
         timer::sleep(Duration::milliseconds(500));
         or_panic!(conn.execute("NOTIFY test_notifications_next_block_for, 'foo'", &[]));
@@ -661,7 +661,7 @@ fn test_notifications_next_block_for_timeout() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("LISTEN test_notifications_next_block_for_timeout", &[]));
 
-    spawn(proc() {
+    spawn(|| {
         let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
         timer::sleep(Duration::seconds(2));
         or_panic!(conn.execute("NOTIFY test_notifications_next_block_for_timeout, 'foo'", &[]));
@@ -683,7 +683,7 @@ fn test_cancel_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let cancel_data = conn.cancel_data();
 
-    spawn(proc() {
+    spawn(move || {
         timer::sleep(Duration::milliseconds(500));
         assert!(postgres::cancel_query("postgres://postgres@localhost", &SslMode::None,
                                        cancel_data).is_ok());
