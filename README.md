@@ -180,6 +180,10 @@ types. The driver currently supports the following conversions:
             <td>INT, SERIAL</td>
         </tr>
         <tr>
+            <td>u32</td>
+            <td>OID</td>
+        </tr>
+        <tr>
             <td>i64</td>
             <td>BIGINT, BIGSERIAL</td>
         </tr>
@@ -193,7 +197,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>str/String</td>
-            <td>VARCHAR, CHAR(n), TEXT</td>
+            <td>VARCHAR, CHAR(n), TEXT, CITEXT</td>
         </tr>
         <tr>
             <td>[u8]/Vec&lt;u8&gt;</td>

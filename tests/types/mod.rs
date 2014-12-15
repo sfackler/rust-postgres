@@ -99,6 +99,12 @@ fn test_i32_params() {
 }
 
 #[test]
+fn test_oid_params() {
+    test_type("OID", &[(Some(2147483548u32), "2147483548"),
+                       (Some(4000000000), "4000000000"), (None, "NULL")]);
+}
+
+#[test]
 fn test_i64_params() {
     test_type("BIGINT", &[(Some(9223372036854775708i64), "9223372036854775708"),
                          (Some(-9223372036854775708i64), "-9223372036854775708"),
@@ -142,12 +148,27 @@ fn test_bpchar_params() {
                             b CHAR(5)
                            )", &[]));
     or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                          &[&Some("12345"), &Some("123"), &None::<&'static str>]));
+                           &[&Some("12345"), &Some("123"), &None::<&'static str>]));
     let stmt = or_panic!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
                res.map(|row| row.get(0u)).collect::<Vec<_>>());
+}
+
+#[test]
+fn test_citext_params() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
+                            id SERIAL PRIMARY KEY,
+                            b CITEXT
+                           )", &[]));
+    or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+                           &[&Some("foobar"), &Some("FooBar"), &None::<&'static str>]));
+    let stmt = or_panic!(conn.prepare("SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id"));
+    let res = or_panic!(stmt.query(&[]));
+
+    assert_eq!(vec!(Some(1i32), Some(2i32)), res.map(|row| row.get(0u)).collect::<Vec<_>>());
 }
 
 #[test]

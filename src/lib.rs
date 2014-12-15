@@ -97,6 +97,7 @@ mod util;
 pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;
+const TYPENAME_QUERY: &'static str = "t";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -441,6 +442,13 @@ impl InnerConnection {
             }
         }
 
+        match conn.raw_prepare(TYPENAME_QUERY, "SELECT typname FROM pg_type WHERE oid = $1") {
+            Ok(..) => {}
+            Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
+            Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
+            _ => unreachable!()
+        }
+
         Ok(conn)
     }
 
@@ -580,10 +588,10 @@ impl InnerConnection {
         try!(self.wait_for_ready());
 
         // now that the connection is ready again, get unknown type names,
-        // but not if stmt_name is "" since that'll blow away the statement
-        // and we don't care about result values anyway
+        try!(self.set_type_names(param_types.iter_mut()));
+        // An empty statement name means we're calling execute, so we don't
+        // care about result types
         if stmt_name != "" {
-            try!(self.set_type_names(param_types.iter_mut()));
             try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
         }
 
@@ -665,9 +673,45 @@ impl InnerConnection {
         if let Some(name) = self.unknown_types.get(&oid) {
             return Ok(name.clone());
         }
-        let name = try!(self.quick_query(&*format!("SELECT typname FROM pg_type WHERE oid={}",
-                                                   oid)))
-            .into_iter().next().unwrap().into_iter().next().unwrap().unwrap();
+        // Ew @ doing this manually :(
+        try!(self.write_messages(&[
+            Bind {
+                portal: "",
+                statement: TYPENAME_QUERY,
+                formats: &[1],
+                values: &[try!(oid.to_sql(&Type::Oid))],
+                result_formats: &[1]
+            },
+            Execute {
+                portal: "",
+                max_rows: 0,
+            },
+            Sync]));
+        match try!(self.read_message()) {
+            BindComplete => {}
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => bad_response!(self)
+        }
+        let name: String = match try!(self.read_message()) {
+            DataRow { row } => try!(FromSql::from_sql(&Type::Name, &row[0])),
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => bad_response!(self)
+        };
+        match try!(self.read_message()) {
+            CommandComplete { .. } => {}
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => bad_response!(self)
+        }
+        try!(self.wait_for_ready());
         self.unknown_types.insert(oid, name.clone());
         Ok(name)
     }

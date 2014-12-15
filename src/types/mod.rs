@@ -5,10 +5,10 @@ use std::io::{ByRefReader, BufReader};
 use std::io::util::LimitReader;
 use std::io::net::ip::IpAddr;
 
-use self::Type::*;
 use Result;
 use error::Error;
 use types::range::{Range, RangeBound, BoundSided, BoundType, Normalizable};
+use types::array::{Array, ArrayBase};
 
 macro_rules! check_types(
     ($($expected:pat)|+, $actual:ident) => (
@@ -29,19 +29,8 @@ macro_rules! raw_from_impl(
     )
 )
 
-macro_rules! from_map_impl(
-    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
-        $(#[$a])*
-        impl ::types::FromSql for Option<$t> {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<$t>> {
-                check_types!($($expected)|+, ty)
-                match *raw {
-                    Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
-                    None => Ok(None)
-                }
-            }
-        }
-
+macro_rules! from_option_impl(
+    ($t:ty $(, $a:meta)*) => {
         $(#[$a])*
         impl ::types::FromSql for $t {
             fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<$t> {
@@ -57,6 +46,23 @@ macro_rules! from_map_impl(
                 }
             }
         }
+    }
+)
+
+macro_rules! from_map_impl(
+    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
+        $(#[$a])*
+        impl ::types::FromSql for Option<$t> {
+            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<$t>> {
+                check_types!($($expected)|+, ty)
+                match *raw {
+                    Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
+                    None => Ok(None)
+                }
+            }
+        }
+
+        from_option_impl!($t $(, $a)*)
     )
 )
 
@@ -179,39 +185,43 @@ macro_rules! to_array_impl(
         $(#[$a])*
         impl ::types::ToSql for ::types::array::ArrayBase<Option<$t>> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                use types::array::Array;
-
-                check_types!($($oid)|+, ty)
-                let mut buf = vec![];
-
-                try!(buf.write_be_i32(self.dimension_info().len() as i32));
-                try!(buf.write_be_i32(1));
-                try!(buf.write_be_u32(ty.member_type().to_oid()));
-
-                for info in self.dimension_info().iter() {
-                    try!(buf.write_be_i32(info.len as i32));
-                    try!(buf.write_be_i32(info.lower_bound as i32));
-                }
-
-                for v in self.values() {
-                    match *v {
-                        Some(ref val) => {
-                            let mut inner_buf = vec![];
-                            try!(val.raw_to_sql(&mut inner_buf));
-                            try!(buf.write_be_i32(inner_buf.len() as i32));
-                            try!(buf.write(&*inner_buf));
-                        }
-                        None => try!(buf.write_be_i32(-1))
-                    }
-                }
-
-                Ok(Some(buf))
+                check_types!($($oid)|+, ty);
+                Ok(Some(::types::raw_to_array(self, ty)))
             }
         }
 
         to_option_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>> $(, $a)*)
     )
 )
+
+fn raw_to_array<T>(array: &ArrayBase<Option<T>>, ty: &Type) -> Vec<u8> where T: RawToSql {
+    let mut buf = vec![];
+
+    let _ = buf.write_be_i32(array.dimension_info().len() as i32);
+    let _ = buf.write_be_i32(1);
+    let _ = buf.write_be_u32(ty.member_type().to_oid());
+
+    for info in array.dimension_info().iter() {
+        let _ = buf.write_be_i32(info.len as i32);
+        let _ = buf.write_be_i32(info.lower_bound as i32);
+    }
+
+    for v in array.values() {
+        match *v {
+            Some(ref val) => {
+                let mut inner_buf = vec![];
+                let _ = val.raw_to_sql(&mut inner_buf);
+                let _ = buf.write_be_i32(inner_buf.len() as i32);
+                let _ = buf.write(&*inner_buf);
+            }
+            None => {
+                let _ = buf.write_be_i32(-1);
+            }
+        }
+    }
+
+    buf
+}
 
 pub mod array;
 pub mod range;
@@ -231,6 +241,7 @@ const INT8OID: Oid = 20;
 const INT2OID: Oid = 21;
 const INT4OID: Oid = 23;
 const TEXTOID: Oid = 25;
+const OIDOID: Oid = 26;
 const JSONOID: Oid = 114;
 const JSONARRAYOID: Oid = 199;
 const CIDROID: Oid = 650;
@@ -337,6 +348,8 @@ make_postgres_type!(
     INT4OID => Int4,
     #[doc="TEXT"]
     TEXTOID => Text,
+    #[doc="OID"]
+    OIDOID => Oid,
     #[doc="JSON"]
     JSONOID => Json,
     #[doc="CIDR"]
@@ -441,6 +454,7 @@ impl RawFromSql for String {
 raw_from_impl!(i8, read_i8)
 raw_from_impl!(i16, read_be_i16)
 raw_from_impl!(i32, read_be_i32)
+raw_from_impl!(u32, read_be_u32)
 raw_from_impl!(i64, read_be_i64)
 raw_from_impl!(f32, read_be_f32)
 raw_from_impl!(f64, read_be_f64)
@@ -514,33 +528,53 @@ impl<T> RawFromSql for Range<T> where T: PartialOrd+Normalizable+RawFromSql {
     }
 }
 
-from_raw_from_impl!(Bool, bool)
-from_raw_from_impl!(ByteA, Vec<u8>)
-from_raw_from_impl!(Varchar | Text | CharN | Name, String)
-from_raw_from_impl!(Char, i8)
-from_raw_from_impl!(Int2, i16)
-from_raw_from_impl!(Int4, i32)
-from_raw_from_impl!(Int8, i64)
-from_raw_from_impl!(Float4, f32)
-from_raw_from_impl!(Float8, f64)
-from_raw_from_impl!(Json, json::Json)
-from_raw_from_impl!(Inet | Cidr, IpAddr)
+from_raw_from_impl!(Type::Bool, bool)
+from_raw_from_impl!(Type::ByteA, Vec<u8>)
+from_raw_from_impl!(Type::Char, i8)
+from_raw_from_impl!(Type::Int2, i16)
+from_raw_from_impl!(Type::Int4, i32)
+from_raw_from_impl!(Type::Oid, u32)
+from_raw_from_impl!(Type::Int8, i64)
+from_raw_from_impl!(Type::Float4, f32)
+from_raw_from_impl!(Type::Float8, f64)
+from_raw_from_impl!(Type::Json, json::Json)
+from_raw_from_impl!(Type::Inet | Type::Cidr, IpAddr)
 
-from_raw_from_impl!(Int4Range, Range<i32>)
-from_raw_from_impl!(Int8Range, Range<i64>)
+from_raw_from_impl!(Type::Int4Range, Range<i32>)
+from_raw_from_impl!(Type::Int8Range, Range<i64>)
 
-from_array_impl!(BoolArray, bool)
-from_array_impl!(ByteAArray, Vec<u8>)
-from_array_impl!(CharArray, i8)
-from_array_impl!(Int2Array, i16)
-from_array_impl!(Int4Array, i32)
-from_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
-from_array_impl!(Int8Array, i64)
-from_array_impl!(JsonArray, json::Json)
-from_array_impl!(Float4Array, f32)
-from_array_impl!(Float8Array, f64)
-from_array_impl!(Int4RangeArray, Range<i32>)
-from_array_impl!(Int8RangeArray, Range<i64>)
+from_array_impl!(Type::BoolArray, bool)
+from_array_impl!(Type::ByteAArray, Vec<u8>)
+from_array_impl!(Type::CharArray, i8)
+from_array_impl!(Type::Int2Array, i16)
+from_array_impl!(Type::Int4Array, i32)
+from_array_impl!(Type::TextArray | Type::CharNArray | Type::VarcharArray | Type::NameArray, String)
+from_array_impl!(Type::Int8Array, i64)
+from_array_impl!(Type::JsonArray, json::Json)
+from_array_impl!(Type::Float4Array, f32)
+from_array_impl!(Type::Float8Array, f64)
+from_array_impl!(Type::Int4RangeArray, Range<i32>)
+from_array_impl!(Type::Int8RangeArray, Range<i64>)
+
+impl FromSql for Option<String> {
+    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<String>> {
+        match *ty {
+            Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
+            Type::Unknown { ref name, .. } if "citext" == *name => {}
+            _ => return Err(Error::WrongType(ty.clone()))
+        }
+
+        match *raw {
+            Some(ref buf) => {
+                let mut rdr = &**buf;
+                Ok(Some(try!(RawFromSql::raw_from_sql(&mut rdr))))
+            }
+            None => Ok(None)
+        }
+    }
+}
+
+from_option_impl!(String)
 
 impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
@@ -585,19 +619,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     }
 }
 
-impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
-                -> Result<HashMap<String, Option<String>>> {
-        // FIXME when you can specify Self types properly
-        let ret: Result<Option<HashMap<String, Option<String>>>> =
-            FromSql::from_sql(ty, raw);
-        match ret {
-            Ok(Some(val)) => Ok(val),
-            Ok(None) => Err(Error::WasNull),
-            Err(err) => Err(err)
-        }
-    }
-}
+from_option_impl!(HashMap<String, Option<String>>)
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {
@@ -632,6 +654,7 @@ impl RawToSql for String {
 raw_to_impl!(i8, write_i8)
 raw_to_impl!(i16, write_be_i16)
 raw_to_impl!(i32, write_be_i32)
+raw_to_impl!(u32, write_be_u32)
 raw_to_impl!(i64, write_be_i64)
 raw_to_impl!(f32, write_be_f32)
 raw_to_impl!(f64, write_be_f64)
@@ -675,20 +698,6 @@ impl RawToSql for IpAddr {
     }
 }
 
-to_raw_to_impl!(Bool, bool)
-to_raw_to_impl!(ByteA, Vec<u8>)
-to_raw_to_impl!(Varchar | Text | CharN | Name, String)
-to_raw_to_impl!(Json, json::Json)
-to_raw_to_impl!(Inet | Cidr, IpAddr)
-to_raw_to_impl!(Char, i8)
-to_raw_to_impl!(Int2, i16)
-to_raw_to_impl!(Int4, i32)
-to_raw_to_impl!(Int8, i64)
-to_raw_to_impl!(Float4, f32)
-to_raw_to_impl!(Float8, f64)
-to_raw_to_impl!(Int4Range, Range<i32>)
-to_raw_to_impl!(Int8Range, Range<i64>)
-
 impl<T> RawToSql for Range<T> where T: PartialOrd+Normalizable+RawToSql {
     fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
         let mut tag = 0;
@@ -727,37 +736,78 @@ impl<T> RawToSql for Range<T> where T: PartialOrd+Normalizable+RawToSql {
     }
 }
 
+to_raw_to_impl!(Type::Bool, bool)
+to_raw_to_impl!(Type::ByteA, Vec<u8>)
+to_raw_to_impl!(Type::Json, json::Json)
+to_raw_to_impl!(Type::Inet | Type::Cidr, IpAddr)
+to_raw_to_impl!(Type::Char, i8)
+to_raw_to_impl!(Type::Int2, i16)
+to_raw_to_impl!(Type::Int4, i32)
+to_raw_to_impl!(Type::Oid, u32)
+to_raw_to_impl!(Type::Int8, i64)
+to_raw_to_impl!(Type::Float4, f32)
+to_raw_to_impl!(Type::Float8, f64)
+to_raw_to_impl!(Type::Int4Range, Range<i32>)
+to_raw_to_impl!(Type::Int8Range, Range<i64>)
+
+impl ToSql for String {
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+        (&**self).to_sql(ty)
+    }
+}
+
+impl ToSql for Option<String> {
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+        self.as_ref().map(|s| &**s).to_sql(ty)
+    }
+}
 
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        check_types!(Varchar | Text | CharN | Name, ty)
+        match *ty {
+            Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
+            Type::Unknown { ref name, .. } if *name == "citext" => {}
+            _ => return Err(Error::WrongType(ty.clone()))
+        }
         Ok(Some(self.as_bytes().to_vec()))
     }
 }
 
-to_option_impl_lifetime!(Varchar | Text | CharN | Name, &'a str)
+impl<'a> ToSql for Option<&'a str> {
+    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+        match *ty {
+            Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
+            Type::Unknown { ref name, .. } if *name == "citext" => {}
+            _ => return Err(Error::WrongType(ty.clone()))
+        }
+        match *self {
+            Some(ref val) => val.to_sql(ty),
+            None => Ok(None)
+        }
+    }
+}
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        check_types!(ByteA, ty)
+        check_types!(Type::ByteA, ty)
         Ok(Some(self.to_vec()))
     }
 }
 
-to_option_impl_lifetime!(ByteA, &'a [u8])
+to_option_impl_lifetime!(Type::ByteA, &'a [u8])
 
-to_array_impl!(BoolArray, bool)
-to_array_impl!(ByteAArray, Vec<u8>)
-to_array_impl!(CharArray, i8)
-to_array_impl!(Int2Array, i16)
-to_array_impl!(Int4Array, i32)
-to_array_impl!(Int8Array, i64)
-to_array_impl!(TextArray | CharNArray | VarcharArray | NameArray, String)
-to_array_impl!(Float4Array, f32)
-to_array_impl!(Float8Array, f64)
-to_array_impl!(Int4RangeArray, Range<i32>)
-to_array_impl!(Int8RangeArray, Range<i64>)
-to_array_impl!(JsonArray, json::Json)
+to_array_impl!(Type::BoolArray, bool)
+to_array_impl!(Type::ByteAArray, Vec<u8>)
+to_array_impl!(Type::CharArray, i8)
+to_array_impl!(Type::Int2Array, i16)
+to_array_impl!(Type::Int4Array, i32)
+to_array_impl!(Type::Int8Array, i64)
+to_array_impl!(Type::TextArray | Type::CharNArray | Type::VarcharArray | Type::NameArray, String)
+to_array_impl!(Type::Float4Array, f32)
+to_array_impl!(Type::Float8Array, f64)
+to_array_impl!(Type::Int4RangeArray, Range<i32>)
+to_array_impl!(Type::Int8RangeArray, Range<i64>)
+to_array_impl!(Type::JsonArray, json::Json)
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
