@@ -348,7 +348,7 @@ pub struct CancelData {
 /// # let url = "";
 /// let conn = Connection::connect(url, &SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
-/// spawn(proc() {
+/// spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
 /// # let _ =
