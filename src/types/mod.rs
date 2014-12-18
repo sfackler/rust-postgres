@@ -669,21 +669,19 @@ impl RawToSql for IpAddr {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
         match *self {
             IpAddr::Ipv4Addr(a, b, c, d) => {
-                let buf = [2, // family
-                           32, // bits
-                           0, // is_cidr
-                           4, // nb
-                           a, b, c, d // addr
-                          ];
-                try!(raw.write(&buf));
+                try!(raw.write(&[2, // family
+                                 32, // bits
+                                 0, // is_cidr
+                                 4, // nb
+                                 a, b, c, d // addr
+                                ]));
             }
             IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
-                let buf = [3, // family
-                           128, // bits
-                           0, // is_cidr
-                           16, // nb
-                          ];
-                try!(raw.write(&buf));
+                try!(raw.write(&[3, // family
+                                 128, // bits
+                                 0, // is_cidr
+                                 16, // nb
+                                ]));
                 try!(raw.write_be_u16(a));
                 try!(raw.write_be_u16(b));
                 try!(raw.write_be_u16(c));

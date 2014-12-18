@@ -442,8 +442,8 @@ impl InnerConnection {
             }
         }
 
-        match conn.raw_prepare(TYPENAME_QUERY, "SELECT typname FROM pg_catalog.pg_type \
-                                                WHERE oid = $1") {
+        match conn.raw_prepare(TYPENAME_QUERY,
+                               "SELECT typname FROM pg_catalog.pg_type WHERE oid = $1") {
             Ok(..) => {}
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
             Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
