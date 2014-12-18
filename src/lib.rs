@@ -1799,7 +1799,7 @@ impl GenericConnection for Connection {
 }
 
 impl<'a> GenericConnection for Transaction<'a> {
-    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+    fn prepare<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
         self.prepare(query)
     }
 
@@ -1807,12 +1807,12 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.execute(query, params)
     }
 
-    fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
+    fn transaction<'b>(&'b self) -> Result<Transaction<'b>> {
         self.transaction()
     }
 
-    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<CopyInStatement<'a>> {
+    fn prepare_copy_in<'b>(&'b self, table: &str, columns: &[&str])
+                           -> Result<CopyInStatement<'b>> {
         self.prepare_copy_in(table, columns)
     }
 
