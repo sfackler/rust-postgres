@@ -1,4 +1,4 @@
-macro_rules! try_desync(
+macro_rules! try_desync {
     ($s:expr, $e:expr) => (
         match $e {
             Ok(ok) => ok,
@@ -8,9 +8,9 @@ macro_rules! try_desync(
             }
         }
     )
-)
+}
 
-macro_rules! check_desync(
+macro_rules! check_desync {
     ($e:expr) => ({
         if $e.canary() != CANARY {
             panic!("Connection use after free. See mozilla/rust#13246.");
@@ -19,12 +19,12 @@ macro_rules! check_desync(
             return Err(::Error::StreamDesynchronized);
         }
     })
-)
+}
 
-macro_rules! bad_response(
+macro_rules! bad_response {
     ($s:expr) => ({
         debug!("Unexpected response");
         $s.desynchronized = true;
         return Err(::Error::BadResponse);
     })
-)
+}

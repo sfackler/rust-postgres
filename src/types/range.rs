@@ -43,7 +43,7 @@ use self::InnerRange::{Empty, Normal};
 ///     r = range!(empty);
 /// }
 #[macro_export]
-macro_rules! range(
+macro_rules! range {
     (empty) => (::postgres::types::range::Range::empty());
     ('(', ')') => (::postgres::types::range::Range::new(None, None));
     ('(', $h:expr ')') => (
@@ -94,7 +94,7 @@ macro_rules! range(
             Some(::postgres::types::range::RangeBound::new($h,
                 ::postgres::types::range::BoundType::Inclusive)))
     )
-)
+}
 
 /// A trait that normalizes a range bound for a type
 pub trait Normalizable {
@@ -109,7 +109,7 @@ pub trait Normalizable {
     fn normalize<S>(bound: RangeBound<S, Self>) -> RangeBound<S, Self> where S: BoundSided;
 }
 
-macro_rules! bounded_normalizable(
+macro_rules! bounded_normalizable {
     ($t:ident) => (
         impl Normalizable for $t {
             fn normalize<S: BoundSided>(bound: RangeBound<S, $t>) -> RangeBound<S, $t> {
@@ -127,10 +127,10 @@ macro_rules! bounded_normalizable(
             }
         }
     )
-)
+}
 
-bounded_normalizable!(i32)
-bounded_normalizable!(i64)
+bounded_normalizable!(i32);
+bounded_normalizable!(i64);
 
 /// The possible sides of a bound
 #[deriving(PartialEq, Eq, Copy)]

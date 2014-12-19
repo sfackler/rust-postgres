@@ -9,7 +9,7 @@ use std::io::net::ip::IpAddr;
 use postgres::{Connection, SslMode};
 use postgres::types::{ToSql, FromSql};
 
-macro_rules! test_array_params(
+macro_rules! test_array_params {
     ($name:expr, $v1:expr, $s1:expr, $v2:expr, $s2:expr, $v3:expr, $s3:expr) => ({
         use postgres::types::array::ArrayBase;
         use types::test_type;
@@ -25,9 +25,9 @@ macro_rules! test_array_params(
                                        $s1, $s2, $s3).into_string())];
         test_type(format!("{}[][]", $name)[], tests);
     })
-)
+}
 
-macro_rules! test_range(
+macro_rules! test_range {
     ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
         let tests = &[(Some(range!('(', ')')), "'(,)'".to_string()),
                      (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
@@ -46,7 +46,7 @@ macro_rules! test_range(
                      (None, "NULL".to_string())];
         test_type($name, tests);
     })
-)
+}
 
 mod array;
 mod range;
@@ -298,13 +298,13 @@ fn test_int8rangearray_params() {
 
 #[test]
 fn test_hstore_params() {
-    macro_rules! make_map(
+    macro_rules! make_map {
         ($($k:expr => $v:expr),+) => ({
             let mut map = HashMap::new();
             $(map.insert($k, $v);)+
             map
         })
-    )
+    }
     test_type("hstore",
               &[(Some(make_map!("a".to_string() => Some("1".to_string()))), "'a=>1'"),
                (Some(make_map!("hello".to_string() => Some("world!".to_string()),

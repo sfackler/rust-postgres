@@ -31,14 +31,14 @@ use postgres::SqlState::{SyntaxError,
                          CardinalityViolation};
 use postgres::ErrorPosition::Normal;
 
-macro_rules! or_panic(
+macro_rules! or_panic {
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
             Err(err) => panic!("{}", err)
         }
     )
-)
+}
 
 mod types;
 

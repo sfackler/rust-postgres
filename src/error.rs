@@ -10,7 +10,7 @@ use phf;
 use Result;
 use types::Type;
 
-macro_rules! make_errors(
+macro_rules! make_errors {
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
         #[deriving(PartialEq, Eq, Clone, Show)]
@@ -34,10 +34,10 @@ macro_rules! make_errors(
             }
         }
     )
-)
+}
 
 // From http://www.postgresql.org/docs/9.2/static/errcodes-appendix.html
-make_errors!(
+make_errors! {
     // Class 00 — Successful Completion
     "00000" => SuccessfulCompletion,
 
@@ -353,7 +353,7 @@ make_errors!(
     "XX000" => InternalError,
     "XX001" => DataCorrupted,
     "XX002" => IndexCorrupted
-)
+}
 
 /// Reasons a new Postgres connection could fail
 #[deriving(Clone, PartialEq, Eq)]

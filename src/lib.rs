@@ -1267,7 +1267,7 @@ impl<'conn> Statement<'conn> {
             more_rows: true,
             finished: false,
         };
-        try!(result.read_rows())
+        try!(result.read_rows());
 
         Ok(result)
     }
