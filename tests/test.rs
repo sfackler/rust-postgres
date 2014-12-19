@@ -2,7 +2,7 @@
 
 #[phase(plugin, link)]
 extern crate postgres;
-extern crate serialize;
+extern crate "rustc-serialize" as serialize;
 extern crate url;
 extern crate openssl;
 

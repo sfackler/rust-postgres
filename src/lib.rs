@@ -59,7 +59,7 @@ extern crate openssl;
 extern crate phf;
 #[phase(plugin)]
 extern crate phf_mac;
-extern crate serialize;
+extern crate "rustc-serialize" as serialize;
 extern crate time;
 
 use openssl::crypto::hash::{HashType, Hasher};
