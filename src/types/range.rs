@@ -112,7 +112,7 @@ pub trait Normalizable {
 macro_rules! bounded_normalizable {
     ($t:ident) => (
         impl Normalizable for $t {
-            fn normalize<S: BoundSided>(bound: RangeBound<S, $t>) -> RangeBound<S, $t> {
+            fn normalize<S>(bound: RangeBound<S, $t>) -> RangeBound<S, $t> where S: BoundSided {
                 match (BoundSided::side(None::<S>), bound.type_) {
                     (Upper, Inclusive) => {
                         assert!(bound.value != $t::MAX);

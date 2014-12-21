@@ -345,12 +345,13 @@ pub struct CancelData {
 ///
 /// ```rust,no_run
 /// # use postgres::{Connection, SslMode};
+/// # use std::thread::Thread;
 /// # let url = "";
 /// let conn = Connection::connect(url, &SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
-/// spawn(move || {
+/// Thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
-/// });
+/// }).detach();
 /// # let _ =
 /// postgres::cancel_query(url, &SslMode::None, cancel_data);
 /// ```

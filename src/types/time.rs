@@ -42,7 +42,7 @@ to_array_impl!(Type::TimestampArray | Type::TimestampTZArray, Timespec);
 to_array_impl!(Type::TsRangeArray | Type::TstzRangeArray, Range<Timespec>);
 
 impl Normalizable for Timespec {
-    fn normalize<S: BoundSided>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> {
+    fn normalize<S>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> where S: BoundSided {
         bound
     }
 }
