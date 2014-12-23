@@ -148,7 +148,7 @@ impl<T> ArrayBase<T> {
 
     /// Returns an iterator over the values in this array, in the
     /// higher-dimensional equivalent of row-major order.
-    pub fn values<'a>(&'a self) -> slice::Items<'a, T> {
+    pub fn values<'a>(&'a self) -> slice::Iter<'a, T> {
         self.data.iter()
     }
 }

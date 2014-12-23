@@ -29,7 +29,7 @@
 //!                   )", &[]).unwrap();
 //!     let me = Person {
 //!         id: 0,
-//!         name: "Steven".into_string(),
+//!         name: "Steven".to_string(),
 //!         time_created: time::get_time(),
 //!         data: None
 //!     };
@@ -65,6 +65,7 @@ extern crate time;
 use openssl::crypto::hash::{HashType, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
+use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::collections::{RingBuf, HashMap};
@@ -182,7 +183,7 @@ impl IntoConnectParams for Url {
         });
 
         // path contains the leading /
-        let database = path.slice_shift_char().map(|(_, path)| path.into_string());
+        let database = path.slice_shift_char().map(|(_, path)| path.to_owned());
 
         Ok(ConnectParams {
             target: target,
@@ -414,14 +415,14 @@ impl InnerConnection {
             canary: CANARY,
         };
 
-        options.push(("client_encoding".into_string(), "UTF8".into_string()));
+        options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".into_string(), "GMT".into_string()));
+        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".into_string(), user.user.clone()));
+        options.push(("user".to_owned(), user.user.clone()));
         if let Some(database) = database {
-            options.push(("database".into_string(), database));
+            options.push(("database".to_owned(), database));
         }
 
         try!(conn.write_messages(&[StartupMessage {
@@ -743,7 +744,7 @@ impl InnerConnection {
                 ReadyForQuery { .. } => break,
                 DataRow { row } => {
                     result.push(row.into_iter().map(|opt| {
-                        opt.map(|b| String::from_utf8_lossy(&*b).into_string())
+                        opt.map(|b| String::from_utf8_lossy(&*b).into_owned())
                     }).collect());
                 }
                 CopyInResponse { .. } => {
@@ -822,7 +823,7 @@ impl Connection {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
     ///     user: Some(UserInfo {
-    ///         user: "postgres".into_string(),
+    ///         user: "postgres".to_string(),
     ///         password: None
     ///     }),
     ///     database: None,
@@ -895,7 +896,7 @@ impl Connection {
     ///                    )", &[]));
     ///
     /// let stmt = try!(conn.prepare_copy_in("foo", &["bar", "baz"]));
-    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah".into_string()],
+    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah"],
     ///                            &[&1i32, &None::<String>]];
     /// try!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
     /// # Ok(()) };
@@ -959,7 +960,7 @@ impl Connection {
         let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement {
             conn: self,
-            name: "".into_string(),
+            name: "".to_owned(),
             param_types: param_types,
             result_desc: result_desc,
             next_portal_id: Cell::new(0),

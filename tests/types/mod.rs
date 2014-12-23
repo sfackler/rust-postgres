@@ -188,18 +188,18 @@ fn test_json_params() {
 
 #[test]
 fn test_inet_params() {
-    test_type("INET", &[(Some(from_str::<IpAddr>("127.0.0.1").unwrap()),
+    test_type("INET", &[(Some("127.0.0.1".parse::<IpAddr>().unwrap()),
                          "'127.0.0.1'"),
-                        (Some(from_str("2001:0db8:85a3:0000:0000:8a2e:0370:7334").unwrap()),
+                        (Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<IpAddr>().unwrap()),
                          "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
                         (None, "NULL")])
 }
 
 #[test]
 fn test_cidr_params() {
-    test_type("CIDR", &[(Some(from_str::<IpAddr>("127.0.0.1").unwrap()),
+    test_type("CIDR", &[(Some("127.0.0.1".parse::<IpAddr>().unwrap()),
                          "'127.0.0.1'"),
-                        (Some(from_str("2001:0db8:85a3:0000:0000:8a2e:0370:7334").unwrap()),
+                        (Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<IpAddr>().unwrap()),
                          "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
                         (None, "NULL")])
 }
