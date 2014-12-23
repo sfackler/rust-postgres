@@ -1,7 +1,7 @@
 //! Traits dealing with Postgres data types
 use serialize::json;
 use std::collections::HashMap;
-use std::io::{ByRefReader, BufReader};
+use std::io::ByRefReader;
 use std::io::util::LimitReader;
 use std::io::net::ip::IpAddr;
 
@@ -33,7 +33,7 @@ macro_rules! from_option_impl {
     ($t:ty $(, $a:meta)*) => {
         $(#[$a])*
         impl ::types::FromSql for $t {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<$t> {
+            fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<$t> {
                 use Error;
                 use types::FromSql;
 
@@ -53,10 +53,10 @@ macro_rules! from_map_impl {
     ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
         $(#[$a])*
         impl ::types::FromSql for Option<$t> {
-            fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<$t>> {
+            fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<$t>> {
                 check_types!($($expected)|+, ty);
-                match *raw {
-                    Some(ref buf) => ($blk)(buf).map(|ok| Some(ok)),
+                match raw {
+                    Some(buf) => ($blk)(buf).map(|ok| Some(ok)),
                     None => Ok(None)
                 }
             }
@@ -68,27 +68,25 @@ macro_rules! from_map_impl {
 
 macro_rules! from_raw_from_impl {
     ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($expected)|+, $t, |buf: &Vec<u8>| {
-            use std::io::BufReader;
+        from_map_impl!($($expected)|+, $t, |mut buf: &[u8]| {
             use types::RawFromSql;
 
-            let mut reader = BufReader::new(&**buf);
-            RawFromSql::raw_from_sql(&mut reader)
+            RawFromSql::raw_from_sql(&mut buf)
         } $(, $a)*);
     )
 }
 
 macro_rules! from_array_impl {
     ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>>, |buf: &Vec<u8>| {
-            use std::io::{BufReader, ByRefReader};
+        from_map_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>>, |buf: &[u8]| {
+            use std::io::ByRefReader;
             use std::io::util::LimitReader;
             use std::iter::MultiplicativeIterator;
             use types::{Oid, RawFromSql};
             use types::array::{ArrayBase, DimensionInfo};
             use Error;
 
-            let mut rdr = BufReader::new(&**buf);
+            let mut rdr = buf;
 
             let ndim = try!(rdr.read_be_i32()) as uint;
             let _has_null = try!(rdr.read_be_i32()) == 1;
@@ -431,7 +429,7 @@ pub trait FromSql {
     /// Creates a new value of this type from a buffer of Postgres data.
     ///
     /// If the value was `NULL`, the buffer will be `None`.
-    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Self>;
+    fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Self>;
 }
 
 #[doc(hidden)]
@@ -563,17 +561,16 @@ from_array_impl!(Type::Int4RangeArray, Range<i32>);
 from_array_impl!(Type::Int8RangeArray, Range<i64>);
 
 impl FromSql for Option<String> {
-    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>) -> Result<Option<String>> {
+    fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
         match *ty {
             Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
             Type::Unknown { ref name, .. } if "citext" == *name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
-        match *raw {
-            Some(ref buf) => {
-                let mut rdr = &**buf;
-                Ok(Some(try!(RawFromSql::raw_from_sql(&mut rdr))))
+        match raw {
+            Some(mut buf) => {
+                Ok(Some(try!(RawFromSql::raw_from_sql(&mut buf))))
             }
             None => Ok(None)
         }
@@ -583,16 +580,16 @@ impl FromSql for Option<String> {
 from_option_impl!(String);
 
 impl FromSql for Option<HashMap<String, Option<String>>> {
-    fn from_sql(ty: &Type, raw: &Option<Vec<u8>>)
+    fn from_sql(ty: &Type, raw: Option<&[u8]>)
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
             Type::Unknown { ref name, .. } if "hstore" == *name => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
-        match *raw {
-            Some(ref buf) => {
-                let mut rdr = BufReader::new(&**buf);
+        match raw {
+            Some(buf) => {
+                let mut rdr = buf;
                 let mut map = HashMap::new();
 
                 let count = try!(rdr.read_be_i32());

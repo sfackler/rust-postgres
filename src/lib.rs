@@ -698,7 +698,7 @@ impl InnerConnection {
             _ => bad_response!(self)
         }
         let name: String = match try!(self.read_message()) {
-            DataRow { row } => try!(FromSql::from_sql(&Type::Name, &row[0])),
+            DataRow { row } => try!(FromSql::from_sql(&Type::Name, row[0].as_ref().map(|r| &**r))),
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 return DbError::new(fields);
@@ -1521,7 +1521,7 @@ impl<'stmt> Row<'stmt> {
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
         let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        FromSql::from_sql(&self.stmt.result_desc[idx].ty, &self.data[idx])
+        FromSql::from_sql(&self.stmt.result_desc[idx].ty, self.data[idx].as_ref().map(|e| &**e))
     }
 
     /// Retrieves the contents of a field of the row.
