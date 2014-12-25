@@ -245,7 +245,7 @@ More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
 Support for Postgres arrays is located in the
-[postgres-arrays](https://github.com/sfackler/rust-postgres-arrays) crate.
+[postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
 ## Optional features
 
