@@ -15,7 +15,6 @@ impl RawFromSql for Uuid {
 }
 
 from_raw_from_impl!(Type::Uuid, Uuid, doc = "requires the \"uuid\" feature");
-from_array_impl!(Type::UuidArray, Uuid, doc = "requires the \"uuid\" feature");
 
 impl RawToSql for Uuid {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
@@ -24,4 +23,3 @@ impl RawToSql for Uuid {
 }
 
 to_raw_to_impl!(Type::Uuid, Uuid, doc = "requires the \"uuid\" feature");
-to_array_impl!(Type::UuidArray, Uuid, doc = "requires the \"uuid\" feature");

@@ -26,8 +26,6 @@ impl RawFromSql for Timespec {
 
 from_raw_from_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
 from_raw_from_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>);
-from_array_impl!(Type::TimestampArray | Type::TimestampTZArray, Timespec);
-from_array_impl!(Type::TsRangeArray | Type::TstzRangeArray, Range<Timespec>);
 
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
@@ -38,8 +36,6 @@ impl RawToSql for Timespec {
 
 to_raw_to_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>);
 to_raw_to_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
-to_array_impl!(Type::TimestampArray | Type::TimestampTZArray, Timespec);
-to_array_impl!(Type::TsRangeArray | Type::TstzRangeArray, Range<Timespec>);
 
 impl Normalizable for Timespec {
     fn normalize<S>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> where S: BoundSided {

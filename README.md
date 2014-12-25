@@ -235,62 +235,6 @@ types. The driver currently supports the following conversions:
             <td>TSRANGE, TSTZRANGE</td>
         </tr>
         <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;bool&gt;&gt;</td>
-            <td>BOOL[], BOOL[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Vec&lt;u8&gt;&gt;&gt;</td>
-            <td>BYTEA[], BYTEA[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;i8&gt;&gt;</td>
-            <td>"char"[], "char"[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;i16&gt;&gt;</td>
-            <td>INT2[], INT2[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;i32&gt;&gt;</td>
-            <td>INT4[], INT4[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;String&gt;&gt;</td>
-            <td>TEXT[], CHAR(n)[], VARCHAR[], TEXT[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Json&gt;&gt;</td>
-            <td>JSON[], JSON[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;i64&gt;&gt;</td>
-            <td>INT8[], INT8[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Timespec&gt;&gt;</td>
-            <td>TIMESTAMP[], TIMESTAMPTZ[], TIMESTAMP[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;f32&gt;&gt;</td>
-            <td>FLOAT4[], FLOAT4[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;f64&gt;&gt;</td>
-            <td>FLOAT8[], FLOAT8[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;i32&gt;&gt;&gt;</td>
-            <td>INT4RANGE[], INT4RANGE[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;Timespec&gt;&gt;&gt;</td>
-            <td>TSRANGE[], TSTZRANGE[], TSRANGE[][], ...</td>
-        </tr>
-        <tr>
-            <td>types::array::ArrayBase&lt;Option&lt;Range&lt;i64&gt;&gt;&gt;</td>
-            <td>INT8RANGE[], INT8RANGE[][], ...</td>
-        </tr>
-        <tr>
             <td>std::collections::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
@@ -299,6 +243,9 @@ types. The driver currently supports the following conversions:
 
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
+
+Support for Postgres arrays is located in the
+[postgres-arrays](https://github.com/sfackler/rust-postgres-arrays) crate.
 
 ## Optional features
 

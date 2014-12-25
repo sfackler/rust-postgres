@@ -8,7 +8,6 @@ use std::io::net::ip::IpAddr;
 use Result;
 use error::Error;
 use types::range::{Range, RangeBound, BoundSided, BoundType, Normalizable};
-use types::array::{Array, ArrayBase};
 
 macro_rules! check_types {
     ($($expected:pat)|+, $actual:ident) => (
@@ -76,50 +75,6 @@ macro_rules! from_raw_from_impl {
     )
 }
 
-macro_rules! from_array_impl {
-    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>>, |buf: &[u8]| {
-            use std::io::ByRefReader;
-            use std::io::util::LimitReader;
-            use std::iter::MultiplicativeIterator;
-            use types::{Oid, RawFromSql};
-            use types::array::{ArrayBase, DimensionInfo};
-            use Error;
-
-            let mut rdr = buf;
-
-            let ndim = try!(rdr.read_be_i32()) as uint;
-            let _has_null = try!(rdr.read_be_i32()) == 1;
-            let _element_type: Oid = try!(rdr.read_be_u32());
-
-            let mut dim_info = Vec::with_capacity(ndim);
-            for _ in range(0, ndim) {
-                dim_info.push(DimensionInfo {
-                    len: try!(rdr.read_be_i32()) as uint,
-                    lower_bound: try!(rdr.read_be_i32()) as int
-                });
-            }
-            let nele = dim_info.iter().map(|info| info.len).product();
-
-            let mut elements = Vec::with_capacity(nele);
-            for _ in range(0, nele) {
-                let len = try!(rdr.read_be_i32());
-                if len < 0 {
-                    elements.push(None);
-                } else {
-                    let mut limit = LimitReader::new(rdr.by_ref(), len as uint);
-                    elements.push(Some(try!(RawFromSql::raw_from_sql(&mut limit))));
-                    if limit.limit() != 0 {
-                        return Err(Error::BadData);
-                    }
-                }
-            }
-
-            Ok(ArrayBase::from_raw(elements, dim_info))
-        } $(, $a)*);
-    )
-}
-
 macro_rules! raw_to_impl {
     ($t:ty, $f:ident) => (
         impl RawToSql for $t {
@@ -178,50 +133,6 @@ macro_rules! to_raw_to_impl {
     )
 }
 
-macro_rules! to_array_impl {
-    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
-        $(#[$a])*
-        impl ::types::ToSql for ::types::array::ArrayBase<Option<$t>> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty);
-                Ok(Some(::types::raw_to_array(self, ty)))
-            }
-        }
-
-        to_option_impl!($($oid)|+, ::types::array::ArrayBase<Option<$t>> $(, $a)*);
-    )
-}
-
-fn raw_to_array<T>(array: &ArrayBase<Option<T>>, ty: &Type) -> Vec<u8> where T: RawToSql {
-    let mut buf = vec![];
-
-    let _ = buf.write_be_i32(array.dimension_info().len() as i32);
-    let _ = buf.write_be_i32(1);
-    let _ = buf.write_be_u32(ty.member_type().to_oid());
-
-    for info in array.dimension_info().iter() {
-        let _ = buf.write_be_i32(info.len as i32);
-        let _ = buf.write_be_i32(info.lower_bound as i32);
-    }
-
-    for v in array.values() {
-        match *v {
-            Some(ref val) => {
-                let mut inner_buf = vec![];
-                let _ = val.raw_to_sql(&mut inner_buf);
-                let _ = buf.write_be_i32(inner_buf.len() as i32);
-                let _ = buf.write(&*inner_buf);
-            }
-            None => {
-                let _ = buf.write_be_i32(-1);
-            }
-        }
-    }
-
-    buf
-}
-
-pub mod array;
 pub mod range;
 #[cfg(feature = "uuid")]
 mod uuid;
@@ -302,7 +213,10 @@ macro_rules! make_postgres_type {
         }
 
         impl Type {
-            #[doc(hidden)]
+            /// Creates a `Type` from an OID.
+            ///
+            /// If the OID is unknown, the `name` field is initialized to an
+            /// empty string.
             pub fn from_oid(oid: Oid) -> Type {
                 match oid {
                     $($oid => Type::$variant,)+
@@ -311,7 +225,7 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            #[doc(hidden)]
+            /// Returns the OID of the `Type`.
             pub fn to_oid(&self) -> Oid {
                 match *self {
                     $(Type::$variant => $oid,)+
@@ -319,7 +233,12 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            fn member_type(&self) -> Type {
+            /// Returns the element `Type` if this `Type` is an array.
+            ///
+            /// # Panics
+            ///
+            /// Panics if this `Type` is not an array.
+            pub fn member_type(&self) -> Type {
                 match *self {
                     $(
                         $(Type::$variant => Type::$member,)*
@@ -432,8 +351,9 @@ pub trait FromSql {
     fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Self>;
 }
 
-#[doc(hidden)]
-trait RawFromSql {
+/// A utility trait used by `FromSql` implementations
+pub trait RawFromSql {
+    /// Creates a new value of this type from a reader of Postgre data.
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Self>;
 }
 
@@ -547,19 +467,6 @@ from_raw_from_impl!(Type::Inet | Type::Cidr, IpAddr);
 from_raw_from_impl!(Type::Int4Range, Range<i32>);
 from_raw_from_impl!(Type::Int8Range, Range<i64>);
 
-from_array_impl!(Type::BoolArray, bool);
-from_array_impl!(Type::ByteAArray, Vec<u8>);
-from_array_impl!(Type::CharArray, i8);
-from_array_impl!(Type::Int2Array, i16);
-from_array_impl!(Type::Int4Array, i32);
-from_array_impl!(Type::TextArray | Type::CharNArray | Type::VarcharArray | Type::NameArray, String);
-from_array_impl!(Type::Int8Array, i64);
-from_array_impl!(Type::JsonArray, json::Json);
-from_array_impl!(Type::Float4Array, f32);
-from_array_impl!(Type::Float8Array, f64);
-from_array_impl!(Type::Int4RangeArray, Range<i32>);
-from_array_impl!(Type::Int8RangeArray, Range<i64>);
-
 impl FromSql for Option<String> {
     fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
         match *ty {
@@ -631,8 +538,10 @@ pub trait ToSql {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>>;
 }
 
-#[doc(hidden)]
-trait RawToSql {
+/// A utility trait used by `ToSql` implementations.
+pub trait RawToSql {
+    /// Converts the value of `self` into the binary format appropriate for the
+    /// Postgres backend, writing it to `w`.
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()>;
 }
 
@@ -796,19 +705,6 @@ impl<'a> ToSql for &'a [u8] {
 }
 
 to_option_impl_lifetime!(Type::ByteA, &'a [u8]);
-
-to_array_impl!(Type::BoolArray, bool);
-to_array_impl!(Type::ByteAArray, Vec<u8>);
-to_array_impl!(Type::CharArray, i8);
-to_array_impl!(Type::Int2Array, i16);
-to_array_impl!(Type::Int4Array, i32);
-to_array_impl!(Type::Int8Array, i64);
-to_array_impl!(Type::TextArray | Type::CharNArray | Type::VarcharArray | Type::NameArray, String);
-to_array_impl!(Type::Float4Array, f32);
-to_array_impl!(Type::Float8Array, f64);
-to_array_impl!(Type::Int4RangeArray, Range<i32>);
-to_array_impl!(Type::Int8RangeArray, Range<i64>);
-to_array_impl!(Type::JsonArray, json::Json);
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
