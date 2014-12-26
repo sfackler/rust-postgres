@@ -1,7 +1,6 @@
 use time::Timespec;
 use Result;
 use types::{RawFromSql, Type, RawToSql};
-use types::range::{Range, RangeBound, BoundSided, Normalizable};
 
 const USEC_PER_SEC: i64 = 1_000_000;
 const NSEC_PER_USEC: i64 = 1_000;
@@ -25,7 +24,6 @@ impl RawFromSql for Timespec {
 }
 
 from_raw_from_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
-from_raw_from_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>);
 
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
@@ -34,12 +32,5 @@ impl RawToSql for Timespec {
     }
 }
 
-to_raw_to_impl!(Type::TsRange | Type::TstzRange, Range<Timespec>);
 to_raw_to_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
-
-impl Normalizable for Timespec {
-    fn normalize<S>(bound: RangeBound<S, Timespec>) -> RangeBound<S, Timespec> where S: BoundSided {
-        bound
-    }
-}
 

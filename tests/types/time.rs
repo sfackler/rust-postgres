@@ -20,21 +20,3 @@ fn test_tm_params() {
                (None, "NULL")]);
 }
 
-fn test_timespec_range_params(sql_type: &str) {
-    fn t(time: &str) -> Timespec {
-        time::strptime(time, "%Y-%m-%d").unwrap().to_timespec()
-    }
-    let low = "1970-01-01";
-    let high = "1980-01-01";
-    test_range!(sql_type, Timespec, t(low), low, t(high), high);
-}
-
-#[test]
-fn test_tsrange_params() {
-    test_timespec_range_params("TSRANGE");
-}
-
-#[test]
-fn test_tstzrange_params() {
-    test_timespec_range_params("TSTZRANGE");
-}

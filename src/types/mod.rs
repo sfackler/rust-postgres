@@ -1,13 +1,10 @@
 //! Traits dealing with Postgres data types
 use serialize::json;
 use std::collections::HashMap;
-use std::io::ByRefReader;
-use std::io::util::LimitReader;
 use std::io::net::ip::IpAddr;
 
 use Result;
 use error::Error;
-use types::range::{Range, RangeBound, BoundSided, BoundType, Normalizable};
 
 macro_rules! check_types {
     ($($expected:pat)|+, $actual:ident) => (
@@ -133,7 +130,6 @@ macro_rules! to_raw_to_impl {
     )
 }
 
-pub mod range;
 #[cfg(feature = "uuid")]
 mod uuid;
 mod time;
@@ -187,12 +183,6 @@ const TSTZRANGEOID: Oid = 3910;
 const TSTZRANGEARRAYOID: Oid = 3911;
 const INT8RANGEOID: Oid = 3926;
 const INT8RANGEARRAYOID: Oid = 3927;
-
-const RANGE_UPPER_UNBOUNDED: i8 = 0b0001_0000;
-const RANGE_LOWER_UNBOUNDED: i8 = 0b0000_1000;
-const RANGE_UPPER_INCLUSIVE: i8 = 0b0000_0100;
-const RANGE_LOWER_INCLUSIVE: i8 = 0b0000_0010;
-const RANGE_EMPTY: i8           = 0b0000_0001;
 
 macro_rules! make_postgres_type {
     ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
@@ -417,41 +407,6 @@ impl RawFromSql for IpAddr {
     }
 }
 
-impl<T> RawFromSql for Range<T> where T: PartialOrd+Normalizable+RawFromSql {
-    fn raw_from_sql<R: Reader>(rdr: &mut R) -> Result<Range<T>> {
-        let t = try!(rdr.read_i8());
-
-        if t & RANGE_EMPTY != 0 {
-            return Ok(Range::empty());
-        }
-
-        fn make_bound<S, T, R>(rdr: &mut R, tag: i8, bound_flag: i8, inclusive_flag: i8)
-                               -> Result<Option<RangeBound<S, T>>>
-                where S: BoundSided, T: PartialOrd+Normalizable+RawFromSql, R: Reader {
-            match tag & bound_flag {
-                0 => {
-                    let type_ = match tag & inclusive_flag {
-                        0 => BoundType::Exclusive,
-                        _ => BoundType::Inclusive,
-                    };
-                    let len = try!(rdr.read_be_i32()) as uint;
-                    let mut limit = LimitReader::new(rdr.by_ref(), len);
-                    let bound = try!(RawFromSql::raw_from_sql(&mut limit));
-                    if limit.limit() != 0 {
-                        return Err(Error::BadData);
-                    }
-                    Ok(Some(RangeBound::new(bound, type_)))
-                }
-                _ => Ok(None)
-            }
-        }
-
-        let lower = try!(make_bound(rdr, t, RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE));
-        let upper = try!(make_bound(rdr, t, RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE));
-        Ok(Range::new(lower, upper))
-    }
-}
-
 from_raw_from_impl!(Type::Bool, bool);
 from_raw_from_impl!(Type::ByteA, Vec<u8>);
 from_raw_from_impl!(Type::Char, i8);
@@ -463,9 +418,6 @@ from_raw_from_impl!(Type::Float4, f32);
 from_raw_from_impl!(Type::Float8, f64);
 from_raw_from_impl!(Type::Json, json::Json);
 from_raw_from_impl!(Type::Inet | Type::Cidr, IpAddr);
-
-from_raw_from_impl!(Type::Int4Range, Range<i32>);
-from_raw_from_impl!(Type::Int8Range, Range<i64>);
 
 impl FromSql for Option<String> {
     fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
@@ -608,44 +560,6 @@ impl RawToSql for IpAddr {
     }
 }
 
-impl<T> RawToSql for Range<T> where T: PartialOrd+Normalizable+RawToSql {
-    fn raw_to_sql<W: Writer>(&self, buf: &mut W) -> Result<()> {
-        let mut tag = 0;
-        if self.is_empty() {
-            tag |= RANGE_EMPTY;
-        } else {
-            fn make_tag<S, T>(bound: Option<&RangeBound<S, T>>, unbounded_tag: i8,
-                              inclusive_tag: i8) -> i8 where S: BoundSided {
-                match bound {
-                    None => unbounded_tag,
-                    Some(&RangeBound { type_: BoundType::Inclusive, .. }) => inclusive_tag,
-                    _ => 0
-                }
-            }
-            tag |= make_tag(self.lower(), RANGE_LOWER_UNBOUNDED, RANGE_LOWER_INCLUSIVE);
-            tag |= make_tag(self.upper(), RANGE_UPPER_UNBOUNDED, RANGE_UPPER_INCLUSIVE);
-        }
-
-        try!(buf.write_i8(tag));
-
-        fn write_value<S, T, W>(buf: &mut W, v: Option<&RangeBound<S, T>>) -> Result<()>
-                where S: BoundSided, T: RawToSql, W: Writer {
-            if let Some(bound) = v {
-                let mut inner_buf = vec![];
-                try!(bound.value.raw_to_sql(&mut inner_buf));
-                try!(buf.write_be_u32(inner_buf.len() as u32));
-                try!(buf.write(&*inner_buf));
-            }
-            Ok(())
-        }
-
-        try!(write_value(buf, self.lower()));
-        try!(write_value(buf, self.upper()));
-
-        Ok(())
-    }
-}
-
 to_raw_to_impl!(Type::Bool, bool);
 to_raw_to_impl!(Type::ByteA, Vec<u8>);
 to_raw_to_impl!(Type::Json, json::Json);
@@ -657,8 +571,6 @@ to_raw_to_impl!(Type::Oid, u32);
 to_raw_to_impl!(Type::Int8, i64);
 to_raw_to_impl!(Type::Float4, f32);
 to_raw_to_impl!(Type::Float8, f64);
-to_raw_to_impl!(Type::Int4Range, Range<i32>);
-to_raw_to_impl!(Type::Int8Range, Range<i64>);
 
 impl ToSql for String {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {

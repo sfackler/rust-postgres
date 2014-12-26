@@ -9,28 +9,6 @@ use std::io::net::ip::IpAddr;
 use postgres::{Connection, SslMode};
 use postgres::types::{ToSql, FromSql};
 
-macro_rules! test_range {
-    ($name:expr, $t:ty, $low:expr, $low_str:expr, $high:expr, $high_str:expr) => ({
-        let tests = &[(Some(range!('(', ')')), "'(,)'".to_string()),
-                     (Some(range!('[' $low, ')')), format!("'[{},)'", $low_str)),
-                     (Some(range!('(' $low, ')')), format!("'({},)'", $low_str)),
-                     (Some(range!('(', $high ']')), format!("'(,{}]'", $high_str)),
-                     (Some(range!('(', $high ')')), format!("'(,{})'", $high_str)),
-                     (Some(range!('[' $low, $high ']')),
-                      format!("'[{},{}]'", $low_str, $high_str)),
-                     (Some(range!('[' $low, $high ')')),
-                      format!("'[{},{})'", $low_str, $high_str)),
-                     (Some(range!('(' $low, $high ']')),
-                      format!("'({},{}]'", $low_str, $high_str)),
-                     (Some(range!('(' $low, $high ')')),
-                      format!("'({},{})'", $low_str, $high_str)),
-                     (Some(range!(empty)), "'empty'".to_string()),
-                     (None, "NULL".to_string())];
-        test_type($name, tests);
-    })
-}
-
-mod range;
 #[cfg(feature = "uuid")]
 mod uuid;
 mod time;
@@ -182,16 +160,6 @@ fn test_cidr_params() {
                         (Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<IpAddr>().unwrap()),
                          "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
                         (None, "NULL")])
-}
-
-#[test]
-fn test_int4range_params() {
-    test_range!("INT4RANGE", i32, 100i32, "100", 200i32, "200")
-}
-
-#[test]
-fn test_int8range_params() {
-    test_range!("INT8RANGE", i64, 100i64, "100", 200i64, "200")
 }
 
 #[test]
