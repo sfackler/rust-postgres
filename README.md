@@ -223,18 +223,6 @@ types. The driver currently supports the following conversions:
             <td>UUID</td>
         </tr>
         <tr>
-            <td>types::range::Range&lt;i32&gt;</td>
-            <td>INT4RANGE</td>
-        </tr>
-        <tr>
-            <td>types::range::Range&lt;i64&gt;</td>
-            <td>INT8RANGE</td>
-        </tr>
-        <tr>
-            <td>types::range::Range&lt;Timespec&gt;</td>
-            <td>TSRANGE, TSTZRANGE</td>
-        </tr>
-        <tr>
             <td>std::collections::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
@@ -246,6 +234,9 @@ traits.
 
 Support for Postgres arrays is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
+
+Support for Postgres ranges is located in the
+[postgres-range](https://github.com/sfackler/rust-postgres-range) crate.
 
 ## Optional features
 
