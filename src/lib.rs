@@ -802,24 +802,24 @@ impl Connection {
     /// ## Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let _ = || {
+    /// # use postgres::{Connection, SslMode, ConnectError};
+    /// # fn f() -> Result<(), ConnectError> {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let _ = || {
+    /// # use postgres::{Connection, SslMode, ConnectError};
+    /// # fn f() -> Result<(), ConnectError> {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
-    /// # let _ = || {
+    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget, ConnectError};
+    /// # fn f() -> Result<(), ConnectError> {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
@@ -888,9 +888,9 @@ impl Connection {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
+    /// # use postgres::{Connection, SslMode, Error};
     /// # use postgres::types::ToSql;
-    /// # let _ = || {
+    /// # fn f() -> Result<(), Error> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// try!(conn.execute("CREATE TABLE foo (
     ///                     bar INT PRIMARY KEY,
