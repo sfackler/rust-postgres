@@ -50,7 +50,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params)]
+#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, old_orphan_check)]
 #![warn(missing_docs)]
 
 #[phase(plugin, link)]
@@ -104,7 +104,7 @@ const TYPENAME_QUERY: &'static str = "t";
 pub type Result<T> = result::Result<T, Error>;
 
 /// Specifies the target server to connect to.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
     Tcp(String),
@@ -113,7 +113,7 @@ pub enum ConnectTarget {
 }
 
 /// Authentication information
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct UserInfo {
     /// The username
     pub user: String,
@@ -122,7 +122,7 @@ pub struct UserInfo {
 }
 
 /// Information necessary to open a new connection to a Postgres server.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct ConnectParams {
     /// The target server
     pub target: ConnectTarget,
@@ -204,7 +204,7 @@ pub trait NoticeHandler: Send {
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
@@ -322,7 +322,7 @@ impl<'conn> Notifications<'conn> {
 }
 
 /// Contains information necessary to cancel queries for a session
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct CancelData {
     /// The process ID of the session
     pub process_id: u32,
@@ -1377,7 +1377,7 @@ impl<'conn> Statement<'conn> {
 }
 
 /// Information about a column of the result of a query.
-#[deriving(PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct ResultDescription {
     /// The name of the column
     pub name: String,

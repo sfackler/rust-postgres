@@ -13,7 +13,7 @@ use types::Type;
 macro_rules! make_errors {
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[deriving(PartialEq, Eq, Clone, Show)]
+        #[derive(PartialEq, Eq, Clone, Show)]
         #[allow(missing_docs)]
         pub enum SqlState {
             $($error,)+
@@ -356,7 +356,7 @@ make_errors! {
 }
 
 /// Reasons a new Postgres connection could fail
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ConnectError {
     /// The provided URL could not be parsed
     InvalidUrl(String),
@@ -454,7 +454,7 @@ impl fmt::Show for ConnectError {
 }
 
 /// Represents the position of an error in a query
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ErrorPosition {
     /// A position in the original query
     Normal(uint),
@@ -468,7 +468,7 @@ pub enum ErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct DbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -589,7 +589,7 @@ impl error::Error for DbError {
 }
 
 /// An error encountered when communicating with the Postgres server
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Error {
     /// An error reported by the Postgres server
     DbError(DbError),

@@ -187,7 +187,7 @@ const INT8RANGEARRAYOID: Oid = 3927;
 macro_rules! make_postgres_type {
     ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
         /// A Postgres type
-        #[deriving(PartialEq, Eq, Clone, Show)]
+        #[derive(PartialEq, Eq, Clone, Show)]
         pub enum Type {
             $(
                 #[$doc]
@@ -375,7 +375,7 @@ raw_from_impl!(f64, read_be_f64);
 
 impl RawFromSql for json::Json {
     fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<json::Json> {
-        json::from_reader(raw).map_err(|_| Error::BadData)
+        json::Json::from_reader(raw).map_err(|_| Error::BadData)
     }
 }
 
@@ -388,7 +388,7 @@ impl RawFromSql for IpAddr {
         if nb > 16 {
             return Err(Error::BadData);
         }
-        let mut buf = [0u8, ..16];
+        let mut buf = [0u8; 16];
         try!(raw.read_at_least(nb as uint, &mut buf));
         let mut buf: &[u8] = &buf;
 
@@ -525,7 +525,7 @@ raw_to_impl!(f64, write_be_f64);
 
 impl RawToSql for json::Json {
     fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
-        Ok(try!(self.to_writer(raw as &mut Writer)))
+        Ok(try!(write!(raw, "{}", self)))
     }
 }
 

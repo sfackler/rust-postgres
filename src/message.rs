@@ -17,7 +17,7 @@ pub enum BackendMessage {
     AuthenticationGSS,
     AuthenticationKerberosV5,
     AuthenticationMD5Password {
-        salt: [u8, ..4]
+        salt: [u8; 4]
     },
     AuthenticationOk,
     AuthenticationSCMCredential,
@@ -380,7 +380,7 @@ fn read_auth_message<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
         2 => AuthenticationKerberosV5,
         3 => AuthenticationCleartextPassword,
         5 => {
-            let mut salt = [0, ..4];
+            let mut salt = [0; 4];
             try!(buf.read_at_least(salt.len(), &mut salt));
             AuthenticationMD5Password { salt: salt }
         },

@@ -1,4 +1,4 @@
-use serialize::json;
+use serialize::json::Json;
 use std::collections::HashMap;
 use std::f32;
 use std::f64;
@@ -137,9 +137,9 @@ fn test_bytea_params() {
 
 #[test]
 fn test_json_params() {
-    test_type("JSON", &[(Some(json::from_str("[10, 11, 12]").unwrap()),
+    test_type("JSON", &[(Some(Json::from_str("[10, 11, 12]").unwrap()),
                         "'[10, 11, 12]'"),
-                       (Some(json::from_str("{\"f\": \"asd\"}").unwrap()),
+                       (Some(Json::from_str("{\"f\": \"asd\"}").unwrap()),
                         "'{\"f\": \"asd\"}'"),
                        (None, "NULL")])
 }

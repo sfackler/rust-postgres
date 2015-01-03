@@ -15,7 +15,7 @@ use std::path::BytesContainer;
 use std::num;
 use std::str;
 
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Url {
     pub scheme: String,
     pub user: Option<UserInfo>,
@@ -24,14 +24,14 @@ pub struct Url {
     pub path: Path,
 }
 
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Path {
     pub path: String,
     pub query: Query,
     pub fragment: Option<String>
 }
 
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct UserInfo {
     pub user: String,
     pub pass: Option<String>
@@ -265,7 +265,7 @@ fn get_authority(rawurl: &str) ->
         InPort // are in port
     }
 
-    #[deriving(Clone, PartialEq)]
+    #[derive(Clone, PartialEq)]
     enum Input {
         Digit, // all digits
         Hex, // digits and letters a-f
