@@ -50,7 +50,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, old_orphan_check)]
+#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, old_orphan_check, associated_types)]
 #![warn(missing_docs)]
 
 #[phase(plugin, link)]
@@ -228,7 +228,9 @@ pub struct Notifications<'conn> {
     conn: &'conn Connection
 }
 
-impl<'conn> Iterator<Notification> for Notifications<'conn> {
+impl<'conn> Iterator for Notifications<'conn> {
+    type Item = Notification;
+
     /// Returns the oldest pending notification or `None` if there are none.
     ///
     /// ## Note
@@ -662,7 +664,8 @@ impl InnerConnection {
         resp
     }
 
-    fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()> where I: Iterator<&'a mut Type> {
+    fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()>
+            where I: Iterator<Item=&'a mut Type> {
         for ty in it {
             if let &Type::Unknown { oid, ref mut name } = ty {
                 *name = try!(self.get_type_name(oid));
@@ -1479,7 +1482,9 @@ impl<'stmt> Rows<'stmt> {
     }
 }
 
-impl<'stmt> Iterator<Row<'stmt>> for Rows<'stmt> {
+impl<'stmt> Iterator for Rows<'stmt> {
+    type Item = Row<'stmt>;
+
     #[inline]
     fn next(&mut self) -> Option<Row<'stmt>> {
         // we'll never hit the network on a non-lazy result
@@ -1594,7 +1599,9 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 }
 
-impl<'trans, 'stmt> Iterator<Result<Row<'stmt>>> for LazyRows<'trans, 'stmt> {
+impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
+    type Item = Result<Row<'stmt>>;
+
     fn next(&mut self) -> Option<Result<Row<'stmt>>> {
         self.result.try_next()
     }
@@ -1640,7 +1647,7 @@ impl<'a> CopyInStatement<'a> {
     ///
     /// Returns the number of rows copied.
     pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<uint>
-            where I: Iterator<J>, J: Iterator<&'b (ToSql + 'b)> {
+            where I: Iterator<Item=J>, J: Iterator<Item=&'b (ToSql + 'b)> {
         let mut conn = self.conn.conn.borrow_mut();
 
         try!(conn.write_messages(&[
