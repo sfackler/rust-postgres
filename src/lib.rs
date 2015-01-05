@@ -780,8 +780,6 @@ pub struct Connection {
     conn: RefCell<InnerConnection>
 }
 
-unsafe impl Send for Connection {}
-
 impl Connection {
     /// Creates a new connection to a Postgres database.
     ///
