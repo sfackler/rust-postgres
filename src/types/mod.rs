@@ -64,7 +64,7 @@ macro_rules! from_map_impl {
 
 macro_rules! from_raw_from_impl {
     ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($expected)|+, $t, |mut buf: &[u8]| {
+        from_map_impl!($($expected)|+, $t, |&mut: mut buf: &[u8]| {
             use types::RawFromSql;
 
             RawFromSql::raw_from_sql(&mut buf)
