@@ -50,14 +50,14 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(globs, macro_rules, phase, unsafe_destructor, slicing_syntax, default_type_params, old_orphan_check, associated_types)]
+#![feature(plugin, unsafe_destructor, slicing_syntax, old_orphan_check)]
 #![warn(missing_docs)]
 
-#[phase(plugin, link)]
+#[macro_use]
 extern crate log;
 extern crate openssl;
 extern crate phf;
-#[phase(plugin)]
+#[plugin] #[no_link]
 extern crate phf_mac;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
@@ -72,7 +72,6 @@ use std::collections::{RingBuf, HashMap};
 use std::fmt;
 use std::io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::io::net::ip::Port;
-use std::iter::IteratorCloneExt;
 use std::mem;
 use std::result;
 use std::time::Duration;
@@ -87,7 +86,7 @@ use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 
-#[macro_escape]
+#[macro_use]
 mod macros;
 
 mod error;

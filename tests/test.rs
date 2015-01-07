@@ -1,6 +1,5 @@
-#![feature(macro_rules, phase, slicing_syntax)]
+#![feature(slicing_syntax)]
 
-#[phase(plugin, link)]
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
 extern crate url;
