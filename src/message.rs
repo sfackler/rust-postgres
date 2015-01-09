@@ -171,7 +171,7 @@ impl<W: Writer> WriteMessage for W {
                         None => try!(buf.write_be_i32(-1)),
                         Some(ref value) => {
                             try!(buf.write_be_i32(value.len() as i32));
-                            try!(buf.write(value[]));
+                            try!(buf.write(&**value));
                         }
                     }
                 }
@@ -230,8 +230,8 @@ impl<W: Writer> WriteMessage for W {
             StartupMessage { version, parameters } => {
                 try!(buf.write_be_u32(version));
                 for &(ref k, ref v) in parameters.iter() {
-                    try!(buf.write_cstr(k[]));
-                    try!(buf.write_cstr(v[]));
+                    try!(buf.write_cstr(&**k));
+                    try!(buf.write_cstr(&**v));
                 }
                 try!(buf.write_u8(0));
             }
@@ -246,7 +246,7 @@ impl<W: Writer> WriteMessage for W {
 
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
-        try!(self.write(buf[]));
+        try!(self.write(&*buf));
 
         Ok(())
     }
@@ -286,7 +286,7 @@ impl<R: Buffer+Timeout> ReadMessage for R {
         let ident = try!(ident);
 
         // subtract size of length value
-        let len = try!(self.read_be_u32()) as uint - mem::size_of::<i32>();
+        let len = try!(self.read_be_u32()) as usize - mem::size_of::<i32>();
         let mut rdr = LimitReader::new(self.by_ref(), len);
 
         let ret = match ident {
@@ -360,13 +360,13 @@ fn read_fields<R: Buffer>(buf: &mut R) -> IoResult<Vec<(u8, String)>> {
 }
 
 fn read_data_row<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
-    let len = try!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as usize;
     let mut values = Vec::with_capacity(len);
 
     for _ in range(0, len) {
         let val = match try!(buf.read_be_i32()) {
             -1 => None,
-            len => Some(try!(buf.read_exact(len as uint)))
+            len => Some(try!(buf.read_exact(len as usize)))
         };
         values.push(val);
     }
@@ -396,7 +396,7 @@ fn read_auth_message<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
 }
 
 fn read_parameter_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
-    let len = try!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as usize;
     let mut types = Vec::with_capacity(len);
 
     for _ in range(0, len) {
@@ -407,7 +407,7 @@ fn read_parameter_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage
 }
 
 fn read_row_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
-    let len = try!(buf.read_be_i16()) as uint;
+    let len = try!(buf.read_be_i16()) as usize;
     let mut types = Vec::with_capacity(len);
 
     for _ in range(0, len) {

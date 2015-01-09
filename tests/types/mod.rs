@@ -13,15 +13,15 @@ use postgres::types::{ToSql, FromSql};
 mod uuid;
 mod time;
 
-fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Show>(sql_type: &str, checks: &[(T, S)]) {
+fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::String>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
-        let stmt = or_panic!(conn.prepare(format!("SELECT {}::{}", *repr, sql_type)[]));
-        let result = or_panic!(stmt.query(&[])).next().unwrap().get(0u);
+        let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
+        let result = or_panic!(stmt.query(&[])).next().unwrap().get(0us);
         assert!(val == &result);
 
-        let stmt = or_panic!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
-        let result = or_panic!(stmt.query(&[val])).next().unwrap().get(0u);
+        let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
+        let result = or_panic!(stmt.query(&[val])).next().unwrap().get(0us);
         assert!(val == &result);
     }
 }
@@ -111,7 +111,7 @@ fn test_bpchar_params() {
     let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
-               res.map(|row| row.get(0u)).collect::<Vec<_>>());
+               res.map(|row| row.get(0us)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn test_citext_params() {
     let stmt = or_panic!(conn.prepare("SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id"));
     let res = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec!(Some(1i32), Some(2i32)), res.map(|row| row.get(0u)).collect::<Vec<_>>());
+    assert_eq!(vec!(Some(1i32), Some(2i32)), res.map(|row| row.get(0us)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -182,15 +182,15 @@ fn test_hstore_params() {
 
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    let stmt = or_panic!(conn.prepare(format!("SELECT 'NaN'::{}", sql_type)[]));
+    let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
     let mut result = or_panic!(stmt.query(&[]));
-    let val: T = result.next().unwrap().get(0u);
+    let val: T = result.next().unwrap().get(0us);
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
-    let stmt = or_panic!(conn.prepare(format!("SELECT $1::{}", sql_type)[]));
+    let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
     let mut result = or_panic!(stmt.query(&[&nan]));
-    let val: T = result.next().unwrap().get(0u);
+    let val: T = result.next().unwrap().get(0us);
     assert!(val.is_nan())
 }
 
@@ -211,6 +211,6 @@ fn test_pg_database_datname() {
     let mut result = or_panic!(stmt.query(&[]));
 
     let next = result.next().unwrap();
-    or_panic!(next.get_opt::<uint, String>(0));
+    or_panic!(next.get_opt::<usize, String>(0));
     or_panic!(next.get_opt::<&str, String>("datname"));
 }

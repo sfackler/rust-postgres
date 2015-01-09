@@ -52,6 +52,7 @@
 #![doc(html_root_url="https://sfackler.github.io/doc")]
 #![feature(plugin, unsafe_destructor, slicing_syntax, old_orphan_check)]
 #![warn(missing_docs)]
+#![allow(unstable)]
 
 #[macro_use]
 extern crate log;
@@ -374,7 +375,7 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
 
 struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
-    next_stmt_id: uint,
+    next_stmt_id: usize,
     notice_handler: Box<NoticeHandler>,
     notifications: RingBuf<Notification>,
     cancel_data: CancelData,
@@ -666,7 +667,7 @@ impl InnerConnection {
     fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()>
             where I: Iterator<Item=&'a mut Type> {
         for ty in it {
-            if let &Type::Unknown { oid, ref mut name } = ty {
+            if let &mut Type::Unknown { oid, ref mut name } = ty {
                 *name = try!(self.get_type_name(oid));
             }
         }
@@ -958,7 +959,7 @@ impl Connection {
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
         let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement {
             conn: self,
@@ -1104,7 +1105,7 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
         self.conn.execute(query, params)
     }
 
@@ -1196,7 +1197,7 @@ pub struct Statement<'conn> {
     name: String,
     param_types: Vec<Type>,
     result_desc: Vec<ResultDescription>,
-    next_portal_id: Cell<uint>,
+    next_portal_id: Cell<usize>,
     finished: bool,
 }
 
@@ -1303,7 +1304,7 @@ impl<'conn> Statement<'conn> {
     ///     Err(err) => println!("Error executing query: {}", err)
     /// }
     /// ```
-    pub fn execute(&self, params: &[&ToSql]) -> Result<uint> {
+    pub fn execute(&self, params: &[&ToSql]) -> Result<usize> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
 
@@ -1489,7 +1490,7 @@ impl<'stmt> Iterator for Rows<'stmt> {
     }
 
     #[inline]
-    fn size_hint(&self) -> (uint, Option<uint>) {
+    fn size_hint(&self) -> (usize, Option<usize>) {
         let lower = self.data.len();
         let upper = if self.more_rows {
             None
@@ -1508,7 +1509,7 @@ pub struct Row<'stmt> {
 
 impl<'stmt> Row<'stmt> {
     /// Returns the number of values in the row
-    pub fn len(&self) -> uint {
+    pub fn len(&self) -> usize {
         self.data.len()
     }
 
@@ -1553,7 +1554,7 @@ impl<'stmt> Row<'stmt> {
     pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Show + Clone, T: FromSql {
         match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => panic!("error retrieving column {}: {}", idx, err)
+            Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err)
         }
     }
 }
@@ -1562,12 +1563,12 @@ impl<'stmt> Row<'stmt> {
 pub trait RowIndex {
     /// Returns the index of the appropriate column, or `None` if no such
     /// column exists.
-    fn idx(&self, stmt: &Statement) -> Option<uint>;
+    fn idx(&self, stmt: &Statement) -> Option<usize>;
 }
 
-impl RowIndex for uint {
+impl RowIndex for usize {
     #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<uint> {
+    fn idx(&self, stmt: &Statement) -> Option<usize> {
         if *self >= stmt.result_desc.len() {
             None
         } else {
@@ -1578,7 +1579,7 @@ impl RowIndex for uint {
 
 impl<'a> RowIndex for &'a str {
     #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<uint> {
+    fn idx(&self, stmt: &Statement) -> Option<usize> {
         stmt.result_descriptions().iter().position(|d| d.name == *self)
     }
 }
@@ -1603,7 +1604,7 @@ impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
         self.result.try_next()
     }
 
-    fn size_hint(&self) -> (uint, Option<uint>) {
+    fn size_hint(&self) -> (usize, Option<usize>) {
         self.result.size_hint()
     }
 }
@@ -1643,7 +1644,7 @@ impl<'a> CopyInStatement<'a> {
     /// providing a single result row.
     ///
     /// Returns the number of rows copied.
-    pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<uint>
+    pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<usize>
             where I: Iterator<Item=J>, J: Iterator<Item=&'b (ToSql + 'b)> {
         let mut conn = self.conn.conn.borrow_mut();
 
@@ -1705,7 +1706,7 @@ impl<'a> CopyInStatement<'a> {
                                 // FIXME this is not the right way to handle this
                                 try_desync!(conn, conn.stream.write_message(
                                     &CopyFail {
-                                        message: &*err.to_string(),
+                                        message: &*format!("{:?}", err),
                                     }));
                                 break 'l;
                             }
@@ -1770,7 +1771,7 @@ pub trait GenericConnection {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::execute`.
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint>;
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize>;
 
     /// Like `Connection::prepare_copy_in`.
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
@@ -1788,7 +1789,7 @@ impl GenericConnection for Connection {
         self.prepare(query)
     }
 
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
         self.execute(query, params)
     }
 
@@ -1811,7 +1812,7 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.prepare(query)
     }
 
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<uint> {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
         self.execute(query, params)
     }
 

@@ -35,7 +35,7 @@ pub enum InternalStream {
 }
 
 impl Reader for InternalStream {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.read(buf),
             InternalStream::Unix(ref mut s) => s.read(buf),

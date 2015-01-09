@@ -10,7 +10,6 @@
 
 use std::fmt;
 use std::str::FromStr;
-use std::hash;
 use std::path::BytesContainer;
 use std::num;
 use std::str;
@@ -111,33 +110,6 @@ impl UserInfo {
     }
 }
 
-fn encode_inner<T: BytesContainer>(c: T, full_url: bool) -> String {
-    c.container_as_bytes().iter().fold(String::new(), |mut out, &b| {
-        match b as char {
-            // unreserved:
-            'A' ... 'Z'
-            | 'a' ... 'z'
-            | '0' ... '9'
-            | '-' | '.' | '_' | '~' => out.push(b as char),
-
-            // gen-delims:
-            ':' | '/' | '?' | '#' | '[' | ']' | '@' |
-            // sub-delims:
-            '!' | '$' | '&' | '"' | '(' | ')' | '*' |
-            '+' | ',' | ';' | '='
-                if full_url => out.push(b as char),
-
-            ch => out.push_str(format!("%{:02X}", ch as uint).as_slice()),
-        };
-
-        out
-    })
-}
-
-pub fn encode_component<T: BytesContainer>(container: T) -> String {
-    encode_inner(container, false)
-}
-
 pub type DecodeResult<T> = Result<T, String>;
 
 pub fn decode_component<T: BytesContainer>(container: T) -> DecodeResult<String> {
@@ -159,7 +131,7 @@ fn decode_inner<T: BytesContainer>(c: T, full_url: bool) -> DecodeResult<String>
                     };
 
                     // Only decode some characters if full_url:
-                    match num::from_str_radix::<uint>(str::from_utf8(&bytes).unwrap(), 16u).unwrap() as u8 as char {
+                    match num::from_str_radix::<usize>(str::from_utf8(&bytes).unwrap(), 16).unwrap() as u8 as char {
                         // gen-delims:
                         ':' | '/' | '?' | '#' | '[' | ']' | '@' |
 
@@ -168,8 +140,8 @@ fn decode_inner<T: BytesContainer>(c: T, full_url: bool) -> DecodeResult<String>
                         '+' | ',' | ';' | '='
                             if full_url => {
                             out.push('%');
-                            out.push(bytes[0u] as char);
-                            out.push(bytes[1u] as char);
+                            out.push(bytes[0] as char);
+                            out.push(bytes[1] as char);
                         }
 
                         ch => out.push(ch)
@@ -212,19 +184,6 @@ fn query_from_str(rawquery: &str) -> DecodeResult<Query> {
     }
 
     Ok(query)
-}
-
-pub fn query_to_str(query: &Query) -> String {
-    query.iter().enumerate().fold(String::new(), |mut out, (i, &(ref k, ref v))| {
-        if i != 0 {
-            out.push('&');
-        }
-
-        out.push_str(encode_component(k.as_slice()).as_slice());
-        out.push('=');
-        out.push_str(encode_component(v.as_slice()).as_slice());
-        out
-    })
 }
 
 pub fn get_scheme(rawurl: &str) -> DecodeResult<(&str, &str)> {
@@ -285,7 +244,7 @@ fn get_authority(rawurl: &str) ->
     let mut host = "";
     let mut port = None;
 
-    let mut colon_count = 0u;
+    let mut colon_count = 0us;
     let mut pos = 0;
     let mut begin = 2;
     let mut end = len;
@@ -413,7 +372,7 @@ fn get_authority(rawurl: &str) ->
     let port = match port {
         None => None,
         opt => match opt.and_then(|p| FromStr::from_str(p)) {
-            None => return Err(format!("Failed to parse port: {}", port)),
+            None => return Err(format!("Failed to parse port: {:?}", port)),
             opt => opt
         }
     };
@@ -478,43 +437,6 @@ impl FromStr for Url {
 impl FromStr for Path {
     fn from_str(s: &str) -> Option<Path> {
         Path::parse(s).ok()
-    }
-}
-
-impl fmt::Show for Url {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}:", self.scheme));
-
-        if !self.host.is_empty() {
-            try!(write!(f, "//"));
-            match self.user {
-                Some(ref user) => try!(write!(f, "{}", *user)),
-                None => {}
-            }
-            match self.port {
-                Some(ref port) => try!(write!(f, "{}:{}", self.host,
-                                                *port)),
-                None => try!(write!(f, "{}", self.host)),
-            }
-        }
-
-        write!(f, "{}", self.path)
-    }
-}
-
-impl fmt::Show for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}", self.path));
-        if !self.query.is_empty() {
-            try!(write!(f, "?{}", query_to_str(&self.query)))
-        }
-
-        match self.fragment {
-            Some(ref fragment) => {
-                write!(f, "#{}", encode_component(fragment.as_slice()))
-            }
-            None => Ok(())
-        }
     }
 }
 

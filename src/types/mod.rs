@@ -2,6 +2,7 @@
 use serialize::json;
 use std::collections::HashMap;
 use std::io::net::ip::IpAddr;
+use std::fmt;
 
 use Result;
 use error::Error;
@@ -198,6 +199,18 @@ macro_rules! make_postgres_type {
             }
         }
 
+        impl fmt::String for Type {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                let s = match *self {
+                    $(
+                        Type::$variant => stringify!($variant),
+                    )+
+                    Type::Unknown { ref name, .. } => &**name,
+                };
+                write!(fmt, "{}", s)
+            }
+        }
+
         impl Type {
             /// Creates a `Type` from an OID.
             ///
@@ -385,7 +398,7 @@ impl RawFromSql for IpAddr {
             return Err(Error::BadData);
         }
         let mut buf = [0u8; 16];
-        try!(raw.read_at_least(nb as uint, &mut buf));
+        try!(raw.read_at_least(nb as usize, &mut buf));
         let mut buf: &[u8] = &buf;
 
         match family {
@@ -451,7 +464,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
 
                 for _ in range(0, count) {
                     let key_len = try!(rdr.read_be_i32());
-                    let key = try!(rdr.read_exact(key_len as uint));
+                    let key = try!(rdr.read_exact(key_len as usize));
                     let key = match String::from_utf8(key) {
                         Ok(key) => key,
                         Err(_) => return Err(Error::BadData),
@@ -461,7 +474,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                     let val = if val_len < 0 {
                         None
                     } else {
-                        let val = try!(rdr.read_exact(val_len as uint));
+                        let val = try!(rdr.read_exact(val_len as usize));
                         match String::from_utf8(val) {
                             Ok(val) => Some(val),
                             Err(_) => return Err(Error::BadData),

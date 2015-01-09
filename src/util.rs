@@ -13,6 +13,6 @@ pub fn comma_join<'a, W, I>(writer: &mut W, mut strs: I) -> IoResult<()>
     Ok(())
 }
 
-pub fn parse_update_count(tag: String) -> uint {
+pub fn parse_update_count(tag: String) -> usize {
     tag.split(' ').last().unwrap().parse().unwrap_or(0)
 }
