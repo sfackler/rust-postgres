@@ -3,6 +3,7 @@
 //! package.
 //!
 //! ```rust,no_run
+//! # #![allow(unstable)]
 //! extern crate postgres;
 //! extern crate time;
 //!
@@ -273,6 +274,7 @@ impl<'conn> Notifications<'conn> {
     /// ## Example
     ///
     /// ```rust,no_run
+    /// # #![allow(unstable)]
     /// use std::io::{IoError, IoErrorKind};
     /// use std::time::Duration;
     ///
@@ -284,7 +286,7 @@ impl<'conn> Notifications<'conn> {
     ///     Err(Error::IoError(IoError { kind: IoErrorKind::TimedOut, .. })) => {
     ///         println!("Wait for notification timed out");
     ///     }
-    ///     Err(e) => println!("Other error: {}", e),
+    ///     Err(e) => println!("Other error: {:?}", e),
     /// }
     /// ```
     pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
@@ -347,6 +349,7 @@ pub struct CancelData {
 /// ## Example
 ///
 /// ```rust,no_run
+/// # #![allow(unstable)]
 /// # use postgres::{Connection, SslMode};
 /// # use std::thread::Thread;
 /// # let url = "";
@@ -354,7 +357,7 @@ pub struct CancelData {
 /// let cancel_data = conn.cancel_data();
 /// Thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
-/// }).detach();
+/// });
 /// # let _ =
 /// postgres::cancel_query(url, &SslMode::None, cancel_data);
 /// ```
@@ -819,6 +822,7 @@ impl Connection {
     /// ```
     ///
     /// ```rust,no_run
+    /// # #![allow(unstable)]
     /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget, ConnectError};
     /// # fn f() -> Result<(), ConnectError> {
     /// # let some_crazy_path = Path::new("");
@@ -871,7 +875,7 @@ impl Connection {
     /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
     /// let stmt = match maybe_stmt {
     ///     Ok(stmt) => stmt,
-    ///     Err(err) => panic!("Error preparing statement: {}", err)
+    ///     Err(err) => panic!("Error preparing statement: {:?}", err)
     /// };
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         let mut conn = self.conn.borrow_mut();
@@ -1301,7 +1305,7 @@ impl<'conn> Statement<'conn> {
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
     /// match stmt.execute(&[&bar, &baz]) {
     ///     Ok(count) => println!("{} row(s) updated", count),
-    ///     Err(err) => println!("Error executing query: {}", err)
+    ///     Err(err) => println!("Error executing query: {:?}", err)
     /// }
     /// ```
     pub fn execute(&self, params: &[&ToSql]) -> Result<usize> {
@@ -1355,7 +1359,7 @@ impl<'conn> Statement<'conn> {
     /// # let baz = true;
     /// let mut rows = match stmt.query(&[&baz]) {
     ///     Ok(rows) => rows,
-    ///     Err(err) => panic!("Error running query: {}", err)
+    ///     Err(err) => panic!("Error running query: {:?}", err)
     /// };
     /// for row in rows {
     ///     let foo: i32 = row.get("foo");
