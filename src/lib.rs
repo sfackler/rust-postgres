@@ -406,7 +406,7 @@ impl InnerConnection {
         let mut conn = InnerConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
-            notice_handler: box DefaultNoticeHandler,
+            notice_handler: Box::new(DefaultNoticeHandler),
             notifications: RingBuf::new(),
             cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),

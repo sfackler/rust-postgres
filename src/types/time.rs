@@ -23,7 +23,7 @@ impl RawFromSql for Timespec {
     }
 }
 
-from_raw_from_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
+from_raw_from_impl!(Type::Timestamp, Type::TimestampTZ; Timespec);
 
 impl RawToSql for Timespec {
     fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
@@ -32,5 +32,5 @@ impl RawToSql for Timespec {
     }
 }
 
-to_raw_to_impl!(Type::Timestamp | Type::TimestampTZ, Timespec);
+to_raw_to_impl!(Type::Timestamp, Type::TimestampTZ; Timespec);
 

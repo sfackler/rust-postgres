@@ -7,7 +7,7 @@ use Result;
 use error::Error;
 
 macro_rules! check_types {
-    ($($expected:pat)|+, $actual:ident) => (
+    ($($expected:pat),+; $actual:ident) => (
         match $actual {
             $(&$expected)|+ => {}
             actual => return Err(::Error::WrongType(actual.clone()))
@@ -26,8 +26,7 @@ macro_rules! raw_from_impl {
 }
 
 macro_rules! from_option_impl {
-    ($t:ty $(, $a:meta)*) => {
-        $(#[$a])*
+    ($t:ty) => {
         impl ::types::FromSql for $t {
             fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<$t> {
                 use Error;
@@ -46,11 +45,10 @@ macro_rules! from_option_impl {
 }
 
 macro_rules! from_map_impl {
-    ($($expected:pat)|+, $t:ty, $blk:expr $(, $a:meta)*) => (
-        $(#[$a])*
+    ($($expected:pat),+; $t:ty, $blk:expr) => (
         impl ::types::FromSql for Option<$t> {
             fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<$t>> {
-                check_types!($($expected)|+, ty);
+                check_types!($($expected),+; ty);
                 match raw {
                     Some(buf) => ($blk)(buf).map(|ok| Some(ok)),
                     None => Ok(None)
@@ -58,17 +56,17 @@ macro_rules! from_map_impl {
             }
         }
 
-        from_option_impl!($t $(, $a)*);
+        from_option_impl!($t);
     )
 }
 
 macro_rules! from_raw_from_impl {
-    ($($expected:pat)|+, $t:ty $(, $a:meta)*) => (
-        from_map_impl!($($expected)|+, $t, |&mut: mut buf: &[u8]| {
+    ($($expected:pat),+; $t:ty) => (
+        from_map_impl!($($expected),+; $t, |&mut: mut buf: &[u8]| {
             use types::RawFromSql;
 
             RawFromSql::raw_from_sql(&mut buf)
-        } $(, $a)*);
+        });
     )
 }
 
@@ -83,11 +81,10 @@ macro_rules! raw_to_impl {
 }
 
 macro_rules! to_option_impl {
-    ($($oid:pat)|+, $t:ty $(,$a:meta)*) => (
-        $(#[$a])*
+    ($($oid:pat),+; $t:ty) => (
         impl ::types::ToSql for Option<$t> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty);
+                check_types!($($oid),+; ty);
 
                 match *self {
                     None => Ok(None),
@@ -99,10 +96,10 @@ macro_rules! to_option_impl {
 }
 
 macro_rules! to_option_impl_lifetime {
-    ($($oid:pat)|+, $t:ty) => (
+    ($($oid:pat),+; $t:ty) => (
         impl<'a> ToSql for Option<$t> {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty);
+                check_types!($($oid),+; ty);
 
                 match *self {
                     None => Ok(None),
@@ -114,11 +111,10 @@ macro_rules! to_option_impl_lifetime {
 }
 
 macro_rules! to_raw_to_impl {
-    ($($oid:pat)|+, $t:ty $(, $a:meta)*) => (
-        $(#[$a])*
+    ($($oid:pat),+; $t:ty) => (
         impl ::types::ToSql for $t {
             fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid)|+, ty);
+                check_types!($($oid),+; ty);
 
                 let mut writer = vec![];
                 try!(self.raw_to_sql(&mut writer));
@@ -126,7 +122,7 @@ macro_rules! to_raw_to_impl {
             }
         }
 
-        to_option_impl!($($oid)|+, $t $(, $a)*);
+        to_option_impl!($($oid),+; $t);
     )
 }
 
@@ -185,7 +181,7 @@ const INT8RANGEOID: Oid = 3926;
 const INT8RANGEARRAYOID: Oid = 3927;
 
 macro_rules! make_postgres_type {
-    ($(#[$doc:meta] $oid:ident => $variant:ident $(member $member:ident)*),+) => (
+    ($(#[$doc:meta] $oid:ident => $variant:ident: $(member $member:ident)*),+) => (
         /// A Postgres type
         #[derive(PartialEq, Eq, Clone, Show)]
         pub enum Type {
@@ -242,95 +238,95 @@ macro_rules! make_postgres_type {
 
 make_postgres_type! {
     #[doc="BOOL"]
-    BOOLOID => Bool,
+    BOOLOID => Bool:,
     #[doc="BYTEA"]
-    BYTEAOID => ByteA,
+    BYTEAOID => ByteA:,
     #[doc="\"char\""]
-    CHAROID => Char,
+    CHAROID => Char:,
     #[doc="NAME"]
-    NAMEOID => Name,
+    NAMEOID => Name:,
     #[doc="INT8/BIGINT"]
-    INT8OID => Int8,
+    INT8OID => Int8:,
     #[doc="INT2/SMALLINT"]
-    INT2OID => Int2,
+    INT2OID => Int2:,
     #[doc="INT4/INT"]
-    INT4OID => Int4,
+    INT4OID => Int4:,
     #[doc="TEXT"]
-    TEXTOID => Text,
+    TEXTOID => Text:,
     #[doc="OID"]
-    OIDOID => Oid,
+    OIDOID => Oid:,
     #[doc="JSON"]
-    JSONOID => Json,
+    JSONOID => Json:,
     #[doc="CIDR"]
-    CIDROID => Cidr,
+    CIDROID => Cidr:,
     #[doc="JSON[]"]
-    JSONARRAYOID => JsonArray member Json,
+    JSONARRAYOID => JsonArray: member Json,
     #[doc="FLOAT4/REAL"]
-    FLOAT4OID => Float4,
+    FLOAT4OID => Float4:,
     #[doc="FLOAT8/DOUBLE PRECISION"]
-    FLOAT8OID => Float8,
+    FLOAT8OID => Float8:,
     #[doc="INET"]
-    INETOID => Inet,
+    INETOID => Inet:,
     #[doc="BOOL[]"]
-    BOOLARRAYOID => BoolArray member Bool,
+    BOOLARRAYOID => BoolArray: member Bool,
     #[doc="BYTEA[]"]
-    BYTEAARRAYOID => ByteAArray member ByteA,
+    BYTEAARRAYOID => ByteAArray: member ByteA,
     #[doc="\"char\"[]"]
-    CHARARRAYOID => CharArray member Char,
+    CHARARRAYOID => CharArray: member Char,
     #[doc="NAME[]"]
-    NAMEARRAYOID => NameArray member Name,
+    NAMEARRAYOID => NameArray: member Name,
     #[doc="INT2[]"]
-    INT2ARRAYOID => Int2Array member Int2,
+    INT2ARRAYOID => Int2Array: member Int2,
     #[doc="INT4[]"]
-    INT4ARRAYOID => Int4Array member Int4,
+    INT4ARRAYOID => Int4Array: member Int4,
     #[doc="TEXT[]"]
-    TEXTARRAYOID => TextArray member Text,
+    TEXTARRAYOID => TextArray: member Text,
     #[doc="CHAR(n)[]"]
-    BPCHARARRAYOID => CharNArray member CharN,
+    BPCHARARRAYOID => CharNArray: member CharN,
     #[doc="VARCHAR[]"]
-    VARCHARARRAYOID => VarcharArray member Varchar,
+    VARCHARARRAYOID => VarcharArray: member Varchar,
     #[doc="INT8[]"]
-    INT8ARRAYOID => Int8Array member Int8,
+    INT8ARRAYOID => Int8Array: member Int8,
     #[doc="FLOAT4[]"]
-    FLOAT4ARRAYOID => Float4Array member Float4,
+    FLOAT4ARRAYOID => Float4Array: member Float4,
     #[doc="FLOAT8[]"]
-    FLAOT8ARRAYOID => Float8Array member Float8,
+    FLAOT8ARRAYOID => Float8Array: member Float8,
     #[doc="TIMESTAMP"]
-    TIMESTAMPOID => Timestamp,
+    TIMESTAMPOID => Timestamp:,
     #[doc="TIMESTAMP[]"]
-    TIMESTAMPARRAYOID => TimestampArray member Timestamp,
+    TIMESTAMPARRAYOID => TimestampArray: member Timestamp,
     #[doc="TIMESTAMP WITH TIME ZONE"]
-    TIMESTAMPZOID => TimestampTZ,
+    TIMESTAMPZOID => TimestampTZ:,
     #[doc="TIMESTAMP WITH TIME ZONE[]"]
-    TIMESTAMPZARRAYOID => TimestampTZArray member TimestampTZ,
+    TIMESTAMPZARRAYOID => TimestampTZArray: member TimestampTZ,
     #[doc="UUID"]
-    UUIDOID => Uuid,
+    UUIDOID => Uuid:,
     #[doc="UUID[]"]
-    UUIDARRAYOID => UuidArray member Uuid,
+    UUIDARRAYOID => UuidArray: member Uuid,
     #[doc="JSONB"]
-    JSONBOID => Jsonb,
+    JSONBOID => Jsonb:,
     #[doc="JSONB[]"]
-    JSONBARRAYOID => JsonbArray member Jsonb,
+    JSONBARRAYOID => JsonbArray: member Jsonb,
     #[doc="CHAR(n)/CHARACTER(n)"]
-    BPCHAROID => CharN,
+    BPCHAROID => CharN:,
     #[doc="VARCHAR/CHARACTER VARYING"]
-    VARCHAROID => Varchar,
+    VARCHAROID => Varchar:,
     #[doc="INT4RANGE"]
-    INT4RANGEOID => Int4Range,
+    INT4RANGEOID => Int4Range:,
     #[doc="INT4RANGE[]"]
-    INT4RANGEARRAYOID => Int4RangeArray member Int4Range,
+    INT4RANGEARRAYOID => Int4RangeArray: member Int4Range,
     #[doc="TSRANGE"]
-    TSRANGEOID => TsRange,
+    TSRANGEOID => TsRange:,
     #[doc="TSRANGE[]"]
-    TSRANGEARRAYOID => TsRangeArray member TsRange,
+    TSRANGEARRAYOID => TsRangeArray: member TsRange,
     #[doc="TSTZRANGE"]
-    TSTZRANGEOID => TstzRange,
+    TSTZRANGEOID => TstzRange:,
     #[doc="TSTZRANGE[]"]
-    TSTZRANGEARRAYOID => TstzRangeArray member TstzRange,
+    TSTZRANGEARRAYOID => TstzRangeArray: member TstzRange,
     #[doc="INT8RANGE"]
-    INT8RANGEOID => Int8Range,
+    INT8RANGEOID => Int8Range:,
     #[doc="INT8RANGE[]"]
-    INT8RANGEARRAYOID => Int8RangeArray member Int8Range
+    INT8RANGEARRAYOID => Int8RangeArray: member Int8Range
 }
 
 /// A trait for types that can be created from a Postgres value
@@ -407,17 +403,17 @@ impl RawFromSql for IpAddr {
     }
 }
 
-from_raw_from_impl!(Type::Bool, bool);
-from_raw_from_impl!(Type::ByteA, Vec<u8>);
-from_raw_from_impl!(Type::Char, i8);
-from_raw_from_impl!(Type::Int2, i16);
-from_raw_from_impl!(Type::Int4, i32);
-from_raw_from_impl!(Type::Oid, u32);
-from_raw_from_impl!(Type::Int8, i64);
-from_raw_from_impl!(Type::Float4, f32);
-from_raw_from_impl!(Type::Float8, f64);
-from_raw_from_impl!(Type::Json, json::Json);
-from_raw_from_impl!(Type::Inet | Type::Cidr, IpAddr);
+from_raw_from_impl!(Type::Bool; bool);
+from_raw_from_impl!(Type::ByteA; Vec<u8>);
+from_raw_from_impl!(Type::Char; i8);
+from_raw_from_impl!(Type::Int2; i16);
+from_raw_from_impl!(Type::Int4; i32);
+from_raw_from_impl!(Type::Oid; u32);
+from_raw_from_impl!(Type::Int8; i64);
+from_raw_from_impl!(Type::Float4; f32);
+from_raw_from_impl!(Type::Float8; f64);
+from_raw_from_impl!(Type::Json; json::Json);
+from_raw_from_impl!(Type::Inet, Type::Cidr; IpAddr);
 
 impl FromSql for Option<String> {
     fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
@@ -560,17 +556,17 @@ impl RawToSql for IpAddr {
     }
 }
 
-to_raw_to_impl!(Type::Bool, bool);
-to_raw_to_impl!(Type::ByteA, Vec<u8>);
-to_raw_to_impl!(Type::Json, json::Json);
-to_raw_to_impl!(Type::Inet | Type::Cidr, IpAddr);
-to_raw_to_impl!(Type::Char, i8);
-to_raw_to_impl!(Type::Int2, i16);
-to_raw_to_impl!(Type::Int4, i32);
-to_raw_to_impl!(Type::Oid, u32);
-to_raw_to_impl!(Type::Int8, i64);
-to_raw_to_impl!(Type::Float4, f32);
-to_raw_to_impl!(Type::Float8, f64);
+to_raw_to_impl!(Type::Bool; bool);
+to_raw_to_impl!(Type::ByteA; Vec<u8>);
+to_raw_to_impl!(Type::Json; json::Json);
+to_raw_to_impl!(Type::Inet, Type::Cidr; IpAddr);
+to_raw_to_impl!(Type::Char; i8);
+to_raw_to_impl!(Type::Int2; i16);
+to_raw_to_impl!(Type::Int4; i32);
+to_raw_to_impl!(Type::Oid; u32);
+to_raw_to_impl!(Type::Int8; i64);
+to_raw_to_impl!(Type::Float4; f32);
+to_raw_to_impl!(Type::Float8; f64);
 
 impl ToSql for String {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
@@ -611,12 +607,12 @@ impl<'a> ToSql for Option<&'a str> {
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        check_types!(Type::ByteA, ty);
+        check_types!(Type::ByteA; ty);
         Ok(Some(self.to_vec()))
     }
 }
 
-to_option_impl_lifetime!(Type::ByteA, &'a [u8]);
+to_option_impl_lifetime!(Type::ByteA; &'a [u8]);
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
