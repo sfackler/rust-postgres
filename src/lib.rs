@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(plugin, unsafe_destructor, slicing_syntax, old_orphan_check)]
+#![feature(plugin, unsafe_destructor, old_orphan_check)]
 #![warn(missing_docs)]
 #![allow(unstable)]
 
@@ -1234,7 +1234,7 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Show for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "Statement {{ connection: {:?}, name: {:?}, parameter_types: {:?},
+               "Statement {{ connection: {:?}, name: {:?}, parameter_types: {:?}, \
                 result_descriptions: {:?} }}",
                self.conn,
                self.name,
