@@ -232,17 +232,13 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            /// Returns the element `Type` if this `Type` is an array.
-            ///
-            /// # Panics
-            ///
-            /// Panics if this `Type` is not an array.
-            pub fn member_type(&self) -> Type {
+            /// Returns the member `Type` if this `Type` is an array.
+            pub fn member_type(&self) -> Option<Type> {
                 match *self {
                     $(
-                        $(Type::$variant => Type::$member,)*
+                        $(Type::$variant => Some(Type::$member),)*
                     )+
-                    _ => unreachable!()
+                    _ => None
                 }
             }
         }
