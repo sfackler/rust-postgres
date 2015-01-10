@@ -25,11 +25,19 @@ macro_rules! make_errors {
         );
 
         impl SqlState {
-            #[doc(hidden)]
+            /// Creates a `SqlState` from its error code.
             pub fn from_code(s: String) -> SqlState {
                 match STATE_MAP.get(&*s) {
                     Some(state) => state.clone(),
                     None => SqlState::Unknown(s)
+                }
+            }
+
+            /// Returns the error code corresponding to the `SqlState`.
+            pub fn code(&self) -> &str {
+                match *self {
+                    $(SqlState::$error => $code,)+
+                    SqlState::Unknown(ref s) => &**s,
                 }
             }
         }
