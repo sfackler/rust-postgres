@@ -184,7 +184,7 @@ const INT8RANGEARRAYOID: Oid = 3927;
 macro_rules! make_postgres_type {
     ($(#[$doc:meta] $oid:ident => $variant:ident: $(member $member:ident)*),+) => (
         /// A Postgres type
-        #[derive(PartialEq, Eq, Clone, Show)]
+        #[derive(PartialEq, Eq, Clone)]
         pub enum Type {
             $(
                 #[$doc]
@@ -199,6 +199,18 @@ macro_rules! make_postgres_type {
             }
         }
 
+        impl fmt::Show for Type {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                let s = match *self {
+                    $(Type::$variant => stringify!($variant),)+
+                    Type::Unknown { ref name, ref oid } => {
+                        return write!(fmt, "Unknown {{ name: {:?}, oid: {:?} }}", name, oid);
+                    }
+                };
+                fmt.write_str(s)
+            }
+        }
+
         impl fmt::String for Type {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 let s = match *self {
@@ -207,7 +219,7 @@ macro_rules! make_postgres_type {
                     )+
                     Type::Unknown { ref name, .. } => &**name,
                 };
-                write!(fmt, "{}", s)
+                fmt.write_str(s)
             }
         }
 
