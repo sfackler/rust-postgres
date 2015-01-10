@@ -105,7 +105,7 @@ const TYPENAME_QUERY: &'static str = "t";
 pub type Result<T> = result::Result<T, Error>;
 
 /// Specifies the target server to connect to.
-#[derive(Clone)]
+#[derive(Clone, Show)]
 pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
     Tcp(String),
@@ -114,7 +114,7 @@ pub enum ConnectTarget {
 }
 
 /// Authentication information
-#[derive(Clone)]
+#[derive(Clone, Show)]
 pub struct UserInfo {
     /// The username
     pub user: String,
@@ -123,7 +123,7 @@ pub struct UserInfo {
 }
 
 /// Information necessary to open a new connection to a Postgres server.
-#[derive(Clone)]
+#[derive(Clone, Show)]
 pub struct ConnectParams {
     /// The target server
     pub target: ConnectTarget,
@@ -205,7 +205,7 @@ pub trait NoticeHandler: Send {
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
-#[derive(Copy)]
+#[derive(Copy, Show)]
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
@@ -215,6 +215,7 @@ impl NoticeHandler for DefaultNoticeHandler {
 }
 
 /// An asynchronous notification
+#[derive(Clone, Show)]
 pub struct Notification {
     /// The process ID of the notifying backend process
     pub pid: u32,
@@ -227,6 +228,12 @@ pub struct Notification {
 /// An iterator over asynchronous notifications
 pub struct Notifications<'conn> {
     conn: &'conn Connection
+}
+
+impl<'a> fmt::Show for Notifications<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Notifications")
+    }
 }
 
 impl<'conn> Iterator for Notifications<'conn> {
@@ -326,7 +333,7 @@ impl<'conn> Notifications<'conn> {
 }
 
 /// Contains information necessary to cancel queries for a session
-#[derive(Copy)]
+#[derive(Copy, Clone, Show)]
 pub struct CancelData {
     /// The process ID of the session
     pub process_id: u32,
@@ -783,6 +790,16 @@ pub struct Connection {
     conn: RefCell<InnerConnection>
 }
 
+impl fmt::Show for Connection {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let conn = self.conn.borrow();
+        write!(fmt,
+               "Connection {{ cancel_data: {:?}, notifications: {:?}, transaction_depth: {:?}, \
+                desynchronized: {:?} }}", conn.cancel_data, conn.notifications.len(),
+               conn.trans_depth, conn.desynchronized)
+    }
+}
+
 impl Connection {
     /// Creates a new connection to a Postgres database.
     ///
@@ -1056,6 +1073,8 @@ impl Connection {
 }
 
 /// Specifies the SSL support requested for a new connection
+// FIXME
+// #[derive(Show)]
 pub enum SslMode {
     /// The connection will not use SSL
     None,
@@ -1073,6 +1092,13 @@ pub struct Transaction<'conn> {
     commit: Cell<bool>,
     depth: u32,
     finished: bool,
+}
+
+impl<'a> fmt::Show for Transaction<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Transaction {{ connection: {:?}, commit: {:?}, depth: {:?} }}",
+               self.conn, self.commit.get(), self.depth)
+    }
 }
 
 #[unsafe_destructor]
@@ -1203,6 +1229,18 @@ pub struct Statement<'conn> {
     result_desc: Vec<ResultDescription>,
     next_portal_id: Cell<usize>,
     finished: bool,
+}
+
+impl<'a> fmt::Show for Statement<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt,
+               "Statement {{ connection: {:?}, name: {:?}, parameter_types: {:?},
+                result_descriptions: {:?} }}",
+               self.conn,
+               self.name,
+               self.param_types,
+               self.result_desc)
+    }
 }
 
 #[unsafe_destructor]
@@ -1382,7 +1420,7 @@ impl<'conn> Statement<'conn> {
 }
 
 /// Information about a column of the result of a query.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Show)]
 pub struct ResultDescription {
     /// The name of the column
     pub name: String,
@@ -1398,6 +1436,13 @@ pub struct Rows<'stmt> {
     row_limit: i32,
     more_rows: bool,
     finished: bool,
+}
+
+impl<'a> fmt::Show for Rows<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Rows {{ statement: {:?}, name: {:?}, remaining_rows: {:?} }}",
+               self.stmt, self.name, self.data.len())
+    }
 }
 
 #[unsafe_destructor]
@@ -1511,6 +1556,12 @@ pub struct Row<'stmt> {
     data: Vec<Option<Vec<u8>>>
 }
 
+impl<'a> fmt::Show for Row<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Row {{ statement: {:?} }}", self.stmt)
+    }
+}
+
 impl<'stmt> Row<'stmt> {
     /// Returns the number of values in the row
     pub fn len(&self) -> usize {
@@ -1594,6 +1645,19 @@ pub struct LazyRows<'trans, 'stmt> {
     _trans: &'trans Transaction<'trans>,
 }
 
+impl<'a, 'b> fmt::Show for LazyRows<'a, 'b> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt,
+               "LazyRows {{ statement: {:?}, name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
+                more_rows: {:?} }}",
+               self.result.stmt,
+               self.result.name,
+               self.result.row_limit,
+               self.result.data.len(),
+               self.result.more_rows)
+    }
+}
+
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     /// Like `Rows::finish`.
     pub fn finish(self) -> Result<()> {
@@ -1619,6 +1683,13 @@ pub struct CopyInStatement<'a> {
     name: String,
     column_types: Vec<Type>,
     finished: bool,
+}
+
+impl<'a> fmt::Show for CopyInStatement<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "CopyInStatement {{ connection: {:?}, name: {:?}, column_types: {:?} }}",
+               self.conn, self.name, self.column_types)
+    }
 }
 
 #[unsafe_destructor]
@@ -1710,7 +1781,7 @@ impl<'a> CopyInStatement<'a> {
                                 // FIXME this is not the right way to handle this
                                 try_desync!(conn, conn.stream.write_message(
                                     &CopyFail {
-                                        message: &*format!("{:?}", err),
+                                        message: &*format!("{}", err),
                                     }));
                                 break 'l;
                             }

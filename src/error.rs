@@ -356,7 +356,7 @@ make_errors! {
 }
 
 /// Reasons a new Postgres connection could fail
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Show)]
 pub enum ConnectError {
     /// The provided URL could not be parsed
     InvalidUrl(String),
@@ -431,7 +431,7 @@ impl error::FromError<SslError> for ConnectError {
     }
 }
 
-impl fmt::Show for ConnectError {
+impl fmt::String for ConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ConnectError::InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
@@ -454,7 +454,7 @@ impl fmt::Show for ConnectError {
 }
 
 /// Represents the position of an error in a query
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Show)]
 pub enum ErrorPosition {
     /// A position in the original query
     Normal(usize),
@@ -468,7 +468,7 @@ pub enum ErrorPosition {
 }
 
 /// Encapsulates a Postgres error or notice.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Show)]
 pub struct DbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -572,7 +572,7 @@ impl DbError {
     }
 }
 
-impl fmt::Show for DbError {
+impl fmt::String for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}: {}", self.severity, self.message)
     }
@@ -589,7 +589,7 @@ impl error::Error for DbError {
 }
 
 /// An error encountered when communicating with the Postgres server
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Show)]
 pub enum Error {
     /// An error reported by the Postgres server
     DbError(DbError),
@@ -623,7 +623,7 @@ pub enum Error {
     BadData,
 }
 
-impl fmt::Show for Error {
+impl fmt::String for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::DbError(ref err) => err.fmt(fmt),
