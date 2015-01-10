@@ -13,7 +13,7 @@ use types::Type;
 macro_rules! make_errors {
     ($($code:expr => $error:ident),+) => (
         /// SQLSTATE error codes
-        #[derive(PartialEq, Eq, Clone, Show)]
+        #[derive(PartialEq, Eq, Clone)]
         #[allow(missing_docs)]
         pub enum SqlState {
             $($error,)+
@@ -39,6 +39,16 @@ macro_rules! make_errors {
                     $(SqlState::$error => $code,)+
                     SqlState::Unknown(ref s) => &**s,
                 }
+            }
+        }
+
+        impl fmt::Show for SqlState {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                let s = match *self {
+                    $(SqlState::$error => stringify!($error),)+
+                    SqlState::Unknown(ref s) => return write!(fmt, "Unknown({:?})", s),
+                };
+                fmt.write_str(s)
             }
         }
     )
