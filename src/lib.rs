@@ -51,7 +51,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(plugin, unsafe_destructor, old_orphan_check)]
+#![feature(plugin, unsafe_destructor)]
 #![warn(missing_docs)]
 #![allow(unstable)]
 
