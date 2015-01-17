@@ -35,5 +35,4 @@ optional = true
 version = "0.1"
 
 [dev-dependencies]
-#url = "0.2"
-
+url = "0.2"

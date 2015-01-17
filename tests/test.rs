@@ -3,7 +3,7 @@
 
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
-//extern crate url;
+extern crate url;
 extern crate openssl;
 
 use openssl::ssl::SslContext;
@@ -78,7 +78,6 @@ fn test_connection_finish() {
     assert!(conn.finish().is_ok());
 }
 
-/*
 #[test]
 fn test_unix_connection() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
@@ -93,11 +92,10 @@ fn test_unix_connection() {
     let unix_socket_directory = unix_socket_directories[].split(',').next().unwrap();
 
     let path = url::utf8_percent_encode(unix_socket_directory, url::USERNAME_ENCODE_SET);
-    let url = format!("postgres://postgres@{:?}", path);
-    let conn = or_panic!(Connection::connect(url[], &SslMode::None));
+    let url = format!("postgres://postgres@{}", path);
+    let conn = or_panic!(Connection::connect(&url[], &SslMode::None));
     assert!(conn.finish().is_ok());
 }
-*/
 
 #[test]
 fn test_transaction_commit() {
