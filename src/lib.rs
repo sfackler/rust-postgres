@@ -1073,8 +1073,7 @@ impl Connection {
 }
 
 /// Specifies the SSL support requested for a new connection
-// FIXME
-// #[derive(Show)]
+#[derive(Show)]
 pub enum SslMode {
     /// The connection will not use SSL
     None,
