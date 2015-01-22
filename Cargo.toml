@@ -25,7 +25,7 @@ default = ["uuid"]
 [dependencies]
 phf = "0.5"
 phf_mac = "0.5"
-openssl = "0.2.1"
+openssl = "0.2.16"
 time = "0.1"
 log = "0.1"
 rustc-serialize = "0.2"
