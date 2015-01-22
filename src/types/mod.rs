@@ -195,7 +195,9 @@ macro_rules! make_postgres_type {
                 /// The name of the type
                 name: String,
                 /// The OID of the type
-                oid: Oid
+                oid: Oid,
+                /// If this type is an array, the type of its members
+                element_type: Option<Box<Type>>,
             }
         }
 
@@ -203,8 +205,10 @@ macro_rules! make_postgres_type {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 let s = match *self {
                     $(Type::$variant => stringify!($variant),)+
-                    Type::Unknown { ref name, ref oid } => {
-                        return write!(fmt, "Unknown {{ name: {:?}, oid: {:?} }}", name, oid);
+                    Type::Unknown { ref name, ref oid, ref element_type } => {
+                        return write!(fmt, "Unknown {{ name: {:?}, oid: {:?}, \
+                                            element_type: {:?} }}",
+                                      name, oid, element_type);
                     }
                 };
                 fmt.write_str(s)
@@ -226,13 +230,11 @@ macro_rules! make_postgres_type {
         impl Type {
             /// Creates a `Type` from an OID.
             ///
-            /// If the OID is unknown, the `name` field is initialized to an
-            /// empty string.
-            pub fn from_oid(oid: Oid) -> Type {
+            /// If the OID is unknown, `None` is returned.
+            pub fn from_oid(oid: Oid) -> Option<Type> {
                 match oid {
-                    $($oid => Type::$variant,)+
-                    // We have to load an empty string now, it'll get filled in later
-                    oid => Type::Unknown { name: String::new(), oid: oid }
+                    $($oid => Some(Type::$variant),)+
+                    _ => None
                 }
             }
 
@@ -244,12 +246,13 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            /// Returns the member `Type` if this `Type` is an array.
-            pub fn member_type(&self) -> Option<Type> {
+            /// If this `Type` is an array, returns the type of its elements
+            pub fn element_type(&self) -> Option<Type> {
                 match *self {
                     $(
                         $(Type::$variant => Some(Type::$member),)*
                     )+
+                    Type::Unknown { element_type: Some(ref t), .. } => Some((**t).clone()),
                     _ => None
                 }
             }

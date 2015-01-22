@@ -360,7 +360,7 @@ fn read_fields<R: Buffer>(buf: &mut R) -> IoResult<Vec<(u8, String)>> {
 }
 
 fn read_data_row<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
-    let len = try!(buf.read_be_i16()) as usize;
+    let len = try!(buf.read_be_u16()) as usize;
     let mut values = Vec::with_capacity(len);
 
     for _ in range(0, len) {

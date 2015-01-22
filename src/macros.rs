@@ -23,7 +23,7 @@ macro_rules! check_desync {
 
 macro_rules! bad_response {
     ($s:expr) => ({
-        debug!("Unexpected response");
+        debug!("Bad response at {}:{}", file!(), line!());
         $s.desynchronized = true;
         return Err(::Error::BadResponse);
     })

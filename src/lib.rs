@@ -389,7 +389,7 @@ struct InnerConnection {
     notice_handler: Box<NoticeHandler>,
     notifications: RingBuf<Notification>,
     cancel_data: CancelData,
-    unknown_types: HashMap<Oid, String>,
+    unknown_types: HashMap<Oid, Type>,
     desynchronized: bool,
     finished: bool,
     trans_depth: u32,
@@ -457,7 +457,7 @@ impl InnerConnection {
         }
 
         match conn.raw_prepare(TYPENAME_QUERY,
-                               "SELECT typname FROM pg_catalog.pg_type WHERE oid = $1") {
+                               "SELECT typname, typelem FROM pg_catalog.pg_type WHERE oid = $1") {
             Ok(..) => {}
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
             Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
@@ -580,34 +580,30 @@ impl InnerConnection {
             _ => bad_response!(self),
         }
 
-        let mut param_types: Vec<_> = match try!(self.read_message()) {
-            ParameterDescription { types } => {
-                types.into_iter().map(Type::from_oid).collect()
-            }
+        let raw_param_types = match try!(self.read_message()) {
+            ParameterDescription { types } => types,
             _ => bad_response!(self),
         };
 
-        let mut result_desc: Vec<_> = match try!(self.read_message()) {
-            RowDescription { descriptions } => {
-                descriptions.into_iter().map(|RowDescriptionEntry { name, type_oid, .. }| {
-                    ResultDescription {
-                        name: name,
-                        ty: Type::from_oid(type_oid)
-                    }
-                }).collect()
-            }
+        let raw_result_desc = match try!(self.read_message()) {
+            RowDescription { descriptions } => descriptions,
             NoData => vec![],
             _ => bad_response!(self)
         };
 
         try!(self.wait_for_ready());
 
-        // now that the connection is ready again, get unknown type names,
-        try!(self.set_type_names(param_types.iter_mut()));
-        // An empty statement name means we're calling execute, so we don't
-        // care about result types
-        if stmt_name != "" {
-            try!(self.set_type_names(result_desc.iter_mut().map(|d| &mut d.ty)));
+        let mut param_types = vec![];
+        for oid in raw_param_types.into_iter() {
+            param_types.push(try!(self.get_type(oid)));
+        }
+
+        let mut result_desc = vec![];
+        for RowDescriptionEntry { name, type_oid, .. } in raw_result_desc.into_iter() {
+            result_desc.push(ResultDescription {
+                name: name,
+                ty: try!(self.get_type(type_oid)),
+            });
         }
 
         Ok((param_types, result_desc))
@@ -674,21 +670,15 @@ impl InnerConnection {
         resp
     }
 
-    fn set_type_names<'a, I>(&mut self, mut it: I) -> Result<()>
-            where I: Iterator<Item=&'a mut Type> {
-        for ty in it {
-            if let &mut Type::Unknown { oid, ref mut name } = ty {
-                *name = try!(self.get_type_name(oid));
-            }
+    fn get_type(&mut self, oid: Oid) -> Result<Type> {
+        if let Some(ty) = Type::from_oid(oid) {
+            return Ok(ty);
         }
 
-        Ok(())
-    }
-
-    fn get_type_name(&mut self, oid: Oid) -> Result<String> {
-        if let Some(name) = self.unknown_types.get(&oid) {
-            return Ok(name.clone());
+        if let Some(ty) = self.unknown_types.get(&oid) {
+            return Ok(ty.clone());
         }
+
         // Ew @ doing this manually :(
         try!(self.write_messages(&[
             Bind {
@@ -711,8 +701,11 @@ impl InnerConnection {
             }
             _ => bad_response!(self)
         }
-        let name: String = match try!(self.read_message()) {
-            DataRow { row } => try!(FromSql::from_sql(&Type::Name, row[0].as_ref().map(|r| &**r))),
+        let (name, elem_oid): (String, Oid) = match try!(self.read_message()) {
+            DataRow { row } => {
+                (try!(FromSql::from_sql(&Type::Name, row[0].as_ref().map(|r| &**r))),
+                 try!(FromSql::from_sql(&Type::Oid, row[1].as_ref().map(|r| &**r))))
+            }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 return DbError::new(fields);
@@ -728,8 +721,19 @@ impl InnerConnection {
             _ => bad_response!(self)
         }
         try!(self.wait_for_ready());
-        self.unknown_types.insert(oid, name.clone());
-        Ok(name)
+
+        let element_type = if elem_oid != 0 {
+            Some(Box::new(try!(self.get_type(oid))))
+        } else {
+            None
+        };
+        let type_ = Type::Unknown {
+            oid: oid,
+            name: name,
+            element_type: element_type,
+        };
+        self.unknown_types.insert(oid, type_.clone());
+        Ok(type_)
     }
 
     fn is_desynchronized(&self) -> bool {
