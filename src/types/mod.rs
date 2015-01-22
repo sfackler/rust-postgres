@@ -215,18 +215,6 @@ macro_rules! make_postgres_type {
             }
         }
 
-        impl fmt::String for Type {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                let s = match *self {
-                    $(
-                        Type::$variant => stringify!($variant),
-                    )+
-                    Type::Unknown { ref name, .. } => &**name,
-                };
-                fmt.write_str(s)
-            }
-        }
-
         impl Type {
             /// Creates a `Type` from an OID.
             ///
