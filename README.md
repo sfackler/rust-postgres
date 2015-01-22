@@ -9,7 +9,7 @@ You can integrate Rust-Postgres into your project through the [releases on crate
 ```toml
 # Cargo.toml
 [dependencies]
-postgres = "0.4"
+postgres = "0.5"
 ```
 
 ## Overview
