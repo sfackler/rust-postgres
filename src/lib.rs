@@ -99,7 +99,7 @@ mod util;
 pub mod types;
 
 const CANARY: u32 = 0xdeadbeef;
-const TYPENAME_QUERY: &'static str = "t";
+const TYPEINFO_QUERY: &'static str = "t";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -456,15 +456,34 @@ impl InnerConnection {
             }
         }
 
-        match conn.raw_prepare(TYPENAME_QUERY,
-                               "SELECT typname, typelem FROM pg_catalog.pg_type WHERE oid = $1") {
-            Ok(..) => {}
+        try!(conn.setup_typeinfo_query());
+
+        Ok(conn)
+    }
+
+    fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
+        match self.raw_prepare(TYPEINFO_QUERY,
+                               "SELECT t.typname, t.typelem, r.rngsubtype \
+                                FROM pg_catalog.pg_type t \
+                                LEFT OUTER JOIN pg_catalog.pg_range r \
+                                    ON r.rngtypid = t.oid \
+                                WHERE t.oid = $1") {
+            Ok(..) => return Ok(()),
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
+            // Range types weren't added until Postgres 9.2, so pg_range may not exist
+            Err(Error::DbError(DbError { code: SqlState::UndefinedTable, .. })) => {}
             Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
             _ => unreachable!()
         }
 
-        Ok(conn)
+        match self.raw_prepare(TYPEINFO_QUERY,
+                               "SELECT typname, typelem, NULL::OID FROM pg_catalog.pg_type \
+                                WHERE oid = $1") {
+            Ok(..) => Ok(()),
+            Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),
+            Err(Error::DbError(e)) => Err(ConnectError::DbError(e)),
+            _ => unreachable!()
+        }
     }
 
     fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
@@ -683,7 +702,7 @@ impl InnerConnection {
         try!(self.write_messages(&[
             Bind {
                 portal: "",
-                statement: TYPENAME_QUERY,
+                statement: TYPEINFO_QUERY,
                 formats: &[1],
                 values: &[try!(oid.to_sql(&Type::Oid))],
                 result_formats: &[1]
@@ -701,10 +720,12 @@ impl InnerConnection {
             }
             _ => bad_response!(self)
         }
-        let (name, elem_oid): (String, Oid) = match try!(self.read_message()) {
+        let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
+                match try!(self.read_message()) {
             DataRow { row } => {
                 (try!(FromSql::from_sql(&Type::Name, row[0].as_ref().map(|r| &**r))),
-                 try!(FromSql::from_sql(&Type::Oid, row[1].as_ref().map(|r| &**r))))
+                 try!(FromSql::from_sql(&Type::Oid, row[1].as_ref().map(|r| &**r))),
+                 try!(FromSql::from_sql(&Type::Oid, row[2].as_ref().map(|r| &**r))))
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -722,10 +743,14 @@ impl InnerConnection {
         }
         try!(self.wait_for_ready());
 
-        let element_type = if elem_oid != 0 {
-            Some(Box::new(try!(self.get_type(oid))))
+        let elem_oid = if elem_oid != 0 {
+            Some(elem_oid)
         } else {
-            None
+            rngsubtype
+        };
+        let element_type = match elem_oid {
+            Some(oid) => Some(Box::new(try!(self.get_type(oid)))),
+            None => None,
         };
         let type_ = Type::Unknown {
             oid: oid,

@@ -234,7 +234,7 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            /// If this `Type` is an array, returns the type of its elements
+            /// If this `Type` is an array or range, returns the type of its elements
             pub fn element_type(&self) -> Option<Type> {
                 match *self {
                     $(
@@ -324,19 +324,19 @@ make_postgres_type! {
     #[doc="VARCHAR/CHARACTER VARYING"]
     VARCHAROID => Varchar:,
     #[doc="INT4RANGE"]
-    INT4RANGEOID => Int4Range:,
+    INT4RANGEOID => Int4Range: member Int4,
     #[doc="INT4RANGE[]"]
     INT4RANGEARRAYOID => Int4RangeArray: member Int4Range,
     #[doc="TSRANGE"]
-    TSRANGEOID => TsRange:,
+    TSRANGEOID => TsRange: member Timestamp,
     #[doc="TSRANGE[]"]
     TSRANGEARRAYOID => TsRangeArray: member TsRange,
     #[doc="TSTZRANGE"]
-    TSTZRANGEOID => TstzRange:,
+    TSTZRANGEOID => TstzRange: member TimestampTZ,
     #[doc="TSTZRANGE[]"]
     TSTZRANGEARRAYOID => TstzRangeArray: member TstzRange,
     #[doc="INT8RANGE"]
-    INT8RANGEOID => Int8Range:,
+    INT8RANGEOID => Int8Range: member Int8,
     #[doc="INT8RANGE[]"]
     INT8RANGEARRAYOID => Int8RangeArray: member Int8Range
 }

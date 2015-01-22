@@ -884,3 +884,21 @@ fn test_generic_connection() {
     let trans = or_panic!(conn.transaction());
     f(&trans);
 }
+
+#[test]
+fn test_custom_range_element_type() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let trans = or_panic!(conn.transaction());
+    or_panic!(trans.execute("CREATE TYPE floatrange AS RANGE (
+                                subtype = float8,
+                                subtype_diff = float8mi
+                             )", &[]));
+    let stmt = or_panic!(trans.prepare("SELECT $1::floatrange"));
+    match &stmt.param_types()[0] {
+        &Type::Unknown { ref name, ref element_type, .. } => {
+            assert_eq!("floatrange", &**name);
+            assert_eq!(&Some(Box::new(Type::Float8)), element_type);
+        }
+        t => panic!("Unexpected type {:?}", t)
+    }
+}
