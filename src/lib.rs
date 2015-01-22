@@ -1740,7 +1740,7 @@ impl<'a> CopyInStatement<'a> {
     /// set in memory.
     ///
     /// Returns the number of rows copied.
-    pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<usize>
+    pub fn execute<I, J>(&self, mut rows: I) -> Result<usize>
             where I: Iterator<Item=J>, J: StreamIterator {
         let mut conn = self.conn.conn.borrow_mut();
 
