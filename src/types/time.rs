@@ -9,7 +9,7 @@ const NSEC_PER_USEC: i64 = 1_000;
 const TIME_SEC_CONVERSION: i64 = 946684800;
 
 impl RawFromSql for Timespec {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Timespec> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Timespec> {
         let t = try!(raw.read_be_i64());
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
         let mut usec = t % USEC_PER_SEC;
@@ -26,7 +26,7 @@ impl RawFromSql for Timespec {
 from_raw_from_impl!(Type::Timestamp, Type::TimestampTZ; Timespec);
 
 impl RawToSql for Timespec {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
         Ok(try!(w.write_be_i64(t)))
     }

@@ -6,7 +6,7 @@ use Error;
 use Result;
 
 impl RawFromSql for Uuid {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Uuid> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Uuid> {
         match Uuid::from_bytes(&*try!(raw.read_to_end())) {
             Some(u) => Ok(u),
             None => Err(Error::BadData),
@@ -17,7 +17,7 @@ impl RawFromSql for Uuid {
 from_raw_from_impl!(Type::Uuid; Uuid);
 
 impl RawToSql for Uuid {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
         Ok(try!(w.write(self.as_bytes())))
     }
 }

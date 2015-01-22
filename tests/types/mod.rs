@@ -145,6 +145,15 @@ fn test_json_params() {
 }
 
 #[test]
+fn test_jsonb_params() {
+    test_type("JSONB", &[(Some(Json::from_str("[10, 11, 12]").unwrap()),
+                          "'[10, 11, 12]'"),
+                         (Some(Json::from_str("{\"f\": \"asd\"}").unwrap()),
+                          "'{\"f\": \"asd\"}'"),
+                         (None, "NULL")])
+}
+
+#[test]
 fn test_inet_params() {
     test_type("INET", &[(Some("127.0.0.1".parse::<IpAddr>().unwrap()),
                          "'127.0.0.1'"),

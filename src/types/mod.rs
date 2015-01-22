@@ -19,7 +19,7 @@ macro_rules! check_types {
 macro_rules! raw_from_impl {
     ($t:ty, $f:ident) => (
         impl RawFromSql for $t {
-            fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<$t> {
+            fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<$t> {
                 Ok(try!(raw.$f()))
             }
         }
@@ -51,7 +51,7 @@ macro_rules! from_map_impl {
             fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<$t>> {
                 check_types!($($expected),+; ty);
                 match raw {
-                    Some(buf) => ($blk)(buf).map(|ok| Some(ok)),
+                    Some(buf) => ($blk)(ty, buf).map(|ok| Some(ok)),
                     None => Ok(None)
                 }
             }
@@ -63,10 +63,10 @@ macro_rules! from_map_impl {
 
 macro_rules! from_raw_from_impl {
     ($($expected:pat),+; $t:ty) => (
-        from_map_impl!($($expected),+; $t, |&mut: mut buf: &[u8]| {
+        from_map_impl!($($expected),+; $t, |&mut: ty, mut buf: &[u8]| {
             use types::RawFromSql;
 
-            RawFromSql::raw_from_sql(&mut buf)
+            RawFromSql::raw_from_sql(ty, &mut buf)
         });
     )
 }
@@ -74,7 +74,7 @@ macro_rules! from_raw_from_impl {
 macro_rules! raw_to_impl {
     ($t:ty, $f:ident) => (
         impl RawToSql for $t {
-            fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+            fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
                 Ok(try!(w.$f(*self)))
             }
         }
@@ -118,7 +118,7 @@ macro_rules! to_raw_to_impl {
                 check_types!($($oid),+; ty);
 
                 let mut writer = vec![];
-                try!(self.raw_to_sql(&mut writer));
+                try!(self.raw_to_sql(ty, &mut writer));
                 Ok(Some(writer))
             }
         }
@@ -351,24 +351,27 @@ pub trait FromSql {
 
 /// A utility trait used by `FromSql` implementations
 pub trait RawFromSql {
-    /// Creates a new value of this type from a reader of Postgre data.
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Self>;
+    /// Creates a new value of this type from a `Reader` of Postgres data.
+    ///
+    /// It is the caller's responsibility to ensure that Postgres data of this
+    /// type can be turned in to this type.
+    fn raw_from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Self>;
 }
 
 impl RawFromSql for bool {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<bool> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<bool> {
         Ok((try!(raw.read_u8())) != 0)
     }
 }
 
 impl RawFromSql for Vec<u8> {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<Vec<u8>> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
         Ok(try!(raw.read_to_end()))
     }
 }
 
 impl RawFromSql for String {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<String> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<String> {
         String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadData)
     }
 }
@@ -382,13 +385,19 @@ raw_from_impl!(f32, read_be_f32);
 raw_from_impl!(f64, read_be_f64);
 
 impl RawFromSql for json::Json {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<json::Json> {
+    fn raw_from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
+        if let Type::Jsonb = *ty {
+            // We only support version 1 of the jsonb binary format
+            if try!(raw.read_u8()) != 1 {
+                return Err(Error::BadData);
+            }
+        }
         json::Json::from_reader(raw).map_err(|_| Error::BadData)
     }
 }
 
 impl RawFromSql for IpAddr {
-    fn raw_from_sql<R: Reader>(raw: &mut R) -> Result<IpAddr> {
+    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<IpAddr> {
         let family = try!(raw.read_u8());
         let _bits = try!(raw.read_u8());
         let _is_cidr = try!(raw.read_u8());
@@ -424,7 +433,7 @@ from_raw_from_impl!(Type::Oid; u32);
 from_raw_from_impl!(Type::Int8; i64);
 from_raw_from_impl!(Type::Float4; f32);
 from_raw_from_impl!(Type::Float8; f64);
-from_raw_from_impl!(Type::Json; json::Json);
+from_raw_from_impl!(Type::Json, Type::Jsonb; json::Json);
 from_raw_from_impl!(Type::Inet, Type::Cidr; IpAddr);
 
 impl FromSql for Option<String> {
@@ -437,7 +446,7 @@ impl FromSql for Option<String> {
 
         match raw {
             Some(mut buf) => {
-                Ok(Some(try!(RawFromSql::raw_from_sql(&mut buf))))
+                Ok(Some(try!(RawFromSql::raw_from_sql(ty, &mut buf))))
             }
             None => Ok(None)
         }
@@ -500,25 +509,28 @@ pub trait ToSql {
 
 /// A utility trait used by `ToSql` implementations.
 pub trait RawToSql {
-    /// Converts the value of `self` into the binary format appropriate for the
-    /// Postgres backend, writing it to `w`.
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()>;
+    /// Converts the value of `self` into the binary format of the specified
+    /// Postgres type, writing it to `w`.
+    ///
+    /// It is the caller's responsibility to make sure that this type can be
+    /// converted to the specified Postgres type.
+    fn raw_to_sql<W: Writer>(&self, ty: &Type, w: &mut W) -> Result<()>;
 }
 
 impl RawToSql for bool {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
         Ok(try!(w.write_u8(*self as u8)))
     }
 }
 
 impl RawToSql for Vec<u8> {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
         Ok(try!(w.write(&**self)))
     }
 }
 
 impl RawToSql for String {
-    fn raw_to_sql<W: Writer>(&self, w: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
         Ok(try!(w.write(self.as_bytes())))
     }
 }
@@ -532,13 +544,17 @@ raw_to_impl!(f32, write_be_f32);
 raw_to_impl!(f64, write_be_f64);
 
 impl RawToSql for json::Json {
-    fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, ty: &Type, raw: &mut W) -> Result<()> {
+        if let Type::Jsonb = *ty {
+            try!(raw.write_u8(1));
+        }
+
         Ok(try!(write!(raw, "{}", self)))
     }
 }
 
 impl RawToSql for IpAddr {
-    fn raw_to_sql<W: Writer>(&self, raw: &mut W) -> Result<()> {
+    fn raw_to_sql<W: Writer>(&self, _: &Type, raw: &mut W) -> Result<()> {
         match *self {
             IpAddr::Ipv4Addr(a, b, c, d) => {
                 try!(raw.write(&[2, // family
@@ -570,7 +586,7 @@ impl RawToSql for IpAddr {
 
 to_raw_to_impl!(Type::Bool; bool);
 to_raw_to_impl!(Type::ByteA; Vec<u8>);
-to_raw_to_impl!(Type::Json; json::Json);
+to_raw_to_impl!(Type::Json, Type::Jsonb; json::Json);
 to_raw_to_impl!(Type::Inet, Type::Cidr; IpAddr);
 to_raw_to_impl!(Type::Char; i8);
 to_raw_to_impl!(Type::Int2; i16);

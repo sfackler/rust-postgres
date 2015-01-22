@@ -653,7 +653,7 @@ impl fmt::String for Error {
                 write!(fmt, "A statement was executed with a connection it was not prepared with"),
             Error::WrongParamCount { expected, actual } =>
                 write!(fmt, "Expected {} parameters but got {}", expected, actual),
-            Error::WrongType(ref ty) => write!(fmt, "Unexpected type {}", ty),
+            Error::WrongType(ref ty) => write!(fmt, "Unexpected type {:?}", ty),
             Error::InvalidColumn => write!(fmt, "Invalid column"),
             Error::WasNull => write!(fmt, "The value was NULL"),
             Error::WrongTransaction =>
@@ -696,7 +696,7 @@ impl error::Error for Error {
             Error::WrongParamCount { expected, actual } => {
                 Some(format!("expected: {}, actual: {}", expected, actual))
             }
-            Error::WrongType(ref ty) => Some(format!("saw type {}", ty)),
+            Error::WrongType(ref ty) => Some(format!("saw type {:?}", ty)),
             _ => None
         }
     }
