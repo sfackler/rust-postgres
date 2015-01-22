@@ -906,25 +906,6 @@ impl Connection {
     ///
     /// These statements provide a method to efficiently bulk-upload data to
     /// the database.
-    ///
-    /// ## Example
-    ///
-    /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, Error};
-    /// # use postgres::types::ToSql;
-    /// # fn f() -> Result<(), Error> {
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// try!(conn.execute("CREATE TABLE foo (
-    ///                     bar INT PRIMARY KEY,
-    ///                     baz VARCHAR
-    ///                    )", &[]));
-    ///
-    /// let stmt = try!(conn.prepare_copy_in("foo", &["bar", "baz"]));
-    /// let data: &[&[&ToSql]] = &[&[&0i32, &"blah"],
-    ///                            &[&1i32, &None::<String>]];
-    /// try!(stmt.execute(data.iter().map(|r| r.iter().map(|&e| e))));
-    /// # Ok(()) };
-    /// ```
     pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
                                -> Result<CopyInStatement<'a>> {
         let mut conn = self.conn.borrow_mut();
@@ -1700,6 +1681,45 @@ impl<'a> Drop for CopyInStatement<'a> {
     }
 }
 
+/// An `Iterator` variant which returns borrowed values.
+pub trait StreamIterator {
+    /// Returns the next value, or `None` if there is none.
+    fn next<'a>(&'a mut self) -> Option<&'a (ToSql + 'a)>;
+}
+
+/// An adapter type implementing `StreamIterator` for a `Vec<Box<ToSql>>`.
+pub struct VecStreamIterator<'a> {
+    v: Vec<Box<ToSql + 'a>>,
+    idx: usize,
+}
+
+impl<'a> VecStreamIterator<'a> {
+    /// Creates a new `VecStreamIterator`.
+    pub fn new(v: Vec<Box<ToSql + 'a>>) -> VecStreamIterator<'a> {
+        VecStreamIterator {
+            v: v,
+            idx: 0,
+        }
+    }
+
+    /// Returns the underlying `Vec`.
+    pub fn into_inner(self) -> Vec<Box<ToSql + 'a>> {
+        self.v
+    }
+}
+
+impl<'a> StreamIterator for VecStreamIterator<'a> {
+    fn next<'b>(&'b mut self) -> Option<&'b (ToSql + 'b)> {
+        match self.v.get_mut(self.idx) {
+            Some(mut e) => {
+                self.idx += 1;
+                Some(&mut **e)
+            },
+            None => None,
+        }
+    }
+}
+
 impl<'a> CopyInStatement<'a> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
@@ -1714,12 +1734,14 @@ impl<'a> CopyInStatement<'a> {
 
     /// Executes the prepared statement.
     ///
-    /// Each iterator returned by the `rows` iterator will be interpreted as
-    /// providing a single result row.
+    /// The `rows` argument is an `Iterator` returning `StreamIterator` values,
+    /// each one of which provides values for a row of input. This setup is
+    /// designed to allow callers to avoid having to maintain the entire row
+    /// set in memory.
     ///
     /// Returns the number of rows copied.
     pub fn execute<'b, I, J>(&self, mut rows: I) -> Result<usize>
-            where I: Iterator<Item=J>, J: Iterator<Item=&'b (ToSql + 'b)> {
+            where I: Iterator<Item=J>, J: StreamIterator {
         let mut conn = self.conn.conn.borrow_mut();
 
         try!(conn.write_messages(&[
