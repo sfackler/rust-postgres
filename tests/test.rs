@@ -297,7 +297,7 @@ fn test_trans_prepare_with_nested_trans() {
     let trans = or_panic!(conn.transaction());
     let _trans2 = or_panic!(trans.transaction());
     let stmt = or_panic!(trans.prepare("SELECT 1"));
-    match trans.lazy_query(&stmt, &[], 10) {
+    match stmt.lazy_query(&trans, &[], 10) {
         Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {:?}", r),
         Ok(_) => panic!("Unexpected success"),
@@ -420,7 +420,7 @@ fn test_lazy_query() {
         or_panic!(stmt.execute(&[value]));
     }
     let stmt = or_panic!(trans.prepare("SELECT id FROM foo ORDER BY id"));
-    let result = or_panic!(trans.lazy_query(&stmt, &[], 2));
+    let result = or_panic!(stmt.lazy_query(&trans, &[], 2));
     assert_eq!(values, result.map(|row| row.unwrap().get(0)).collect::<Vec<_>>());
 }
 
@@ -431,7 +431,7 @@ fn test_lazy_query_wrong_conn() {
 
     let trans = or_panic!(conn1.transaction());
     let stmt = or_panic!(conn2.prepare("SELECT 1::INT"));
-    match trans.lazy_query(&stmt, &[], 1) {
+    match stmt.lazy_query(&trans, &[], 1) {
         Err(Error::WrongConnection) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure")

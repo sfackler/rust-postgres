@@ -1227,33 +1227,14 @@ impl<'conn> Transaction<'conn> {
         })
     }
 
-    /// Executes a prepared statement, returning a lazily loaded iterator over
-    /// the resulting rows.
-    ///
-    /// No more than `row_limit` rows will be stored in memory at a time. Rows
-    /// will be pulled from the database in batches of `row_limit` as needed.
-    /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
-    /// to `query`.
+    #[deprecated = "call `lazy_query` on Statement instead"]
+    #[allow(missing_docs)]
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt Statement,
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
-        if self.conn as *const _ != stmt.conn as *const _ {
-            return Err(Error::WrongConnection);
-        }
-        let conn = self.conn.conn.borrow();
-        check_desync!(conn);
-        if conn.trans_depth != self.depth {
-            return Err(Error::WrongTransaction);
-        }
-        drop(conn);
-        stmt.lazy_query(row_limit, params).map(|result| {
-            LazyRows {
-                _trans: self,
-                result: result
-            }
-        })
+        stmt.lazy_query(self, params, row_limit)
     }
 
     /// Determines if the transaction is currently set to commit or roll back.
@@ -1368,7 +1349,7 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    fn lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql]) -> Result<Rows<'a>> {
+    fn inner_lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql]) -> Result<Rows<'a>> {
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
@@ -1475,7 +1456,40 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
-        self.lazy_query(0, params)
+        self.inner_lazy_query(0, params)
+    }
+
+    /// Executes the prepared statement, returning a lazily loaded iterator
+    /// over the resulting rows.
+    ///
+    /// No more than `row_limit` rows will be stored in memory at a time. Rows
+    /// will be pulled from the database in batches of `row_limit` as needed.
+    /// If `row_limit` is less than or equal to 0, `lazy_query` is equivalent
+    /// to `query`.
+    ///
+    /// This can only be called inside of a transaction, and the `Transaction`
+    /// object representing the active transaction must be passed to
+    /// `lazy_query`.
+    pub fn lazy_query<'trans, 'stmt>(&'stmt self,
+                                     trans: &'trans Transaction,
+                                     params: &[&ToSql],
+                                     row_limit: i32)
+                                     -> Result<LazyRows<'trans, 'stmt>> {
+        if self.conn as *const _ != trans.conn as *const _ {
+            return Err(Error::WrongConnection);
+        }
+        let conn = self.conn.conn.borrow();
+        check_desync!(conn);
+        if conn.trans_depth != trans.depth {
+            return Err(Error::WrongTransaction);
+        }
+        drop(conn);
+        self.inner_lazy_query(row_limit, params).map(|result| {
+            LazyRows {
+                _trans: trans,
+                result: result
+            }
+        })
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
