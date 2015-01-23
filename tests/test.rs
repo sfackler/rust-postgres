@@ -281,14 +281,9 @@ fn test_nested_transactions_finish() {
 }
 
 #[test]
-fn test_conn_prepare_with_trans() {
+fn test_conn_trans_when_nested() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _trans = or_panic!(conn.transaction());
-    match conn.prepare("") {
-        Err(Error::WrongTransaction) => {}
-        Err(r) => panic!("Unexpected error {:?}", r),
-        Ok(_) => panic!("Unexpected success"),
-    }
     match conn.transaction() {
         Err(Error::WrongTransaction) => {}
         Err(r) => panic!("Unexpected error {:?}", r),
@@ -901,4 +896,20 @@ fn test_custom_range_element_type() {
         }
         t => panic!("Unexpected type {:?}", t)
     }
+}
+
+#[test]
+fn test_prepare_cached() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
+    or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1), (2)", &[]));
+
+    let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
+    assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+
+    let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
+    assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+
+    let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id DESC"));
+    assert_eq!(&[2, 1][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
 }

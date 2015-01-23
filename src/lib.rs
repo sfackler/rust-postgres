@@ -383,6 +383,13 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     Ok(())
 }
 
+#[derive(Clone)]
+struct CachedStatement {
+    name: String,
+    param_types: Vec<Type>,
+    result_desc: Vec<ResultDescription>,
+}
+
 struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     next_stmt_id: usize,
@@ -390,6 +397,7 @@ struct InnerConnection {
     notifications: RingBuf<Notification>,
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Type>,
+    cached_statements: HashMap<String, CachedStatement>,
     desynchronized: bool,
     finished: bool,
     trans_depth: u32,
@@ -421,6 +429,7 @@ impl InnerConnection {
             notifications: RingBuf::new(),
             cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
+            cached_statements: HashMap::new(),
             desynchronized: false,
             finished: false,
             trans_depth: 0,
@@ -644,6 +653,34 @@ impl InnerConnection {
             result_desc: result_desc,
             next_portal_id: Cell::new(0),
             finished: false,
+        })
+    }
+
+    fn prepare_cached<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
+        let stmt = self.cached_statements.get(query).map(|e| e.clone());
+
+        let CachedStatement { name, param_types, result_desc } = match stmt {
+            Some(stmt) => stmt,
+            None => {
+                let stmt_name = self.make_stmt_name();
+                let (param_types, result_desc) = try!(self.raw_prepare(&*stmt_name, query));
+                let stmt = CachedStatement {
+                    name: stmt_name,
+                    param_types: param_types,
+                    result_desc: result_desc,
+                };
+                self.cached_statements.insert(query.to_owned(), stmt.clone());
+                stmt
+            }
+        };
+
+        Ok(Statement {
+            conn: conn,
+            name: name,
+            param_types: param_types,
+            result_desc: result_desc,
+            next_portal_id: Cell::new(0),
+            finished: true, // << !
         })
     }
 
@@ -924,11 +961,31 @@ impl Connection {
     ///     Err(err) => panic!("Error preparing statement: {:?}", err)
     /// };
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        let mut conn = self.conn.borrow_mut();
-        if conn.trans_depth != 0 {
-            return Err(Error::WrongTransaction);
-        }
-        conn.prepare(query, self)
+        self.conn.borrow_mut().prepare(query, self)
+    }
+
+    /// Creates cached prepared statement.
+    ///
+    /// Like `prepare`, except that the statement is only prepared once and
+    /// then cached. If the same statement is going to be used frequently,
+    /// caching it can improve performance by reducing the number of round
+    /// trips to the Postgres backend.
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # fn f() -> postgres::Result<()> {
+    /// # let x = 10i32;
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// let stmt = try!(conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1"));
+    /// for row in try!(stmt.query(&[&x])) {
+    ///     println!("foo: {}", row.get::<_, String>(0));
+    /// }
+    /// # Ok(()) };
+    /// ```
+    pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.conn.borrow_mut().prepare_cached(query, self)
     }
 
     /// Creates a new COPY FROM STDIN prepared statement.
@@ -937,11 +994,7 @@ impl Connection {
     /// the database.
     pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
                                -> Result<CopyInStatement<'a>> {
-        let mut conn = self.conn.borrow_mut();
-        if conn.trans_depth != 0 {
-            return Err(Error::WrongTransaction);
-        }
-        conn.prepare_copy_in(table, rows, self)
+        self.conn.borrow_mut().prepare_copy_in(table, rows, self)
     }
 
     /// Begins a new transaction.
@@ -1039,11 +1092,7 @@ impl Connection {
     /// }
     /// ```
     pub fn batch_execute(&self, query: &str) -> Result<()> {
-        let mut conn = self.conn.borrow_mut();
-        if conn.trans_depth != 0 {
-            return Err(Error::WrongTransaction);
-        }
-        conn.quick_query(query).map(|_| ())
+        self.conn.borrow_mut().quick_query(query).map(|_| ())
     }
 
     /// Returns information used to cancel pending queries.
@@ -1135,12 +1184,20 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::prepare`.
     pub fn prepare(&self, query: &str) -> Result<Statement<'conn>> {
-        self.conn.conn.borrow_mut().prepare(query, self.conn)
+        self.conn.prepare(query)
+    }
+
+    /// Like `Connection::prepare_cached`.
+    ///
+    /// Note that the statement will be cached for the duration of the
+    /// connection, not just the duration of this transaction.
+    pub fn prepare_cached(&self, query: &str) -> Result<Statement<'conn>> {
+        self.conn.prepare_cached(query)
     }
 
     /// Like `Connection::prepare_copy_in`.
     pub fn prepare_copy_in(&self, table: &str, cols: &[&str]) -> Result<CopyInStatement<'conn>> {
-        self.conn.conn.borrow_mut().prepare_copy_in(table, cols, self.conn)
+        self.conn.prepare_copy_in(table, cols)
     }
 
     /// Like `Connection::execute`.
@@ -1150,7 +1207,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::batch_execute`.
     pub fn batch_execute(&self, query: &str) -> Result<()> {
-        self.conn.conn.borrow_mut().quick_query(query).map(|_| ())
+        self.conn.batch_execute(query)
     }
 
     /// Like `Connection::transaction`.
@@ -1895,6 +1952,9 @@ pub trait GenericConnection {
     /// Like `Connection::prepare`.
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
+    /// Like `Connection::prepare_cached`.
+    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
+
     /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize>;
 
@@ -1912,6 +1972,10 @@ pub trait GenericConnection {
 impl GenericConnection for Connection {
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
+    }
+
+    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.prepare_cached(query)
     }
 
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
@@ -1935,6 +1999,10 @@ impl GenericConnection for Connection {
 impl<'a> GenericConnection for Transaction<'a> {
     fn prepare<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
         self.prepare(query)
+    }
+
+    fn prepare_cached<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
+        self.prepare_cached(query)
     }
 
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
