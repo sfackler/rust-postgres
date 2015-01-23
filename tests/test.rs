@@ -347,7 +347,7 @@ fn test_batch_execute_error() {
                  INSERT INTO foo (id) VALUES (10);
                  asdfa;
                  INSERT INTO foo (id) VALUES (11)";
-    conn.batch_execute(query).unwrap_err();
+    conn.batch_execute(query).err().unwrap();
 
     match conn.prepare("SELECT * from foo ORDER BY id") {
         Err(Error::DbError(DbError { code: UndefinedTable, .. })) => {},
@@ -848,7 +848,7 @@ fn test_copy_in_bad_type() {
 
     let res = stmt.execute(data);
     match res {
-        Err(Error::DbError(ref err)) if err.message[].contains("Unexpected type Varchar") => {}
+        Err(Error::DbError(ref err)) if err.message[].contains("saw type Varchar") => {}
         Err(err) => panic!("unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
