@@ -1312,17 +1312,20 @@ impl<'a> fmt::Show for Statement<'a> {
 #[unsafe_destructor]
 impl<'conn> Drop for Statement<'conn> {
     fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.finish_inner();
-        }
+        let _ = self.finish_inner();
     }
 }
 
 impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        conn.close_statement(&*self.name, b'S')
+        if !self.finished {
+            self.finished = true;
+            let mut conn = self.conn.conn.borrow_mut();
+            check_desync!(conn);
+            conn.close_statement(&*self.name, b'S')
+        } else {
+            Ok(())
+        }
     }
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
@@ -1480,7 +1483,6 @@ impl<'conn> Statement<'conn> {
     /// Functionally identical to the `Drop` implementation of the
     /// `Statement` except that it returns any error to the caller.
     pub fn finish(mut self) -> Result<()> {
-        self.finished = true;
         self.finish_inner()
     }
 }

@@ -906,10 +906,13 @@ fn test_prepare_cached() {
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
     assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
     assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id DESC"));
     assert_eq!(&[2, 1][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    or_panic!(stmt.finish());
 }
