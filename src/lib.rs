@@ -230,7 +230,7 @@ pub struct Notifications<'conn> {
     conn: &'conn Connection
 }
 
-impl<'a> fmt::Show for Notifications<'a> {
+impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Notifications")
     }
@@ -856,7 +856,7 @@ pub struct Connection {
     conn: RefCell<InnerConnection>
 }
 
-impl fmt::Show for Connection {
+impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
         write!(fmt,
@@ -1152,7 +1152,7 @@ pub struct Transaction<'conn> {
     finished: bool,
 }
 
-impl<'a> fmt::Show for Transaction<'a> {
+impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Transaction {{ connection: {:?}, commit: {:?}, depth: {:?} }}",
                self.conn, self.commit.get(), self.depth)
@@ -1278,7 +1278,7 @@ pub struct Statement<'conn> {
     finished: bool,
 }
 
-impl<'a> fmt::Show for Statement<'a> {
+impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
                "Statement {{ connection: {:?}, name: {:?}, parameter_types: {:?}, \
@@ -1520,7 +1520,7 @@ pub struct Rows<'stmt> {
     finished: bool,
 }
 
-impl<'a> fmt::Show for Rows<'a> {
+impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Rows {{ statement: {:?}, name: {:?}, remaining_rows: {:?} }}",
                self.stmt, self.name, self.data.len())
@@ -1638,7 +1638,7 @@ pub struct Row<'stmt> {
     data: Vec<Option<Vec<u8>>>
 }
 
-impl<'a> fmt::Show for Row<'a> {
+impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Row {{ statement: {:?} }}", self.stmt)
     }
@@ -1688,7 +1688,7 @@ impl<'stmt> Row<'stmt> {
     /// let foo: i32 = row.get(0u);
     /// let bar: String = row.get("bar");
     /// ```
-    pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Show + Clone, T: FromSql {
+    pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Debug + Clone, T: FromSql {
         match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
             Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err)
@@ -1727,7 +1727,7 @@ pub struct LazyRows<'trans, 'stmt> {
     _trans: &'trans Transaction<'trans>,
 }
 
-impl<'a, 'b> fmt::Show for LazyRows<'a, 'b> {
+impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
                "LazyRows {{ statement: {:?}, name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
@@ -1767,7 +1767,7 @@ pub struct CopyInStatement<'a> {
     finished: bool,
 }
 
-impl<'a> fmt::Show for CopyInStatement<'a> {
+impl<'a> fmt::Debug for CopyInStatement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "CopyInStatement {{ connection: {:?}, name: {:?}, column_types: {:?} }}",
                self.conn, self.name, self.column_types)

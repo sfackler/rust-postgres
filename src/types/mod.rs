@@ -201,7 +201,7 @@ macro_rules! make_postgres_type {
             }
         }
 
-        impl fmt::Show for Type {
+        impl fmt::Debug for Type {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 let s = match *self {
                     $(Type::$variant => stringify!($variant),)+

@@ -42,7 +42,7 @@ macro_rules! make_errors {
             }
         }
 
-        impl fmt::Show for SqlState {
+        impl fmt::Debug for SqlState {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 let s = match *self {
                     $(SqlState::$error => stringify!($error),)+
@@ -397,6 +397,16 @@ pub enum ConnectError {
     BadResponse,
 }
 
+impl fmt::Display for ConnectError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        try!(fmt.write_str(error::Error::description(self)));
+        match *self {
+            ConnectError::InvalidUrl(ref msg) => write!(fmt, ": {}", msg),
+            _ => Ok(())
+        }
+    }
+}
+
 impl error::Error for ConnectError {
     fn description(&self) -> &str {
         match *self {
@@ -411,13 +421,6 @@ impl error::Error for ConnectError {
             ConnectError::SslError(_) => "Error initiating SSL session",
             ConnectError::IoError(_) => "Error communicating with server",
             ConnectError::BadResponse => "The server returned an unexpected response",
-        }
-    }
-
-    fn detail(&self) -> Option<String> {
-        match *self {
-            ConnectError::InvalidUrl(ref msg) => Some(msg.clone()),
-            _ => None,
         }
     }
 
@@ -446,28 +449,6 @@ impl error::FromError<DbError> for ConnectError {
 impl error::FromError<SslError> for ConnectError {
     fn from_error(err: SslError) -> ConnectError {
         ConnectError::SslError(err)
-    }
-}
-
-impl fmt::String for ConnectError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ConnectError::InvalidUrl(ref err) => write!(fmt, "Invalid URL: {}", err),
-            ConnectError::MissingUser => write!(fmt, "User missing in URL"),
-            ConnectError::DbError(ref err) => err.fmt(fmt),
-            ConnectError::MissingPassword =>
-                write!(fmt, "The server requested a password but none was provided"),
-            ConnectError::UnsupportedAuthentication =>
-                write!(fmt, "The server requested an unsupported authentication method"),
-            ConnectError::NoSslSupport =>
-                write!(fmt, "The server does not support SSL"),
-            ConnectError::SslError(ref err) =>
-                write!(fmt, "Error initiating SSL session: {:?}", err),
-            ConnectError::IoError(ref err) =>
-                write!(fmt, "Error communicating with server: {:?}", err),
-            ConnectError::BadResponse =>
-                write!(fmt, "The server returned an unexpected response"),
-        }
     }
 }
 
@@ -590,7 +571,7 @@ impl DbError {
     }
 }
 
-impl fmt::String for DbError {
+impl fmt::Display for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}: {}", self.severity, self.message)
     }
@@ -599,10 +580,6 @@ impl fmt::String for DbError {
 impl error::Error for DbError {
     fn description(&self) -> &str {
         &*self.message
-    }
-
-    fn detail(&self) -> Option<String> {
-        self.detail.clone()
     }
 }
 
@@ -641,28 +618,15 @@ pub enum Error {
     BadData,
 }
 
-impl fmt::String for Error {
+impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        try!(fmt.write_str(error::Error::description(self)));
         match *self {
-            Error::DbError(ref err) => err.fmt(fmt),
-            Error::IoError(ref err) => err.fmt(fmt),
-            Error::StreamDesynchronized =>
-                write!(fmt, "Communication with the server has desynchronized due to an earlier \
-                             IO error"),
-            Error::WrongConnection =>
-                write!(fmt, "A statement was executed with a connection it was not prepared with"),
-            Error::WrongParamCount { expected, actual } =>
-                write!(fmt, "Expected {} parameters but got {}", expected, actual),
-            Error::WrongType(ref ty) => write!(fmt, "Unexpected type {:?}", ty),
-            Error::InvalidColumn => write!(fmt, "Invalid column"),
-            Error::WasNull => write!(fmt, "The value was NULL"),
-            Error::WrongTransaction =>
-                write!(fmt, "An attempt was made to start a transaction or execute a lazy query \
-                             on an object other than the active transaction"),
-            Error::BadResponse =>
-                write!(fmt, "The server returned an unexpected response"),
-            Error::BadData =>
-                write!(fmt, "The server provided data that the client could not parse"),
+            Error::WrongParamCount { expected, actual } => {
+                write!(fmt, ": expected: {}, actual: {}", expected, actual)
+            }
+            Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
+            _ => Ok(()),
         }
     }
 }
@@ -688,16 +652,6 @@ impl error::Error for Error {
             }
             Error::BadResponse => "The server returned an unexpected response",
             Error::BadData => "The server provided data that the client could not parse",
-        }
-    }
-
-    fn detail(&self) -> Option<String> {
-        match *self {
-            Error::WrongParamCount { expected, actual } => {
-                Some(format!("expected: {}, actual: {}", expected, actual))
-            }
-            Error::WrongType(ref ty) => Some(format!("saw type {:?}", ty)),
-            _ => None
         }
     }
 

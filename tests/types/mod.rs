@@ -13,7 +13,7 @@ use postgres::types::{ToSql, FromSql};
 mod uuid;
 mod time;
 
-fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::String>(sql_type: &str, checks: &[(T, S)]) {
+fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
