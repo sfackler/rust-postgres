@@ -966,10 +966,10 @@ impl Connection {
 
     /// Creates cached prepared statement.
     ///
-    /// Like `prepare`, except that the statement is only prepared once and
-    /// then cached. If the same statement is going to be used frequently,
-    /// caching it can improve performance by reducing the number of round
-    /// trips to the Postgres backend.
+    /// Like `prepare`, except that the statement is only prepared once over
+    /// the lifetime of the connection and then cached. If the same statement
+    /// is going to be used frequently, caching it can improve performance by
+    /// reducing the number of round trips to the Postgres backend.
     ///
     /// ## Example
     ///
