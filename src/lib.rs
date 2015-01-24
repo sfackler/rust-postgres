@@ -1346,24 +1346,17 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    fn inner_lazy_query<'a>(&'a self, row_limit: i32, params: &[&ToSql]) -> Result<Rows<'a>> {
-        let id = self.next_portal_id.get();
-        self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}p{}", self.name, id);
-
-        try!(self.inner_execute(&*portal_name, row_limit, params));
+    fn inner_query<'a>(&'a self, portal_name: &str, row_limit: i32, params: &[&ToSql])
+                       -> Result<(Rows<'a>, bool)> {
+        try!(self.inner_execute(portal_name, row_limit, params));
 
         let mut result = Rows {
             stmt: self,
-            name: portal_name,
             data: RingBuf::new(),
-            row_limit: row_limit,
-            more_rows: true,
-            finished: false,
         };
-        try!(result.read_rows());
+        let more_rows = try!(result.read_rows());
 
-        Ok(result)
+        Ok((result, more_rows))
     }
 
     /// Returns a slice containing the expected parameter types.
@@ -1453,7 +1446,7 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
-        self.inner_lazy_query(0, params)
+        self.inner_query("", 0, params).map(|t| t.0)
     }
 
     /// Executes the prepared statement, returning a lazily loaded iterator
@@ -1481,12 +1474,24 @@ impl<'conn> Statement<'conn> {
             return Err(Error::WrongTransaction);
         }
         drop(conn);
-        self.inner_lazy_query(row_limit, params).map(|result| {
-            LazyRows {
-                _trans: trans,
-                result: result
+
+        let id = self.next_portal_id.get();
+        self.next_portal_id.set(id + 1);
+        let portal_name = format!("{}p{}", self.name, id);
+
+        match self.inner_query(&*portal_name, row_limit, params) {
+            Ok((result, more_rows)) => {
+                Ok(LazyRows {
+                    _trans: trans,
+                    result: result,
+                    name: portal_name,
+                    row_limit: row_limit,
+                    more_rows: more_rows,
+                    finished: false,
+                })
             }
-        })
+            Err(err) => Err(err),
+        }
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
@@ -1510,46 +1515,27 @@ pub struct ResultDescription {
 /// An iterator over the resulting rows of a query.
 pub struct Rows<'stmt> {
     stmt: &'stmt Statement<'stmt>,
-    name: String,
     data: RingBuf<Vec<Option<Vec<u8>>>>,
-    row_limit: i32,
-    more_rows: bool,
-    finished: bool,
 }
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Rows {{ statement: {:?}, name: {:?}, remaining_rows: {:?} }}",
-               self.stmt, self.name, self.data.len())
-    }
-}
-
-#[unsafe_destructor]
-impl<'stmt> Drop for Rows<'stmt> {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.finish_inner();
-        }
+        write!(fmt, "Rows {{ statement: {:?}, remaining_rows: {:?} }}", self.stmt, self.data.len())
     }
 }
 
 impl<'stmt> Rows<'stmt> {
-    fn finish_inner(&mut self) -> Result<()> {
+    fn read_rows(&mut self) -> Result<bool> {
         let mut conn = self.stmt.conn.conn.borrow_mut();
-        check_desync!(conn);
-        conn.close_statement(&*self.name, b'P')
-    }
-
-    fn read_rows(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
+        let more_rows;
         loop {
             match try!(conn.read_message()) {
                 EmptyQueryResponse | CommandComplete { .. } => {
-                    self.more_rows = false;
+                    more_rows = false;
                     break;
                 }
                 PortalSuspended => {
-                    self.more_rows = true;
+                    more_rows = true;
                     break;
                 }
                 DataRow { row } => self.data.push_back(row),
@@ -1570,17 +1556,8 @@ impl<'stmt> Rows<'stmt> {
                 }
             }
         }
-        conn.wait_for_ready()
-    }
-
-    fn execute(&mut self) -> Result<()> {
-        try!(self.stmt.conn.write_messages(&[
-            Execute {
-                portal: &*self.name,
-                max_rows: self.row_limit
-            },
-            Sync]));
-        self.read_rows()
+        try!(conn.wait_for_ready());
+        Ok(more_rows)
     }
 
     /// Returns a slice describing the columns of the `Rows`.
@@ -1588,23 +1565,10 @@ impl<'stmt> Rows<'stmt> {
         self.stmt.result_descriptions()
     }
 
-    /// Consumes the `Rows`, cleaning up associated state.
-    ///
-    /// Functionally identical to the `Drop` implementation on `Rows`
-    /// except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<()> {
-        self.finished = true;
-        self.finish_inner()
-    }
-
-    fn try_next(&mut self) -> Option<Result<Row<'stmt>>> {
-        if self.data.is_empty() && self.more_rows {
-            if let Err(err) = self.execute() {
-                return Some(Err(err));
-            }
-        }
-
-        self.data.pop_front().map(|row| Ok(Row { stmt: self.stmt, data: row }))
+    #[deprecated = "now a no-op"]
+    #[allow(missing_docs)]
+    pub fn finish(self) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -1613,19 +1577,12 @@ impl<'stmt> Iterator for Rows<'stmt> {
 
     #[inline]
     fn next(&mut self) -> Option<Row<'stmt>> {
-        // we'll never hit the network on a non-lazy result
-        self.try_next().map(|r| r.unwrap())
+        self.data.pop_front().map(|row| Row { stmt: self.stmt, data: row })
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower = self.data.len();
-        let upper = if self.more_rows {
-            None
-         } else {
-            Some(lower)
-         };
-         (lower, upper)
+        (self.data.len(), Some(self.data.len()))
     }
 }
 
@@ -1721,7 +1678,20 @@ impl<'a> RowIndex for &'a str {
 /// A lazily-loaded iterator over the resulting rows of a query
 pub struct LazyRows<'trans, 'stmt> {
     result: Rows<'stmt>,
+    name: String,
+    row_limit: i32,
+    more_rows: bool,
+    finished: bool,
     _trans: &'trans Transaction<'trans>,
+}
+
+#[unsafe_destructor]
+impl<'a, 'b> Drop for LazyRows<'a, 'b> {
+    fn drop(&mut self) {
+        if !self.finished {
+            let _ = self.finish_inner();
+        }
+    }
 }
 
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
@@ -1730,17 +1700,44 @@ impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
                "LazyRows {{ statement: {:?}, name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
                 more_rows: {:?} }}",
                self.result.stmt,
-               self.result.name,
-               self.result.row_limit,
+               self.name,
+               self.row_limit,
                self.result.data.len(),
-               self.result.more_rows)
+               self.more_rows)
     }
 }
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
-    /// Like `Rows::finish`.
-    pub fn finish(self) -> Result<()> {
-        self.result.finish()
+    fn finish_inner(&mut self) -> Result<()> {
+        let mut conn = self.result.stmt.conn.conn.borrow_mut();
+        check_desync!(conn);
+        conn.close_statement(&*self.name, b'P')
+    }
+
+    fn execute(&mut self) -> Result<()> {
+        try!(self.result.stmt.conn.write_messages(&[
+            Execute {
+                portal: &*self.name,
+                max_rows: self.row_limit
+            },
+            Sync]));
+        self.result.read_rows().map(|more_rows| {
+            self.more_rows = more_rows;
+            ()
+        })
+    }
+
+    /// Returns a slice describing the columns of the `Rows`.
+    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
+        self.result.stmt.result_descriptions()
+    }
+
+    /// Consumes the `LazyRows`, cleaning up associated state.
+    ///
+    /// Functionally identical to the `Drop` implementation on `LazyRows`
+    /// except that it returns any error to the caller.
+    pub fn finish(mut self) -> Result<()> {
+        self.finish_inner()
     }
 }
 
@@ -1748,11 +1745,23 @@ impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
     type Item = Result<Row<'stmt>>;
 
     fn next(&mut self) -> Option<Result<Row<'stmt>>> {
-        self.result.try_next()
+        if self.result.data.is_empty() && self.more_rows {
+            if let Err(err) = self.execute() {
+                return Some(Err(err));
+            }
+        }
+
+        self.result.next().map(|r| Ok(r))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.result.size_hint()
+        let lower = self.result.data.len();
+        let upper = if self.more_rows {
+            None
+        } else {
+            Some(lower)
+        };
+        (lower, upper)
     }
 }
 
