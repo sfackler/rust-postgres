@@ -77,8 +77,9 @@ use std::io::net::ip::Port;
 use std::mem;
 use std::result;
 use std::time::Duration;
-use url::Url;
+use time::SteadyTime;
 
+use url::Url;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, ToSql, FromSql};
@@ -297,10 +298,6 @@ impl<'conn> Notifications<'conn> {
     /// }
     /// ```
     pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
-        fn now() -> i64 {
-            (time::precise_time_ns() / 100_000) as i64
-        }
-
         if let Some(notification) = self.next() {
             return Ok(notification);
         }
@@ -308,9 +305,9 @@ impl<'conn> Notifications<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
 
-        let end = now() + timeout.num_milliseconds();
+        let end = SteadyTime::now() + timeout;
         loop {
-            let timeout = max(0, end - now()) as u64;
+            let timeout = max(Duration::zero(), end - SteadyTime::now()).num_milliseconds() as u64;
             conn.stream.set_read_timeout(Some(timeout));
             match conn.read_one_message() {
                 Ok(Some(NotificationResponse { pid, channel, payload })) => {
