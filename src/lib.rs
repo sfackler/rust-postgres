@@ -1479,22 +1479,22 @@ impl<'conn> Statement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
 
-        match self.inner_query(&*portal_name, row_limit, params) {
-            Ok((result, more_rows)) => {
-                Ok(LazyRows {
-                    _trans: trans,
-                    result: result,
-                    name: portal_name,
-                    row_limit: row_limit,
-                    more_rows: more_rows,
-                    finished: false,
-                })
+        self.inner_query(&*portal_name, row_limit, params).map(move |(result, more_rows)| {
+            LazyRows {
+                _trans: trans,
+                result: result,
+                name: portal_name,
+                row_limit: row_limit,
+                more_rows: more_rows,
+                finished: false,
             }
-            Err(err) => Err(err),
-        }
+        })
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
+    ///
+    /// If this statement was created via the `prepare_cached` method, `finish`
+    /// does nothing.
     ///
     /// Functionally identical to the `Drop` implementation of the
     /// `Statement` except that it returns any error to the caller.
