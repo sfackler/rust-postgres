@@ -106,7 +106,7 @@ const TYPEINFO_QUERY: &'static str = "t";
 pub type Result<T> = result::Result<T, Error>;
 
 /// Specifies the target server to connect to.
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
     Tcp(String),
@@ -115,7 +115,7 @@ pub enum ConnectTarget {
 }
 
 /// Authentication information
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub struct UserInfo {
     /// The username
     pub user: String,
@@ -124,7 +124,7 @@ pub struct UserInfo {
 }
 
 /// Information necessary to open a new connection to a Postgres server.
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub struct ConnectParams {
     /// The target server
     pub target: ConnectTarget,
@@ -206,7 +206,7 @@ pub trait NoticeHandler: Send {
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
-#[derive(Copy, Show)]
+#[derive(Copy, Debug)]
 pub struct DefaultNoticeHandler;
 
 impl NoticeHandler for DefaultNoticeHandler {
@@ -216,7 +216,7 @@ impl NoticeHandler for DefaultNoticeHandler {
 }
 
 /// An asynchronous notification
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub struct Notification {
     /// The process ID of the notifying backend process
     pub pid: u32,
@@ -330,7 +330,7 @@ impl<'conn> Notifications<'conn> {
 }
 
 /// Contains information necessary to cancel queries for a session
-#[derive(Copy, Clone, Show)]
+#[derive(Copy, Clone, Debug)]
 pub struct CancelData {
     /// The process ID of the session
     pub process_id: u32,
@@ -1129,7 +1129,7 @@ impl Connection {
 }
 
 /// Specifies the SSL support requested for a new connection
-#[derive(Show)]
+#[derive(Debug)]
 pub enum SslMode {
     /// The connection will not use SSL
     None,
@@ -1499,7 +1499,7 @@ impl<'conn> Statement<'conn> {
 }
 
 /// Information about a column of the result of a query.
-#[derive(PartialEq, Eq, Clone, Show)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ResultDescription {
     /// The name of the column
     pub name: String,
