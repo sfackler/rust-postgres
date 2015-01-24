@@ -277,7 +277,7 @@ impl<'conn> Notifications<'conn> {
     /// Returns the oldest pending notification
     ///
     /// If no notifications are pending, blocks for up to `timeout` time, after
-    /// which an `IoError` with the `TimedOut` kind is returned.
+    /// which `None` is returned.
     ///
     /// ## Example
     ///
@@ -290,20 +290,20 @@ impl<'conn> Notifications<'conn> {
     ///
     /// # let conn = postgres::Connection::connect("", &postgres::SslMode::None).unwrap();
     /// match conn.notifications().next_block_for(Duration::seconds(2)) {
-    ///     Ok(notification) => println!("notification: {}", notification.payload),
-    ///     Err(Error::IoError(IoError { kind: IoErrorKind::TimedOut, .. })) => {
-    ///         println!("Wait for notification timed out");
-    ///     }
-    ///     Err(e) => println!("Other error: {:?}", e),
+    ///     Some(Ok(notification)) => println!("notification: {}", notification.payload),
+    ///     Some(Err(e)) => println!("Error: {:?}", e),
+    ///     None => println!("Wait for notification timed out"),
     /// }
     /// ```
-    pub fn next_block_for(&mut self, timeout: Duration) -> Result<Notification> {
+    pub fn next_block_for(&mut self, timeout: Duration) -> Option<Result<Notification>> {
         if let Some(notification) = self.next() {
-            return Ok(notification);
+            return Some(Ok(notification));
         }
 
         let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
+        if conn.desynchronized {
+            return Some(Err(Error::StreamDesynchronized));
+        }
 
         let end = SteadyTime::now() + timeout;
         loop {
@@ -311,19 +311,19 @@ impl<'conn> Notifications<'conn> {
             conn.stream.set_read_timeout(Some(timeout));
             match conn.read_one_message() {
                 Ok(Some(NotificationResponse { pid, channel, payload })) => {
-                    return Ok(Notification {
+                    return Some(Ok(Notification {
                         pid: pid,
                         channel: channel,
                         payload: payload
-                    })
+                    }))
                 }
                 Ok(Some(_)) => unreachable!(),
                 Ok(None) => {}
-                Err(e @ IoError { kind: IoErrorKind::TimedOut, .. }) => {
+                Err(IoError { kind: IoErrorKind::TimedOut, .. }) => {
                     conn.desynchronized = false;
-                    return Err(Error::IoError(e));
+                    return None;
                 }
-                Err(e) => return Err(Error::IoError(e)),
+                Err(e) => return Some(Err(Error::IoError(e))),
             }
         }
     }

@@ -7,7 +7,6 @@ extern crate openssl;
 
 use openssl::ssl::SslContext;
 use openssl::ssl::SslMethod;
-use std::old_io::{IoError, IoErrorKind};
 use std::old_io::timer;
 use std::time::Duration;
 use std::thread::Thread;
@@ -649,7 +648,7 @@ fn test_notifications_next_block_for() {
         pid: 0,
         channel: "test_notifications_next_block_for".to_string(),
         payload: "foo".to_string()
-    }, or_panic!(notifications.next_block_for(Duration::seconds(2))));
+    }, or_panic!(notifications.next_block_for(Duration::seconds(2)).unwrap()));
 }
 
 #[test]
@@ -665,9 +664,9 @@ fn test_notifications_next_block_for_timeout() {
 
     let mut notifications = conn.notifications();
     match notifications.next_block_for(Duration::milliseconds(500)) {
-        Err(Error::IoError(IoError { kind: IoErrorKind::TimedOut, .. })) => {}
-        Err(e) => panic!("Unexpected error {:?}", e),
-        Ok(_) => panic!("expected error"),
+        None => {}
+        Some(Err(e)) => panic!("Unexpected error {:?}", e),
+        Some(Ok(_)) => panic!("expected error"),
     }
 
     or_panic!(conn.execute("SELECT 1", &[]));
