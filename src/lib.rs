@@ -1064,7 +1064,7 @@ impl Connection {
     ///
     /// Prepared statements should be used for any SQL statement which contains
     /// user-specified data, as it provides functionality to safely embed that
-    /// data in the statment. Do not form statements via string concatenation
+    /// data in the statement. Do not form statements via string concatenation
     /// and feed them into this method.
     ///
     /// ## Example
@@ -1224,7 +1224,7 @@ impl<'conn> Transaction<'conn> {
         })
     }
 
-    #[deprecated = "call `lazy_query` on Statement instead"]
+    #[deprecated = "call `lazy_query` on `Statement` instead"]
     #[allow(missing_docs)]
     pub fn lazy_query<'trans, 'stmt>(&'trans self,
                                      stmt: &'stmt Statement,
