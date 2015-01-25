@@ -23,8 +23,8 @@ path = "tests/test.rs"
 default = ["uuid"]
 
 [dependencies]
-phf = "0.5"
-phf_mac = "0.5"
+phf = "0.6"
+phf_macros = "0.6"
 openssl = "0.2.16"
 time = "0.1.14"
 log = "0.1"
