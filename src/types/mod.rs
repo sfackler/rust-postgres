@@ -196,7 +196,7 @@ macro_rules! make_postgres_type {
                 name: String,
                 /// The OID of the type
                 oid: Oid,
-                /// If this type is an array, the type of its members
+                /// If this type is an array or range, the type of its members
                 element_type: Option<Box<Type>>,
             }
         }
