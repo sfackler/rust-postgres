@@ -1028,9 +1028,7 @@ impl Connection {
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
-        if conn.trans_depth != 0 {
-            panic!("`transaction` must be called on the active transaction");
-        }
+        assert!(conn.trans_depth == 0, "`transaction` must be called on the active transaction");
         try!(conn.quick_query("BEGIN"));
         conn.trans_depth += 1;
         Ok(Transaction {
@@ -1230,9 +1228,8 @@ impl<'conn> Transaction<'conn> {
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        if conn.trans_depth != self.depth {
-            panic!("`transaction` may only be called on the active transaction");
-        }
+        assert!(conn.trans_depth == self.depth, "`transaction` may only be called on the active \
+                                                 transaction");
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
         Ok(Transaction {
@@ -1493,15 +1490,13 @@ impl<'conn> Statement<'conn> {
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
-        if self.conn as *const _ != trans.conn as *const _ {
-            panic!("the `Transaction` passed to `lazy_query` must be associated with the same \
-                    `Connection` as the `Statement`");
-        }
+        assert!(self.conn as *const _ == trans.conn as *const _,
+                "the `Transaction` passed to `lazy_query` must be associated with the same \
+                 `Connection` as the `Statement`");
         let conn = self.conn.conn.borrow();
         check_desync!(conn);
-        if conn.trans_depth != trans.depth {
-            panic!("`lazy_query` may only be called on the active transaction");
-        }
+        assert!(conn.trans_depth == trans.depth,
+                "`lazy_query` may only be called on the active transaction");
         drop(conn);
 
         let id = self.next_portal_id.get();
