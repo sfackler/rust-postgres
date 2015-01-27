@@ -279,32 +279,20 @@ fn test_nested_transactions_finish() {
 }
 
 #[test]
+#[should_fail(expected = "active transaction")]
 fn test_conn_trans_when_nested() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _trans = or_panic!(conn.transaction());
-    match conn.transaction() {
-        Err(Error::WrongTransaction) => {}
-        Err(r) => panic!("Unexpected error {:?}", r),
-        Ok(_) => panic!("Unexpected success"),
-    }
+    conn.transaction().unwrap();
 }
 
 #[test]
-fn test_trans_prepare_with_nested_trans() {
+#[should_fail(expected = "active transaction")]
+fn test_trans_with_nested_trans() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let trans = or_panic!(conn.transaction());
     let _trans2 = or_panic!(trans.transaction());
-    let stmt = or_panic!(trans.prepare("SELECT 1"));
-    match stmt.lazy_query(&trans, &[], 10) {
-        Err(Error::WrongTransaction) => {}
-        Err(r) => panic!("Unexpected error {:?}", r),
-        Ok(_) => panic!("Unexpected success"),
-    }
-    match trans.transaction() {
-        Err(Error::WrongTransaction) => {}
-        Err(r) => panic!("Unexpected error {:?}", r),
-        Ok(_) => panic!("Unexpected success"),
-    }
+    trans.transaction().unwrap();
 }
 
 #[test]
@@ -423,17 +411,14 @@ fn test_lazy_query() {
 }
 
 #[test]
+#[should_fail(expected = "same `Connection` as")]
 fn test_lazy_query_wrong_conn() {
     let conn1 = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let conn2 = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
 
     let trans = or_panic!(conn1.transaction());
     let stmt = or_panic!(conn2.prepare("SELECT 1::INT"));
-    match stmt.lazy_query(&trans, &[], 1) {
-        Err(Error::WrongConnection) => {}
-        Err(err) => panic!("Unexpected error {:?}", err),
-        Ok(_) => panic!("Expected failure")
-    }
+    stmt.lazy_query(&trans, &[], 1).unwrap();
 }
 
 #[test]

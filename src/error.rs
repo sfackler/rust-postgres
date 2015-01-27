@@ -593,8 +593,6 @@ pub enum Error {
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
     StreamDesynchronized,
-    /// A prepared statement was executed on a connection it does not belong to
-    WrongConnection,
     /// An incorrect number of parameters were bound to a statement
     WrongParamCount {
         /// The expected number of parameters
@@ -609,9 +607,6 @@ pub enum Error {
     InvalidColumn,
     /// A value was NULL but converted to a non-nullable Rust type
     WasNull,
-    /// An attempt was made to start a transaction or execute a lazy query on
-    /// an object other than the active transaction
-    WrongTransaction,
     /// The server returned an unexpected response
     BadResponse,
     /// The server provided data that the client could not parse
@@ -639,17 +634,10 @@ impl error::Error for Error {
             Error::StreamDesynchronized => {
                 "Communication with the server has desynchronized due to an earlier IO error"
             }
-            Error::WrongConnection => {
-                "A statement was executed with a connection with which it was not prepared"
-            }
             Error::WrongParamCount { .. } => "Wrong number of parameters",
             Error::WrongType(_) => "Unexpected type",
             Error::InvalidColumn => "Invalid column",
             Error::WasNull => "The value was NULL",
-            Error::WrongTransaction => {
-                "An attempt was made to start a transaction or execute a lazy query on an object \
-                 other than the active transaction"
-            }
             Error::BadResponse => "The server returned an unexpected response",
             Error::BadData => "The server provided data that the client could not parse",
         }

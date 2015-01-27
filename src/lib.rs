@@ -1007,6 +1007,10 @@ impl Connection {
     /// A transaction will roll back by default. The `set_commit`,
     /// `set_rollback`, and `commit` methods alter this behavior.
     ///
+    /// ## Panics
+    ///
+    /// Panics if a transaction is already active.
+    ///
     /// ## Example
     ///
     /// ```rust,no_run
@@ -1025,7 +1029,7 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != 0 {
-            return Err(Error::WrongTransaction);
+            panic!("`transaction` must be called on the active transaction");
         }
         try!(conn.quick_query("BEGIN"));
         conn.trans_depth += 1;
@@ -1219,11 +1223,15 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::transaction`.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if there is an active nested transaction.
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         if conn.trans_depth != self.depth {
-            return Err(Error::WrongTransaction);
+            panic!("`transaction` may only be called on the active transaction");
         }
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
@@ -1474,18 +1482,25 @@ impl<'conn> Statement<'conn> {
     /// This can only be called inside of a transaction, and the `Transaction`
     /// object representing the active transaction must be passed to
     /// `lazy_query`.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the provided `Transaction` is not associated with the same
+    /// `Connection` as this `Statement`, or if the `Transaction` is not
+    /// active.
     pub fn lazy_query<'trans, 'stmt>(&'stmt self,
                                      trans: &'trans Transaction,
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
         if self.conn as *const _ != trans.conn as *const _ {
-            return Err(Error::WrongConnection);
+            panic!("the `Transaction` passed to `lazy_query` must be associated with the same \
+                    `Connection` as the `Statement`");
         }
         let conn = self.conn.conn.borrow();
         check_desync!(conn);
         if conn.trans_depth != trans.depth {
-            return Err(Error::WrongTransaction);
+            panic!("`lazy_query` may only be called on the active transaction");
         }
         drop(conn);
 
