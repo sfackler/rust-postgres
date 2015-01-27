@@ -1109,6 +1109,15 @@ impl Connection {
         self.conn.borrow().is_desynchronized()
     }
 
+    /// Determines if the `Connection` is currently "active", that is, if there
+    /// are no active transactions.
+    ///
+    /// The `transaction` method can only be called on the active `Connection`
+    /// or `Transaction`.
+    pub fn is_active(&self) -> bool {
+        self.conn.borrow().trans_depth == 0
+    }
+
     /// Consumes the connection, closing it.
     ///
     /// Functionally equivalent to the `Drop` implementation for `Connection`
@@ -1232,6 +1241,11 @@ impl<'conn> Transaction<'conn> {
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
         stmt.lazy_query(self, params, row_limit)
+    }
+
+    /// Like `Connection::is_active`.
+    pub fn is_active(&self) -> bool {
+        self.conn.conn.borrow().trans_depth == self.depth
     }
 
     /// Determines if the transaction is currently set to commit or roll back.
@@ -1989,6 +2003,9 @@ pub trait GenericConnection {
 
     /// Like `Connection::batch_execute`.
     fn batch_execute(&self, query: &str) -> Result<()>;
+
+    /// Like `Connection::is_active`.
+    fn is_active(&self) -> bool;
 }
 
 impl GenericConnection for Connection {
@@ -2016,6 +2033,10 @@ impl GenericConnection for Connection {
     fn batch_execute(&self, query: &str) -> Result<()> {
         self.batch_execute(query)
     }
+
+    fn is_active(&self) -> bool {
+        self.is_active()
+    }
 }
 
 impl<'a> GenericConnection for Transaction<'a> {
@@ -2042,5 +2063,9 @@ impl<'a> GenericConnection for Transaction<'a> {
 
     fn batch_execute(&self, query: &str) -> Result<()> {
         self.batch_execute(query)
+    }
+
+    fn is_active(&self) -> bool {
+        self.is_active()
     }
 }

@@ -916,3 +916,23 @@ fn test_prepare_cached() {
     assert_eq!(&[2, 1][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 }
+
+#[test]
+fn test_is_active() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    assert!(conn.is_active());
+    let trans = or_panic!(conn.transaction());
+    assert!(!conn.is_active());
+    assert!(trans.is_active());
+    {
+        let trans2 = or_panic!(trans.transaction());
+        assert!(!conn.is_active());
+        assert!(!trans.is_active());
+        assert!(trans2.is_active());
+        or_panic!(trans2.finish());
+    }
+    assert!(!conn.is_active());
+    assert!(trans.is_active());
+    or_panic!(trans.finish());
+    assert!(conn.is_active());
+}
