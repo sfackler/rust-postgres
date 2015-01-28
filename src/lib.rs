@@ -72,8 +72,8 @@ use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::collections::{RingBuf, HashMap};
 use std::fmt;
-use std::io::{BufferedStream, IoResult, IoError, IoErrorKind};
-use std::io::net::ip::Port;
+use std::old_io::{BufferedStream, IoResult, IoError, IoErrorKind};
+use std::old_io::net::ip::Port;
 use std::mem;
 use std::result;
 use std::time::Duration;
@@ -283,7 +283,7 @@ impl<'conn> Notifications<'conn> {
     ///
     /// ```rust,no_run
     /// # #![allow(unstable)]
-    /// use std::io::{IoError, IoErrorKind};
+    /// use std::old_io::{IoError, IoErrorKind};
     /// use std::time::Duration;
     ///
     /// use postgres::Error;
@@ -1901,7 +1901,7 @@ impl<'a> CopyInStatement<'a> {
         }
 
         let mut buf = vec![];
-        let _ = buf.write(b"PGCOPY\n\xff\r\n\x00");
+        let _ = buf.write_all(b"PGCOPY\n\xff\r\n\x00");
         let _ = buf.write_be_i32(0);
         let _ = buf.write_be_i32(0);
 
@@ -1918,7 +1918,7 @@ impl<'a> CopyInStatement<'a> {
                             }
                             Ok(Some(val)) => {
                                 let _ = buf.write_be_i32(val.len() as i32);
-                                let _ = buf.write(&*val);
+                                let _ = buf.write_all(&*val);
                             }
                             Err(err) => {
                                 // FIXME this is not the right way to handle this

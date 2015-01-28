@@ -4,7 +4,7 @@ use std::f32;
 use std::f64;
 use std::fmt;
 use std::num::Float;
-use std::io::net::ip::IpAddr;
+use std::old_io::net::ip::IpAddr;
 
 use postgres::{Connection, SslMode};
 use postgres::types::{ToSql, FromSql};

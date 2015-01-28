@@ -8,8 +8,8 @@ extern crate openssl;
 
 use openssl::ssl::SslContext;
 use openssl::ssl::SslMethod;
-use std::io::{IoError, IoErrorKind};
-use std::io::timer;
+use std::old_io::{IoError, IoErrorKind};
+use std::old_io::timer;
 use std::time::Duration;
 use std::thread::Thread;
 

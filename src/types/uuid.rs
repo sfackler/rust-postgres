@@ -18,7 +18,7 @@ from_raw_from_impl!(Type::Uuid; Uuid);
 
 impl RawToSql for Uuid {
     fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write(self.as_bytes())))
+        Ok(try!(w.write_all(self.as_bytes())))
     }
 }
 

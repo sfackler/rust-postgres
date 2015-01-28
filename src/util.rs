@@ -1,4 +1,4 @@
-use std::io::IoResult;
+use std::old_io::IoResult;
 
 pub fn comma_join<'a, W, I>(writer: &mut W, mut strs: I) -> IoResult<()>
         where W: Writer, I: Iterator<Item=&'a str> {

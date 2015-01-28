@@ -1,9 +1,9 @@
 use openssl::ssl::{SslStream, MaybeSslStream};
-use std::io::BufferedStream;
-use std::io::net::ip::Port;
-use std::io::net::tcp::TcpStream;
-use std::io::net::pipe::UnixStream;
-use std::io::{IoResult, Stream};
+use std::old_io::BufferedStream;
+use std::old_io::net::ip::Port;
+use std::old_io::net::tcp::TcpStream;
+use std::old_io::net::pipe::UnixStream;
+use std::old_io::{IoResult, Stream};
 
 use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
@@ -44,10 +44,10 @@ impl Reader for InternalStream {
 }
 
 impl Writer for InternalStream {
-    fn write(&mut self, buf: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, buf: &[u8]) -> IoResult<()> {
         match *self {
-            InternalStream::Tcp(ref mut s) => s.write(buf),
-            InternalStream::Unix(ref mut s) => s.write(buf),
+            InternalStream::Tcp(ref mut s) => s.write_all(buf),
+            InternalStream::Unix(ref mut s) => s.write_all(buf),
         }
     }
 

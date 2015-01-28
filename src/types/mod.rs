@@ -1,7 +1,7 @@
 //! Traits dealing with Postgres data types
 use serialize::json;
 use std::collections::HashMap;
-use std::io::net::ip::IpAddr;
+use std::old_io::net::ip::IpAddr;
 use std::fmt;
 
 use Result;
@@ -525,13 +525,13 @@ impl RawToSql for bool {
 
 impl RawToSql for Vec<u8> {
     fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write(&**self)))
+        Ok(try!(w.write_all(&**self)))
     }
 }
 
 impl RawToSql for String {
     fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write(self.as_bytes())))
+        Ok(try!(w.write_all(self.as_bytes())))
     }
 }
 
@@ -557,7 +557,7 @@ impl RawToSql for IpAddr {
     fn raw_to_sql<W: Writer>(&self, _: &Type, raw: &mut W) -> Result<()> {
         match *self {
             IpAddr::Ipv4Addr(a, b, c, d) => {
-                try!(raw.write(&[2, // family
+                try!(raw.write_all(&[2, // family
                                  32, // bits
                                  0, // is_cidr
                                  4, // nb
@@ -565,7 +565,7 @@ impl RawToSql for IpAddr {
                                 ]));
             }
             IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
-                try!(raw.write(&[3, // family
+                try!(raw.write_all(&[3, // family
                                  128, // bits
                                  0, // is_cidr
                                  16, // nb
@@ -655,12 +655,12 @@ impl ToSql for HashMap<String, Option<String>> {
 
         for (key, val) in self.iter() {
             try!(buf.write_be_i32(key.len() as i32));
-            try!(buf.write(key.as_bytes()));
+            try!(buf.write_all(key.as_bytes()));
 
             match *val {
                 Some(ref val) => {
                     try!(buf.write_be_i32(val.len() as i32));
-                    try!(buf.write(val.as_bytes()));
+                    try!(buf.write_all(val.as_bytes()));
                 }
                 None => try!(buf.write_be_i32(-1))
             }

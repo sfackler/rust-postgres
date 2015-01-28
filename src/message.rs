@@ -1,5 +1,5 @@
-use std::io::{IoResult, IoError, OtherIoError, ByRefReader};
-use std::io::util::LimitReader;
+use std::old_io::{IoResult, IoError, OtherIoError, ByRefReader};
+use std::old_io::util::LimitReader;
 use std::mem;
 
 use io::Timeout;
@@ -139,7 +139,7 @@ trait WriteCStr {
 
 impl<W: Writer> WriteCStr for W {
     fn write_cstr(&mut self, s: &str) -> IoResult<()> {
-        try!(self.write(s.as_bytes()));
+        try!(self.write_all(s.as_bytes()));
         self.write_u8(0)
     }
 }
@@ -171,7 +171,7 @@ impl<W: Writer> WriteMessage for W {
                         None => try!(buf.write_be_i32(-1)),
                         Some(ref value) => {
                             try!(buf.write_be_i32(value.len() as i32));
-                            try!(buf.write(&**value));
+                            try!(buf.write_all(&**value));
                         }
                     }
                 }
@@ -193,7 +193,7 @@ impl<W: Writer> WriteMessage for W {
             }
             CopyData { data } => {
                 ident = Some(b'd');
-                try!(buf.write(data));
+                try!(buf.write_all(data));
             }
             CopyDone => ident = Some(b'c'),
             CopyFail { message } => {
@@ -246,7 +246,7 @@ impl<W: Writer> WriteMessage for W {
 
         // add size of length value
         try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
-        try!(self.write(&*buf));
+        try!(self.write_all(&*buf));
 
         Ok(())
     }
