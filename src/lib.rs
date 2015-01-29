@@ -1153,8 +1153,8 @@ pub enum SslMode {
 /// The transaction will roll back by default.
 pub struct Transaction<'conn> {
     conn: &'conn Connection,
-    commit: Cell<bool>,
     depth: u32,
+    commit: Cell<bool>,
     finished: bool,
 }
 
