@@ -389,16 +389,16 @@ struct CachedStatement {
 
 struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
-    next_stmt_id: usize,
     notice_handler: Box<NoticeHandler>,
     notifications: RingBuf<Notification>,
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Type>,
     cached_statements: HashMap<String, CachedStatement>,
-    desynchronized: bool,
-    finished: bool,
+    next_stmt_id: u32,
     trans_depth: u32,
     canary: u32,
+    desynchronized: bool,
+    finished: bool,
 }
 
 impl Drop for InnerConnection {
@@ -1285,7 +1285,7 @@ pub struct Statement<'conn> {
     name: String,
     param_types: Vec<Type>,
     result_desc: Vec<ResultDescription>,
-    next_portal_id: Cell<usize>,
+    next_portal_id: Cell<u32>,
     finished: bool,
 }
 
