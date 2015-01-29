@@ -51,9 +51,8 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/doc")]
-#![feature(plugin, unsafe_destructor)]
+#![feature(plugin, unsafe_destructor, collections, io, core, path, std_misc)]
 #![warn(missing_docs)]
-#![allow(unstable)]
 
 #[macro_use]
 extern crate log;
