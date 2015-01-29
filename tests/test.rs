@@ -386,15 +386,6 @@ FROM (SELECT gs.i
 }
 
 #[test]
-fn test_result_finish() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id BIGINT PRIMARY KEY)", &[]));
-    let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
-    let result = or_panic!(stmt.query(&[]));
-    assert!(result.finish().is_ok());
-}
-
-#[test]
 fn test_lazy_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
 

@@ -1240,16 +1240,6 @@ impl<'conn> Transaction<'conn> {
         })
     }
 
-    #[deprecated = "call `lazy_query` on `Statement` instead"]
-    #[allow(missing_docs)]
-    pub fn lazy_query<'trans, 'stmt>(&'trans self,
-                                     stmt: &'stmt Statement,
-                                     params: &[&ToSql],
-                                     row_limit: i32)
-                                     -> Result<LazyRows<'trans, 'stmt>> {
-        stmt.lazy_query(self, params, row_limit)
-    }
-
     /// Like `Connection::is_active`.
     pub fn is_active(&self) -> bool {
         self.conn.conn.borrow().trans_depth == self.depth
@@ -1590,12 +1580,6 @@ impl<'stmt> Rows<'stmt> {
     /// Returns a slice describing the columns of the `Rows`.
     pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
         self.stmt.result_descriptions()
-    }
-
-    #[deprecated = "now a no-op"]
-    #[allow(missing_docs)]
-    pub fn finish(self) -> Result<()> {
-        Ok(())
     }
 }
 
