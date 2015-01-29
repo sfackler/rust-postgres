@@ -1045,7 +1045,7 @@ impl Connection {
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement {
             conn: self,
@@ -1211,7 +1211,7 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.conn.execute(query, params)
     }
 
@@ -1405,7 +1405,7 @@ impl<'conn> Statement<'conn> {
     ///     Err(err) => println!("Error executing query: {:?}", err)
     /// }
     /// ```
-    pub fn execute(&self, params: &[&ToSql]) -> Result<usize> {
+    pub fn execute(&self, params: &[&ToSql]) -> Result<u64> {
         check_desync!(self.conn);
         try!(self.inner_execute("", 0, params));
 
@@ -1874,7 +1874,7 @@ impl<'a> CopyInStatement<'a> {
     /// set in memory.
     ///
     /// Returns the number of rows copied.
-    pub fn execute<I, J>(&self, rows: I) -> Result<usize>
+    pub fn execute<I, J>(&self, rows: I) -> Result<u64>
             where I: Iterator<Item=J>, J: StreamIterator {
         let mut conn = self.conn.conn.borrow_mut();
 
@@ -2004,7 +2004,7 @@ pub trait GenericConnection {
     fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::execute`.
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize>;
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
     /// Like `Connection::prepare_copy_in`.
     fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
@@ -2029,7 +2029,7 @@ impl GenericConnection for Connection {
         self.prepare_cached(query)
     }
 
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
     }
 
@@ -2060,7 +2060,7 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.prepare_cached(query)
     }
 
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<usize> {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
     }
 
