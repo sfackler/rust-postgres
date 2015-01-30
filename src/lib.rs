@@ -232,7 +232,7 @@ pub struct Notifications<'conn> {
 
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Notifications")
+        write!(fmt, "Notifications {{ pending: {} }}", self.conn.conn.borrow().notifications.len())
     }
 }
 
