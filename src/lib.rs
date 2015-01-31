@@ -1639,9 +1639,9 @@ impl<'stmt> Row<'stmt> {
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
     ///
-    /// ## Failure
+    /// ## Panics
     ///
-    /// Fails if the index does not reference a column or the return type is
+    /// Panics if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
     ///
     /// ## Example
