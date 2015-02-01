@@ -1923,7 +1923,7 @@ impl<'a> CopyInStatement<'a> {
                                 // FIXME this is not the right way to handle this
                                 try_desync!(conn, conn.stream.write_message(
                                     &CopyFail {
-                                        message: &*format!("{}", err),
+                                        message: &*err.to_string(),
                                     }));
                                 break 'l;
                             }
