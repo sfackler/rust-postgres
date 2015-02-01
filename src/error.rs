@@ -593,13 +593,6 @@ pub enum Error {
     /// The communication channel with the Postgres server has desynchronized
     /// due to an earlier communications error.
     StreamDesynchronized,
-    /// An incorrect number of parameters were bound to a statement
-    WrongParamCount {
-        /// The expected number of parameters
-        expected: usize,
-        /// The actual number of parameters
-        actual: usize,
-    },
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types
     WrongType(Type),
@@ -617,9 +610,6 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
-            Error::WrongParamCount { expected, actual } => {
-                write!(fmt, ": expected: {}, actual: {}", expected, actual)
-            }
             Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
             _ => Ok(()),
         }
@@ -634,7 +624,6 @@ impl error::Error for Error {
             Error::StreamDesynchronized => {
                 "Communication with the server has desynchronized due to an earlier IO error"
             }
-            Error::WrongParamCount { .. } => "Wrong number of parameters",
             Error::WrongType(_) => "Unexpected type",
             Error::InvalidColumn => "Invalid column",
             Error::WasNull => "The value was NULL",

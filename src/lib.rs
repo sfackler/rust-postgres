@@ -1317,12 +1317,10 @@ impl<'conn> Statement<'conn> {
 
     fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
-        if self.param_types.len() != params.len() {
-            return Err(Error::WrongParamCount {
-                expected: self.param_types.len(),
-                actual: params.len(),
-            });
-        }
+        assert!(self.param_types().len() == params.len(),
+                "expected {} parameters but got {}",
+                self.param_types.len(),
+                params.len());
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
             values.push(try!(param.to_sql(ty)));

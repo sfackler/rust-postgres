@@ -451,21 +451,17 @@ fn test_wrong_param_type() {
 }
 
 #[test]
+#[should_fail(expected = "expected 2 parameters but got 1")]
 fn test_too_few_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    match conn.execute("SELECT $1::INT, $2::INT", &[&1i32]) {
-        Err(Error::WrongParamCount { expected: 2, actual: 1 }) => {},
-        res => panic!("unexpected result {:?}", res)
-    }
+    let _ = conn.execute("SELECT $1::INT, $2::INT", &[&1i32]);
 }
 
 #[test]
+#[should_fail(expected = "expected 2 parameters but got 3")]
 fn test_too_many_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    match conn.execute("SELECT $1::INT, $2::INT", &[&1i32, &2i32, &3i32]) {
-        Err(Error::WrongParamCount { expected: 2, actual: 3 }) => {},
-        res => panic!("unexpected result {:?}", res)
-    }
+    let _ = conn.execute("SELECT $1::INT, $2::INT", &[&1i32, &2i32, &3i32]);
 }
 
 #[test]
