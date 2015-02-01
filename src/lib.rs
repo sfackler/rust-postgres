@@ -1045,6 +1045,11 @@ impl Connection {
     /// or execution of the statement.
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement {
@@ -1380,6 +1385,11 @@ impl<'conn> Statement<'conn> {
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
+    /// ## Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
+    ///
     /// ## Example
     ///
     /// ```rust,no_run
@@ -1435,6 +1445,11 @@ impl<'conn> Statement<'conn> {
     /// Executes the prepared statement, returning an iterator over the
     /// resulting rows.
     ///
+    /// ## Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
+    ///
     /// ## Example
     ///
     /// ```rust,no_run
@@ -1471,8 +1486,9 @@ impl<'conn> Statement<'conn> {
     /// ## Panics
     ///
     /// Panics if the provided `Transaction` is not associated with the same
-    /// `Connection` as this `Statement`, or if the `Transaction` is not
-    /// active.
+    /// `Connection` as this `Statement`, if the `Transaction` is not
+    /// active, or if the number of parameters provided does not match the
+    /// number of parameters expected.
     pub fn lazy_query<'trans, 'stmt>(&'stmt self,
                                      trans: &'trans Transaction,
                                      params: &[&ToSql],
