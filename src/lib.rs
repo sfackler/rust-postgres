@@ -63,7 +63,7 @@ extern crate phf_macros;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
 
-use openssl::crypto::hash::{HashType, Hasher};
+use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::borrow::ToOwned;
@@ -493,7 +493,7 @@ impl InnerConnection {
 
     fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
         debug_assert!(!self.desynchronized);
-        for message in messages.iter() {
+        for message in messages {
             try_desync!(self, self.stream.write_message(message));
         }
         Ok(try_desync!(self, self.stream.flush()))
@@ -550,14 +550,13 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Hasher::new(HashType::MD5);
-                hasher.update(pass.as_bytes());
-                hasher.update(user.user.as_bytes());
-                let output = hasher.finalize().to_hex();
-                let mut hasher = Hasher::new(HashType::MD5);
-                hasher.update(output.as_bytes());
-                hasher.update(&salt);
-                let output = format!("md5{}", hasher.finalize().to_hex());
+                let mut hasher = Hasher::new(hash::Type::MD5);
+                let _ = hasher.write_all(pass.as_bytes());
+                let _ = hasher.write_all(user.user.as_bytes());
+                let output = hasher.finish().to_hex();
+                let _ = hasher.write_all(output.as_bytes());
+                let _ = hasher.write_all(&salt);
+                let output = format!("md5{}", hasher.finish().to_hex());
                 try!(self.write_messages(&[PasswordMessage {
                         password: &output
                     }]));
@@ -618,12 +617,12 @@ impl InnerConnection {
         try!(self.wait_for_ready());
 
         let mut param_types = vec![];
-        for oid in raw_param_types.into_iter() {
+        for oid in raw_param_types {
             param_types.push(try!(self.get_type(oid)));
         }
 
         let mut result_desc = vec![];
-        for RowDescriptionEntry { name, type_oid, .. } in raw_result_desc.into_iter() {
+        for RowDescriptionEntry { name, type_oid, .. } in raw_result_desc {
             result_desc.push(ResultDescription {
                 name: name,
                 ty: try!(self.get_type(type_oid)),
@@ -1861,7 +1860,7 @@ impl<'a> CopyInStatement<'a> {
     /// set in memory.
     ///
     /// Returns the number of rows copied.
-    pub fn execute<I, J>(&self, mut rows: I) -> Result<usize>
+    pub fn execute<I, J>(&self, rows: I) -> Result<usize>
             where I: Iterator<Item=J>, J: StreamIterator {
         let mut conn = self.conn.conn.borrow_mut();
 
