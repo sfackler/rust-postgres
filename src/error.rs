@@ -533,10 +533,10 @@ impl DbError {
             detail: map.remove(&b'D'),
             hint: map.remove(&b'H'),
             position: match map.remove(&b'P') {
-                Some(pos) => Some(ErrorPosition::Normal(try!(pos.parse().ok_or(())))),
+                Some(pos) => Some(ErrorPosition::Normal(try!(pos.parse().ok().ok_or(())))),
                 None => match map.remove(&b'p') {
                     Some(pos) => Some(ErrorPosition::Internal {
-                        position: try!(pos.parse().ok_or(())),
+                        position: try!(pos.parse().ok().ok_or(())),
                         query: try!(map.remove(&b'q').ok_or(()))
                     }),
                     None => None
@@ -549,7 +549,7 @@ impl DbError {
             datatype: map.remove(&b'd'),
             constraint: map.remove(&b'n'),
             file: try!(map.remove(&b'F').ok_or(())),
-            line: try!(map.remove(&b'L').and_then(|l| l.parse()).ok_or(())),
+            line: try!(map.remove(&b'L').and_then(|l| l.parse().ok()).ok_or(())),
             routine: try!(map.remove(&b'R').ok_or(())),
         })
     }

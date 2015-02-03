@@ -371,7 +371,7 @@ fn get_authority(rawurl: &str) ->
     // If we have a port string, ensure it parses to u16.
     let port = match port {
         None => None,
-        opt => match opt.and_then(|p| FromStr::from_str(p)) {
+        opt => match opt.and_then(|p| FromStr::from_str(p).ok()) {
             None => return Err(format!("Failed to parse port: {:?}", port)),
             opt => opt
         }
@@ -428,14 +428,16 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
 }
 
 impl FromStr for Url {
-    fn from_str(s: &str) -> Option<Url> {
-        Url::parse(s).ok()
+    type Err = String;
+    fn from_str(s: &str) -> Result<Url, String> {
+        Url::parse(s)
     }
 }
 
 impl FromStr for Path {
-    fn from_str(s: &str) -> Option<Path> {
-        Path::parse(s).ok()
+    type Err = String;
+    fn from_str(s: &str) -> Result<Path, String> {
+        Path::parse(s)
     }
 }
 
