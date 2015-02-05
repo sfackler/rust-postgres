@@ -1,4 +1,4 @@
-#![feature(slicing_syntax, core, collections, std_misc, io)]
+#![feature(slicing_syntax, core, std_misc, io)]
 
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
