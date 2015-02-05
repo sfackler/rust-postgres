@@ -19,9 +19,6 @@ bench = false
 name = "test"
 path = "tests/test.rs"
 
-[features]
-default = ["uuid"]
-
 [dependencies]
 phf = "0.6"
 phf_macros = "0.6"

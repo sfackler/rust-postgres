@@ -243,17 +243,7 @@ Support for Postgres ranges is located in the
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature. It is enabled by default.
-
-To disable support for optional features, add `default-features = false` to
-your Cargo manifest:
-
-```toml
-[dependencies.postgres]
-version = ...
-default-features = false
-features = [...]
-```
+provided optionally by the `uuid` feature.
 
 ## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so
