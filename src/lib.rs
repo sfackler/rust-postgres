@@ -54,6 +54,7 @@
 #![feature(plugin, unsafe_destructor, collections, io, core, path, std_misc)]
 #![warn(missing_docs)]
 
+extern crate byteorder;
 #[macro_use]
 extern crate log;
 extern crate openssl;
@@ -62,7 +63,6 @@ extern crate phf;
 extern crate phf_macros;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
-extern crate byteorder;
 
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
