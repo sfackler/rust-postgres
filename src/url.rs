@@ -10,7 +10,7 @@
 
 use std::fmt;
 use std::str::FromStr;
-use std::path::BytesContainer;
+use std::old_path::BytesContainer;
 use std::num;
 use std::str;
 
