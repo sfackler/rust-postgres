@@ -29,6 +29,7 @@ openssl = "0.3.0"
 time = "0.1.14"
 log = "0.2"
 rustc-serialize = "0.2"
+byteorder = "0.2"
 
 [dependencies.uuid]
 optional = true

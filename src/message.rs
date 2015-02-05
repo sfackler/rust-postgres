@@ -1,6 +1,16 @@
-use std::old_io::{IoResult, IoError, OtherIoError, ByRefReader};
+#![no_implicit_prelude]
+
+use std::result::Result::{Ok, Err};
+use std::option::Option::{self, None, Some};
+use std::vec::Vec;
+use std::string::String;
+use std::str::StrExt;
+use std::slice::SliceExt;
+
+use std::old_io::{self, IoResult, IoError, OtherIoError, ByRefReader, Buffer};
 use std::old_io::util::LimitReader;
 use std::mem;
+use byteorder::{BigEndian, ReaderBytesExt, WriterBytesExt};
 
 use io::Timeout;
 use types::Oid;
@@ -137,7 +147,7 @@ trait WriteCStr {
     fn write_cstr(&mut self, s: &str) -> IoResult<()>;
 }
 
-impl<W: Writer> WriteCStr for W {
+impl<W: old_io::Writer> WriteCStr for W {
     fn write_cstr(&mut self, s: &str) -> IoResult<()> {
         try!(self.write_all(s.as_bytes()));
         self.write_u8(0)
@@ -149,7 +159,7 @@ pub trait WriteMessage {
     fn write_message(&mut self, &FrontendMessage) -> IoResult<()> ;
 }
 
-impl<W: Writer> WriteMessage for W {
+impl<W: old_io::Writer> WriteMessage for W {
     fn write_message(&mut self, message: &FrontendMessage) -> IoResult<()> {
         let mut buf = vec![];
         let mut ident = None;
@@ -160,31 +170,31 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_cstr(portal));
                 try!(buf.write_cstr(statement));
 
-                try!(buf.write_be_i16(formats.len() as i16));
+                try!(buf.write_i16::<BigEndian>(formats.len() as i16));
                 for format in formats.iter() {
-                    try!(buf.write_be_i16(*format));
+                    try!(buf.write_i16::<BigEndian>(*format));
                 }
 
-                try!(buf.write_be_i16(values.len() as i16));
+                try!(buf.write_i16::<BigEndian>(values.len() as i16));
                 for value in values.iter() {
                     match *value {
-                        None => try!(buf.write_be_i32(-1)),
+                        None => try!(buf.write_i32::<BigEndian>(-1)),
                         Some(ref value) => {
-                            try!(buf.write_be_i32(value.len() as i32));
-                            try!(buf.write_all(&**value));
+                            try!(buf.write_i32::<BigEndian>(value.len() as i32));
+                            try!(old_io::Writer::write_all(&mut buf, &**value));
                         }
                     }
                 }
 
-                try!(buf.write_be_i16(result_formats.len() as i16));
+                try!(buf.write_i16::<BigEndian>(result_formats.len() as i16));
                 for format in result_formats.iter() {
-                    try!(buf.write_be_i16(*format));
+                    try!(buf.write_i16::<BigEndian>(*format));
                 }
             }
             CancelRequest { code, process_id, secret_key } => {
-                try!(buf.write_be_u32(code));
-                try!(buf.write_be_u32(process_id));
-                try!(buf.write_be_u32(secret_key));
+                try!(buf.write_u32::<BigEndian>(code));
+                try!(buf.write_u32::<BigEndian>(process_id));
+                try!(buf.write_u32::<BigEndian>(secret_key));
             }
             Close { variant, name } => {
                 ident = Some(b'C');
@@ -193,7 +203,7 @@ impl<W: Writer> WriteMessage for W {
             }
             CopyData { data } => {
                 ident = Some(b'd');
-                try!(buf.write_all(data));
+                try!(old_io::Writer::write_all(&mut buf, data));
             }
             CopyDone => ident = Some(b'c'),
             CopyFail { message } => {
@@ -208,15 +218,15 @@ impl<W: Writer> WriteMessage for W {
             Execute { portal, max_rows } => {
                 ident = Some(b'E');
                 try!(buf.write_cstr(portal));
-                try!(buf.write_be_i32(max_rows));
+                try!(buf.write_i32::<BigEndian>(max_rows));
             }
             Parse { name, query, param_types } => {
                 ident = Some(b'P');
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
-                try!(buf.write_be_i16(param_types.len() as i16));
+                try!(buf.write_i16::<BigEndian>(param_types.len() as i16));
                 for ty in param_types.iter() {
-                    try!(buf.write_be_u32(*ty));
+                    try!(buf.write_u32::<BigEndian>(*ty));
                 }
             }
             PasswordMessage { password } => {
@@ -228,14 +238,14 @@ impl<W: Writer> WriteMessage for W {
                 try!(buf.write_cstr(query));
             }
             StartupMessage { version, parameters } => {
-                try!(buf.write_be_u32(version));
-                for &(ref k, ref v) in parameters.iter() {
+                try!(buf.write_u32::<BigEndian>(version));
+                for &(ref k, ref v) in parameters {
                     try!(buf.write_cstr(&**k));
                     try!(buf.write_cstr(&**v));
                 }
                 try!(buf.write_u8(0));
             }
-            SslRequest { code } => try!(buf.write_be_u32(code)),
+            SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
             Sync => ident = Some(b'S'),
             Terminate => ident = Some(b'X'),
         }
@@ -245,7 +255,7 @@ impl<W: Writer> WriteMessage for W {
         }
 
         // add size of length value
-        try!(self.write_be_i32((buf.len() + mem::size_of::<i32>()) as i32));
+        try!(self.write_i32::<BigEndian>((buf.len() + mem::size_of::<i32>()) as i32));
         try!(self.write_all(&*buf));
 
         Ok(())
@@ -286,7 +296,7 @@ impl<R: Buffer+Timeout> ReadMessage for R {
         let ident = try!(ident);
 
         // subtract size of length value
-        let len = try!(self.read_be_u32()) as usize - mem::size_of::<i32>();
+        let len = try!(self.read_u32::<BigEndian>()) as usize - mem::size_of::<i32>();
         let mut rdr = LimitReader::new(self.by_ref(), len);
 
         let ret = match ident {
@@ -294,7 +304,7 @@ impl<R: Buffer+Timeout> ReadMessage for R {
             b'2' => BindComplete,
             b'3' => CloseComplete,
             b'A' => NotificationResponse {
-                pid: try!(rdr.read_be_u32()),
+                pid: try!(rdr.read_u32::<BigEndian>()),
                 channel: try!(rdr.read_cstr()),
                 payload: try!(rdr.read_cstr())
             },
@@ -304,8 +314,8 @@ impl<R: Buffer+Timeout> ReadMessage for R {
             b'G' => {
                 let format = try!(rdr.read_u8());
                 let mut column_formats = vec![];
-                for _ in range(0, try!(rdr.read_be_u16())) {
-                    column_formats.push(try!(rdr.read_be_u16()));
+                for _ in 0..try!(rdr.read_u16::<BigEndian>()) {
+                    column_formats.push(try!(rdr.read_u16::<BigEndian>()));
                 }
                 CopyInResponse {
                     format: format,
@@ -314,8 +324,8 @@ impl<R: Buffer+Timeout> ReadMessage for R {
             }
             b'I' => EmptyQueryResponse,
             b'K' => BackendKeyData {
-                process_id: try!(rdr.read_be_u32()),
-                secret_key: try!(rdr.read_be_u32())
+                process_id: try!(rdr.read_u32::<BigEndian>()),
+                secret_key: try!(rdr.read_u32::<BigEndian>())
             },
             b'n' => NoData,
             b'N' => NoticeResponse { fields: try!(read_fields(&mut rdr)) },
@@ -363,7 +373,7 @@ fn read_data_row<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_u16()) as usize;
     let mut values = Vec::with_capacity(len);
 
-    for _ in range(0, len) {
+    for _ in 0..len {
         let val = match try!(buf.read_be_i32()) {
             -1 => None,
             len => Some(try!(buf.read_exact(len as usize)))
@@ -399,8 +409,8 @@ fn read_parameter_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage
     let len = try!(buf.read_be_i16()) as usize;
     let mut types = Vec::with_capacity(len);
 
-    for _ in range(0, len) {
-        types.push(try!(buf.read_be_u32()));
+    for _ in 0..len {
+        types.push(try!(buf.read_u32::<BigEndian>()));
     }
 
     Ok(ParameterDescription { types: types })
@@ -410,12 +420,12 @@ fn read_row_description<R: Buffer>(buf: &mut R) -> IoResult<BackendMessage> {
     let len = try!(buf.read_be_i16()) as usize;
     let mut types = Vec::with_capacity(len);
 
-    for _ in range(0, len) {
+    for _ in 0..len {
         types.push(RowDescriptionEntry {
             name: try!(buf.read_cstr()),
-            table_oid: try!(buf.read_be_u32()),
+            table_oid: try!(buf.read_u32::<BigEndian>()),
             column_id: try!(buf.read_be_i16()),
-            type_oid: try!(buf.read_be_u32()),
+            type_oid: try!(buf.read_u32::<BigEndian>()),
             type_size: try!(buf.read_be_i16()),
             type_modifier: try!(buf.read_be_i32()),
             format: try!(buf.read_be_i16())
