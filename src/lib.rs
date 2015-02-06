@@ -1163,8 +1163,7 @@ pub struct Transaction<'conn> {
 
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Transaction {{ connection: {:?}, commit: {:?}, depth: {:?} }}",
-               self.conn, self.commit.get(), self.depth)
+        write!(fmt, "Transaction {{ commit: {:?}, depth: {:?} }}", self.commit.get(), self.depth)
     }
 }
 
@@ -1295,9 +1294,7 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "Statement {{ connection: {:?}, name: {:?}, parameter_types: {:?}, \
-                result_descriptions: {:?} }}",
-               self.conn,
+               "Statement {{ name: {:?}, parameter_types: {:?}, result_descriptions: {:?} }}",
                self.name,
                self.param_types,
                self.result_desc)
@@ -1537,7 +1534,10 @@ pub struct Rows<'stmt> {
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Rows {{ statement: {:?}, remaining_rows: {:?} }}", self.stmt, self.data.len())
+        write!(fmt,
+               "Rows {{ result_descriptions: {:?}, remaining_rows: {:?} }}",
+               self.result_descriptions(),
+               self.data.len())
     }
 }
 
@@ -1714,9 +1714,8 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "LazyRows {{ statement: {:?}, name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
+               "LazyRows {{ name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
                 more_rows: {:?} }}",
-               self.result.stmt,
                self.name,
                self.row_limit,
                self.result.data.len(),
@@ -1792,8 +1791,8 @@ pub struct CopyInStatement<'a> {
 
 impl<'a> fmt::Debug for CopyInStatement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "CopyInStatement {{ connection: {:?}, name: {:?}, column_types: {:?} }}",
-               self.conn, self.name, self.column_types)
+        write!(fmt, "CopyInStatement {{ name: {:?}, column_types: {:?} }}",
+               self.name, self.column_types)
     }
 }
 
