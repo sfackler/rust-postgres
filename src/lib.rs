@@ -857,8 +857,12 @@ impl fmt::Debug for Connection {
         let conn = self.conn.borrow();
         write!(fmt,
                "Connection {{ cancel_data: {:?}, notifications: {:?}, transaction_depth: {:?}, \
-                desynchronized: {:?} }}", conn.cancel_data, conn.notifications.len(),
-               conn.trans_depth, conn.desynchronized)
+                desynchronized: {:?}, cached_statements: {:?} }}",
+               conn.cancel_data,
+               conn.notifications.len(),
+               conn.trans_depth,
+               conn.desynchronized,
+               conn.cached_statements.len())
     }
 }
 
