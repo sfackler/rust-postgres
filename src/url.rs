@@ -10,7 +10,6 @@
 
 use std::fmt;
 use std::str::FromStr;
-use std::old_path::BytesContainer;
 use std::num;
 use std::str;
 
@@ -112,13 +111,13 @@ impl UserInfo {
 
 pub type DecodeResult<T> = Result<T, String>;
 
-pub fn decode_component<T: BytesContainer>(container: T) -> DecodeResult<String> {
+pub fn decode_component(container: &str) -> DecodeResult<String> {
     decode_inner(container, false)
 }
 
-fn decode_inner<T: BytesContainer>(c: T, full_url: bool) -> DecodeResult<String> {
+fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
     let mut out = String::new();
-    let mut iter = c.container_as_bytes().iter().map(|&b| b);
+    let mut iter = c.as_bytes().iter().map(|&b| b);
 
     loop {
         match iter.next() {
