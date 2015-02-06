@@ -15,7 +15,6 @@ use postgres::{NoticeHandler,
                Notification,
                Connection,
                GenericConnection,
-               ResultDescription,
                SslMode,
                Type,
                ToSql,
@@ -420,12 +419,15 @@ fn test_param_types() {
 }
 
 #[test]
-fn test_result_descriptions() {
+fn test_columns() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 1::INT as a, 'hi'::VARCHAR as b"));
-    assert!(stmt.result_descriptions() ==
-            [ResultDescription { name: "a".to_string(), ty: Type::Int4},
-             ResultDescription { name: "b".to_string(), ty: Type::Varchar}]);
+    let cols = stmt.columns();
+    assert_eq!(2, cols.len());
+    assert_eq!(cols[0].name(), "a");
+    assert_eq!(cols[0].type_(), &Type::Int4);
+    assert_eq!(cols[1].name(), "b");
+    assert_eq!(cols[1].type_(), &Type::Varchar);
 }
 
 #[test]

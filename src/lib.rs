@@ -384,7 +384,7 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
 struct CachedStatement {
     name: String,
     param_types: Vec<Type>,
-    result_desc: Vec<ResultDescription>,
+    columns: Vec<Column>,
 }
 
 struct InnerConnection {
@@ -582,7 +582,7 @@ impl InnerConnection {
     }
 
     fn raw_prepare(&mut self, stmt_name: &str, query: &str)
-                   -> Result<(Vec<Type>, Vec<ResultDescription>)> {
+                   -> Result<(Vec<Type>, Vec<Column>)> {
         try!(self.write_messages(&[
             Parse {
                 name: stmt_name,
@@ -609,7 +609,7 @@ impl InnerConnection {
             _ => bad_response!(self),
         };
 
-        let raw_result_desc = match try!(self.read_message()) {
+        let raw_columns = match try!(self.read_message()) {
             RowDescription { descriptions } => descriptions,
             NoData => vec![],
             _ => bad_response!(self)
@@ -622,15 +622,15 @@ impl InnerConnection {
             param_types.push(try!(self.get_type(oid)));
         }
 
-        let mut result_desc = vec![];
-        for RowDescriptionEntry { name, type_oid, .. } in raw_result_desc {
-            result_desc.push(ResultDescription {
+        let mut columns = vec![];
+        for RowDescriptionEntry { name, type_oid, .. } in raw_columns {
+            columns.push(Column {
                 name: name,
-                ty: try!(self.get_type(type_oid)),
+                type_: try!(self.get_type(type_oid)),
             });
         }
 
-        Ok((param_types, result_desc))
+        Ok((param_types, columns))
     }
 
     fn make_stmt_name(&mut self) -> String {
@@ -641,12 +641,12 @@ impl InnerConnection {
 
     fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
         let stmt_name = self.make_stmt_name();
-        let (param_types, result_desc) = try!(self.raw_prepare(&stmt_name, query));
+        let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
         Ok(Statement {
             conn: conn,
             name: stmt_name,
             param_types: param_types,
-            result_desc: result_desc,
+            columns: columns,
             next_portal_id: Cell::new(0),
             finished: false,
         })
@@ -655,15 +655,15 @@ impl InnerConnection {
     fn prepare_cached<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
         let stmt = self.cached_statements.get(query).map(|e| e.clone());
 
-        let CachedStatement { name, param_types, result_desc } = match stmt {
+        let CachedStatement { name, param_types, columns } = match stmt {
             Some(stmt) => stmt,
             None => {
                 let stmt_name = self.make_stmt_name();
-                let (param_types, result_desc) = try!(self.raw_prepare(&stmt_name, query));
+                let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
                 let stmt = CachedStatement {
                     name: stmt_name,
                     param_types: param_types,
-                    result_desc: result_desc,
+                    columns: columns,
                 };
                 self.cached_statements.insert(query.to_owned(), stmt.clone());
                 stmt
@@ -674,7 +674,7 @@ impl InnerConnection {
             conn: conn,
             name: name,
             param_types: param_types,
-            result_desc: result_desc,
+            columns: columns,
             next_portal_id: Cell::new(0),
             finished: true, // << !
         })
@@ -687,8 +687,8 @@ impl InnerConnection {
         let _ = util::comma_join(&mut query, rows.iter().cloned());
         let _ = write!(&mut query, " FROM {}", table);
         let query = String::from_utf8(query).unwrap();
-        let (_, result_desc) = try!(self.raw_prepare("", &query));
-        let column_types = result_desc.into_iter().map(|desc| desc.ty).collect();
+        let (_, columns) = try!(self.raw_prepare("", &query));
+        let column_types = columns.into_iter().map(|desc| desc.type_).collect();
 
         let mut query = vec![];
         let _ = write!(&mut query, "COPY {} (", table);
@@ -1051,12 +1051,12 @@ impl Connection {
     /// Panics if the number of parameters provided does not match the number
     /// expected.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        let (param_types, result_desc) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement {
             conn: self,
             name: "".to_owned(),
             param_types: param_types,
-            result_desc: result_desc,
+            columns: columns,
             next_portal_id: Cell::new(0),
             finished: true, // << !!
         };
@@ -1286,7 +1286,7 @@ pub struct Statement<'conn> {
     conn: &'conn Connection,
     name: String,
     param_types: Vec<Type>,
-    result_desc: Vec<ResultDescription>,
+    columns: Vec<Column>,
     next_portal_id: Cell<u32>,
     finished: bool,
 }
@@ -1294,10 +1294,10 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "Statement {{ name: {:?}, parameter_types: {:?}, result_descriptions: {:?} }}",
+               "Statement {{ name: {:?}, parameter_types: {:?}, columns: {:?} }}",
                self.name,
                self.param_types,
-               self.result_desc)
+               self.columns)
     }
 }
 
@@ -1377,8 +1377,8 @@ impl<'conn> Statement<'conn> {
     }
 
     /// Returns a slice describing the columns of the result of the query.
-    pub fn result_descriptions(&self) -> &[ResultDescription] {
-        &self.result_desc
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
     }
 
     /// Executes the prepared statement, returning the number of rows modified.
@@ -1533,11 +1533,21 @@ impl<'conn> Statement<'conn> {
 
 /// Information about a column of the result of a query.
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ResultDescription {
-    /// The name of the column
-    pub name: String,
-    /// The type of the data in the column
-    pub ty: Type
+pub struct Column {
+    name: String,
+    type_: Type
+}
+
+impl Column {
+    /// The name of the column.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The type of the data in the column.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
 }
 
 /// An iterator over the resulting rows of a query.
@@ -1549,8 +1559,8 @@ pub struct Rows<'stmt> {
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "Rows {{ result_descriptions: {:?}, remaining_rows: {:?} }}",
-               self.result_descriptions(),
+               "Rows {{ columns: {:?}, remaining_rows: {:?} }}",
+               self.columns(),
                self.data.len())
     }
 }
@@ -1592,8 +1602,8 @@ impl<'stmt> Rows<'stmt> {
     }
 
     /// Returns a slice describing the columns of the `Rows`.
-    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
-        self.stmt.result_descriptions()
+    pub fn columns(&self) -> &'stmt [Column] {
+        self.stmt.columns()
     }
 }
 
@@ -1630,8 +1640,8 @@ impl<'stmt> Row<'stmt> {
     }
 
     /// Returns a slice describing the columns of the `Row`.
-    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
-        self.stmt.result_descriptions()
+    pub fn columns(&self) -> &'stmt [Column] {
+        self.stmt.columns()
     }
 
     /// Retrieves the contents of a field of the row.
@@ -1643,7 +1653,7 @@ impl<'stmt> Row<'stmt> {
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
         let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        FromSql::from_sql(&self.stmt.result_desc[idx].ty, self.data[idx].as_ref().map(|e| &**e))
+        FromSql::from_sql(&self.stmt.columns[idx].type_, self.data[idx].as_ref().map(|e| &**e))
     }
 
     /// Retrieves the contents of a field of the row.
@@ -1685,7 +1695,7 @@ pub trait RowIndex {
 impl RowIndex for usize {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if *self >= stmt.result_desc.len() {
+        if *self >= stmt.columns.len() {
             None
         } else {
             Some(*self)
@@ -1696,7 +1706,7 @@ impl RowIndex for usize {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<usize> {
-        stmt.result_descriptions().iter().position(|d| d.name == *self)
+        stmt.columns().iter().position(|d| d.name == *self)
     }
 }
 
@@ -1752,8 +1762,8 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 
     /// Returns a slice describing the columns of the `Rows`.
-    pub fn result_descriptions(&self) -> &'stmt [ResultDescription] {
-        self.result.stmt.result_descriptions()
+    pub fn columns(&self) -> &'stmt [Column] {
+        self.result.stmt.columns()
     }
 
     /// Consumes the `LazyRows`, cleaning up associated state.
