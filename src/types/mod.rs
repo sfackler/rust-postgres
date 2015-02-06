@@ -7,6 +7,8 @@ use std::fmt;
 use Result;
 use error::Error;
 
+pub use ugh_privacy::Unknown;
+
 macro_rules! check_types {
     ($($expected:pat),+; $actual:ident) => (
         match $actual {
@@ -191,25 +193,14 @@ macro_rules! make_postgres_type {
                 $variant,
             )+
             /// An unknown type
-            Unknown {
-                /// The name of the type
-                name: String,
-                /// The OID of the type
-                oid: Oid,
-                /// If this type is an array or range, the type of its members
-                element_type: Option<Box<Type>>,
-            }
+            Unknown(Unknown),
         }
 
         impl fmt::Debug for Type {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 let s = match *self {
                     $(Type::$variant => stringify!($variant),)+
-                    Type::Unknown { ref name, ref oid, ref element_type } => {
-                        return write!(fmt, "Unknown {{ name: {:?}, oid: {:?}, \
-                                            element_type: {:?} }}",
-                                      name, oid, element_type);
-                    }
+                    Type::Unknown(ref u) => return fmt::Debug::fmt(u, fmt),
                 };
                 fmt.write_str(s)
             }
@@ -230,7 +221,7 @@ macro_rules! make_postgres_type {
             pub fn to_oid(&self) -> Oid {
                 match *self {
                     $(Type::$variant => $oid,)+
-                    Type::Unknown { oid, .. } => oid
+                    Type::Unknown(ref u) => u.oid(),
                 }
             }
 
@@ -240,7 +231,7 @@ macro_rules! make_postgres_type {
                     $(
                         $(Type::$variant => Some(Type::$member),)*
                     )+
-                    Type::Unknown { element_type: Some(ref t), .. } => Some((**t).clone()),
+                    Type::Unknown(ref u) => u.element_type().cloned(),
                     _ => None
                 }
             }
@@ -440,7 +431,7 @@ impl FromSql for Option<String> {
     fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
         match *ty {
             Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
-            Type::Unknown { ref name, .. } if "citext" == *name => {}
+            Type::Unknown(ref u) if u.name() == "citext" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -459,7 +450,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
     fn from_sql(ty: &Type, raw: Option<&[u8]>)
                 -> Result<Option<HashMap<String, Option<String>>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == *name => {}
+            Type::Unknown(ref u) if u.name() == "hstore" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -612,7 +603,7 @@ impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
             Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
-            Type::Unknown { ref name, .. } if *name == "citext" => {}
+            Type::Unknown(ref u) if u.name() == "citext" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
         Ok(Some(self.as_bytes().to_vec()))
@@ -623,7 +614,7 @@ impl<'a> ToSql for Option<&'a str> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
             Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
-            Type::Unknown { ref name, .. } if *name == "citext" => {}
+            Type::Unknown(ref u) if u.name() == "citext" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
         match *self {
@@ -645,7 +636,7 @@ to_option_impl_lifetime!(Type::ByteA; &'a [u8]);
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == *name => {}
+            Type::Unknown(ref u) if u.name() == "hstore" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 
@@ -673,7 +664,7 @@ impl ToSql for HashMap<String, Option<String>> {
 impl ToSql for Option<HashMap<String, Option<String>>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         match *ty {
-            Type::Unknown { ref name, .. } if "hstore" == *name => {}
+            Type::Unknown(ref u) if u.name() == "hstore" => {}
             _ => return Err(Error::WrongType(ty.clone()))
         }
 

@@ -95,6 +95,7 @@ mod macros;
 mod error;
 mod io;
 mod message;
+mod ugh_privacy;
 mod url;
 mod util;
 pub mod types;
@@ -785,11 +786,7 @@ impl InnerConnection {
             Some(oid) => Some(Box::new(try!(self.get_type(oid)))),
             None => None,
         };
-        let type_ = Type::Unknown {
-            oid: oid,
-            name: name,
-            element_type: element_type,
-        };
+        let type_ = Type::Unknown(ugh_privacy::new_unknown(name, oid, element_type));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }

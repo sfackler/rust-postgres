@@ -862,9 +862,9 @@ fn test_custom_range_element_type() {
                              )", &[]));
     let stmt = or_panic!(trans.prepare("SELECT $1::floatrange"));
     match &stmt.param_types()[0] {
-        &Type::Unknown { ref name, ref element_type, .. } => {
-            assert_eq!("floatrange", &**name);
-            assert_eq!(&Some(Box::new(Type::Float8)), element_type);
+        &Type::Unknown(ref u) => {
+            assert_eq!("floatrange", u.name());
+            assert_eq!(Some(&Type::Float8), u.element_type());
         }
         t => panic!("Unexpected type {:?}", t)
     }
