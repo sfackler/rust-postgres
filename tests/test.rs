@@ -56,7 +56,7 @@ fn test_url_terminating_slash() {
 fn test_prepare_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     match conn.prepare("invalid sql statment") {
-        Err(Error::DbError(DbError { code: SyntaxError, position: Some(Normal(1)), .. })) => (),
+        Err(Error::DbError(ref e)) if e.code() == &SyntaxError && e.position() == Some(&Normal(1)) => {}
         Err(e) => panic!("Unexpected result {:?}", e),
         _ => panic!("Unexpected result"),
     }
@@ -65,7 +65,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost/asdf", &SslMode::None) {
-        Err(ConnectError::DbError(DbError { code: InvalidCatalogName, .. })) => {}
+        Err(ConnectError::DbError(ref e)) if e.code() == &InvalidCatalogName => {}
         Err(resp) => panic!("Unexpected result {:?}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -336,7 +336,7 @@ fn test_batch_execute_error() {
     conn.batch_execute(query).err().unwrap();
 
     match conn.prepare("SELECT * from foo ORDER BY id") {
-        Err(Error::DbError(DbError { code: UndefinedTable, .. })) => {},
+        Err(Error::DbError(ref e)) if e.code() == &UndefinedTable => {}
         Err(e) => panic!("unexpected error {:?}", e),
         _ => panic!("unexpected success"),
     }
@@ -379,7 +379,7 @@ FROM (SELECT gs.i
       ORDER BY gs.i
       LIMIT 2) ss"));
     match stmt.query(&[]) {
-        Err(Error::DbError(DbError { code: CardinalityViolation, .. })) => {}
+        Err(Error::DbError(ref e)) if e.code() == &CardinalityViolation => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure"),
     }
@@ -526,7 +526,7 @@ fn test_custom_notice_handler() {
 
     impl NoticeHandler for Handler {
         fn handle(&mut self, notice: DbError) {
-            assert_eq!("note", &*notice.message);
+            assert_eq!("note", notice.message());
             unsafe { count += 1; }
         }
     }
@@ -657,7 +657,7 @@ fn test_cancel_query() {
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
-        Err(Error::DbError(DbError { code: QueryCanceled, .. })) => {}
+        Err(Error::DbError(ref e)) if e.code() == &QueryCanceled => {}
         Err(res) => panic!("Unexpected result {:?}", res),
         _ => panic!("Unexpected result"),
     }
@@ -698,7 +698,7 @@ fn test_plaintext_pass_no_pass() {
 fn test_plaintext_pass_wrong_pass() {
     let ret = Connection::connect("postgres://pass_user:asdf@localhost/postgres", &SslMode::None);
     match ret {
-        Err(ConnectError::DbError(DbError { code: InvalidPassword, .. })) => (),
+        Err(ConnectError::DbError(ref e)) if e.code() == &InvalidPassword => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error")
     }
@@ -723,7 +723,7 @@ fn test_md5_pass_no_pass() {
 fn test_md5_pass_wrong_pass() {
     let ret = Connection::connect("postgres://md5_user:asdf@localhost/postgres", &SslMode::None);
     match ret {
-        Err(ConnectError::DbError(DbError { code: InvalidPassword, .. })) => (),
+        Err(ConnectError::DbError(ref e)) if e.code() == &InvalidPassword => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error")
     }
@@ -735,12 +735,12 @@ fn test_execute_copy_from_err() {
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
     match stmt.execute(&[]) {
-        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
         Err(err) => panic!("Unexptected error {:?}", err),
         _ => panic!("Expected error"),
     }
     match stmt.query(&[]) {
-        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
         Err(err) => panic!("Unexptected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -779,7 +779,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data);
     match res {
-        Err(Error::DbError(ref err)) if err.message[].contains("Invalid column count") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
         Err(err) => panic!("unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -794,7 +794,7 @@ fn test_copy_in_bad_column_count() {
 
     let res = stmt.execute(data);
     match res {
-        Err(Error::DbError(ref err)) if err.message[].contains("Invalid column count") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
         Err(err) => panic!("unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -818,7 +818,7 @@ fn test_copy_in_bad_type() {
 
     let res = stmt.execute(data);
     match res {
-        Err(Error::DbError(ref err)) if err.message[].contains("saw type Varchar") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("saw type Varchar") => {}
         Err(err) => panic!("unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -831,7 +831,7 @@ fn test_batch_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     match conn.batch_execute("COPY foo (id) FROM STDIN") {
-        Err(Error::DbError(ref err)) if err.message[].contains("COPY") => {}
+        Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
         Err(err) => panic!("Unexptected error {:?}", err),
         _ => panic!("Expected error"),
     }
