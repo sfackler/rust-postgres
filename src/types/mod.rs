@@ -193,7 +193,7 @@ macro_rules! make_postgres_type {
                 $variant,
             )+
             /// An unknown type
-            Unknown(Unknown),
+            Unknown(Box<Unknown>),
         }
 
         impl fmt::Debug for Type {

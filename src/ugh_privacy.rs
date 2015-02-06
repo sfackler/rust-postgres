@@ -12,10 +12,10 @@ use error::{SqlState, ErrorPosition, ConnectError, Error};
 pub struct Unknown {
     name: String,
     oid: Oid,
-    element_type: Option<Box<Type>>,
+    element_type: Option<Type>,
 }
 
-pub fn new_unknown(name: String, oid: Oid, element_type: Option<Box<Type>>) -> Unknown {
+pub fn new_unknown(name: String, oid: Oid, element_type: Option<Type>) -> Unknown {
     Unknown {
         name: name,
         oid: oid,
@@ -36,7 +36,7 @@ impl Unknown {
 
     /// If this type is an array or range, the type of its members.
     pub fn element_type(&self) -> Option<&Type> {
-        self.element_type.as_ref().map(|e| &**e)
+        self.element_type.as_ref()
     }
 }
 

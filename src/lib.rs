@@ -783,10 +783,10 @@ impl InnerConnection {
             rngsubtype
         };
         let element_type = match elem_oid {
-            Some(oid) => Some(Box::new(try!(self.get_type(oid)))),
+            Some(oid) => Some(try!(self.get_type(oid))),
             None => None,
         };
-        let type_ = Type::Unknown(ugh_privacy::new_unknown(name, oid, element_type));
+        let type_ = Type::Unknown(Box::new(ugh_privacy::new_unknown(name, oid, element_type)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }
