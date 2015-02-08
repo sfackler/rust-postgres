@@ -205,7 +205,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>serialize::json::Json</td>
-            <td>JSON</td>
+            <td>JSON/JSONB</td>
         </tr>
         <tr>
             <td>IpAddr</td>
