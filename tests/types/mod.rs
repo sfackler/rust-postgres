@@ -10,6 +10,7 @@ use postgres::types::{ToSql, FromSql};
 
 #[cfg(feature = "uuid")]
 mod uuid;
+#[cfg(feature = "time")]
 mod time;
 #[cfg(feature = "rustc-serialize")]
 mod json;

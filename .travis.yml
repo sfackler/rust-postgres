@@ -5,7 +5,7 @@ before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "uuid rustc-serialize"
+- cargo test --features "uuid rustc-serialize time"
 - cargo doc --no-deps
 after_success:
   - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && ./.travis/update_docs.sh

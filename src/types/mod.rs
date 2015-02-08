@@ -132,6 +132,7 @@ macro_rules! to_raw_to_impl {
 
 #[cfg(feature = "uuid")]
 mod uuid;
+#[cfg(feature = "time")]
 mod time;
 mod slice;
 #[cfg(feature = "rustc-serialize")]
