@@ -206,7 +206,10 @@ types. The driver currently supports the following conversions:
             <td>INET/CIDR</td>
         </tr>
         <tr>
-            <td>time::Timespec</td>
+            <td>
+                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
             <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
         </tr>
         <tr>
@@ -243,6 +246,11 @@ provided optionally by the `uuid` feature.
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
 support is provided optionally by the `rustc-serialize` feature.
+
+### TIMESTAMP/TIMESTAMPTZ types
+
+[TIMESTAMP and TIMESTAMPTZ](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
+support is provided optionally by the `time` feature.
 
 ## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so
