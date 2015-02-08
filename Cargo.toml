@@ -5,7 +5,7 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/doc/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/postgres"
 readme = "README.md"
 keywords = ["database", "sql"]
 
