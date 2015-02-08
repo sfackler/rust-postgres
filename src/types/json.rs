@@ -8,10 +8,10 @@ impl RawFromSql for json::Json {
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
             if try!(raw.read_u8()) != 1 {
-                return Err(Error::BadData);
+                return Err(Error::BadResponse);
             }
         }
-        json::Json::from_reader(raw).map_err(|_| Error::BadData)
+        json::Json::from_reader(raw).map_err(|_| Error::BadResponse)
     }
 }
 

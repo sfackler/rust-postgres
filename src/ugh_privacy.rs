@@ -100,7 +100,7 @@ pub fn dberror_new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, Co
 pub fn dberror_new<T>(fields: Vec<(u8, String)>) -> Result<T> {
     match dberror_new_raw(fields) {
         Ok(err) => Err(Error::DbError(err)),
-        Err(()) => Err(Error::BadData),
+        Err(()) => Err(Error::BadResponse),
     }
 }
 

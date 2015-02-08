@@ -368,7 +368,7 @@ impl RawFromSql for Vec<u8> {
 
 impl RawFromSql for String {
     fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<String> {
-        String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadData)
+        String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadResponse)
     }
 }
 
@@ -387,7 +387,7 @@ impl RawFromSql for IpAddr {
         let _is_cidr = try!(raw.read_u8());
         let nb = try!(raw.read_u8());
         if nb > 16 {
-            return Err(Error::BadData);
+            return Err(Error::BadResponse);
         }
         let mut buf = [0u8; 16];
         try!(raw.read_at_least(nb as usize, &mut buf));
@@ -403,7 +403,7 @@ impl RawFromSql for IpAddr {
                                                  try!(buf.read_be_u16()),
                                                  try!(buf.read_be_u16()),
                                                  try!(buf.read_be_u16()))),
-            _ => Err(Error::BadData),
+            _ => Err(Error::BadResponse),
         }
     }
 }
@@ -458,7 +458,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                     let key = try!(rdr.read_exact(key_len as usize));
                     let key = match String::from_utf8(key) {
                         Ok(key) => key,
-                        Err(_) => return Err(Error::BadData),
+                        Err(_) => return Err(Error::BadResponse),
                     };
 
                     let val_len = try!(rdr.read_be_i32());
@@ -468,7 +468,7 @@ impl FromSql for Option<HashMap<String, Option<String>>> {
                         let val = try!(rdr.read_exact(val_len as usize));
                         match String::from_utf8(val) {
                             Ok(val) => Some(val),
-                            Err(_) => return Err(Error::BadData),
+                            Err(_) => return Err(Error::BadResponse),
                         }
                     };
 

@@ -9,7 +9,7 @@ impl RawFromSql for Uuid {
     fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Uuid> {
         match Uuid::from_bytes(&*try!(raw.read_to_end())) {
             Some(u) => Ok(u),
-            None => Err(Error::BadData),
+            None => Err(Error::BadResponse),
         }
     }
 }

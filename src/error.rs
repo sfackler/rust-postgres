@@ -124,8 +124,6 @@ pub enum Error {
     WasNull,
     /// The server returned an unexpected response
     BadResponse,
-    /// The server provided data that the client could not parse
-    BadData,
 }
 
 impl fmt::Display for Error {
@@ -150,7 +148,6 @@ impl error::Error for Error {
             Error::InvalidColumn => "Invalid column",
             Error::WasNull => "The value was NULL",
             Error::BadResponse => "The server returned an unexpected response",
-            Error::BadData => "The server provided data that the client could not parse",
         }
     }
 
