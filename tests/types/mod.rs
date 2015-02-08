@@ -1,4 +1,3 @@
-use serialize::json::Json;
 use std::collections::HashMap;
 use std::f32;
 use std::f64;
@@ -12,6 +11,8 @@ use postgres::types::{ToSql, FromSql};
 #[cfg(feature = "uuid")]
 mod uuid;
 mod time;
+#[cfg(feature = "rustc-serialize")]
+mod json;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
@@ -133,24 +134,6 @@ fn test_citext_params() {
 fn test_bytea_params() {
     test_type("BYTEA", &[(Some(vec!(0u8, 1, 2, 3, 254, 255)), "'\\x00010203feff'"),
                         (None, "NULL")]);
-}
-
-#[test]
-fn test_json_params() {
-    test_type("JSON", &[(Some(Json::from_str("[10, 11, 12]").unwrap()),
-                        "'[10, 11, 12]'"),
-                       (Some(Json::from_str("{\"f\": \"asd\"}").unwrap()),
-                        "'{\"f\": \"asd\"}'"),
-                       (None, "NULL")])
-}
-
-#[test]
-fn test_jsonb_params() {
-    test_type("JSONB", &[(Some(Json::from_str("[10, 11, 12]").unwrap()),
-                          "'[10, 11, 12]'"),
-                         (Some(Json::from_str("{\"f\": \"asd\"}").unwrap()),
-                          "'{\"f\": \"asd\"}'"),
-                         (None, "NULL")])
 }
 
 #[test]

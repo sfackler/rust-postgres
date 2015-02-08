@@ -204,7 +204,10 @@ types. The driver currently supports the following conversions:
             <td>BYTEA</td>
         </tr>
         <tr>
-            <td>serialize::json::Json</td>
+            <td>
+                <a href="https://github.com/rust-lang/rustc-serialize">serialize::json::Json</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
             <td>JSON/JSONB</td>
         </tr>
         <tr>
@@ -244,6 +247,11 @@ Support for Postgres ranges is located in the
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
 provided optionally by the `uuid` feature.
+
+### JSON/JSONB types
+
+[JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
+support is provided optionally by the `rustc-serialize` feature.
 
 ## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so

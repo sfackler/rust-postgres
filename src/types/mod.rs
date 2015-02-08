@@ -1,7 +1,6 @@
 //! Traits dealing with Postgres data types
 pub use self::slice::Slice;
 
-use serialize::json;
 use std::collections::HashMap;
 use std::old_io::net::ip::IpAddr;
 use std::fmt;
@@ -135,6 +134,8 @@ macro_rules! to_raw_to_impl {
 mod uuid;
 mod time;
 mod slice;
+#[cfg(feature = "rustc-serialize")]
+mod json;
 
 /// A Postgres OID
 pub type Oid = u32;
@@ -378,18 +379,6 @@ raw_from_impl!(i64, read_be_i64);
 raw_from_impl!(f32, read_be_f32);
 raw_from_impl!(f64, read_be_f64);
 
-impl RawFromSql for json::Json {
-    fn raw_from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
-        if let Type::Jsonb = *ty {
-            // We only support version 1 of the jsonb binary format
-            if try!(raw.read_u8()) != 1 {
-                return Err(Error::BadData);
-            }
-        }
-        json::Json::from_reader(raw).map_err(|_| Error::BadData)
-    }
-}
-
 impl RawFromSql for IpAddr {
     fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<IpAddr> {
         let family = try!(raw.read_u8());
@@ -427,7 +416,6 @@ from_raw_from_impl!(Type::Oid; u32);
 from_raw_from_impl!(Type::Int8; i64);
 from_raw_from_impl!(Type::Float4; f32);
 from_raw_from_impl!(Type::Float8; f64);
-from_raw_from_impl!(Type::Json, Type::Jsonb; json::Json);
 from_raw_from_impl!(Type::Inet, Type::Cidr; IpAddr);
 
 impl FromSql for Option<String> {
@@ -537,16 +525,6 @@ raw_to_impl!(i64, write_be_i64);
 raw_to_impl!(f32, write_be_f32);
 raw_to_impl!(f64, write_be_f64);
 
-impl RawToSql for json::Json {
-    fn raw_to_sql<W: Writer>(&self, ty: &Type, raw: &mut W) -> Result<()> {
-        if let Type::Jsonb = *ty {
-            try!(raw.write_u8(1));
-        }
-
-        Ok(try!(write!(raw, "{}", self)))
-    }
-}
-
 impl RawToSql for IpAddr {
     fn raw_to_sql<W: Writer>(&self, _: &Type, raw: &mut W) -> Result<()> {
         match *self {
@@ -580,7 +558,6 @@ impl RawToSql for IpAddr {
 
 to_raw_to_impl!(Type::Bool; bool);
 to_raw_to_impl!(Type::ByteA; Vec<u8>);
-to_raw_to_impl!(Type::Json, Type::Jsonb; json::Json);
 to_raw_to_impl!(Type::Inet, Type::Cidr; IpAddr);
 to_raw_to_impl!(Type::Char; i8);
 to_raw_to_impl!(Type::Int2; i16);
