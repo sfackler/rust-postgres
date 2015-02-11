@@ -53,14 +53,13 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
 #![feature(plugin, unsafe_destructor, collections, io, core, path, std_misc)]
 #![warn(missing_docs)]
+#![plugin(phf_macros)]
 
 extern crate byteorder;
 #[macro_use]
 extern crate log;
 extern crate openssl;
 extern crate phf;
-#[plugin] #[no_link]
-extern crate phf_macros;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
 
