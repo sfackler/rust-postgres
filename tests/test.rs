@@ -54,7 +54,8 @@ fn test_url_terminating_slash() {
 #[test]
 fn test_prepare_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    match conn.prepare("invalid sql statment") {
+    let stmt = conn.prepare("invalid sql database");
+    match stmt {
         Err(Error::DbError(ref e)) if e.code() == &SyntaxError && e.position() == Some(&Normal(1)) => {}
         Err(e) => panic!("Unexpected result {:?}", e),
         _ => panic!("Unexpected result"),
@@ -334,7 +335,8 @@ fn test_batch_execute_error() {
                  INSERT INTO foo (id) VALUES (11)";
     conn.batch_execute(query).err().unwrap();
 
-    match conn.prepare("SELECT * from foo ORDER BY id") {
+    let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
+    match stmt {
         Err(Error::DbError(ref e)) if e.code() == &UndefinedTable => {}
         Err(e) => panic!("unexpected error {:?}", e),
         _ => panic!("unexpected success"),
