@@ -82,6 +82,8 @@ use url::Url;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, ToSql, FromSql};
+#[doc(inline)]
+pub use types::Slice;
 use io::{InternalStream, Timeout};
 use message::BackendMessage::*;
 use message::FrontendMessage::*;

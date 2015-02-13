@@ -1,4 +1,6 @@
 //! Traits dealing with Postgres data types
+pub use self::slice::Slice;
+
 use serialize::json;
 use std::collections::HashMap;
 use std::old_io::net::ip::IpAddr;
@@ -132,6 +134,7 @@ macro_rules! to_raw_to_impl {
 #[cfg(feature = "uuid")]
 mod uuid;
 mod time;
+mod slice;
 
 /// A Postgres OID
 pub type Oid = u32;

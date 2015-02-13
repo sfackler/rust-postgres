@@ -6,7 +6,7 @@ use std::fmt;
 use std::num::Float;
 use std::old_io::net::ip::IpAddr;
 
-use postgres::{Connection, SslMode};
+use postgres::{Connection, SslMode, Slice, Error};
 use postgres::types::{ToSql, FromSql};
 
 #[cfg(feature = "uuid")]
@@ -222,4 +222,29 @@ fn test_pg_database_datname() {
     let next = result.next().unwrap();
     or_panic!(next.get_opt::<usize, String>(0));
     or_panic!(next.get_opt::<&str, String>("datname"));
+}
+
+#[test]
+fn test_slice() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
+                        INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');").unwrap();
+
+    let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)").unwrap();
+    let result = stmt.query(&[&Slice(&[1i32, 3, 4])]).unwrap();
+    assert_eq!(&["a".to_string(), "c".to_string(), "d".to_string()][],
+               result.map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
+}
+
+#[test]
+fn test_slice_wrong_type() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)").unwrap();
+
+    let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
+    match stmt.query(&[&Slice(&["hi"])]) {
+        Ok(_) => panic!("Unexpected success"),
+        Err(Error::WrongType(..)) => {}
+        Err(e) => panic!("Unexpected error {}", e),
+    }
 }
