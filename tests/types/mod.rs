@@ -232,3 +232,15 @@ fn test_slice_wrong_type() {
         Err(e) => panic!("Unexpected error {}", e),
     }
 }
+
+#[test]
+fn test_slice_range() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+
+    let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
+    match stmt.query(&[&Slice(&[1i64])]) {
+        Ok(_) => panic!("Unexpected success"),
+        Err(Error::WrongType(..)) => {}
+        Err(e) => panic!("Unexpected error {}", e),
+    }
+}

@@ -4,7 +4,7 @@ use std::fmt;
 use std::result;
 
 use Result;
-use types::{Oid, Type};
+use types::{Oid, Kind};
 use error::{SqlState, ErrorPosition, ConnectError, Error};
 
 /// Information about an unknown type.
@@ -12,14 +12,14 @@ use error::{SqlState, ErrorPosition, ConnectError, Error};
 pub struct Unknown {
     name: String,
     oid: Oid,
-    element_type: Option<Type>,
+    kind: Kind,
 }
 
-pub fn new_unknown(name: String, oid: Oid, element_type: Option<Type>) -> Unknown {
+pub fn new_unknown(name: String, oid: Oid, kind: Kind) -> Unknown {
     Unknown {
         name: name,
         oid: oid,
-        element_type: element_type,
+        kind: kind,
     }
 }
 
@@ -34,9 +34,9 @@ impl Unknown {
         self.oid
     }
 
-    /// If this type is an array or range, the type of its members.
-    pub fn element_type(&self) -> Option<&Type> {
-        self.element_type.as_ref()
+    /// The kind of this type
+    pub fn kind(&self) -> &Kind {
+        &self.kind
     }
 }
 

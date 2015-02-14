@@ -72,7 +72,7 @@ use time::SteadyTime;
 use url::Url;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
-pub use types::{Oid, Type, ToSql, FromSql};
+pub use types::{Oid, Type, Kind, ToSql, FromSql};
 #[doc(inline)]
 pub use types::Slice;
 use io::{InternalStream, Timeout};
@@ -768,16 +768,16 @@ impl InnerConnection {
         }
         try!(self.wait_for_ready());
 
-        let elem_oid = if elem_oid != 0 {
-            Some(elem_oid)
+        let kind = if elem_oid != 0 {
+            Kind::Array(try!(self.get_type(elem_oid)))
         } else {
-            rngsubtype
+            match rngsubtype {
+                Some(oid) => Kind::Range(try!(self.get_type(oid))),
+                None => Kind::Simple
+            }
         };
-        let element_type = match elem_oid {
-            Some(oid) => Some(try!(self.get_type(oid))),
-            None => None,
-        };
-        let type_ = Type::Unknown(Box::new(ugh_privacy::new_unknown(name, oid, element_type)));
+
+        let type_ = Type::Unknown(Box::new(ugh_privacy::new_unknown(name, oid, kind)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }

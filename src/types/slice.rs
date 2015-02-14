@@ -1,6 +1,6 @@
 use byteorder::{BigEndian, WriterBytesExt};
 
-use {Type, ToSql, Result, Error};
+use {Type, ToSql, Result, Error, Kind};
 
 /// An adapter type mapping slices to Postgres arrays.
 ///
@@ -26,9 +26,9 @@ pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        let member_type = match ty.element_type() {
-            Some(member) => member,
-            None => return Err(Error::WrongType(ty.clone())),
+        let member_type = match ty.kind() {
+            Kind::Array(member) => member,
+            _ => return Err(Error::WrongType(ty.clone())),
         };
 
         let mut buf = vec![];

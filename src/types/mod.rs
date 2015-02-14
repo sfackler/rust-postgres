@@ -188,8 +188,19 @@ const TSTZRANGEARRAYOID: Oid = 3911;
 const INT8RANGEOID: Oid = 3926;
 const INT8RANGEARRAYOID: Oid = 3927;
 
+/// Represents the kind of a Postgres type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Kind {
+    /// A simple type like `VARCHAR` or `INTEGER`.
+    Simple,
+    /// An array type along with the type of its elements.
+    Array(Type),
+    /// A range type along with the type of its elements.
+    Range(Type),
+}
+
 macro_rules! make_postgres_type {
-    ($(#[$doc:meta] $oid:ident => $variant:ident: $(member $member:ident)*),+) => (
+    ($(#[$doc:meta] $oid:ident => $variant:ident: $kind:expr),+) => (
         /// A Postgres type
         #[derive(PartialEq, Eq, Clone)]
         pub enum Type {
@@ -230,14 +241,13 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            /// If this `Type` is an array or range, returns the type of its elements
-            pub fn element_type(&self) -> Option<Type> {
+            /// The kind of this type
+            pub fn kind(&self) -> Kind {
                 match *self {
                     $(
-                        $(Type::$variant => Some(Type::$member),)*
+                        Type::$variant => $kind,
                     )+
-                    Type::Unknown(ref u) => u.element_type().cloned(),
-                    _ => None
+                    Type::Unknown(ref u) => u.kind().clone(),
                 }
             }
         }
@@ -246,95 +256,95 @@ macro_rules! make_postgres_type {
 
 make_postgres_type! {
     #[doc="BOOL"]
-    BOOLOID => Bool:,
+    BOOLOID => Bool: Kind::Simple,
     #[doc="BYTEA"]
-    BYTEAOID => ByteA:,
+    BYTEAOID => ByteA: Kind::Simple,
     #[doc="\"char\""]
-    CHAROID => Char:,
+    CHAROID => Char: Kind::Simple,
     #[doc="NAME"]
-    NAMEOID => Name:,
+    NAMEOID => Name: Kind::Simple,
     #[doc="INT8/BIGINT"]
-    INT8OID => Int8:,
+    INT8OID => Int8: Kind::Simple,
     #[doc="INT2/SMALLINT"]
-    INT2OID => Int2:,
+    INT2OID => Int2: Kind::Simple,
     #[doc="INT4/INT"]
-    INT4OID => Int4:,
+    INT4OID => Int4: Kind::Simple,
     #[doc="TEXT"]
-    TEXTOID => Text:,
+    TEXTOID => Text: Kind::Simple,
     #[doc="OID"]
-    OIDOID => Oid:,
+    OIDOID => Oid: Kind::Simple,
     #[doc="JSON"]
-    JSONOID => Json:,
+    JSONOID => Json: Kind::Simple,
     #[doc="CIDR"]
-    CIDROID => Cidr:,
+    CIDROID => Cidr: Kind::Simple,
     #[doc="JSON[]"]
-    JSONARRAYOID => JsonArray: member Json,
+    JSONARRAYOID => JsonArray: Kind::Array(Type::Json),
     #[doc="FLOAT4/REAL"]
-    FLOAT4OID => Float4:,
+    FLOAT4OID => Float4: Kind::Simple,
     #[doc="FLOAT8/DOUBLE PRECISION"]
-    FLOAT8OID => Float8:,
+    FLOAT8OID => Float8: Kind::Simple,
     #[doc="INET"]
-    INETOID => Inet:,
+    INETOID => Inet: Kind::Simple,
     #[doc="BOOL[]"]
-    BOOLARRAYOID => BoolArray: member Bool,
+    BOOLARRAYOID => BoolArray: Kind::Array(Type::Bool),
     #[doc="BYTEA[]"]
-    BYTEAARRAYOID => ByteAArray: member ByteA,
+    BYTEAARRAYOID => ByteAArray: Kind::Array(Type::ByteA),
     #[doc="\"char\"[]"]
-    CHARARRAYOID => CharArray: member Char,
+    CHARARRAYOID => CharArray: Kind::Array(Type::Char),
     #[doc="NAME[]"]
-    NAMEARRAYOID => NameArray: member Name,
+    NAMEARRAYOID => NameArray: Kind::Array(Type::Name),
     #[doc="INT2[]"]
-    INT2ARRAYOID => Int2Array: member Int2,
+    INT2ARRAYOID => Int2Array: Kind::Array(Type::Int2),
     #[doc="INT4[]"]
-    INT4ARRAYOID => Int4Array: member Int4,
+    INT4ARRAYOID => Int4Array: Kind::Array(Type::Int4),
     #[doc="TEXT[]"]
-    TEXTARRAYOID => TextArray: member Text,
+    TEXTARRAYOID => TextArray: Kind::Array(Type::Text),
     #[doc="CHAR(n)[]"]
-    BPCHARARRAYOID => CharNArray: member CharN,
+    BPCHARARRAYOID => CharNArray: Kind::Array(Type::CharN),
     #[doc="VARCHAR[]"]
-    VARCHARARRAYOID => VarcharArray: member Varchar,
+    VARCHARARRAYOID => VarcharArray: Kind::Array(Type::Varchar),
     #[doc="INT8[]"]
-    INT8ARRAYOID => Int8Array: member Int8,
+    INT8ARRAYOID => Int8Array: Kind::Array(Type::Int8),
     #[doc="FLOAT4[]"]
-    FLOAT4ARRAYOID => Float4Array: member Float4,
+    FLOAT4ARRAYOID => Float4Array: Kind::Array(Type::Float4),
     #[doc="FLOAT8[]"]
-    FLAOT8ARRAYOID => Float8Array: member Float8,
+    FLAOT8ARRAYOID => Float8Array: Kind::Array(Type::Float8),
     #[doc="TIMESTAMP"]
-    TIMESTAMPOID => Timestamp:,
+    TIMESTAMPOID => Timestamp: Kind::Simple,
     #[doc="TIMESTAMP[]"]
-    TIMESTAMPARRAYOID => TimestampArray: member Timestamp,
+    TIMESTAMPARRAYOID => TimestampArray: Kind::Array(Type::Timestamp),
     #[doc="TIMESTAMP WITH TIME ZONE"]
-    TIMESTAMPZOID => TimestampTZ:,
+    TIMESTAMPZOID => TimestampTZ: Kind::Simple,
     #[doc="TIMESTAMP WITH TIME ZONE[]"]
-    TIMESTAMPZARRAYOID => TimestampTZArray: member TimestampTZ,
+    TIMESTAMPZARRAYOID => TimestampTZArray: Kind::Array(Type::TimestampTZ),
     #[doc="UUID"]
-    UUIDOID => Uuid:,
+    UUIDOID => Uuid: Kind::Simple,
     #[doc="UUID[]"]
-    UUIDARRAYOID => UuidArray: member Uuid,
+    UUIDARRAYOID => UuidArray: Kind::Array(Type::Uuid),
     #[doc="JSONB"]
-    JSONBOID => Jsonb:,
+    JSONBOID => Jsonb: Kind::Simple,
     #[doc="JSONB[]"]
-    JSONBARRAYOID => JsonbArray: member Jsonb,
+    JSONBARRAYOID => JsonbArray: Kind::Array(Type::Jsonb),
     #[doc="CHAR(n)/CHARACTER(n)"]
-    BPCHAROID => CharN:,
+    BPCHAROID => CharN: Kind::Simple,
     #[doc="VARCHAR/CHARACTER VARYING"]
-    VARCHAROID => Varchar:,
+    VARCHAROID => Varchar: Kind::Simple,
     #[doc="INT4RANGE"]
-    INT4RANGEOID => Int4Range: member Int4,
+    INT4RANGEOID => Int4Range: Kind::Range(Type::Int4),
     #[doc="INT4RANGE[]"]
-    INT4RANGEARRAYOID => Int4RangeArray: member Int4Range,
+    INT4RANGEARRAYOID => Int4RangeArray: Kind::Array(Type::Int4Range),
     #[doc="TSRANGE"]
-    TSRANGEOID => TsRange: member Timestamp,
+    TSRANGEOID => TsRange: Kind::Range(Type::Timestamp),
     #[doc="TSRANGE[]"]
-    TSRANGEARRAYOID => TsRangeArray: member TsRange,
+    TSRANGEARRAYOID => TsRangeArray: Kind::Array(Type::TsRange),
     #[doc="TSTZRANGE"]
-    TSTZRANGEOID => TstzRange: member TimestampTZ,
+    TSTZRANGEOID => TstzRange: Kind::Range(Type::TimestampTZ),
     #[doc="TSTZRANGE[]"]
-    TSTZRANGEARRAYOID => TstzRangeArray: member TstzRange,
+    TSTZRANGEARRAYOID => TstzRangeArray: Kind::Array(Type::TstzRange),
     #[doc="INT8RANGE"]
-    INT8RANGEOID => Int8Range: member Int8,
+    INT8RANGEOID => Int8Range: Kind::Range(Type::Int8),
     #[doc="INT8RANGE[]"]
-    INT8RANGEARRAYOID => Int8RangeArray: member Int8Range
+    INT8RANGEARRAYOID => Int8RangeArray: Kind::Array(Type::Int8Range)
 }
 
 /// A trait for types that can be created from a Postgres value

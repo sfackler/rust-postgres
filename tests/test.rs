@@ -17,6 +17,7 @@ use postgres::{NoticeHandler,
                GenericConnection,
                SslMode,
                Type,
+               Kind,
                ToSql,
                Error,
                ConnectError,
@@ -866,7 +867,7 @@ fn test_custom_range_element_type() {
     match &stmt.param_types()[0] {
         &Type::Unknown(ref u) => {
             assert_eq!("floatrange", u.name());
-            assert_eq!(Some(&Type::Float8), u.element_type());
+            assert_eq!(&Kind::Range(Type::Float8), u.kind());
         }
         t => panic!("Unexpected type {:?}", t)
     }
