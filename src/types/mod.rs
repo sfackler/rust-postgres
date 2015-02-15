@@ -457,7 +457,8 @@ pub trait FromSql: Sized {
         }
     }
 
-    /// Creates a new value of this type from a `Reader` of Postgres data.
+    /// Creates a new value of this type from a `Reader` of the binary format
+    /// of the specified Postgres `Type`.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
@@ -615,7 +616,8 @@ pub enum IsNull {
 
 /// A trait for types that can be converted into Postgres values.
 pub trait ToSql {
-    /// Converts the value of `self` into Postgres data.
+    /// Converts the value of `self` into the binary format of the specified
+    /// Postgres `Type`, writing it to `out`.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
