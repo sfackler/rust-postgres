@@ -573,18 +573,18 @@ impl RawToSql for IpAddr {
         match *self {
             IpAddr::Ipv4Addr(a, b, c, d) => {
                 try!(raw.write_all(&[2, // family
-                                 32, // bits
-                                 0, // is_cidr
-                                 4, // nb
-                                 a, b, c, d // addr
-                                ]));
+                                     32, // bits
+                                     0, // is_cidr
+                                     4, // nb
+                                     a, b, c, d // addr
+                                    ]));
             }
             IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
                 try!(raw.write_all(&[3, // family
-                                 128, // bits
-                                 0, // is_cidr
-                                 16, // nb
-                                ]));
+                                     128, // bits
+                                     0, // is_cidr
+                                     16, // nb
+                                    ]));
                 try!(raw.write_be_u16(a));
                 try!(raw.write_be_u16(b));
                 try!(raw.write_be_u16(c));
