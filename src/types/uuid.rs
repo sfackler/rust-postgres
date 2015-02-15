@@ -1,20 +1,20 @@
 extern crate uuid;
 
 use self::uuid::Uuid;
-use types::{RawFromSql, ToSql, RawToSql, Type};
+use types::{FromSql, ToSql, RawToSql, Type};
 use Error;
 use Result;
 
-impl RawFromSql for Uuid {
-    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Uuid> {
+impl FromSql for Uuid {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Uuid> {
         match Uuid::from_bytes(&*try!(raw.read_to_end())) {
             Some(u) => Ok(u),
             None => Err(Error::BadResponse),
         }
     }
-}
 
-from_raw_from_impl!(Type::Uuid; Uuid);
+    accepts!(Type::Uuid);
+}
 
 impl RawToSql for Uuid {
     fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {

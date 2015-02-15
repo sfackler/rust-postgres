@@ -1,7 +1,7 @@
 use serialize::json;
 
 use {Result, Error};
-use types::{RawFromSql, RawToSql, Type};
+use types::{FromSql, RawToSql, Type};
 
 impl FromSql for json::Json {
     fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
