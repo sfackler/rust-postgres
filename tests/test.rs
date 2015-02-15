@@ -926,3 +926,15 @@ fn test_get_bytes() {
     let mut result = or_panic!(stmt.query(&[]));
     assert_eq!(b"\x00\x01\x02\x03", result.next().unwrap().get_bytes(0).unwrap());
 }
+
+#[test]
+fn test_get_opt_wrong_type() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let stmt = conn.prepare("SELECT 1::INT").unwrap();
+    let mut res = stmt.query(&[]).unwrap();
+    match res.next().unwrap().get_opt::<_, String>(0) {
+        Ok(_) => panic!("unexpected success"),
+        Err(Error::WrongType(Type::Int4)) => {}
+        Err(e) => panic!("unexpected error {}", e),
+    }
+}
