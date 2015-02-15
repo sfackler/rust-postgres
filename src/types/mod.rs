@@ -10,6 +10,17 @@ use error::Error;
 
 pub use ugh_privacy::Unknown;
 
+macro_rules! accepts {
+    ($($expected:pat),+) => (
+        fn accepts(ty: &::types::Type) -> bool {
+            match *ty {
+                $($expected)|+ => true,
+                _ => false
+            }
+        }
+    )
+}
+
 macro_rules! check_types {
     ($($expected:pat),+; $actual:ident) => (
         match $actual {
@@ -347,51 +358,105 @@ make_postgres_type! {
     INT8RANGEARRAYOID => Int8RangeArray: Kind::Array(Type::Int8Range)
 }
 
-/// A trait for types that can be created from a Postgres value
-pub trait FromSql {
-    /// Creates a new value of this type from a buffer of Postgres data.
-    ///
-    /// If the value was `NULL`, the buffer will be `None`.
-    fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Self>;
-}
-
-/// A utility trait used by `FromSql` implementations
-pub trait RawFromSql {
+/// A trait for types that can be created from a Postgres value.
+pub trait FromSql: Sized {
     /// Creates a new value of this type from a `Reader` of Postgres data.
     ///
-    /// It is the caller's responsibility to ensure that Postgres data of this
-    /// type can be turned in to this type.
-    fn raw_from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Self>;
+    /// If the value was `NULL`, the `Reader` will be `None`.
+    ///
+    /// The caller of this method is responsible for ensuring that this type
+    /// is compatible with the Postgres `Type`.
+    ///
+    /// The default implementation calls `FromSql::from_sql` when `raw` is
+    /// `Some` and returns `Err(Error::WasNull)` when `raw` is `None`. It does
+    /// not typically need to be overridden.
+    fn from_sql_nullable<R: Reader>(ty: &Type, raw: Option<&mut R>) -> Result<Self> {
+        match raw {
+            Some(raw) => FromSql::from_sql(ty, raw),
+            None => Err(Error::WasNull),
+        }
+    }
+
+    /// Creates a new value of this type from a `Reader` of Postgres data.
+    ///
+    /// The caller of this method is responsible for ensuring that this type
+    /// is compatible with the Postgres `Type`.
+    fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Self>;
+
+    /// Determines if a value of this type can be created from the specified
+    /// Postgres `Type`.
+    fn accepts(ty: &Type) -> bool;
 }
 
-impl RawFromSql for bool {
-    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<bool> {
-        Ok((try!(raw.read_u8())) != 0)
+impl<T: FromSql> FromSql for Option<T> {
+    fn from_sql_nullable<R: Reader>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
+        match raw {
+            Some(raw) => <T as FromSql>::from_sql(ty, raw).map(|e| Some(e)),
+            None => Ok(None),
+        }
+    }
+
+    fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
+        <T as FromSql>::from_sql(ty, raw).map(|e| Some(e))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <T as FromSql>::accepts(ty)
     }
 }
 
-impl RawFromSql for Vec<u8> {
-    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
+impl FromSql for bool {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<bool> {
+        Ok(try!(raw.read_u8()) != 0)
+    }
+
+    accepts!(Type::Bool);
+}
+
+impl FromSql for Vec<u8> {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
         Ok(try!(raw.read_to_end()))
     }
+
+    accepts!(Type::ByteA);
 }
 
-impl RawFromSql for String {
-    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<String> {
+impl FromSql for String {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<String> {
         String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadResponse)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::Varchar | Type::Text | Type::CharN | Type::Name => true,
+            Type::Unknown(ref u) if u.name() == "citext" => true,
+            _ => false,
+        }
     }
 }
 
-raw_from_impl!(i8, read_i8);
-raw_from_impl!(i16, read_be_i16);
-raw_from_impl!(i32, read_be_i32);
-raw_from_impl!(u32, read_be_u32);
-raw_from_impl!(i64, read_be_i64);
-raw_from_impl!(f32, read_be_f32);
-raw_from_impl!(f64, read_be_f64);
+macro_rules! primitive_from {
+    ($t:ty, $f:ident, $($expected:pat),+) => {
+        impl FromSql for $t {
+            fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<$t> {
+                Ok(try!(raw.$f()))
+            }
 
-impl RawFromSql for IpAddr {
-    fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<IpAddr> {
+            accepts!($($expected),+);
+        }
+    }
+}
+
+primitive_from!(i8, read_i8, Type::Char);
+primitive_from!(i16, read_be_i16, Type::Int2);
+primitive_from!(i32, read_be_i32, Type::Int4);
+primitive_from!(u32, read_be_u32, Type::Oid);
+primitive_from!(i64, read_be_i64, Type::Int8);
+primitive_from!(f32, read_be_f32, Type::Float4);
+primitive_from!(f64, read_be_f64, Type::Float8);
+
+impl FromSql for IpAddr {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<IpAddr> {
         let family = try!(raw.read_u8());
         let _bits = try!(raw.read_u8());
         let _is_cidr = try!(raw.read_u8());
@@ -416,82 +481,49 @@ impl RawFromSql for IpAddr {
             _ => Err(Error::BadResponse),
         }
     }
+
+    accepts!(Type::Inet, Type::Cidr);
 }
 
-from_raw_from_impl!(Type::Bool; bool);
-from_raw_from_impl!(Type::ByteA; Vec<u8>);
-from_raw_from_impl!(Type::Char; i8);
-from_raw_from_impl!(Type::Int2; i16);
-from_raw_from_impl!(Type::Int4; i32);
-from_raw_from_impl!(Type::Oid; u32);
-from_raw_from_impl!(Type::Int8; i64);
-from_raw_from_impl!(Type::Float4; f32);
-from_raw_from_impl!(Type::Float8; f64);
-from_raw_from_impl!(Type::Inet, Type::Cidr; IpAddr);
+impl FromSql for HashMap<String, Option<String>> {
+    fn from_sql<R: Reader>(_: &Type, raw: &mut R)
+            -> Result<HashMap<String, Option<String>>> {
+        let mut map = HashMap::new();
 
-impl FromSql for Option<String> {
-    fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<String>> {
-        match *ty {
-            Type::Varchar | Type::Text | Type::CharN | Type::Name => {}
-            Type::Unknown(ref u) if u.name() == "citext" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
-        }
+        let count = try!(raw.read_be_i32());
 
-        match raw {
-            Some(mut buf) => {
-                Ok(Some(try!(RawFromSql::raw_from_sql(ty, &mut buf))))
-            }
-            None => Ok(None)
-        }
-    }
-}
+        for _ in range(0, count) {
+            let key_len = try!(raw.read_be_i32());
+            let key = try!(raw.read_exact(key_len as usize));
+            let key = match String::from_utf8(key) {
+                Ok(key) => key,
+                Err(_) => return Err(Error::BadResponse),
+            };
 
-from_option_impl!(String);
-
-impl FromSql for Option<HashMap<String, Option<String>>> {
-    fn from_sql(ty: &Type, raw: Option<&[u8]>)
-                -> Result<Option<HashMap<String, Option<String>>>> {
-        match *ty {
-            Type::Unknown(ref u) if u.name() == "hstore" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
-        }
-
-        match raw {
-            Some(buf) => {
-                let mut rdr = buf;
-                let mut map = HashMap::new();
-
-                let count = try!(rdr.read_be_i32());
-
-                for _ in range(0, count) {
-                    let key_len = try!(rdr.read_be_i32());
-                    let key = try!(rdr.read_exact(key_len as usize));
-                    let key = match String::from_utf8(key) {
-                        Ok(key) => key,
-                        Err(_) => return Err(Error::BadResponse),
-                    };
-
-                    let val_len = try!(rdr.read_be_i32());
-                    let val = if val_len < 0 {
-                        None
-                    } else {
-                        let val = try!(rdr.read_exact(val_len as usize));
-                        match String::from_utf8(val) {
-                            Ok(val) => Some(val),
-                            Err(_) => return Err(Error::BadResponse),
-                        }
-                    };
-
-                    map.insert(key, val);
+            let val_len = try!(raw.read_be_i32());
+            let val = if val_len < 0 {
+                None
+            } else {
+                let val = try!(raw.read_exact(val_len as usize));
+                match String::from_utf8(val) {
+                    Ok(val) => Some(val),
+                    Err(_) => return Err(Error::BadResponse),
                 }
-                Ok(Some(map))
-            }
-            None => Ok(None)
+            };
+
+            map.insert(key, val);
+        }
+
+        Ok(map)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::Unknown(ref u) if u.name() == "hstore" => true,
+            _ => false
         }
     }
 }
-
-from_option_impl!(HashMap<String, Option<String>>);
 
 /// A trait for types that can be converted into Postgres values
 pub trait ToSql {

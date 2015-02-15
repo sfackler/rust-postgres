@@ -3,8 +3,8 @@ use serialize::json;
 use {Result, Error};
 use types::{RawFromSql, RawToSql, Type};
 
-impl RawFromSql for json::Json {
-    fn raw_from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
+impl FromSql for json::Json {
+    fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
             if try!(raw.read_u8()) != 1 {
@@ -13,9 +13,9 @@ impl RawFromSql for json::Json {
         }
         json::Json::from_reader(raw).map_err(|_| Error::BadResponse)
     }
-}
 
-from_raw_from_impl!(Type::Json, Type::Jsonb; json::Json);
+    accepts!(Type::Json, Type::Jsonb);
+}
 
 impl RawToSql for json::Json {
     fn raw_to_sql<W: Writer>(&self, ty: &Type, raw: &mut W) -> Result<()> {

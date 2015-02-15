@@ -748,9 +748,12 @@ impl InnerConnection {
         let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
                 match try!(self.read_message()) {
             DataRow { row } => {
-                (try!(FromSql::from_sql(&Type::Name, row[0].as_ref().map(|r| &**r))),
-                 try!(FromSql::from_sql(&Type::Oid, row[1].as_ref().map(|r| &**r))),
-                 try!(FromSql::from_sql(&Type::Oid, row[2].as_ref().map(|r| &**r))))
+                (try!(FromSql::from_sql_nullable(&Type::Name,
+                                                 row[0].as_ref().map(|r| &**r).as_mut())),
+                 try!(FromSql::from_sql_nullable(&Type::Oid,
+                                                 row[1].as_ref().map(|r| &**r).as_mut())),
+                 try!(FromSql::from_sql_nullable(&Type::Oid,
+                                                 row[2].as_ref().map(|r| &**r).as_mut())))
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -1642,7 +1645,8 @@ impl<'stmt> Row<'stmt> {
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
         let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        FromSql::from_sql(&self.stmt.columns[idx].type_, self.data[idx].as_ref().map(|e| &**e))
+        FromSql::from_sql_nullable(&self.stmt.columns[idx].type_,
+                                   self.data[idx].as_ref().map(|e| &**e).as_mut())
     }
 
     /// Retrieves the contents of a field of the row.
