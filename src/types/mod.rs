@@ -10,6 +10,7 @@ use error::Error;
 
 pub use ugh_privacy::Other;
 
+#[macro_export]
 macro_rules! accepts {
     ($($expected:pat),+) => (
         fn accepts(ty: &::types::Type) -> bool {
@@ -21,124 +22,16 @@ macro_rules! accepts {
     )
 }
 
-macro_rules! check_types {
-    ($($expected:pat),+; $actual:ident) => (
-        match $actual {
-            $(&$expected)|+ => {}
-            actual => return Err(::Error::WrongType(actual.clone()))
-        }
-    )
-}
-
-macro_rules! raw_from_impl {
-    ($t:ty, $f:ident) => (
-        impl RawFromSql for $t {
-            fn raw_from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<$t> {
-                Ok(try!(raw.$f()))
+#[macro_export]
+macro_rules! to_sql_checked {
+    () => {
+        fn to_sql_checked(&self, ty: &Type, out: &mut Writer) -> Result<IsNull> {
+            if !<Self as ToSql>::accepts(ty) {
+                return Err($crate::Error::WrongType(ty.clone()));
             }
-        }
-    )
-}
-
-macro_rules! from_option_impl {
-    ($t:ty) => {
-        impl ::types::FromSql for $t {
-            fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<$t> {
-                use Error;
-                use types::FromSql;
-
-                // FIXME when you can specify Self types properly
-                let ret: Result<Option<$t>> = FromSql::from_sql(ty, raw);
-                match ret {
-                    Ok(Some(val)) => Ok(val),
-                    Ok(None) => Err(Error::WasNull),
-                    Err(err) => Err(err)
-                }
-            }
+            self.to_sql(ty, out)
         }
     }
-}
-
-macro_rules! from_map_impl {
-    ($($expected:pat),+; $t:ty, $blk:expr) => (
-        impl ::types::FromSql for Option<$t> {
-            fn from_sql(ty: &Type, raw: Option<&[u8]>) -> Result<Option<$t>> {
-                check_types!($($expected),+; ty);
-                match raw {
-                    Some(buf) => ($blk)(ty, buf).map(|ok| Some(ok)),
-                    None => Ok(None)
-                }
-            }
-        }
-
-        from_option_impl!($t);
-    )
-}
-
-macro_rules! from_raw_from_impl {
-    ($($expected:pat),+; $t:ty) => (
-        from_map_impl!($($expected),+; $t, |ty, mut buf: &[u8]| {
-            use types::RawFromSql;
-
-            RawFromSql::raw_from_sql(ty, &mut buf)
-        });
-    )
-}
-
-macro_rules! raw_to_impl {
-    ($t:ty, $f:ident) => (
-        impl RawToSql for $t {
-            fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-                Ok(try!(w.$f(*self)))
-            }
-        }
-    )
-}
-
-macro_rules! to_option_impl {
-    ($($oid:pat),+; $t:ty) => (
-        impl ::types::ToSql for Option<$t> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid),+; ty);
-
-                match *self {
-                    None => Ok(None),
-                    Some(ref val) => val.to_sql(ty)
-                }
-            }
-        }
-    )
-}
-
-macro_rules! to_option_impl_lifetime {
-    ($($oid:pat),+; $t:ty) => (
-        impl<'a> ToSql for Option<$t> {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid),+; ty);
-
-                match *self {
-                    None => Ok(None),
-                    Some(ref val) => val.to_sql(ty)
-                }
-            }
-        }
-    )
-}
-
-macro_rules! to_raw_to_impl {
-    ($($oid:pat),+; $t:ty) => (
-        impl ::types::ToSql for $t {
-            fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-                check_types!($($oid),+; ty);
-
-                let mut writer = vec![];
-                try!(self.raw_to_sql(ty, &mut writer));
-                Ok(Some(writer))
-            }
-        }
-
-        to_option_impl!($($oid),+; $t);
-    )
 }
 
 #[cfg(feature = "uuid")]
@@ -712,175 +605,200 @@ impl FromSql for HashMap<String, Option<String>> {
     }
 }
 
-/// A trait for types that can be converted into Postgres values
+/// An enum representing the nullability of a Postgres value.
+pub enum IsNull {
+    /// The value is NULL.
+    Yes,
+    /// The value is not NULL.
+    No,
+}
+
+/// A trait for types that can be converted into Postgres values.
 pub trait ToSql {
-    /// Converts the value of `self` into the binary format appropriate for the
-    /// Postgres backend.
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>>;
-}
-
-/// A utility trait used by `ToSql` implementations.
-pub trait RawToSql {
-    /// Converts the value of `self` into the binary format of the specified
-    /// Postgres type, writing it to `w`.
+    /// Converts the value of `self` into Postgres data.
     ///
-    /// It is the caller's responsibility to make sure that this type can be
-    /// converted to the specified Postgres type.
-    fn raw_to_sql<W: Writer>(&self, ty: &Type, w: &mut W) -> Result<()>;
+    /// The caller of this method is responsible for ensuring that this type
+    /// is compatible with the Postgres `Type`.
+    ///
+    /// The return value indicates if this value should be represented as
+    /// `NULL`. If this is the case, implementations **must not** write
+    /// anything to `out`.
+    fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull>
+            where Self: Sized, W: Writer;
+
+    /// Determines if a value of this type can be converted to the specified
+    /// Postgres `Type`.
+    fn accepts(ty: &Type) -> bool where Self: Sized;
+
+    /// An adaptor method used internally by Rust-Postgres.
+    ///
+    /// *All* implementations of this method should be generated by the
+    /// `to_sql_checked!()` macro.
+    fn to_sql_checked(&self, ty: &Type, out: &mut Writer) -> Result<IsNull>;
 }
 
-impl RawToSql for bool {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write_u8(*self as u8)))
-    }
-}
+impl<T: ToSql> ToSql for Option<T> {
+    to_sql_checked!();
 
-impl RawToSql for Vec<u8> {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write_all(&**self)))
-    }
-}
-
-impl RawToSql for String {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write_all(self.as_bytes())))
-    }
-}
-
-raw_to_impl!(i8, write_i8);
-raw_to_impl!(i16, write_be_i16);
-raw_to_impl!(i32, write_be_i32);
-raw_to_impl!(u32, write_be_u32);
-raw_to_impl!(i64, write_be_i64);
-raw_to_impl!(f32, write_be_f32);
-raw_to_impl!(f64, write_be_f64);
-
-impl RawToSql for IpAddr {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, raw: &mut W) -> Result<()> {
+    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
         match *self {
-            IpAddr::Ipv4Addr(a, b, c, d) => {
-                try!(raw.write_all(&[2, // family
-                                     32, // bits
-                                     0, // is_cidr
-                                     4, // nb
-                                     a, b, c, d // addr
-                                    ]));
-            }
-            IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
-                try!(raw.write_all(&[3, // family
-                                     128, // bits
-                                     0, // is_cidr
-                                     16, // nb
-                                    ]));
-                try!(raw.write_be_u16(a));
-                try!(raw.write_be_u16(b));
-                try!(raw.write_be_u16(c));
-                try!(raw.write_be_u16(d));
-                try!(raw.write_be_u16(e));
-                try!(raw.write_be_u16(f));
-                try!(raw.write_be_u16(g));
-                try!(raw.write_be_u16(h));
-            }
+            Some(ref val) => val.to_sql(ty, out),
+            None => Ok(IsNull::Yes),
         }
-        Ok(())
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <T as ToSql>::accepts(ty)
     }
 }
 
-to_raw_to_impl!(Type::Bool; bool);
-to_raw_to_impl!(Type::Bytea; Vec<u8>);
-to_raw_to_impl!(Type::Inet, Type::Cidr; IpAddr);
-to_raw_to_impl!(Type::Char; i8);
-to_raw_to_impl!(Type::Int2; i16);
-to_raw_to_impl!(Type::Int4; i32);
-to_raw_to_impl!(Type::Oid; u32);
-to_raw_to_impl!(Type::Int8; i64);
-to_raw_to_impl!(Type::Float4; f32);
-to_raw_to_impl!(Type::Float8; f64);
+impl ToSql for bool {
+    to_sql_checked!();
 
-impl ToSql for String {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        (&**self).to_sql(ty)
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+        try!(w.write_u8(*self as u8));
+        Ok(IsNull::No)
     }
+
+    accepts!(Type::Bool);
 }
 
-impl ToSql for Option<String> {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        self.as_ref().map(|s| &**s).to_sql(ty)
+impl<'a> ToSql for &'a [u8] {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+        try!(w.write_all(*self));
+        Ok(IsNull::No)
+    }
+
+    accepts!(Type::Bytea);
+}
+
+impl ToSql for Vec<u8> {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
+        (&**self).to_sql(ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[u8] as ToSql>::accepts(ty)
     }
 }
 
 impl<'a> ToSql for &'a str {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+        try!(w.write_all(self.as_bytes()));
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
         match *ty {
-            Type::Varchar | Type::Text | Type::Bpchar | Type::Name => {}
-            Type::Other(ref u) if u.name() == "citext" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
+            Type::Varchar | Type::Text | Type::Bpchar | Type::Name => true,
+            Type::Other(ref u) if u.name() == "citext" => true,
+            _ => false,
         }
-        Ok(Some(self.as_bytes().to_vec()))
     }
 }
 
-impl<'a> ToSql for Option<&'a str> {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        match *ty {
-            Type::Varchar | Type::Text | Type::Bpchar | Type::Name => {}
-            Type::Other(ref u) if u.name() == "citext" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
+impl ToSql for String {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
+        (&**self).to_sql(ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as ToSql>::accepts(ty)
+    }
+}
+
+macro_rules! to_primitive {
+    ($t:ty, $f:ident, $($expected:pat),+) => {
+        impl ToSql for $t {
+            to_sql_checked!();
+
+            fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+                try!(w.$f(*self));
+                Ok(IsNull::No)
+            }
+
+            accepts!($($expected),+);
         }
+    }
+}
+
+to_primitive!(i8, write_i8, Type::Char);
+to_primitive!(i16, write_be_i16, Type::Int2);
+to_primitive!(i32, write_be_i32, Type::Int4);
+to_primitive!(u32, write_be_u32, Type::Oid);
+to_primitive!(i64, write_be_i64, Type::Int8);
+to_primitive!(f32, write_be_f32, Type::Float4);
+to_primitive!(f64, write_be_f64, Type::Float8);
+
+impl ToSql for IpAddr {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         match *self {
-            Some(ref val) => val.to_sql(ty),
-            None => Ok(None)
+            IpAddr::Ipv4Addr(a, b, c, d) => {
+                try!(w.write_all(&[2, // family
+                                   32, // bits
+                                   0, // is_cidr
+                                   4, // nb
+                                   a, b, c, d // addr
+                                  ]));
+            }
+            IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
+                try!(w.write_all(&[3, // family
+                                   128, // bits
+                                   0, // is_cidr
+                                   16, // nb
+                                  ]));
+                try!(w.write_be_u16(a));
+                try!(w.write_be_u16(b));
+                try!(w.write_be_u16(c));
+                try!(w.write_be_u16(d));
+                try!(w.write_be_u16(e));
+                try!(w.write_be_u16(f));
+                try!(w.write_be_u16(g));
+                try!(w.write_be_u16(h));
+            }
         }
+        Ok(IsNull::No)
     }
-}
 
-impl<'a> ToSql for &'a [u8] {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        check_types!(Type::Bytea; ty);
-        Ok(Some(self.to_vec()))
-    }
+    accepts!(Type::Cidr, Type::Inet);
 }
-
-to_option_impl_lifetime!(Type::Bytea; &'a [u8]);
 
 impl ToSql for HashMap<String, Option<String>> {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        match *ty {
-            Type::Other(ref u) if u.name() == "hstore" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
-        }
+    to_sql_checked!();
 
-        let mut buf = vec![];
-
-        try!(buf.write_be_i32(self.len() as i32));
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+        try!(w.write_be_i32(self.len() as i32));
 
         for (key, val) in self.iter() {
-            try!(buf.write_be_i32(key.len() as i32));
-            try!(buf.write_all(key.as_bytes()));
+            try!(w.write_be_i32(key.len() as i32));
+            try!(w.write_all(key.as_bytes()));
 
             match *val {
                 Some(ref val) => {
-                    try!(buf.write_be_i32(val.len() as i32));
-                    try!(buf.write_all(val.as_bytes()));
+                    try!(w.write_be_i32(val.len() as i32));
+                    try!(w.write_all(val.as_bytes()));
                 }
-                None => try!(buf.write_be_i32(-1))
+                None => try!(w.write_be_i32(-1))
             }
         }
 
-        Ok(Some(buf))
+        Ok(IsNull::No)
     }
-}
 
-impl ToSql for Option<HashMap<String, Option<String>>> {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+    fn accepts(ty: &Type) -> bool {
         match *ty {
-            Type::Other(ref u) if u.name() == "hstore" => {}
-            _ => return Err(Error::WrongType(ty.clone()))
-        }
-
-        match *self {
-            Some(ref inner) => inner.to_sql(ty),
-            None => Ok(None)
+            Type::Other(ref u) if u.name() == "hstore" => true,
+            _ => false,
         }
     }
 }

@@ -1,7 +1,7 @@
 extern crate uuid;
 
 use self::uuid::Uuid;
-use types::{FromSql, ToSql, RawToSql, Type};
+use types::{FromSql, ToSql, Type, IsNull};
 use Error;
 use Result;
 
@@ -16,10 +16,12 @@ impl FromSql for Uuid {
     accepts!(Type::Uuid);
 }
 
-impl RawToSql for Uuid {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
-        Ok(try!(w.write_all(self.as_bytes())))
+impl ToSql for Uuid {
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+        try!(w.write_all(self.as_bytes()));
+        Ok(IsNull::No)
     }
-}
 
-to_raw_to_impl!(Type::Uuid; Uuid);
+    accepts!(Type::Uuid);
+    to_sql_checked!();
+}

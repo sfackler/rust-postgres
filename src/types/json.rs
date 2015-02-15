@@ -1,7 +1,7 @@
 use serialize::json;
 
 use {Result, Error};
-use types::{FromSql, RawToSql, Type};
+use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for json::Json {
     fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<json::Json> {
@@ -17,14 +17,17 @@ impl FromSql for json::Json {
     accepts!(Type::Json, Type::Jsonb);
 }
 
-impl RawToSql for json::Json {
-    fn raw_to_sql<W: Writer>(&self, ty: &Type, raw: &mut W) -> Result<()> {
+impl ToSql for json::Json {
+    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
         if let Type::Jsonb = *ty {
-            try!(raw.write_u8(1));
+            try!(out.write_u8(1));
         }
 
-        Ok(try!(write!(raw, "{}", self)))
-    }
-}
+        try!(write!(out, "{}", self));
 
-to_raw_to_impl!(Type::Json, Type::Jsonb; json::Json);
+        Ok(IsNull::No)
+    }
+
+    accepts!(Type::Json, Type::Jsonb);
+    to_sql_checked!();
+}

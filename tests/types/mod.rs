@@ -229,7 +229,7 @@ fn test_slice_wrong_type() {
     match stmt.query(&[&Slice(&["hi"])]) {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::WrongType(..)) => {}
-        Err(e) => panic!("Unexpected error {}", e),
+        Err(e) => panic!("Unexpected error {:?}", e),
     }
 }
 
@@ -241,6 +241,6 @@ fn test_slice_range() {
     match stmt.query(&[&Slice(&[1i64])]) {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::WrongType(..)) => {}
-        Err(e) => panic!("Unexpected error {}", e),
+        Err(e) => panic!("Unexpected error {:?}", e),
     }
 }

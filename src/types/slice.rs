@@ -1,6 +1,5 @@
-use byteorder::{BigEndian, WriterBytesExt};
-
 use {Type, ToSql, Result, Error, Kind};
+use types::IsNull;
 
 /// An adapter type mapping slices to Postgres arrays.
 ///
@@ -25,32 +24,42 @@ use {Type, ToSql, Result, Error, Kind};
 pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
-    fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
+    to_sql_checked!();
+
+    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
         let member_type = match ty.kind() {
             &Kind::Array(ref member) => member,
-            _ => return Err(Error::WrongType(ty.clone())),
+            _ => panic!("expected array type"),
         };
+        if !<T as ToSql>::accepts(&member_type) {
+            return Err(Error::WrongType(ty.clone()));
+        }
 
-        let mut buf = vec![];
-        let _ = buf.write_i32::<BigEndian>(1); // number of dimensions
-        let _ = buf.write_i32::<BigEndian>(1); // has nulls
-        let _ = buf.write_u32::<BigEndian>(member_type.to_oid());
+        try!(w.write_be_i32(1)); // number of dimensions
+        try!(w.write_be_i32(1)); // has nulls
+        try!(w.write_be_u32(member_type.to_oid()));
 
-        let _ = buf.write_i32::<BigEndian>(self.0.len() as i32);
-        let _ = buf.write_i32::<BigEndian>(0); // index offset
+        try!(w.write_be_i32(self.0.len() as i32));
+        try!(w.write_be_i32(0)); // index offset
 
         for e in self.0 {
-            match try!(e.to_sql(&member_type)) {
-                Some(inner_buf) => {
-                    let _ = buf.write_i32::<BigEndian>(inner_buf.len() as i32);
-                    let _ = buf.write_all(&inner_buf);
+            let mut inner_buf = vec![];
+            match try!(e.to_sql(&member_type, &mut inner_buf)) {
+                IsNull::No => {
+                    try!(w.write_be_i32(inner_buf.len() as i32));
+                    try!(w.write_all(&inner_buf));
                 }
-                None => {
-                    let _ = buf.write_i32::<BigEndian>(-1);
-                }
+                IsNull::Yes => try!(w.write_be_i32(-1)),
             }
         }
 
-        Ok(Some(buf))
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match ty.kind() {
+            &Kind::Array(..) => true,
+            _ => false,
+        }
     }
 }

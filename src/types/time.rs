@@ -1,6 +1,6 @@
 use time::Timespec;
 use Result;
-use types::{Type, FromSql, RawToSql};
+use types::{Type, FromSql, ToSql, IsNull};
 
 const USEC_PER_SEC: i64 = 1_000_000;
 const NSEC_PER_USEC: i64 = 1_000;
@@ -25,12 +25,13 @@ impl FromSql for Timespec {
     accepts!(Type::Timestamp, Type::TimestampTZ);
 }
 
-impl RawToSql for Timespec {
-    fn raw_to_sql<W: Writer>(&self, _: &Type, w: &mut W) -> Result<()> {
+impl ToSql for Timespec {
+    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
-        Ok(try!(w.write_be_i64(t)))
+        try!(w.write_be_i64(t));
+        Ok(IsNull::No)
     }
+
+    accepts!(Type::Timestamp, Type::TimestampTZ);
+    to_sql_checked!();
 }
-
-to_raw_to_impl!(Type::Timestamp, Type::TimestampTZ; Timespec);
-
