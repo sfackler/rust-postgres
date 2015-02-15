@@ -22,7 +22,7 @@ path = "tests/test.rs"
 [dependencies]
 phf = "0.6"
 phf_macros = "0.6"
-openssl = "0.3.0"
+openssl = "0.4.0"
 time = "0.1.14"
 log = "0.2"
 rustc-serialize = "0.2"
