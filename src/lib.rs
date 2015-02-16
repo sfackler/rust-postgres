@@ -396,6 +396,7 @@ struct InnerConnection {
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Type>,
     cached_statements: HashMap<String, CachedStatement>,
+    parameters: HashMap<String, String>,
     next_stmt_id: u32,
     trans_depth: u32,
     canary: u32,
@@ -429,6 +430,7 @@ impl InnerConnection {
             cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
             cached_statements: HashMap::new(),
+            parameters: HashMap::new(),
             desynchronized: false,
             finished: false,
             trans_depth: 0,
@@ -512,7 +514,7 @@ impl InnerConnection {
                 Ok(None)
             }
             ParameterStatus { parameter, value } => {
-                debug!("Parameter {} = {}", parameter, value);
+                self.parameters.insert(parameter, value);
                 Ok(None)
             }
             val => Ok(Some(val))
@@ -1108,6 +1110,11 @@ impl Connection {
         self.conn.borrow().cancel_data
     }
 
+    /// Returns the value of the specified parameter.
+    pub fn parameter(&self, param: &str) -> Option<String> {
+        self.conn.borrow().parameters.get(param).cloned()
+    }
+
     /// Returns whether or not the stream has been desynchronized due to an
     /// error in the communication channel with the server.
     ///
@@ -1241,6 +1248,11 @@ impl<'conn> Transaction<'conn> {
             depth: self.depth + 1,
             finished: false,
         })
+    }
+
+    /// Returns a reference to the `Transaction`'s `Connection`.
+    pub fn connection(&self) -> &'conn Connection {
+        self.conn
     }
 
     /// Like `Connection::is_active`.

@@ -910,3 +910,10 @@ fn test_is_active() {
     or_panic!(trans.finish());
     assert!(conn.is_active());
 }
+
+#[test]
+fn test_parameter() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    assert_eq!(Some("UTF8".to_string()), conn.parameter("client_encoding"));
+    assert_eq!(None, conn.parameter("asdf"));
+}
