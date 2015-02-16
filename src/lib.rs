@@ -1693,6 +1693,18 @@ impl<'stmt> Row<'stmt> {
             Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err)
         }
     }
+
+    /// Retrieves the specified field as a raw buffer of Postgres data.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the index does not references a column.
+    pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]> where I: RowIndex + fmt::Debug {
+        match idx.idx(self.stmt) {
+            Some(idx) => self.data[idx].as_ref().map(|e| &**e),
+            None => panic!("invalid index {:?}", idx),
+        }
+    }
 }
 
 /// A trait implemented by types that can index into columns of a row.

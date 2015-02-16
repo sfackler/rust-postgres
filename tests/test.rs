@@ -917,3 +917,11 @@ fn test_parameter() {
     assert_eq!(Some("UTF8".to_string()), conn.parameter("client_encoding"));
     assert_eq!(None, conn.parameter("asdf"));
 }
+
+#[test]
+fn test_get_bytes() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let stmt = or_panic!(conn.prepare("SELECT '\\x00010203'::BYTEA"));
+    let mut result = or_panic!(stmt.query(&[]));
+    assert_eq!(b"\x00\x01\x02\x03", result.next().unwrap().get_bytes(0).unwrap());
+}
