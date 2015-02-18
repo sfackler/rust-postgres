@@ -6,7 +6,7 @@ use {Type, ToSql, Result, Error, Kind};
 ///
 /// `Slice`'s `ToSql` implementation maps the slice to a one-dimensional
 /// Postgres array of the relevant type. This is particularly useful with the
-/// `ANY` operator to match a column against multiple values without having
+/// `ANY` function to match a column against multiple values without having
 /// to dynamically construct the query string.
 ///
 /// # Examples
@@ -27,7 +27,7 @@ pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
         let member_type = match ty.kind() {
-            Kind::Array(member) => member,
+            &Kind::Array(ref member) => member,
             _ => return Err(Error::WrongType(ty.clone())),
         };
 

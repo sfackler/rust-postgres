@@ -253,12 +253,15 @@ macro_rules! make_postgres_type {
             }
 
             /// The kind of this type
-            pub fn kind(&self) -> Kind {
+            pub fn kind(&self) -> &Kind {
                 match *self {
                     $(
-                        Type::$variant => $kind,
+                        Type::$variant => {
+                            const V: &'static Kind = &$kind;
+                            V
+                        }
                     )+
-                    Type::Unknown(ref u) => u.kind().clone(),
+                    Type::Unknown(ref u) => u.kind(),
                 }
             }
         }
