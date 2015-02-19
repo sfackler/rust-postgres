@@ -234,7 +234,7 @@ make_postgres_type! {
     #[doc="BOOL - boolean, 'true'/'false'"]
     16 => Bool: Kind::Simple,
     #[doc="BYTEA - variable-length string, binary values escaped"]
-    17 => ByteA: Kind::Simple,
+    17 => Bytea: Kind::Simple,
     #[doc="\"char\" - single character"]
     18 => Char: Kind::Simple,
     #[doc="NAME - 63-byte type for storing system identifiers"]
@@ -326,7 +326,7 @@ make_postgres_type! {
     #[doc="BOOL[]"]
     1000 => BoolArray: Kind::Array(Type::Bool),
     #[doc="BYTEA[]"]
-    1001 => ByteAArray: Kind::Array(Type::ByteA),
+    1001 => ByteaArray: Kind::Array(Type::Bytea),
     #[doc="\"char\"[]"]
     1002 => CharArray: Kind::Array(Type::Char),
     #[doc="NAME[]"]
@@ -605,7 +605,7 @@ impl FromSql for Vec<u8> {
         Ok(try!(raw.read_to_end()))
     }
 
-    accepts!(Type::ByteA);
+    accepts!(Type::Bytea);
 }
 
 impl FromSql for String {
@@ -787,7 +787,7 @@ impl RawToSql for IpAddr {
 }
 
 to_raw_to_impl!(Type::Bool; bool);
-to_raw_to_impl!(Type::ByteA; Vec<u8>);
+to_raw_to_impl!(Type::Bytea; Vec<u8>);
 to_raw_to_impl!(Type::Inet, Type::Cidr; IpAddr);
 to_raw_to_impl!(Type::Char; i8);
 to_raw_to_impl!(Type::Int2; i16);
@@ -836,12 +836,12 @@ impl<'a> ToSql for Option<&'a str> {
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
-        check_types!(Type::ByteA; ty);
+        check_types!(Type::Bytea; ty);
         Ok(Some(self.to_vec()))
     }
 }
 
-to_option_impl_lifetime!(Type::ByteA; &'a [u8]);
+to_option_impl_lifetime!(Type::Bytea; &'a [u8]);
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, ty: &Type) -> Result<Option<Vec<u8>>> {
