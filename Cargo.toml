@@ -34,3 +34,6 @@ version = "0.1"
 
 [dev-dependencies]
 url = "0.2"
+
+[profile.dev]
+debug = false
