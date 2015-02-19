@@ -1584,7 +1584,7 @@ pub struct Rows<'stmt> {
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
-               "Rows {{ columns: {:?}, remaining_rows: {:?} }}",
+               "Rows {{ columns: {:?}, rows: {:?} }}",
                self.columns(),
                self.data.len())
     }
