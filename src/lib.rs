@@ -32,7 +32,7 @@
 //!                  &[&me.name, &me.data]).unwrap();
 //!
 //!     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-//!     for row in stmt.query(&[]).unwrap() {
+//!     for row in &stmt.query(&[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
@@ -57,14 +57,16 @@ extern crate time;
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
-use std::borrow::ToOwned;
+use std::borrow::{ToOwned, Cow};
 use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
+use std::iter::IntoIterator;
 use std::old_io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::old_io::net::ip::Port;
 use std::mem;
+use std::slice;
 use std::result;
 use std::time::Duration;
 use time::SteadyTime;
@@ -965,7 +967,7 @@ impl Connection {
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = try!(conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1"));
-    /// for row in try!(stmt.query(&[&x])) {
+    /// for row in &try!(stmt.query(&[&x])) {
     ///     println!("foo: {}", row.get::<_, String>(0));
     /// }
     /// # Ok(()) };
@@ -1127,10 +1129,6 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
-    }
-
-    fn write_messages(&self, messages: &[FrontendMessage]) -> IoResult<()> {
-        self.conn.borrow_mut().write_messages(messages)
     }
 }
 
@@ -1351,16 +1349,12 @@ impl<'conn> Statement<'conn> {
     }
 
     fn inner_query<'a>(&'a self, portal_name: &str, row_limit: i32, params: &[&ToSql])
-                       -> Result<(Rows<'a>, bool)> {
+                       -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
         try!(self.inner_execute(portal_name, row_limit, params));
 
-        let mut result = Rows {
-            stmt: self,
-            data: VecDeque::new(),
-        };
-        let more_rows = try!(result.read_rows());
-
-        Ok((result, more_rows))
+        let mut buf = VecDeque::new();
+        let more_rows = try!(read_rows(&mut self.conn.conn.borrow_mut(), &mut buf));
+        Ok((buf, more_rows))
     }
 
     /// Returns a slice containing the expected parameter types.
@@ -1449,18 +1443,23 @@ impl<'conn> Statement<'conn> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// let mut rows = match stmt.query(&[&baz]) {
+    /// let rows = match stmt.query(&[&baz]) {
     ///     Ok(rows) => rows,
     ///     Err(err) => panic!("Error running query: {:?}", err)
     /// };
-    /// for row in rows {
+    /// for row in &rows {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
-        self.inner_query("", 0, params).map(|t| t.0)
+        self.inner_query("", 0, params).map(|(buf, _)| {
+            Rows {
+                stmt: self,
+                data: buf.into_iter().collect()
+            }
+        })
     }
 
     /// Executes the prepared statement, returning a lazily loaded iterator
@@ -1499,10 +1498,11 @@ impl<'conn> Statement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.name, id);
 
-        self.inner_query(&portal_name, row_limit, params).map(move |(result, more_rows)| {
+        self.inner_query(&portal_name, row_limit, params).map(move |(data, more_rows)| {
             LazyRows {
                 _trans: trans,
-                result: result,
+                stmt: self,
+                data: data,
                 name: portal_name,
                 row_limit: row_limit,
                 more_rows: more_rows,
@@ -1542,10 +1542,44 @@ impl Column {
     }
 }
 
-/// An iterator over the resulting rows of a query.
+fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
+    let more_rows;
+    loop {
+        match try!(conn.read_message()) {
+            EmptyQueryResponse | CommandComplete { .. } => {
+                more_rows = false;
+                break;
+            }
+            PortalSuspended => {
+                more_rows = true;
+                break;
+            }
+            DataRow { row } => buf.push_back(row),
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return ugh_privacy::dberror_new(fields);
+            }
+            CopyInResponse { .. } => {
+                try!(conn.write_messages(&[
+                    CopyFail {
+                        message: "COPY queries cannot be directly executed",
+                    },
+                    Sync]));
+            }
+            _ => {
+                conn.desynchronized = true;
+                return Err(Error::BadResponse);
+            }
+        }
+    }
+    try!(conn.wait_for_ready());
+    Ok(more_rows)
+}
+
+/// The resulting rows of a query.
 pub struct Rows<'stmt> {
     stmt: &'stmt Statement<'stmt>,
-    data: VecDeque<Vec<Option<Vec<u8>>>>,
+    data: Vec<Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> fmt::Debug for Rows<'a> {
@@ -1558,65 +1592,56 @@ impl<'a> fmt::Debug for Rows<'a> {
 }
 
 impl<'stmt> Rows<'stmt> {
-    fn read_rows(&mut self) -> Result<bool> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
-        let more_rows;
-        loop {
-            match try!(conn.read_message()) {
-                EmptyQueryResponse | CommandComplete { .. } => {
-                    more_rows = false;
-                    break;
-                }
-                PortalSuspended => {
-                    more_rows = true;
-                    break;
-                }
-                DataRow { row } => self.data.push_back(row),
-                ErrorResponse { fields } => {
-                    try!(conn.wait_for_ready());
-                    return ugh_privacy::dberror_new(fields);
-                }
-                CopyInResponse { .. } => {
-                    try!(conn.write_messages(&[
-                        CopyFail {
-                            message: "COPY queries cannot be directly executed",
-                        },
-                        Sync]));
-                }
-                _ => {
-                    conn.desynchronized = true;
-                    return Err(Error::BadResponse);
-                }
-            }
-        }
-        try!(conn.wait_for_ready());
-        Ok(more_rows)
-    }
-
     /// Returns a slice describing the columns of the `Rows`.
     pub fn columns(&self) -> &'stmt [Column] {
         self.stmt.columns()
     }
+
+    /// Returns an iterator over the `Row`s.
+    pub fn iter<'a>(&'a self) -> RowsIter<'a> {
+        RowsIter {
+            stmt: self.stmt,
+            iter: self.data.iter()
+        }
+    }
 }
 
-impl<'stmt> Iterator for Rows<'stmt> {
-    type Item = Row<'stmt>;
+impl<'a> IntoIterator for &'a Rows<'a> {
+    type Item = Row<'a>;
+    type IntoIter = RowsIter<'a>;
 
-    #[inline]
-    fn next(&mut self) -> Option<Row<'stmt>> {
-        self.data.pop_front().map(|row| Row { stmt: self.stmt, data: row })
+    fn into_iter(self) -> RowsIter<'a> {
+        self.iter()
+    }
+}
+
+/// An iterator over `Row`s.
+pub struct RowsIter<'a> {
+    stmt: &'a Statement<'a>,
+    iter: slice::Iter<'a, Vec<Option<Vec<u8>>>>,
+}
+
+impl<'a> Iterator for RowsIter<'a> {
+    type Item = Row<'a>;
+
+    fn next(&mut self) -> Option<Row<'a>> {
+        self.iter.next().map(|row| {
+            Row {
+                stmt: self.stmt,
+                data: Cow::Borrowed(row),
+            }
+        })
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.data.len(), Some(self.data.len()))
+        self.iter.size_hint()
     }
 }
 
 /// A single result row of a query.
-pub struct Row<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    data: Vec<Option<Vec<u8>>>
+pub struct Row<'a> {
+    stmt: &'a Statement<'a>,
+    data: Cow<'a, [Option<Vec<u8>>]>
 }
 
 impl<'a> fmt::Debug for Row<'a> {
@@ -1625,14 +1650,14 @@ impl<'a> fmt::Debug for Row<'a> {
     }
 }
 
-impl<'stmt> Row<'stmt> {
+impl<'a> Row<'a> {
     /// Returns the number of values in the row
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
     /// Returns a slice describing the columns of the `Row`.
-    pub fn columns(&self) -> &'stmt [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
     }
 
@@ -1669,7 +1694,7 @@ impl<'stmt> Row<'stmt> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query(&[]).unwrap();
-    /// # let row = result.next().unwrap();
+    /// # let row = result.iter().next().unwrap();
     /// let foo: i32 = row.get(0u);
     /// let bar: String = row.get("bar");
     /// ```
@@ -1720,7 +1745,8 @@ impl<'a> RowIndex for &'a str {
 
 /// A lazily-loaded iterator over the resulting rows of a query
 pub struct LazyRows<'trans, 'stmt> {
-    result: Rows<'stmt>,
+    stmt: &'stmt Statement<'stmt>,
+    data: VecDeque<Vec<Option<Vec<u8>>>>,
     name: String,
     row_limit: i32,
     more_rows: bool,
@@ -1744,34 +1770,36 @@ impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
                 more_rows: {:?} }}",
                self.name,
                self.row_limit,
-               self.result.data.len(),
+               self.data.len(),
                self.more_rows)
     }
 }
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.result.stmt.conn.conn.borrow_mut();
+        let mut conn = self.stmt.conn.conn.borrow_mut();
         check_desync!(conn);
         conn.close_statement(&self.name, b'P')
     }
 
     fn execute(&mut self) -> Result<()> {
-        try!(self.result.stmt.conn.write_messages(&[
+        let mut conn = self.stmt.conn.conn.borrow_mut();
+
+        try!(conn.write_messages(&[
             Execute {
                 portal: &self.name,
                 max_rows: self.row_limit
             },
             Sync]));
-        self.result.read_rows().map(|more_rows| {
+        read_rows(&mut conn, &mut self.data).map(|more_rows| {
             self.more_rows = more_rows;
             ()
         })
     }
 
-    /// Returns a slice describing the columns of the `Rows`.
-    pub fn columns(&self) -> &'stmt [Column] {
-        self.result.stmt.columns()
+    /// Returns a slice describing the columns of the `LazyRows`.
+    pub fn columns(&self) -> &[Column] {
+        self.stmt.columns()
     }
 
     /// Consumes the `LazyRows`, cleaning up associated state.
@@ -1787,17 +1815,22 @@ impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
     type Item = Result<Row<'stmt>>;
 
     fn next(&mut self) -> Option<Result<Row<'stmt>>> {
-        if self.result.data.is_empty() && self.more_rows {
+        if self.data.is_empty() && self.more_rows {
             if let Err(err) = self.execute() {
                 return Some(Err(err));
             }
         }
 
-        self.result.next().map(|r| Ok(r))
+        self.data.pop_front().map(|r| {
+            Ok(Row {
+                stmt: self.stmt,
+                data: Cow::Owned(r),
+            })
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower = self.result.data.len();
+        let lower = self.data.len();
         let upper = if self.more_rows {
             None
         } else {

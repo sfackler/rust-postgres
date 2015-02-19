@@ -19,11 +19,11 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
-        let result = or_panic!(stmt.query(&[])).next().unwrap().get(0);
+        let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
         assert!(val == &result);
 
         let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
-        let result = or_panic!(stmt.query(&[val])).next().unwrap().get(0);
+        let result = or_panic!(stmt.query(&[val])).iter().next().unwrap().get(0);
         assert!(val == &result);
     }
 }
@@ -113,7 +113,7 @@ fn test_bpchar_params() {
     let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
-               res.map(|row| row.get(0)).collect::<Vec<_>>());
+               res.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn test_citext_params() {
     let stmt = or_panic!(conn.prepare("SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id"));
     let res = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec!(Some(1i32), Some(2i32)), res.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec!(Some(1i32), Some(2i32)), res.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -176,14 +176,14 @@ fn test_hstore_params() {
 fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
-    let mut result = or_panic!(stmt.query(&[]));
-    let val: T = result.next().unwrap().get(0);
+    let result = or_panic!(stmt.query(&[]));
+    let val: T = result.iter().next().unwrap().get(0);
     assert!(val.is_nan());
 
     let nan: T = Float::nan();
     let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
-    let mut result = or_panic!(stmt.query(&[&nan]));
-    let val: T = result.next().unwrap().get(0);
+    let result = or_panic!(stmt.query(&[&nan]));
+    let val: T = result.iter().next().unwrap().get(0);
     assert!(val.is_nan())
 }
 
@@ -201,9 +201,9 @@ fn test_f64_nan_param() {
 fn test_pg_database_datname() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
-    let mut result = or_panic!(stmt.query(&[]));
+    let result = or_panic!(stmt.query(&[]));
 
-    let next = result.next().unwrap();
+    let next = result.iter().next().unwrap();
     or_panic!(next.get_opt::<usize, String>(0));
     or_panic!(next.get_opt::<&str, String>("datname"));
 }
@@ -217,7 +217,7 @@ fn test_slice() {
     let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)").unwrap();
     let result = stmt.query(&[&Slice(&[1i32, 3, 4])]).unwrap();
     assert_eq!(&["a".to_string(), "c".to_string(), "d".to_string()][..],
-               result.map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
+               result.iter().map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
 }
 
 #[test]

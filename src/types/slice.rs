@@ -17,7 +17,7 @@ use {Type, ToSql, Result, Error, Kind};
 /// # let conn = Connection::connect("", &SslMode::None).unwrap();
 /// let values = &[1i32, 2, 3, 4, 5, 6];
 /// let stmt = try!(conn.prepare("SELECT * FROM foo WHERE id = ANY($1)"));
-/// for row in try!(stmt.query(&[&Slice(values)])) {
+/// for row in &try!(stmt.query(&[&Slice(values)])) {
 ///     // ...
 /// }
 /// # Ok(()) }

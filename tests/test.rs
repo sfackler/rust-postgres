@@ -83,7 +83,7 @@ fn test_unix_connection() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SHOW unix_socket_directories"));
     let result = or_panic!(stmt.query(&[]));
-    let unix_socket_directories: String = result.map(|row| row.get(0)).next().unwrap();
+    let unix_socket_directories: String = result.iter().map(|row| row.get(0)).next().unwrap();
 
     if unix_socket_directories.is_empty() {
         panic!("can't test connect_unix; unix_socket_directories is empty");
@@ -110,7 +110,7 @@ fn test_transaction_commit() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn test_transaction_commit_finish() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn test_transaction_commit_method() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn test_transaction_rollback() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn test_transaction_rollback_finish() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -215,13 +215,13 @@ fn test_nested_transactions() {
         let stmt = or_panic!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
         let result = or_panic!(stmt.query(&[]));
 
-        assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect::<Vec<_>>());
+        assert_eq!(vec![1i32, 2, 4, 6], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
     }
 
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn test_nested_transactions_finish() {
             let stmt = or_panic!(trans1.prepare("SELECT * FROM foo ORDER BY id"));
             let result = or_panic!(stmt.query(&[]));
 
-            assert_eq!(vec![1i32, 2, 4, 6], result.map(|row| row.get(0)).collect::<Vec<_>>());
+            assert_eq!(vec![1i32, 2, 4, 6], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
         }
 
         assert!(trans1.finish().is_ok());
@@ -276,7 +276,7 @@ fn test_nested_transactions_finish() {
     let stmt = or_panic!(conn.prepare("SELECT * FROM foo ORDER BY id"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i32], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i32], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -302,8 +302,8 @@ fn test_stmt_execute_after_transaction() {
     let trans = or_panic!(conn.transaction());
     let stmt = or_panic!(trans.prepare("SELECT 1"));
     or_panic!(trans.finish());
-    let mut result = or_panic!(stmt.query(&[]));
-    assert_eq!(1i32, result.next().unwrap().get(0));
+    let result = or_panic!(stmt.query(&[]));
+    assert_eq!(1i32, result.iter().next().unwrap().get(0));
 }
 
 #[test]
@@ -324,7 +324,7 @@ fn test_batch_execute() {
     let stmt = or_panic!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![10i64], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -355,7 +355,7 @@ fn test_transaction_batch_execute() {
     let stmt = or_panic!(trans.prepare("SELECT * from foo ORDER BY id"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![10i64], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![10i64], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -367,7 +367,7 @@ fn test_query() {
     let stmt = or_panic!(conn.prepare("SELECT * from foo ORDER BY id"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![1i64, 2], result.map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(vec![1i64, 2], result.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
 #[test]
@@ -475,7 +475,7 @@ fn test_index_named() {
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as val"));
     let result = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![10i32], result.map(|row| row.get("val")).collect::<Vec<_>>());
+    assert_eq!(vec![10i32], result.iter().map(|row| row.get("val")).collect::<Vec<_>>());
 }
 
 #[test]
@@ -483,18 +483,18 @@ fn test_index_named() {
 fn test_index_named_fail() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
-    let mut result = or_panic!(stmt.query(&[]));
+    let result = or_panic!(stmt.query(&[]));
 
-    let _: i32 = result.next().unwrap().get("asdf");
+    let _: i32 = result.iter().next().unwrap().get("asdf");
 }
 
 #[test]
 fn test_get_named_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
-    let mut result = or_panic!(stmt.query(&[]));
+    let result = or_panic!(stmt.query(&[]));
 
-    match result.next().unwrap().get_opt::<&str, i32>("asdf") {
+    match result.iter().next().unwrap().get_opt::<&str, i32>("asdf") {
         Err(Error::InvalidColumn) => {}
         res => panic!("unexpected result {:?}", res),
     };
@@ -504,9 +504,9 @@ fn test_get_named_err() {
 fn test_get_was_null() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT NULL::INT as id"));
-    let mut result = or_panic!(stmt.query(&[]));
+    let result = or_panic!(stmt.query(&[]));
 
-    match result.next().unwrap().get_opt::<usize, i32>(0) {
+    match result.iter().next().unwrap().get_opt::<usize, i32>(0) {
         Err(Error::WasNull) => {}
         res => panic!("unexpected result {:?}", res),
     };
@@ -516,9 +516,9 @@ fn test_get_was_null() {
 fn test_get_off_by_one() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
-    let mut result = or_panic!(stmt.query(&[]));
+    let result = or_panic!(stmt.query(&[]));
 
-    match result.next().unwrap().get_opt::<usize, i32>(1) {
+    match result.iter().next().unwrap().get_opt::<usize, i32>(1) {
         Err(Error::InvalidColumn) => {}
         res => panic!("unexpected result {:?}", res),
     };
@@ -767,7 +767,7 @@ fn test_copy_in() {
 
     let stmt = or_panic!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
     assert_eq!(vec![(0i32, Some("0".to_string())), (1, Some("1".to_string()))],
-               or_panic!(stmt.query(&[])).map(|r| (r.get(0), r.get(1))).collect::<Vec<_>>());
+               or_panic!(stmt.query(&[])).iter().map(|r| (r.get(0), r.get(1))).collect::<Vec<_>>());
 }
 
 #[test]
@@ -880,15 +880,15 @@ fn test_prepare_cached() {
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1), (2)", &[]));
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id DESC"));
-    assert_eq!(&[2, 1][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[2, 1][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 }
 
@@ -923,16 +923,16 @@ fn test_parameter() {
 fn test_get_bytes() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT '\\x00010203'::BYTEA"));
-    let mut result = or_panic!(stmt.query(&[]));
-    assert_eq!(b"\x00\x01\x02\x03", result.next().unwrap().get_bytes(0).unwrap());
+    let result = or_panic!(stmt.query(&[]));
+    assert_eq!(b"\x00\x01\x02\x03", result.iter().next().unwrap().get_bytes(0).unwrap());
 }
 
 #[test]
 fn test_get_opt_wrong_type() {
     let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
     let stmt = conn.prepare("SELECT 1::INT").unwrap();
-    let mut res = stmt.query(&[]).unwrap();
-    match res.next().unwrap().get_opt::<_, String>(0) {
+    let res = stmt.query(&[]).unwrap();
+    match res.iter().next().unwrap().get_opt::<_, String>(0) {
         Ok(_) => panic!("unexpected success"),
         Err(Error::WrongType(Type::Int4)) => {}
         Err(e) => panic!("unexpected error {}", e),
