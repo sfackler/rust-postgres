@@ -865,7 +865,7 @@ fn test_custom_range_element_type() {
                              )", &[]));
     let stmt = or_panic!(trans.prepare("SELECT $1::floatrange"));
     match &stmt.param_types()[0] {
-        &Type::Unknown(ref u) => {
+        &Type::Other(ref u) => {
             assert_eq!("floatrange", u.name());
             assert_eq!(&Kind::Range(Type::Float8), u.kind());
         }

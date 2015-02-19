@@ -780,7 +780,7 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Unknown(Box::new(ugh_privacy::new_unknown(name, oid, kind)));
+        let type_ = Type::Other(Box::new(ugh_privacy::new_other(name, oid, kind)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }

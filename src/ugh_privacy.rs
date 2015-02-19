@@ -9,21 +9,21 @@ use error::{SqlState, ErrorPosition, ConnectError, Error};
 
 /// Information about an unknown type.
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Unknown {
+pub struct Other {
     name: String,
     oid: Oid,
     kind: Kind,
 }
 
-pub fn new_unknown(name: String, oid: Oid, kind: Kind) -> Unknown {
-    Unknown {
+pub fn new_other(name: String, oid: Oid, kind: Kind) -> Other {
+    Other {
         name: name,
         oid: oid,
         kind: kind,
     }
 }
 
-impl Unknown {
+impl Other {
     /// The name of the type.
     pub fn name(&self) -> &str {
         &self.name
