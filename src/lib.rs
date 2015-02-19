@@ -1638,6 +1638,19 @@ impl<'a> Iterator for RowsIter<'a> {
     }
 }
 
+impl<'a> DoubleEndedIterator for RowsIter<'a> {
+    fn next_back(&mut self) -> Option<Row<'a>> {
+        self.iter.next_back().map(|row| {
+            Row {
+                stmt: self.stmt,
+                data: Cow::Borrowed(row),
+            }
+        })
+    }
+}
+
+impl<'a> ExactSizeIterator for RowsIter<'a> {}
+
 /// A single result row of a query.
 pub struct Row<'a> {
     stmt: &'a Statement<'a>,
