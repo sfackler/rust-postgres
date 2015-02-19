@@ -405,7 +405,7 @@ make_postgres_type! {
     1184 => TimestampTZ: Kind::Simple,
     #[doc="TIMESTAMPTZ[]"]
     1185 => TimestampTZArray: Kind::Array(Type::TimestampTZ),
-    #[doc="INTERVAL - @ <number> <units>, time interval"]
+    #[doc="INTERVAL - @ &lt;number&gt; &lt;units&gt;, time interval"]
     1186 => Interval: Kind::Simple,
     #[doc="INTERVAL[]"]
     1187 => IntervalArray: Kind::Array(Type::Interval),
