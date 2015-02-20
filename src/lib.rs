@@ -32,7 +32,7 @@
 //!                  &[&me.name, &me.data]).unwrap();
 //!
 //!     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-//!     for row in &stmt.query(&[]).unwrap() {
+//!     for row in stmt.query(&[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
@@ -62,13 +62,14 @@ use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
-use std::iter::IntoIterator;
+use std::iter::{IntoIterator, RandomAccessIterator};
 use std::old_io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::old_io::net::ip::Port;
 use std::mem;
 use std::slice;
 use std::result;
 use std::time::Duration;
+use std::vec;
 use time::SteadyTime;
 
 use url::Url;
@@ -967,7 +968,7 @@ impl Connection {
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = try!(conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1"));
-    /// for row in &try!(stmt.query(&[&x])) {
+    /// for row in try!(stmt.query(&[&x])) {
     ///     println!("foo: {}", row.get::<_, String>(0));
     /// }
     /// # Ok(()) };
@@ -1603,6 +1604,14 @@ impl<'stmt> Rows<'stmt> {
             iter: self.data.iter()
         }
     }
+
+    /// Consumes the `Rows`, returning an iterator over its `Row`s.
+    pub fn into_iter(self) -> RowsIntoIter<'stmt> {
+        RowsIntoIter {
+            stmt: self.stmt,
+            iter: self.data.into_iter()
+        }
+    }
 }
 
 impl<'a> IntoIterator for &'a Rows<'a> {
@@ -1611,6 +1620,15 @@ impl<'a> IntoIterator for &'a Rows<'a> {
 
     fn into_iter(self) -> RowsIter<'a> {
         self.iter()
+    }
+}
+
+impl<'stmt> IntoIterator for Rows<'stmt> {
+    type Item = Row<'stmt>;
+    type IntoIter = RowsIntoIter<'stmt>;
+
+    fn into_iter(self) -> RowsIntoIter<'stmt> {
+        self.into_iter()
     }
 }
 
@@ -1649,6 +1667,57 @@ impl<'a> DoubleEndedIterator for RowsIter<'a> {
 }
 
 impl<'a> ExactSizeIterator for RowsIter<'a> {}
+
+impl<'a> RandomAccessIterator for RowsIter<'a> {
+    fn indexable(&self) -> usize {
+        self.iter.indexable()
+    }
+
+    fn idx(&mut self, idx: usize) -> Option<Row<'a>> {
+        self.iter.idx(idx).map(|row| {
+            Row {
+                stmt: self.stmt,
+                data: Cow::Borrowed(row),
+            }
+        })
+    }
+}
+
+/// An owning iterator over `Row`s.
+pub struct RowsIntoIter<'stmt> {
+    stmt: &'stmt Statement<'stmt>,
+    iter: vec::IntoIter<Vec<Option<Vec<u8>>>>,
+}
+
+impl<'stmt> Iterator for RowsIntoIter<'stmt> {
+    type Item = Row<'stmt>;
+
+    fn next(&mut self) -> Option<Row<'stmt>> {
+        self.iter.next().map(|row| {
+            Row {
+                stmt: self.stmt,
+                data: Cow::Owned(row),
+            }
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl<'stmt> DoubleEndedIterator for RowsIntoIter<'stmt> {
+    fn next_back(&mut self) -> Option<Row<'stmt>> {
+        self.iter.next_back().map(|row| {
+            Row {
+                stmt: self.stmt,
+                data: Cow::Owned(row),
+            }
+        })
+    }
+}
+
+impl<'stmt> ExactSizeIterator for RowsIntoIter<'stmt> {}
 
 /// A single result row of a query.
 pub struct Row<'a> {
