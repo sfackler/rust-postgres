@@ -243,7 +243,7 @@ fn get_authority(rawurl: &str) ->
     let mut host = "";
     let mut port = None;
 
-    let mut colon_count = 0us;
+    let mut colon_count = 0usize;
     let mut pos = 0;
     let mut begin = 2;
     let mut end = len;
