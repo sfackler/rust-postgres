@@ -88,11 +88,11 @@ fn test_unix_connection() {
         panic!("can't test connect_unix; unix_socket_directories is empty");
     }
 
-    let unix_socket_directory = unix_socket_directories[].split(',').next().unwrap();
+    let unix_socket_directory = unix_socket_directories.split(',').next().unwrap();
 
     let path = url::utf8_percent_encode(unix_socket_directory, url::USERNAME_ENCODE_SET);
     let url = format!("postgres://postgres@{}", path);
-    let conn = or_panic!(Connection::connect(&url[], &SslMode::None));
+    let conn = or_panic!(Connection::connect(&url[..], &SslMode::None));
     assert!(conn.finish().is_ok());
 }
 
@@ -879,15 +879,15 @@ fn test_prepare_cached() {
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1), (2)", &[]));
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id DESC"));
-    assert_eq!(&[2, 1][], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(&[2, 1][..], or_panic!(stmt.query(&[])).map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 }
 
