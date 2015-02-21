@@ -69,7 +69,7 @@ use serialize::hex::ToHex;
 use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::cmp::max;
-use std::collections::{RingBuf, HashMap};
+use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::old_io::{BufferedStream, IoResult, IoError, IoErrorKind};
 use std::old_io::net::ip::Port;
@@ -392,7 +392,7 @@ struct CachedStatement {
 struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
     notice_handler: Box<NoticeHandler>,
-    notifications: RingBuf<Notification>,
+    notifications: VecDeque<Notification>,
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Type>,
     cached_statements: HashMap<String, CachedStatement>,
@@ -426,7 +426,7 @@ impl InnerConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
             notice_handler: Box::new(DefaultNoticeHandler),
-            notifications: RingBuf::new(),
+            notifications: VecDeque::new(),
             cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
             cached_statements: HashMap::new(),
@@ -1374,7 +1374,7 @@ impl<'conn> Statement<'conn> {
 
         let mut result = Rows {
             stmt: self,
-            data: RingBuf::new(),
+            data: VecDeque::new(),
         };
         let more_rows = try!(result.read_rows());
 
@@ -1563,7 +1563,7 @@ impl Column {
 /// An iterator over the resulting rows of a query.
 pub struct Rows<'stmt> {
     stmt: &'stmt Statement<'stmt>,
-    data: RingBuf<Vec<Option<Vec<u8>>>>,
+    data: VecDeque<Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> fmt::Debug for Rows<'a> {
