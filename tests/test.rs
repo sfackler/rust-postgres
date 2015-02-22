@@ -11,7 +11,7 @@ use std::old_io::timer;
 use std::time::Duration;
 use std::thread;
 
-use postgres::{NoticeHandler,
+use postgres::{HandleNotice,
                Notification,
                Connection,
                GenericConnection,
@@ -529,8 +529,8 @@ fn test_custom_notice_handler() {
     static mut count: usize = 0;
     struct Handler;
 
-    impl NoticeHandler for Handler {
-        fn handle(&mut self, notice: DbError) {
+    impl HandleNotice for Handler {
+        fn handle_notice(&mut self, notice: DbError) {
             assert_eq!("note", notice.message());
             unsafe { count += 1; }
         }

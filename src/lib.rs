@@ -193,19 +193,19 @@ impl IntoConnectParams for Url {
 }
 
 /// Trait for types that can handle Postgres notice messages
-pub trait NoticeHandler: Send {
+pub trait HandleNotice: Send {
     /// Handle a Postgres notice message
-    fn handle(&mut self, notice: DbError);
+    fn handle_notice(&mut self, notice: DbError);
 }
 
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
 #[derive(Copy, Debug)]
-pub struct DefaultNoticeHandler;
+pub struct LoggingNoticeHandler;
 
-impl NoticeHandler for DefaultNoticeHandler {
-    fn handle(&mut self, notice: DbError) {
+impl HandleNotice for LoggingNoticeHandler {
+    fn handle_notice(&mut self, notice: DbError) {
         info!("{}: {}", notice.severity(), notice.message());
     }
 }
@@ -384,7 +384,7 @@ struct CachedStatement {
 
 struct InnerConnection {
     stream: BufferedStream<MaybeSslStream<InternalStream>>,
-    notice_handler: Box<NoticeHandler>,
+    notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Type>,
@@ -417,7 +417,7 @@ impl InnerConnection {
         let mut conn = InnerConnection {
             stream: BufferedStream::new(stream),
             next_stmt_id: 0,
-            notice_handler: Box::new(DefaultNoticeHandler),
+            notice_handler: Box::new(LoggingNoticeHandler),
             notifications: VecDeque::new(),
             cancel_data: CancelData { process_id: 0, secret_key: 0 },
             unknown_types: HashMap::new(),
@@ -500,7 +500,7 @@ impl InnerConnection {
         match try_desync!(self, self.stream.read_message()) {
             NoticeResponse { fields } => {
                 if let Ok(err) = ugh_privacy::dberror_new_raw(fields) {
-                    self.notice_handler.handle(err);
+                    self.notice_handler.handle_notice(err);
                 }
                 Ok(None)
             }
@@ -572,7 +572,7 @@ impl InnerConnection {
         }
     }
 
-    fn set_notice_handler(&mut self, handler: Box<NoticeHandler>) -> Box<NoticeHandler> {
+    fn set_notice_handler(&mut self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
         mem::replace(&mut self.notice_handler, handler)
     }
 
@@ -919,7 +919,7 @@ impl Connection {
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: Box<NoticeHandler>) -> Box<NoticeHandler> {
+    pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
