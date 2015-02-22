@@ -336,8 +336,8 @@ fn main() {
 }
 
 fn make_enum(file: &mut BufWriter<File>) {
-    write!(file, r#"
-/// SQLSTATE error codes
+    write!(file,
+r#"/// SQLSTATE error codes
 #[derive(PartialEq, Eq, Clone)]
 #[allow(missing_docs)]
 pub enum SqlState {{
@@ -350,10 +350,10 @@ pub enum SqlState {{
                variant).unwrap();
     }
 
-    write!(file, r#"
-    Unknown(String)
+    write!(file,
+"    Unknown(String)
 }}
-"#
+"
            ).unwrap();
 }
 
@@ -403,13 +403,11 @@ fn make_debug(file: &mut BufWriter<File>) {
     write!(file, r#"
 impl fmt::Debug for SqlState {{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {{
-        let s = match *self {{
-"#
+        let s = match *self {{"#
            ).unwrap();
 
     for &(_, variant) in SQLSTATES {
-        write!(file, r#"
-            SqlState::{0} => "{0}",
+        write!(file, r#"SqlState::{0} => "{0}",
 "#,
                variant).unwrap();
     }
