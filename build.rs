@@ -380,8 +380,7 @@ impl SqlState {{
 
     /// Returns the error code corresponding to the `SqlState`.
     pub fn code(&self) -> &str {{
-        match *self {{
-"#
+        match *self {{"#
            ).unwrap();
 
     for &(code, variant) in SQLSTATES {
@@ -407,8 +406,8 @@ impl fmt::Debug for SqlState {{
            ).unwrap();
 
     for &(_, variant) in SQLSTATES {
-        write!(file, r#"SqlState::{0} => "{0}",
-"#,
+        write!(file, r#"
+            SqlState::{0} => "{0}","#,
                variant).unwrap();
     }
 
