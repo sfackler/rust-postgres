@@ -8,6 +8,7 @@ repository = "https://github.com/sfackler/rust-postgres"
 documentation = "https://sfackler.github.io/rust-postgres/doc/postgres"
 readme = "README.md"
 keywords = ["database", "sql"]
+build = "build.rs"
 
 [lib]
 name = "postgres"
@@ -19,9 +20,11 @@ bench = false
 name = "test"
 path = "tests/test.rs"
 
+[build-dependencies]
+phf_codegen = "0.6.11"
+
 [dependencies]
 phf = "0.6"
-phf_macros = "0.6"
 openssl = "0.4.0"
 time = "0.1.14"
 log = "0.2"

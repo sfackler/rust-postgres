@@ -51,9 +51,8 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(plugin, unsafe_destructor, collections, old_io, io, core, old_path, std_misc)]
+#![feature(unsafe_destructor, collections, old_io, io, core, old_path, std_misc)]
 #![warn(missing_docs)]
-#![plugin(phf_macros)]
 
 extern crate byteorder;
 #[macro_use]
