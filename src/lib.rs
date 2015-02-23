@@ -1497,7 +1497,7 @@ impl<'conn> Statement<'conn> {
         let conn = self.conn.conn.borrow();
         check_desync!(conn);
         assert!(conn.trans_depth == trans.depth,
-                "`lazy_query` may only be called on the active transaction");
+                "`lazy_query` must be passed the active transaction");
         drop(conn);
 
         let id = self.next_portal_id.get();
