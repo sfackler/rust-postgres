@@ -8,12 +8,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::fmt;
 use std::str::FromStr;
 use std::num;
 use std::str;
 
-#[derive(Clone, PartialEq, Eq)]
 pub struct Url {
     pub scheme: String,
     pub user: Option<UserInfo>,
@@ -22,14 +20,12 @@ pub struct Url {
     pub path: Path,
 }
 
-#[derive(Clone, PartialEq, Eq)]
 pub struct Path {
     pub path: String,
     pub query: Query,
     pub fragment: Option<String>
 }
 
-#[derive(Clone, PartialEq, Eq)]
 pub struct UserInfo {
     pub user: String,
     pub pass: Option<String>
@@ -160,15 +156,6 @@ fn split_char_first(s: &str, c: char) -> (&str, &str) {
         (Some(a), Some(b)) => (a, b),
         (Some(a), None) => (a, ""),
         (None, _) => unreachable!(),
-    }
-}
-
-impl fmt::Debug for UserInfo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.pass {
-            Some(ref pass) => write!(f, "{}:{}@", self.user, *pass),
-            None => write!(f, "{}@", self.user),
-        }
     }
 }
 
