@@ -12,9 +12,6 @@ macro_rules! try_desync {
 
 macro_rules! check_desync {
     ($e:expr) => ({
-        if $e.canary() != CANARY {
-            panic!("Connection use after free. See mozilla/rust#13246.");
-        }
         if $e.is_desynchronized() {
             return Err(::Error::StreamDesynchronized);
         }

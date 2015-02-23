@@ -100,7 +100,6 @@ mod url;
 mod util;
 pub mod types;
 
-const CANARY: u32 = 0xdeadbeef;
 const TYPEINFO_QUERY: &'static str = "t";
 
 /// A type alias of the result returned by many methods.
@@ -398,7 +397,6 @@ struct InnerConnection {
     parameters: HashMap<String, String>,
     next_stmt_id: u32,
     trans_depth: u32,
-    canary: u32,
     desynchronized: bool,
     finished: bool,
 }
@@ -433,7 +431,6 @@ impl InnerConnection {
             desynchronized: false,
             finished: false,
             trans_depth: 0,
-            canary: CANARY,
         };
 
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
@@ -797,10 +794,6 @@ impl InnerConnection {
         self.desynchronized
     }
 
-    fn canary(&self) -> u32 {
-        self.canary
-    }
-
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
@@ -840,7 +833,6 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        self.canary = 0;
         try!(self.write_messages(&[Terminate]));
         Ok(())
     }
@@ -1140,10 +1132,6 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
-    }
-
-    fn canary(&self) -> u32 {
-        self.conn.borrow().canary()
     }
 
     fn write_messages(&self, messages: &[FrontendMessage]) -> IoResult<()> {
