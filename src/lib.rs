@@ -656,7 +656,7 @@ impl InnerConnection {
     }
 
     fn prepare_cached<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
-        let stmt = self.cached_statements.get(query).map(|e| e.clone());
+        let stmt = self.cached_statements.get(query).cloned();
 
         let CachedStatement { name, param_types, columns } = match stmt {
             Some(stmt) => stmt,
