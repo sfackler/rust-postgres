@@ -3,7 +3,7 @@ use std::f32;
 use std::f64;
 use std::fmt;
 use std::num::Float;
-use std::old_io::net::ip::IpAddr;
+use std::net::IpAddr;
 
 use postgres::{Connection, SslMode, Slice, Error};
 use postgres::types::{ToSql, FromSql};

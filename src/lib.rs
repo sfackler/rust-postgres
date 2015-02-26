@@ -43,8 +43,10 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, collections, old_io, io, core, old_path, std_misc)]
+#![feature(unsafe_destructor, collections, io, core, net)]
+#![cfg_attr(feature = "unix_socket", feature(path))]
 #![warn(missing_docs)]
+#![no_implicit_prelude]
 
 extern crate byteorder;
 #[macro_use]
@@ -53,43 +55,58 @@ extern crate openssl;
 extern crate phf;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
+#[cfg(feature = "unix_socket")]
+extern crate unix_socket;
+
+use std::option::Option::{self, Some, None};
+use std::result::Result::{Ok, Err};
+use std::boxed::Box;
+use std::vec::Vec;
+use std::clone::Clone;
+use std::string::{String, ToString};
+use std::ops::Drop;
+use std::iter::{Iterator, DoubleEndedIterator, ExactSizeIterator, IteratorExt};
+use std::prelude::v1::drop;
+use std::marker::Send;
+use std::slice::SliceExt;
+use std::str::StrExt;
 
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
 use std::borrow::{ToOwned, Cow};
 use std::cell::{Cell, RefCell};
-use std::cmp::max;
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::iter::{IntoIterator, RandomAccessIterator};
-use std::old_io::{BufferedStream, IoResult, IoError, IoErrorKind};
-use std::old_io::net::ip::Port;
+use std::io::{self, BufStream};
+use std::io::prelude::*;
 use std::mem;
 use std::slice;
 use std::result;
-use std::time::Duration;
 use std::vec;
-use time::SteadyTime;
+use byteorder::{WriteBytesExt, BigEndian};
+#[cfg(feature = "unix_socket")]
+use std::path::PathBuf;
 
-use url::Url;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, Kind, ToSql, FromSql};
 use types::IsNull;
 #[doc(inline)]
 pub use types::Slice;
-use io::{InternalStream, Timeout};
+use io_util::InternalStream;
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
+use url::Url;
 
 #[macro_use]
 mod macros;
 
 mod error;
-mod io;
+mod io_util;
 mod message;
 mod ugh_privacy;
 mod url;
@@ -107,7 +124,10 @@ pub enum ConnectTarget {
     /// Connect via TCP to the specified host.
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
-    Unix(Path)
+    ///
+    /// Only available on Unix platforms with the `unix_socket` feature.
+    #[cfg(feature = "unix_socket")]
+    Unix(PathBuf)
 }
 
 /// Authentication information
@@ -127,7 +147,7 @@ pub struct ConnectParams {
     /// The target port.
     ///
     /// Defaults to 5432 if not specified.
-    pub port: Option<Port>,
+    pub port: Option<u16>,
     /// The user to login as.
     ///
     /// `Connection::connect` requires a user but `cancel_query` does not.
@@ -169,9 +189,19 @@ impl IntoConnectParams for Url {
             ..
         } = self;
 
+        #[cfg(feature = "unix_socket")]
+        fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
+            Ok(ConnectTarget::Unix(PathBuf::new(&maybe_path)))
+        }
+        #[cfg(not(feature = "unix_socket"))]
+        fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
+            Err(ConnectError::InvalidUrl("unix socket support requires the `unix_socket` feature"
+                                         .to_string()))
+        }
+
         let maybe_path = try!(url::decode_component(&host).map_err(ConnectError::InvalidUrl));
         let target = if maybe_path.starts_with("/") {
-            ConnectTarget::Unix(Path::new(maybe_path))
+            try!(make_unix(maybe_path))
         } else {
             ConnectTarget::Tcp(host)
         };
@@ -270,6 +300,7 @@ impl<'conn> Notifications<'conn> {
         }
     }
 
+    /*
     /// Returns the oldest pending notification
     ///
     /// If no notifications are pending, blocks for up to `timeout` time, after
@@ -323,6 +354,7 @@ impl<'conn> Notifications<'conn> {
             }
         }
     }
+    */
 }
 
 /// Contains information necessary to cancel queries for a session
@@ -364,7 +396,7 @@ pub struct CancelData {
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
                        -> result::Result<(), ConnectError> where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
-    let mut socket = try!(io::initialize_stream(&params, ssl));
+    let mut socket = try!(io_util::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
@@ -384,7 +416,7 @@ struct CachedStatement {
 }
 
 struct InnerConnection {
-    stream: BufferedStream<MaybeSslStream<InternalStream>>,
+    stream: BufStream<MaybeSslStream<InternalStream>>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
@@ -409,14 +441,14 @@ impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
-        let stream = try!(io::initialize_stream(&params, ssl));
+        let stream = try!(io_util::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
         let user = try!(user.ok_or(ConnectError::MissingUser));
 
         let mut conn = InnerConnection {
-            stream: BufferedStream::new(stream),
+            stream: BufStream::new(stream),
             next_stmt_id: 0,
             notice_handler: Box::new(LoggingNoticeHandler),
             notifications: VecDeque::new(),
@@ -488,7 +520,7 @@ impl InnerConnection {
         }
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> IoResult<()> {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) -> io::Result<()> {
         debug_assert!(!self.desynchronized);
         for message in messages {
             try_desync!(self, self.stream.write_message(message));
@@ -496,7 +528,7 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_one_message(&mut self) -> IoResult<Option<BackendMessage>> {
+    fn read_one_message(&mut self) -> io::Result<Option<BackendMessage>> {
         debug_assert!(!self.desynchronized);
         match try_desync!(self, self.stream.read_message()) {
             NoticeResponse { fields } => {
@@ -513,7 +545,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification(&mut self) -> IoResult<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> io::Result<BackendMessage> {
         loop {
             if let Some(msg) = try!(self.read_one_message()) {
                 return Ok(msg);
@@ -521,7 +553,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> IoResult<BackendMessage> {
+    fn read_message(&mut self) -> io::Result<BackendMessage> {
         loop {
             match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {
@@ -874,12 +906,13 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// To connect to the server via Unix sockets, `host` should be set to the
-    /// absolute path of the directory containing the socket file. Since `/` is
-    /// a reserved character in URLs, the path should be URL encoded.  If the
-    /// path contains non-UTF 8 characters, a `ConnectParams` struct
-    /// should be created manually and passed in. Note that Postgres does not
-    /// support SSL over Unix sockets.
+    /// Connection via Unix sockets is supported with the `unix_sockets`
+    /// feature. To connect to the server via Unix sockets, `host` should be
+    /// set to the absolute path of the directory containing the socket file.
+    /// Since `/` is a reserved character in URLs, the path should be URL
+    /// encoded. If the path contains non-UTF 8 characters, a `ConnectParams`
+    /// struct should be created manually and passed in. Note that Postgres
+    /// does not support SSL over Unix sockets.
     ///
     /// ## Examples
     ///
@@ -902,6 +935,7 @@ impl Connection {
     /// ```rust,no_run
     /// # #![allow(unstable)]
     /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget, ConnectError};
+    /// # #[cfg(feature = "unix_socket")]
     /// # fn f() -> Result<(), ConnectError> {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
@@ -2054,11 +2088,11 @@ impl<'a> CopyInStatement<'a> {
 
         let mut buf = vec![];
         let _ = buf.write_all(b"PGCOPY\n\xff\r\n\x00");
-        let _ = buf.write_be_i32(0);
-        let _ = buf.write_be_i32(0);
+        let _ = buf.write_i32::<BigEndian>(0);
+        let _ = buf.write_i32::<BigEndian>(0);
 
         'l: for mut row in rows {
-            let _ = buf.write_be_i16(self.column_types.len() as i16);
+            let _ = buf.write_i16::<BigEndian>(self.column_types.len() as i16);
 
             let mut types = self.column_types.iter();
             loop {
@@ -2067,10 +2101,10 @@ impl<'a> CopyInStatement<'a> {
                         let mut inner_buf = vec![];
                         match val.to_sql_checked(ty, &mut inner_buf) {
                             Ok(IsNull::Yes) => {
-                                let _ = buf.write_be_i32(-1);
+                                let _ = buf.write_i32::<BigEndian>(-1);
                             }
                             Ok(IsNull::No) => {
-                                let _ = buf.write_be_i32(inner_buf.len() as i32);
+                                let _ = buf.write_i32::<BigEndian>(inner_buf.len() as i32);
                                 let _ = buf.write_all(&inner_buf);
                             }
                             Err(err) => {
@@ -2101,7 +2135,7 @@ impl<'a> CopyInStatement<'a> {
             buf.clear();
         }
 
-        let _ = buf.write_be_i16(-1);
+        let _ = buf.write_i16::<BigEndian>(-1);
         try!(conn.write_messages(&[
             CopyData {
                 data: &buf,

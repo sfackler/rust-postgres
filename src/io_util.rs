@@ -1,69 +1,53 @@
+use std::option::Option::None;
+use std::result::Result::{self, Ok, Err};
+#[cfg(feature = "unix_socket")]
+use std::clone::Clone;
+
 use openssl::ssl::{SslStream, MaybeSslStream};
-use std::old_io::BufferedStream;
-use std::old_io::net::ip::Port;
-use std::old_io::net::tcp::TcpStream;
-use std::old_io::net::pipe::UnixStream;
-use std::old_io::{IoResult, Stream};
+use std::io;
+use std::io::prelude::*;
+use std::net::TcpStream;
+#[cfg(feature = "unix_socket")]
+use unix_socket::UnixStream;
+use byteorder::ReadBytesExt;
 
 use {ConnectParams, SslMode, ConnectTarget, ConnectError};
 use message;
 use message::WriteMessage;
 use message::FrontendMessage::SslRequest;
 
-const DEFAULT_PORT: Port = 5432;
-
-#[doc(hidden)]
-pub trait Timeout {
-    fn set_read_timeout(&mut self, timeout_ms: Option<u64>);
-}
-
-impl<S: Stream+Timeout> Timeout for MaybeSslStream<S> {
-    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
-        self.get_mut().set_read_timeout(timeout_ms);
-    }
-}
-
-impl<S: Stream+Timeout> Timeout for BufferedStream<S> {
-    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
-        self.get_mut().set_read_timeout(timeout_ms);
-    }
-}
+const DEFAULT_PORT: u16 = 5432;
 
 pub enum InternalStream {
     Tcp(TcpStream),
+    #[cfg(feature = "unix_socket")]
     Unix(UnixStream),
 }
 
-impl Reader for InternalStream {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl Read for InternalStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.read(buf),
+            #[cfg(feature = "unix_socket")]
             InternalStream::Unix(ref mut s) => s.read(buf),
         }
     }
 }
 
-impl Writer for InternalStream {
-    fn write_all(&mut self, buf: &[u8]) -> IoResult<()> {
+impl Write for InternalStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
-            InternalStream::Tcp(ref mut s) => s.write_all(buf),
-            InternalStream::Unix(ref mut s) => s.write_all(buf),
+            InternalStream::Tcp(ref mut s) => s.write(buf),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref mut s) => s.write(buf),
         }
     }
 
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.flush(),
+            #[cfg(feature = "unix_socket")]
             InternalStream::Unix(ref mut s) => s.flush(),
-        }
-    }
-}
-
-impl Timeout for InternalStream {
-    fn set_read_timeout(&mut self, timeout_ms: Option<u64>) {
-        match *self {
-            InternalStream::Tcp(ref mut s) => s.set_read_timeout(timeout_ms),
-            InternalStream::Unix(ref mut s) => s.set_read_timeout(timeout_ms),
         }
     }
 }
@@ -72,11 +56,12 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     match params.target {
         ConnectTarget::Tcp(ref host) => {
-            Ok(try!(TcpStream::connect((&**host, port)).map(InternalStream::Tcp)))
+            Ok(try!(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)))
         }
+        #[cfg(feature = "unix_socket")]
         ConnectTarget::Unix(ref path) => {
             let mut path = path.clone();
-            path.push(format!(".s.PGSQL.{}", port));
+            path.push(&format!(".s.PGSQL.{}", port));
             Ok(try!(UnixStream::connect(&path).map(InternalStream::Unix)))
         }
     }

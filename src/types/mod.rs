@@ -1,9 +1,21 @@
 //! Traits dealing with Postgres data types
 pub use self::slice::Slice;
 
+use std::option::Option::{self, Some, None};
+use std::result::Result::{Ok, Err};
+use std::boxed::Box;
+use std::vec::Vec;
+use std::clone::Clone;
+use std::string::String;
+use std::iter::ExactSizeIterator;
+use std::marker::Sized;
+use std::str::StrExt;
+
 use std::collections::HashMap;
-use std::old_io::net::ip::IpAddr;
+use std::net::IpAddr;
 use std::fmt;
+use std::io::prelude::*;
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 use Result;
 use error::Error;
@@ -25,7 +37,7 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &Type, out: &mut Writer) -> Result<IsNull> {
+        fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
             if !<Self as ToSql>::accepts(ty) {
                 return Err($crate::Error::WrongType(ty.clone()));
             }
@@ -440,9 +452,9 @@ make_postgres_type! {
 
 /// A trait for types that can be created from a Postgres value.
 pub trait FromSql: Sized {
-    /// Creates a new value of this type from a `Reader` of Postgres data.
+    /// Creates a new value of this type from a `Read` of Postgres data.
     ///
-    /// If the value was `NULL`, the `Reader` will be `None`.
+    /// If the value was `NULL`, the `Read` will be `None`.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
@@ -450,19 +462,19 @@ pub trait FromSql: Sized {
     /// The default implementation calls `FromSql::from_sql` when `raw` is
     /// `Some` and returns `Err(Error::WasNull)` when `raw` is `None`. It does
     /// not typically need to be overridden.
-    fn from_sql_nullable<R: Reader>(ty: &Type, raw: Option<&mut R>) -> Result<Self> {
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Self> {
         match raw {
             Some(raw) => FromSql::from_sql(ty, raw),
             None => Err(Error::WasNull),
         }
     }
 
-    /// Creates a new value of this type from a `Reader` of the binary format
+    /// Creates a new value of this type from a `Read` of the binary format
     /// of the specified Postgres `Type`.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
-    fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Self>;
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Self>;
 
     /// Determines if a value of this type can be created from the specified
     /// Postgres `Type`.
@@ -470,14 +482,14 @@ pub trait FromSql: Sized {
 }
 
 impl<T: FromSql> FromSql for Option<T> {
-    fn from_sql_nullable<R: Reader>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
         match raw {
             Some(raw) => <T as FromSql>::from_sql(ty, raw).map(|e| Some(e)),
             None => Ok(None),
         }
     }
 
-    fn from_sql<R: Reader>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
         <T as FromSql>::from_sql(ty, raw).map(|e| Some(e))
     }
 
@@ -487,7 +499,7 @@ impl<T: FromSql> FromSql for Option<T> {
 }
 
 impl FromSql for bool {
-    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<bool> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<bool> {
         Ok(try!(raw.read_u8()) != 0)
     }
 
@@ -495,16 +507,20 @@ impl FromSql for bool {
 }
 
 impl FromSql for Vec<u8> {
-    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
-        Ok(try!(raw.read_to_end()))
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
+        let mut buf = vec![];
+        try!(raw.read_to_end(&mut buf));
+        Ok(buf)
     }
 
     accepts!(Type::Bytea);
 }
 
 impl FromSql for String {
-    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<String> {
-        String::from_utf8(try!(raw.read_to_end())).map_err(|_| Error::BadResponse)
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<String> {
+        let mut buf = vec![];
+        try!(raw.read_to_end(&mut buf));
+        String::from_utf8(buf).map_err(|_| Error::BadResponse)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -519,8 +535,8 @@ impl FromSql for String {
 macro_rules! primitive_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
-            fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<$t> {
-                Ok(try!(raw.$f()))
+            fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<$t> {
+                Ok(try!(raw.$f::<BigEndian>()))
             }
 
             accepts!($($expected),+);
@@ -528,16 +544,23 @@ macro_rules! primitive_from {
     }
 }
 
-primitive_from!(i8, read_i8, Type::Char);
-primitive_from!(i16, read_be_i16, Type::Int2);
-primitive_from!(i32, read_be_i32, Type::Int4);
-primitive_from!(u32, read_be_u32, Type::Oid);
-primitive_from!(i64, read_be_i64, Type::Int8);
-primitive_from!(f32, read_be_f32, Type::Float4);
-primitive_from!(f64, read_be_f64, Type::Float8);
+impl FromSql for i8 {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<i8> {
+        Ok(try!(raw.read_i8()))
+    }
+
+    accepts!(Type::Char);
+}
+
+primitive_from!(i16, read_i16, Type::Int2);
+primitive_from!(i32, read_i32, Type::Int4);
+primitive_from!(u32, read_u32, Type::Oid);
+primitive_from!(i64, read_i64, Type::Int8);
+primitive_from!(f32, read_f32, Type::Float4);
+primitive_from!(f64, read_f64, Type::Float8);
 
 impl FromSql for IpAddr {
-    fn from_sql<R: Reader>(_: &Type, raw: &mut R) -> Result<IpAddr> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<IpAddr> {
         let family = try!(raw.read_u8());
         let _bits = try!(raw.read_u8());
         let _is_cidr = try!(raw.read_u8());
@@ -545,20 +568,24 @@ impl FromSql for IpAddr {
         if nb > 16 {
             return Err(Error::BadResponse);
         }
-        let mut buf = [0u8; 16];
-        try!(raw.read_at_least(nb as usize, &mut buf));
-        let mut buf: &[u8] = &buf;
 
         match family {
-            2 if nb == 4 => Ok(IpAddr::Ipv4Addr(buf[0], buf[1], buf[2], buf[3])),
-            3 if nb == 16 => Ok(IpAddr::Ipv6Addr(try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()),
-                                                 try!(buf.read_be_u16()))),
+            2 if nb == 4 => {
+                Ok(IpAddr::new_v4(try!(raw.read_u8()),
+                                  try!(raw.read_u8()),
+                                  try!(raw.read_u8()),
+                                  try!(raw.read_u8())))
+            }
+            3 if nb == 16 => {
+                Ok(IpAddr::new_v6(try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>()),
+                                  try!(raw.read_u16::<BigEndian>())))
+            }
             _ => Err(Error::BadResponse),
         }
     }
@@ -567,25 +594,27 @@ impl FromSql for IpAddr {
 }
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql<R: Reader>(_: &Type, raw: &mut R)
+    fn from_sql<R: Read>(_: &Type, raw: &mut R)
             -> Result<HashMap<String, Option<String>>> {
         let mut map = HashMap::new();
 
-        let count = try!(raw.read_be_i32());
+        let count = try!(raw.read_i32::<BigEndian>());
 
-        for _ in range(0, count) {
-            let key_len = try!(raw.read_be_i32());
-            let key = try!(raw.read_exact(key_len as usize));
+        for _ in 0..count {
+            let key_len = try!(raw.read_i32::<BigEndian>());
+            let mut key = vec![];
+            try!(raw.take(key_len as u64).read_to_end(&mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
                 Err(_) => return Err(Error::BadResponse),
             };
 
-            let val_len = try!(raw.read_be_i32());
+            let val_len = try!(raw.read_i32::<BigEndian>());
             let val = if val_len < 0 {
                 None
             } else {
-                let val = try!(raw.read_exact(val_len as usize));
+                let mut val = vec![];
+                try!(raw.take(val_len as u64).read_to_end(&mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
                     Err(_) => return Err(Error::BadResponse),
@@ -626,7 +655,7 @@ pub trait ToSql {
     /// `NULL`. If this is the case, implementations **must not** write
     /// anything to `out`.
     fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull>
-            where Self: Sized, W: Writer;
+            where Self: Sized, W: Write;
 
     /// Determines if a value of this type can be converted to the specified
     /// Postgres `Type`.
@@ -636,13 +665,13 @@ pub trait ToSql {
     ///
     /// *All* implementations of this method should be generated by the
     /// `to_sql_checked!()` macro.
-    fn to_sql_checked(&self, ty: &Type, out: &mut Writer) -> Result<IsNull>;
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull>;
 }
 
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
         match *self {
             Some(ref val) => val.to_sql(ty, out),
             None => Ok(IsNull::Yes),
@@ -657,7 +686,7 @@ impl<T: ToSql> ToSql for Option<T> {
 impl ToSql for bool {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
         try!(w.write_u8(*self as u8));
         Ok(IsNull::No)
     }
@@ -668,7 +697,7 @@ impl ToSql for bool {
 impl<'a> ToSql for &'a [u8] {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         try!(w.write_all(*self));
         Ok(IsNull::No)
     }
@@ -679,7 +708,7 @@ impl<'a> ToSql for &'a [u8] {
 impl ToSql for Vec<u8> {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
         (&**self).to_sql(ty, w)
     }
 
@@ -691,7 +720,7 @@ impl ToSql for Vec<u8> {
 impl<'a> ToSql for &'a str {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
         Ok(IsNull::No)
     }
@@ -708,7 +737,7 @@ impl<'a> ToSql for &'a str {
 impl ToSql for String {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
         (&**self).to_sql(ty, w)
     }
 
@@ -722,8 +751,8 @@ macro_rules! to_primitive {
         impl ToSql for $t {
             to_sql_checked!();
 
-            fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
-                try!(w.$f(*self));
+            fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+                try!(w.$f::<BigEndian>(*self));
                 Ok(IsNull::No)
             }
 
@@ -732,20 +761,31 @@ macro_rules! to_primitive {
     }
 }
 
-to_primitive!(i8, write_i8, Type::Char);
-to_primitive!(i16, write_be_i16, Type::Int2);
-to_primitive!(i32, write_be_i32, Type::Int4);
-to_primitive!(u32, write_be_u32, Type::Oid);
-to_primitive!(i64, write_be_i64, Type::Int8);
-to_primitive!(f32, write_be_f32, Type::Float4);
-to_primitive!(f64, write_be_f64, Type::Float8);
+impl ToSql for i8 {
+    to_sql_checked!();
+
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+        try!(w.write_i8(*self));
+        Ok(IsNull::No)
+    }
+
+    accepts!(Type::Char);
+}
+
+to_primitive!(i16, write_i16, Type::Int2);
+to_primitive!(i32, write_i32, Type::Int4);
+to_primitive!(u32, write_u32, Type::Oid);
+to_primitive!(i64, write_i64, Type::Int8);
+to_primitive!(f32, write_f32, Type::Float4);
+to_primitive!(f64, write_f64, Type::Float8);
 
 impl ToSql for IpAddr {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
         match *self {
-            IpAddr::Ipv4Addr(a, b, c, d) => {
+            IpAddr::V4(addr) => {
+                let [a, b, c, d] = addr.octets();
                 try!(w.write_all(&[2, // family
                                    32, // bits
                                    0, // is_cidr
@@ -753,20 +793,21 @@ impl ToSql for IpAddr {
                                    a, b, c, d // addr
                                   ]));
             }
-            IpAddr::Ipv6Addr(a, b, c, d, e, f, g, h) => {
+            IpAddr::V6(addr) => {
+                let [a, b, c, d, e, f, g, h] = addr.segments();
                 try!(w.write_all(&[3, // family
                                    128, // bits
                                    0, // is_cidr
                                    16, // nb
                                   ]));
-                try!(w.write_be_u16(a));
-                try!(w.write_be_u16(b));
-                try!(w.write_be_u16(c));
-                try!(w.write_be_u16(d));
-                try!(w.write_be_u16(e));
-                try!(w.write_be_u16(f));
-                try!(w.write_be_u16(g));
-                try!(w.write_be_u16(h));
+                try!(w.write_u16::<BigEndian>(a));
+                try!(w.write_u16::<BigEndian>(b));
+                try!(w.write_u16::<BigEndian>(c));
+                try!(w.write_u16::<BigEndian>(d));
+                try!(w.write_u16::<BigEndian>(e));
+                try!(w.write_u16::<BigEndian>(f));
+                try!(w.write_u16::<BigEndian>(g));
+                try!(w.write_u16::<BigEndian>(h));
             }
         }
         Ok(IsNull::No)
@@ -778,19 +819,19 @@ impl ToSql for IpAddr {
 impl ToSql for HashMap<String, Option<String>> {
     to_sql_checked!();
 
-    fn to_sql<W: Writer+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
-        try!(w.write_be_i32(self.len() as i32));
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+        try!(w.write_i32::<BigEndian>(self.len() as i32));
 
         for (key, val) in self.iter() {
-            try!(w.write_be_i32(key.len() as i32));
+            try!(w.write_i32::<BigEndian>(key.len() as i32));
             try!(w.write_all(key.as_bytes()));
 
             match *val {
                 Some(ref val) => {
-                    try!(w.write_be_i32(val.len() as i32));
+                    try!(w.write_i32::<BigEndian>(val.len() as i32));
                     try!(w.write_all(val.as_bytes()));
                 }
-                None => try!(w.write_be_i32(-1))
+                None => try!(w.write_i32::<BigEndian>(-1))
             }
         }
 

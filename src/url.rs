@@ -7,7 +7,15 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
+use std::option::Option::{self, Some, None};
+use std::result::Result::{self, Ok, Err};
+use std::vec::Vec;
+use std::string::{String, ToString};
+use std::iter::{Iterator, IteratorExt, ExactSizeIterator};
+use std::slice::SliceExt;
+use std::str::{Str, StrExt};
 
+use std::io::prelude::*;
 use std::str::FromStr;
 use std::num;
 use std::str;

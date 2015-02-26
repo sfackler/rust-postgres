@@ -1,4 +1,4 @@
-#![feature(core, std_misc, old_io)]
+#![feature(core, std_misc, old_io, net)]
 
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
@@ -79,6 +79,7 @@ fn test_connection_finish() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "unix_socket"), ignore)]
 fn test_unix_connection() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SHOW unix_socket_directories"));
@@ -609,6 +610,7 @@ fn test_notifications_next_block() {
     }, or_panic!(notifications.next_block()));
 }
 
+/*
 #[test]
 fn test_notifications_next_block_for() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
@@ -648,6 +650,7 @@ fn test_notifications_next_block_for_timeout() {
 
     or_panic!(conn.execute("SELECT 1", &[]));
 }
+*/
 
 #[test]
 // This test is pretty sad, but I don't think there's a better way :(

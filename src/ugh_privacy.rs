@@ -1,3 +1,10 @@
+use std::option::Option::{self, Some, None};
+use std::result::Result::{Ok, Err};
+use std::vec::Vec;
+use std::string::String;
+use std::iter::IteratorExt;
+use std::str::StrExt;
+
 use std::collections::HashMap;
 use std::error;
 use std::fmt;
