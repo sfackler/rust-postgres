@@ -25,7 +25,7 @@ pub use ugh_privacy::Other;
 #[macro_export]
 macro_rules! accepts {
     ($($expected:pat),+) => (
-        fn accepts(ty: &::types::Type) -> bool {
+        fn accepts(ty: &$crate::types::Type) -> bool {
             match *ty {
                 $($expected)|+ => true,
                 _ => false
@@ -37,8 +37,9 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
-            if !<Self as ToSql>::accepts(ty) {
+        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write)
+                          -> $crate::Result<$crate::types::IsNull> {
+            if !<Self as $crate::types::ToSql>::accepts(ty) {
                 return Err($crate::Error::WrongType(ty.clone()));
             }
             self.to_sql(ty, out)
