@@ -238,6 +238,12 @@ Support for Postgres ranges is located in the
 
 ## Optional features
 
+### Unix socket connections
+
+Support for connections through Unix domain sockets is provided optionally by
+the `unix_socket` feature. It is only available on "unixy" platforms such as
+OSX, BSD and Linux.
+
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
