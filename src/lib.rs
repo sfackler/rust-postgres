@@ -1913,10 +1913,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
                 max_rows: self.row_limit
             },
             Sync]));
-        read_rows(&mut conn, &mut self.data).map(|more_rows| {
-            self.more_rows = more_rows;
-            ()
-        })
+        read_rows(&mut conn, &mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
