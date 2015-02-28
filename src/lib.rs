@@ -1628,10 +1628,7 @@ pub struct Rows<'stmt> {
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt,
-               "Rows {{ columns: {:?}, rows: {:?} }}",
-               self.columns(),
-               self.data.len())
+        write!(fmt, "Rows {{ columns: {:?}, rows: {:?} }}", self.columns(), self.data.len())
     }
 }
 
@@ -1923,7 +1920,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
-    pub fn columns(&self) -> &[Column] {
+    pub fn columns(&self) -> &'stmt [Column] {
         self.stmt.columns()
     }
 
