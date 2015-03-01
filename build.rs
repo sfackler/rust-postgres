@@ -1,4 +1,4 @@
-#![feature(io, path, fs, env)]
+#![feature(io, path, fs)]
 extern crate phf_codegen;
 
 use std::env;
