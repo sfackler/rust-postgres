@@ -22,6 +22,8 @@ use error::Error;
 
 pub use ugh_privacy::Other;
 
+/// Generates a simple implementation of `ToSql::accepts` which accepts the
+/// types passed to it.
 #[macro_export]
 macro_rules! accepts {
     ($($expected:pat),+) => (
@@ -34,6 +36,9 @@ macro_rules! accepts {
     )
 }
 
+/// Generates an implementation of `ToSql::to_sql_checked`.
+///
+/// All `ToSql` implementations should use this macro.
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
