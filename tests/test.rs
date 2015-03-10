@@ -281,7 +281,7 @@ fn test_nested_transactions_finish() {
 }
 
 #[test]
-#[should_fail(expected = "active transaction")]
+#[should_panic(expected = "active transaction")]
 fn test_conn_trans_when_nested() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _trans = or_panic!(conn.transaction());
@@ -289,7 +289,7 @@ fn test_conn_trans_when_nested() {
 }
 
 #[test]
-#[should_fail(expected = "active transaction")]
+#[should_panic(expected = "active transaction")]
 fn test_trans_with_nested_trans() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let trans = or_panic!(conn.transaction());
@@ -405,7 +405,7 @@ fn test_lazy_query() {
 }
 
 #[test]
-#[should_fail(expected = "same `Connection` as")]
+#[should_panic(expected = "same `Connection` as")]
 fn test_lazy_query_wrong_conn() {
     let conn1 = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let conn2 = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
@@ -457,14 +457,14 @@ fn test_wrong_param_type() {
 }
 
 #[test]
-#[should_fail(expected = "expected 2 parameters but got 1")]
+#[should_panic(expected = "expected 2 parameters but got 1")]
 fn test_too_few_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _ = conn.execute("SELECT $1::INT, $2::INT", &[&1i32]);
 }
 
 #[test]
-#[should_fail(expected = "expected 2 parameters but got 3")]
+#[should_panic(expected = "expected 2 parameters but got 3")]
 fn test_too_many_params() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let _ = conn.execute("SELECT $1::INT, $2::INT", &[&1i32, &2i32, &3i32]);
@@ -480,7 +480,7 @@ fn test_index_named() {
 }
 
 #[test]
-#[should_fail]
+#[should_panic]
 fn test_index_named_fail() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
