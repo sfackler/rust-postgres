@@ -37,7 +37,7 @@ version = "0.1"
 
 [dependencies.unix_socket]
 optional = true
-version = "0.1"
+version = "0.2"
 
 [dev-dependencies]
 url = "0.2"
