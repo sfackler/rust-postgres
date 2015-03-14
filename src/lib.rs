@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, collections, io, core, net)]
+#![feature(unsafe_destructor, collections, io, core, net, debug_builders)]
 #![cfg_attr(feature = "unix_socket", feature(path))]
 #![warn(missing_docs)]
 #![no_implicit_prelude]
@@ -259,7 +259,9 @@ pub struct Notifications<'conn> {
 
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Notifications {{ pending: {} }}", self.conn.conn.borrow().notifications.len())
+        fmt.debug_struct("Notifications")
+            .field("pending", &self.conn.conn.borrow().notifications.len())
+            .finish()
     }
 }
 
@@ -882,14 +884,13 @@ pub struct Connection {
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
-        write!(fmt,
-               "Connection {{ cancel_data: {:?}, notifications: {:?}, transaction_depth: {:?}, \
-                desynchronized: {:?}, cached_statements: {:?} }}",
-               conn.cancel_data,
-               conn.notifications.len(),
-               conn.trans_depth,
-               conn.desynchronized,
-               conn.cached_statements.len())
+        fmt.debug_struct("Connection")
+            .field("cancel_data", &conn.cancel_data)
+            .field("notifications", &conn.notifications.len())
+            .field("transaction_depth", &conn.trans_depth)
+            .field("desynchronized", &conn.desynchronized)
+            .field("cached_statements", &conn.cached_statements.len())
+            .finish()
     }
 }
 
@@ -1196,7 +1197,10 @@ pub struct Transaction<'conn> {
 
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Transaction {{ commit: {:?}, depth: {:?} }}", self.commit.get(), self.depth)
+        fmt.debug_struct("Transaction")
+            .field("commit", &self.commit.get())
+            .field("depth", &self.depth)
+            .finish()
     }
 }
 
@@ -1324,11 +1328,11 @@ pub struct Statement<'conn> {
 
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt,
-               "Statement {{ name: {:?}, parameter_types: {:?}, columns: {:?} }}",
-               self.name,
-               self.param_types,
-               self.columns)
+        fmt.debug_struct("Statement")
+            .field("name", &self.name)
+            .field("parameter_types", &self.param_types)
+            .field("columns", &self.columns)
+            .finish()
     }
 }
 
@@ -1628,7 +1632,10 @@ pub struct Rows<'stmt> {
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Rows {{ columns: {:?}, rows: {:?} }}", self.columns(), self.data.len())
+        fmt.debug_struct("Rows")
+            .field("columns", &self.columns())
+            .field("rows", &self.data.len())
+            .finish()
     }
 }
 
@@ -1768,7 +1775,9 @@ pub struct Row<'a> {
 
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Row {{ statement: {:?} }}", self.stmt)
+        fmt.debug_struct("Row")
+            .field("statement", self.stmt)
+            .finish()
     }
 }
 
@@ -1887,13 +1896,12 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt,
-               "LazyRows {{ name: {:?}, row_limit: {:?}, remaining_rows: {:?}, \
-                more_rows: {:?} }}",
-               self.name,
-               self.row_limit,
-               self.data.len(),
-               self.more_rows)
+        fmt.debug_struct("LazyRows")
+            .field("name", &self.name)
+            .field("row_limit", &self.row_limit)
+            .field("remaining_rows", &self.data.len())
+            .field("more_rows", &self.more_rows)
+            .finish()
     }
 }
 
@@ -1969,8 +1977,10 @@ pub struct CopyInStatement<'a> {
 
 impl<'a> fmt::Debug for CopyInStatement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "CopyInStatement {{ name: {:?}, column_types: {:?} }}",
-               self.name, self.column_types)
+        fmt.debug_struct("CopyInStatement")
+            .field("name", &self.name)
+            .field("column_types", &self.column_types)
+            .finish()
     }
 }
 
