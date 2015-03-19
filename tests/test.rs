@@ -1,4 +1,4 @@
-#![feature(core, std_misc, old_io, net)]
+#![feature(core, std_misc, old_io, thread_sleep)]
 
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
@@ -7,7 +7,6 @@ extern crate openssl;
 
 use openssl::ssl::SslContext;
 use openssl::ssl::SslMethod;
-use std::old_io::timer;
 use std::time::Duration;
 use std::thread;
 
@@ -598,7 +597,7 @@ fn test_notifications_next_block() {
 
     let _t = thread::spawn(|| {
         let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        timer::sleep(Duration::milliseconds(500));
+        thread::sleep(Duration::milliseconds(500));
         or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
     });
 
@@ -659,7 +658,7 @@ fn test_cancel_query() {
     let cancel_data = conn.cancel_data();
 
     let _t = thread::spawn(move || {
-        timer::sleep(Duration::milliseconds(500));
+        thread::sleep(Duration::milliseconds(500));
         assert!(postgres::cancel_query("postgres://postgres@localhost", &SslMode::None,
                                        cancel_data).is_ok());
     });

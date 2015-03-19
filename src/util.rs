@@ -1,10 +1,8 @@
 use std::result::Result::{Ok, Err};
 use std::iter::Iterator;
 use std::string::String;
-use std::str::StrExt;
 use std::iter::IteratorExt;
 use std::option::Option::None;
-use std::slice::SliceExt;
 
 use std::io;
 use std::io::prelude::*;

@@ -203,10 +203,6 @@ types. The driver currently supports the following conversions:
             <td>JSON/JSONB</td>
         </tr>
         <tr>
-            <td>IpAddr</td>
-            <td>INET/CIDR</td>
-        </tr>
-        <tr>
             <td>
                 <a href="https://github.com/rust-lang/time">time::Timespec</a>
                 (<a href="#optional-features">optional</a>)

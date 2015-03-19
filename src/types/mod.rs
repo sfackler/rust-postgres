@@ -9,10 +9,8 @@ use std::clone::Clone;
 use std::string::String;
 use std::iter::ExactSizeIterator;
 use std::marker::Sized;
-use std::str::StrExt;
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
@@ -565,40 +563,6 @@ primitive_from!(i64, read_i64, Type::Int8);
 primitive_from!(f32, read_f32, Type::Float4);
 primitive_from!(f64, read_f64, Type::Float8);
 
-impl FromSql for IpAddr {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<IpAddr> {
-        let family = try!(raw.read_u8());
-        let _bits = try!(raw.read_u8());
-        let _is_cidr = try!(raw.read_u8());
-        let nb = try!(raw.read_u8());
-        if nb > 16 {
-            return Err(Error::BadResponse);
-        }
-
-        match family {
-            2 if nb == 4 => {
-                Ok(IpAddr::new_v4(try!(raw.read_u8()),
-                                  try!(raw.read_u8()),
-                                  try!(raw.read_u8()),
-                                  try!(raw.read_u8())))
-            }
-            3 if nb == 16 => {
-                Ok(IpAddr::new_v6(try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>()),
-                                  try!(raw.read_u16::<BigEndian>())))
-            }
-            _ => Err(Error::BadResponse),
-        }
-    }
-
-    accepts!(Type::Inet, Type::Cidr);
-}
-
 impl FromSql for HashMap<String, Option<String>> {
     fn from_sql<R: Read>(_: &Type, raw: &mut R)
             -> Result<HashMap<String, Option<String>>> {
@@ -784,43 +748,6 @@ to_primitive!(u32, write_u32, Type::Oid);
 to_primitive!(i64, write_i64, Type::Int8);
 to_primitive!(f32, write_f32, Type::Float4);
 to_primitive!(f64, write_f64, Type::Float8);
-
-impl ToSql for IpAddr {
-    to_sql_checked!();
-
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
-        match *self {
-            IpAddr::V4(addr) => {
-                let [a, b, c, d] = addr.octets();
-                try!(w.write_all(&[2, // family
-                                   32, // bits
-                                   0, // is_cidr
-                                   4, // nb
-                                   a, b, c, d // addr
-                                  ]));
-            }
-            IpAddr::V6(addr) => {
-                let [a, b, c, d, e, f, g, h] = addr.segments();
-                try!(w.write_all(&[3, // family
-                                   128, // bits
-                                   0, // is_cidr
-                                   16, // nb
-                                  ]));
-                try!(w.write_u16::<BigEndian>(a));
-                try!(w.write_u16::<BigEndian>(b));
-                try!(w.write_u16::<BigEndian>(c));
-                try!(w.write_u16::<BigEndian>(d));
-                try!(w.write_u16::<BigEndian>(e));
-                try!(w.write_u16::<BigEndian>(f));
-                try!(w.write_u16::<BigEndian>(g));
-                try!(w.write_u16::<BigEndian>(h));
-            }
-        }
-        Ok(IsNull::No)
-    }
-
-    accepts!(Type::Cidr, Type::Inet);
-}
 
 impl ToSql for HashMap<String, Option<String>> {
     to_sql_checked!();

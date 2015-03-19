@@ -3,7 +3,6 @@ use std::f32;
 use std::f64;
 use std::fmt;
 use std::num::Float;
-use std::net::IpAddr;
 
 use postgres::{Connection, SslMode, Slice, Error};
 use postgres::types::{ToSql, FromSql};
@@ -135,24 +134,6 @@ fn test_citext_params() {
 fn test_bytea_params() {
     test_type("BYTEA", &[(Some(vec!(0u8, 1, 2, 3, 254, 255)), "'\\x00010203feff'"),
                         (None, "NULL")]);
-}
-
-#[test]
-fn test_inet_params() {
-    test_type("INET", &[(Some("127.0.0.1".parse::<IpAddr>().unwrap()),
-                         "'127.0.0.1'"),
-                        (Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<IpAddr>().unwrap()),
-                         "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
-                        (None, "NULL")])
-}
-
-#[test]
-fn test_cidr_params() {
-    test_type("CIDR", &[(Some("127.0.0.1".parse::<IpAddr>().unwrap()),
-                         "'127.0.0.1'"),
-                        (Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<IpAddr>().unwrap()),
-                         "'2001:0db8:85a3:0000:0000:8a2e:0370:7334'"),
-                        (None, "NULL")])
 }
 
 #[test]

@@ -1,6 +1,5 @@
 use std::result::Result::{Ok, Err};
 use std::marker::Sized;
-use std::slice::SliceExt;
 use std::clone::Clone;
 
 use std::io::prelude::*;

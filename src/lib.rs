@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, collections, io, core, net, debug_builders)]
+#![feature(unsafe_destructor, collections, io, core, debug_builders)]
 #![warn(missing_docs)]
 #![no_implicit_prelude]
 
@@ -67,8 +67,6 @@ use std::ops::Drop;
 use std::iter::{Iterator, DoubleEndedIterator, ExactSizeIterator, IteratorExt};
 use std::prelude::v1::drop;
 use std::marker::Send;
-use std::slice::SliceExt;
-use std::str::StrExt;
 
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};

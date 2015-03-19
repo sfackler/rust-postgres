@@ -12,8 +12,7 @@ use std::result::Result::{self, Ok, Err};
 use std::vec::Vec;
 use std::string::{String, ToString};
 use std::iter::{Iterator, IteratorExt, ExactSizeIterator};
-use std::slice::SliceExt;
-use std::str::{Str, StrExt};
+use std::str::Str;
 
 use std::io::prelude::*;
 use std::str::FromStr;

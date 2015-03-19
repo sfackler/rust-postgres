@@ -2,8 +2,6 @@ use std::result::Result::{Ok, Err};
 use std::option::Option::{self, None, Some};
 use std::vec::Vec;
 use std::string::String;
-use std::str::StrExt;
-use std::slice::SliceExt;
 
 use std::io;
 use std::io::prelude::*;
