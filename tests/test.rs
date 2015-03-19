@@ -1,4 +1,4 @@
-#![feature(core, std_misc, old_io, thread_sleep)]
+#![feature(core, std_misc, thread_sleep)]
 
 extern crate postgres;
 extern crate "rustc-serialize" as serialize;
