@@ -53,7 +53,6 @@ extern crate log;
 extern crate openssl;
 extern crate phf;
 extern crate "rustc-serialize" as serialize;
-extern crate time;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
 

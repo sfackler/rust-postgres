@@ -26,7 +26,6 @@ phf_codegen = "0.6.11"
 [dependencies]
 phf = "0.6"
 openssl = "0.5"
-time = "0.1.14"
 log = "0.2"
 rustc-serialize = "0.3"
 byteorder = "0.3"
@@ -38,6 +37,10 @@ version = "0.1"
 [dependencies.unix_socket]
 optional = true
 version = "0.2"
+
+[dependencies.time]
+optional = true
+version = "0.1.14"
 
 [dev-dependencies]
 url = "0.2"
