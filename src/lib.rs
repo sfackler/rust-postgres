@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, collections, io, core, debug_builders)]
+#![feature(unsafe_destructor, io, core, debug_builders, str_char)]
 #![warn(missing_docs)]
 #![no_implicit_prelude]
 
