@@ -1,10 +1,5 @@
 extern crate uuid;
 
-use std::result::Result::{Ok, Err};
-use std::marker::Sized;
-use std::option::Option::{Some, None};
-use std::clone::Clone;
-
 use std::io::prelude::*;
 
 use self::uuid::Uuid;

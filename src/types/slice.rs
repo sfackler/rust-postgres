@@ -1,7 +1,3 @@
-use std::result::Result::{Ok, Err};
-use std::marker::Sized;
-use std::clone::Clone;
-
 use std::io::prelude::*;
 use byteorder::{WriteBytesExt, BigEndian};
 

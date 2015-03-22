@@ -45,7 +45,6 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
 #![feature(unsafe_destructor, io, core, debug_builders, str_char)]
 #![warn(missing_docs)]
-#![no_implicit_prelude]
 
 extern crate byteorder;
 #[macro_use]
@@ -55,17 +54,6 @@ extern crate phf;
 extern crate "rustc-serialize" as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
-
-use std::option::Option::{self, Some, None};
-use std::result::Result::{Ok, Err};
-use std::boxed::Box;
-use std::vec::Vec;
-use std::clone::Clone;
-use std::string::{String, ToString};
-use std::ops::Drop;
-use std::iter::{Iterator, DoubleEndedIterator, ExactSizeIterator, IteratorExt};
-use std::prelude::v1::drop;
-use std::marker::Send;
 
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};

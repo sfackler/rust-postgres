@@ -1,10 +1,5 @@
 pub use ugh_privacy::DbError;
 
-use std::option::Option::{self, Some, None};
-use std::result::Result::Ok;
-use std::clone::Clone;
-use std::string::String;
-
 use byteorder;
 use openssl::ssl::error::SslError;
 use phf;

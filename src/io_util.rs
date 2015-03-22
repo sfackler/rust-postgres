@@ -1,8 +1,3 @@
-use std::option::Option::None;
-use std::result::Result::{self, Ok, Err};
-#[cfg(feature = "unix_socket")]
-use std::clone::Clone;
-
 use openssl::ssl::{SslStream, MaybeSslStream};
 use std::io;
 use std::io::prelude::*;

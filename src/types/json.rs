@@ -1,7 +1,3 @@
-use std::marker::Sized;
-use std::result::Result::{Ok, Err};
-use std::clone::Clone;
-
 use serialize::json;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};

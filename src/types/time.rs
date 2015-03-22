@@ -1,9 +1,5 @@
 extern crate time;
 
-use std::result::Result::{Ok, Err};
-use std::marker::Sized;
-use std::clone::Clone;
-
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use self::time::Timespec;
 use std::io::prelude::*;

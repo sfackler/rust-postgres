@@ -1,15 +1,6 @@
 //! Traits dealing with Postgres data types
 pub use self::slice::Slice;
 
-use std::option::Option::{self, Some, None};
-use std::result::Result::{Ok, Err};
-use std::boxed::Box;
-use std::vec::Vec;
-use std::clone::Clone;
-use std::string::String;
-use std::iter::ExactSizeIterator;
-use std::marker::Sized;
-
 use std::collections::HashMap;
 use std::fmt;
 use std::io::prelude::*;
