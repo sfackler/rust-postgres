@@ -51,7 +51,7 @@ extern crate byteorder;
 extern crate log;
 extern crate openssl;
 extern crate phf;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
 

@@ -1,7 +1,7 @@
 #![feature(core, std_misc, thread_sleep)]
 
 extern crate postgres;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 extern crate url;
 extern crate openssl;
 
