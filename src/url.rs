@@ -92,7 +92,7 @@ impl Path {
         let (path, rest) = try!(get_path(rawpath, false));
 
         // query and fragment
-        let (query, fragment) = try!(get_query_fragment(rest.as_slice()));
+        let (query, fragment) = try!(get_query_fragment(&rest));
 
         Ok(Path{ path: path, query: query, fragment: fragment })
     }

@@ -1,10 +1,11 @@
-#![feature(std_misc)]
+#![feature(convert)]
 extern crate phf_codegen;
 
 use std::env;
 use std::fs::File;
 use std::io::{Write, BufWriter};
-use std::path::AsPath;
+use std::path::Path;
+use std::convert::AsRef;
 
 // From http://www.postgresql.org/docs/9.2/static/errcodes-appendix.html
 static SQLSTATES: &'static [(&'static str, &'static str)] = &[
@@ -326,7 +327,9 @@ static SQLSTATES: &'static [(&'static str, &'static str)] = &[
     ];
 
 fn main() {
-    let path = env::var_os("OUT_DIR").unwrap().as_path().join("sqlstate.rs");
+    let path = env::var_os("OUT_DIR").unwrap();
+    let path: &Path = path.as_ref();
+    let path = path.join("sqlstate.rs");
     let mut file = BufWriter::new(File::create(&path).unwrap());
 
     make_enum(&mut file);

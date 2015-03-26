@@ -44,6 +44,7 @@
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
 #![feature(unsafe_destructor, io, core, debug_builders, str_char)]
+#![cfg_attr(feature = "unix_socket", feature(convert))]
 #![warn(missing_docs)]
 
 extern crate byteorder;
@@ -51,7 +52,7 @@ extern crate byteorder;
 extern crate log;
 extern crate openssl;
 extern crate phf;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
 
@@ -175,7 +176,7 @@ impl IntoConnectParams for Url {
 
         #[cfg(feature = "unix_socket")]
         fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
-            Ok(ConnectTarget::Unix(PathBuf::new(&maybe_path)))
+            Ok(ConnectTarget::Unix(PathBuf::from(&maybe_path)))
         }
         #[cfg(not(feature = "unix_socket"))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
@@ -367,13 +368,12 @@ pub struct CancelData {
 /// ## Example
 ///
 /// ```rust,no_run
-/// # #![allow(unstable)]
 /// # use postgres::{Connection, SslMode};
-/// # use std::thread::Thread;
+/// # use std::thread;
 /// # let url = "";
 /// let conn = Connection::connect(url, &SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
-/// Thread::spawn(move || {
+/// thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
 /// # let _ =

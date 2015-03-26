@@ -1,7 +1,7 @@
-#![feature(core, std_misc, thread_sleep)]
+#![feature(std_misc, thread_sleep)]
 
 extern crate postgres;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 extern crate url;
 extern crate openssl;
 
@@ -418,7 +418,7 @@ fn test_lazy_query_wrong_conn() {
 fn test_param_types() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
-    assert_eq!(stmt.param_types(), [Type::Int4, Type::Varchar].as_slice());
+    assert_eq!(stmt.param_types(), &[Type::Int4, Type::Varchar][..]);
 }
 
 #[test]

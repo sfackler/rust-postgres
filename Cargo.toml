@@ -26,7 +26,7 @@ phf_codegen = "0.6.11"
 [dependencies]
 phf = "0.6"
 openssl = "0.5"
-log = "0.2"
+log = "0.3"
 rustc-serialize = "0.3"
 byteorder = "0.3"
 
