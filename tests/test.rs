@@ -17,7 +17,6 @@ use postgres::{HandleNotice,
                SslMode,
                Type,
                Kind,
-               ToSql,
                Error,
                ConnectError,
                DbError,
@@ -761,8 +760,8 @@ fn test_copy_in() {
     let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
 
     let data = (0i32..2).map(|i| {
-        VecStreamIterator::new(vec![Box::new(i) as Box<ToSql>,
-                                    Box::new(format!("{}", i)) as Box<ToSql>])
+        VecStreamIterator::new(vec![Box::new(i),
+                                    Box::new(format!("{}", i))])
     });
 
     assert_eq!(Ok(2), stmt.execute(data));
@@ -779,9 +778,9 @@ fn test_copy_in_bad_column_count() {
 
     let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
     let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32) as Box<ToSql>,
-                                    Box::new("Steven".to_string()) as Box<ToSql>]),
-        VecStreamIterator::new(vec![Box::new(2i32) as Box<ToSql>]),
+        VecStreamIterator::new(vec![Box::new(1i32),
+                                    Box::new("Steven".to_string())]),
+        VecStreamIterator::new(vec![Box::new(2i32)]),
     ].into_iter();
 
     let res = stmt.execute(data);
@@ -792,11 +791,11 @@ fn test_copy_in_bad_column_count() {
     }
 
     let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32) as Box<ToSql>,
-                                    Box::new("Steven".to_string()) as Box<ToSql>]),
-        VecStreamIterator::new(vec![Box::new(2i32) as Box<ToSql>,
-                                    Box::new("Steven".to_string()) as Box<ToSql>,
-                                    Box::new(3i64) as Box<ToSql>]),
+        VecStreamIterator::new(vec![Box::new(1i32),
+                                    Box::new("Steven".to_string())]),
+        VecStreamIterator::new(vec![Box::new(2i32),
+                                    Box::new("Steven".to_string()),
+                                    Box::new(3i64)]),
     ].into_iter();
 
     let res = stmt.execute(data);
@@ -817,10 +816,10 @@ fn test_copy_in_bad_type() {
     let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
 
     let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32) as Box<ToSql>,
-                                    Box::new("Steven".to_string()) as Box<ToSql>]),
-        VecStreamIterator::new(vec![Box::new(2i32) as Box<ToSql>,
-                                    Box::new(1i32) as Box<ToSql>]),
+        VecStreamIterator::new(vec![Box::new(1i32),
+                                    Box::new("Steven".to_string())]),
+        VecStreamIterator::new(vec![Box::new(2i32),
+                                    Box::new(1i32)]),
     ].into_iter();
 
     let res = stmt.execute(data);

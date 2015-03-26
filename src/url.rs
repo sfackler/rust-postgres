@@ -120,7 +120,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
             Some(b) => match b as char {
                 '%' => {
                     let bytes = match (iter.next(), iter.next()) {
-                        (Some(one), Some(two)) => [one as u8, two as u8],
+                        (Some(one), Some(two)) => [one, two],
                         _ => return Err(format!("Malformed input: found '%' \
                                                 without two trailing bytes")),
                     };

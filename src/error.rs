@@ -65,9 +65,9 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::DbError(ref err) => Some(err as &error::Error),
-            ConnectError::SslError(ref err) => Some(err as &error::Error),
-            ConnectError::IoError(ref err) => Some(err as &error::Error),
+            ConnectError::DbError(ref err) => Some(err),
+            ConnectError::SslError(ref err) => Some(err),
+            ConnectError::IoError(ref err) => Some(err),
             _ => None
         }
     }
@@ -159,8 +159,8 @@ impl error::Error for Error {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            Error::DbError(ref err) => Some(err as &error::Error),
-            Error::IoError(ref err) => Some(err as &error::Error),
+            Error::DbError(ref err) => Some(err),
+            Error::IoError(ref err) => Some(err),
             _ => None
         }
     }
