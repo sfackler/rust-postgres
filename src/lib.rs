@@ -1810,7 +1810,7 @@ impl<'a> Row<'a> {
     /// # let stmt = conn.prepare("").unwrap();
     /// # let mut result = stmt.query(&[]).unwrap();
     /// # let row = result.iter().next().unwrap();
-    /// let foo: i32 = row.get(0u);
+    /// let foo: i32 = row.get(0);
     /// let bar: String = row.get("bar");
     /// ```
     pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Debug + Clone, T: FromSql {
