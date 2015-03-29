@@ -170,7 +170,7 @@ impl IntoConnectParams for Url {
             host,
             port,
             user,
-            path: url::Path { path, query: options, .. },
+            path: url::Path { mut path, query: options, .. },
             ..
         } = self;
 
@@ -195,8 +195,13 @@ impl IntoConnectParams for Url {
             UserInfo { user: user, password: pass }
         });
 
-        // path contains the leading /
-        let database = path.slice_shift_char().map(|(_, path)| path.to_owned());
+        let database = if path.is_empty() {
+            None
+        } else {
+            // path contains the leading /
+            path.remove(0);
+            Some(path)
+        };
 
         Ok(ConnectParams {
             target: target,
