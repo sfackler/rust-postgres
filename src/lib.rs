@@ -602,6 +602,8 @@ impl InnerConnection {
 
     fn raw_prepare(&mut self, stmt_name: &str, query: &str)
                    -> Result<(Vec<Type>, Vec<Column>)> {
+        debug!("preparing query with name `{}`: {}", stmt_name, query);
+
         try!(self.write_messages(&[
             Parse {
                 name: stmt_name,
@@ -830,6 +832,7 @@ impl InnerConnection {
 
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
+        debug!("executing query: {}", query);
         try!(self.write_messages(&[Query { query: query }]));
 
         let mut result = vec![];
@@ -1350,6 +1353,7 @@ impl<'conn> Statement<'conn> {
                 "expected {} parameters but got {}",
                 self.param_types.len(),
                 params.len());
+        debug!("executing statement {}", self.name);
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
             let mut buf = vec![];
@@ -2045,6 +2049,7 @@ impl<'a> CopyInStatement<'a> {
             where I: Iterator<Item=J>, J: StreamIterator {
         let mut conn = self.conn.conn.borrow_mut();
 
+        debug!("executing statement {}", self.name);
         try!(conn.write_messages(&[
             Bind {
                 portal: "",
