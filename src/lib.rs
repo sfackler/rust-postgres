@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, io, core, debug_builders, str_char)]
+#![feature(unsafe_destructor, io, core, str_char)]
 #![cfg_attr(feature = "unix_socket", feature(convert))]
 #![warn(missing_docs)]
 
@@ -55,7 +55,9 @@ extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
+extern crate debug_builders;
 
+use debug_builders::DebugStruct;
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
@@ -249,7 +251,7 @@ pub struct Notifications<'conn> {
 
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Notifications")
+        DebugStruct::new(fmt, "Notifications")
             .field("pending", &self.conn.conn.borrow().notifications.len())
             .finish()
     }
@@ -876,7 +878,7 @@ pub struct Connection {
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
-        fmt.debug_struct("Connection")
+        DebugStruct::new(fmt, "Connection")
             .field("cancel_data", &conn.cancel_data)
             .field("notifications", &conn.notifications.len())
             .field("transaction_depth", &conn.trans_depth)
@@ -1189,7 +1191,7 @@ pub struct Transaction<'conn> {
 
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Transaction")
+        DebugStruct::new(fmt, "Transaction")
             .field("commit", &self.commit.get())
             .field("depth", &self.depth)
             .finish()
@@ -1320,7 +1322,7 @@ pub struct Statement<'conn> {
 
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Statement")
+        DebugStruct::new(fmt, "Statement")
             .field("name", &self.name)
             .field("parameter_types", &self.param_types)
             .field("columns", &self.columns)
@@ -1625,7 +1627,7 @@ pub struct Rows<'stmt> {
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Rows")
+        DebugStruct::new(fmt, "Rows")
             .field("columns", &self.columns())
             .field("rows", &self.data.len())
             .finish()
@@ -1768,7 +1770,7 @@ pub struct Row<'a> {
 
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Row")
+        DebugStruct::new(fmt, "Row")
             .field("statement", self.stmt)
             .finish()
     }
@@ -1889,7 +1891,7 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("LazyRows")
+        DebugStruct::new(fmt, "LazyRows")
             .field("name", &self.name)
             .field("row_limit", &self.row_limit)
             .field("remaining_rows", &self.data.len())
@@ -1970,7 +1972,7 @@ pub struct CopyInStatement<'a> {
 
 impl<'a> fmt::Debug for CopyInStatement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("CopyInStatement")
+        DebugStruct::new(fmt, "CopyInStatement")
             .field("name", &self.name)
             .field("column_types", &self.column_types)
             .finish()

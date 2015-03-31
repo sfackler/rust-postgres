@@ -29,18 +29,10 @@ openssl = "0.5"
 log = "0.3"
 rustc-serialize = "0.3"
 byteorder = "0.3"
-
-[dependencies.uuid]
-optional = true
-version = "0.1"
-
-[dependencies.unix_socket]
-optional = true
-version = "0.2"
-
-[dependencies.time]
-optional = true
-version = "0.1.14"
+debug-builders = "0.1"
+uuid = { version = "0.1", optional = true }
+unix_socket = { version = "0.2", optional = true }
+time = { version = "0.1.14", optional = true }
 
 [dev-dependencies]
 url = "0.2"
