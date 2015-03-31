@@ -21,10 +21,10 @@ name = "test"
 path = "tests/test.rs"
 
 [build-dependencies]
-phf_codegen = "0.6.11"
+phf_codegen = "0.7"
 
 [dependencies]
-phf = "0.6"
+phf = "0.7"
 openssl = "0.5"
 log = "0.3"
 rustc-serialize = "0.3"
