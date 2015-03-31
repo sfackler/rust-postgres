@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(unsafe_destructor, io, core, str_char)]
+#![feature(io, core, str_char)]
 #![cfg_attr(feature = "unix_socket", feature(convert))]
 #![warn(missing_docs)]
 
@@ -1198,7 +1198,6 @@ impl<'a> fmt::Debug for Transaction<'a> {
     }
 }
 
-#[unsafe_destructor]
 impl<'conn> Drop for Transaction<'conn> {
     fn drop(&mut self) {
         if !self.finished {
@@ -1330,7 +1329,6 @@ impl<'a> fmt::Debug for Statement<'a> {
     }
 }
 
-#[unsafe_destructor]
 impl<'conn> Drop for Statement<'conn> {
     fn drop(&mut self) {
         let _ = self.finish_inner();
@@ -1880,7 +1878,6 @@ pub struct LazyRows<'trans, 'stmt> {
     _trans: &'trans Transaction<'trans>,
 }
 
-#[unsafe_destructor]
 impl<'a, 'b> Drop for LazyRows<'a, 'b> {
     fn drop(&mut self) {
         if !self.finished {
@@ -1979,7 +1976,6 @@ impl<'a> fmt::Debug for CopyInStatement<'a> {
     }
 }
 
-#[unsafe_destructor]
 impl<'a> Drop for CopyInStatement<'a> {
     fn drop(&mut self) {
         if !self.finished {
