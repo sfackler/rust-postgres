@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(io, str_char)]
+#![feature(io)]
 #![cfg_attr(feature = "unix_socket", feature(convert))]
 #![warn(missing_docs)]
 

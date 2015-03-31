@@ -406,8 +406,8 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
         raw => Some(try!(decode_component(raw)))
     };
 
-    match before_fragment.slice_shift_char() {
-        Some(('?', rest)) => Ok((try!(query_from_str(rest)), fragment)),
+    match before_fragment.chars().next() {
+        Some('?') => Ok((try!(query_from_str(&before_fragment[1..])), fragment)),
         None => Ok((vec!(), fragment)),
         _ => Err(format!("Query didn't start with '?': '{}..'", before_fragment)),
     }
