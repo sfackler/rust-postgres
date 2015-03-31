@@ -43,7 +43,7 @@
 //! }
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
-#![feature(io, core, str_char)]
+#![feature(io, str_char)]
 #![cfg_attr(feature = "unix_socket", feature(convert))]
 #![warn(missing_docs)]
 
@@ -1708,21 +1708,6 @@ impl<'a> DoubleEndedIterator for RowsIter<'a> {
 }
 
 impl<'a> ExactSizeIterator for RowsIter<'a> {}
-
-impl<'a> RandomAccessIterator for RowsIter<'a> {
-    fn indexable(&self) -> usize {
-        self.iter.indexable()
-    }
-
-    fn idx(&mut self, idx: usize) -> Option<Row<'a>> {
-        self.iter.idx(idx).map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Borrowed(row),
-            }
-        })
-    }
-}
 
 /// An owning iterator over `Row`s.
 pub struct RowsIntoIter<'stmt> {

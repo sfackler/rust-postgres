@@ -9,8 +9,8 @@
 // except according to those terms.
 use std::io::prelude::*;
 use std::str::FromStr;
-use std::num;
 use std::str;
+use serialize::hex::FromHex;
 
 pub struct Url {
     pub scheme: String,
@@ -126,7 +126,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                     };
 
                     // Only decode some characters if full_url:
-                    match num::from_str_radix::<usize>(str::from_utf8(&bytes).unwrap(), 16).unwrap() as u8 as char {
+                    match str::from_utf8(&bytes).unwrap().from_hex().unwrap()[0] as char {
                         // gen-delims:
                         ':' | '/' | '?' | '#' | '[' | ']' | '@' |
 
