@@ -24,6 +24,7 @@ use types::IsNull;
 /// }
 /// # Ok(()) }
 /// ```
+#[derive(Debug)]
 pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {

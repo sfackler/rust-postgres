@@ -605,7 +605,7 @@ pub enum IsNull {
 }
 
 /// A trait for types that can be converted into Postgres values.
-pub trait ToSql {
+pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, writing it to `out`.
     ///
