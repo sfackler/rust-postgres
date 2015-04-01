@@ -342,19 +342,20 @@ fn make_enum(file: &mut BufWriter<File>) {
     write!(file,
 r#"/// SQLSTATE error codes
 #[derive(PartialEq, Eq, Clone)]
-#[allow(missing_docs)]
 pub enum SqlState {{
 "#
            ).unwrap();
 
-    for &(_, variant) in SQLSTATES {
+    for &(code, variant) in SQLSTATES {
         write!(file,
-"    {},\n",
-               variant).unwrap();
+"    /// `{}`
+    {},\n",
+               code, variant).unwrap();
     }
 
     write!(file,
-"    Unknown(String)
+"    /// An unknown code
+    Unknown(String)
 }}
 "
            ).unwrap();
