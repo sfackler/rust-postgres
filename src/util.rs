@@ -22,7 +22,7 @@ pub fn read_all<R: Read>(r: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
     let mut start = 0;
     while start != buf.len() {
         match r.read(&mut buf[start..]) {
-            Ok(0) => return Err(io::Error::new(io::ErrorKind::Other, "unexpected EOF", None)),
+            Ok(0) => return Err(io::Error::new(io::ErrorKind::Other, "unexpected EOF")),
             Ok(len) => start += len,
             Err(e) => return Err(e),
         }

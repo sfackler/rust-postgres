@@ -264,8 +264,7 @@ impl<R: BufRead> ReadCStr for R {
         try!(self.read_until(0, &mut buf));
         buf.pop();
         String::from_utf8(buf).map_err(|_| io::Error::new(io::ErrorKind::Other,
-                                                          "received a non-utf8 string from server",
-                                                          None))
+                                                          "received a non-utf8 string from server"))
     }
 }
 
@@ -321,14 +320,14 @@ impl<R: BufRead> ReadMessage for R {
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
             b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
-            ident => {
+            _ => {
                 return Err(io::Error::new(io::ErrorKind::Other,
-                                          "unexpected message tag",
-                                          Some(format!("got {}", ident))))
+                                          "unexpected message tag"))
+                                          
             }
         };
         if rdr.limit() != 0 {
-            return Err(io::Error::new(io::ErrorKind::Other, "didn't read entire message", None));
+            return Err(io::Error::new(io::ErrorKind::Other, "didn't read entire message"));
         }
         Ok(ret)
     }
@@ -381,10 +380,9 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
-        val => {
+        _ => {
             return Err(io::Error::new(io::ErrorKind::Other,
-                                      "unexpected authentication tag",
-                                      Some(format!("got {}", val))));
+                                      "unexpected authentication tag"));
         }
     })
 }

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::f32;
 use std::f64;
 use std::fmt;
-use std::num::Float;
 
 use postgres::{Connection, SslMode, Slice, Error};
 use postgres::types::{ToSql, FromSql};
@@ -154,18 +153,12 @@ fn test_hstore_params() {
                 (None, "NULL")]);
 }
 
-fn test_nan_param<T: Float+ToSql+FromSql>(sql_type: &str) {
+fn test_nan_param<T: PartialEq+ToSql+FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
     let result = or_panic!(stmt.query(&[]));
     let val: T = result.iter().next().unwrap().get(0);
-    assert!(val.is_nan());
-
-    let nan: T = Float::nan();
-    let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
-    let result = or_panic!(stmt.query(&[&nan]));
-    let val: T = result.iter().next().unwrap().get(0);
-    assert!(val.is_nan())
+    assert!(val != val);
 }
 
 #[test]
@@ -197,7 +190,7 @@ fn test_slice() {
 
     let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)").unwrap();
     let result = stmt.query(&[&Slice(&[1i32, 3, 4])]).unwrap();
-    assert_eq!(&["a".to_string(), "c".to_string(), "d".to_string()][..],
+    assert_eq!(vec!["a".to_string(), "c".to_string(), "d".to_string()],
                result.iter().map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
 }
 

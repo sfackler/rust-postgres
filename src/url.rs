@@ -150,7 +150,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
 }
 
 fn split_char_first(s: &str, c: char) -> (&str, &str) {
-    let mut iter = s.splitn(1, c);
+    let mut iter = s.splitn(2, c);
 
     match (iter.next(), iter.next()) {
         (Some(a), Some(b)) => (a, b),

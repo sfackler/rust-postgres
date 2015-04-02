@@ -4,7 +4,7 @@ macro_rules! try_desync {
             Ok(ok) => ok,
             Err(err) => {
                 $s.desynchronized = true;
-                return Err(::std::error::FromError::from_error(err));
+                return Err(::std::convert::From::from(err));
             }
         }
     )

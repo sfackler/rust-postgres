@@ -1,5 +1,3 @@
-#![feature(std_misc, thread_sleep)]
-
 extern crate postgres;
 extern crate rustc_serialize as serialize;
 extern crate url;
@@ -7,7 +5,6 @@ extern crate openssl;
 
 use openssl::ssl::SslContext;
 use openssl::ssl::SslMethod;
-use std::time::Duration;
 use std::thread;
 
 use postgres::{HandleNotice,
@@ -596,7 +593,7 @@ fn test_notifications_next_block() {
 
     let _t = thread::spawn(|| {
         let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        thread::sleep(Duration::milliseconds(500));
+        thread::sleep_ms(500);
         or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
     });
 
@@ -657,7 +654,7 @@ fn test_cancel_query() {
     let cancel_data = conn.cancel_data();
 
     let _t = thread::spawn(move || {
-        thread::sleep(Duration::milliseconds(500));
+        thread::sleep_ms(500);
         assert!(postgres::cancel_query("postgres://postgres@localhost", &SslMode::None,
                                        cancel_data).is_ok());
     });
@@ -764,7 +761,7 @@ fn test_copy_in() {
                                     Box::new(format!("{}", i))])
     });
 
-    assert_eq!(Ok(2), stmt.execute(data));
+    assert_eq!(2, stmt.execute(data).unwrap());
 
     let stmt = or_panic!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
     assert_eq!(vec![(0i32, Some("0".to_string())), (1, Some("1".to_string()))],
@@ -881,15 +878,15 @@ fn test_prepare_cached() {
     or_panic!(conn.execute("INSERT INTO foo (id) VALUES (1), (2)", &[]));
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(vec![1, 2], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id"));
-    assert_eq!(&[1, 2][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(vec![1, 2], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 
     let stmt = or_panic!(conn.prepare_cached("SELECT id FROM foo ORDER BY id DESC"));
-    assert_eq!(&[2, 1][..], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
+    assert_eq!(vec![2, 1], or_panic!(stmt.query(&[])).iter().map(|r| r.get(0)).collect::<Vec<i32>>());
     or_panic!(stmt.finish());
 }
 

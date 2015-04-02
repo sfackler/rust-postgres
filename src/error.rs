@@ -4,6 +4,7 @@ use byteorder;
 use openssl::ssl::error::SslError;
 use phf;
 use std::error;
+use std::convert::From;
 use std::fmt;
 use std::io;
 
@@ -13,7 +14,7 @@ use types::Type;
 include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
 
 /// Reasons a new Postgres connection could fail
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum ConnectError {
     /// The provided URL could not be parsed
     InvalidUrl(String),
@@ -73,27 +74,27 @@ impl error::Error for ConnectError {
     }
 }
 
-impl error::FromError<io::Error> for ConnectError {
-    fn from_error(err: io::Error) -> ConnectError {
+impl From<io::Error> for ConnectError {
+    fn from(err: io::Error) -> ConnectError {
         ConnectError::IoError(err)
     }
 }
 
-impl error::FromError<DbError> for ConnectError {
-    fn from_error(err: DbError) -> ConnectError {
+impl From<DbError> for ConnectError {
+    fn from(err: DbError) -> ConnectError {
         ConnectError::DbError(err)
     }
 }
 
-impl error::FromError<SslError> for ConnectError {
-    fn from_error(err: SslError) -> ConnectError {
+impl From<SslError> for ConnectError {
+    fn from(err: SslError) -> ConnectError {
         ConnectError::SslError(err)
     }
 }
 
-impl error::FromError<byteorder::Error> for ConnectError {
-    fn from_error(err: byteorder::Error) -> ConnectError {
-        ConnectError::IoError(error::FromError::from_error(err))
+impl From<byteorder::Error> for ConnectError {
+    fn from(err: byteorder::Error) -> ConnectError {
+        ConnectError::IoError(From::from(err))
     }
 }
 
@@ -112,7 +113,7 @@ pub enum ErrorPosition {
 }
 
 /// An error encountered when communicating with the Postgres server
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum Error {
     /// An error reported by the Postgres server
     DbError(DbError),
@@ -166,20 +167,20 @@ impl error::Error for Error {
     }
 }
 
-impl error::FromError<DbError> for Error {
-    fn from_error(err: DbError) -> Error {
+impl From<DbError> for Error {
+    fn from(err: DbError) -> Error {
         Error::DbError(err)
     }
 }
 
-impl error::FromError<io::Error> for Error {
-    fn from_error(err: io::Error) -> Error {
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
         Error::IoError(err)
     }
 }
 
-impl error::FromError<byteorder::Error> for Error {
-    fn from_error(err: byteorder::Error) -> Error {
-        Error::IoError(error::FromError::from_error(err))
+impl From<byteorder::Error> for Error {
+    fn from(err: byteorder::Error) -> Error {
+        Error::IoError(From::from(err))
     }
 }

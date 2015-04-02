@@ -1,4 +1,3 @@
-#![feature(convert)]
 extern crate phf_codegen;
 
 use std::env;
