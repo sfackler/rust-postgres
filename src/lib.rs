@@ -222,7 +222,7 @@ pub trait HandleNotice: Send {
 /// A notice handler which logs at the `info` level.
 ///
 /// This is the default handler used by a `Connection`.
-#[derive(Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct LoggingNoticeHandler;
 
 impl HandleNotice for LoggingNoticeHandler {
