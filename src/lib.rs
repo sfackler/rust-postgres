@@ -1816,7 +1816,7 @@ impl<'a> Row<'a> {
     ///
     /// ## Panics
     ///
-    /// Panics if the index does not references a column.
+    /// Panics if the index does not reference a column.
     pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]> where I: RowIndex + fmt::Debug {
         match idx.idx(self.stmt) {
             Some(idx) => self.data[idx].as_ref().map(|e| &**e),
