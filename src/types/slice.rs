@@ -46,8 +46,8 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
         try!(w.write_i32::<BigEndian>(self.0.len() as i32));
         try!(w.write_i32::<BigEndian>(0)); // index offset
 
+        let mut inner_buf = vec![];
         for e in self.0 {
-            let mut inner_buf = vec![];
             match try!(e.to_sql(&member_type, &mut inner_buf)) {
                 IsNull::No => {
                     try!(w.write_i32::<BigEndian>(inner_buf.len() as i32));
@@ -55,6 +55,7 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
                 }
                 IsNull::Yes => try!(w.write_i32::<BigEndian>(-1)),
             }
+            inner_buf.clear();
         }
 
         Ok(IsNull::No)

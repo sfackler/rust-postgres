@@ -57,7 +57,7 @@ pub struct DbError {
     constraint: Option<String>,
     file: String,
     line: u32,
-    routine: String
+    routine: String,
 }
 
 pub fn dberror_new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()> {

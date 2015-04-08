@@ -115,7 +115,7 @@ pub enum ConnectTarget {
     Unix(PathBuf)
 }
 
-/// Authentication information
+/// Authentication information.
 #[derive(Clone, Debug)]
 pub struct UserInfo {
     /// The username
@@ -502,7 +502,8 @@ impl InnerConnection {
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT typname, typelem, NULL::OID FROM pg_catalog.pg_type \
+                               "SELECT typname, typelem, NULL::OID \
+                                FROM pg_catalog.pg_type \
                                 WHERE oid = $1") {
             Ok(..) => Ok(()),
             Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),

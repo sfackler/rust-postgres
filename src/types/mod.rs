@@ -8,6 +8,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 use Result;
 use error::Error;
+use util;
 
 pub use ugh_privacy::Other;
 
@@ -106,7 +107,16 @@ macro_rules! make_postgres_type {
             }
 
             /// Returns the OID of the `Type`.
+            ///
+            /// # Deprecated
+            ///
+            /// Use `oid` instead.
             pub fn to_oid(&self) -> Oid {
+                self.oid()
+            }
+
+            /// Returns the OID of the `Type`.
+            pub fn oid(&self) -> Oid {
                 match *self {
                     $(Type::$variant => as_expr!($oid),)+
                     Type::Other(ref u) => u.oid(),
@@ -464,7 +474,7 @@ pub trait FromSql: Sized {
         }
     }
 
-    /// Creates a new value of this type from a `Read` of the binary format
+    /// Creates a new value of this type from a `Read`er of the binary format
     /// of the specified Postgres `Type`.
     ///
     /// The caller of this method is responsible for ensuring that this type
@@ -564,7 +574,8 @@ impl FromSql for HashMap<String, Option<String>> {
         for _ in 0..count {
             let key_len = try!(raw.read_i32::<BigEndian>());
             let mut key = vec![];
-            try!(raw.take(key_len as u64).read_to_end(&mut key));
+            key.extend((0..key_len).map(|_| 0));
+            try!(util::read_all(raw, &mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
                 Err(_) => return Err(Error::BadResponse),
@@ -575,7 +586,8 @@ impl FromSql for HashMap<String, Option<String>> {
                 None
             } else {
                 let mut val = vec![];
-                try!(raw.take(val_len as u64).read_to_end(&mut val));
+                val.extend((0..val_len).map(|_| 0));
+                try!(util::read_all(raw, &mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
                     Err(_) => return Err(Error::BadResponse),
