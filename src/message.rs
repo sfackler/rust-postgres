@@ -162,12 +162,12 @@ impl<W: Write> WriteMessage for W {
                 try!(buf.write_cstr(statement));
 
                 try!(buf.write_i16::<BigEndian>(formats.len() as i16));
-                for format in formats.iter() {
-                    try!(buf.write_i16::<BigEndian>(*format));
+                for &format in formats {
+                    try!(buf.write_i16::<BigEndian>(format));
                 }
 
                 try!(buf.write_i16::<BigEndian>(values.len() as i16));
-                for value in values.iter() {
+                for value in values {
                     match *value {
                         None => try!(buf.write_i32::<BigEndian>(-1)),
                         Some(ref value) => {
@@ -178,8 +178,8 @@ impl<W: Write> WriteMessage for W {
                 }
 
                 try!(buf.write_i16::<BigEndian>(result_formats.len() as i16));
-                for format in result_formats.iter() {
-                    try!(buf.write_i16::<BigEndian>(*format));
+                for &format in result_formats {
+                    try!(buf.write_i16::<BigEndian>(format));
                 }
             }
             CancelRequest { code, process_id, secret_key } => {
@@ -216,8 +216,8 @@ impl<W: Write> WriteMessage for W {
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
                 try!(buf.write_i16::<BigEndian>(param_types.len() as i16));
-                for ty in param_types.iter() {
-                    try!(buf.write_u32::<BigEndian>(*ty));
+                for &ty in param_types {
+                    try!(buf.write_u32::<BigEndian>(ty));
                 }
             }
             PasswordMessage { password } => {
