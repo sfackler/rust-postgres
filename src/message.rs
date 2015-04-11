@@ -161,12 +161,12 @@ impl<W: Write> WriteMessage for W {
                 try!(buf.write_cstr(portal));
                 try!(buf.write_cstr(statement));
 
-                try!(buf.write_i16::<BigEndian>(formats.len() as i16));
+                try!(buf.write_u16::<BigEndian>(formats.len() as u16));
                 for &format in formats {
                     try!(buf.write_i16::<BigEndian>(format));
                 }
 
-                try!(buf.write_i16::<BigEndian>(values.len() as i16));
+                try!(buf.write_u16::<BigEndian>(values.len() as u16));
                 for value in values {
                     match *value {
                         None => try!(buf.write_i32::<BigEndian>(-1)),
@@ -177,7 +177,7 @@ impl<W: Write> WriteMessage for W {
                     }
                 }
 
-                try!(buf.write_i16::<BigEndian>(result_formats.len() as i16));
+                try!(buf.write_u16::<BigEndian>(result_formats.len() as u16));
                 for &format in result_formats {
                     try!(buf.write_i16::<BigEndian>(format));
                 }
@@ -215,7 +215,7 @@ impl<W: Write> WriteMessage for W {
                 ident = Some(b'P');
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
-                try!(buf.write_i16::<BigEndian>(param_types.len() as i16));
+                try!(buf.write_u16::<BigEndian>(param_types.len() as u16));
                 for &ty in param_types {
                     try!(buf.write_u32::<BigEndian>(ty));
                 }
@@ -246,7 +246,7 @@ impl<W: Write> WriteMessage for W {
         }
 
         // add size of length value
-        try!(self.write_i32::<BigEndian>((buf.len() + mem::size_of::<i32>()) as i32));
+        try!(self.write_u32::<BigEndian>((buf.len() + mem::size_of::<u32>()) as u32));
         try!(self.write_all(&*buf));
 
         Ok(())
@@ -277,7 +277,7 @@ impl<R: BufRead> ReadMessage for R {
         let ident = try!(self.read_u8());
 
         // subtract size of length value
-        let len = try!(self.read_u32::<BigEndian>()) as usize - mem::size_of::<i32>();
+        let len = try!(self.read_u32::<BigEndian>()) - mem::size_of::<u32>() as u32;
         let mut rdr = self.by_ref().take(len as u64);
 
         let ret = match ident {
@@ -380,7 +380,7 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
 }
 
 fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
-    let len = try!(buf.read_i16::<BigEndian>()) as usize;
+    let len = try!(buf.read_u16::<BigEndian>()) as usize;
     let mut types = Vec::with_capacity(len);
 
     for _ in 0..len {
@@ -391,7 +391,7 @@ fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<BackendMessage
 }
 
 fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
-    let len = try!(buf.read_i16::<BigEndian>()) as usize;
+    let len = try!(buf.read_u16::<BigEndian>()) as usize;
     let mut types = Vec::with_capacity(len);
 
     for _ in 0..len {
