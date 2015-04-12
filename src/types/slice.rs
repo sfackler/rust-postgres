@@ -28,7 +28,13 @@ use types::IsNull;
 pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
-    to_sql_checked!();
+    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+        if !<Slice<'a, T> as ToSql>::accepts(ty) {
+            return Err(Error::WrongType(ty.clone()));
+        }
+        self.to_sql(ty, out)
+    }
 
     fn to_sql<W: Write+?Sized>(&self, ty: &Type, mut w: &mut W) -> Result<IsNull> {
         let member_type = match ty.kind() {

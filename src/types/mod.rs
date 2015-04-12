@@ -668,7 +668,13 @@ impl ToSql for bool {
 }
 
 impl<'a> ToSql for &'a [u8] {
-    to_sql_checked!();
+    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+        if !<&'a [u8] as ToSql>::accepts(ty) {
+            return Err(Error::WrongType(ty.clone()));
+        }
+        self.to_sql(ty, out)
+    }
 
     fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         try!(w.write_all(*self));
@@ -691,7 +697,13 @@ impl ToSql for Vec<u8> {
 }
 
 impl<'a> ToSql for &'a str {
-    to_sql_checked!();
+    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+        if !<&'a str as ToSql>::accepts(ty) {
+            return Err(Error::WrongType(ty.clone()));
+        }
+        self.to_sql(ty, out)
+    }
 
     fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
