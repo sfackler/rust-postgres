@@ -41,9 +41,6 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
             &Kind::Array(ref member) => member,
             _ => panic!("expected array type"),
         };
-        if !<T as ToSql>::accepts(&member_type) {
-            return Err(Error::WrongType(ty.clone()));
-        }
 
         try!(w.write_i32::<BigEndian>(1)); // number of dimensions
         try!(w.write_i32::<BigEndian>(1)); // has nulls
@@ -69,7 +66,7 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
 
     fn accepts(ty: &Type) -> bool {
         match ty.kind() {
-            &Kind::Array(..) => true,
+            &Kind::Array(ref member) => <T as ToSql>::accepts(member),
             _ => false,
         }
     }
