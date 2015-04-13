@@ -48,7 +48,9 @@ mod uuid;
 mod time;
 mod slice;
 #[cfg(feature = "rustc-serialize")]
-mod json;
+mod rustc_serialize;
+#[cfg(feature = "serde")]
+mod serde;
 
 /// A Postgres OID
 pub type Oid = u32;

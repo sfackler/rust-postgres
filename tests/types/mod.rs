@@ -11,7 +11,9 @@ mod uuid;
 #[cfg(feature = "time")]
 mod time;
 #[cfg(feature = "rustc-serialize")]
-mod json;
+mod rustc_serialize;
+#[cfg(feature = "serde")]
+mod serde;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));

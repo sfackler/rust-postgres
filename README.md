@@ -243,17 +243,22 @@ OSX, BSD and Linux.
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature.
+provided optionally by the `uuid` feature, which adds `ToSql` and `FromSql`
+implementations for `uuid`'s `Uuid` type.
 
 ### JSON/JSONB types
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
-support is provided optionally by the `rustc-serialize` feature.
+support is provided optionally by the `rustc-serialize` feature, which adds
+`ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type and
+the `serde` feature which adds implementations for `serde`'s `json::Value`
+type.
 
 ### TIMESTAMP/TIMESTAMPTZ types
 
 [TIMESTAMP and TIMESTAMPTZ](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
-support is provided optionally by the `time` feature.
+support is provided optionally by the `time` feature, which adds `ToSql` and
+`FromSql` implementations for `time`'s `Timespec` type.
 
 ## Development
 Like Rust itself, Rust-Postgres is still in the early stages of development, so

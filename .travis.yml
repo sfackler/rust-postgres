@@ -5,8 +5,8 @@ before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "uuid rustc-serialize time unix_socket"
-- cargo doc --no-deps --features "uuid rustc-serialize time unix_socket"
+- cargo test --features "uuid rustc-serialize time unix_socket serde"
+- cargo doc --no-deps --features "uuid rustc-serialize time unix_socket serde"
 after_success:
   - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && ./.travis/update_docs.sh
 env:
