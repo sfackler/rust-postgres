@@ -234,6 +234,9 @@ Support for Postgres arrays is located in the
 Support for Postgres ranges is located in the
 [postgres-range](https://github.com/sfackler/rust-postgres-range) crate.
 
+Support for Postgres large objects is located in the
+[postgres-large-object](https://github.com/sfackler/rust-postgres-large-object) crate.
+
 ## Optional features
 
 ### Unix socket connections
