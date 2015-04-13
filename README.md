@@ -256,8 +256,8 @@ implementations for `uuid`'s `Uuid` type.
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
 support is provided optionally by the `rustc-serialize` feature, which adds
-`ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type and
-the `serde` feature which adds implementations for `serde`'s `json::Value`
+`ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
+the `serde` feature, which adds implementations for `serde`'s `json::Value`
 type.
 
 ### TIMESTAMP/TIMESTAMPTZ types
