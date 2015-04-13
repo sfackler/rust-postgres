@@ -264,8 +264,3 @@ type.
 [TIMESTAMP and TIMESTAMPTZ](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
 support is provided optionally by the `time` feature, which adds `ToSql` and
 `FromSql` implementations for `time`'s `Timespec` type.
-
-## Development
-Like Rust itself, Rust-Postgres is still in the early stages of development, so
-don't be surprised if APIs change and things break. If something's not working
-properly, file an issue or submit a pull request!
