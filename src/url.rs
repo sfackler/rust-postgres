@@ -309,13 +309,13 @@ fn get_authority(rawurl: &str) ->
             colon_count = 0; // reset count
             match st {
               State::Start => {
-                let user = rawurl[begin..i].to_string();
+                let user = try!(decode_component(&rawurl[begin..i]));
                 userinfo = Some(UserInfo::new(user, None));
                 st = State::InHost;
               }
               State::PassHostPort => {
-                let user = rawurl[begin..pos].to_string();
-                let pass = rawurl[pos+1..i].to_string();
+                let user = try!(decode_component(&rawurl[begin..pos]));
+                let pass = try!(decode_component(&rawurl[pos+1..i]));
                 userinfo = Some(UserInfo::new(user, Some(pass)));
                 st = State::InHost;
               }

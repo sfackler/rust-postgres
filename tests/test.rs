@@ -17,6 +17,7 @@ use postgres::{HandleNotice,
                Error,
                ConnectError,
                DbError,
+               IntoConnectParams,
                VecStreamIterator};
 use postgres::SqlState::{SyntaxError,
                          QueryCanceled,
@@ -935,4 +936,11 @@ fn test_get_opt_wrong_type() {
         Err(Error::WrongType(Type::Int4)) => {}
         Err(e) => panic!("unexpected error {}", e),
     }
+}
+
+#[test]
+fn url_encoded_password() {
+    let params = "postgresql://username%7b%7c:password%7b%7c@localhost".into_connect_params().unwrap();
+    assert_eq!("username{|", &params.user.as_ref().unwrap().user[..]);
+    assert_eq!("password{|", &params.user.as_ref().unwrap().password.as_ref().unwrap()[..]);
 }
