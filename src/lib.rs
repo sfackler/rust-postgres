@@ -59,6 +59,7 @@ use debug_builders::DebugStruct;
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
 use serialize::hex::ToHex;
+use std::ascii::AsciiExt;
 use std::borrow::{ToOwned, Cow};
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
@@ -397,6 +398,60 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     try!(socket.flush());
 
     Ok(())
+}
+
+/// An enumeration of transaction isolation levels.
+///
+/// See the (Postgres documentation)[http://www.postgresql.org/docs/9.4/static/transaction-iso.html]
+/// for full details on the semantics of each level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IsolationLevel {
+    /// The "read uncommitted" level.
+    ///
+    /// In current versions of Postgres, this behaves identically to
+    /// `ReadCommitted`.
+    ReadUncommitted,
+    /// The "read committed" level.
+    ///
+    /// This is the default isolation level in Postgres.
+    ReadCommitted,
+    /// The "repeatable read" level.
+    RepeatableRead,
+    /// The "serializable" level.
+    Serializable,
+}
+
+impl IsolationLevel {
+    fn to_set_query(&self) -> &'static str {
+        match *self {
+            IsolationLevel::ReadUncommitted => {
+                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"
+            }
+            IsolationLevel::ReadCommitted => {
+                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED"
+            }
+            IsolationLevel::RepeatableRead => {
+                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+            }
+            IsolationLevel::Serializable => {
+                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE"
+            }
+        }
+    }
+
+    fn parse(raw: &str) -> Result<IsolationLevel> {
+        if raw.eq_ignore_ascii_case("READ UNCOMMITTED") {
+            Ok(IsolationLevel::ReadUncommitted)
+        } else if raw.eq_ignore_ascii_case("READ COMMITTED") {
+            Ok(IsolationLevel::ReadCommitted)
+        } else if raw.eq_ignore_ascii_case("REPEATABLE READ") {
+            Ok(IsolationLevel::RepeatableRead)
+        } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
+            Ok(IsolationLevel::Serializable)
+        } else {
+            Err(Error::BadResponse)
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -1060,6 +1115,23 @@ impl Connection {
             depth: 1,
             finished: false,
         })
+    }
+
+    /// Sets the isolation level which will be used for future transactions.
+    ///
+    /// ## Note
+    ///
+    /// This will not change the behavior of an active transaction.
+    pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
+        self.batch_execute(level.to_set_query())
+    }
+
+    /// Returns the isolation level which will be used for future transactions.
+    pub fn get_transaction_isolation(&self) -> Result<IsolationLevel> {
+        let mut conn = self.conn.borrow_mut();
+        check_desync!(conn);
+        let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
+        IsolationLevel::parse(result[0][0].as_ref().unwrap())
     }
 
     /// A convenience function for queries that are only run once.

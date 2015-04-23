@@ -18,6 +18,7 @@ use postgres::{HandleNotice,
                ConnectError,
                DbError,
                IntoConnectParams,
+               IsolationLevel,
                VecStreamIterator};
 use postgres::SqlState::{SyntaxError,
                          QueryCanceled,
@@ -943,4 +944,18 @@ fn url_encoded_password() {
     let params = "postgresql://username%7b%7c:password%7b%7c@localhost".into_connect_params().unwrap();
     assert_eq!("username{|", &params.user.as_ref().unwrap().user[..]);
     assert_eq!("password{|", &params.user.as_ref().unwrap().password.as_ref().unwrap()[..]);
+}
+
+#[test]
+fn test_transaction_isolation_level() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.get_transaction_isolation()));
+    or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadUncommitted));
+    assert_eq!(IsolationLevel::ReadUncommitted, or_panic!(conn.get_transaction_isolation()));
+    or_panic!(conn.set_transaction_isolation(IsolationLevel::RepeatableRead));
+    assert_eq!(IsolationLevel::RepeatableRead, or_panic!(conn.get_transaction_isolation()));
+    or_panic!(conn.set_transaction_isolation(IsolationLevel::Serializable));
+    assert_eq!(IsolationLevel::Serializable, or_panic!(conn.get_transaction_isolation()));
+    or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadCommitted));
+    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.get_transaction_isolation()));
 }
