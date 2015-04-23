@@ -1,6 +1,6 @@
 [package]
 name = "postgres"
-version = "0.8.6"
+version = "0.8.7"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
