@@ -402,7 +402,7 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
 
 /// An enumeration of transaction isolation levels.
 ///
-/// See the (Postgres documentation)[http://www.postgresql.org/docs/9.4/static/transaction-iso.html]
+/// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)
 /// for full details on the semantics of each level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsolationLevel {
