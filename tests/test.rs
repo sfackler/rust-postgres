@@ -950,13 +950,13 @@ fn url_encoded_password() {
 #[test]
 fn test_transaction_isolation_level() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.get_transaction_isolation()));
+    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.transaction_isolation()));
     or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadUncommitted));
-    assert_eq!(IsolationLevel::ReadUncommitted, or_panic!(conn.get_transaction_isolation()));
+    assert_eq!(IsolationLevel::ReadUncommitted, or_panic!(conn.transaction_isolation()));
     or_panic!(conn.set_transaction_isolation(IsolationLevel::RepeatableRead));
-    assert_eq!(IsolationLevel::RepeatableRead, or_panic!(conn.get_transaction_isolation()));
+    assert_eq!(IsolationLevel::RepeatableRead, or_panic!(conn.transaction_isolation()));
     or_panic!(conn.set_transaction_isolation(IsolationLevel::Serializable));
-    assert_eq!(IsolationLevel::Serializable, or_panic!(conn.get_transaction_isolation()));
+    assert_eq!(IsolationLevel::Serializable, or_panic!(conn.transaction_isolation()));
     or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadCommitted));
-    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.get_transaction_isolation()));
+    assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.transaction_isolation()));
 }
