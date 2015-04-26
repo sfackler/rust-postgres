@@ -1131,13 +1131,6 @@ impl Connection {
         self.batch_execute(level.to_set_query())
     }
 
-    /// # Deprecated
-    ///
-    /// Use `transaction_isolation` instead.
-    pub fn get_transaction_isolation(&self) -> Result<IsolationLevel> {
-        self.transaction_isolation()
-    }
-
     /// Returns the isolation level which will be used for future transactions.
     pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
         let mut conn = self.conn.borrow_mut();
