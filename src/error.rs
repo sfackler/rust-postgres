@@ -1,7 +1,6 @@
 pub use ugh_privacy::DbError;
 
 use byteorder;
-use openssl::ssl::error::SslError;
 use phf;
 use std::error;
 use std::convert::From;
@@ -29,8 +28,8 @@ pub enum ConnectError {
     UnsupportedAuthentication,
     /// The Postgres server does not support SSL encryption.
     NoSslSupport,
-    /// There was an error initializing the SSL session.
-    SslError(SslError),
+    /// There was an error initializing the SSL session
+    SslError(Box<error::Error>),
     /// There was an error communicating with the server.
     IoError(io::Error),
     /// The server sent an unexpected response.
@@ -67,7 +66,7 @@ impl error::Error for ConnectError {
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             ConnectError::DbError(ref err) => Some(err),
-            ConnectError::SslError(ref err) => Some(err),
+            ConnectError::SslError(ref err) => Some(&**err),
             ConnectError::IoError(ref err) => Some(err),
             _ => None
         }
@@ -83,12 +82,6 @@ impl From<io::Error> for ConnectError {
 impl From<DbError> for ConnectError {
     fn from(err: DbError) -> ConnectError {
         ConnectError::DbError(err)
-    }
-}
-
-impl From<SslError> for ConnectError {
-    fn from(err: SslError) -> ConnectError {
-        ConnectError::SslError(err)
     }
 }
 
