@@ -1,19 +1,18 @@
-use openssl::ssl::{SslStream, SslContext};
-use std::error::Error;
+use byteorder::ReadBytesExt;
 use std::io;
 use std::io::prelude::*;
 use std::net::TcpStream;
 #[cfg(feature = "unix_socket")]
 use unix_socket::UnixStream;
-use byteorder::ReadBytesExt;
 
-use {ConnectParams, ConnectTarget, ConnectError};
-use message;
-use message::WriteMessage;
+use {SslMode, ConnectError, ConnectParams, ConnectTarget};
+use io::{NegotiateSsl, StreamWrapper};
+use message::{self, WriteMessage};
 use message::FrontendMessage::SslRequest;
 
 const DEFAULT_PORT: u16 = 5432;
 
+/// A connection to the Postgres server.
 pub struct Stream(InternalStream);
 
 impl Read for Stream {
@@ -42,53 +41,7 @@ impl StreamWrapper for Stream {
     }
 }
 
-pub trait StreamWrapper: Read+Write+Send {
-    fn get_ref(&self) -> &Stream;
-    fn get_mut(&mut self) -> &mut Stream;
-}
-
-impl StreamWrapper for SslStream<Stream> {
-    fn get_ref(&self) -> &Stream {
-        self.get_ref()
-    }
-
-    fn get_mut(&mut self) -> &mut Stream {
-        self.get_mut()
-    }
-}
-
-pub trait NegotiateSsl {
-    fn negotiate_ssl(&mut self, host: &str, stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error>>;
-}
-
-impl NegotiateSsl for SslContext {
-    fn negotiate_ssl(&mut self, _: &str, stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error>> {
-        let stream = try!(SslStream::new(self, stream));
-        Ok(Box::new(stream))
-    }
-}
-
-/// Specifies the SSL support requested for a new connection.
-pub enum SslMode<N = NoSsl> {
-    /// The connection will not use SSL.
-    None,
-    /// The connection will use SSL if the backend supports it.
-    Prefer(N),
-    /// The connection must use SSL.
-    Require(N),
-}
-
-pub enum NoSsl {}
-
-impl NegotiateSsl for NoSsl {
-    fn negotiate_ssl(&mut self, _: &str, _: Stream) -> Result<Box<StreamWrapper>, Box<Error>> {
-        match *self {}
-    }
-}
-
-pub enum InternalStream {
+enum InternalStream {
     Tcp(TcpStream),
     #[cfg(feature = "unix_socket")]
     Unix(UnixStream),
