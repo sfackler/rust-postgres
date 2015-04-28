@@ -30,12 +30,13 @@ impl<S: Read+Write+Send> StreamWrapper<S> for SslStream<S> {
 }
 
 pub trait NegotiateSsl {
-    fn negotiate_ssl<S>(&mut self, stream: S) -> Result<Box<StreamWrapper<S>>, Box<Error>>
+    fn negotiate_ssl<S>(&mut self, host: &str, stream: S)
+                        -> Result<Box<StreamWrapper<S>>, Box<Error>>
             where S: Read+Write+Send+'static;
 }
 
 impl NegotiateSsl for SslContext {
-    fn negotiate_ssl<S>(&mut self, stream: S) -> Result<Box<StreamWrapper<S>>, Box<Error>>
+    fn negotiate_ssl<S>(&mut self, _: &str, stream: S) -> Result<Box<StreamWrapper<S>>, Box<Error>>
             where S: Read+Write+Send+'static {
         let stream = try!(SslStream::new(self, stream));
         Ok(Box::new(stream))
@@ -55,7 +56,7 @@ pub enum SslMode<N = NoSsl> {
 pub enum NoSsl {}
 
 impl NegotiateSsl for NoSsl {
-    fn negotiate_ssl<S: Read+Write>(&mut self, stream: S)
+    fn negotiate_ssl<S: Read+Write>(&mut self, _: &str, _: S)
                                     -> Result<Box<StreamWrapper<S>>, Box<Error>> {
         match *self {}
     }
@@ -142,7 +143,14 @@ pub fn initialize_stream<N>(params: &ConnectParams, ssl: &mut SslMode<N>)
         }
     }
 
-    match negotiator.negotiate_ssl(socket) {
+    // Postgres doesn't support SSL over unix sockets
+    let host = match params.target {
+        ConnectTarget::Tcp(ref host) => host,
+        #[cfg(feature = "unix_socket")]
+        ConnectTarget::Unix(_) => return Err(ConnectError::BadResponse)
+    };
+
+    match negotiator.negotiate_ssl(host, socket) {
         Ok(stream) => Ok(stream),
         Err(err) => Err(ConnectError::SslError(err))
     }
