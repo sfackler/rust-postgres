@@ -79,11 +79,10 @@ use std::path::PathBuf;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, Kind, ToSql, FromSql};
-pub use io_util::{SslMode, NegotiateSsl, StreamWrapper, NoSsl};
+pub use io_util::{SslMode, NegotiateSsl, StreamWrapper, NoSsl, Stream};
 use types::IsNull;
 #[doc(inline)]
 pub use types::Slice;
-use io_util::InternalStream;
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
@@ -465,7 +464,7 @@ struct CachedStatement {
 }
 
 struct InnerConnection {
-    stream: BufStream<Box<StreamWrapper<InternalStream>>>,
+    stream: BufStream<Box<StreamWrapper>>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,

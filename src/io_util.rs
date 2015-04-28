@@ -14,30 +14,57 @@ use message::FrontendMessage::SslRequest;
 
 const DEFAULT_PORT: u16 = 5432;
 
-pub trait StreamWrapper<S: Read+Write>: Read+Write+Send {
-    fn get_ref(&self) -> &S;
-    fn get_mut(&mut self) -> &mut S;
+pub struct Stream(InternalStream);
+
+impl Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
 }
 
-impl<S: Read+Write+Send> StreamWrapper<S> for SslStream<S> {
-    fn get_ref(&self) -> &S {
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl StreamWrapper for Stream {
+    fn get_ref(&self) -> &Stream {
+        self
+    }
+
+    fn get_mut(&mut self) -> &mut Stream {
+        self
+    }
+}
+
+pub trait StreamWrapper: Read+Write+Send {
+    fn get_ref(&self) -> &Stream;
+    fn get_mut(&mut self) -> &mut Stream;
+}
+
+impl StreamWrapper for SslStream<Stream> {
+    fn get_ref(&self) -> &Stream {
         self.get_ref()
     }
 
-    fn get_mut(&mut self) -> &mut S {
+    fn get_mut(&mut self) -> &mut Stream {
         self.get_mut()
     }
 }
 
 pub trait NegotiateSsl {
-    fn negotiate_ssl<S>(&mut self, host: &str, stream: S)
-                        -> Result<Box<StreamWrapper<S>>, Box<Error>>
-            where S: Read+Write+Send+'static;
+    fn negotiate_ssl(&mut self, host: &str, stream: Stream)
+                     -> Result<Box<StreamWrapper>, Box<Error>>;
 }
 
 impl NegotiateSsl for SslContext {
-    fn negotiate_ssl<S>(&mut self, _: &str, stream: S) -> Result<Box<StreamWrapper<S>>, Box<Error>>
-            where S: Read+Write+Send+'static {
+    fn negotiate_ssl(&mut self, _: &str, stream: Stream)
+                     -> Result<Box<StreamWrapper>, Box<Error>> {
         let stream = try!(SslStream::new(self, stream));
         Ok(Box::new(stream))
     }
@@ -56,8 +83,7 @@ pub enum SslMode<N = NoSsl> {
 pub enum NoSsl {}
 
 impl NegotiateSsl for NoSsl {
-    fn negotiate_ssl<S: Read+Write>(&mut self, _: &str, _: S)
-                                    -> Result<Box<StreamWrapper<S>>, Box<Error>> {
+    fn negotiate_ssl(&mut self, _: &str, _: Stream) -> Result<Box<StreamWrapper>, Box<Error>> {
         match *self {}
     }
 }
@@ -66,16 +92,6 @@ pub enum InternalStream {
     Tcp(TcpStream),
     #[cfg(feature = "unix_socket")]
     Unix(UnixStream),
-}
-
-impl StreamWrapper<InternalStream> for InternalStream {
-    fn get_ref(&self) -> &InternalStream {
-        self
-    }
-
-    fn get_mut(&mut self) -> &mut InternalStream {
-        self
-    }
 }
 
 impl Read for InternalStream {
@@ -122,9 +138,9 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 }
 
 pub fn initialize_stream<N>(params: &ConnectParams, ssl: &mut SslMode<N>)
-                            -> Result<Box<StreamWrapper<InternalStream>>, ConnectError>
+                            -> Result<Box<StreamWrapper>, ConnectError>
         where N: NegotiateSsl {
-    let mut socket = try!(open_socket(params));
+    let mut socket = Stream(try!(open_socket(params)));
 
     let (ssl_required, negotiator) = match *ssl {
         SslMode::None => return Ok(Box::new(socket)),
