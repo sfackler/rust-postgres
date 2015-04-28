@@ -47,9 +47,9 @@
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate crypto;
 #[macro_use]
 extern crate log;
-extern crate openssl;
 extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
@@ -57,9 +57,9 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
 use debug_builders::DebugStruct;
-use openssl::crypto::hash::{self, Hasher};
-use serialize::hex::ToHex;
 use std::ascii::AsciiExt;
 use std::borrow::{ToOwned, Cow};
 use std::cell::{Cell, RefCell};
@@ -640,13 +640,14 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Hasher::new(hash::Type::MD5);
-                let _ = hasher.write_all(pass.as_bytes());
-                let _ = hasher.write_all(user.user.as_bytes());
-                let output = hasher.finish().to_hex();
-                let _ = hasher.write_all(output.as_bytes());
-                let _ = hasher.write_all(&salt);
-                let output = format!("md5{}", hasher.finish().to_hex());
+                let mut hasher = Md5::new();
+                let _ = hasher.input(pass.as_bytes());
+                let _ = hasher.input(user.user.as_bytes());
+                let output = hasher.result_str();
+                hasher.reset();
+                let _ = hasher.input(output.as_bytes());
+                let _ = hasher.input(&salt);
+                let output = format!("md5{}", hasher.result_str());
                 try!(self.write_messages(&[PasswordMessage {
                         password: &output
                     }]));

@@ -1,10 +1,11 @@
 //! Types and traits for SSL adaptors.
-
 pub use priv_io::Stream;
 
-use openssl::ssl::{SslStream, SslContext};
 use std::error::Error;
 use std::io::prelude::*;
+
+#[cfg(feature = "openssl")]
+mod openssl;
 
 /// A trait implemented by SSL adaptors.
 pub trait StreamWrapper: Read+Write+Send {
@@ -13,16 +14,6 @@ pub trait StreamWrapper: Read+Write+Send {
 
     /// Returns a mutable reference to the underlying `Stream`.
     fn get_mut(&mut self) -> &mut Stream;
-}
-
-impl StreamWrapper for SslStream<Stream> {
-    fn get_ref(&self) -> &Stream {
-        self.get_ref()
-    }
-
-    fn get_mut(&mut self) -> &mut Stream {
-        self.get_mut()
-    }
 }
 
 /// A trait implemented by types that can negotiate SSL over a Postgres stream.
@@ -34,14 +25,6 @@ pub trait NegotiateSsl {
     /// verification.
     fn negotiate_ssl(&mut self, host: &str, stream: Stream)
                      -> Result<Box<StreamWrapper>, Box<Error>>;
-}
-
-impl NegotiateSsl for SslContext {
-    fn negotiate_ssl(&mut self, _: &str, stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error>> {
-        let stream = try!(SslStream::new(self, stream));
-        Ok(Box::new(stream))
-    }
 }
 
 /// An uninhabited type implementing `NegotiateSsl`.
