@@ -1,4 +1,7 @@
 language: rust
+rust:
+- nightly
+- beta
 addons:
   postgresql: 9.4
 before_script:
