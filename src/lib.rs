@@ -458,7 +458,7 @@ impl IsolationLevel {
 }
 
 /// Specifies the SSL support requested for a new connection.
-pub enum SslMode<N = NoSsl> {
+pub enum SslMode<N: NegotiateSsl = NoSsl> {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
