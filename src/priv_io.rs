@@ -7,7 +7,7 @@ use unix_socket::UnixStream;
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
-use std::os::windows::io::{AsRawHandle, RawHandle};
+use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use {SslMode, ConnectError, ConnectParams, ConnectTarget};
 use io::{NegotiateSsl, StreamWrapper};
@@ -19,7 +19,7 @@ const DEFAULT_PORT: u16 = 5432;
 /// A connection to the Postgres server.
 ///
 /// It implements `Read`, `Write` and `StreamWrapper`, as well as `AsRawFd` on
-/// Unix platforms and `AsRawHandle` on Windows platforms.
+/// Unix platforms and `AsRawSocket` on Windows platforms.
 pub struct Stream(InternalStream);
 
 impl Read for Stream {
@@ -60,11 +60,11 @@ impl AsRawFd for Stream {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for Stream {
-    fn as_raw_handle(&self) -> RawHandle {
+impl AsRawSocket for Stream {
+    fn as_raw_socket(&self) -> RawSocket {
         // Unix sockets aren't supported on windows, so no need to match
         match self.0 {
-            InternalStream::Tcp(ref s) => s.as_raw_handle(),
+            InternalStream::Tcp(ref s) => s.as_raw_socket(),
         }
     }
 }
