@@ -4,6 +4,10 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 #[cfg(feature = "unix_socket")]
 use unix_socket::UnixStream;
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawHandle, RawHandle};
 
 use {SslMode, ConnectError, ConnectParams, ConnectTarget};
 use io::{NegotiateSsl, StreamWrapper};
@@ -13,6 +17,9 @@ use message::FrontendMessage::SslRequest;
 const DEFAULT_PORT: u16 = 5432;
 
 /// A connection to the Postgres server.
+///
+/// It implements `Read`, `Write` and `StreamWrapper`, as well as `AsRawFd` on
+/// Unix platforms and `AsRawHandle` on Windows platforms.
 pub struct Stream(InternalStream);
 
 impl Read for Stream {
@@ -38,6 +45,27 @@ impl StreamWrapper for Stream {
 
     fn get_mut(&mut self) -> &mut Stream {
         self
+    }
+}
+
+#[cfg(unix)]
+impl AsRawFd for Stream {
+    fn as_raw_fd(&self) -> RawFd {
+        match self.0 {
+            InternalStream::Tcp(ref s) => s.as_raw_fd(),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref s) => s.as_raw_fd(),
+        }
+    }
+}
+
+#[cfg(windows)]
+impl AsRawHandle for Stream {
+    fn as_raw_handle(&self) -> RawHandle {
+        // Unix sockets aren't supported on windows, so no need to match
+        match self.0 {
+            InternalStream::Tcp(ref s) => s.as_raw_handle(),
+        }
     }
 }
 
