@@ -34,7 +34,7 @@ impl Other {
         self.oid
     }
 
-    /// The kind of this type
+    /// The kind of this type.
     pub fn kind(&self) -> &Kind {
         &self.kind
     }

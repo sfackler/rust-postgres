@@ -232,18 +232,18 @@ impl HandleNotice for LoggingNoticeHandler {
     }
 }
 
-/// An asynchronous notification
+/// An asynchronous notification.
 #[derive(Clone, Debug)]
 pub struct Notification {
-    /// The process ID of the notifying backend process
+    /// The process ID of the notifying backend process.
     pub pid: u32,
-    /// The name of the channel that the notify has been raised on
+    /// The name of the channel that the notify has been raised on.
     pub channel: String,
-    /// The "payload" string passed from the notifying process
+    /// The "payload" string passed from the notifying process.
     pub payload: String,
 }
 
-/// An iterator over asynchronous notifications
+/// An iterator over asynchronous notifications.
 pub struct Notifications<'conn> {
     conn: &'conn Connection
 }
@@ -350,12 +350,12 @@ impl<'conn> Notifications<'conn> {
     */
 }
 
-/// Contains information necessary to cancel queries for a session
+/// Contains information necessary to cancel queries for a session.
 #[derive(Copy, Clone, Debug)]
 pub struct CancelData {
-    /// The process ID of the session
+    /// The process ID of the session.
     pub process_id: u32,
-    /// The secret key for the session
+    /// The secret key for the session.
     pub secret_key: u32,
 }
 
@@ -1246,14 +1246,14 @@ impl Connection {
     }
 }
 
-/// Specifies the SSL support requested for a new connection
+/// Specifies the SSL support requested for a new connection.
 #[derive(Debug)]
 pub enum SslMode {
-    /// The connection will not use SSL
+    /// The connection will not use SSL.
     None,
-    /// The connection will use SSL if the backend supports it
+    /// The connection will use SSL if the backend supports it.
     Prefer(SslContext),
-    /// The connection must use SSL
+    /// The connection must use SSL.
     Require(SslContext)
 }
 
@@ -1387,7 +1387,7 @@ impl<'conn> Transaction<'conn> {
     }
 }
 
-/// A prepared statement
+/// A prepared statement.
 pub struct Statement<'conn> {
     conn: &'conn Connection,
     name: String,
@@ -1833,7 +1833,7 @@ impl<'a> fmt::Debug for Row<'a> {
 }
 
 impl<'a> Row<'a> {
-    /// Returns the number of values in the row
+    /// Returns the number of values in the row.
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -1925,7 +1925,7 @@ impl<'a> RowIndex for &'a str {
     }
 }
 
-/// A lazily-loaded iterator over the resulting rows of a query
+/// A lazily-loaded iterator over the resulting rows of a query.
 pub struct LazyRows<'trans, 'stmt> {
     stmt: &'stmt Statement<'stmt>,
     data: VecDeque<Vec<Option<Vec<u8>>>>,
@@ -2017,7 +2017,7 @@ impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
     }
 }
 
-/// A prepared COPY FROM STDIN statement
+/// A prepared `COPY FROM STDIN` statement.
 pub struct CopyInStatement<'a> {
     conn: &'a Connection,
     name: String,

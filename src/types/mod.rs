@@ -52,7 +52,7 @@ mod rustc_serialize;
 #[cfg(feature = "serde")]
 mod serde;
 
-/// A Postgres OID
+/// A Postgres OID.
 pub type Oid = u32;
 
 /// Represents the kind of a Postgres type.
@@ -76,14 +76,14 @@ macro_rules! as_expr {
 
 macro_rules! make_postgres_type {
     ($(#[$doc:meta] $oid:tt => $variant:ident: $kind:expr),+) => (
-        /// A Postgres type
+        /// A Postgres type.
         #[derive(PartialEq, Eq, Clone)]
         pub enum Type {
             $(
                 #[$doc]
                 $variant,
             )+
-            /// An unknown type
+            /// An unknown type.
             Other(Box<Other>),
         }
 
@@ -125,7 +125,7 @@ macro_rules! make_postgres_type {
                 }
             }
 
-            /// The kind of this type
+            /// The kind of this type.
             pub fn kind(&self) -> &Kind {
                 match *self {
                     $(
@@ -491,13 +491,13 @@ pub trait FromSql: Sized {
 impl<T: FromSql> FromSql for Option<T> {
     fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
         match raw {
-            Some(raw) => <T as FromSql>::from_sql(ty, raw).map(|e| Some(e)),
+            Some(raw) => <T as FromSql>::from_sql(ty, raw).map(Some),
             None => Ok(None),
         }
     }
 
     fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
-        <T as FromSql>::from_sql(ty, raw).map(|e| Some(e))
+        <T as FromSql>::from_sql(ty, raw).map(Some)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -539,6 +539,14 @@ impl FromSql for String {
     }
 }
 
+impl FromSql for i8 {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<i8> {
+        Ok(try!(raw.read_i8()))
+    }
+
+    accepts!(Type::Char);
+}
+
 macro_rules! primitive_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
@@ -549,14 +557,6 @@ macro_rules! primitive_from {
             accepts!($($expected),+);
         }
     }
-}
-
-impl FromSql for i8 {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<i8> {
-        Ok(try!(raw.read_i8()))
-    }
-
-    accepts!(Type::Char);
 }
 
 primitive_from!(i16, read_i16, Type::Int2);
@@ -575,8 +575,7 @@ impl FromSql for HashMap<String, Option<String>> {
 
         for _ in 0..count {
             let key_len = try!(raw.read_i32::<BigEndian>());
-            let mut key = vec![];
-            key.extend((0..key_len).map(|_| 0));
+            let mut key = vec![0; key_len as usize];
             try!(util::read_all(raw, &mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
@@ -587,8 +586,7 @@ impl FromSql for HashMap<String, Option<String>> {
             let val = if val_len < 0 {
                 None
             } else {
-                let mut val = vec![];
-                val.extend((0..val_len).map(|_| 0));
+                let mut val = vec![0; val_len as usize];
                 try!(util::read_all(raw, &mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
@@ -690,7 +688,7 @@ impl ToSql for Vec<u8> {
     to_sql_checked!();
 
     fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        (&**self).to_sql(ty, w)
+        <&[u8] as ToSql>::to_sql(&&**self, ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -725,12 +723,23 @@ impl ToSql for String {
     to_sql_checked!();
 
     fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        (&**self).to_sql(ty, w)
+        <&str as ToSql>::to_sql(&&**self, ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
         <&str as ToSql>::accepts(ty)
     }
+}
+
+impl ToSql for i8 {
+    to_sql_checked!();
+
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+        try!(w.write_i8(*self));
+        Ok(IsNull::No)
+    }
+
+    accepts!(Type::Char);
 }
 
 macro_rules! to_primitive {
@@ -748,17 +757,6 @@ macro_rules! to_primitive {
     }
 }
 
-impl ToSql for i8 {
-    to_sql_checked!();
-
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
-        try!(w.write_i8(*self));
-        Ok(IsNull::No)
-    }
-
-    accepts!(Type::Char);
-}
-
 to_primitive!(i16, write_i16, Type::Int2);
 to_primitive!(i32, write_i32, Type::Int4);
 to_primitive!(u32, write_u32, Type::Oid);
@@ -772,7 +770,7 @@ impl ToSql for HashMap<String, Option<String>> {
     fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
         try!(w.write_i32::<BigEndian>(self.len() as i32));
 
-        for (key, val) in self.iter() {
+        for (key, val) in self {
             try!(w.write_i32::<BigEndian>(key.len() as i32));
             try!(w.write_all(key.as_bytes()));
 
