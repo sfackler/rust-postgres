@@ -1334,8 +1334,8 @@ impl<'conn> Transaction<'conn> {
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
-        assert!(conn.trans_depth == self.depth, "`transaction` may only be called on the active \
-                                                 transaction");
+        assert!(conn.trans_depth == self.depth,
+                "`transaction` may only be called on the active transaction");
         try!(conn.quick_query("SAVEPOINT sp"));
         conn.trans_depth += 1;
         Ok(Transaction {
@@ -1723,14 +1723,6 @@ impl<'stmt> Rows<'stmt> {
             iter: self.data.iter()
         }
     }
-
-    /// Consumes the `Rows`, returning an iterator over its `Row`s.
-    pub fn into_iter(self) -> RowsIntoIter<'stmt> {
-        RowsIntoIter {
-            stmt: self.stmt,
-            iter: self.data.into_iter()
-        }
-    }
 }
 
 impl<'a> IntoIterator for &'a Rows<'a> {
@@ -1747,7 +1739,10 @@ impl<'stmt> IntoIterator for Rows<'stmt> {
     type IntoIter = RowsIntoIter<'stmt>;
 
     fn into_iter(self) -> RowsIntoIter<'stmt> {
-        self.into_iter()
+        RowsIntoIter {
+            stmt: self.stmt,
+            iter: self.data.into_iter()
+        }
     }
 }
 
