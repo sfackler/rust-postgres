@@ -24,6 +24,7 @@ pub fn read_all<R: Read>(r: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
         match r.read(&mut buf[start..]) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::Other, "unexpected EOF")),
             Ok(len) => start += len,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(e) => return Err(e),
         }
     }
