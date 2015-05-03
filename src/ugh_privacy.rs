@@ -210,6 +210,6 @@ impl fmt::Display for DbError {
 
 impl error::Error for DbError {
     fn description(&self) -> &str {
-        &*self.message
+        &self.message
     }
 }

@@ -350,8 +350,7 @@ fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
         let val = match try!(buf.read_i32::<BigEndian>()) {
             -1 => None,
             len => {
-                let mut data = Vec::with_capacity(len as usize);
-                data.extend((0..len).map(|_| 0));
+                let mut data = vec![0; len as usize];
                 try!(util::read_all(buf, &mut data));
                 Some(data)
             }
@@ -402,7 +401,7 @@ fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
             type_oid: try!(buf.read_u32::<BigEndian>()),
             type_size: try!(buf.read_i16::<BigEndian>()),
             type_modifier: try!(buf.read_i32::<BigEndian>()),
-            format: try!(buf.read_i16::<BigEndian>())
+            format: try!(buf.read_i16::<BigEndian>()),
         })
     }
 
