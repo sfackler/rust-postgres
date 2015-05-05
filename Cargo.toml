@@ -30,6 +30,7 @@ log = "0.3"
 rustc-serialize = "0.3"
 byteorder = "0.3"
 debug-builders = "0.1"
+bufstream = "0.1"
 uuid = { version = "0.1", optional = true }
 unix_socket = { version = "0.3", optional = true }
 time = { version = "0.1.14", optional = true }

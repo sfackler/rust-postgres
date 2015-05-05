@@ -45,6 +45,7 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc")]
 #![warn(missing_docs)]
 
+extern crate bufstream;
 extern crate byteorder;
 #[macro_use]
 extern crate log;
@@ -55,6 +56,7 @@ extern crate rustc_serialize as serialize;
 extern crate unix_socket;
 extern crate debug_builders;
 
+use bufstream::BufStream;
 use debug_builders::DebugStruct;
 use openssl::crypto::hash::{self, Hasher};
 use openssl::ssl::{SslContext, MaybeSslStream};
@@ -65,7 +67,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::iter::IntoIterator;
-use std::io::{self, BufStream};
+use std::io;
 use std::io::prelude::*;
 use std::mem;
 use std::slice;
