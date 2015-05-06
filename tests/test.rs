@@ -32,7 +32,7 @@ macro_rules! or_panic {
     ($e:expr) => (
         match $e {
             Ok(ok) => ok,
-            Err(err) => panic!("{:?}", err)
+            Err(err) => panic!("{:#?}", err)
         }
     )
 }
@@ -830,6 +830,14 @@ fn test_copy_in_bad_type() {
     }
 
     or_panic!(conn.execute("SELECT 1", &[]));
+}
+
+#[test]
+fn test_copy_in_weird_names() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute(r#"CREATE TEMPORARY TABLE "na""me" (U&" \\\+01F4A9" VARCHAR)"#, &[]));
+    let stmt = or_panic!(conn.prepare_copy_in("na\"me", &[" \\💩"]));
+    assert_eq!(&Type::Varchar, &stmt.column_types()[0]);
 }
 
 #[test]

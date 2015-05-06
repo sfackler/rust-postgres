@@ -763,15 +763,18 @@ impl InnerConnection {
                            -> Result<CopyInStatement<'a>> {
         let mut query = vec![];
         let _ = write!(&mut query, "SELECT ");
-        let _ = util::comma_join(&mut query, rows.iter().cloned());
-        let _ = write!(&mut query, " FROM {}", table);
+        let _ = util::comma_join_quoted_idents(&mut query, rows.iter().cloned());
+        let _ = write!(&mut query, " FROM ");
+        let _ = util::write_quoted_ident(&mut query, table);
         let query = String::from_utf8(query).unwrap();
         let (_, columns) = try!(self.raw_prepare("", &query));
         let column_types = columns.into_iter().map(|desc| desc.type_).collect();
 
         let mut query = vec![];
-        let _ = write!(&mut query, "COPY {} (", table);
-        let _ = util::comma_join(&mut query, rows.iter().cloned());
+        let _ = write!(&mut query, "COPY ");
+        let _ = util::write_quoted_ident(&mut query, table);
+        let _ = write!(&mut query, " (");
+        let _ = util::comma_join_quoted_idents(&mut query, rows.iter().cloned());
         let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
         let query = String::from_utf8(query).unwrap();
         let stmt_name = self.make_stmt_name();
