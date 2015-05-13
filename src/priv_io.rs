@@ -118,9 +118,8 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     }
 }
 
-pub fn initialize_stream<N>(params: &ConnectParams, ssl: &mut SslMode<N>)
-                            -> Result<Box<StreamWrapper>, ConnectError>
-        where N: NegotiateSsl {
+pub fn initialize_stream(params: &ConnectParams, ssl: &mut SslMode)
+                            -> Result<Box<StreamWrapper>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
     let (ssl_required, negotiator) = match *ssl {

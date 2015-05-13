@@ -675,7 +675,7 @@ fn test_cancel_query() {
 fn test_require_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &mut SslMode::Require(ctx)));
+                                                    &mut SslMode::Require(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
@@ -684,7 +684,7 @@ fn test_require_ssl_conn() {
 fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &mut SslMode::Prefer(ctx)));
+                                                    &mut SslMode::Prefer(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
@@ -837,7 +837,7 @@ fn test_copy_in_bad_type() {
 
 #[test]
 fn test_copy_in_weird_names() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &mut SslMode::None));
     or_panic!(conn.execute(r#"CREATE TEMPORARY TABLE "na""me" (U&" \\\+01F4A9" VARCHAR)"#, &[]));
     let stmt = or_panic!(conn.prepare_copy_in("na\"me", &[" \\💩"]));
     assert_eq!(&Type::Varchar, &stmt.column_types()[0]);
