@@ -512,7 +512,7 @@ impl InnerConnection {
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
-        options.push(("TimeZone".to_owned(), "GMT".to_owned()));
+        options.push(("timezone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
         options.push(("user".to_owned(), user.user.clone()));
         if let Some(database) = database {
