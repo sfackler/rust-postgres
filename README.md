@@ -208,9 +208,34 @@ types. The driver currently supports the following conversions:
         <tr>
             <td>
                 <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                and
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveDateTime</a>
                 (<a href="#optional-features">optional</a>)
             </td>
-            <td>TIMESTAMP, TIMESTAMP WITH TIME ZONE</td>
+            <td>TIMESTAMP</td>
+        </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                and
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>TIMESTAMP WITH TIME ZONE</td>
+        </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveDate</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>DATE</td>
+        </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveTime</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>TIME</td>
         </tr>
         <tr>
             <td>
@@ -260,8 +285,10 @@ support is provided optionally by the `rustc-serialize` feature, which adds
 the `serde` feature, which adds implementations for `serde`'s `json::Value`
 type.
 
-### TIMESTAMP/TIMESTAMPTZ types
+### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
-[TIMESTAMP and TIMESTAMPTZ](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
+[Date and Time](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
 support is provided optionally by the `time` feature, which adds `ToSql` and
-`FromSql` implementations for `time`'s `Timespec` type.
+`FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
+feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
+`DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.

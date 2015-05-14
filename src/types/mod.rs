@@ -51,6 +51,8 @@ mod slice;
 mod rustc_serialize;
 #[cfg(feature = "serde")]
 mod serde;
+#[cfg(feature = "chrono")]
+mod chrono;
 
 /// A Postgres OID.
 pub type Oid = u32;

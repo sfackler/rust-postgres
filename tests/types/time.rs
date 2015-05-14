@@ -19,4 +19,3 @@ fn test_tm_params() {
                make_check("'2010-02-09 23:11:45.1202'"),
                (None, "NULL")]);
 }
-

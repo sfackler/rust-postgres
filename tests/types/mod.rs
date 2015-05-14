@@ -14,17 +14,19 @@ mod time;
 mod rustc_serialize;
 #[cfg(feature = "serde")]
 mod serde;
+#[cfg(feature = "chrono")]
+mod chrono;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
         let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
-        assert!(val == &result);
+        assert_eq!(val, &result);
 
         let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
         let result = or_panic!(stmt.query(&[val])).iter().next().unwrap().get(0);
-        assert!(val == &result);
+        assert_eq!(val, &result);
     }
 }
 
