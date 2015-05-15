@@ -203,7 +203,7 @@ types. The driver currently supports the following conversions:
                 <a href="https://github.com/erickt/serde">serde::json::Value</a>
                 (<a href="#optional-features">optional</a>)
             </td>
-            <td>JSON/JSONB</td>
+            <td>JSON, JSONB</td>
         </tr>
         <tr>
             <td>
