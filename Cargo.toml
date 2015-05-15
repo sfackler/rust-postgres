@@ -35,7 +35,7 @@ uuid = { version = "0.1", optional = true }
 unix_socket = { version = "0.3", optional = true }
 time = { version = "0.1.14", optional = true }
 serde = { version = "0.3", optional = true }
-chrono = { version = "0.2", optional = true }
+chrono = { version = "0.2.14", optional = true }
 
 [dev-dependencies]
 url = "0.2"

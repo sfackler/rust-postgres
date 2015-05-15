@@ -7,34 +7,14 @@ use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC}
 use Result;
 use types::{FromSql, ToSql, IsNull, Type};
 
-const USEC_PER_SEC: i64 = 1_000_000;
-const NSEC_PER_USEC: i64 = 1_000;
-
-// Number of seconds from 1970-01-01 to 2000-01-01
-const TIME_SEC_CONVERSION: i64 = 946684800;
-
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
 }
 
 impl FromSql for NaiveDateTime {
     fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<NaiveDateTime> {
-        // FIXME should be this, blocked on lifthrasiir/rust-chrono#37
-        /*
         let t = try!(raw.read_i64::<BigEndian>());
         Ok(base() + Duration::microseconds(t))
-        */
-
-        let t = try!(raw.read_i64::<BigEndian>());
-        let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
-        let mut usec = t % USEC_PER_SEC;
-
-        if usec < 0 {
-            sec -= 1;
-            usec = USEC_PER_SEC + usec;
-        }
-
-        Ok(NaiveDateTime::from_timestamp(sec, (usec * NSEC_PER_USEC) as u32))
     }
 
     accepts!(Type::Timestamp);
