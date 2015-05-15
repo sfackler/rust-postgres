@@ -245,7 +245,7 @@ types. The driver currently supports the following conversions:
             <td>UUID</td>
         </tr>
         <tr>
-            <td>std::collections::HashMap&lt;String, Option&lt;String&gt;&gt;</td>
+            <td>HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
     </tbody>
