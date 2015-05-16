@@ -8,8 +8,8 @@ cd deploy_docs
 git config user.name "Steven Fackler"
 git config user.email "sfackler@gmail.com"
 
-rm -rf doc
-mv ../target/doc .
+rm -rf doc/master
+mv ../target/doc doc/master
 
 git add -A .
 git commit -m "rebuild pages at ${TRAVIS_COMMIT}"
