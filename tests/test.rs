@@ -1,10 +1,11 @@
 extern crate postgres;
 extern crate rustc_serialize as serialize;
 extern crate url;
+#[cfg(feature = "openssl")]
 extern crate openssl;
 
-use openssl::ssl::SslContext;
-use openssl::ssl::SslMethod;
+#[cfg(feature = "openssl")]
+use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 
 use postgres::{HandleNotice,
@@ -670,18 +671,20 @@ fn test_cancel_query() {
 }
 
 #[test]
+#[cfg(feature = "openssl")]
 fn test_require_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &SslMode::Require(ctx)));
+                                                    &mut SslMode::Require(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
 #[test]
+#[cfg(feature = "openssl")]
 fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &SslMode::Prefer(ctx)));
+                                                    &mut SslMode::Prefer(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 

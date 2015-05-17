@@ -47,9 +47,9 @@
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate crypto;
 #[macro_use]
 extern crate log;
-extern crate openssl;
 extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
@@ -57,17 +57,16 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
 use debug_builders::DebugStruct;
-use openssl::crypto::hash::{self, Hasher};
-use openssl::ssl::{SslContext, MaybeSslStream};
-use serialize::hex::ToHex;
 use std::ascii::AsciiExt;
 use std::borrow::{ToOwned, Cow};
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::iter::IntoIterator;
-use std::io;
+use std::io as std_io;
 use std::io::prelude::*;
 use std::mem;
 use std::slice;
@@ -80,10 +79,10 @@ use std::path::PathBuf;
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
 pub use types::{Oid, Type, Kind, ToSql, FromSql};
+use io::{StreamWrapper, NegotiateSsl};
 use types::IsNull;
 #[doc(inline)]
 pub use types::Slice;
-use io_util::InternalStream;
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
@@ -94,9 +93,10 @@ use url::Url;
 mod macros;
 
 mod error;
-mod io_util;
+pub mod io;
 mod message;
 mod ugh_privacy;
+mod priv_io;
 mod url;
 mod util;
 pub mod types;
@@ -388,9 +388,10 @@ pub struct CancelData {
 /// postgres::cancel_query(url, &SslMode::None, cancel_data);
 /// ```
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
-                       -> result::Result<(), ConnectError> where T: IntoConnectParams {
+                          -> result::Result<(), ConnectError>
+        where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
-    let mut socket = try!(io_util::initialize_stream(&params, ssl));
+    let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
@@ -456,6 +457,16 @@ impl IsolationLevel {
     }
 }
 
+/// Specifies the SSL support requested for a new connection.
+pub enum SslMode {
+    /// The connection will not use SSL.
+    None,
+    /// The connection will use SSL if the backend supports it.
+    Prefer(Box<NegotiateSsl>),
+    /// The connection must use SSL.
+    Require(Box<NegotiateSsl>),
+}
+
 #[derive(Clone)]
 struct CachedStatement {
     name: String,
@@ -464,7 +475,7 @@ struct CachedStatement {
 }
 
 struct InnerConnection {
-    stream: BufStream<MaybeSslStream<InternalStream>>,
+    stream: BufStream<Box<StreamWrapper>>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
@@ -489,7 +500,7 @@ impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
-        let stream = try!(io_util::initialize_stream(&params, ssl));
+        let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
@@ -569,7 +580,7 @@ impl InnerConnection {
         }
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> io::Result<()> {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) -> std_io::Result<()> {
         debug_assert!(!self.desynchronized);
         for message in messages {
             try_desync!(self, self.stream.write_message(message));
@@ -577,7 +588,7 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_one_message(&mut self) -> io::Result<Option<BackendMessage>> {
+    fn read_one_message(&mut self) -> std_io::Result<Option<BackendMessage>> {
         debug_assert!(!self.desynchronized);
         match try_desync!(self, self.stream.read_message()) {
             NoticeResponse { fields } => {
@@ -594,7 +605,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification(&mut self) -> io::Result<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             if let Some(msg) = try!(self.read_one_message()) {
                 return Ok(msg);
@@ -602,7 +613,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> io::Result<BackendMessage> {
+    fn read_message(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {
@@ -628,13 +639,14 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Hasher::new(hash::Type::MD5);
-                let _ = hasher.write_all(pass.as_bytes());
-                let _ = hasher.write_all(user.user.as_bytes());
-                let output = hasher.finish().to_hex();
-                let _ = hasher.write_all(output.as_bytes());
-                let _ = hasher.write_all(&salt);
-                let output = format!("md5{}", hasher.finish().to_hex());
+                let mut hasher = Md5::new();
+                let _ = hasher.input(pass.as_bytes());
+                let _ = hasher.input(user.user.as_bytes());
+                let output = hasher.result_str();
+                hasher.reset();
+                let _ = hasher.input(output.as_bytes());
+                let _ = hasher.input(&salt);
+                let output = format!("md5{}", hasher.result_str());
                 try!(self.write_messages(&[PasswordMessage {
                         password: &output
                     }]));
@@ -1131,13 +1143,6 @@ impl Connection {
         self.batch_execute(level.to_set_query())
     }
 
-    /// # Deprecated
-    ///
-    /// Use `transaction_isolation` instead.
-    pub fn get_transaction_isolation(&self) -> Result<IsolationLevel> {
-        self.transaction_isolation()
-    }
-
     /// Returns the isolation level which will be used for future transactions.
     pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
         let mut conn = self.conn.borrow_mut();
@@ -1249,17 +1254,6 @@ impl Connection {
         conn.finished = true;
         conn.finish_inner()
     }
-}
-
-/// Specifies the SSL support requested for a new connection.
-#[derive(Debug)]
-pub enum SslMode {
-    /// The connection will not use SSL.
-    None,
-    /// The connection will use SSL if the backend supports it.
-    Prefer(SslContext),
-    /// The connection must use SSL.
-    Require(SslContext)
 }
 
 /// Represents a transaction on a database connection.
