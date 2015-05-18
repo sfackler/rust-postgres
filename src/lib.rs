@@ -670,8 +670,7 @@ impl InnerConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn raw_prepare(&mut self, stmt_name: &str, query: &str)
-                   -> Result<(Vec<Type>, Vec<Column>)> {
+    fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
         try!(self.write_messages(&[
