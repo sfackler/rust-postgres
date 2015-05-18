@@ -611,8 +611,7 @@ primitive_from!(f32, read_f32, Type::Float4);
 primitive_from!(f64, read_f64, Type::Float8);
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R)
-            -> Result<HashMap<String, Option<String>>> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<HashMap<String, Option<String>>> {
         let mut map = HashMap::new();
 
         let count = try!(raw.read_i32::<BigEndian>());
