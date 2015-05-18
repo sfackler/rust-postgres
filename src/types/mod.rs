@@ -482,7 +482,7 @@ make_postgres_type! {
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
-/// implementations, activate the cargo feature corresponding to the crate's
+/// implementations, activate the Cargo feature corresponding to the crate's
 /// name. For example, the `serde` feature enables the implementation for the
 /// `serde::json::Value` type.
 ///
@@ -685,7 +685,7 @@ pub enum IsNull {
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
-/// implementations, activate the cargo feature corresponding to the crate's
+/// implementations, activate the Cargo feature corresponding to the crate's
 /// name. For example, the `serde` feature enables the implementation for the
 /// `serde::json::Value` type.
 ///
