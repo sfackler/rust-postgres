@@ -460,6 +460,48 @@ make_postgres_type! {
 }
 
 /// A trait for types that can be created from a Postgres value.
+///
+/// # Types
+///
+/// The following implementations are provided by this crate, along with the
+/// corresponding Postgres types:
+///
+/// | Rust type                                   | Postgres type(s)               |
+/// |---------------------------------------------|--------------------------------|
+/// | bool                                        | BOOL                           |
+/// | i8                                          | "char"                         |
+/// | i16                                         | SMALLINT, SMALLSERIAL          |
+/// | i32                                         | INT, SERIAL                    |
+/// | u32                                         | OID                            |
+/// | i64                                         | BIGINT, BIGSERIAL              |
+/// | f32                                         | REAL                           |
+/// | f64                                         | DOUBLE PRECISION               |
+/// | String                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | Vec&lt;u8&gt;                               | BYTEA                          |
+/// | HashMap&lt;String, Option&lt;String&gt;&gt; | HSTORE                         |
+///
+/// In addition, some implementations are provided for types in third party
+/// crates. These are disabled by default; to opt into one of these
+/// implementations, activate the cargo feature corresponding to the crate's
+/// name. For example, the `serde` feature enables the implementation for the
+/// `serde::json::Value` type.
+///
+/// | Rust type                   | Postgres type(s)                    |
+/// |-----------------------------|-------------------------------------|
+/// | serialize::json::Json       | JSON, JSONB                         |
+/// | serde::json::Value          | JSON, JSONB                         |
+/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime       | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate           | DATE                                |
+/// | chrono::NaiveTime           | TIME                                |
+/// | uuid::Uuid                  | UUID                                |
+///
+/// # Nullability
+///
+/// In addition to the types listed above, `FromSql` is implemented for
+/// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
+/// nullable Postgres value.
 pub trait FromSql: Sized {
     /// Creates a new value of this type from a `Read` of Postgres data.
     ///
@@ -619,6 +661,50 @@ pub enum IsNull {
 }
 
 /// A trait for types that can be converted into Postgres values.
+///
+/// # Types
+///
+/// The following implementations are provided by this crate, along with the
+/// corresponding Postgres types:
+///
+/// | Rust type                                   | Postgres type(s)               |
+/// |---------------------------------------------|--------------------------------|
+/// | bool                                        | BOOL                           |
+/// | i8                                          | "char"                         |
+/// | i16                                         | SMALLINT, SMALLSERIAL          |
+/// | i32                                         | INT, SERIAL                    |
+/// | u32                                         | OID                            |
+/// | i64                                         | BIGINT, BIGSERIAL              |
+/// | f32                                         | REAL                           |
+/// | f64                                         | DOUBLE PRECISION               |
+/// | String                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | &str                                        | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | Vec&lt;u8&gt;                               | BYTEA                          |
+/// | &[u8]                                       | BYTEA                          |
+/// | HashMap&lt;String, Option&lt;String&gt;&gt; | HSTORE                         |
+///
+/// In addition, some implementations are provided for types in third party
+/// crates. These are disabled by default; to opt into one of these
+/// implementations, activate the cargo feature corresponding to the crate's
+/// name. For example, the `serde` feature enables the implementation for the
+/// `serde::json::Value` type.
+///
+/// | Rust type                   | Postgres type(s)                    |
+/// |-----------------------------|-------------------------------------|
+/// | serialize::json::Json       | JSON, JSONB                         |
+/// | serde::json::Value          | JSON, JSONB                         |
+/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime       | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate           | DATE                                |
+/// | chrono::NaiveTime           | TIME                                |
+/// | uuid::Uuid                  | UUID                                |
+///
+/// # Nullability
+///
+/// In addition to the types listed above, `ToSql` is implemented for
+/// `Option<T>` where `T` implements `ToSql`. An `Option<T>` represents a
+/// nullable Postgres value.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, writing it to `out`.
