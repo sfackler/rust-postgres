@@ -17,6 +17,9 @@ pub trait StreamWrapper: Read+Write+Send {
 }
 
 /// A trait implemented by types that can negotiate SSL over a Postgres stream.
+///
+/// If the `openssl` Cargo feature is enabled, this trait will be implemented
+/// for `openssl::ssl::SslContext`.
 pub trait NegotiateSsl {
     /// Negotiates an SSL session, returning a wrapper around the provided
     /// stream.
