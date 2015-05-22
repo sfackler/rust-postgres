@@ -32,8 +32,8 @@ impl ToSql for NaiveDateTime {
 }
 
 impl FromSql for DateTime<UTC> {
-    fn from_sql<R: Read>(type_: &Type, raw: &mut R, _: &SessionInfo) -> Result<DateTime<UTC>> {
-        let naive = try!(NaiveDateTime::from_sql(type_, raw));
+    fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo) -> Result<DateTime<UTC>> {
+        let naive = try!(NaiveDateTime::from_sql(type_, raw, info));
         Ok(DateTime::from_utc(naive, UTC))
     }
 
@@ -41,9 +41,9 @@ impl FromSql for DateTime<UTC> {
 }
 
 impl ToSql for DateTime<UTC> {
-    fn to_sql<W: Write+?Sized>(&self, type_: &Type, mut w: &mut W, _: &SessionInfo)
+    fn to_sql<W: Write+?Sized>(&self, type_: &Type, mut w: &mut W, info: &SessionInfo)
                                -> Result<IsNull> {
-        self.naive_utc().to_sql(type_, w)
+        self.naive_utc().to_sql(type_, w, info)
     }
 
     accepts!(Type::TimestampTZ);
