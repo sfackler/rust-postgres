@@ -6,7 +6,7 @@ use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
-use Result;
+use {Result, SessionInfoNew, InnerConnection};
 use error::Error;
 use util;
 
@@ -32,12 +32,13 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write)
+        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write,
+                          ctx: &$crate::types::SessionInfo)
                           -> $crate::Result<$crate::types::IsNull> {
             if !<Self as $crate::types::ToSql>::accepts(ty) {
                 return Err($crate::Error::WrongType(ty.clone()));
             }
-            self.to_sql(ty, out)
+            self.to_sql(ty, out, ctx)
         }
     }
 }
@@ -53,6 +54,27 @@ mod rustc_serialize;
 mod serde;
 #[cfg(feature = "chrono")]
 mod chrono;
+
+/// A structure providing information for conversion methods.
+pub struct SessionInfo<'a> {
+    conn: &'a InnerConnection,
+}
+
+impl<'a> SessionInfoNew<'a> for SessionInfo<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a> {
+        SessionInfo {
+            conn: conn
+        }
+    }
+}
+
+impl<'a> SessionInfo<'a> {
+    /// Returns the value of the specified Postgres backend parameter, such
+    /// as `timezone` or `server_version`.
+    pub fn parameter(&self, param: &str) -> Option<&'a str> {
+        self.conn.parameters.get(param).map(|s| &**s)
+    }
+}
 
 /// A Postgres OID.
 pub type Oid = u32;
@@ -513,9 +535,10 @@ pub trait FromSql: Sized {
     /// The default implementation calls `FromSql::from_sql` when `raw` is
     /// `Some` and returns `Err(Error::WasNull)` when `raw` is `None`. It does
     /// not typically need to be overridden.
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Self> {
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
+                                  -> Result<Self> {
         match raw {
-            Some(raw) => FromSql::from_sql(ty, raw),
+            Some(raw) => FromSql::from_sql(ty, raw, ctx),
             None => Err(Error::WasNull),
         }
     }
@@ -525,7 +548,7 @@ pub trait FromSql: Sized {
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Self>;
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self>;
 
     /// Determines if a value of this type can be created from the specified
     /// Postgres `Type`.
@@ -533,15 +556,16 @@ pub trait FromSql: Sized {
 }
 
 impl<T: FromSql> FromSql for Option<T> {
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
+                                  -> Result<Option<T>> {
         match raw {
-            Some(raw) => <T as FromSql>::from_sql(ty, raw).map(Some),
+            Some(raw) => <T as FromSql>::from_sql(ty, raw, ctx).map(Some),
             None => Ok(None),
         }
     }
 
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
-        <T as FromSql>::from_sql(ty, raw).map(Some)
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Option<T>> {
+        <T as FromSql>::from_sql(ty, raw, ctx).map(Some)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -550,7 +574,7 @@ impl<T: FromSql> FromSql for Option<T> {
 }
 
 impl FromSql for bool {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<bool> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<bool> {
         Ok(try!(raw.read_u8()) != 0)
     }
 
@@ -558,7 +582,7 @@ impl FromSql for bool {
 }
 
 impl FromSql for Vec<u8> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<Vec<u8>> {
         let mut buf = vec![];
         try!(raw.read_to_end(&mut buf));
         Ok(buf)
@@ -568,7 +592,7 @@ impl FromSql for Vec<u8> {
 }
 
 impl FromSql for String {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<String> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<String> {
         let mut buf = vec![];
         try!(raw.read_to_end(&mut buf));
         String::from_utf8(buf).map_err(|_| Error::BadResponse)
@@ -584,7 +608,7 @@ impl FromSql for String {
 }
 
 impl FromSql for i8 {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<i8> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<i8> {
         Ok(try!(raw.read_i8()))
     }
 
@@ -594,7 +618,7 @@ impl FromSql for i8 {
 macro_rules! primitive_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
-            fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<$t> {
+            fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<$t> {
                 Ok(try!(raw.$f::<BigEndian>()))
             }
 
@@ -611,7 +635,8 @@ primitive_from!(f32, read_f32, Type::Float4);
 primitive_from!(f64, read_f64, Type::Float8);
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<HashMap<String, Option<String>>> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo)
+                         -> Result<HashMap<String, Option<String>>> {
         let mut map = HashMap::new();
 
         let count = try!(raw.read_i32::<BigEndian>());
@@ -714,7 +739,7 @@ pub trait ToSql: fmt::Debug {
     /// The return value indicates if this value should be represented as
     /// `NULL`. If this is the case, implementations **must not** write
     /// anything to `out`.
-    fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull>
+    fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull>
             where Self: Sized, W: Write;
 
     /// Determines if a value of this type can be converted to the specified
@@ -725,15 +750,17 @@ pub trait ToSql: fmt::Debug {
     ///
     /// *All* implementations of this method should be generated by the
     /// `to_sql_checked!()` macro.
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull>;
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull>;
 }
 
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
         match *self {
-            Some(ref val) => val.to_sql(ty, out),
+            Some(ref val) => val.to_sql(ty, out, ctx),
             None => Ok(IsNull::Yes),
         }
     }
@@ -746,7 +773,8 @@ impl<T: ToSql> ToSql for Option<T> {
 impl ToSql for bool {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_u8(*self as u8));
         Ok(IsNull::No)
     }
@@ -756,14 +784,16 @@ impl ToSql for bool {
 
 impl<'a> ToSql for &'a [u8] {
     // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull> {
         if !<&'a [u8] as ToSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        self.to_sql(ty, out)
+        self.to_sql(ty, out, ctx)
     }
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_all(*self));
         Ok(IsNull::No)
     }
@@ -774,8 +804,9 @@ impl<'a> ToSql for &'a [u8] {
 impl ToSql for Vec<u8> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        <&[u8] as ToSql>::to_sql(&&**self, ty, w)
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
+        <&[u8] as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -785,14 +816,16 @@ impl ToSql for Vec<u8> {
 
 impl<'a> ToSql for &'a str {
     // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull> {
         if !<&'a str as ToSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        self.to_sql(ty, out)
+        self.to_sql(ty, out, ctx)
     }
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
         Ok(IsNull::No)
     }
@@ -809,8 +842,9 @@ impl<'a> ToSql for &'a str {
 impl ToSql for String {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        <&str as ToSql>::to_sql(&&**self, ty, w)
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
+        <&str as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -821,7 +855,8 @@ impl ToSql for String {
 impl ToSql for i8 {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_i8(*self));
         Ok(IsNull::No)
     }
@@ -834,7 +869,8 @@ macro_rules! to_primitive {
         impl ToSql for $t {
             to_sql_checked!();
 
-            fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+            fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                                       -> Result<IsNull> {
                 try!(w.$f::<BigEndian>(*self));
                 Ok(IsNull::No)
             }
@@ -854,7 +890,8 @@ to_primitive!(f64, write_f64, Type::Float8);
 impl ToSql for HashMap<String, Option<String>> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_i32::<BigEndian>(self.len() as i32));
 
         for (key, val) in self {

@@ -78,7 +78,7 @@ use std::path::PathBuf;
 
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
-pub use types::{Oid, Type, Kind, ToSql, FromSql};
+pub use types::{Oid, Type, Kind, ToSql, FromSql, SessionInfo};
 use io::{StreamWrapper, NegotiateSsl};
 use types::IsNull;
 #[doc(inline)]
@@ -474,6 +474,10 @@ struct CachedStatement {
     columns: Vec<Column>,
 }
 
+trait SessionInfoNew<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
+}
+
 struct InnerConnection {
     stream: BufStream<Box<StreamWrapper>>,
     notice_handler: Box<HandleNotice>,
@@ -826,7 +830,7 @@ impl InnerConnection {
 
         // Ew @ doing this manually :(
         let mut buf = vec![];
-        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf)) {
+        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf, &SessionInfo::new(self))) {
             IsNull::Yes => None,
             IsNull::No => Some(buf),
         };
@@ -854,12 +858,16 @@ impl InnerConnection {
         let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
                 match try!(self.read_message()) {
             DataRow { row } => {
+                let ctx = SessionInfo::new(self);
                 (try!(FromSql::from_sql_nullable(&Type::Name,
-                                                 row[0].as_ref().map(|r| &**r).as_mut())),
+                                                 row[0].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                 row[1].as_ref().map(|r| &**r).as_mut())),
+                                                 row[1].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                 row[2].as_ref().map(|r| &**r).as_mut())))
+                                                 row[2].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)))
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -1221,7 +1229,8 @@ impl Connection {
         self.conn.borrow().cancel_data
     }
 
-    /// Returns the value of the specified parameter.
+    /// Returns the value of the specified Postgres backend parameter, such as
+    /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<String> {
         self.conn.borrow().parameters.get(param).cloned()
     }
@@ -1433,7 +1442,7 @@ impl<'conn> Statement<'conn> {
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
             let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf)) {
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(&*conn))) {
                 IsNull::Yes => values.push(None),
                 IsNull::No => values.push(Some(buf)),
             }
@@ -1854,7 +1863,9 @@ impl<'a> Row<'a> {
         if !<T as FromSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        FromSql::from_sql_nullable(ty, self.data[idx].as_ref().map(|e| &**e).as_mut())
+        let conn = self.stmt.conn.conn.borrow();
+        FromSql::from_sql_nullable(ty, self.data[idx].as_ref().map(|e| &**e).as_mut(),
+                                   &SessionInfo::new(&*conn))
     }
 
     /// Retrieves the contents of a field of the row.
@@ -2151,7 +2162,7 @@ impl<'a> CopyInStatement<'a> {
                 match (row.next(), types.next()) {
                     (Some(val), Some(ty)) => {
                         let mut inner_buf = vec![];
-                        match val.to_sql_checked(ty, &mut inner_buf) {
+                        match val.to_sql_checked(ty, &mut inner_buf, &SessionInfo::new(&*conn)) {
                             Ok(IsNull::Yes) => {
                                 let _ = buf.write_i32::<BigEndian>(-1);
                             }
