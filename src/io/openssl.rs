@@ -16,7 +16,8 @@ impl StreamWrapper for SslStream<Stream> {
 }
 
 impl NegotiateSsl for SslContext {
-    fn negotiate_ssl(&self, _: &str, stream: Stream) -> Result<Box<StreamWrapper>, Box<Error>> {
+    fn negotiate_ssl(&self, _: &str, stream: Stream)
+                     -> Result<Box<StreamWrapper>, Box<Error+Send+Sync>> {
         let stream = try!(SslStream::new(self, stream));
         Ok(Box::new(stream))
     }
