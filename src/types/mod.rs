@@ -6,11 +6,9 @@ use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
-use {Result, SessionInfoNew, InnerConnection};
+use {Result, SessionInfoNew, InnerConnection, OtherNew};
 use error::Error;
 use util;
-
-pub use ugh_privacy::Other;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -479,6 +477,41 @@ make_postgres_type! {
     3927 => Int8RangeArray: Kind::Array(Type::Int8Range),
     #[doc="EVENT_TRIGGER"]
     3838 => EventTrigger: Kind::Simple
+}
+
+/// Information about an unknown type.
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Other {
+    name: String,
+    oid: Oid,
+    kind: Kind,
+}
+
+impl OtherNew for Other {
+    fn new(name: String, oid: Oid, kind: Kind) -> Other {
+        Other {
+            name: name,
+            oid: oid,
+            kind: kind,
+        }
+    }
+}
+
+impl Other {
+    /// The name of the type.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The OID of this type.
+    pub fn oid(&self) -> Oid {
+        self.oid
+    }
+
+    /// The kind of this type.
+    pub fn kind(&self) -> &Kind {
+        &self.kind
+    }
 }
 
 /// A trait for types that can be created from a Postgres value.

@@ -78,7 +78,7 @@ use std::path::PathBuf;
 
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
-pub use types::{Oid, Type, Kind, ToSql, FromSql, SessionInfo};
+pub use types::{Oid, Type, Other, Kind, ToSql, FromSql, SessionInfo};
 use io::{StreamWrapper, NegotiateSsl};
 use types::IsNull;
 #[doc(inline)]
@@ -95,7 +95,6 @@ mod macros;
 mod error;
 pub mod io;
 mod message;
-mod ugh_privacy;
 mod priv_io;
 mod url;
 mod util;
@@ -548,7 +547,7 @@ impl InnerConnection {
                     conn.cancel_data.secret_key = secret_key;
                 }
                 ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
+                ErrorResponse { fields } => return DbError::new_connect(fields),
                 _ => return Err(ConnectError::BadResponse),
             }
         }
@@ -596,7 +595,7 @@ impl InnerConnection {
         debug_assert!(!self.desynchronized);
         match try_desync!(self, self.stream.read_message()) {
             NoticeResponse { fields } => {
-                if let Ok(err) = ugh_privacy::dberror_new_raw(fields) {
+                if let Ok(err) = DbError::new_raw(fields) {
                     self.notice_handler.handle_notice(err);
                 }
                 Ok(None)
@@ -659,13 +658,13 @@ impl InnerConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
-            ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
+            ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::BadResponse)
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
+            ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::BadResponse)
         }
     }
@@ -693,7 +692,7 @@ impl InnerConnection {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self),
         }
@@ -812,7 +811,7 @@ impl InnerConnection {
             Sync]));
         let resp = match try!(self.read_message()) {
             CloseComplete => Ok(()),
-            ErrorResponse { fields } => ugh_privacy::dberror_new(fields),
+            ErrorResponse { fields } => DbError::new(fields),
             _ => bad_response!(self)
         };
         try!(self.wait_for_ready());
@@ -851,7 +850,7 @@ impl InnerConnection {
             BindComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         }
@@ -871,7 +870,7 @@ impl InnerConnection {
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         };
@@ -879,7 +878,7 @@ impl InnerConnection {
             CommandComplete { .. } => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         }
@@ -894,7 +893,7 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(ugh_privacy::new_other(name, oid, kind)));
+        let type_ = Type::Other(Box::new(Other::new(name, oid, kind)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }
@@ -933,7 +932,7 @@ impl InnerConnection {
                 }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return ugh_privacy::dberror_new(fields);
+                    return DbError::new(fields);
                 }
                 _ => {}
             }
@@ -1466,7 +1465,7 @@ impl<'conn> Statement<'conn> {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                ugh_privacy::dberror_new(fields)
+                DbError::new(fields)
             }
             _ => {
                 conn.desynchronized = true;
@@ -1527,7 +1526,7 @@ impl<'conn> Statement<'conn> {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return ugh_privacy::dberror_new(fields);
+                    return DbError::new(fields);
                 }
                 CommandComplete { tag } => {
                     num = util::parse_update_count(tag);
@@ -1683,7 +1682,7 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
             DataRow { row } => buf.push_back(row),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             CopyInResponse { .. } => {
                 try!(conn.write_messages(&[
@@ -2133,7 +2132,7 @@ impl<'a> CopyInStatement<'a> {
             BindComplete => {},
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;
@@ -2210,7 +2209,7 @@ impl<'a> CopyInStatement<'a> {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => {
                 conn.desynchronized = true;
@@ -2318,4 +2317,14 @@ impl<'a> GenericConnection for Transaction<'a> {
     fn is_active(&self) -> bool {
         self.is_active()
     }
+}
+
+trait OtherNew {
+    fn new(name: String, oid: Oid, kind: Kind) -> Other;
+}
+
+trait DbErrorNew {
+    fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()>;
+    fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError>;
+    fn new<T>(fields: Vec<(u8, String)>) -> Result<T>;
 }
