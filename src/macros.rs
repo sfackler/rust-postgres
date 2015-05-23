@@ -22,6 +22,6 @@ macro_rules! bad_response {
     ($s:expr) => ({
         debug!("Bad response at {}:{}", file!(), line!());
         $s.desynchronized = true;
-        return Err(::Error::BadResponse);
+        return Err(::Error::IoError(::bad_response()));
     })
 }

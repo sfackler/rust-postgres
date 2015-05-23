@@ -507,7 +507,7 @@ fn test_get_was_null() {
     let result = or_panic!(stmt.query(&[]));
 
     match result.iter().next().unwrap().get_opt::<usize, i32>(0) {
-        Err(Error::WasNull) => {}
+        Err(Error::Conversion(..)) => {}
         res => panic!("unexpected result {:?}", res),
     };
 }

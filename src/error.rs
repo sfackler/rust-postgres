@@ -66,14 +66,14 @@ impl DbErrorNew for DbError {
     fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(ConnectError::DbError(err)),
-            Err(()) => Err(ConnectError::BadResponse),
+            Err(()) => Err(ConnectError::IoError(::bad_response())),
         }
     }
 
     fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(Error::DbError(err)),
-            Err(()) => Err(Error::BadResponse),
+            Err(()) => Err(Error::IoError(::bad_response())),
         }
     }
 }
@@ -205,11 +205,9 @@ pub enum ConnectError {
     /// The Postgres server does not support SSL encryption.
     NoSslSupport,
     /// There was an error initializing the SSL session
-    SslError(Box<error::Error>),
+    SslError(Box<error::Error+Sync+Send>),
     /// There was an error communicating with the server.
     IoError(io::Error),
-    /// The server sent an unexpected response.
-    BadResponse,
 }
 
 impl fmt::Display for ConnectError {
@@ -235,7 +233,6 @@ impl error::Error for ConnectError {
             ConnectError::NoSslSupport => "The server does not support SSL",
             ConnectError::SslError(_) => "Error initiating SSL session",
             ConnectError::IoError(_) => "Error communicating with server",
-            ConnectError::BadResponse => "The server returned an unexpected response",
         }
     }
 
@@ -296,10 +293,8 @@ pub enum Error {
     WrongType(Type),
     /// An attempt was made to read from a column that does not exist.
     InvalidColumn,
-    /// A value was NULL but converted to a non-nullable Rust type.
-    WasNull,
-    /// The server returned an unexpected response.
-    BadResponse,
+    /// An error converting between Postgres and Rust types.
+    Conversion(Box<error::Error+Sync+Send>),
 }
 
 impl fmt::Display for Error {
@@ -322,8 +317,7 @@ impl error::Error for Error {
             }
             Error::WrongType(_) => "Unexpected type",
             Error::InvalidColumn => "Invalid column",
-            Error::WasNull => "The value was NULL",
-            Error::BadResponse => "The server returned an unexpected response",
+            Error::Conversion(_) => "An error converting between Postgres and Rust types",
         }
     }
 
@@ -331,6 +325,7 @@ impl error::Error for Error {
         match *self {
             Error::DbError(ref err) => Some(err),
             Error::IoError(ref err) => Some(err),
+            Error::Conversion(ref err) => Some(&**err),
             _ => None
         }
     }

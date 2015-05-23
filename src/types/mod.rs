@@ -2,6 +2,7 @@
 pub use self::slice::Slice;
 
 use std::collections::HashMap;
+use std::error;
 use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
@@ -514,6 +515,23 @@ impl Other {
     }
 }
 
+/// An error indicating that a `NULL` Postgres value was passed to a `FromSql`
+/// implementation that does not support `NULL` values.
+#[derive(Debug, Clone, Copy)]
+pub struct WasNull;
+
+impl fmt::Display for WasNull {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str(error::Error::description(self))
+    }
+}
+
+impl error::Error for WasNull {
+    fn description(&self) -> &str {
+        "a Postgres value was `NULL`"
+    }
+}
+
 /// A trait for types that can be created from a Postgres value.
 ///
 /// # Types
@@ -566,13 +584,13 @@ pub trait FromSql: Sized {
     /// is compatible with the Postgres `Type`.
     ///
     /// The default implementation calls `FromSql::from_sql` when `raw` is
-    /// `Some` and returns `Err(Error::WasNull)` when `raw` is `None`. It does
-    /// not typically need to be overridden.
+    /// `Some` and returns `Err(Error::Conversion(Box::new(WasNull))` when
+    /// `raw` is `None`. It does not typically need to be overridden.
     fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
                                   -> Result<Self> {
         match raw {
             Some(raw) => FromSql::from_sql(ty, raw, ctx),
-            None => Err(Error::WasNull),
+            None => Err(Error::Conversion(Box::new(WasNull))),
         }
     }
 
@@ -628,7 +646,7 @@ impl FromSql for String {
     fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<String> {
         let mut buf = vec![];
         try!(raw.read_to_end(&mut buf));
-        String::from_utf8(buf).map_err(|_| Error::BadResponse)
+        String::from_utf8(buf).map_err(|err| Error::Conversion(Box::new(err)))
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -680,7 +698,7 @@ impl FromSql for HashMap<String, Option<String>> {
             try!(util::read_all(raw, &mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
-                Err(_) => return Err(Error::BadResponse),
+                Err(err) => return Err(Error::Conversion(Box::new(err))),
             };
 
             let val_len = try!(raw.read_i32::<BigEndian>());
@@ -691,7 +709,7 @@ impl FromSql for HashMap<String, Option<String>> {
                 try!(util::read_all(raw, &mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
-                    Err(_) => return Err(Error::BadResponse),
+                    Err(err) => return Err(Error::Conversion(Box::new(err))),
                 }
             };
 

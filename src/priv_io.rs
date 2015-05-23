@@ -143,7 +143,7 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
     let host = match params.target {
         ConnectTarget::Tcp(ref host) => host,
         #[cfg(feature = "unix_socket")]
-        ConnectTarget::Unix(_) => return Err(ConnectError::BadResponse)
+        ConnectTarget::Unix(_) => return Err(ConnectError::IoError(::bad_response()))
     };
 
     match negotiator.negotiate_ssl(host, socket) {

@@ -402,6 +402,11 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     Ok(())
 }
 
+fn bad_response() -> std_io::Error {
+    std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                       "the server returned an unexpected response")
+}
+
 /// An enumeration of transaction isolation levels.
 ///
 /// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)
@@ -451,7 +456,7 @@ impl IsolationLevel {
         } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
             Ok(IsolationLevel::Serializable)
         } else {
-            Err(Error::BadResponse)
+            Err(Error::IoError(bad_response()))
         }
     }
 }
@@ -548,7 +553,7 @@ impl InnerConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => return DbError::new_connect(fields),
-                _ => return Err(ConnectError::BadResponse),
+                _ => return Err(ConnectError::IoError(bad_response())),
             }
         }
 
@@ -659,13 +664,13 @@ impl InnerConnection {
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::BadResponse)
+            _ => return Err(ConnectError::IoError(bad_response()))
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::BadResponse)
+            _ => return Err(ConnectError::IoError(bad_response()))
         }
     }
 
@@ -1469,7 +1474,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                Err(Error::BadResponse)
+                Err(Error::IoError(bad_response()))
             }
         }
     }
@@ -1545,7 +1550,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::BadResponse);
+                    return Err(Error::IoError(bad_response()));
                 }
             }
         }
@@ -1693,7 +1698,7 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::BadResponse);
+                return Err(Error::IoError(bad_response()));
             }
         }
     }
@@ -2136,7 +2141,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::BadResponse);
+                return Err(Error::IoError(bad_response()));
             }
         }
 
@@ -2144,7 +2149,7 @@ impl<'a> CopyInStatement<'a> {
             CopyInResponse { .. } => {}
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::BadResponse);
+                return Err(Error::IoError(bad_response()));
             }
         }
 
@@ -2213,7 +2218,7 @@ impl<'a> CopyInStatement<'a> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::BadResponse);
+                return Err(Error::IoError(bad_response()));
             }
         };
 
