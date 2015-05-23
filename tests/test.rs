@@ -19,8 +19,7 @@ use postgres::{HandleNotice,
                ConnectError,
                DbError,
                IntoConnectParams,
-               IsolationLevel,
-               VecStreamIterator};
+               IsolationLevel};
 use postgres::SqlState::{SyntaxError,
                          QueryCanceled,
                          UndefinedTable,
@@ -753,94 +752,6 @@ fn test_execute_copy_from_err() {
         Err(err) => panic!("Unexptected error {:?}", err),
         _ => panic!("Expected error"),
     }
-}
-
-#[test]
-fn test_copy_in() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-
-    let data = (0i32..2).map(|i| {
-        VecStreamIterator::new(vec![Box::new(i),
-                                    Box::new(format!("{}", i))])
-    });
-
-    assert_eq!(2, stmt.execute(data).unwrap());
-
-    let stmt = or_panic!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
-    assert_eq!(vec![(0i32, Some("0".to_string())), (1, Some("1".to_string()))],
-               or_panic!(stmt.query(&[])).iter().map(|r| (r.get(0), r.get(1))).collect::<Vec<_>>());
-}
-
-#[test]
-fn test_copy_in_bad_column_count() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32),
-                                    Box::new("Steven".to_string()),
-                                    Box::new(3i64)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-
-#[test]
-fn test_copy_in_bad_type() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32),
-                                    Box::new(1i32)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("saw type Varchar") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-
-#[test]
-fn test_copy_in_weird_names() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute(r#"CREATE TEMPORARY TABLE "na""me" (U&" \\\+01F4A9" VARCHAR)"#, &[]));
-    let stmt = or_panic!(conn.prepare_copy_in("na\"me", &[" \\💩"]));
-    assert_eq!(&Type::Varchar, &stmt.column_types()[0]);
 }
 
 #[test]
