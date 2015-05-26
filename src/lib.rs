@@ -1605,8 +1605,8 @@ impl<'conn> Statement<'conn> {
     /// the proper format. See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
     /// for details.
     ///
-    /// If the statement is not a `COPY FROM STDIN` statement, this method will
-    /// return an error though the statement will still be executed.
+    /// If the statement is not a `COPY FROM STDIN` statement, it will still be
+    /// executed and this method will return an error.
     ///
     /// # Examples
     ///
