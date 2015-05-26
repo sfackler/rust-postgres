@@ -9,7 +9,8 @@ use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
 
-use {SslMode, ConnectError, ConnectParams, ConnectTarget};
+use {SslMode, ConnectParams, ConnectTarget};
+use error::{ConnectError};
 use io::{NegotiateSsl, StreamWrapper};
 use message::{self, WriteMessage};
 use message::FrontendMessage::SslRequest;

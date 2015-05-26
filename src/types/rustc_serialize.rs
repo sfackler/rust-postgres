@@ -3,7 +3,8 @@ use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use {Result, Error};
+use Result;
+use error::Error;
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for json::Json {

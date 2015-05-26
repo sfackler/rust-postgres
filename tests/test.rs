@@ -13,19 +13,17 @@ use postgres::{HandleNotice,
                Connection,
                GenericConnection,
                SslMode,
-               Error,
-               ConnectError,
-               DbError,
                IntoConnectParams,
                IsolationLevel};
+use postgres::error::{Error, ConnectError, DbError};
 use postgres::types::{Type, Kind};
-use postgres::SqlState::{SyntaxError,
-                         QueryCanceled,
-                         UndefinedTable,
-                         InvalidCatalogName,
-                         InvalidPassword,
-                         CardinalityViolation};
-use postgres::ErrorPosition::Normal;
+use postgres::error::SqlState::{SyntaxError,
+                                QueryCanceled,
+                                UndefinedTable,
+                                InvalidCatalogName,
+                                InvalidPassword,
+                                CardinalityViolation};
+use postgres::error::ErrorPosition::Normal;
 
 macro_rules! or_panic {
     ($e:expr) => (

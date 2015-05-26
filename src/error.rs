@@ -1,3 +1,5 @@
+//! Error types.
+
 use byteorder;
 use phf;
 use std::error;

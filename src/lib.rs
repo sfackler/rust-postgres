@@ -75,7 +75,7 @@ use std::vec;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
-pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
+use error::{Error, ConnectError, SqlState, DbError};
 #[doc(inline)]
 pub use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
@@ -91,7 +91,7 @@ use url::Url;
 #[macro_use]
 mod macros;
 
-mod error;
+pub mod error;
 pub mod io;
 mod message;
 mod priv_io;
@@ -964,16 +964,16 @@ impl Connection {
     /// ## Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, ConnectError};
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # use postgres::{Connection, SslMode};
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, ConnectError};
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # use postgres::{Connection, SslMode};
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
@@ -981,9 +981,9 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # #![allow(unstable)]
-    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget, ConnectError};
+    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
     /// # #[cfg(feature = "unix_socket")]
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
@@ -1082,7 +1082,7 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # fn foo() -> Result<(), postgres::Error> {
+    /// # fn foo() -> Result<(), postgres::error::Error> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", &[]));

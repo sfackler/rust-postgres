@@ -35,7 +35,7 @@ macro_rules! to_sql_checked {
                           ctx: &$crate::types::SessionInfo)
                           -> $crate::Result<$crate::types::IsNull> {
             if !<Self as $crate::types::ToSql>::accepts(ty) {
-                return Err($crate::Error::WrongType(ty.clone()));
+                return Err($crate::error::Error::WrongType(ty.clone()));
             }
             self.to_sql(ty, out, ctx)
         }

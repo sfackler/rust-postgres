@@ -5,7 +5,8 @@ use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use self::serde::json::{self, Value};
 
-use {Result, Error};
+use Result;
+use error::Error;
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for Value {
