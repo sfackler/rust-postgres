@@ -77,9 +77,9 @@ use std::path::PathBuf;
 
 pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
 #[doc(inline)]
-pub use types::{Oid, Type, Other, Kind, ToSql, FromSql, SessionInfo};
+pub use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
-use types::IsNull;
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
 #[doc(inline)]
 pub use types::Slice;
 use message::BackendMessage::*;

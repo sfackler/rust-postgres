@@ -1,8 +1,8 @@
 use std::io::prelude::*;
 use byteorder::{WriteBytesExt, BigEndian};
 
-use {Type, ToSql, Result, Error, Kind};
-use types::{IsNull, SessionInfo};
+use {Result, Error};
+use types::{Type, ToSql, Kind, IsNull, SessionInfo};
 
 /// An adapter type mapping slices to Postgres arrays.
 ///
