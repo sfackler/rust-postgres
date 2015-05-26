@@ -766,6 +766,19 @@ fn test_batch_execute_copy_from_err() {
 }
 
 #[test]
+fn test_copy() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
+    let mut data = &b"1\n2\n3\n5\n8\n"[..];
+    assert_eq!(5, or_panic!(stmt.copy_in(&[], &mut data)));
+    let stmt = or_panic!(conn.prepare("SELECT id FROM foo ORDER BY id"));
+    assert_eq!(vec![1i32, 2, 3, 5, 8],
+               stmt.query(&[]).unwrap().iter().map(|r| r.get(0)).collect::<Vec<i32>>());
+}
+
+
+#[test]
 // Just make sure the impls don't infinite loop
 fn test_generic_connection() {
     fn f<T>(t: &T) where T: GenericConnection {
