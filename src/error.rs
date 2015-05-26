@@ -287,9 +287,6 @@ pub enum Error {
     DbError(DbError),
     /// An error communicating with the Postgres server.
     IoError(io::Error),
-    /// The communication channel with the Postgres server has desynchronized
-    /// due to an earlier communications error.
-    StreamDesynchronized,
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types.
     WrongType(Type),
@@ -314,9 +311,6 @@ impl error::Error for Error {
         match *self {
             Error::DbError(_) => "An error reported by the Postgres server",
             Error::IoError(_) => "An error communicating with the Postgres server",
-            Error::StreamDesynchronized => {
-                "Communication with the server has desynchronized due to an earlier IO error"
-            }
             Error::WrongType(_) => "Unexpected type",
             Error::InvalidColumn => "Invalid column",
             Error::Conversion(_) => "An error converting between Postgres and Rust types",

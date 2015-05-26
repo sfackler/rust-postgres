@@ -406,6 +406,11 @@ fn bad_response() -> std_io::Error {
                        "the server returned an unexpected response")
 }
 
+fn desynchronized() -> std_io::Error {
+    std_io::Error::new(std_io::ErrorKind::Other,
+                       "communication with the server has desynchronized due to an earlier IO error")
+}
+
 /// An enumeration of transaction isolation levels.
 ///
 /// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)

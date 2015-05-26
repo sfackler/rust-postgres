@@ -13,7 +13,7 @@ macro_rules! try_desync {
 macro_rules! check_desync {
     ($e:expr) => ({
         if $e.is_desynchronized() {
-            return Err(::error::Error::StreamDesynchronized);
+            return Err(::error::Error::IoError(::desynchronized()));
         }
     })
 }
