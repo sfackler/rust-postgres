@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew, TypeNew};
 use error::Error;
 use util;
 
@@ -120,17 +120,17 @@ macro_rules! make_postgres_type {
             }
         }
 
-        impl Type {
-            /// Creates a `Type` from an OID.
-            ///
-            /// If the OID is unknown, `None` is returned.
-            pub fn from_oid(oid: Oid) -> Option<Type> {
+        impl TypeNew for Type {
+            fn new(oid: Oid) -> Option<Type> {
                 match oid {
                     $(as_pat!($oid) => Some(Type::$variant),)+
                     _ => None
                 }
             }
 
+        }
+
+        impl Type {
             /// Returns the OID of the `Type`.
             pub fn oid(&self) -> Oid {
                 match *self {

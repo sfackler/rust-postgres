@@ -16,7 +16,8 @@ use types::{Type, ToSql, Kind, IsNull, SessionInfo};
 ///
 /// ```rust,no_run
 /// # fn foo() -> postgres::Result<()> {
-/// # use postgres::{Connection, SslMode, Slice};
+/// # use postgres::{Connection, SslMode};
+/// # use postgres::types::Slice;
 /// # let conn = Connection::connect("", &SslMode::None).unwrap();
 /// let values = &[1i32, 2, 3, 4, 5, 6];
 /// let stmt = try!(conn.prepare("SELECT * FROM foo WHERE id = ANY($1)"));
@@ -45,7 +46,7 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
 
         try!(w.write_i32::<BigEndian>(1)); // number of dimensions
         try!(w.write_i32::<BigEndian>(1)); // has nulls
-        try!(w.write_u32::<BigEndian>(member_type.to_oid()));
+        try!(w.write_u32::<BigEndian>(member_type.oid()));
 
         try!(w.write_i32::<BigEndian>(self.0.len() as i32));
         try!(w.write_i32::<BigEndian>(0)); // index offset
