@@ -132,15 +132,6 @@ macro_rules! make_postgres_type {
             }
 
             /// Returns the OID of the `Type`.
-            ///
-            /// # Deprecated
-            ///
-            /// Use `oid` instead.
-            pub fn to_oid(&self) -> Oid {
-                self.oid()
-            }
-
-            /// Returns the OID of the `Type`.
             pub fn oid(&self) -> Oid {
                 match *self {
                     $(Type::$variant => as_expr!($oid),)+
