@@ -956,7 +956,7 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// Connection via Unix sockets is supported with the `unix_sockets`
+    /// Connection via Unix sockets is supported with the `unix_socket`
     /// feature. To connect to the server via Unix sockets, `host` should be
     /// set to the absolute path of the directory containing the socket file.
     /// Since `/` is a reserved character in URLs, the path should be URL
