@@ -80,8 +80,6 @@ use error::{Error, ConnectError, SqlState, DbError};
 pub use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
-#[doc(inline)]
-pub use types::Slice;
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};

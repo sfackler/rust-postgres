@@ -206,7 +206,7 @@ pub enum ConnectError {
     UnsupportedAuthentication,
     /// The Postgres server does not support SSL encryption.
     NoSslSupport,
-    /// There was an error initializing the SSL session
+    /// There was an error initializing the SSL session.
     SslError(Box<error::Error+Sync+Send>),
     /// There was an error communicating with the server.
     IoError(io::Error),

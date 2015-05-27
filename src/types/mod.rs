@@ -1,5 +1,4 @@
 //! Traits dealing with Postgres data types
-pub use self::slice::Slice;
 
 use std::collections::HashMap;
 use std::error;
@@ -7,6 +6,7 @@ use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
+pub use self::slice::Slice;
 use {Result, SessionInfoNew, InnerConnection, OtherNew};
 use error::Error;
 use util;
