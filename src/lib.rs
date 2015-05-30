@@ -289,62 +289,6 @@ impl<'conn> Notifications<'conn> {
             _ => unreachable!()
         }
     }
-
-    /*
-    /// Returns the oldest pending notification
-    ///
-    /// If no notifications are pending, blocks for up to `timeout` time, after
-    /// which `None` is returned.
-    ///
-    /// ## Example
-    ///
-    /// ```rust,no_run
-    /// # #![allow(unstable)]
-    /// use std::old_io::{IoError, IoErrorKind};
-    /// use std::time::Duration;
-    ///
-    /// use postgres::Error;
-    ///
-    /// # let conn = postgres::Connection::connect("", &postgres::SslMode::None).unwrap();
-    /// match conn.notifications().next_block_for(Duration::seconds(2)) {
-    ///     Some(Ok(notification)) => println!("notification: {}", notification.payload),
-    ///     Some(Err(e)) => println!("Error: {:?}", e),
-    ///     None => println!("Wait for notification timed out"),
-    /// }
-    /// ```
-    pub fn next_block_for(&mut self, timeout: Duration) -> Option<Result<Notification>> {
-        if let Some(notification) = self.next() {
-            return Some(Ok(notification));
-        }
-
-        let mut conn = self.conn.conn.borrow_mut();
-        if conn.desynchronized {
-            return Some(Err(Error::StreamDesynchronized));
-        }
-
-        let end = SteadyTime::now() + timeout;
-        loop {
-            let timeout = max(Duration::zero(), end - SteadyTime::now()).num_milliseconds() as u64;
-            conn.stream.set_read_timeout(Some(timeout));
-            match conn.read_one_message() {
-                Ok(Some(NotificationResponse { pid, channel, payload })) => {
-                    return Some(Ok(Notification {
-                        pid: pid,
-                        channel: channel,
-                        payload: payload
-                    }))
-                }
-                Ok(Some(_)) => unreachable!(),
-                Ok(None) => {}
-                Err(IoError { kind: IoErrorKind::TimedOut, .. }) => {
-                    conn.desynchronized = false;
-                    return None;
-                }
-                Err(e) => return Some(Err(Error::IoError(e))),
-            }
-        }
-    }
-    */
 }
 
 /// Contains information necessary to cancel queries for a session.
