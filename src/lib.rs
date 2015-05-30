@@ -174,7 +174,7 @@ impl IntoConnectParams for Url {
 
         #[cfg(feature = "unix_socket")]
         fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
-            Ok(ConnectTarget::Unix(PathBuf::from(&maybe_path)))
+            Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(feature = "unix_socket"))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
