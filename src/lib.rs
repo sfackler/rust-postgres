@@ -467,9 +467,9 @@ pub enum SslMode {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
-    Prefer(Box<NegotiateSsl>),
+    Prefer(Box<NegotiateSsl+std::marker::Sync+Send>),
     /// The connection must use SSL.
-    Require(Box<NegotiateSsl>),
+    Require(Box<NegotiateSsl+std::marker::Sync+Send>),
 }
 
 #[derive(Clone)]
