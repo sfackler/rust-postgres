@@ -1,16 +1,15 @@
 //! Traits dealing with Postgres data types
-pub use self::slice::Slice;
 
 use std::collections::HashMap;
+use std::error;
 use std::fmt;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
-use Result;
+pub use self::slice::Slice;
+use {Result, SessionInfoNew, InnerConnection, OtherNew, TypeNew};
 use error::Error;
 use util;
-
-pub use ugh_privacy::Other;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -32,12 +31,13 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write)
+        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write,
+                          ctx: &$crate::types::SessionInfo)
                           -> $crate::Result<$crate::types::IsNull> {
             if !<Self as $crate::types::ToSql>::accepts(ty) {
-                return Err($crate::Error::WrongType(ty.clone()));
+                return Err($crate::error::Error::WrongType(ty.clone()));
             }
-            self.to_sql(ty, out)
+            self.to_sql(ty, out, ctx)
         }
     }
 }
@@ -53,6 +53,27 @@ mod rustc_serialize;
 mod serde;
 #[cfg(feature = "chrono")]
 mod chrono;
+
+/// A structure providing information for conversion methods.
+pub struct SessionInfo<'a> {
+    conn: &'a InnerConnection,
+}
+
+impl<'a> SessionInfoNew<'a> for SessionInfo<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a> {
+        SessionInfo {
+            conn: conn
+        }
+    }
+}
+
+impl<'a> SessionInfo<'a> {
+    /// Returns the value of the specified Postgres backend parameter, such
+    /// as `timezone` or `server_version`.
+    pub fn parameter(&self, param: &str) -> Option<&'a str> {
+        self.conn.parameters.get(param).map(|s| &**s)
+    }
+}
 
 /// A Postgres OID.
 pub type Oid = u32;
@@ -99,26 +120,17 @@ macro_rules! make_postgres_type {
             }
         }
 
-        impl Type {
-            /// Creates a `Type` from an OID.
-            ///
-            /// If the OID is unknown, `None` is returned.
-            pub fn from_oid(oid: Oid) -> Option<Type> {
+        impl TypeNew for Type {
+            fn new(oid: Oid) -> Option<Type> {
                 match oid {
                     $(as_pat!($oid) => Some(Type::$variant),)+
                     _ => None
                 }
             }
 
-            /// Returns the OID of the `Type`.
-            ///
-            /// # Deprecated
-            ///
-            /// Use `oid` instead.
-            pub fn to_oid(&self) -> Oid {
-                self.oid()
-            }
+        }
 
+        impl Type {
             /// Returns the OID of the `Type`.
             pub fn oid(&self) -> Oid {
                 match *self {
@@ -459,7 +471,101 @@ make_postgres_type! {
     3838 => EventTrigger: Kind::Simple
 }
 
+/// Information about an unknown type.
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Other {
+    name: String,
+    oid: Oid,
+    kind: Kind,
+}
+
+impl OtherNew for Other {
+    fn new(name: String, oid: Oid, kind: Kind) -> Other {
+        Other {
+            name: name,
+            oid: oid,
+            kind: kind,
+        }
+    }
+}
+
+impl Other {
+    /// The name of the type.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The OID of this type.
+    pub fn oid(&self) -> Oid {
+        self.oid
+    }
+
+    /// The kind of this type.
+    pub fn kind(&self) -> &Kind {
+        &self.kind
+    }
+}
+
+/// An error indicating that a `NULL` Postgres value was passed to a `FromSql`
+/// implementation that does not support `NULL` values.
+#[derive(Debug, Clone, Copy)]
+pub struct WasNull;
+
+impl fmt::Display for WasNull {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str(error::Error::description(self))
+    }
+}
+
+impl error::Error for WasNull {
+    fn description(&self) -> &str {
+        "a Postgres value was `NULL`"
+    }
+}
+
 /// A trait for types that can be created from a Postgres value.
+///
+/// # Types
+///
+/// The following implementations are provided by this crate, along with the
+/// corresponding Postgres types:
+///
+/// | Rust type                                   | Postgres type(s)               |
+/// |---------------------------------------------|--------------------------------|
+/// | bool                                        | BOOL                           |
+/// | i8                                          | "char"                         |
+/// | i16                                         | SMALLINT, SMALLSERIAL          |
+/// | i32                                         | INT, SERIAL                    |
+/// | u32                                         | OID                            |
+/// | i64                                         | BIGINT, BIGSERIAL              |
+/// | f32                                         | REAL                           |
+/// | f64                                         | DOUBLE PRECISION               |
+/// | String                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | Vec&lt;u8&gt;                               | BYTEA                          |
+/// | HashMap&lt;String, Option&lt;String&gt;&gt; | HSTORE                         |
+///
+/// In addition, some implementations are provided for types in third party
+/// crates. These are disabled by default; to opt into one of these
+/// implementations, activate the Cargo feature corresponding to the crate's
+/// name. For example, the `serde` feature enables the implementation for the
+/// `serde::json::Value` type.
+///
+/// | Rust type                   | Postgres type(s)                    |
+/// |-----------------------------|-------------------------------------|
+/// | serialize::json::Json       | JSON, JSONB                         |
+/// | serde::json::Value          | JSON, JSONB                         |
+/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime       | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate           | DATE                                |
+/// | chrono::NaiveTime           | TIME                                |
+/// | uuid::Uuid                  | UUID                                |
+///
+/// # Nullability
+///
+/// In addition to the types listed above, `FromSql` is implemented for
+/// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
+/// nullable Postgres value.
 pub trait FromSql: Sized {
     /// Creates a new value of this type from a `Read` of Postgres data.
     ///
@@ -469,12 +575,13 @@ pub trait FromSql: Sized {
     /// is compatible with the Postgres `Type`.
     ///
     /// The default implementation calls `FromSql::from_sql` when `raw` is
-    /// `Some` and returns `Err(Error::WasNull)` when `raw` is `None`. It does
-    /// not typically need to be overridden.
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Self> {
+    /// `Some` and returns `Err(Error::Conversion(Box::new(WasNull))` when
+    /// `raw` is `None`. It does not typically need to be overridden.
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
+                                  -> Result<Self> {
         match raw {
-            Some(raw) => FromSql::from_sql(ty, raw),
-            None => Err(Error::WasNull),
+            Some(raw) => FromSql::from_sql(ty, raw, ctx),
+            None => Err(Error::Conversion(Box::new(WasNull))),
         }
     }
 
@@ -483,7 +590,7 @@ pub trait FromSql: Sized {
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Self>;
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self>;
 
     /// Determines if a value of this type can be created from the specified
     /// Postgres `Type`.
@@ -491,15 +598,16 @@ pub trait FromSql: Sized {
 }
 
 impl<T: FromSql> FromSql for Option<T> {
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>) -> Result<Option<T>> {
+    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
+                                  -> Result<Option<T>> {
         match raw {
-            Some(raw) => <T as FromSql>::from_sql(ty, raw).map(Some),
+            Some(raw) => <T as FromSql>::from_sql(ty, raw, ctx).map(Some),
             None => Ok(None),
         }
     }
 
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R) -> Result<Option<T>> {
-        <T as FromSql>::from_sql(ty, raw).map(Some)
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Option<T>> {
+        <T as FromSql>::from_sql(ty, raw, ctx).map(Some)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -508,7 +616,7 @@ impl<T: FromSql> FromSql for Option<T> {
 }
 
 impl FromSql for bool {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<bool> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<bool> {
         Ok(try!(raw.read_u8()) != 0)
     }
 
@@ -516,7 +624,7 @@ impl FromSql for bool {
 }
 
 impl FromSql for Vec<u8> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<Vec<u8>> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<Vec<u8>> {
         let mut buf = vec![];
         try!(raw.read_to_end(&mut buf));
         Ok(buf)
@@ -526,10 +634,10 @@ impl FromSql for Vec<u8> {
 }
 
 impl FromSql for String {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<String> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<String> {
         let mut buf = vec![];
         try!(raw.read_to_end(&mut buf));
-        String::from_utf8(buf).map_err(|_| Error::BadResponse)
+        String::from_utf8(buf).map_err(|err| Error::Conversion(Box::new(err)))
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -542,7 +650,7 @@ impl FromSql for String {
 }
 
 impl FromSql for i8 {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<i8> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<i8> {
         Ok(try!(raw.read_i8()))
     }
 
@@ -552,7 +660,7 @@ impl FromSql for i8 {
 macro_rules! primitive_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
-            fn from_sql<R: Read>(_: &Type, raw: &mut R) -> Result<$t> {
+            fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<$t> {
                 Ok(try!(raw.$f::<BigEndian>()))
             }
 
@@ -569,8 +677,8 @@ primitive_from!(f32, read_f32, Type::Float4);
 primitive_from!(f64, read_f64, Type::Float8);
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R)
-            -> Result<HashMap<String, Option<String>>> {
+    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo)
+                         -> Result<HashMap<String, Option<String>>> {
         let mut map = HashMap::new();
 
         let count = try!(raw.read_i32::<BigEndian>());
@@ -581,7 +689,7 @@ impl FromSql for HashMap<String, Option<String>> {
             try!(util::read_all(raw, &mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
-                Err(_) => return Err(Error::BadResponse),
+                Err(err) => return Err(Error::Conversion(Box::new(err))),
             };
 
             let val_len = try!(raw.read_i32::<BigEndian>());
@@ -592,7 +700,7 @@ impl FromSql for HashMap<String, Option<String>> {
                 try!(util::read_all(raw, &mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
-                    Err(_) => return Err(Error::BadResponse),
+                    Err(err) => return Err(Error::Conversion(Box::new(err))),
                 }
             };
 
@@ -619,6 +727,50 @@ pub enum IsNull {
 }
 
 /// A trait for types that can be converted into Postgres values.
+///
+/// # Types
+///
+/// The following implementations are provided by this crate, along with the
+/// corresponding Postgres types:
+///
+/// | Rust type                                   | Postgres type(s)               |
+/// |---------------------------------------------|--------------------------------|
+/// | bool                                        | BOOL                           |
+/// | i8                                          | "char"                         |
+/// | i16                                         | SMALLINT, SMALLSERIAL          |
+/// | i32                                         | INT, SERIAL                    |
+/// | u32                                         | OID                            |
+/// | i64                                         | BIGINT, BIGSERIAL              |
+/// | f32                                         | REAL                           |
+/// | f64                                         | DOUBLE PRECISION               |
+/// | String                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | &str                                        | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | Vec&lt;u8&gt;                               | BYTEA                          |
+/// | &[u8]                                       | BYTEA                          |
+/// | HashMap&lt;String, Option&lt;String&gt;&gt; | HSTORE                         |
+///
+/// In addition, some implementations are provided for types in third party
+/// crates. These are disabled by default; to opt into one of these
+/// implementations, activate the Cargo feature corresponding to the crate's
+/// name. For example, the `serde` feature enables the implementation for the
+/// `serde::json::Value` type.
+///
+/// | Rust type                   | Postgres type(s)                    |
+/// |-----------------------------|-------------------------------------|
+/// | serialize::json::Json       | JSON, JSONB                         |
+/// | serde::json::Value          | JSON, JSONB                         |
+/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime       | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate           | DATE                                |
+/// | chrono::NaiveTime           | TIME                                |
+/// | uuid::Uuid                  | UUID                                |
+///
+/// # Nullability
+///
+/// In addition to the types listed above, `ToSql` is implemented for
+/// `Option<T>` where `T` implements `ToSql`. An `Option<T>` represents a
+/// nullable Postgres value.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, writing it to `out`.
@@ -629,7 +781,7 @@ pub trait ToSql: fmt::Debug {
     /// The return value indicates if this value should be represented as
     /// `NULL`. If this is the case, implementations **must not** write
     /// anything to `out`.
-    fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull>
+    fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull>
             where Self: Sized, W: Write;
 
     /// Determines if a value of this type can be converted to the specified
@@ -640,15 +792,17 @@ pub trait ToSql: fmt::Debug {
     ///
     /// *All* implementations of this method should be generated by the
     /// `to_sql_checked!()` macro.
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull>;
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull>;
 }
 
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
         match *self {
-            Some(ref val) => val.to_sql(ty, out),
+            Some(ref val) => val.to_sql(ty, out, ctx),
             None => Ok(IsNull::Yes),
         }
     }
@@ -661,7 +815,8 @@ impl<T: ToSql> ToSql for Option<T> {
 impl ToSql for bool {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_u8(*self as u8));
         Ok(IsNull::No)
     }
@@ -671,14 +826,16 @@ impl ToSql for bool {
 
 impl<'a> ToSql for &'a [u8] {
     // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull> {
         if !<&'a [u8] as ToSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        self.to_sql(ty, out)
+        self.to_sql(ty, out, ctx)
     }
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_all(*self));
         Ok(IsNull::No)
     }
@@ -689,8 +846,9 @@ impl<'a> ToSql for &'a [u8] {
 impl ToSql for Vec<u8> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        <&[u8] as ToSql>::to_sql(&&**self, ty, w)
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
+        <&[u8] as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -700,14 +858,16 @@ impl ToSql for Vec<u8> {
 
 impl<'a> ToSql for &'a str {
     // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write) -> Result<IsNull> {
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull> {
         if !<&'a str as ToSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        self.to_sql(ty, out)
+        self.to_sql(ty, out, ctx)
     }
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
         Ok(IsNull::No)
     }
@@ -724,8 +884,9 @@ impl<'a> ToSql for &'a str {
 impl ToSql for String {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W) -> Result<IsNull> {
-        <&str as ToSql>::to_sql(&&**self, ty, w)
+    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
+                               -> Result<IsNull> {
+        <&str as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -736,7 +897,8 @@ impl ToSql for String {
 impl ToSql for i8 {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_i8(*self));
         Ok(IsNull::No)
     }
@@ -749,7 +911,8 @@ macro_rules! to_primitive {
         impl ToSql for $t {
             to_sql_checked!();
 
-            fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+            fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                                       -> Result<IsNull> {
                 try!(w.$f::<BigEndian>(*self));
                 Ok(IsNull::No)
             }
@@ -769,7 +932,8 @@ to_primitive!(f64, write_f64, Type::Float8);
 impl ToSql for HashMap<String, Option<String>> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W) -> Result<IsNull> {
+    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
+                               -> Result<IsNull> {
         try!(w.write_i32::<BigEndian>(self.len() as i32));
 
         for (key, val) in self {

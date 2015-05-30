@@ -3,8 +3,9 @@ use std::f32;
 use std::f64;
 use std::fmt;
 
-use postgres::{Connection, SslMode, Slice, Error};
-use postgres::types::{ToSql, FromSql};
+use postgres::{Connection, SslMode};
+use postgres::error::Error;
+use postgres::types::{ToSql, FromSql, Slice};
 
 #[cfg(feature = "uuid")]
 mod uuid;

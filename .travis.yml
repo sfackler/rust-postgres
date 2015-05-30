@@ -2,16 +2,11 @@ language: rust
 rust:
 - nightly
 - beta
+- stable
 addons:
   postgresql: 9.4
 before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "uuid rustc-serialize time unix_socket serde chrono"
-- cargo doc --no-deps --features "unix_socket"
-after_success:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && test $TRAVIS_RUST_VERSION == "nightly" && ./.travis/update_docs.sh
-env:
-  global:
-    secure: cZEcWfKI7Pml5og9o1zBMYhbj20Pa22kYVDTDEHqvOoe0kq1cnB5sTH7P0FUgiPq2Ax4B8eQIaC30yvFJ02R7kmTys4aQD98NyCyzdO+dqYi93C9PFYGhl/DKsb4iZ2VP+8LffYSwRGsNSzE9Fj9SFRMIOjHN+UfaVHXaUVjE7Y=
+- cargo test --features "uuid rustc-serialize time unix_socket serde chrono openssl"

@@ -42,14 +42,14 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.8.9")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.0")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate crypto;
 #[macro_use]
 extern crate log;
-extern crate openssl;
 extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
@@ -57,49 +57,44 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
 use debug_builders::DebugStruct;
-use openssl::crypto::hash::{self, Hasher};
-use openssl::ssl::{SslContext, MaybeSslStream};
-use serialize::hex::ToHex;
 use std::ascii::AsciiExt;
-use std::borrow::{ToOwned, Cow};
+use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::iter::IntoIterator;
-use std::io;
+use std::io as std_io;
 use std::io::prelude::*;
 use std::mem;
-use std::slice;
 use std::result;
-use std::vec;
-use byteorder::{WriteBytesExt, BigEndian};
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
-pub use error::{Error, ConnectError, SqlState, DbError, ErrorPosition};
-#[doc(inline)]
-pub use types::{Oid, Type, Kind, ToSql, FromSql};
-use types::IsNull;
-#[doc(inline)]
-pub use types::Slice;
-use io_util::InternalStream;
+use error::{Error, ConnectError, SqlState, DbError};
+use types::{ToSql, FromSql};
+use io::{StreamWrapper, NegotiateSsl};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 use url::Url;
+use rows::{Rows, LazyRows};
 
 #[macro_use]
 mod macros;
 
-mod error;
-mod io_util;
+pub mod error;
+pub mod io;
 mod message;
-mod ugh_privacy;
+mod priv_io;
 mod url;
 mod util;
 pub mod types;
+pub mod rows;
 
 const TYPEINFO_QUERY: &'static str = "t";
 
@@ -388,9 +383,10 @@ pub struct CancelData {
 /// postgres::cancel_query(url, &SslMode::None, cancel_data);
 /// ```
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
-                       -> result::Result<(), ConnectError> where T: IntoConnectParams {
+                          -> result::Result<(), ConnectError>
+        where T: IntoConnectParams {
     let params = try!(params.into_connect_params());
-    let mut socket = try!(io_util::initialize_stream(&params, ssl));
+    let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
         code: message::CANCEL_CODE,
@@ -400,6 +396,16 @@ pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
     try!(socket.flush());
 
     Ok(())
+}
+
+fn bad_response() -> std_io::Error {
+    std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                       "the server returned an unexpected response")
+}
+
+fn desynchronized() -> std_io::Error {
+    std_io::Error::new(std_io::ErrorKind::Other,
+                       "communication with the server has desynchronized due to an earlier IO error")
 }
 
 /// An enumeration of transaction isolation levels.
@@ -451,9 +457,19 @@ impl IsolationLevel {
         } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
             Ok(IsolationLevel::Serializable)
         } else {
-            Err(Error::BadResponse)
+            Err(Error::IoError(bad_response()))
         }
     }
+}
+
+/// Specifies the SSL support requested for a new connection.
+pub enum SslMode {
+    /// The connection will not use SSL.
+    None,
+    /// The connection will use SSL if the backend supports it.
+    Prefer(Box<NegotiateSsl>),
+    /// The connection must use SSL.
+    Require(Box<NegotiateSsl>),
 }
 
 #[derive(Clone)]
@@ -463,8 +479,12 @@ struct CachedStatement {
     columns: Vec<Column>,
 }
 
+trait SessionInfoNew<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
+}
+
 struct InnerConnection {
-    stream: BufStream<MaybeSslStream<InternalStream>>,
+    stream: BufStream<Box<StreamWrapper>>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
@@ -489,7 +509,7 @@ impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
         let params = try!(params.into_connect_params());
-        let stream = try!(io_util::initialize_stream(&params, ssl));
+        let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
@@ -533,8 +553,8 @@ impl InnerConnection {
                     conn.cancel_data.secret_key = secret_key;
                 }
                 ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
-                _ => return Err(ConnectError::BadResponse),
+                ErrorResponse { fields } => return DbError::new_connect(fields),
+                _ => return Err(ConnectError::IoError(bad_response())),
             }
         }
 
@@ -569,7 +589,7 @@ impl InnerConnection {
         }
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> io::Result<()> {
+    fn write_messages(&mut self, messages: &[FrontendMessage]) -> std_io::Result<()> {
         debug_assert!(!self.desynchronized);
         for message in messages {
             try_desync!(self, self.stream.write_message(message));
@@ -577,11 +597,11 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_one_message(&mut self) -> io::Result<Option<BackendMessage>> {
+    fn read_one_message(&mut self) -> std_io::Result<Option<BackendMessage>> {
         debug_assert!(!self.desynchronized);
         match try_desync!(self, self.stream.read_message()) {
             NoticeResponse { fields } => {
-                if let Ok(err) = ugh_privacy::dberror_new_raw(fields) {
+                if let Ok(err) = DbError::new_raw(fields) {
                     self.notice_handler.handle_notice(err);
                 }
                 Ok(None)
@@ -594,7 +614,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification(&mut self) -> io::Result<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             if let Some(msg) = try!(self.read_one_message()) {
                 return Ok(msg);
@@ -602,7 +622,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> io::Result<BackendMessage> {
+    fn read_message(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {
@@ -628,13 +648,14 @@ impl InnerConnection {
             }
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Hasher::new(hash::Type::MD5);
-                let _ = hasher.write_all(pass.as_bytes());
-                let _ = hasher.write_all(user.user.as_bytes());
-                let output = hasher.finish().to_hex();
-                let _ = hasher.write_all(output.as_bytes());
-                let _ = hasher.write_all(&salt);
-                let output = format!("md5{}", hasher.finish().to_hex());
+                let mut hasher = Md5::new();
+                let _ = hasher.input(pass.as_bytes());
+                let _ = hasher.input(user.user.as_bytes());
+                let output = hasher.result_str();
+                hasher.reset();
+                let _ = hasher.input(output.as_bytes());
+                let _ = hasher.input(&salt);
+                let output = format!("md5{}", hasher.result_str());
                 try!(self.write_messages(&[PasswordMessage {
                         password: &output
                     }]));
@@ -643,14 +664,14 @@ impl InnerConnection {
             | AuthenticationSCMCredential
             | AuthenticationGSS
             | AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
-            ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
-            _ => return Err(ConnectError::BadResponse)
+            ErrorResponse { fields } => return DbError::new_connect(fields),
+            _ => return Err(ConnectError::IoError(bad_response()))
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => return ugh_privacy::dberror_new_connect(fields),
-            _ => return Err(ConnectError::BadResponse)
+            ErrorResponse { fields } => return DbError::new_connect(fields),
+            _ => return Err(ConnectError::IoError(bad_response()))
         }
     }
 
@@ -658,8 +679,7 @@ impl InnerConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn raw_prepare(&mut self, stmt_name: &str, query: &str)
-                   -> Result<(Vec<Type>, Vec<Column>)> {
+    fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
         try!(self.write_messages(&[
@@ -678,7 +698,7 @@ impl InnerConnection {
             ParseComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self),
         }
@@ -759,35 +779,6 @@ impl InnerConnection {
         })
     }
 
-    fn prepare_copy_in<'a>(&mut self, table: &str, rows: &[&str], conn: &'a Connection)
-                           -> Result<CopyInStatement<'a>> {
-        let mut query = vec![];
-        let _ = write!(&mut query, "SELECT ");
-        let _ = util::comma_join_quoted_idents(&mut query, rows.iter().cloned());
-        let _ = write!(&mut query, " FROM ");
-        let _ = util::write_quoted_ident(&mut query, table);
-        let query = String::from_utf8(query).unwrap();
-        let (_, columns) = try!(self.raw_prepare("", &query));
-        let column_types = columns.into_iter().map(|desc| desc.type_).collect();
-
-        let mut query = vec![];
-        let _ = write!(&mut query, "COPY ");
-        let _ = util::write_quoted_ident(&mut query, table);
-        let _ = write!(&mut query, " (");
-        let _ = util::comma_join_quoted_idents(&mut query, rows.iter().cloned());
-        let _ = write!(&mut query, ") FROM STDIN WITH (FORMAT binary)");
-        let query = String::from_utf8(query).unwrap();
-        let stmt_name = self.make_stmt_name();
-        try!(self.raw_prepare(&stmt_name, &query));
-
-        Ok(CopyInStatement {
-            conn: conn,
-            name: stmt_name,
-            column_types: column_types,
-            finished: false,
-        })
-    }
-
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
         try!(self.write_messages(&[
             Close {
@@ -797,7 +788,7 @@ impl InnerConnection {
             Sync]));
         let resp = match try!(self.read_message()) {
             CloseComplete => Ok(()),
-            ErrorResponse { fields } => ugh_privacy::dberror_new(fields),
+            ErrorResponse { fields } => DbError::new(fields),
             _ => bad_response!(self)
         };
         try!(self.wait_for_ready());
@@ -805,7 +796,7 @@ impl InnerConnection {
     }
 
     fn get_type(&mut self, oid: Oid) -> Result<Type> {
-        if let Some(ty) = Type::from_oid(oid) {
+        if let Some(ty) = Type::new(oid) {
             return Ok(ty);
         }
 
@@ -815,7 +806,7 @@ impl InnerConnection {
 
         // Ew @ doing this manually :(
         let mut buf = vec![];
-        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf)) {
+        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf, &SessionInfo::new(self))) {
             IsNull::Yes => None,
             IsNull::No => Some(buf),
         };
@@ -836,23 +827,27 @@ impl InnerConnection {
             BindComplete => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         }
         let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
                 match try!(self.read_message()) {
             DataRow { row } => {
+                let ctx = SessionInfo::new(self);
                 (try!(FromSql::from_sql_nullable(&Type::Name,
-                                                 row[0].as_ref().map(|r| &**r).as_mut())),
+                                                 row[0].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                 row[1].as_ref().map(|r| &**r).as_mut())),
+                                                 row[1].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                 row[2].as_ref().map(|r| &**r).as_mut())))
+                                                 row[2].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)))
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         };
@@ -860,7 +855,7 @@ impl InnerConnection {
             CommandComplete { .. } => {}
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             _ => bad_response!(self)
         }
@@ -875,7 +870,7 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(ugh_privacy::new_other(name, oid, kind)));
+        let type_ = Type::Other(Box::new(Other::new(name, oid, kind)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }
@@ -914,7 +909,7 @@ impl InnerConnection {
                 }
                 ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
-                    return ugh_privacy::dberror_new(fields);
+                    return DbError::new(fields);
                 }
                 _ => {}
             }
@@ -960,7 +955,7 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// Connection via Unix sockets is supported with the `unix_sockets`
+    /// Connection via Unix sockets is supported with the `unix_socket`
     /// feature. To connect to the server via Unix sockets, `host` should be
     /// set to the absolute path of the directory containing the socket file.
     /// Since `/` is a reserved character in URLs, the path should be URL
@@ -971,16 +966,16 @@ impl Connection {
     /// ## Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, ConnectError};
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # use postgres::{Connection, SslMode};
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, ConnectError};
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # use postgres::{Connection, SslMode};
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
     /// let conn = try!(Connection::connect(url, &SslMode::None));
     /// # Ok(()) };
@@ -988,9 +983,9 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # #![allow(unstable)]
-    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget, ConnectError};
+    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
     /// # #[cfg(feature = "unix_socket")]
-    /// # fn f() -> Result<(), ConnectError> {
+    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
@@ -1071,15 +1066,6 @@ impl Connection {
         self.conn.borrow_mut().prepare_cached(query, self)
     }
 
-    /// Creates a new COPY FROM STDIN prepared statement.
-    ///
-    /// These statements provide a method to efficiently bulk-upload data to
-    /// the database.
-    pub fn prepare_copy_in<'a>(&'a self, table: &str, rows: &[&str])
-                               -> Result<CopyInStatement<'a>> {
-        self.conn.borrow_mut().prepare_copy_in(table, rows, self)
-    }
-
     /// Begins a new transaction.
     ///
     /// Returns a `Transaction` object which should be used instead of
@@ -1098,7 +1084,7 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # fn foo() -> Result<(), postgres::Error> {
+    /// # fn foo() -> Result<(), postgres::error::Error> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let trans = try!(conn.transaction());
     /// try!(trans.execute("UPDATE foo SET bar = 10", &[]));
@@ -1129,13 +1115,6 @@ impl Connection {
     /// This will not change the behavior of an active transaction.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
         self.batch_execute(level.to_set_query())
-    }
-
-    /// # Deprecated
-    ///
-    /// Use `transaction_isolation` instead.
-    pub fn get_transaction_isolation(&self) -> Result<IsolationLevel> {
-        self.transaction_isolation()
     }
 
     /// Returns the isolation level which will be used for future transactions.
@@ -1217,7 +1196,8 @@ impl Connection {
         self.conn.borrow().cancel_data
     }
 
-    /// Returns the value of the specified parameter.
+    /// Returns the value of the specified Postgres backend parameter, such as
+    /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<String> {
         self.conn.borrow().parameters.get(param).cloned()
     }
@@ -1249,17 +1229,6 @@ impl Connection {
         conn.finished = true;
         conn.finish_inner()
     }
-}
-
-/// Specifies the SSL support requested for a new connection.
-#[derive(Debug)]
-pub enum SslMode {
-    /// The connection will not use SSL.
-    None,
-    /// The connection will use SSL if the backend supports it.
-    Prefer(SslContext),
-    /// The connection must use SSL.
-    Require(SslContext)
 }
 
 /// Represents a transaction on a database connection.
@@ -1314,11 +1283,6 @@ impl<'conn> Transaction<'conn> {
     /// connection, not just the duration of this transaction.
     pub fn prepare_cached(&self, query: &str) -> Result<Statement<'conn>> {
         self.conn.prepare_cached(query)
-    }
-
-    /// Like `Connection::prepare_copy_in`.
-    pub fn prepare_copy_in(&self, table: &str, cols: &[&str]) -> Result<CopyInStatement<'conn>> {
-        self.conn.prepare_copy_in(table, cols)
     }
 
     /// Like `Connection::execute`.
@@ -1440,7 +1404,7 @@ impl<'conn> Statement<'conn> {
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
             let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf)) {
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(&*conn))) {
                 IsNull::Yes => values.push(None),
                 IsNull::No => values.push(Some(buf)),
             }
@@ -1464,11 +1428,11 @@ impl<'conn> Statement<'conn> {
             BindComplete => Ok(()),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                ugh_privacy::dberror_new(fields)
+                DbError::new(fields)
             }
             _ => {
                 conn.desynchronized = true;
-                Err(Error::BadResponse)
+                Err(Error::IoError(bad_response()))
             }
         }
     }
@@ -1525,7 +1489,7 @@ impl<'conn> Statement<'conn> {
                 DataRow { .. } => {}
                 ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
-                    return ugh_privacy::dberror_new(fields);
+                    return DbError::new(fields);
                 }
                 CommandComplete { tag } => {
                     num = util::parse_update_count(tag);
@@ -1544,7 +1508,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::BadResponse);
+                    return Err(Error::IoError(bad_response()));
                 }
             }
         }
@@ -1579,10 +1543,7 @@ impl<'conn> Statement<'conn> {
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
         self.inner_query("", 0, params).map(|(buf, _)| {
-            Rows {
-                stmt: self,
-                data: buf.into_iter().collect()
-            }
+            Rows::new(self, buf.into_iter().collect())
         })
     }
 
@@ -1623,16 +1584,88 @@ impl<'conn> Statement<'conn> {
         let portal_name = format!("{}p{}", self.name, id);
 
         self.inner_query(&portal_name, row_limit, params).map(move |(data, more_rows)| {
-            LazyRows {
-                _trans: trans,
-                stmt: self,
-                data: data,
-                name: portal_name,
-                row_limit: row_limit,
-                more_rows: more_rows,
-                finished: false,
-            }
+            LazyRows::new(self, data, portal_name, row_limit, more_rows, false, trans)
         })
+    }
+
+    /// Executes a `COPY FROM STDIN` statement, returning the number of rows
+    /// added.
+    ///
+    /// The contents of the provided `Read`er are passed to the Postgres server
+    /// verbatim; it is the caller's responsibility to ensure the data is in
+    /// the proper format. See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
+    /// for details.
+    ///
+    /// If the statement is not a `COPY FROM STDIN` statement, it will still be
+    /// executed and this method will return an error.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// conn.batch_execute("CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR)").unwrap();
+    /// let stmt = conn.prepare("COPY people FROM STDIN").unwrap();
+    /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
+    /// ```
+    pub fn copy_in<R: Read>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
+        try!(self.inner_execute("", 0, params));
+        let mut conn = self.conn.conn.borrow_mut();
+
+        match try!(conn.read_message()) {
+            CopyInResponse { .. } => {}
+            _ => {
+                loop {
+                    match try!(conn.read_message()) {
+                        ReadyForQuery { .. } => {
+                            return Err(Error::IoError(std_io::Error::new(
+                                        std_io::ErrorKind::InvalidInput,
+                                        "called `copy_in` on a non-`COPY FROM STDIN` statement")));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let mut buf = vec![];
+        loop {
+            match std::io::copy(&mut r.take(16 * 1024), &mut buf) {
+                Ok(0) => break,
+                Ok(len) => {
+                    try_desync!(conn, conn.stream.write_message(
+                            &CopyData {
+                                data: &buf[..len as usize],
+                            }));
+                    buf.clear();
+                }
+                Err(err) => {
+                    // FIXME better to return the error directly
+                    try_desync!(conn, conn.stream.write_message(
+                            &CopyFail {
+                                message: &err.to_string(),
+                            }));
+                    break;
+                }
+            }
+        }
+
+        try!(conn.write_messages(&[CopyDone, Sync]));
+
+        let num = match try!(conn.read_message()) {
+            CommandComplete { tag } => util::parse_update_count(tag),
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => {
+                conn.desynchronized = true;
+                return Err(Error::IoError(bad_response()));
+            }
+        };
+
+        try!(conn.wait_for_ready());
+        Ok(num)
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
@@ -1681,7 +1714,7 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
             DataRow { row } => buf.push_back(row),
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
+                return DbError::new(fields);
             }
             CopyInResponse { .. } => {
                 try!(conn.write_messages(&[
@@ -1692,541 +1725,12 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::BadResponse);
+                return Err(Error::IoError(bad_response()));
             }
         }
     }
     try!(conn.wait_for_ready());
     Ok(more_rows)
-}
-
-/// The resulting rows of a query.
-pub struct Rows<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    data: Vec<Vec<Option<Vec<u8>>>>,
-}
-
-impl<'a> fmt::Debug for Rows<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Rows")
-            .field("columns", &self.columns())
-            .field("rows", &self.data.len())
-            .finish()
-    }
-}
-
-impl<'stmt> Rows<'stmt> {
-    /// Returns a slice describing the columns of the `Rows`.
-    pub fn columns(&self) -> &'stmt [Column] {
-        self.stmt.columns()
-    }
-
-    /// Returns an iterator over the `Row`s.
-    pub fn iter<'a>(&'a self) -> RowsIter<'a> {
-        RowsIter {
-            stmt: self.stmt,
-            iter: self.data.iter()
-        }
-    }
-}
-
-impl<'a> IntoIterator for &'a Rows<'a> {
-    type Item = Row<'a>;
-    type IntoIter = RowsIter<'a>;
-
-    fn into_iter(self) -> RowsIter<'a> {
-        self.iter()
-    }
-}
-
-impl<'stmt> IntoIterator for Rows<'stmt> {
-    type Item = Row<'stmt>;
-    type IntoIter = RowsIntoIter<'stmt>;
-
-    fn into_iter(self) -> RowsIntoIter<'stmt> {
-        RowsIntoIter {
-            stmt: self.stmt,
-            iter: self.data.into_iter()
-        }
-    }
-}
-
-/// An iterator over `Row`s.
-pub struct RowsIter<'a> {
-    stmt: &'a Statement<'a>,
-    iter: slice::Iter<'a, Vec<Option<Vec<u8>>>>,
-}
-
-impl<'a> Iterator for RowsIter<'a> {
-    type Item = Row<'a>;
-
-    fn next(&mut self) -> Option<Row<'a>> {
-        self.iter.next().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Borrowed(row),
-            }
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'a> DoubleEndedIterator for RowsIter<'a> {
-    fn next_back(&mut self) -> Option<Row<'a>> {
-        self.iter.next_back().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Borrowed(row),
-            }
-        })
-    }
-}
-
-impl<'a> ExactSizeIterator for RowsIter<'a> {}
-
-/// An owning iterator over `Row`s.
-pub struct RowsIntoIter<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    iter: vec::IntoIter<Vec<Option<Vec<u8>>>>,
-}
-
-impl<'stmt> Iterator for RowsIntoIter<'stmt> {
-    type Item = Row<'stmt>;
-
-    fn next(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'stmt> DoubleEndedIterator for RowsIntoIter<'stmt> {
-    fn next_back(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next_back().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-}
-
-impl<'stmt> ExactSizeIterator for RowsIntoIter<'stmt> {}
-
-/// A single result row of a query.
-pub struct Row<'a> {
-    stmt: &'a Statement<'a>,
-    data: Cow<'a, [Option<Vec<u8>>]>
-}
-
-impl<'a> fmt::Debug for Row<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Row")
-            .field("statement", self.stmt)
-            .finish()
-    }
-}
-
-impl<'a> Row<'a> {
-    /// Returns the number of values in the row.
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Returns a slice describing the columns of the `Row`.
-    pub fn columns(&self) -> &'a [Column] {
-        self.stmt.columns()
-    }
-
-    /// Retrieves the contents of a field of the row.
-    ///
-    /// A field can be accessed by the name or index of its column, though
-    /// access by index is more efficient. Rows are 0-indexed.
-    ///
-    /// Returns an `Error` value if the index does not reference a column or
-    /// the return type is not compatible with the Postgres type.
-    pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
-        let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        let ty = &self.stmt.columns[idx].type_;
-        if !<T as FromSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        FromSql::from_sql_nullable(ty, self.data[idx].as_ref().map(|e| &**e).as_mut())
-    }
-
-    /// Retrieves the contents of a field of the row.
-    ///
-    /// A field can be accessed by the name or index of its column, though
-    /// access by index is more efficient. Rows are 0-indexed.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if the index does not reference a column or the return type is
-    /// not compatible with the Postgres type.
-    ///
-    /// ## Example
-    ///
-    /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// # let stmt = conn.prepare("").unwrap();
-    /// # let mut result = stmt.query(&[]).unwrap();
-    /// # let row = result.iter().next().unwrap();
-    /// let foo: i32 = row.get(0);
-    /// let bar: String = row.get("bar");
-    /// ```
-    pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Debug + Clone, T: FromSql {
-        match self.get_opt(idx.clone()) {
-            Ok(ok) => ok,
-            Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err)
-        }
-    }
-
-    /// Retrieves the specified field as a raw buffer of Postgres data.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if the index does not reference a column.
-    pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]> where I: RowIndex + fmt::Debug {
-        match idx.idx(self.stmt) {
-            Some(idx) => self.data[idx].as_ref().map(|e| &**e),
-            None => panic!("invalid index {:?}", idx),
-        }
-    }
-}
-
-/// A trait implemented by types that can index into columns of a row.
-pub trait RowIndex {
-    /// Returns the index of the appropriate column, or `None` if no such
-    /// column exists.
-    fn idx(&self, stmt: &Statement) -> Option<usize>;
-}
-
-impl RowIndex for usize {
-    #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if *self >= stmt.columns.len() {
-            None
-        } else {
-            Some(*self)
-        }
-    }
-}
-
-impl<'a> RowIndex for &'a str {
-    #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<usize> {
-        stmt.columns().iter().position(|d| d.name == *self)
-    }
-}
-
-/// A lazily-loaded iterator over the resulting rows of a query.
-pub struct LazyRows<'trans, 'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    data: VecDeque<Vec<Option<Vec<u8>>>>,
-    name: String,
-    row_limit: i32,
-    more_rows: bool,
-    finished: bool,
-    _trans: &'trans Transaction<'trans>,
-}
-
-impl<'a, 'b> Drop for LazyRows<'a, 'b> {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.finish_inner();
-        }
-    }
-}
-
-impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "LazyRows")
-            .field("name", &self.name)
-            .field("row_limit", &self.row_limit)
-            .field("remaining_rows", &self.data.len())
-            .field("more_rows", &self.more_rows)
-            .finish()
-    }
-}
-
-impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
-    fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
-        check_desync!(conn);
-        conn.close_statement(&self.name, b'P')
-    }
-
-    fn execute(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
-
-        try!(conn.write_messages(&[
-            Execute {
-                portal: &self.name,
-                max_rows: self.row_limit
-            },
-            Sync]));
-        read_rows(&mut conn, &mut self.data).map(|more_rows| self.more_rows = more_rows)
-    }
-
-    /// Returns a slice describing the columns of the `LazyRows`.
-    pub fn columns(&self) -> &'stmt [Column] {
-        self.stmt.columns()
-    }
-
-    /// Consumes the `LazyRows`, cleaning up associated state.
-    ///
-    /// Functionally identical to the `Drop` implementation on `LazyRows`
-    /// except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<()> {
-        self.finish_inner()
-    }
-}
-
-impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
-    type Item = Result<Row<'stmt>>;
-
-    fn next(&mut self) -> Option<Result<Row<'stmt>>> {
-        if self.data.is_empty() && self.more_rows {
-            if let Err(err) = self.execute() {
-                return Some(Err(err));
-            }
-        }
-
-        self.data.pop_front().map(|r| {
-            Ok(Row {
-                stmt: self.stmt,
-                data: Cow::Owned(r),
-            })
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower = self.data.len();
-        let upper = if self.more_rows {
-            None
-        } else {
-            Some(lower)
-        };
-        (lower, upper)
-    }
-}
-
-/// A prepared `COPY FROM STDIN` statement.
-pub struct CopyInStatement<'a> {
-    conn: &'a Connection,
-    name: String,
-    column_types: Vec<Type>,
-    finished: bool,
-}
-
-impl<'a> fmt::Debug for CopyInStatement<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "CopyInStatement")
-            .field("name", &self.name)
-            .field("column_types", &self.column_types)
-            .finish()
-    }
-}
-
-impl<'a> Drop for CopyInStatement<'a> {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.finish_inner();
-        }
-    }
-}
-
-/// An `Iterator` variant which returns borrowed values.
-pub trait StreamIterator {
-    /// Returns the next value, or `None` if there is none.
-    fn next<'a>(&'a mut self) -> Option<&'a (ToSql + 'a)>;
-}
-
-/// An adapter type implementing `StreamIterator` for a `Vec<Box<ToSql>>`.
-pub struct VecStreamIterator<'a> {
-    v: Vec<Box<ToSql + 'a>>,
-    idx: usize,
-}
-
-impl<'a> VecStreamIterator<'a> {
-    /// Creates a new `VecStreamIterator`.
-    pub fn new(v: Vec<Box<ToSql + 'a>>) -> VecStreamIterator<'a> {
-        VecStreamIterator {
-            v: v,
-            idx: 0,
-        }
-    }
-
-    /// Returns the underlying `Vec`.
-    pub fn into_inner(self) -> Vec<Box<ToSql + 'a>> {
-        self.v
-    }
-}
-
-impl<'a> StreamIterator for VecStreamIterator<'a> {
-    fn next<'b>(&'b mut self) -> Option<&'b (ToSql + 'b)> {
-        match self.v.get_mut(self.idx) {
-            Some(mut e) => {
-                self.idx += 1;
-                Some(&mut **e)
-            },
-            None => None,
-        }
-    }
-}
-
-impl<'a> CopyInStatement<'a> {
-    fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        conn.close_statement(&self.name, b'S')
-    }
-
-    /// Returns a slice containing the expected column types.
-    pub fn column_types(&self) -> &[Type] {
-        &self.column_types
-    }
-
-    /// Executes the prepared statement.
-    ///
-    /// The `rows` argument is an `Iterator` returning `StreamIterator` values,
-    /// each one of which provides values for a row of input. This setup is
-    /// designed to allow callers to avoid having to maintain the entire row
-    /// set in memory.
-    ///
-    /// Returns the number of rows copied.
-    pub fn execute<I, J>(&self, rows: I) -> Result<u64>
-            where I: Iterator<Item=J>, J: StreamIterator {
-        let mut conn = self.conn.conn.borrow_mut();
-
-        debug!("executing COPY IN statement {}", self.name);
-        try!(conn.write_messages(&[
-            Bind {
-                portal: "",
-                statement: &self.name,
-                formats: &[],
-                values: &[],
-                result_formats: &[]
-            },
-            Execute {
-                portal: "",
-                max_rows: 0,
-            },
-            Sync]));
-
-        match try!(conn.read_message()) {
-            BindComplete => {},
-            ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
-            }
-            _ => {
-                conn.desynchronized = true;
-                return Err(Error::BadResponse);
-            }
-        }
-
-        match try!(conn.read_message()) {
-            CopyInResponse { .. } => {}
-            _ => {
-                conn.desynchronized = true;
-                return Err(Error::BadResponse);
-            }
-        }
-
-        let mut buf = vec![];
-        let _ = buf.write_all(b"PGCOPY\n\xff\r\n\x00");
-        let _ = buf.write_i32::<BigEndian>(0);
-        let _ = buf.write_i32::<BigEndian>(0);
-
-        'l: for mut row in rows {
-            let _ = buf.write_i16::<BigEndian>(self.column_types.len() as i16);
-
-            let mut types = self.column_types.iter();
-            loop {
-                match (row.next(), types.next()) {
-                    (Some(val), Some(ty)) => {
-                        let mut inner_buf = vec![];
-                        match val.to_sql_checked(ty, &mut inner_buf) {
-                            Ok(IsNull::Yes) => {
-                                let _ = buf.write_i32::<BigEndian>(-1);
-                            }
-                            Ok(IsNull::No) => {
-                                let _ = buf.write_i32::<BigEndian>(inner_buf.len() as i32);
-                                let _ = buf.write_all(&inner_buf);
-                            }
-                            Err(err) => {
-                                // FIXME this is not the right way to handle this
-                                try_desync!(conn, conn.stream.write_message(
-                                    &CopyFail {
-                                        message: &err.to_string(),
-                                    }));
-                                break 'l;
-                            }
-                        }
-                    }
-                    (Some(_), None) | (None, Some(_)) => {
-                        try_desync!(conn, conn.stream.write_message(
-                            &CopyFail {
-                                message: "Invalid column count",
-                            }));
-                        break 'l;
-                    }
-                    (None, None) => break
-                }
-            }
-
-            try_desync!(conn, conn.stream.write_message(
-                &CopyData {
-                    data: &buf
-                }));
-            buf.clear();
-        }
-
-        let _ = buf.write_i16::<BigEndian>(-1);
-        try!(conn.write_messages(&[
-            CopyData {
-                data: &buf,
-            },
-            CopyDone,
-            Sync]));
-
-        let num = match try!(conn.read_message()) {
-            CommandComplete { tag } => util::parse_update_count(tag),
-            ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
-                return ugh_privacy::dberror_new(fields);
-            }
-            _ => {
-                conn.desynchronized = true;
-                return Err(Error::BadResponse);
-            }
-        };
-
-        try!(conn.wait_for_ready());
-        Ok(num)
-    }
-
-    /// Consumes the statement, clearing it from the Postgres session.
-    ///
-    /// Functionally identical to the `Drop` implementation of the
-    /// `CopyInStatement` except that it returns any error to the
-    /// caller.
-    pub fn finish(mut self) -> Result<()> {
-        self.finished = true;
-        self.finish_inner()
-    }
 }
 
 /// A trait allowing abstraction over connections and transactions
@@ -2239,10 +1743,6 @@ pub trait GenericConnection {
 
     /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
-
-    /// Like `Connection::prepare_copy_in`.
-    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<CopyInStatement<'a>>;
 
     /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
@@ -2271,11 +1771,6 @@ impl GenericConnection for Connection {
         self.transaction()
     }
 
-    fn prepare_copy_in<'a>(&'a self, table: &str, columns: &[&str])
-                           -> Result<CopyInStatement<'a>> {
-        self.prepare_copy_in(table, columns)
-    }
-
     fn batch_execute(&self, query: &str) -> Result<()> {
         self.batch_execute(query)
     }
@@ -2302,11 +1797,6 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.transaction()
     }
 
-    fn prepare_copy_in<'b>(&'b self, table: &str, columns: &[&str])
-                           -> Result<CopyInStatement<'b>> {
-        self.prepare_copy_in(table, columns)
-    }
-
     fn batch_execute(&self, query: &str) -> Result<()> {
         self.batch_execute(query)
     }
@@ -2314,4 +1804,32 @@ impl<'a> GenericConnection for Transaction<'a> {
     fn is_active(&self) -> bool {
         self.is_active()
     }
+}
+
+trait OtherNew {
+    fn new(name: String, oid: Oid, kind: Kind) -> Other;
+}
+
+trait DbErrorNew {
+    fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()>;
+    fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError>;
+    fn new<T>(fields: Vec<(u8, String)>) -> Result<T>;
+}
+
+trait TypeNew {
+    fn new(oid: Oid) -> Option<Type>;
+}
+
+trait RowsNew<'a> {
+    fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
+}
+
+trait LazyRowsNew<'trans, 'stmt> {
+    fn new(stmt: &'stmt Statement<'stmt>,
+           data: VecDeque<Vec<Option<Vec<u8>>>>,
+           name: String,
+           row_limit: i32,
+           more_rows: bool,
+           finished: bool,
+           trans: &'trans Transaction<'trans>) -> LazyRows<'trans, 'stmt>;
 }

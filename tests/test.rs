@@ -1,10 +1,11 @@
 extern crate postgres;
 extern crate rustc_serialize as serialize;
 extern crate url;
+#[cfg(feature = "openssl")]
 extern crate openssl;
 
-use openssl::ssl::SslContext;
-use openssl::ssl::SslMethod;
+#[cfg(feature = "openssl")]
+use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 
 use postgres::{HandleNotice,
@@ -12,21 +13,17 @@ use postgres::{HandleNotice,
                Connection,
                GenericConnection,
                SslMode,
-               Type,
-               Kind,
-               Error,
-               ConnectError,
-               DbError,
                IntoConnectParams,
-               IsolationLevel,
-               VecStreamIterator};
-use postgres::SqlState::{SyntaxError,
-                         QueryCanceled,
-                         UndefinedTable,
-                         InvalidCatalogName,
-                         InvalidPassword,
-                         CardinalityViolation};
-use postgres::ErrorPosition::Normal;
+               IsolationLevel};
+use postgres::error::{Error, ConnectError, DbError};
+use postgres::types::{Type, Kind};
+use postgres::error::SqlState::{SyntaxError,
+                                QueryCanceled,
+                                UndefinedTable,
+                                InvalidCatalogName,
+                                InvalidPassword,
+                                CardinalityViolation};
+use postgres::error::ErrorPosition::Normal;
 
 macro_rules! or_panic {
     ($e:expr) => (
@@ -506,7 +503,7 @@ fn test_get_was_null() {
     let result = or_panic!(stmt.query(&[]));
 
     match result.iter().next().unwrap().get_opt::<usize, i32>(0) {
-        Err(Error::WasNull) => {}
+        Err(Error::Conversion(..)) => {}
         res => panic!("unexpected result {:?}", res),
     };
 }
@@ -670,18 +667,20 @@ fn test_cancel_query() {
 }
 
 #[test]
+#[cfg(feature = "openssl")]
 fn test_require_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &SslMode::Require(ctx)));
+                                                    &mut SslMode::Require(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
 #[test]
+#[cfg(feature = "openssl")]
 fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                                    &SslMode::Prefer(ctx)));
+                                                    &mut SslMode::Prefer(Box::new(ctx))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
@@ -753,94 +752,6 @@ fn test_execute_copy_from_err() {
 }
 
 #[test]
-fn test_copy_in() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-
-    let data = (0i32..2).map(|i| {
-        VecStreamIterator::new(vec![Box::new(i),
-                                    Box::new(format!("{}", i))])
-    });
-
-    assert_eq!(2, stmt.execute(data).unwrap());
-
-    let stmt = or_panic!(conn.prepare("SELECT id, name FROM foo ORDER BY id"));
-    assert_eq!(vec![(0i32, Some("0".to_string())), (1, Some("1".to_string()))],
-               or_panic!(stmt.query(&[])).iter().map(|r| (r.get(0), r.get(1))).collect::<Vec<_>>());
-}
-
-#[test]
-fn test_copy_in_bad_column_count() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32),
-                                    Box::new("Steven".to_string()),
-                                    Box::new(3i64)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("Invalid column count") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-
-#[test]
-fn test_copy_in_bad_type() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT, name VARCHAR)", &[]));
-
-    let stmt = or_panic!(conn.prepare_copy_in("foo", &["id", "name"]));
-
-    let data = vec![
-        VecStreamIterator::new(vec![Box::new(1i32),
-                                    Box::new("Steven".to_string())]),
-        VecStreamIterator::new(vec![Box::new(2i32),
-                                    Box::new(1i32)]),
-    ].into_iter();
-
-    let res = stmt.execute(data);
-    match res {
-        Err(Error::DbError(ref err)) if err.message().contains("saw type Varchar") => {}
-        Err(err) => panic!("unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-
-#[test]
-fn test_copy_in_weird_names() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute(r#"CREATE TEMPORARY TABLE "na""me" (U&" \\\+01F4A9" VARCHAR)"#, &[]));
-    let stmt = or_panic!(conn.prepare_copy_in("na\"me", &[" \\💩"]));
-    assert_eq!(&Type::Varchar, &stmt.column_types()[0]);
-}
-
-#[test]
 fn test_batch_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
@@ -850,6 +761,19 @@ fn test_batch_execute_copy_from_err() {
         _ => panic!("Expected error"),
     }
 }
+
+#[test]
+fn test_copy() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
+    let mut data = &b"1\n2\n3\n5\n8\n"[..];
+    assert_eq!(5, or_panic!(stmt.copy_in(&[], &mut data)));
+    let stmt = or_panic!(conn.prepare("SELECT id FROM foo ORDER BY id"));
+    assert_eq!(vec![1i32, 2, 3, 5, 8],
+               stmt.query(&[]).unwrap().iter().map(|r| r.get(0)).collect::<Vec<i32>>());
+}
+
 
 #[test]
 // Just make sure the impls don't infinite loop
