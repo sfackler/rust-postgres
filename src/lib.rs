@@ -472,6 +472,16 @@ pub enum SslMode {
     Require(Box<NegotiateSsl+std::marker::Sync+Send>),
 }
 
+impl fmt::Debug for SslMode {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SslMode::None => fmt.write_str("None"),
+            SslMode::Prefer(..) => fmt.write_str("Prefer"),
+            SslMode::Require(..) => fmt.write_str("Require"),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct CachedStatement {
     name: String,
