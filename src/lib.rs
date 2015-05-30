@@ -42,7 +42,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.1")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -467,9 +467,19 @@ pub enum SslMode {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
-    Prefer(Box<NegotiateSsl>),
+    Prefer(Box<NegotiateSsl+std::marker::Sync+Send>),
     /// The connection must use SSL.
-    Require(Box<NegotiateSsl>),
+    Require(Box<NegotiateSsl+std::marker::Sync+Send>),
+}
+
+impl fmt::Debug for SslMode {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SslMode::None => fmt.write_str("None"),
+            SslMode::Prefer(..) => fmt.write_str("Prefer"),
+            SslMode::Require(..) => fmt.write_str("Require"),
+        }
+    }
 }
 
 #[derive(Clone)]
