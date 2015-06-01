@@ -3,7 +3,6 @@
 //! package.
 //!
 //! ```rust,no_run
-//! # #![allow(unstable)]
 //! extern crate postgres;
 //!
 //! use postgres::{Connection, SslMode};
@@ -936,7 +935,6 @@ impl Connection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # #![allow(unstable)]
     /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
     /// # #[cfg(feature = "unix_socket")]
     /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
