@@ -246,7 +246,10 @@ impl<W: Write> WriteMessage for W {
         }
 
         // add size of length value
-        try!(self.write_u32::<BigEndian>(try!(u32::from_usize(buf.len() + mem::size_of::<u32>()))));
+        if buf.len() > u32::max_value() as usize - mem::size_of::<u32>() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "value too large to transmit"));
+        }
+        try!(self.write_u32::<BigEndian>((buf.len() + mem::size_of::<u32>()) as u32));
         try!(self.write_all(&*buf));
 
         Ok(())
