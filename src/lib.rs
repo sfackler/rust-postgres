@@ -432,10 +432,6 @@ struct CachedStatement {
     columns: Vec<Column>,
 }
 
-trait SessionInfoNew<'a> {
-    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
-}
-
 struct InnerConnection {
     stream: BufStream<Box<StreamWrapper>>,
     notice_handler: Box<HandleNotice>,
@@ -1784,4 +1780,8 @@ trait LazyRowsNew<'trans, 'stmt> {
            more_rows: bool,
            finished: bool,
            trans: &'trans Transaction<'trans>) -> LazyRows<'trans, 'stmt>;
+}
+
+trait SessionInfoNew<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
 }
