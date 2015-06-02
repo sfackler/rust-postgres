@@ -431,4 +431,3 @@ macro_rules! from_usize {
 
 from_usize!(u16);
 from_usize!(i32);
-from_usize!(u32);
