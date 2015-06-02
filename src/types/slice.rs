@@ -3,7 +3,7 @@ use byteorder::{WriteBytesExt, BigEndian};
 
 use Result;
 use error::Error;
-use types::{Type, ToSql, Kind, IsNull, SessionInfo};
+use types::{Type, ToSql, Kind, IsNull, SessionInfo, downcast};
 
 /// An adapter type mapping slices to Postgres arrays.
 ///
@@ -48,14 +48,14 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
         try!(w.write_i32::<BigEndian>(1)); // has nulls
         try!(w.write_u32::<BigEndian>(member_type.oid()));
 
-        try!(w.write_i32::<BigEndian>(self.0.len() as i32));
+        try!(w.write_i32::<BigEndian>(try!(downcast(self.0.len()))));
         try!(w.write_i32::<BigEndian>(0)); // index offset
 
         let mut inner_buf = vec![];
         for e in self.0 {
             match try!(e.to_sql(&member_type, &mut inner_buf, ctx)) {
                 IsNull::No => {
-                    try!(w.write_i32::<BigEndian>(inner_buf.len() as i32));
+                    try!(w.write_i32::<BigEndian>(try!(downcast(inner_buf.len()))));
                     try!(w.write_all(&inner_buf));
                 }
                 IsNull::Yes => try!(w.write_i32::<BigEndian>(-1)),
