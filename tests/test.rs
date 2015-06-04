@@ -741,12 +741,12 @@ fn test_execute_copy_from_err() {
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
     match stmt.execute(&[]) {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
     match stmt.query(&[]) {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
 }
@@ -757,7 +757,7 @@ fn test_batch_execute_copy_from_err() {
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     match conn.batch_execute("COPY foo (id) FROM STDIN") {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
 }
