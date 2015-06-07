@@ -892,3 +892,16 @@ fn test_transaction_isolation_level() {
     or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadCommitted));
     assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.transaction_isolation()));
 }
+
+#[test]
+fn test_rows_index() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("
+        CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
+        INSERT INTO foo (id) VALUES (1), (2), (3);
+        ").unwrap();
+    let stmt = conn.prepare("SELECT id FROM foo ORDER BY id").unwrap();
+    let rows = stmt.query(&[]).unwrap();
+    assert_eq!(3, rows.len());
+    assert_eq!(2i32, rows.get(1).get(0));
+}
