@@ -710,11 +710,13 @@ fn test_plaintext_pass_wrong_pass() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "rust-crypto"), ignore)]
 fn test_md5_pass() {
     or_panic!(Connection::connect("postgres://md5_user:password@localhost/postgres", &SslMode::None));
 }
 
 #[test]
+#[cfg_attr(not(feature = "rust-crypto"), ignore)]
 fn test_md5_pass_no_pass() {
     let ret = Connection::connect("postgres://md5_user@localhost/postgres", &SslMode::None);
     match ret {
@@ -725,6 +727,7 @@ fn test_md5_pass_no_pass() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "rust-crypto"), ignore)]
 fn test_md5_pass_wrong_pass() {
     let ret = Connection::connect("postgres://md5_user:asdf@localhost/postgres", &SslMode::None);
     match ret {
