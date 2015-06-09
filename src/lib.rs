@@ -46,6 +46,7 @@
 
 extern crate bufstream;
 extern crate byteorder;
+#[cfg(feature = "rust-crypto")]
 extern crate crypto;
 #[macro_use]
 extern crate log;
@@ -56,7 +57,9 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
+#[cfg(feature = "rust-crypto")]
 use crypto::digest::Digest;
+#[cfg(feature = "rust-crypto")]
 use crypto::md5::Md5;
 use debug_builders::DebugStruct;
 use std::ascii::AsciiExt;
@@ -586,7 +589,30 @@ impl InnerConnection {
         }
     }
 
+    #[cfg(feature = "rust-crypto")]
+    fn auth_md5(&mut self, salt: [u8; 4], user: UserInfo) -> result::Result<(), ConnectError> {
+        let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
+        let mut hasher = Md5::new();
+        let _ = hasher.input(pass.as_bytes());
+        let _ = hasher.input(user.user.as_bytes());
+        let output = hasher.result_str();
+        hasher.reset();
+        let _ = hasher.input(output.as_bytes());
+        let _ = hasher.input(&salt);
+        let output = format!("md5{}", hasher.result_str());
+        try!(self.write_messages(&[PasswordMessage {
+            password: &output
+        }]));
+        Ok(())
+    }
+
+    #[cfg(not(feature = "rust-crypto"))]
+    fn auth_md5(&mut self, _salt: [u8; 4], _user: UserInfo) -> result::Result<(), ConnectError> {
+        Err(ConnectError::UnsupportedAuthentication)
+    }
+
     fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
+
         match try!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
@@ -596,18 +622,7 @@ impl InnerConnection {
                     }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
-                let mut hasher = Md5::new();
-                let _ = hasher.input(pass.as_bytes());
-                let _ = hasher.input(user.user.as_bytes());
-                let output = hasher.result_str();
-                hasher.reset();
-                let _ = hasher.input(output.as_bytes());
-                let _ = hasher.input(&salt);
-                let output = format!("md5{}", hasher.result_str());
-                try!(self.write_messages(&[PasswordMessage {
-                        password: &output
-                    }]));
+                try!(self.auth_md5(salt, user));
             }
             AuthenticationKerberosV5
             | AuthenticationSCMCredential
