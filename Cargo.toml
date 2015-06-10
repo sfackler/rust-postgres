@@ -29,7 +29,6 @@ byteorder = "0.3"
 debug-builders = "0.1"
 log = "0.3"
 phf = "0.7"
-rust-crypto = "0.2"
 rustc-serialize = "0.3"
 chrono = { version = "0.2.14", optional = true }
 openssl = { version = "0.6", optional = true }

@@ -46,7 +46,6 @@
 
 extern crate bufstream;
 extern crate byteorder;
-extern crate crypto;
 #[macro_use]
 extern crate log;
 extern crate phf;
@@ -56,8 +55,7 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
-use crypto::digest::Digest;
-use crypto::md5::Md5;
+use md5::Md5;
 use debug_builders::DebugStruct;
 use std::ascii::AsciiExt;
 use std::borrow::ToOwned;
@@ -94,6 +92,7 @@ mod url;
 mod util;
 pub mod types;
 pub mod rows;
+mod md5;
 
 const TYPEINFO_QUERY: &'static str = "t";
 
