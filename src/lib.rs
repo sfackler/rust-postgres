@@ -1581,18 +1581,27 @@ impl<'conn> Statement<'conn> {
                 Ok(0) => break,
                 Ok(len) => {
                     try_desync!(conn, conn.stream.write_message(
-                            &CopyData {
-                                data: &buf[..len as usize],
-                            }));
+                        &CopyData {
+                            data: &buf[..len as usize],
+                        }));
                     buf.clear();
                 }
                 Err(err) => {
-                    // FIXME better to return the error directly
-                    try_desync!(conn, conn.stream.write_message(
-                            &CopyFail {
-                                message: &err.to_string(),
-                            }));
-                    break;
+                    try!(conn.write_messages(&[
+                        CopyFail {
+                            message: "",
+                        },
+                        CopyDone,
+                        Sync]));
+                    match try!(conn.read_message()) {
+                        ErrorResponse { .. } => { /* expected from the CopyFail */ }
+                        _ => {
+                            conn.desynchronized = true;
+                            return Err(Error::IoError(bad_response()));
+                        }
+                    }
+                    try!(conn.wait_for_ready());
+                    return Err(Error::IoError(err));
                 }
             }
         }

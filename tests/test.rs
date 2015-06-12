@@ -7,6 +7,7 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
+use std::io;
 
 use postgres::{HandleNotice,
                Notification,
@@ -605,48 +606,6 @@ fn test_notifications_next_block() {
     }, or_panic!(notifications.next_block()));
 }
 
-/*
-#[test]
-fn test_notifications_next_block_for() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("LISTEN test_notifications_next_block_for", &[]));
-
-    let _t = thread::spawn(|| {
-        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        timer::sleep(Duration::milliseconds(500));
-        or_panic!(conn.execute("NOTIFY test_notifications_next_block_for, 'foo'", &[]));
-    });
-
-    let mut notifications = conn.notifications();
-    check_notification(Notification {
-        pid: 0,
-        channel: "test_notifications_next_block_for".to_string(),
-        payload: "foo".to_string()
-    }, or_panic!(notifications.next_block_for(Duration::seconds(2)).unwrap()));
-}
-
-#[test]
-fn test_notifications_next_block_for_timeout() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("LISTEN test_notifications_next_block_for_timeout", &[]));
-
-    let _t = thread::spawn(|| {
-        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        timer::sleep(Duration::seconds(2));
-        or_panic!(conn.execute("NOTIFY test_notifications_next_block_for_timeout, 'foo'", &[]));
-    });
-
-    let mut notifications = conn.notifications();
-    match notifications.next_block_for(Duration::milliseconds(500)) {
-        None => {}
-        Some(Err(e)) => panic!("Unexpected error {:?}", e),
-        Some(Ok(_)) => panic!("expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-*/
-
 #[test]
 // This test is pretty sad, but I don't think there's a better way :(
 fn test_cancel_query() {
@@ -760,6 +719,28 @@ fn test_batch_execute_copy_from_err() {
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
+}
+
+#[test]
+fn test_copy_io_error() {
+    struct ErrorReader;
+
+    impl io::Read for ErrorReader {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::AddrNotAvailable, "boom"))
+        }
+    }
+
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
+    match stmt.copy_in(&[], &mut ErrorReader) {
+        Err(Error::IoError(ref e)) if e.kind() == io::ErrorKind::AddrNotAvailable => {}
+        Err(err) => panic!("Unexpected error {:?}", err),
+        _ => panic!("Expected error"),
+    }
+
+    or_panic!(conn.execute("SELECT 1", &[]));
 }
 
 #[test]
