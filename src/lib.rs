@@ -1577,12 +1577,12 @@ impl<'conn> Statement<'conn> {
 
         let mut buf = vec![];
         loop {
-            match std::io::copy(&mut r.take(16 * 1024), &mut buf) {
+            match r.take(16 * 1024).read_to_end(&mut buf) {
                 Ok(0) => break,
-                Ok(len) => {
+                Ok(_) => {
                     try_desync!(conn, conn.stream.write_message(
                         &CopyData {
-                            data: &buf[..len as usize],
+                            data: &buf,
                         }));
                     buf.clear();
                 }
