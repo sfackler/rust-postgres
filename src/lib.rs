@@ -61,10 +61,12 @@ use std::ascii::AsciiExt;
 use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
+use std::error::Error as StdError;
 use std::fmt;
 use std::iter::IntoIterator;
 use std::io as std_io;
 use std::io::prelude::*;
+use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
 #[cfg(feature = "unix_socket")]
@@ -145,26 +147,26 @@ pub struct ConnectParams {
 /// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError>;
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>>;
 }
 
 impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(ConnectError::InvalidUrl(err)),
+            Err(err) => return Err(err.into()),
         }
     }
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         let Url {
             host,
             port,
@@ -174,16 +176,16 @@ impl IntoConnectParams for Url {
         } = self;
 
         #[cfg(feature = "unix_socket")]
-        fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
+        fn make_unix(maybe_path: String)
+                -> result::Result<ConnectTarget, Box<StdError+StdSync+Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(feature = "unix_socket"))]
-        fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
-            Err(ConnectError::InvalidUrl("unix socket support requires the `unix_socket` feature"
-                                         .to_string()))
+        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError+StdSync+Send>> {
+            Err("unix socket support requires the `unix_socket` feature".into())
         }
 
-        let maybe_path = try!(url::decode_component(&host).map_err(ConnectError::InvalidUrl));
+        let maybe_path = try!(url::decode_component(&host));
         let target = if maybe_path.starts_with("/") {
             try!(make_unix(maybe_path))
         } else {
@@ -330,7 +332,7 @@ pub struct CancelData {
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
                           -> result::Result<(), ConnectError>
         where T: IntoConnectParams {
-    let params = try!(params.into_connect_params());
+    let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
@@ -459,7 +461,7 @@ impl Drop for InnerConnection {
 impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
-        let params = try!(params.into_connect_params());
+        let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
         let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
