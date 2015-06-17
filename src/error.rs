@@ -67,14 +67,14 @@ impl DbErrorNew for DbError {
 
     fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(ConnectError::DbError(err)),
+            Ok(err) => Err(ConnectError::DbError(Box::new(err))),
             Err(()) => Err(ConnectError::IoError(::bad_response())),
         }
     }
 
     fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(Error::DbError(err)),
+            Ok(err) => Err(Error::DbError(Box::new(err))),
             Err(()) => Err(Error::IoError(::bad_response())),
         }
     }
@@ -198,7 +198,7 @@ pub enum ConnectError {
     /// The URL was missing a user.
     MissingUser,
     /// An error from the Postgres server itself.
-    DbError(DbError),
+    DbError(Box<DbError>),
     /// A password was required but not provided in the URL.
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
@@ -244,7 +244,7 @@ impl error::Error for ConnectError {
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             ConnectError::BadConnectParams(ref err) => Some(&**err),
-            ConnectError::DbError(ref err) => Some(err),
+            ConnectError::DbError(ref err) => Some(&**err),
             ConnectError::SslError(ref err) => Some(&**err),
             ConnectError::IoError(ref err) => Some(err),
             _ => None
@@ -260,7 +260,7 @@ impl From<io::Error> for ConnectError {
 
 impl From<DbError> for ConnectError {
     fn from(err: DbError) -> ConnectError {
-        ConnectError::DbError(err)
+        ConnectError::DbError(Box::new(err))
     }
 }
 
@@ -288,7 +288,7 @@ pub enum ErrorPosition {
 #[derive(Debug)]
 pub enum Error {
     /// An error reported by the Postgres server.
-    DbError(DbError),
+    DbError(Box<DbError>),
     /// An error communicating with the Postgres server.
     IoError(io::Error),
     /// An attempt was made to convert between incompatible Rust and Postgres
@@ -326,7 +326,7 @@ impl error::Error for Error {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            Error::DbError(ref err) => Some(err),
+            Error::DbError(ref err) => Some(&**err),
             Error::IoError(ref err) => Some(err),
             Error::Conversion(ref err) => Some(&**err),
             _ => None
@@ -336,7 +336,7 @@ impl error::Error for Error {
 
 impl From<DbError> for Error {
     fn from(err: DbError) -> Error {
-        Error::DbError(err)
+        Error::DbError(Box::new(err))
     }
 }
 
