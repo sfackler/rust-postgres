@@ -545,27 +545,19 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_one_message(&mut self) -> std_io::Result<Option<BackendMessage>> {
-        debug_assert!(!self.desynchronized);
-        match try_desync!(self, self.stream.read_message()) {
-            NoticeResponse { fields } => {
-                if let Ok(err) = DbError::new_raw(fields) {
-                    self.notice_handler.handle_notice(err);
-                }
-                Ok(None)
-            }
-            ParameterStatus { parameter, value } => {
-                self.parameters.insert(parameter, value);
-                Ok(None)
-            }
-            val => Ok(Some(val))
-        }
-    }
-
     fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
+        debug_assert!(!self.desynchronized);
         loop {
-            if let Some(msg) = try!(self.read_one_message()) {
-                return Ok(msg);
+            match try_desync!(self, self.stream.read_message()) {
+                NoticeResponse { fields } => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                ParameterStatus { parameter, value } => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val)
             }
         }
     }
