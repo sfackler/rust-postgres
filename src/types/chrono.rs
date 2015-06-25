@@ -1,10 +1,12 @@
 extern crate chrono;
 
+use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC};
 
 use Result;
+use error::Error;
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 fn base() -> NaiveDateTime {
@@ -61,8 +63,13 @@ impl FromSql for NaiveDate {
 
 impl ToSql for NaiveDate {
     fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo) -> Result<IsNull> {
-        let jd = *self - base().date();
-        try!(w.write_i32::<BigEndian>(jd.num_days() as i32));
+        let jd = (*self - base().date()).num_days();
+        if jd > i32::max_value() as i64 || jd < i32::min_value() as i64 {
+            let err: Box<error::Error+Sync+Send> = "value too large to transmit".into();
+            return Err(Error::Conversion(err));
+        }
+
+        try!(w.write_i32::<BigEndian>(jd as i32));
         Ok(IsNull::No)
     }
 

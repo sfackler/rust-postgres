@@ -7,6 +7,7 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
+use std::io;
 
 use postgres::{HandleNotice,
                Notification,
@@ -605,48 +606,6 @@ fn test_notifications_next_block() {
     }, or_panic!(notifications.next_block()));
 }
 
-/*
-#[test]
-fn test_notifications_next_block_for() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("LISTEN test_notifications_next_block_for", &[]));
-
-    let _t = thread::spawn(|| {
-        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        timer::sleep(Duration::milliseconds(500));
-        or_panic!(conn.execute("NOTIFY test_notifications_next_block_for, 'foo'", &[]));
-    });
-
-    let mut notifications = conn.notifications();
-    check_notification(Notification {
-        pid: 0,
-        channel: "test_notifications_next_block_for".to_string(),
-        payload: "foo".to_string()
-    }, or_panic!(notifications.next_block_for(Duration::seconds(2)).unwrap()));
-}
-
-#[test]
-fn test_notifications_next_block_for_timeout() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.execute("LISTEN test_notifications_next_block_for_timeout", &[]));
-
-    let _t = thread::spawn(|| {
-        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-        timer::sleep(Duration::seconds(2));
-        or_panic!(conn.execute("NOTIFY test_notifications_next_block_for_timeout, 'foo'", &[]));
-    });
-
-    let mut notifications = conn.notifications();
-    match notifications.next_block_for(Duration::milliseconds(500)) {
-        None => {}
-        Some(Err(e)) => panic!("Unexpected error {:?}", e),
-        Some(Ok(_)) => panic!("expected error"),
-    }
-
-    or_panic!(conn.execute("SELECT 1", &[]));
-}
-*/
-
 #[test]
 // This test is pretty sad, but I don't think there's a better way :(
 fn test_cancel_query() {
@@ -741,12 +700,12 @@ fn test_execute_copy_from_err() {
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
     match stmt.execute(&[]) {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
     match stmt.query(&[]) {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
 }
@@ -757,9 +716,31 @@ fn test_batch_execute_copy_from_err() {
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     match conn.batch_execute("COPY foo (id) FROM STDIN") {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
-        Err(err) => panic!("Unexptected error {:?}", err),
+        Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
+}
+
+#[test]
+fn test_copy_io_error() {
+    struct ErrorReader;
+
+    impl io::Read for ErrorReader {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::AddrNotAvailable, "boom"))
+        }
+    }
+
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
+    match stmt.copy_in(&[], &mut ErrorReader) {
+        Err(Error::IoError(ref e)) if e.kind() == io::ErrorKind::AddrNotAvailable => {}
+        Err(err) => panic!("Unexpected error {:?}", err),
+        _ => panic!("Expected error"),
+    }
+
+    or_panic!(conn.execute("SELECT 1", &[]));
 }
 
 #[test]
@@ -891,4 +872,17 @@ fn test_transaction_isolation_level() {
     assert_eq!(IsolationLevel::Serializable, or_panic!(conn.transaction_isolation()));
     or_panic!(conn.set_transaction_isolation(IsolationLevel::ReadCommitted));
     assert_eq!(IsolationLevel::ReadCommitted, or_panic!(conn.transaction_isolation()));
+}
+
+#[test]
+fn test_rows_index() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("
+        CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
+        INSERT INTO foo (id) VALUES (1), (2), (3);
+        ").unwrap();
+    let stmt = conn.prepare("SELECT id FROM foo ORDER BY id").unwrap();
+    let rows = stmt.query(&[]).unwrap();
+    assert_eq!(3, rows.len());
+    assert_eq!(2i32, rows.get(1).get(0));
 }

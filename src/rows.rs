@@ -50,6 +50,23 @@ impl<'stmt> Rows<'stmt> {
         self.stmt.columns()
     }
 
+    /// Returns the number of rows present.
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns a specific `Row`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `idx` is out of bounds.
+    pub fn get<'a>(&'a self, idx: usize) -> Row<'a> {
+        Row {
+            stmt: self.stmt,
+            data: Cow::Borrowed(&self.data[idx]),
+        }
+    }
+
     /// Returns an iterator over the `Row`s.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {

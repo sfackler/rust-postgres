@@ -3,7 +3,6 @@
 //! package.
 //!
 //! ```rust,no_run
-//! # #![allow(unstable)]
 //! extern crate postgres;
 //!
 //! use postgres::{Connection, SslMode};
@@ -42,12 +41,11 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.2")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
 extern crate byteorder;
-extern crate crypto;
 #[macro_use]
 extern crate log;
 extern crate phf;
@@ -57,8 +55,7 @@ extern crate unix_socket;
 extern crate debug_builders;
 
 use bufstream::BufStream;
-use crypto::digest::Digest;
-use crypto::md5::Md5;
+use md5::Md5;
 use debug_builders::DebugStruct;
 use std::ascii::AsciiExt;
 use std::borrow::ToOwned;
@@ -95,6 +92,7 @@ mod url;
 mod util;
 pub mod types;
 pub mod rows;
+mod md5;
 
 const TYPEINFO_QUERY: &'static str = "t";
 
@@ -174,7 +172,7 @@ impl IntoConnectParams for Url {
 
         #[cfg(feature = "unix_socket")]
         fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
-            Ok(ConnectTarget::Unix(PathBuf::from(&maybe_path)))
+            Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(feature = "unix_socket"))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
@@ -289,62 +287,6 @@ impl<'conn> Notifications<'conn> {
             _ => unreachable!()
         }
     }
-
-    /*
-    /// Returns the oldest pending notification
-    ///
-    /// If no notifications are pending, blocks for up to `timeout` time, after
-    /// which `None` is returned.
-    ///
-    /// ## Example
-    ///
-    /// ```rust,no_run
-    /// # #![allow(unstable)]
-    /// use std::old_io::{IoError, IoErrorKind};
-    /// use std::time::Duration;
-    ///
-    /// use postgres::Error;
-    ///
-    /// # let conn = postgres::Connection::connect("", &postgres::SslMode::None).unwrap();
-    /// match conn.notifications().next_block_for(Duration::seconds(2)) {
-    ///     Some(Ok(notification)) => println!("notification: {}", notification.payload),
-    ///     Some(Err(e)) => println!("Error: {:?}", e),
-    ///     None => println!("Wait for notification timed out"),
-    /// }
-    /// ```
-    pub fn next_block_for(&mut self, timeout: Duration) -> Option<Result<Notification>> {
-        if let Some(notification) = self.next() {
-            return Some(Ok(notification));
-        }
-
-        let mut conn = self.conn.conn.borrow_mut();
-        if conn.desynchronized {
-            return Some(Err(Error::StreamDesynchronized));
-        }
-
-        let end = SteadyTime::now() + timeout;
-        loop {
-            let timeout = max(Duration::zero(), end - SteadyTime::now()).num_milliseconds() as u64;
-            conn.stream.set_read_timeout(Some(timeout));
-            match conn.read_one_message() {
-                Ok(Some(NotificationResponse { pid, channel, payload })) => {
-                    return Some(Ok(Notification {
-                        pid: pid,
-                        channel: channel,
-                        payload: payload
-                    }))
-                }
-                Ok(Some(_)) => unreachable!(),
-                Ok(None) => {}
-                Err(IoError { kind: IoErrorKind::TimedOut, .. }) => {
-                    conn.desynchronized = false;
-                    return None;
-                }
-                Err(e) => return Some(Err(Error::IoError(e))),
-            }
-        }
-    }
-    */
 }
 
 /// Contains information necessary to cancel queries for a session.
@@ -467,9 +409,19 @@ pub enum SslMode {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
-    Prefer(Box<NegotiateSsl>),
+    Prefer(Box<NegotiateSsl+std::marker::Sync+Send>),
     /// The connection must use SSL.
-    Require(Box<NegotiateSsl>),
+    Require(Box<NegotiateSsl+std::marker::Sync+Send>),
+}
+
+impl fmt::Debug for SslMode {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SslMode::None => fmt.write_str("None"),
+            SslMode::Prefer(..) => fmt.write_str("Prefer"),
+            SslMode::Require(..) => fmt.write_str("Require"),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -477,10 +429,6 @@ struct CachedStatement {
     name: String,
     param_types: Vec<Type>,
     columns: Vec<Column>,
-}
-
-trait SessionInfoNew<'a> {
-    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
 }
 
 struct InnerConnection {
@@ -597,27 +545,19 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_one_message(&mut self) -> std_io::Result<Option<BackendMessage>> {
-        debug_assert!(!self.desynchronized);
-        match try_desync!(self, self.stream.read_message()) {
-            NoticeResponse { fields } => {
-                if let Ok(err) = DbError::new_raw(fields) {
-                    self.notice_handler.handle_notice(err);
-                }
-                Ok(None)
-            }
-            ParameterStatus { parameter, value } => {
-                self.parameters.insert(parameter, value);
-                Ok(None)
-            }
-            val => Ok(Some(val))
-        }
-    }
-
     fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
+        debug_assert!(!self.desynchronized);
         loop {
-            if let Some(msg) = try!(self.read_one_message()) {
-                return Ok(msg);
+            match try_desync!(self, self.stream.read_message()) {
+                NoticeResponse { fields } => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                ParameterStatus { parameter, value } => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val)
             }
         }
     }
@@ -982,7 +922,6 @@ impl Connection {
     /// ```
     ///
     /// ```rust,no_run
-    /// # #![allow(unstable)]
     /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
     /// # #[cfg(feature = "unix_socket")]
     /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
@@ -1630,22 +1569,31 @@ impl<'conn> Statement<'conn> {
 
         let mut buf = vec![];
         loop {
-            match std::io::copy(&mut r.take(16 * 1024), &mut buf) {
+            match r.take(16 * 1024).read_to_end(&mut buf) {
                 Ok(0) => break,
-                Ok(len) => {
+                Ok(_) => {
                     try_desync!(conn, conn.stream.write_message(
-                            &CopyData {
-                                data: &buf[..len as usize],
-                            }));
+                        &CopyData {
+                            data: &buf,
+                        }));
                     buf.clear();
                 }
                 Err(err) => {
-                    // FIXME better to return the error directly
-                    try_desync!(conn, conn.stream.write_message(
-                            &CopyFail {
-                                message: &err.to_string(),
-                            }));
-                    break;
+                    try!(conn.write_messages(&[
+                        CopyFail {
+                            message: "",
+                        },
+                        CopyDone,
+                        Sync]));
+                    match try!(conn.read_message()) {
+                        ErrorResponse { .. } => { /* expected from the CopyFail */ }
+                        _ => {
+                            conn.desynchronized = true;
+                            return Err(Error::IoError(bad_response()));
+                        }
+                    }
+                    try!(conn.wait_for_ready());
+                    return Err(Error::IoError(err));
                 }
             }
         }
@@ -1832,4 +1780,8 @@ trait LazyRowsNew<'trans, 'stmt> {
            more_rows: bool,
            finished: bool,
            trans: &'trans Transaction<'trans>) -> LazyRows<'trans, 'stmt>;
+}
+
+trait SessionInfoNew<'a> {
+    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
 }

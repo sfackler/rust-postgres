@@ -934,15 +934,15 @@ impl ToSql for HashMap<String, Option<String>> {
 
     fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
                                -> Result<IsNull> {
-        try!(w.write_i32::<BigEndian>(self.len() as i32));
+        try!(w.write_i32::<BigEndian>(try!(downcast(self.len()))));
 
         for (key, val) in self {
-            try!(w.write_i32::<BigEndian>(key.len() as i32));
+            try!(w.write_i32::<BigEndian>(try!(downcast(key.len()))));
             try!(w.write_all(key.as_bytes()));
 
             match *val {
                 Some(ref val) => {
-                    try!(w.write_i32::<BigEndian>(val.len() as i32));
+                    try!(w.write_i32::<BigEndian>(try!(downcast(val.len()))));
                     try!(w.write_all(val.as_bytes()));
                 }
                 None => try!(w.write_i32::<BigEndian>(-1))
@@ -957,5 +957,14 @@ impl ToSql for HashMap<String, Option<String>> {
             Type::Other(ref u) if u.name() == "hstore" => true,
             _ => false,
         }
+    }
+}
+
+fn downcast(len: usize) -> Result<i32> {
+    if len > i32::max_value() as usize {
+        let err: Box<error::Error+Sync+Send> = "value too large to transmit".into();
+        Err(Error::Conversion(err))
+    } else {
+        Ok(len as i32)
     }
 }

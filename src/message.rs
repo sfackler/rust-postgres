@@ -161,23 +161,23 @@ impl<W: Write> WriteMessage for W {
                 try!(buf.write_cstr(portal));
                 try!(buf.write_cstr(statement));
 
-                try!(buf.write_u16::<BigEndian>(formats.len() as u16));
+                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(formats.len()))));
                 for &format in formats {
                     try!(buf.write_i16::<BigEndian>(format));
                 }
 
-                try!(buf.write_u16::<BigEndian>(values.len() as u16));
+                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(values.len()))));
                 for value in values {
                     match *value {
                         None => try!(buf.write_i32::<BigEndian>(-1)),
                         Some(ref value) => {
-                            try!(buf.write_i32::<BigEndian>(value.len() as i32));
+                            try!(buf.write_i32::<BigEndian>(try!(i32::from_usize(value.len()))));
                             try!(buf.write_all(&**value));
                         }
                     }
                 }
 
-                try!(buf.write_u16::<BigEndian>(result_formats.len() as u16));
+                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(result_formats.len()))));
                 for &format in result_formats {
                     try!(buf.write_i16::<BigEndian>(format));
                 }
@@ -215,7 +215,7 @@ impl<W: Write> WriteMessage for W {
                 ident = Some(b'P');
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
-                try!(buf.write_u16::<BigEndian>(param_types.len() as u16));
+                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(param_types.len()))));
                 for &ty in param_types {
                     try!(buf.write_u32::<BigEndian>(ty));
                 }
@@ -246,6 +246,9 @@ impl<W: Write> WriteMessage for W {
         }
 
         // add size of length value
+        if buf.len() > u32::max_value() as usize - mem::size_of::<u32>() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "value too large to transmit"));
+        }
         try!(self.write_u32::<BigEndian>((buf.len() + mem::size_of::<u32>()) as u32));
         try!(self.write_all(&*buf));
 
@@ -407,3 +410,24 @@ fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
 
     Ok(RowDescription { descriptions: types })
 }
+
+trait FromUsize {
+    fn from_usize(x: usize) -> io::Result<Self>;
+}
+
+macro_rules! from_usize {
+    ($t:ty) => {
+        impl FromUsize for $t {
+            fn from_usize(x: usize) -> io::Result<$t> {
+                if x > <$t>::max_value() as usize {
+                    Err(io::Error::new(io::ErrorKind::InvalidInput, "value too large to transmit"))
+                } else {
+                    Ok(x as $t)
+                }
+            }
+        }
+    }
+}
+
+from_usize!(u16);
+from_usize!(i32);
