@@ -254,13 +254,13 @@ types. The driver currently supports the following conversions:
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
-Support for Postgres arrays is located in the
+Support for array types is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
-Support for Postgres ranges is located in the
+Support for range types is located in the
 [postgres-range](https://github.com/sfackler/rust-postgres-range) crate.
 
-Support for Postgres large objects is located in the
+Support for the large object API is located in the
 [postgres-large-object](https://github.com/sfackler/rust-postgres-large-object) crate.
 
 ## Optional features
