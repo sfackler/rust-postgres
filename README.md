@@ -57,9 +57,9 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.0.0 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.0 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
-    recent unstable releases.
+    recent releases.
 
 * **PostgreSQL 7.4 or later** - Rust-Postgres speaks version 3 of the
     PostgreSQL protocol, which corresponds to versions 7.4 and later. If your
