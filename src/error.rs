@@ -217,6 +217,9 @@ impl fmt::Display for ConnectError {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
             ConnectError::InvalidUrl(ref msg) => write!(fmt, ": {}", msg),
+            ConnectError::DbError(ref err) => write!(fmt, ": {}", err),
+            ConnectError::SslError(ref err) => write!(fmt, ": {}", err),
+            ConnectError::IoError(ref err) => write!(fmt, ": {}", err),
             _ => Ok(())
         }
     }
@@ -227,14 +230,14 @@ impl error::Error for ConnectError {
         match *self {
             ConnectError::InvalidUrl(_) => "Invalid URL",
             ConnectError::MissingUser => "User missing in URL",
-            ConnectError::DbError(_) => "An error from the Postgres server itself",
+            ConnectError::DbError(_) => "Error reported by Postgres",
             ConnectError::MissingPassword => "The server requested a password but none was provided",
             ConnectError::UnsupportedAuthentication => {
                 "The server requested an unsupported authentication method"
             }
             ConnectError::NoSslSupport => "The server does not support SSL",
             ConnectError::SslError(_) => "Error initiating SSL session",
-            ConnectError::IoError(_) => "Error communicating with server",
+            ConnectError::IoError(_) => "Error communicating with the server",
         }
     }
 
@@ -300,7 +303,10 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
+            Error::DbError(ref err) => write!(fmt, ": {}", err),
+            Error::IoError(ref err) => write!(fmt, ": {}", err),
             Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
+            Error::Conversion(ref err) => write!(fmt, ": {}", err),
             _ => Ok(()),
         }
     }
@@ -309,11 +315,11 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::DbError(_) => "An error reported by the Postgres server",
-            Error::IoError(_) => "An error communicating with the Postgres server",
+            Error::DbError(_) => "Error reported by Postgres",
+            Error::IoError(_) => "Error communicating with the server",
             Error::WrongType(_) => "Unexpected type",
             Error::InvalidColumn => "Invalid column",
-            Error::Conversion(_) => "An error converting between Postgres and Rust types",
+            Error::Conversion(_) => "Error converting between Postgres and Rust types",
         }
     }
 

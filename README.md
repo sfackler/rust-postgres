@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.9.2/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.9.3/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -57,9 +57,9 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.0.0 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.0 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
-    recent unstable releases.
+    recent releases.
 
 * **PostgreSQL 7.4 or later** - Rust-Postgres speaks version 3 of the
     PostgreSQL protocol, which corresponds to versions 7.4 and later. If your
@@ -254,13 +254,13 @@ types. The driver currently supports the following conversions:
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
-Support for Postgres arrays is located in the
+Support for array types is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
-Support for Postgres ranges is located in the
+Support for range types is located in the
 [postgres-range](https://github.com/sfackler/rust-postgres-range) crate.
 
-Support for Postgres large objects is located in the
+Support for the large object API is located in the
 [postgres-large-object](https://github.com/sfackler/rust-postgres-large-object) crate.
 
 ## Optional features

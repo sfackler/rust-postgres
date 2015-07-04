@@ -112,8 +112,7 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
         }
         #[cfg(feature = "unix_socket")]
         ConnectTarget::Unix(ref path) => {
-            let mut path = path.clone();
-            path.push(&format!(".s.PGSQL.{}", port));
+            let path = path.join(&format!(".s.PGSQL.{}", port));
             Ok(try!(UnixStream::connect(&path).map(InternalStream::Unix)))
         }
     }

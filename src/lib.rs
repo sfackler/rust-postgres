@@ -41,7 +41,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.2")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.3")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -73,7 +73,7 @@ use std::path::PathBuf;
 use error::{Error, ConnectError, SqlState, DbError};
 use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, ReadWithInfo};
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
@@ -1530,12 +1530,13 @@ impl<'conn> Statement<'conn> {
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows
     /// added.
     ///
-    /// The contents of the provided `Read`er are passed to the Postgres server
-    /// verbatim; it is the caller's responsibility to ensure the data is in
-    /// the proper format. See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
+    /// The contents of the provided reader are passed to the Postgres server
+    /// verbatim; it is the caller's responsibility to ensure it uses the
+    /// proper format. See the
+    /// [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
     /// for details.
     ///
-    /// If the statement is not a `COPY FROM STDIN` statement, it will still be
+    /// If the statement is not a `COPY FROM STDIN` statement it will still be
     /// executed and this method will return an error.
     ///
     /// # Examples
@@ -1547,7 +1548,7 @@ impl<'conn> Statement<'conn> {
     /// let stmt = conn.prepare("COPY people FROM STDIN").unwrap();
     /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
     /// ```
-    pub fn copy_in<R: Read>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
+    pub fn copy_in<R: ReadWithInfo>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
         try!(self.inner_execute("", 0, params));
         let mut conn = self.conn.conn.borrow_mut();
 
@@ -1567,16 +1568,15 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        let mut buf = vec![];
+        let mut buf = [0; 16 * 1024];
         loop {
-            match r.take(16 * 1024).read_to_end(&mut buf) {
+            match fill_copy_buf(&mut buf, r, &SessionInfo::new(&conn)) {
                 Ok(0) => break,
-                Ok(_) => {
+                Ok(len) => {
                     try_desync!(conn, conn.stream.write_message(
                         &CopyData {
-                            data: &buf,
+                            data: &buf[..len],
                         }));
-                    buf.clear();
                 }
                 Err(err) => {
                     try!(conn.write_messages(&[
@@ -1626,6 +1626,20 @@ impl<'conn> Statement<'conn> {
     pub fn finish(mut self) -> Result<()> {
         self.finish_inner()
     }
+}
+
+fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &SessionInfo)
+                                  -> std_io::Result<usize> {
+    let mut nread = 0;
+    while nread < buf.len() {
+        match r.read_with_info(&mut buf[nread..], info) {
+            Ok(0) => break,
+            Ok(n) => nread += n,
+            Err(ref e) if e.kind() == std_io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(nread)
 }
 
 /// Information about a column of the result of a query.
