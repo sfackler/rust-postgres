@@ -1530,13 +1530,13 @@ impl<'conn> Statement<'conn> {
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows
     /// added.
     ///
-    /// The data read out of the provided `Read`er are passed to the Postgres
-    /// server verbatim; it is the caller's responsibility to ensure the data
-    /// is in the proper format. See the
+    /// The contents of the provided reader are passed to the Postgres server
+    /// verbatim; it is the caller's responsibility to ensure it uses the
+    /// proper format. See the
     /// [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
     /// for details.
     ///
-    /// If the statement is not a `COPY FROM STDIN` statement, it will still be
+    /// If the statement is not a `COPY FROM STDIN` statement it will still be
     /// executed and this method will return an error.
     ///
     /// # Examples
