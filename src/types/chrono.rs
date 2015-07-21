@@ -3,7 +3,7 @@ extern crate chrono;
 use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
-use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC};
+use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC, Local, FixedOffset};
 
 use Result;
 use error::Error;
@@ -46,6 +46,45 @@ impl ToSql for DateTime<UTC> {
     fn to_sql<W: Write+?Sized>(&self, type_: &Type, mut w: &mut W, info: &SessionInfo)
                                -> Result<IsNull> {
         self.naive_utc().to_sql(type_, w, info)
+    }
+
+    accepts!(Type::TimestampTZ);
+    to_sql_checked!();
+}
+
+impl FromSql for DateTime<Local> {
+    fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo) -> Result<DateTime<Local>> {
+        let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
+        Ok(utc.with_timezone(&Local))
+    }
+
+    accepts!(Type::TimestampTZ);
+}
+
+impl ToSql for DateTime<Local> {
+    fn to_sql<W: Write+?Sized>(&self, type_: &Type, mut w: &mut W, info: &SessionInfo)
+                               -> Result<IsNull> {
+        self.with_timezone(&UTC).to_sql(type_, w, info)
+    }
+
+    accepts!(Type::TimestampTZ);
+    to_sql_checked!();
+}
+
+impl FromSql for DateTime<FixedOffset> {
+    fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo)
+                         -> Result<DateTime<FixedOffset>> {
+        let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
+        Ok(utc.with_timezone(&FixedOffset::east(0)))
+    }
+
+    accepts!(Type::TimestampTZ);
+}
+
+impl ToSql for DateTime<FixedOffset> {
+    fn to_sql<W: Write+?Sized>(&self, type_: &Type, mut w: &mut W, info: &SessionInfo)
+                               -> Result<IsNull> {
+        self.with_timezone(&UTC).to_sql(type_, w, info)
     }
 
     accepts!(Type::TimestampTZ);
