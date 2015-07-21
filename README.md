@@ -216,9 +216,11 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                <a href="https://github.com/rust-lang/time">time::Timespec</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Local&gt;</a>,
                 and
-                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;FixedOffset&gt;</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>TIMESTAMP WITH TIME ZONE</td>
