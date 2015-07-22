@@ -864,6 +864,11 @@ impl InnerConnection {
     }
 }
 
+fn _ensure_send() {
+    fn _is_send<T: Send>() {}
+    _is_send::<Connection>();
+}
+
 /// A connection to a Postgres database.
 pub struct Connection {
     conn: RefCell<InnerConnection>
