@@ -1,5 +1,6 @@
 //! Query result rows.
 
+use std::ascii::AsciiExt;
 use std::fmt;
 use std::collections::VecDeque;
 use debug_builders::DebugStruct;
@@ -274,7 +275,14 @@ impl RowIndex for usize {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<usize> {
-        stmt.columns().iter().position(|d| d.name == *self)
+        if let Some(idx) = stmt.columns().iter().position(|d| d.name == *self) {
+            return Some(idx);
+        };
+
+        // FIXME ASCII-only case insensitivity isn't really the right thing to
+        // do. Postgres itself uses a dubious wrapper around tolower and JDBC
+        // uses the US locale.
+        stmt.columns().iter().position(|d| d.name.eq_ignore_ascii_case(*self))
     }
 }
 
