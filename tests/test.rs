@@ -25,6 +25,7 @@ use postgres::error::SqlState::{SyntaxError,
                                 InvalidPassword,
                                 CardinalityViolation};
 use postgres::error::ErrorPosition::Normal;
+use postgres::rows::RowIndex;
 
 macro_rules! or_panic {
     ($e:expr) => (
@@ -885,4 +886,16 @@ fn test_rows_index() {
     let rows = stmt.query(&[]).unwrap();
     assert_eq!(3, rows.len());
     assert_eq!(2i32, rows.get(1).get(0));
+}
+
+#[test]
+fn test_row_case_insensitive() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("CREATE TEMPORARY TABLE foo (foo INT, \"bAr\" INT, \"Bar\" INT);").unwrap();
+    let stmt = conn.prepare("SELECT * FROM foo").unwrap();
+    assert_eq!(Some(0), "foo".idx(&stmt));
+    assert_eq!(Some(0), "FOO".idx(&stmt));
+    assert_eq!(Some(1), "bar".idx(&stmt));
+    assert_eq!(Some(1), "bAr".idx(&stmt));
+    assert_eq!(Some(2), "Bar".idx(&stmt));
 }

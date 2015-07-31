@@ -1,4 +1,5 @@
 language: rust
+sudo: required
 rust:
 - nightly
 - beta

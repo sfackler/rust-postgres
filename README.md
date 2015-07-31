@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.9.3/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.9.4/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -216,9 +216,11 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                <a href="https://github.com/rust-lang/time">time::Timespec</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Local&gt;</a>,
                 and
-                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;FixedOffset&gt;</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>TIMESTAMP WITH TIME ZONE</td>

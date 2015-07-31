@@ -565,16 +565,18 @@ impl error::Error for WasNull {
 /// name. For example, the `serde` feature enables the implementation for the
 /// `serde::json::Value` type.
 ///
-/// | Rust type                   | Postgres type(s)                    |
-/// |-----------------------------|-------------------------------------|
-/// | serialize::json::Json       | JSON, JSONB                         |
-/// | serde::json::Value          | JSON, JSONB                         |
-/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | chrono::NaiveDateTime       | TIMESTAMP                           |
-/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
-/// | chrono::NaiveDate           | DATE                                |
-/// | chrono::NaiveTime           | TIME                                |
-/// | uuid::Uuid                  | UUID                                |
+/// | Rust type                           | Postgres type(s)                    |
+/// |-------------------------------------|-------------------------------------|
+/// | serialize::json::Json               | JSON, JSONB                         |
+/// | serde::json::Value                  | JSON, JSONB                         |
+/// | time::Timespec                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime               | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt;         | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::DateTime&lt;Local&gt;       | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::DateTime&lt;FixedOffset&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate                   | DATE                                |
+/// | chrono::NaiveTime                   | TIME                                |
+/// | uuid::Uuid                          | UUID                                |
 ///
 /// # Nullability
 ///
@@ -770,16 +772,18 @@ pub enum IsNull {
 /// name. For example, the `serde` feature enables the implementation for the
 /// `serde::json::Value` type.
 ///
-/// | Rust type                   | Postgres type(s)                    |
-/// |-----------------------------|-------------------------------------|
-/// | serialize::json::Json       | JSON, JSONB                         |
-/// | serde::json::Value          | JSON, JSONB                         |
-/// | time::Timespec              | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | chrono::NaiveDateTime       | TIMESTAMP                           |
-/// | chrono::DateTime&lt;UTC&gt; | TIMESTAMP WITH TIME ZONE            |
-/// | chrono::NaiveDate           | DATE                                |
-/// | chrono::NaiveTime           | TIME                                |
-/// | uuid::Uuid                  | UUID                                |
+/// | Rust type                           | Postgres type(s)                    |
+/// |-------------------------------------|-------------------------------------|
+/// | serialize::json::Json               | JSON, JSONB                         |
+/// | serde::json::Value                  | JSON, JSONB                         |
+/// | time::Timespec                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | chrono::NaiveDateTime               | TIMESTAMP                           |
+/// | chrono::DateTime&lt;UTC&gt;         | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::DateTime&lt;Local&gt;       | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::DateTime&lt;FixedOffset&gt; | TIMESTAMP WITH TIME ZONE            |
+/// | chrono::NaiveDate                   | DATE                                |
+/// | chrono::NaiveTime                   | TIME                                |
+/// | uuid::Uuid                          | UUID                                |
 ///
 /// # Nullability
 ///
