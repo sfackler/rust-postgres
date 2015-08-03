@@ -815,6 +815,25 @@ pub trait ToSql: fmt::Debug {
                       -> Result<IsNull>;
 }
 
+impl<'a, T> ToSql for &'a T where T: ToSql {
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
+                      -> Result<IsNull> {
+        if !<&'a T as ToSql>::accepts(ty) {
+            return Err(Error::WrongType(ty.clone()));
+        }
+        self.to_sql(ty, out, ctx)
+    }
+
+
+    fn to_sql<W: Write + ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+        (*self).to_sql(ty, out, ctx)
+    }
+
+    fn accepts(ty: &Type) -> bool { T::accepts(ty) }
+}
+
+
+
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
