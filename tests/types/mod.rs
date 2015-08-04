@@ -32,6 +32,14 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks
 }
 
 #[test]
+fn test_ref_tosql() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let stmt = conn.prepare("SELECT $1::Int").unwrap();
+    let num: &ToSql = &&7;
+    stmt.query(&[num]).unwrap();
+}
+
+#[test]
 fn test_bool_params() {
     test_type("BOOL", &[(Some(true), "'t'"), (Some(false), "'f'"),
                        (None, "NULL")]);
