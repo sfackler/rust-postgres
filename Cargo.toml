@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.9.4"
+version = "0.9.5"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.9.4/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.9.5/postgres"
 readme = "README.md"
 keywords = ["database", "sql"]
 build = "build.rs"
