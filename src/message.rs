@@ -322,7 +322,8 @@ impl<R: BufRead> ReadMessage for R {
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
             b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
-            _ => return Err(io::Error::new(io::ErrorKind::Other, "unexpected message tag")),
+            t => return Err(io::Error::new(io::ErrorKind::Other,
+                                           format!("unexpected message tag `{}`", t))),
         };
         if rdr.limit() != 0 {
             return Err(io::Error::new(io::ErrorKind::Other, "didn't read entire message"));
@@ -377,7 +378,8 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
-        _ => return Err(io::Error::new(io::ErrorKind::Other, "unexpected authentication tag")),
+        t => return Err(io::Error::new(io::ErrorKind::Other,
+                                       format!("unexpected authentication tag `{}`", t))),
     })
 }
 
