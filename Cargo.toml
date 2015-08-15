@@ -31,7 +31,7 @@ log = "0.3"
 phf = "0.7"
 rustc-serialize = "0.3"
 chrono = { version = "0.2.14", optional = true }
-openssl = { version = "0.6", optional = true }
+openssl = { version = "0.6.4", optional = true }
 serde = { version = "0.3", optional = true }
 time = { version = "0.1.14", optional = true }
 unix_socket = { version = ">= 0.3, < 0.5", optional = true }
