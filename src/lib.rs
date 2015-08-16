@@ -89,12 +89,12 @@ mod macros;
 mod md5;
 mod message;
 mod priv_io;
-mod stmt;
 mod url;
 mod util;
 pub mod error;
 pub mod io;
 pub mod rows;
+pub mod stmt;
 pub mod types;
 
 const TYPEINFO_QUERY: &'static str = "t";
