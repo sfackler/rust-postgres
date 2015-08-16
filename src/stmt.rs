@@ -528,7 +528,7 @@ impl Format {
 /// # Warning
 ///
 /// The underlying connection may not be used while a `CopyOutReader` exists.
-/// Any calls to the connection with panic.
+/// Any attempt to do so will panic.
 pub struct CopyOutReader<'a> {
     conn: RefMut<'a, InnerConnection>,
     format: Format,
@@ -552,6 +552,11 @@ impl<'a> CopyOutReader<'a> {
     /// Returns the format of the individual columns.
     pub fn column_formats(&self) -> &[Format] {
         &self.column_formats
+    }
+
+    /// Returns session info for the associated connection.
+    pub fn session_info<'b>(&'b self) -> SessionInfo<'b> {
+        SessionInfo::new(&*self.conn)
     }
 
     /// Consumes the `CopyOutReader`, throwing away any unread data.
