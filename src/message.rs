@@ -32,7 +32,16 @@ pub enum BackendMessage {
     CommandComplete {
         tag: String,
     },
+    // FIXME naming
+    BCopyData {
+        data: Vec<u8>,
+    },
+    BCopyDone,
     CopyInResponse {
+        format: u8,
+        column_formats: Vec<u16>,
+    },
+    CopyOutResponse {
         format: u8,
         column_formats: Vec<u16>,
     },
@@ -292,7 +301,15 @@ impl<R: BufRead> ReadMessage for R {
                 channel: try!(rdr.read_cstr()),
                 payload: try!(rdr.read_cstr())
             },
+            b'c' => BCopyDone,
             b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
+            b'd' => {
+                let mut data = vec![];
+                try!(rdr.read_to_end(&mut data));
+                BCopyData {
+                    data: data,
+                }
+            }
             b'D' => try!(read_data_row(&mut rdr)),
             b'E' => ErrorResponse { fields: try!(read_fields(&mut rdr)) },
             b'G' => {
@@ -302,6 +319,17 @@ impl<R: BufRead> ReadMessage for R {
                     column_formats.push(try!(rdr.read_u16::<BigEndian>()));
                 }
                 CopyInResponse {
+                    format: format,
+                    column_formats: column_formats,
+                }
+            }
+            b'H' => {
+                let format = try!(rdr.read_u8());
+                let mut column_formats = vec![];
+                for _ in 0..try!(rdr.read_u16::<BigEndian>()) {
+                    column_formats.push(try!(rdr.read_u16::<BigEndian>()));
+                }
+                CopyOutResponse {
                     format: format,
                     column_formats: column_formats,
                 }

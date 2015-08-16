@@ -1450,6 +1450,20 @@ impl<'conn> Statement<'conn> {
                         },
                         Sync]));
                 }
+                CopyOutResponse { .. } => {
+                    loop {
+                        match try!(conn.read_message()) {
+                            BCopyDone => break,
+                            ErrorResponse { fields } => {
+                                try!(conn.wait_for_ready());
+                                return DbError::new(fields);
+                            }
+                            _ => {}
+                        }
+                    }
+                    num = 0;
+                    break;
+                }
                 _ => {
                     conn.desynchronized = true;
                     return Err(Error::IoError(bad_response()));
@@ -1689,6 +1703,17 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
                         message: "COPY queries cannot be directly executed",
                     },
                     Sync]));
+            }
+            CopyOutResponse { .. } => {
+                loop {
+                    match try!(conn.read_message()) {
+                        ReadyForQuery { .. } => break,
+                        _ => {}
+                    }
+                }
+                return Err(Error::IoError(std_io::Error::new(
+                            std_io::ErrorKind::InvalidInput,
+                            "COPY queries cannot be directly executed")));
             }
             _ => {
                 conn.desynchronized = true;

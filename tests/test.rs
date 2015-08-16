@@ -756,6 +756,19 @@ fn test_copy() {
                stmt.query(&[]).unwrap().iter().map(|r| r.get(0)).collect::<Vec<i32>>());
 }
 
+#[test]
+fn test_copy_out_query() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.batch_execute("
+         CREATE TEMPORARY TABLE foo (id INT);
+         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) TO STDOUT"));
+    match stmt.query(&[]) {
+        Ok(_) => panic!("unexpected success"),
+        Err(Error::IoError(ref e)) if e.to_string().contains("COPY") => {}
+        Err(e) => panic!("unexpected error {:?}", e),
+    }
+}
 
 #[test]
 // Just make sure the impls don't infinite loop
