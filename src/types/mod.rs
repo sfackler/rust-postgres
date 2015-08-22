@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::io::prelude::*;
-use std::io;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
