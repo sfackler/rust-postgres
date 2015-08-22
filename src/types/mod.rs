@@ -76,20 +76,6 @@ impl<'a> SessionInfo<'a> {
     }
 }
 
-/// Like `Read` except that a `SessionInfo` object is provided as well.
-///
-/// All types that implement `Read` also implement this trait.
-pub trait ReadWithInfo {
-    /// Like `Read::read`.
-    fn read_with_info(&mut self, buf: &mut [u8], info: &SessionInfo) -> io::Result<usize>;
-}
-
-impl<R: Read> ReadWithInfo for R {
-    fn read_with_info(&mut self, buf: &mut [u8], _: &SessionInfo) -> io::Result<usize> {
-        self.read(buf)
-    }
-}
-
 /// A Postgres OID.
 pub type Oid = u32;
 
