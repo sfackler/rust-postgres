@@ -441,7 +441,7 @@ fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
     Ok(RowDescription { descriptions: types })
 }
 
-trait FromUsize {
+trait FromUsize: Sized {
     fn from_usize(x: usize) -> io::Result<Self>;
 }
 
