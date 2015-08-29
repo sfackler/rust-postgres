@@ -16,7 +16,8 @@ use {Statement,
      DbErrorNew,
      SessionInfoNew,
      RowsNew,
-     LazyRowsNew};
+     LazyRowsNew,
+     StatementInternals};
 use types::{FromSql, SessionInfo};
 use error::Error;
 use message::FrontendMessage::*;
@@ -204,11 +205,11 @@ impl<'a> Row<'a> {
     /// the return type is not compatible with the Postgres type.
     pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
         let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        let ty = &self.stmt.columns[idx].type_;
+        let ty = self.stmt.columns()[idx].type_();
         if !<T as FromSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
-        let conn = self.stmt.conn.conn.borrow();
+        let conn = self.stmt.conn().conn.borrow();
         FromSql::from_sql_nullable(ty, self.data[idx].as_ref().map(|e| &**e).as_mut(),
                                    &SessionInfo::new(&*conn))
     }
@@ -264,7 +265,7 @@ pub trait RowIndex {
 impl RowIndex for usize {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if *self >= stmt.columns.len() {
+        if *self >= stmt.columns().len() {
             None
         } else {
             Some(*self)
@@ -275,14 +276,14 @@ impl RowIndex for usize {
 impl<'a> RowIndex for &'a str {
     #[inline]
     fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if let Some(idx) = stmt.columns().iter().position(|d| d.name == *self) {
+        if let Some(idx) = stmt.columns().iter().position(|d| d.name() == *self) {
             return Some(idx);
         };
 
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        stmt.columns().iter().position(|d| d.name.eq_ignore_ascii_case(*self))
+        stmt.columns().iter().position(|d| d.name().eq_ignore_ascii_case(*self))
     }
 }
 
@@ -338,13 +339,13 @@ impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
+        let mut conn = self.stmt.conn().conn.borrow_mut();
         check_desync!(conn);
         conn.close_statement(&self.name, b'P')
     }
 
     fn execute(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn.conn.borrow_mut();
+        let mut conn = self.stmt.conn().conn.borrow_mut();
 
         try!(conn.write_messages(&[
             Execute {

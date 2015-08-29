@@ -350,3 +350,9 @@ impl From<byteorder::Error> for Error {
         Error::IoError(From::from(err))
     }
 }
+
+impl From<Error> for io::Error {
+    fn from(err: Error) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, err)
+    }
+}

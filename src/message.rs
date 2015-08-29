@@ -32,7 +32,16 @@ pub enum BackendMessage {
     CommandComplete {
         tag: String,
     },
+    // FIXME naming
+    BCopyData {
+        data: Vec<u8>,
+    },
+    BCopyDone,
     CopyInResponse {
+        format: u8,
+        column_formats: Vec<u16>,
+    },
+    CopyOutResponse {
         format: u8,
         column_formats: Vec<u16>,
     },
@@ -292,7 +301,15 @@ impl<R: BufRead> ReadMessage for R {
                 channel: try!(rdr.read_cstr()),
                 payload: try!(rdr.read_cstr())
             },
+            b'c' => BCopyDone,
             b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
+            b'd' => {
+                let mut data = vec![];
+                try!(rdr.read_to_end(&mut data));
+                BCopyData {
+                    data: data,
+                }
+            }
             b'D' => try!(read_data_row(&mut rdr)),
             b'E' => ErrorResponse { fields: try!(read_fields(&mut rdr)) },
             b'G' => {
@@ -302,6 +319,17 @@ impl<R: BufRead> ReadMessage for R {
                     column_formats.push(try!(rdr.read_u16::<BigEndian>()));
                 }
                 CopyInResponse {
+                    format: format,
+                    column_formats: column_formats,
+                }
+            }
+            b'H' => {
+                let format = try!(rdr.read_u8());
+                let mut column_formats = vec![];
+                for _ in 0..try!(rdr.read_u16::<BigEndian>()) {
+                    column_formats.push(try!(rdr.read_u16::<BigEndian>()));
+                }
+                CopyOutResponse {
                     format: format,
                     column_formats: column_formats,
                 }
@@ -322,7 +350,8 @@ impl<R: BufRead> ReadMessage for R {
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
             b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
-            _ => return Err(io::Error::new(io::ErrorKind::Other, "unexpected message tag")),
+            t => return Err(io::Error::new(io::ErrorKind::Other,
+                                           format!("unexpected message tag `{}`", t))),
         };
         if rdr.limit() != 0 {
             return Err(io::Error::new(io::ErrorKind::Other, "didn't read entire message"));
@@ -377,7 +406,8 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
-        _ => return Err(io::Error::new(io::ErrorKind::Other, "unexpected authentication tag")),
+        t => return Err(io::Error::new(io::ErrorKind::Other,
+                                       format!("unexpected authentication tag `{}`", t))),
     })
 }
 
@@ -411,7 +441,7 @@ fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
     Ok(RowDescription { descriptions: types })
 }
 
-trait FromUsize {
+trait FromUsize: Sized {
     fn from_usize(x: usize) -> io::Result<Self>;
 }
 

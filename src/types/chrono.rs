@@ -24,8 +24,14 @@ impl FromSql for NaiveDateTime {
 
 impl ToSql for NaiveDateTime {
     fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo) -> Result<IsNull> {
-        let t = (*self - base()).num_microseconds().unwrap();
-        try!(w.write_i64::<BigEndian>(t));
+        let time = match (*self - base()).num_microseconds() {
+            Some(time) => time,
+            None => {
+                let err: Box<error::Error+Sync+Send> = "value too large to transmit".into();
+                return Err(Error::Conversion(err));
+            }
+        };
+        try!(w.write_i64::<BigEndian>(time));
         Ok(IsNull::No)
     }
 
@@ -128,7 +134,14 @@ impl FromSql for NaiveTime {
 impl ToSql for NaiveTime {
     fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo) -> Result<IsNull> {
         let delta = *self - NaiveTime::from_hms(0, 0, 0);
-        try!(w.write_i64::<BigEndian>(delta.num_microseconds().unwrap()));
+        let time = match delta.num_microseconds() {
+            Some(time) => time,
+            None => {
+                let err: Box<error::Error+Sync+Send> = "value too large to transmit".into();
+                return Err(Error::Conversion(err));
+            }
+        };
+        try!(w.write_i64::<BigEndian>(time));
         Ok(IsNull::No)
     }
 

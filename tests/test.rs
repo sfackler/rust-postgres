@@ -8,6 +8,7 @@ extern crate openssl;
 use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 use std::io;
+use std::io::prelude::*;
 
 use postgres::{HandleNotice,
                Notification,
@@ -756,6 +757,49 @@ fn test_copy() {
                stmt.query(&[]).unwrap().iter().map(|r| r.get(0)).collect::<Vec<i32>>());
 }
 
+#[test]
+fn test_query_copy_out_err() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.batch_execute("
+         CREATE TEMPORARY TABLE foo (id INT);
+         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
+    let stmt = or_panic!(conn.prepare("COPY foo (id) TO STDOUT"));
+    match stmt.query(&[]) {
+        Ok(_) => panic!("unexpected success"),
+        Err(Error::IoError(ref e)) if e.to_string().contains("COPY") => {}
+        Err(e) => panic!("unexpected error {:?}", e),
+    }
+}
+
+#[test]
+fn test_copy_out() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.batch_execute("
+         CREATE TEMPORARY TABLE foo (id INT);
+         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
+    let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
+    let mut reader = or_panic!(stmt.copy_out(&[]));
+    let mut out = vec![];
+    or_panic!(reader.read_to_end(&mut out));
+    assert_eq!(out, b"0\n1\n2\n3\n");
+    drop(reader);
+    or_panic!(conn.batch_execute("SELECT 1"));
+}
+
+#[test]
+fn test_copy_out_partial_read() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.batch_execute("
+         CREATE TEMPORARY TABLE foo (id INT);
+         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
+    let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
+    let mut reader = or_panic!(stmt.copy_out(&[]));
+    let mut out = vec![];
+    or_panic!(reader.by_ref().take(5).read_to_end(&mut out));
+    assert_eq!(out, b"0\n1\n2");
+    drop(reader);
+    or_panic!(conn.batch_execute("SELECT 1"));
+}
 
 #[test]
 // Just make sure the impls don't infinite loop

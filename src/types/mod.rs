@@ -142,7 +142,6 @@ macro_rules! make_postgres_type {
                     _ => None
                 }
             }
-
         }
 
         impl Type {
@@ -584,9 +583,9 @@ impl error::Error for WasNull {
 /// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
 /// nullable Postgres value.
 pub trait FromSql: Sized {
-    /// Creates a new value of this type from a `Read` of Postgres data.
+    /// Creates a new value of this type from a `Read`er of Postgres data.
     ///
-    /// If the value was `NULL`, the `Read` will be `None`.
+    /// If the value was `NULL`, the `Read`er will be `None`.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
