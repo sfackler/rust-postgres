@@ -778,26 +778,10 @@ fn test_copy_out() {
          CREATE TEMPORARY TABLE foo (id INT);
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
     let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
-    let mut reader = or_panic!(stmt.copy_out(&[]));
-    let mut out = vec![];
-    or_panic!(reader.read_to_end(&mut out));
-    assert_eq!(out, b"0\n1\n2\n3\n");
-    drop(reader);
-    or_panic!(conn.batch_execute("SELECT 1"));
-}
-
-#[test]
-fn test_copy_out_partial_read() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.batch_execute("
-         CREATE TEMPORARY TABLE foo (id INT);
-         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
-    let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
-    let mut reader = or_panic!(stmt.copy_out(&[]));
-    let mut out = vec![];
-    or_panic!(reader.by_ref().take(5).read_to_end(&mut out));
-    assert_eq!(out, b"0\n1\n2");
-    drop(reader);
+    let mut buf = vec![];
+    let count = or_panic!(stmt.copy_out(&[], &mut buf));
+    assert_eq!(count, 4);
+    assert_eq!(buf, b"0\n1\n2\n3\n");
     or_panic!(conn.batch_execute("SELECT 1"));
 }
 
