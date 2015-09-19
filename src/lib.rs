@@ -881,7 +881,7 @@ impl Connection {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
-    /// Returns an iterator over asynchronous notification messages.
+    /// Returns a structure providing access to asynchronous notifications.
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
     pub fn notifications<'a>(&'a self) -> Notifications<'a> {

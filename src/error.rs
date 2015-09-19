@@ -195,20 +195,20 @@ impl error::Error for DbError {
 pub enum ConnectError {
     /// An error creating `ConnectParams`.
     BadConnectParams(Box<error::Error+Sync+Send>),
-    /// The URL was missing a user.
+    /// The `ConnectParams` was missing a user.
     MissingUser,
     /// An error from the Postgres server itself.
     DbError(Box<DbError>),
-    /// A password was required but not provided in the URL.
+    /// A password was required but not provided in the `ConnectParams`.
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
     /// by the driver.
     UnsupportedAuthentication,
     /// The Postgres server does not support SSL encryption.
     NoSslSupport,
-    /// There was an error initializing the SSL session.
+    /// An error initializing the SSL session.
     SslError(Box<error::Error+Sync+Send>),
-    /// There was an error communicating with the server.
+    /// An error communicating with the server.
     IoError(io::Error),
 }
 
