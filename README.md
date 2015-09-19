@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.9.6/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.0/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -9,7 +9,7 @@ You can integrate Rust-Postgres into your project through the [releases on crate
 ```toml
 # Cargo.toml
 [dependencies]
-postgres = "0.9"
+postgres = "0.10"
 ```
 
 ## Overview
@@ -57,7 +57,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.0 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.2 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 

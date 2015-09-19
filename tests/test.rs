@@ -11,7 +11,6 @@ use std::io;
 use std::io::prelude::*;
 
 use postgres::{HandleNotice,
-               Notification,
                Connection,
                GenericConnection,
                SslMode,
@@ -27,6 +26,7 @@ use postgres::error::SqlState::{SyntaxError,
                                 CardinalityViolation};
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
+use postgres::notification::Notification;
 
 macro_rules! or_panic {
     ($e:expr) => (
@@ -551,7 +551,7 @@ fn test_custom_notice_handler() {
 #[test]
 fn test_notification_iterator_none() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    assert!(conn.notifications().next().is_none());
+    assert!(conn.notifications().iter().next().is_none());
 }
 
 fn check_notification(expected: Notification, actual: Notification) {
@@ -562,7 +562,8 @@ fn check_notification(expected: Notification, actual: Notification) {
 #[test]
 fn test_notification_iterator_some() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    let mut it = conn.notifications();
+    let notifications = conn.notifications();
+    let mut it = notifications.iter();
     or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel", &[]));
     or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel2", &[]));
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", &[]));
@@ -600,12 +601,12 @@ fn test_notifications_next_block() {
         or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
     });
 
-    let mut notifications = conn.notifications();
+    let notifications = conn.notifications();
     check_notification(Notification {
         pid: 0,
         channel: "test_notifications_next_block".to_string(),
         payload: "foo".to_string()
-    }, or_panic!(notifications.next_block()));
+    }, or_panic!(notifications.blocking_iter().next().unwrap()));
 }
 
 #[test]
@@ -778,26 +779,10 @@ fn test_copy_out() {
          CREATE TEMPORARY TABLE foo (id INT);
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
     let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
-    let mut reader = or_panic!(stmt.copy_out(&[]));
-    let mut out = vec![];
-    or_panic!(reader.read_to_end(&mut out));
-    assert_eq!(out, b"0\n1\n2\n3\n");
-    drop(reader);
-    or_panic!(conn.batch_execute("SELECT 1"));
-}
-
-#[test]
-fn test_copy_out_partial_read() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    or_panic!(conn.batch_execute("
-         CREATE TEMPORARY TABLE foo (id INT);
-         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
-    let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT"));
-    let mut reader = or_panic!(stmt.copy_out(&[]));
-    let mut out = vec![];
-    or_panic!(reader.by_ref().take(5).read_to_end(&mut out));
-    assert_eq!(out, b"0\n1\n2");
-    drop(reader);
+    let mut buf = vec![];
+    let count = or_panic!(stmt.copy_out(&[], &mut buf));
+    assert_eq!(count, 4);
+    assert_eq!(buf, b"0\n1\n2\n3\n");
     or_panic!(conn.batch_execute("SELECT 1"));
 }
 

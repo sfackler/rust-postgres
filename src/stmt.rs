@@ -1,13 +1,12 @@
 //! Prepared statements
 
-use debug_builders::DebugStruct;
 use std::cell::{Cell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
-use std::io::{self, Cursor, BufRead, Read};
+use std::io::{self, Read, Write};
 
 use error::{Error, DbError};
-use types::{ReadWithInfo, SessionInfo, Type, ToSql, IsNull};
+use types::{SessionInfo, Type, ToSql, IsNull};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
 use message::WriteMessage;
@@ -28,7 +27,7 @@ pub struct Statement<'conn> {
 
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Statement")
+        fmt.debug_struct("Statement")
             .field("name", &self.name)
             .field("parameter_types", &self.param_types)
             .field("columns", &self.columns)
@@ -309,8 +308,8 @@ impl<'conn> Statement<'conn> {
         try!(self.inner_execute("", 0, params));
         let mut conn = self.conn.conn.borrow_mut();
 
-        match try!(conn.read_message()) {
-            CopyInResponse { .. } => {}
+        let (format, column_formats) = match try!(conn.read_message()) {
+            CopyInResponse { format, column_formats } => (format, column_formats),
             _ => {
                 loop {
                     match try!(conn.read_message()) {
@@ -323,58 +322,64 @@ impl<'conn> Statement<'conn> {
                     }
                 }
             }
-        }
+        };
+
+        let mut info = CopyInfo {
+            conn: conn,
+            format: Format::from_u16(format as u16),
+            column_formats: column_formats.iter().map(|&f| Format::from_u16(f)).collect(),
+        };
 
         let mut buf = [0; 16 * 1024];
         loop {
-            match fill_copy_buf(&mut buf, r, &SessionInfo::new(&conn)) {
+            match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try_desync!(conn, conn.stream.write_message(
+                    try_desync!(info.conn, info.conn.stream.write_message(
                         &CopyData {
                             data: &buf[..len],
                         }));
                 }
                 Err(err) => {
-                    try!(conn.write_messages(&[
+                    try!(info.conn.write_messages(&[
                         CopyFail {
                             message: "",
                         },
                         CopyDone,
                         Sync]));
-                    match try!(conn.read_message()) {
+                    match try!(info.conn.read_message()) {
                         ErrorResponse { .. } => { /* expected from the CopyFail */ }
                         _ => {
-                            conn.desynchronized = true;
+                            info.conn.desynchronized = true;
                             return Err(Error::IoError(bad_response()));
                         }
                     }
-                    try!(conn.wait_for_ready());
+                    try!(info.conn.wait_for_ready());
                     return Err(Error::IoError(err));
                 }
             }
         }
 
-        try!(conn.write_messages(&[CopyDone, Sync]));
+        try!(info.conn.write_messages(&[CopyDone, Sync]));
 
-        let num = match try!(conn.read_message()) {
+        let num = match try!(info.conn.read_message()) {
             CommandComplete { tag } => util::parse_update_count(tag),
             ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
+                try!(info.conn.wait_for_ready());
                 return DbError::new(fields);
             }
             _ => {
-                conn.desynchronized = true;
+                info.conn.desynchronized = true;
                 return Err(Error::IoError(bad_response()));
             }
         };
 
-        try!(conn.wait_for_ready());
+        try!(info.conn.wait_for_ready());
         Ok(num)
     }
 
-    /// Executes a `COPY TO STDOUT` statement, returning a `Read`er of the
-    /// resulting data.
+    /// Executes a `COPY TO STDOUT` statement, passing the resulting data to
+    /// the provided writer and returning the number of rows received.
     ///
     /// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/sql-copy.html)
     /// for details on the data format.
@@ -382,28 +387,20 @@ impl<'conn> Statement<'conn> {
     /// If the statement is not a `COPY TO STDOUT` statement it will still be
     /// executed and this method will return an error.
     ///
-    /// # Warning
-    ///
-    /// The underlying connection may not be used while the returned `Read`er
-    /// exists. Any attempt to do so will panic.
-    ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use std::io::Read;
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// conn.batch_execute("
     ///         CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR);
     ///         INSERT INTO people (id, name) VALUES (1, 'john'), (2, 'jane');").unwrap();
     /// let stmt = conn.prepare("COPY people TO STDOUT").unwrap();
-    /// let mut r = stmt.copy_out(&[]).unwrap();
     /// let mut buf = vec![];
-    /// r.read_to_end(&mut buf).unwrap();
-    /// r.finish().unwrap();
+    /// let mut r = stmt.copy_out(&[], &mut buf).unwrap();
     /// assert_eq!(buf, b"1\tjohn\n2\tjane\n");
     /// ```
-    pub fn copy_out<'a>(&'a self, params: &[&ToSql]) -> Result<CopyOutReader<'a>> {
+    pub fn copy_out<'a, W: WriteWithInfo>(&'a self, params: &[&ToSql], w: &mut W) -> Result<u64> {
         try!(self.inner_execute("", 0, params));
         let mut conn = self.conn.conn.borrow_mut();
 
@@ -442,13 +439,57 @@ impl<'conn> Statement<'conn> {
             }
         };
 
-        Ok(CopyOutReader {
+        let mut info = CopyInfo {
             conn: conn,
             format: Format::from_u16(format as u16),
             column_formats: column_formats.iter().map(|&f| Format::from_u16(f)).collect(),
-            buf: Cursor::new(vec![]),
-            finished: false,
-        })
+        };
+
+        let count;
+        loop {
+            match try!(info.conn.read_message()) {
+                BCopyData { data } => {
+                    let mut data = &data[..];
+                    while !data.is_empty() {
+                        match w.write_with_info(data, &info) {
+                            Ok(n) => data = &data[n..],
+                            Err(e) => {
+                                loop {
+                                    match try!(info.conn.read_message()) {
+                                        ReadyForQuery { .. } => return Err(Error::IoError(e)),
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                BCopyDone => {},
+                CommandComplete { tag } => {
+                    count = util::parse_update_count(tag);
+                    break;
+                }
+                ErrorResponse { fields } => {
+                    loop {
+                        match try!(info.conn.read_message()) {
+                            ReadyForQuery { .. } => return DbError::new(fields),
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {
+                    loop {
+                        match try!(info.conn.read_message()) {
+                            ReadyForQuery { .. } => return Err(Error::IoError(bad_response())),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        try!(info.conn.wait_for_ready());
+        Ok(count)
     }
 
     /// Consumes the statement, clearing it from the Postgres session.
@@ -463,7 +504,7 @@ impl<'conn> Statement<'conn> {
     }
 }
 
-fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &SessionInfo)
+fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &CopyInfo)
                                   -> io::Result<usize> {
     let mut nread = 0;
     while nread < buf.len() {
@@ -490,6 +531,58 @@ impl ColumnNew for Column {
             name: name,
             type_: type_,
         }
+    }
+}
+
+/// A struct containing information relevant for a `COPY` operation.
+pub struct CopyInfo<'a> {
+    conn: RefMut<'a, InnerConnection>,
+    format: Format,
+    column_formats: Vec<Format>,
+}
+
+impl<'a> CopyInfo<'a> {
+    /// Returns the format of the overall data.
+    pub fn format(&self) -> Format {
+        self.format
+    }
+
+    /// Returns the format of the individual columns.
+    pub fn column_formats(&self) -> &[Format] {
+        &self.column_formats
+    }
+
+    /// Returns session info for the associated connection.
+    pub fn session_info<'b>(&'b self) -> SessionInfo<'b> {
+        SessionInfo::new(&*self.conn)
+    }
+}
+
+/// Like `Read` except that a `CopyInfo` object is provided as well.
+///
+/// All types that implement `Read` also implement this trait.
+pub trait ReadWithInfo {
+    /// Like `Read::read`.
+    fn read_with_info(&mut self, buf: &mut [u8], info: &CopyInfo) -> io::Result<usize>;
+}
+
+impl<R: Read> ReadWithInfo for R {
+    fn read_with_info(&mut self, buf: &mut [u8], _: &CopyInfo) -> io::Result<usize> {
+        self.read(buf)
+    }
+}
+
+/// Like `Write` except that a `CopyInfo` object is provided as well.
+///
+/// All types that implement `Write` also implement this trait.
+pub trait WriteWithInfo {
+    /// Like `Write::write`.
+    fn write_with_info(&mut self, buf: &[u8], info: &CopyInfo) -> io::Result<usize>;
+}
+
+impl<W: Write> WriteWithInfo for W {
+    fn write_with_info(&mut self, buf: &[u8], _: &CopyInfo) -> io::Result<usize> {
+        self.write(buf)
     }
 }
 
@@ -520,109 +613,5 @@ impl Format {
             0 => Format::Text,
             _ => Format::Binary,
         }
-    }
-}
-
-/// A `Read`er for data from `COPY TO STDOUT` queries.
-///
-/// # Warning
-///
-/// The underlying connection may not be used while a `CopyOutReader` exists.
-/// Any attempt to do so will panic.
-pub struct CopyOutReader<'a> {
-    conn: RefMut<'a, InnerConnection>,
-    format: Format,
-    column_formats: Vec<Format>,
-    buf: Cursor<Vec<u8>>,
-    finished: bool,
-}
-
-impl<'a> Drop for CopyOutReader<'a> {
-    fn drop(&mut self) {
-        let _ = self.finish_inner();
-    }
-}
-
-impl<'a> CopyOutReader<'a> {
-    /// Returns the format of the overall data.
-    pub fn format(&self) -> Format {
-        self.format
-    }
-
-    /// Returns the format of the individual columns.
-    pub fn column_formats(&self) -> &[Format] {
-        &self.column_formats
-    }
-
-    /// Returns session info for the associated connection.
-    pub fn session_info<'b>(&'b self) -> SessionInfo<'b> {
-        SessionInfo::new(&*self.conn)
-    }
-
-    /// Consumes the `CopyOutReader`, throwing away any unread data.
-    ///
-    /// Functionally equivalent to `CopyOutReader`'s `Drop` implementation,
-    /// except that it returns any error encountered to the caller.
-    pub fn finish(mut self) -> Result<()> {
-        self.finish_inner()
-    }
-
-    fn finish_inner(&mut self) -> Result<()> {
-        while !self.finished {
-            let pos = self.buf.get_ref().len() as u64;
-            self.buf.set_position(pos);
-            try!(self.ensure_filled());
-        }
-        Ok(())
-    }
-
-    fn ensure_filled(&mut self) -> Result<()> {
-        if self.finished || self.buf.position() != self.buf.get_ref().len() as u64 {
-            return Ok(());
-        }
-
-        match try!(self.conn.read_message()) {
-            BCopyData { data } => self.buf = Cursor::new(data),
-            BCopyDone => {
-                self.finished = true;
-                match try!(self.conn.read_message()) {
-                    CommandComplete { .. } => {}
-                    _ => {
-                        self.conn.desynchronized = true;
-                        return Err(Error::IoError(bad_response()));
-                    }
-                }
-                try!(self.conn.wait_for_ready());
-            }
-            ErrorResponse { fields } => {
-                self.finished = true;
-                try!(self.conn.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => {
-                self.conn.desynchronized = true;
-                return Err(Error::IoError(bad_response()));
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl<'a> Read for CopyOutReader<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        try!(self.ensure_filled());
-        self.buf.read(buf)
-    }
-}
-
-impl<'a> BufRead for CopyOutReader<'a> {
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        try!(self.ensure_filled());
-        self.buf.fill_buf()
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.buf.consume(amt)
     }
 }

@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.9.6"
+version = "0.10.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.9.6/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.10.0/postgres"
 readme = "README.md"
 keywords = ["database", "sql"]
 build = "build.rs"
@@ -26,7 +26,6 @@ phf_codegen = "0.7"
 [dependencies]
 bufstream = "0.1"
 byteorder = "0.3"
-debug-builders = "0.1"
 log = "0.3"
 phf = "0.7"
 rustc-serialize = "0.3"

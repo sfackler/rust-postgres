@@ -3,14 +3,11 @@
 use std::ascii::AsciiExt;
 use std::fmt;
 use std::collections::VecDeque;
-use debug_builders::DebugStruct;
 use std::borrow::Cow;
 use std::slice;
 use std::vec;
 
-use {Statement,
-     Column,
-     Result,
+use {Result,
      Transaction,
      read_rows,
      DbErrorNew,
@@ -19,6 +16,7 @@ use {Statement,
      LazyRowsNew,
      StatementInternals};
 use types::{FromSql, SessionInfo};
+use stmt::{Statement, Column};
 use error::Error;
 use message::FrontendMessage::*;
 
@@ -39,7 +37,7 @@ impl<'a> RowsNew<'a> for Rows<'a> {
 
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Rows")
+        fmt.debug_struct("Rows")
             .field("columns", &self.columns())
             .field("rows", &self.data.len())
             .finish()
@@ -179,7 +177,7 @@ pub struct Row<'a> {
 
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Row")
+        fmt.debug_struct("Row")
             .field("statement", self.stmt)
             .finish()
     }
@@ -328,7 +326,7 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "LazyRows")
+        fmt.debug_struct("LazyRows")
             .field("name", &self.name)
             .field("row_limit", &self.row_limit)
             .field("remaining_rows", &self.data.len())

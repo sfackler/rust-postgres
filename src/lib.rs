@@ -41,7 +41,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.6")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.10.0")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -52,36 +52,36 @@ extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
-extern crate debug_builders;
 
 use bufstream::BufStream;
 use md5::Md5;
-use debug_builders::DebugStruct;
 use std::ascii::AsciiExt;
 use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
+use std::error::Error as StdError;
 use std::fmt;
 use std::iter::IntoIterator;
 use std::io as std_io;
 use std::io::prelude::*;
+use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
-pub use stmt::{Statement, Column};
-
 use error::{Error, ConnectError, SqlState, DbError};
-use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
-use url::Url;
+use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
+use stmt::{Statement, Column};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
+use types::{ToSql, FromSql};
+use url::Url;
 
 #[macro_use]
 mod macros;
@@ -96,6 +96,7 @@ pub mod io;
 pub mod rows;
 pub mod stmt;
 pub mod types;
+pub mod notification;
 
 const TYPEINFO_QUERY: &'static str = "t";
 
@@ -145,26 +146,26 @@ pub struct ConnectParams {
 /// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError>;
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>>;
 }
 
 impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(ConnectError::InvalidUrl(err)),
+            Err(err) => return Err(err.into()),
         }
     }
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, ConnectError> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError+StdSync+Send>> {
         let Url {
             host,
             port,
@@ -174,16 +175,16 @@ impl IntoConnectParams for Url {
         } = self;
 
         #[cfg(feature = "unix_socket")]
-        fn make_unix(maybe_path: String) -> result::Result<ConnectTarget, ConnectError> {
+        fn make_unix(maybe_path: String)
+                -> result::Result<ConnectTarget, Box<StdError+StdSync+Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(feature = "unix_socket"))]
-        fn make_unix(_: String) -> result::Result<ConnectTarget, ConnectError> {
-            Err(ConnectError::InvalidUrl("unix socket support requires the `unix_socket` feature"
-                                         .to_string()))
+        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError+StdSync+Send>> {
+            Err("unix socket support requires the `unix_socket` feature".into())
         }
 
-        let maybe_path = try!(url::decode_component(&host).map_err(ConnectError::InvalidUrl));
+        let maybe_path = try!(url::decode_component(&host));
         let target = if maybe_path.starts_with("/") {
             try!(make_unix(maybe_path))
         } else {
@@ -230,68 +231,6 @@ impl HandleNotice for LoggingNoticeHandler {
     }
 }
 
-/// An asynchronous notification.
-#[derive(Clone, Debug)]
-pub struct Notification {
-    /// The process ID of the notifying backend process.
-    pub pid: u32,
-    /// The name of the channel that the notify has been raised on.
-    pub channel: String,
-    /// The "payload" string passed from the notifying process.
-    pub payload: String,
-}
-
-/// An iterator over asynchronous notifications.
-pub struct Notifications<'conn> {
-    conn: &'conn Connection
-}
-
-impl<'a> fmt::Debug for Notifications<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Notifications")
-            .field("pending", &self.conn.conn.borrow().notifications.len())
-            .finish()
-    }
-}
-
-impl<'conn> Iterator for Notifications<'conn> {
-    type Item = Notification;
-
-    /// Returns the oldest pending notification or `None` if there are none.
-    ///
-    /// ## Note
-    ///
-    /// `next` may return `Some` notification after returning `None` if a new
-    /// notification was received.
-    fn next(&mut self) -> Option<Notification> {
-        self.conn.conn.borrow_mut().notifications.pop_front()
-    }
-}
-
-impl<'conn> Notifications<'conn> {
-    /// Returns the oldest pending notification.
-    ///
-    /// If no notifications are pending, blocks until one arrives.
-    pub fn next_block(&mut self) -> Result<Notification> {
-        if let Some(notification) = self.next() {
-            return Ok(notification);
-        }
-
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        match try!(conn.read_message_with_notification()) {
-            NotificationResponse { pid, channel, payload } => {
-                Ok(Notification {
-                    pid: pid,
-                    channel: channel,
-                    payload: payload
-                })
-            }
-            _ => unreachable!()
-        }
-    }
-}
-
 /// Contains information necessary to cancel queries for a session.
 #[derive(Copy, Clone, Debug)]
 pub struct CancelData {
@@ -330,7 +269,7 @@ pub struct CancelData {
 pub fn cancel_query<T>(params: T, ssl: &SslMode, data: CancelData)
                           -> result::Result<(), ConnectError>
         where T: IntoConnectParams {
-    let params = try!(params.into_connect_params());
+    let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
@@ -459,7 +398,7 @@ impl Drop for InnerConnection {
 impl InnerConnection {
     fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
             where T: IntoConnectParams {
-        let params = try!(params.into_connect_params());
+        let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
         let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
@@ -863,7 +802,7 @@ pub struct Connection {
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
-        DebugStruct::new(fmt, "Connection")
+        fmt.debug_struct("Connection")
             .field("cancel_data", &conn.cancel_data)
             .field("notifications", &conn.notifications.len())
             .field("transaction_depth", &conn.trans_depth)
@@ -942,11 +881,11 @@ impl Connection {
         self.conn.borrow_mut().set_notice_handler(handler)
     }
 
-    /// Returns an iterator over asynchronous notification messages.
+    /// Returns a structure providing access to asynchronous notifications.
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
     pub fn notifications<'a>(&'a self) -> Notifications<'a> {
-        Notifications { conn: self }
+        Notifications::new(self)
     }
 
     /// Creates a new prepared statement.
@@ -1166,7 +1105,7 @@ pub struct Transaction<'conn> {
 
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Transaction")
+        fmt.debug_struct("Transaction")
             .field("commit", &self.commit.get())
             .field("depth", &self.depth)
             .finish()
@@ -1442,4 +1381,8 @@ trait StatementInternals<'conn> {
 
 trait ColumnNew {
     fn new(name: String, type_: Type) -> Column;
+}
+
+trait NotificationsNew<'conn> {
+    fn new(conn: &'conn Connection) -> Notifications<'conn>;
 }

@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::io::prelude::*;
-use std::io;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
@@ -73,20 +72,6 @@ impl<'a> SessionInfo<'a> {
     /// as `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<&'a str> {
         self.conn.parameters.get(param).map(|s| &**s)
-    }
-}
-
-/// Like `Read` except that a `SessionInfo` object is provided as well.
-///
-/// All types that implement `Read` also implement this trait.
-pub trait ReadWithInfo {
-    /// Like `Read::read`.
-    fn read_with_info(&mut self, buf: &mut [u8], info: &SessionInfo) -> io::Result<usize>;
-}
-
-impl<R: Read> ReadWithInfo for R {
-    fn read_with_info(&mut self, buf: &mut [u8], _: &SessionInfo) -> io::Result<usize> {
-        self.read(buf)
     }
 }
 
