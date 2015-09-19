@@ -99,12 +99,13 @@ impl<'a> Iterator for BlockingIter<'a> {
 
     fn next(&mut self) -> Option<Result<Notification>> {
         let mut conn = self.conn.conn.borrow_mut();
-        if conn.is_desynchronized() {
-            return Some(Err(Error::IoError(desynchronized())));
-        }
 
         if let Some(notification) = conn.notifications.pop_front() {
             return Some(Ok(notification));
+        }
+
+        if conn.is_desynchronized() {
+            return Some(Err(Error::IoError(desynchronized())));
         }
 
         match conn.read_message_with_notification() {
