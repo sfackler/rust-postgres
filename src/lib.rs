@@ -78,6 +78,7 @@ use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
+use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
@@ -97,6 +98,7 @@ pub mod io;
 pub mod rows;
 pub mod stmt;
 pub mod types;
+pub mod notification;
 
 const TYPEINFO_QUERY: &'static str = "t";
 
@@ -228,68 +230,6 @@ pub struct LoggingNoticeHandler;
 impl HandleNotice for LoggingNoticeHandler {
     fn handle_notice(&mut self, notice: DbError) {
         info!("{}: {}", notice.severity(), notice.message());
-    }
-}
-
-/// An asynchronous notification.
-#[derive(Clone, Debug)]
-pub struct Notification {
-    /// The process ID of the notifying backend process.
-    pub pid: u32,
-    /// The name of the channel that the notify has been raised on.
-    pub channel: String,
-    /// The "payload" string passed from the notifying process.
-    pub payload: String,
-}
-
-/// An iterator over asynchronous notifications.
-pub struct Notifications<'conn> {
-    conn: &'conn Connection
-}
-
-impl<'a> fmt::Debug for Notifications<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Notifications")
-            .field("pending", &self.conn.conn.borrow().notifications.len())
-            .finish()
-    }
-}
-
-impl<'conn> Iterator for Notifications<'conn> {
-    type Item = Notification;
-
-    /// Returns the oldest pending notification or `None` if there are none.
-    ///
-    /// ## Note
-    ///
-    /// `next` may return `Some` notification after returning `None` if a new
-    /// notification was received.
-    fn next(&mut self) -> Option<Notification> {
-        self.conn.conn.borrow_mut().notifications.pop_front()
-    }
-}
-
-impl<'conn> Notifications<'conn> {
-    /// Returns the oldest pending notification.
-    ///
-    /// If no notifications are pending, blocks until one arrives.
-    pub fn next_block(&mut self) -> Result<Notification> {
-        if let Some(notification) = self.next() {
-            return Ok(notification);
-        }
-
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        match try!(conn.read_message_with_notification()) {
-            NotificationResponse { pid, channel, payload } => {
-                Ok(Notification {
-                    pid: pid,
-                    channel: channel,
-                    payload: payload
-                })
-            }
-            _ => unreachable!()
-        }
     }
 }
 
@@ -947,7 +887,7 @@ impl Connection {
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
     pub fn notifications<'a>(&'a self) -> Notifications<'a> {
-        Notifications { conn: self }
+        Notifications::new(self)
     }
 
     /// Creates a new prepared statement.
@@ -1443,4 +1383,8 @@ trait StatementInternals<'conn> {
 
 trait ColumnNew {
     fn new(name: String, type_: Type) -> Column;
+}
+
+trait NotificationsNew<'conn> {
+    fn new(conn: &'conn Connection) -> Notifications<'conn>;
 }

@@ -11,7 +11,6 @@ use std::io;
 use std::io::prelude::*;
 
 use postgres::{HandleNotice,
-               Notification,
                Connection,
                GenericConnection,
                SslMode,
@@ -27,6 +26,7 @@ use postgres::error::SqlState::{SyntaxError,
                                 CardinalityViolation};
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
+use postgres::notification::Notification;
 
 macro_rules! or_panic {
     ($e:expr) => (
