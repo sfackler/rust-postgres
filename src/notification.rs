@@ -3,8 +3,9 @@
 use debug_builders::DebugStruct;
 use std::fmt;
 
-use {Result, Connection, NotificationsNew};
+use {desynchronized, Result, Connection, NotificationsNew};
 use message::BackendMessage::NotificationResponse;
+use error::Error;
 
 /// An asynchronous notification.
 #[derive(Clone, Debug)]
@@ -25,8 +26,46 @@ pub struct Notifications<'conn> {
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         DebugStruct::new(fmt, "Notifications")
-            .field("pending", &self.conn.conn.borrow().notifications.len())
+            .field("pending", &self.len())
             .finish()
+    }
+}
+
+impl<'conn> Notifications<'conn> {
+    /// Returns the number of pending notifications.
+    pub fn len(&self) -> usize {
+        self.conn.conn.borrow().notifications.len()
+    }
+
+    /// Returns an iterator over pending notifications.
+    ///
+    /// # Note
+    ///
+    /// This iterator may start returning `Some` after previously returning
+    /// `None` if more notifications are received.
+    pub fn iter<'a>(&'a self) -> Iter<'a> {
+        Iter {
+            conn: self.conn,
+        }
+    }
+
+    /// Returns an iterator over notifications, blocking until one is received
+    /// if none are pending.
+    ///
+    /// The iterator will never return `None`.
+    pub fn blocking_iter<'a>(&'a self) -> BlockingIter<'a> {
+        BlockingIter {
+            conn: self.conn,
+        }
+    }
+}
+
+impl<'a, 'conn> IntoIterator for &'a Notifications<'conn> {
+    type Item = Notification;
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Iter<'a> {
+        self.iter()
     }
 }
 
@@ -38,41 +77,47 @@ impl<'conn> NotificationsNew<'conn> for Notifications<'conn> {
     }
 }
 
-impl<'conn> Iterator for Notifications<'conn> {
+/// An iterator over pending notifications.
+pub struct Iter<'a> {
+    conn: &'a Connection,
+}
+
+impl<'a> Iterator for Iter<'a> {
     type Item = Notification;
 
-    /// Returns the oldest pending notification or `None` if there are none.
-    ///
-    /// ## Note
-    ///
-    /// `next` may return `Some` notification after returning `None` if a new
-    /// notification was received.
     fn next(&mut self) -> Option<Notification> {
         self.conn.conn.borrow_mut().notifications.pop_front()
     }
 }
 
-impl<'conn> Notifications<'conn> {
-    /// Returns the oldest pending notification.
-    ///
-    /// If no notifications are pending, blocks until one arrives.
-    pub fn next_block(&mut self) -> Result<Notification> {
-        if let Some(notification) = self.next() {
-            return Ok(notification);
+/// An iterator over notifications which will block if none are pending.
+pub struct BlockingIter<'a> {
+    conn: &'a Connection,
+}
+
+impl<'a> Iterator for BlockingIter<'a> {
+    type Item = Result<Notification>;
+
+    fn next(&mut self) -> Option<Result<Notification>> {
+        let mut conn = self.conn.conn.borrow_mut();
+        if conn.is_desynchronized() {
+            return Some(Err(Error::IoError(desynchronized())));
         }
 
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        match try!(conn.read_message_with_notification()) {
-            NotificationResponse { pid, channel, payload } => {
-                Ok(Notification {
+        if let Some(notification) = conn.notifications.pop_front() {
+            return Some(Ok(notification));
+        }
+
+        match conn.read_message_with_notification() {
+            Ok(NotificationResponse { pid, channel, payload }) => {
+                Some(Ok(Notification {
                     pid: pid,
                     channel: channel,
                     payload: payload
-                })
+                }))
             }
+            Err(err) => Some(Err(Error::IoError(err))),
             _ => unreachable!()
         }
     }
 }
-

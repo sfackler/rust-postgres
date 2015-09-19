@@ -551,7 +551,7 @@ fn test_custom_notice_handler() {
 #[test]
 fn test_notification_iterator_none() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    assert!(conn.notifications().next().is_none());
+    assert!(conn.notifications().iter().next().is_none());
 }
 
 fn check_notification(expected: Notification, actual: Notification) {
@@ -562,7 +562,8 @@ fn check_notification(expected: Notification, actual: Notification) {
 #[test]
 fn test_notification_iterator_some() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
-    let mut it = conn.notifications();
+    let notifications = conn.notifications();
+    let mut it = notifications.iter();
     or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel", &[]));
     or_panic!(conn.execute("LISTEN test_notification_iterator_one_channel2", &[]));
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, 'hello'", &[]));
@@ -600,12 +601,12 @@ fn test_notifications_next_block() {
         or_panic!(conn.execute("NOTIFY test_notifications_next_block, 'foo'", &[]));
     });
 
-    let mut notifications = conn.notifications();
+    let notifications = conn.notifications();
     check_notification(Notification {
         pid: 0,
         channel: "test_notifications_next_block".to_string(),
         payload: "foo".to_string()
-    }, or_panic!(notifications.next_block()));
+    }, or_panic!(notifications.blocking_iter().next().unwrap()));
 }
 
 #[test]
