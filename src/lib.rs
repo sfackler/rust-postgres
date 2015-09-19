@@ -41,7 +41,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.9.6")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.10.0")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
