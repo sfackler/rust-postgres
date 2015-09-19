@@ -52,11 +52,9 @@ extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
-extern crate debug_builders;
 
 use bufstream::BufStream;
 use md5::Md5;
-use debug_builders::DebugStruct;
 use std::ascii::AsciiExt;
 use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
@@ -804,7 +802,7 @@ pub struct Connection {
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
-        DebugStruct::new(fmt, "Connection")
+        fmt.debug_struct("Connection")
             .field("cancel_data", &conn.cancel_data)
             .field("notifications", &conn.notifications.len())
             .field("transaction_depth", &conn.trans_depth)
@@ -1107,7 +1105,7 @@ pub struct Transaction<'conn> {
 
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Transaction")
+        fmt.debug_struct("Transaction")
             .field("commit", &self.commit.get())
             .field("depth", &self.depth)
             .finish()

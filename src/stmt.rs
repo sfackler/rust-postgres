@@ -1,6 +1,5 @@
 //! Prepared statements
 
-use debug_builders::DebugStruct;
 use std::cell::{Cell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
@@ -28,7 +27,7 @@ pub struct Statement<'conn> {
 
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        DebugStruct::new(fmt, "Statement")
+        fmt.debug_struct("Statement")
             .field("name", &self.name)
             .field("parameter_types", &self.param_types)
             .field("columns", &self.columns)
