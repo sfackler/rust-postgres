@@ -8,9 +8,7 @@ use std::borrow::Cow;
 use std::slice;
 use std::vec;
 
-use {Statement,
-     Column,
-     Result,
+use {Result,
      Transaction,
      read_rows,
      DbErrorNew,
@@ -19,6 +17,7 @@ use {Statement,
      LazyRowsNew,
      StatementInternals};
 use types::{FromSql, SessionInfo};
+use stmt::{Statement, Column};
 use error::Error;
 use message::FrontendMessage::*;
 

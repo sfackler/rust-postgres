@@ -72,18 +72,17 @@ use std::result;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
-pub use stmt::{Statement, Column};
-
 use error::{Error, ConnectError, SqlState, DbError};
-use types::{ToSql, FromSql};
 use io::{StreamWrapper, NegotiateSsl};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
 use message::BackendMessage::*;
 use message::FrontendMessage::*;
 use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
-use url::Url;
 use rows::{Rows, LazyRows};
+use stmt::{Statement, Column};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
+use types::{ToSql, FromSql};
+use url::Url;
 
 #[macro_use]
 mod macros;
