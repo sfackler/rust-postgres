@@ -150,6 +150,14 @@ macro_rules! make_postgres_type {
                     Type::Other(ref u) => u.kind(),
                 }
             }
+
+            /// The schema of this type.
+            pub fn schema(&self) -> &str {
+                match *self {
+                    Type::Other(ref u) => u.schema(),
+                    _ => "pg_catalog",
+                }
+            }
         }
     )
 }
