@@ -812,6 +812,7 @@ fn test_custom_range_element_type() {
         &Type::Other(ref u) => {
             assert_eq!("floatrange", u.name());
             assert_eq!(&Kind::Range(Type::Float8), u.kind());
+            assert_eq!("public", u.schema());
         }
         t => panic!("Unexpected type {:?}", t)
     }

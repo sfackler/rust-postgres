@@ -476,14 +476,16 @@ pub struct Other {
     name: String,
     oid: Oid,
     kind: Kind,
+    schema: String,
 }
 
 impl OtherNew for Other {
-    fn new(name: String, oid: Oid, kind: Kind) -> Other {
+    fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
         Other {
             name: name,
             oid: oid,
             kind: kind,
+            schema: schema,
         }
     }
 }
@@ -502,6 +504,11 @@ impl Other {
     /// The kind of this type.
     pub fn kind(&self) -> &Kind {
         &self.kind
+    }
+
+    /// The schema of this type.
+    pub fn schema(&self) -> &str {
+        &self.schema
     }
 }
 

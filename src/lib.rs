@@ -455,10 +455,12 @@ impl InnerConnection {
 
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, r.rngsubtype \
+                               "SELECT t.typname, t.typelem, r.rngsubtype, n.nspname \
                                 FROM pg_catalog.pg_type t \
                                 LEFT OUTER JOIN pg_catalog.pg_range r \
                                     ON r.rngtypid = t.oid \
+                                INNER JOIN pg_catalog.pg_namespace n \
+                                    ON t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => return Ok(()),
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
@@ -469,9 +471,11 @@ impl InnerConnection {
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT typname, typelem, NULL::OID \
-                                FROM pg_catalog.pg_type \
-                                WHERE oid = $1") {
+                               "SELECT t.typname, t.typelem, NULL::OID, n.nspname \
+                                FROM pg_catalog.pg_type t \
+                                INNER JOIN pg_catalog.pg_namespace n \
+                                    ON t.typnamespace = n.oid \
+                                WHERE t.oid = $1") {
             Ok(..) => Ok(()),
             Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),
             Err(Error::DbError(e)) => Err(ConnectError::DbError(e)),
@@ -696,7 +700,7 @@ impl InnerConnection {
             }
             _ => bad_response!(self)
         }
-        let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
+        let (name, elem_oid, rngsubtype, schema): (String, Oid, Option<Oid>, String) =
                 match try!(self.read_message()) {
             DataRow { row } => {
                 let ctx = SessionInfo::new(self);
@@ -708,6 +712,9 @@ impl InnerConnection {
                                                  &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
                                                  row[2].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
+                 try!(FromSql::from_sql_nullable(&Type::Name,
+                                                 row[3].as_ref().map(|r| &**r).as_mut(),
                                                  &ctx)))
             }
             ErrorResponse { fields } => {
@@ -735,7 +742,7 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(Other::new(name, oid, kind)));
+        let type_ = Type::Other(Box::new(Other::new(name, oid, kind, schema)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }
@@ -1337,7 +1344,7 @@ impl<'a> GenericConnection for Transaction<'a> {
 }
 
 trait OtherNew {
-    fn new(name: String, oid: Oid, kind: Kind) -> Other;
+    fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
 }
 
 trait DbErrorNew {
