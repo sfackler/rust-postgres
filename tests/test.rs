@@ -17,7 +17,7 @@ use postgres::{HandleNotice,
                IntoConnectParams,
                IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
-use postgres::types::{Type, Kind};
+use postgres::types::{Oid, Type, Kind};
 use postgres::error::SqlState::{SyntaxError,
                                 QueryCanceled,
                                 UndefinedTable,
@@ -928,4 +928,20 @@ fn test_row_case_insensitive() {
     assert_eq!(Some(1), "bar".idx(&stmt));
     assert_eq!(Some(1), "bAr".idx(&stmt));
     assert_eq!(Some(2), "Bar".idx(&stmt));
+}
+
+#[test]
+fn test_type_names() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let stmt = conn.prepare("SELECT t.oid, t.typname
+                                FROM pg_catalog.pg_type t, pg_namespace n
+                             WHERE n.oid = t.typnamespace
+                                AND n.nspname = 'pg_catalog'
+                                AND t.oid < 10000
+                                AND t.typtype != 'c'").unwrap();
+    for row in stmt.query(&[]).unwrap() {
+        let id: Oid = row.get(0);
+        let name: String = row.get(1);
+        assert_eq!(Type::from_oid(id).unwrap().name(), name);
+    }
 }

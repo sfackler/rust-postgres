@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew, TypeNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew};
 use error::Error;
 use util;
 
@@ -98,7 +98,7 @@ macro_rules! as_expr {
 }
 
 macro_rules! make_postgres_type {
-    ($(#[$doc:meta] $oid:tt => $variant:ident: $kind:expr),+) => (
+    ($(#[$doc:meta] $oid:tt: $name:expr => $variant:ident: $kind:expr),+) => (
         /// A Postgres type.
         #[derive(PartialEq, Eq, Clone)]
         pub enum Type {
@@ -120,16 +120,16 @@ macro_rules! make_postgres_type {
             }
         }
 
-        impl TypeNew for Type {
-            fn new(oid: Oid) -> Option<Type> {
+        impl Type {
+            /// Returns the `Type` corresponding to the provided `Oid` if it
+            /// corresponds to a built-in type.
+            pub fn from_oid(oid: Oid) -> Option<Type> {
                 match oid {
                     $(as_pat!($oid) => Some(Type::$variant),)+
                     _ => None
                 }
             }
-        }
 
-        impl Type {
             /// Returns the OID of the `Type`.
             pub fn oid(&self) -> Oid {
                 match *self {
@@ -158,6 +158,16 @@ macro_rules! make_postgres_type {
                     _ => "pg_catalog",
                 }
             }
+
+            /// Returns the name of this type.
+            pub fn name(&self) -> &str {
+                match *self {
+                    $(
+                        Type::$variant => $name,
+                    )+
+                    Type::Other(ref u) => u.name(),
+                }
+            }
         }
     )
 }
@@ -165,317 +175,317 @@ macro_rules! make_postgres_type {
 // Values from pg_type.h
 make_postgres_type! {
     #[doc="BOOL - boolean, 'true'/'false'"]
-    16 => Bool: Kind::Simple,
+    16: "bool" => Bool: Kind::Simple,
     #[doc="BYTEA - variable-length string, binary values escaped"]
-    17 => Bytea: Kind::Simple,
+    17: "bytea" => Bytea: Kind::Simple,
     #[doc="\"char\" - single character"]
-    18 => Char: Kind::Simple,
+    18: "char" => Char: Kind::Simple,
     #[doc="NAME - 63-byte type for storing system identifiers"]
-    19 => Name: Kind::Simple,
+    19: "name" => Name: Kind::Simple,
     #[doc="INT8/BIGINT - ~18 digit integer, 8-byte storage"]
-    20 => Int8: Kind::Simple,
+    20: "int8" => Int8: Kind::Simple,
     #[doc="INT2/SMALLINT - -32 thousand to 32 thousand, 2-byte storage"]
-    21 => Int2: Kind::Simple,
+    21: "int2" => Int2: Kind::Simple,
     #[doc="INT2VECTOR - array of int2, used in system tables"]
-    22 => Int2Vector: Kind::Array(Type::Int2),
+    22: "int2vector" => Int2Vector: Kind::Array(Type::Int2),
     #[doc="INT4/INT - -2 billion to 2 billion integer, 4-byte storage"]
-    23 => Int4: Kind::Simple,
+    23: "int4" => Int4: Kind::Simple,
     #[doc="REGPROC - registered procedure"]
-    24 => Regproc: Kind::Simple,
+    24: "regproc" => Regproc: Kind::Simple,
     #[doc="TEXT - variable-length string, no limit specified"]
-    25 => Text: Kind::Simple,
+    25: "text" => Text: Kind::Simple,
     #[doc="OID - object identifier(oid), maximum 4 billion"]
-    26 => Oid: Kind::Simple,
+    26: "oid" => Oid: Kind::Simple,
     #[doc="TID - (block, offset), physical location of tuple"]
-    27 => Tid: Kind::Simple,
+    27: "tid" => Tid: Kind::Simple,
     #[doc="XID - transaction id"]
-    28 => Xid: Kind::Simple,
+    28: "xid" => Xid: Kind::Simple,
     #[doc="CID - command identifier type, sequence in transaction id"]
-    29 => Cid: Kind::Simple,
+    29: "cid" => Cid: Kind::Simple,
     #[doc="OIDVECTOR - array of oids, used in system tables"]
-    30 => OidVector: Kind::Array(Type::Oid),
+    30: "oidvector" => OidVector: Kind::Array(Type::Oid),
     #[doc="PG_TYPE"]
-    71 => PgType: Kind::Simple,
+    71: "pg_type" => PgType: Kind::Simple,
     #[doc="PG_ATTRIBUTE"]
-    75 => PgAttribute: Kind::Simple,
+    75: "pg_attribute" => PgAttribute: Kind::Simple,
     #[doc="PG_PROC"]
-    81 => PgProc: Kind::Simple,
+    81: "pg_proc" => PgProc: Kind::Simple,
     #[doc="PG_CLASS"]
-    83 => PgClass: Kind::Simple,
+    83: "pg_class" => PgClass: Kind::Simple,
     #[doc="JSON"]
-    114 => Json: Kind::Simple,
+    114: "json" => Json: Kind::Simple,
     #[doc="XML - XML content"]
-    142 => Xml: Kind::Simple,
+    142: "xml" => Xml: Kind::Simple,
     #[doc="XML[]"]
-    143 => XmlArray: Kind::Array(Type::Xml),
+    143: "_xml" => XmlArray: Kind::Array(Type::Xml),
     #[doc="PG_NODE_TREE - string representing an internal node tree"]
-    194 => PgNodeTree: Kind::Simple,
+    194: "pg_node_tree" => PgNodeTree: Kind::Simple,
     #[doc="JSON[]"]
-    199 => JsonArray: Kind::Array(Type::Json),
+    199: "_json" => JsonArray: Kind::Array(Type::Json),
     #[doc="SMGR - storage manager"]
-    210 => Smgr: Kind::Simple,
+    210: "smgr" => Smgr: Kind::Simple,
     #[doc="POINT - geometric point '(x, y)'"]
-    600 => Point: Kind::Simple,
+    600: "point" => Point: Kind::Simple,
     #[doc="LSEG - geometric line segment '(pt1,pt2)'"]
-    601 => Lseg: Kind::Simple,
+    601: "lseg" => Lseg: Kind::Simple,
     #[doc="PATH - geometric path '(pt1,...)'"]
-    602 => Path: Kind::Simple,
+    602: "path" => Path: Kind::Simple,
     #[doc="BOX - geometric box '(lower left,upper right)'"]
-    603 => Box: Kind::Simple,
+    603: "box" => Box: Kind::Simple,
     #[doc="POLYGON - geometric polygon '(pt1,...)'"]
-    604 => Polygon: Kind::Simple,
+    604: "polygon" => Polygon: Kind::Simple,
     #[doc="LINE - geometric line"]
-    628 => Line: Kind::Simple,
+    628: "line" => Line: Kind::Simple,
     #[doc="LINE[]"]
-    629 => LineArray: Kind::Array(Type::Line),
+    629: "_line" => LineArray: Kind::Array(Type::Line),
     #[doc="CIDR - network IP address/netmask, network address"]
-    650 => Cidr: Kind::Simple,
+    650: "cidr" => Cidr: Kind::Simple,
     #[doc="CIDR[]"]
-    651 => CidrArray: Kind::Array(Type::Cidr),
+    651: "_cidr" => CidrArray: Kind::Array(Type::Cidr),
     #[doc="FLOAT4/REAL - single-precision floating point number, 4-byte storage"]
-    700 => Float4: Kind::Simple,
+    700: "float4" => Float4: Kind::Simple,
     #[doc="FLOAT8/DOUBLE PRECISION - double-precision floating point number, 8-byte storage"]
-    701 => Float8: Kind::Simple,
+    701: "float8" => Float8: Kind::Simple,
     #[doc="ABSTIME - absolute, limited-range date and time (Unix system time)"]
-    702 => Abstime: Kind::Simple,
+    702: "abstime" => Abstime: Kind::Simple,
     #[doc="RELTIME - relative, limited-range date and time (Unix delta time)"]
-    703 => Reltime: Kind::Simple,
+    703: "reltime" => Reltime: Kind::Simple,
     #[doc="TINTERVAL - (abstime,abstime), time interval"]
-    704 => Tinterval: Kind::Simple,
+    704: "tinterval" => Tinterval: Kind::Simple,
     #[doc="UNKNOWN"]
-    705 => Unknown: Kind::Simple,
+    705: "unknown" => Unknown: Kind::Simple,
     #[doc="CIRCLE - geometric circle '(center,radius)'"]
-    718 => Circle: Kind::Simple,
+    718: "circle" => Circle: Kind::Simple,
     #[doc="CIRCLE[]"]
-    719 => CircleArray: Kind::Array(Type::Circle),
+    719: "_circle" => CircleArray: Kind::Array(Type::Circle),
     #[doc="MONEY - monetary amounts, $d,ddd.cc"]
-    790 => Money: Kind::Simple,
+    790: "money" => Money: Kind::Simple,
     #[doc="MONEY[]"]
-    791 => MoneyArray: Kind::Array(Type::Money),
+    791: "_money" => MoneyArray: Kind::Array(Type::Money),
     #[doc="MACADDR - XX:XX:XX:XX:XX:XX, MAC address"]
-    829 => Macaddr: Kind::Simple,
+    829: "macaddr" => Macaddr: Kind::Simple,
     #[doc="INET - IP address/netmask, host address, netmask optional"]
-    869 => Inet: Kind::Simple,
+    869: "inet" => Inet: Kind::Simple,
     #[doc="BOOL[]"]
-    1000 => BoolArray: Kind::Array(Type::Bool),
+    1000: "_bool" => BoolArray: Kind::Array(Type::Bool),
     #[doc="BYTEA[]"]
-    1001 => ByteaArray: Kind::Array(Type::Bytea),
+    1001: "_bytea" => ByteaArray: Kind::Array(Type::Bytea),
     #[doc="\"char\"[]"]
-    1002 => CharArray: Kind::Array(Type::Char),
+    1002: "_char" => CharArray: Kind::Array(Type::Char),
     #[doc="NAME[]"]
-    1003 => NameArray: Kind::Array(Type::Name),
+    1003: "_name" => NameArray: Kind::Array(Type::Name),
     #[doc="INT2[]"]
-    1005 => Int2Array: Kind::Array(Type::Int2),
+    1005: "_int2" => Int2Array: Kind::Array(Type::Int2),
     #[doc="INT2VECTOR[]"]
-    1006 => Int2VectorArray: Kind::Array(Type::Int2Vector),
+    1006: "_int2vector" => Int2VectorArray: Kind::Array(Type::Int2Vector),
     #[doc="INT4[]"]
-    1007 => Int4Array: Kind::Array(Type::Int4),
+    1007: "_int4" => Int4Array: Kind::Array(Type::Int4),
     #[doc="REGPROC[]"]
-    1008 => RegprocArray: Kind::Array(Type::Regproc),
+    1008: "_regproc" => RegprocArray: Kind::Array(Type::Regproc),
     #[doc="TEXT[]"]
-    1009 => TextArray: Kind::Array(Type::Text),
+    1009: "_text" => TextArray: Kind::Array(Type::Text),
     #[doc="TID[]"]
-    1010 => TidArray: Kind::Array(Type::Tid),
+    1010: "_tid" => TidArray: Kind::Array(Type::Tid),
     #[doc="XID[]"]
-    1011 => XidArray: Kind::Array(Type::Xid),
+    1011: "_xid" => XidArray: Kind::Array(Type::Xid),
     #[doc="CID[]"]
-    1012 => CidArray: Kind::Array(Type::Cid),
+    1012: "_cid" => CidArray: Kind::Array(Type::Cid),
     #[doc="OIDVECTOR[]"]
-    1013 => OidVectorArray: Kind::Array(Type::OidVector),
+    1013: "_oidvector" => OidVectorArray: Kind::Array(Type::OidVector),
     #[doc="BPCHAR[]"]
-    1014 => BpcharArray: Kind::Array(Type::Bpchar),
+    1014: "_bpchar" => BpcharArray: Kind::Array(Type::Bpchar),
     #[doc="VARCHAR[]"]
-    1015 => VarcharArray: Kind::Array(Type::Varchar),
+    1015: "_varchar" => VarcharArray: Kind::Array(Type::Varchar),
     #[doc="INT8[]"]
-    1016 => Int8Array: Kind::Array(Type::Int8),
+    1016: "_int8" => Int8Array: Kind::Array(Type::Int8),
     #[doc="POINT[]"]
-    1017 => PointArray: Kind::Array(Type::Point),
+    1017: "_point" => PointArray: Kind::Array(Type::Point),
     #[doc="LSEG[]"]
-    1018 => LsegArray: Kind::Array(Type::Lseg),
+    1018: "_lseg" => LsegArray: Kind::Array(Type::Lseg),
     #[doc="PATH[]"]
-    1019 => PathArray: Kind::Array(Type::Path),
+    1019: "_path" => PathArray: Kind::Array(Type::Path),
     #[doc="BOX[]"]
-    1020 => BoxArray: Kind::Array(Type::Box),
+    1020: "_box" => BoxArray: Kind::Array(Type::Box),
     #[doc="FLOAT4[]"]
-    1021 => Float4Array: Kind::Array(Type::Float4),
+    1021: "_float4" => Float4Array: Kind::Array(Type::Float4),
     #[doc="FLOAT8[]"]
-    1022 => Float8Array: Kind::Array(Type::Float8),
+    1022: "_float8" => Float8Array: Kind::Array(Type::Float8),
     #[doc="ABSTIME[]"]
-    1023 => AbstimeArray: Kind::Array(Type::Abstime),
+    1023: "_abstime" => AbstimeArray: Kind::Array(Type::Abstime),
     #[doc="RELTIME[]"]
-    1024 => ReltimeArray: Kind::Array(Type::Reltime),
+    1024: "_reltime" => ReltimeArray: Kind::Array(Type::Reltime),
     #[doc="TINTERVAL[]"]
-    1025 => TintervalArray: Kind::Array(Type::Tinterval),
+    1025: "_tinterval" => TintervalArray: Kind::Array(Type::Tinterval),
     #[doc="POLYGON[]"]
-    1027 => PolygonArray: Kind::Array(Type::Polygon),
+    1027: "_polygon" => PolygonArray: Kind::Array(Type::Polygon),
     #[doc="OID[]"]
-    1028 => OidArray: Kind::Array(Type::Oid),
+    1028: "_oid" => OidArray: Kind::Array(Type::Oid),
     #[doc="ACLITEM - access control list"]
-    1033 => Aclitem: Kind::Simple,
+    1033: "aclitem" => Aclitem: Kind::Simple,
     #[doc="ACLITEM[]"]
-    1034 => AclitemArray: Kind::Array(Type::Aclitem),
+    1034: "_aclitem" => AclitemArray: Kind::Array(Type::Aclitem),
     #[doc="MACADDR[]"]
-    1040 => MacaddrArray: Kind::Array(Type::Macaddr),
+    1040: "_macaddr" => MacaddrArray: Kind::Array(Type::Macaddr),
     #[doc="INET[]"]
-    1041 => InetArray: Kind::Array(Type::Inet),
+    1041: "_inet" => InetArray: Kind::Array(Type::Inet),
     #[doc="BPCHAR - char(length), blank-padded string, fixed storage length"]
-    1042 => Bpchar: Kind::Simple,
+    1042: "bpchar" => Bpchar: Kind::Simple,
     #[doc="VARCHAR - varchar(length), non-blank-padded string, variable storage length"]
-    1043 => Varchar: Kind::Simple,
+    1043: "varchar" => Varchar: Kind::Simple,
     #[doc="DATE - date"]
-    1082 => Date: Kind::Simple,
+    1082: "date" => Date: Kind::Simple,
     #[doc="TIME - time of day"]
-    1083 => Time: Kind::Simple,
+    1083: "time" => Time: Kind::Simple,
     #[doc="TIMESTAMP - date and time"]
-    1114 => Timestamp: Kind::Simple,
+    1114: "timestamp" => Timestamp: Kind::Simple,
     #[doc="TIMESTAMP[]"]
-    1115 => TimestampArray: Kind::Array(Type::Timestamp),
+    1115: "_timestamp" => TimestampArray: Kind::Array(Type::Timestamp),
     #[doc="DATE[]"]
-    1182 => DateArray: Kind::Array(Type::Date),
+    1182: "_date" => DateArray: Kind::Array(Type::Date),
     #[doc="TIME[]"]
-    1183 => TimeArray: Kind::Array(Type::Time),
+    1183: "_time" => TimeArray: Kind::Array(Type::Time),
     #[doc="TIMESTAMPTZ - date and time with time zone"]
-    1184 => TimestampTZ: Kind::Simple,
+    1184: "timestamptz" => TimestampTZ: Kind::Simple,
     #[doc="TIMESTAMPTZ[]"]
-    1185 => TimestampTZArray: Kind::Array(Type::TimestampTZ),
+    1185: "_timestamptz" => TimestampTZArray: Kind::Array(Type::TimestampTZ),
     #[doc="INTERVAL - @ &lt;number&gt; &lt;units&gt;, time interval"]
-    1186 => Interval: Kind::Simple,
+    1186: "interval" => Interval: Kind::Simple,
     #[doc="INTERVAL[]"]
-    1187 => IntervalArray: Kind::Array(Type::Interval),
+    1187: "_interval" => IntervalArray: Kind::Array(Type::Interval),
     #[doc="NUMERIC[]"]
-    1231 => NumericArray: Kind::Array(Type::Numeric),
+    1231: "_numeric" => NumericArray: Kind::Array(Type::Numeric),
     #[doc="CSTRING[]"]
-    1263 => CstringArray: Kind::Array(Type::Cstring),
+    1263: "_cstring" => CstringArray: Kind::Array(Type::Cstring),
     #[doc="TIMETZ - time of day with time zone"]
-    1266 => Timetz: Kind::Simple,
+    1266: "timetz" => Timetz: Kind::Simple,
     #[doc="TIMETZ[]"]
-    1270 => TimetzArray: Kind::Array(Type::Timetz),
+    1270: "_timetz" => TimetzArray: Kind::Array(Type::Timetz),
     #[doc="BIT - fixed-length bit string"]
-    1560 => Bit: Kind::Simple,
+    1560: "bit" => Bit: Kind::Simple,
     #[doc="BIT[]"]
-    1561 => BitArray: Kind::Array(Type::Bit),
+    1561: "_bit" => BitArray: Kind::Array(Type::Bit),
     #[doc="VARBIT - variable-length bit string"]
-    1562 => Varbit: Kind::Simple,
+    1562: "varbit" => Varbit: Kind::Simple,
     #[doc="VARBIT[]"]
-    1563 => VarbitArray: Kind::Array(Type::Varbit),
+    1563: "_varbit" => VarbitArray: Kind::Array(Type::Varbit),
     #[doc="NUMERIC - numeric(precision, decimal), arbitrary precision number"]
-    1700 => Numeric: Kind::Simple,
+    1700: "numeric" => Numeric: Kind::Simple,
     #[doc="REFCURSOR - reference to cursor (portal name)"]
-    1790 => Refcursor: Kind::Simple,
+    1790: "refcursor" => Refcursor: Kind::Simple,
     #[doc="REFCURSOR[]"]
-    2201 => RefcursorArray: Kind::Array(Type::Refcursor),
+    2201: "_refcursor" => RefcursorArray: Kind::Array(Type::Refcursor),
     #[doc="REGPROCEDURE - registered procedure (with args)"]
-    2202 => Regprocedure: Kind::Simple,
+    2202: "regprocedure" => Regprocedure: Kind::Simple,
     #[doc="REGOPER - registered operator"]
-    2203 => Regoper: Kind::Simple,
+    2203: "regoper" => Regoper: Kind::Simple,
     #[doc="REGOPERATOR - registered operator (with args)"]
-    2204 => Regoperator: Kind::Simple,
+    2204: "regoperator" => Regoperator: Kind::Simple,
     #[doc="REGCLASS - registered class"]
-    2205 => Regclass: Kind::Simple,
+    2205: "regclass" => Regclass: Kind::Simple,
     #[doc="REGTYPE - registered type"]
-    2206 => Regtype: Kind::Simple,
+    2206: "regtype" => Regtype: Kind::Simple,
     #[doc="REGPROCEDURE[]"]
-    2207 => RegprocedureArray: Kind::Array(Type::Regprocedure),
+    2207: "_regprocedure" => RegprocedureArray: Kind::Array(Type::Regprocedure),
     #[doc="REGOPER[]"]
-    2208 => RegoperArray: Kind::Array(Type::Regoper),
+    2208: "_regoper" => RegoperArray: Kind::Array(Type::Regoper),
     #[doc="REGOPERATOR[]"]
-    2209 => RegoperatorArray: Kind::Array(Type::Regoperator),
+    2209: "_regoperator" => RegoperatorArray: Kind::Array(Type::Regoperator),
     #[doc="REGCLASS[]"]
-    2210 => RegclassArray: Kind::Array(Type::Regclass),
+    2210: "_regclass" => RegclassArray: Kind::Array(Type::Regclass),
     #[doc="REGTYPE[]"]
-    2211 => RegtypeArray: Kind::Array(Type::Regtype),
+    2211: "_regtype" => RegtypeArray: Kind::Array(Type::Regtype),
     #[doc="RECORD"]
-    2249 => Record: Kind::Simple,
+    2249: "record" => Record: Kind::Simple,
     #[doc="CSTRING"]
-    2275 => Cstring: Kind::Simple,
+    2275: "cstring" => Cstring: Kind::Simple,
     #[doc="ANY"]
-    2276 => Any: Kind::Simple,
-    #[doc="ANY[]"]
-    2277 => AnyArray: Kind::Array(Type::Any),
+    2276: "any" => Any: Kind::Simple,
+    #[doc="ANYARRAY"]
+    2277: "anyarray" => AnyArray: Kind::Array(Type::Any),
     #[doc="VOID"]
-    2278 => Void: Kind::Simple,
+    2278: "void" => Void: Kind::Simple,
     #[doc="TRIGGER"]
-    2279 => Trigger: Kind::Simple,
+    2279: "trigger" => Trigger: Kind::Simple,
     #[doc="LANGUAGE_HANDLER"]
-    2280 => LanguageHandler: Kind::Simple,
+    2280: "language_handler" => LanguageHandler: Kind::Simple,
     #[doc="INTERNAL"]
-    2281 => Internal: Kind::Simple,
+    2281: "internal" => Internal: Kind::Simple,
     #[doc="OPAQUE"]
-    2282 => Opaque: Kind::Simple,
+    2282: "opaque" => Opaque: Kind::Simple,
     #[doc="ANYELEMENT"]
-    2283 => Anyelement: Kind::Simple,
+    2283: "anyelement" => Anyelement: Kind::Simple,
     #[doc="RECORD[]"]
-    2287 => RecordArray: Kind::Array(Type::Record),
+    2287: "_record" => RecordArray: Kind::Array(Type::Record),
     #[doc="ANYNONARRAY"]
-    2776 => Anynonarray: Kind::Simple,
+    2776: "anynonarray" => Anynonarray: Kind::Simple,
     #[doc="TXID_SNAPSHOT[]"]
-    2949 => TxidSnapshotArray: Kind::Array(Type::TxidSnapshot),
+    2949: "_txid_snapshot" => TxidSnapshotArray: Kind::Array(Type::TxidSnapshot),
     #[doc="UUID - UUID datatype"]
-    2950 => Uuid: Kind::Simple,
+    2950: "uuid" => Uuid: Kind::Simple,
     #[doc="TXID_SNAPSHOT - txid snapshot"]
-    2970 => TxidSnapshot: Kind::Simple,
+    2970: "txid_snapshot" => TxidSnapshot: Kind::Simple,
     #[doc="UUID[]"]
-    2951 => UuidArray: Kind::Array(Type::Uuid),
+    2951: "_uuid" => UuidArray: Kind::Array(Type::Uuid),
     #[doc="FDW_HANDLER"]
-    3115 => FdwHandler: Kind::Simple,
+    3115: "fdw_handler" => FdwHandler: Kind::Simple,
     #[doc="PG_LSN - PostgreSQL LSN datatype"]
-    3320 => PgLsn: Kind::Simple,
+    3220: "pg_lsn" => PgLsn: Kind::Simple,
     #[doc="PG_LSN[]"]
-    3321 => PgLsnArray: Kind::Array(Type::PgLsn),
+    3221: "_pg_lsn" => PgLsnArray: Kind::Array(Type::PgLsn),
     #[doc="ANYENUM"]
-    3500 => Anyenum: Kind::Simple,
+    3500: "anyenum" => Anyenum: Kind::Simple,
     #[doc="TSVECTOR - text representation for text search"]
-    3614 => Tsvector: Kind::Simple,
+    3614: "tsvector" => Tsvector: Kind::Simple,
     #[doc="TSQUERY - query representation for text search"]
-    3615 => Tsquery: Kind::Simple,
+    3615: "tsquery" => Tsquery: Kind::Simple,
     #[doc="GTSVECTOR - GiST index internal text representation for text search"]
-    3642 => Gtsvector: Kind::Simple,
+    3642: "gtsvector" => Gtsvector: Kind::Simple,
     #[doc="TSVECTOR[]"]
-    3643 => TsvectorArray: Kind::Array(Type::Tsvector),
+    3643: "_tsvector" => TsvectorArray: Kind::Array(Type::Tsvector),
     #[doc="GTSVECTOR[]"]
-    3644 => GtsvectorArray: Kind::Array(Type::Gtsvector),
+    3644: "_gtsvector" => GtsvectorArray: Kind::Array(Type::Gtsvector),
     #[doc="TSQUERY[]"]
-    3645 => TsqueryArray: Kind::Array(Type::Tsquery),
+    3645: "_tsquery" => TsqueryArray: Kind::Array(Type::Tsquery),
     #[doc="REGCONFIG - registered text search configuration"]
-    3734 => Regconfig: Kind::Simple,
+    3734: "regconfig" => Regconfig: Kind::Simple,
     #[doc="REGCONFIG[]"]
-    3735 => RegconfigArray: Kind::Array(Type::Regconfig),
+    3735: "_regconfig" => RegconfigArray: Kind::Array(Type::Regconfig),
     #[doc="REGDICTIONARY - registered text search dictionary"]
-    3769 => Regdictionary: Kind::Simple,
+    3769: "regdictionary" => Regdictionary: Kind::Simple,
     #[doc="REGDICTIONARY[]"]
-    3770 => RegdictionaryArray: Kind::Array(Type::Regdictionary),
+    3770: "_regdictionary" => RegdictionaryArray: Kind::Array(Type::Regdictionary),
     #[doc="JSONB"]
-    3802 => Jsonb: Kind::Simple,
+    3802: "jsonb" => Jsonb: Kind::Simple,
     #[doc="ANYRANGE"]
-    3831 => Anyrange: Kind::Simple,
+    3831: "anyrange" => Anyrange: Kind::Simple,
     #[doc="JSONB[]"]
-    3807 => JsonbArray: Kind::Array(Type::Jsonb),
+    3807: "_jsonb" => JsonbArray: Kind::Array(Type::Jsonb),
     #[doc="INT4RANGE - range of integers"]
-    3904 => Int4Range: Kind::Range(Type::Int4),
+    3904: "int4range" => Int4Range: Kind::Range(Type::Int4),
     #[doc="INT4RANGE[]"]
-    3905 => Int4RangeArray: Kind::Array(Type::Int4Range),
+    3905: "_int4range" => Int4RangeArray: Kind::Array(Type::Int4Range),
     #[doc="NUMRANGE - range of numerics"]
-    3906 => NumRange: Kind::Range(Type::Numeric),
+    3906: "numrange" => NumRange: Kind::Range(Type::Numeric),
     #[doc="NUMRANGE[]"]
-    3907 => NumRangeArray: Kind::Array(Type::NumRange),
+    3907: "_numrange" => NumRangeArray: Kind::Array(Type::NumRange),
     #[doc="TSRANGE - range of timestamps without time zone"]
-    3908 => TsRange: Kind::Range(Type::Timestamp),
+    3908: "tsrange" => TsRange: Kind::Range(Type::Timestamp),
     #[doc="TSRANGE[]"]
-    3909 => TsRangeArray: Kind::Array(Type::TsRange),
+    3909: "_tsrange" => TsRangeArray: Kind::Array(Type::TsRange),
     #[doc="TSTZRANGE - range of timestamps with time zone"]
-    3910 => TstzRange: Kind::Range(Type::TimestampTZ),
+    3910: "tstzrange" => TstzRange: Kind::Range(Type::TimestampTZ),
     #[doc="TSTZRANGE[]"]
-    3911 => TstzRangeArray: Kind::Array(Type::TstzRange),
+    3911: "_tstzrange" => TstzRangeArray: Kind::Array(Type::TstzRange),
     #[doc="DATERANGE - range of dates"]
-    3912 => DateRange: Kind::Range(Type::Date),
+    3912: "daterange" => DateRange: Kind::Range(Type::Date),
     #[doc="DATERANGE[]"]
-    3913 => DateRangeArray: Kind::Array(Type::DateRange),
+    3913: "_daterange" => DateRangeArray: Kind::Array(Type::DateRange),
     #[doc="INT8RANGE - range of bigints"]
-    3926 => Int8Range: Kind::Range(Type::Int8),
+    3926: "int8range" => Int8Range: Kind::Range(Type::Int8),
     #[doc="INT8RANGE[]"]
-    3927 => Int8RangeArray: Kind::Array(Type::Int8Range),
+    3927: "_int8range" => Int8RangeArray: Kind::Array(Type::Int8Range),
     #[doc="EVENT_TRIGGER"]
-    3838 => EventTrigger: Kind::Simple
+    3838: "event_trigger" => EventTrigger: Kind::Simple
 }
 
 /// Information about an unknown type.

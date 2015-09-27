@@ -665,7 +665,7 @@ impl InnerConnection {
     }
 
     fn get_type(&mut self, oid: Oid) -> Result<Type> {
-        if let Some(ty) = Type::new(oid) {
+        if let Some(ty) = Type::from_oid(oid) {
             return Ok(ty);
         }
 
@@ -1351,10 +1351,6 @@ trait DbErrorNew {
     fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()>;
     fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError>;
     fn new<T>(fields: Vec<(u8, String)>) -> Result<T>;
-}
-
-trait TypeNew {
-    fn new(oid: Oid) -> Option<Type>;
 }
 
 trait RowsNew<'a> {
