@@ -52,8 +52,8 @@ fn test_i8_params() {
 
 #[test]
 fn test_name_params() {
-    test_type("NAME", &[(Some("hello world".to_string()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("NAME", &[(Some("hello world".to_owned()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -99,15 +99,15 @@ fn test_f64_params() {
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR", &[(Some("hello world".to_string()), "'hello world'"),
-                          (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("VARCHAR", &[(Some("hello world".to_owned()), "'hello world'"),
+                          (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                           (None, "NULL")]);
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT", &[(Some("hello world".to_string()), "'hello world'"),
-                       (Some("イロハニホヘト チリヌルヲ".to_string()), "'イロハニホヘト チリヌルヲ'"),
+    test_type("TEXT", &[(Some("hello world".to_owned()), "'hello world'"),
+                       (Some("イロハニホヘト チリヌルヲ".to_owned()), "'イロハニホヘト チリヌルヲ'"),
                        (None, "NULL")]);
 }
 
@@ -123,7 +123,7 @@ fn test_bpchar_params() {
     let stmt = or_panic!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec!(Some("12345".to_string()), Some("123  ".to_string()), None),
+    assert_eq!(vec!(Some("12345".to_owned()), Some("123  ".to_owned()), None),
                res.iter().map(|row| row.get(0)).collect::<Vec<_>>());
 }
 
@@ -158,10 +158,10 @@ fn test_hstore_params() {
         })
     }
     test_type("hstore",
-              &[(Some(make_map!("a".to_string() => Some("1".to_string()))), "'a=>1'"),
-               (Some(make_map!("hello".to_string() => Some("world!".to_string()),
-                               "hola".to_string() => Some("mundo!".to_string()),
-                               "what".to_string() => None)),
+              &[(Some(make_map!("a".to_owned() => Some("1".to_owned()))), "'a=>1'"),
+               (Some(make_map!("hello".to_owned() => Some("world!".to_owned()),
+                               "hola".to_owned() => Some("mundo!".to_owned()),
+                               "what".to_owned() => None)),
                 "'hello=>world!,hola=>mundo!,what=>NULL'"),
                 (None, "NULL")]);
 }
@@ -203,7 +203,7 @@ fn test_slice() {
 
     let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)").unwrap();
     let result = stmt.query(&[&Slice(&[1i32, 3, 4])]).unwrap();
-    assert_eq!(vec!["a".to_string(), "c".to_string(), "d".to_string()],
+    assert_eq!(vec!["a".to_owned(), "c".to_owned(), "d".to_owned()],
                result.iter().map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
 }
 

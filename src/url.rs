@@ -65,9 +65,9 @@ impl Url {
         // query and fragment
         let (query, fragment) = try!(get_query_fragment(rest));
 
-        let url = Url::new(scheme.to_string(),
+        let url = Url::new(scheme.to_owned(),
                             userinfo,
-                            host.to_string(),
+                            host.to_owned(),
                             port,
                             path,
                             query,
@@ -180,22 +180,22 @@ pub fn get_scheme(rawurl: &str) -> DecodeResult<(&str, &str)> {
             '0' ... '9' | '+' | '-' | '.' => {
                 if i != 0 { continue }
 
-                Err("url: Scheme must begin with a letter.".to_string())
+                Err("url: Scheme must begin with a letter.".to_owned())
             }
             ':' => {
                 if i == 0 {
-                    Err("url: Scheme cannot be empty.".to_string())
+                    Err("url: Scheme cannot be empty.".to_owned())
                 } else {
                     Ok((&rawurl[0..i], &rawurl[i+1..rawurl.len()]))
                 }
             }
-            _ => Err("url: Invalid character in scheme.".to_string()),
+            _ => Err("url: Invalid character in scheme.".to_owned()),
         };
 
         return result;
     }
 
-    Err("url: Scheme must be terminated with a colon.".to_string())
+    Err("url: Scheme must be terminated with a colon.".to_owned())
 }
 
 // returns userinfo, host, port, and unparsed part, or an error
@@ -255,7 +255,7 @@ fn get_authority(rawurl: &str) ->
             ':' | '@' | '?' | '#' | '/' => {
                 // separators, don't change anything
             }
-            _ => return Err("Illegal character in authority".to_string()),
+            _ => return Err("Illegal character in authority".to_owned()),
         }
 
         // now process states
@@ -271,7 +271,7 @@ fn get_authority(rawurl: &str) ->
                 // multiple colons means ipv6 address.
                 if input == Input::Unreserved {
                     return Err(
-                        "Illegal characters in IPv6 address.".to_string());
+                        "Illegal characters in IPv6 address.".to_owned());
                 }
                 st = State::Ip6Host;
               }
@@ -288,7 +288,7 @@ fn get_authority(rawurl: &str) ->
               }
               State::Ip6Port => {
                 if input == Input::Unreserved {
-                    return Err("Illegal characters in authority.".to_string());
+                    return Err("Illegal characters in authority.".to_owned());
                 }
                 st = State::Ip6Host;
               }
@@ -299,7 +299,7 @@ fn get_authority(rawurl: &str) ->
                     st = State::InPort;
                 }
               }
-              _ => return Err("Invalid ':' in authority.".to_string()),
+              _ => return Err("Invalid ':' in authority.".to_owned()),
             }
             input = Input::Digit; // reset input class
           }
@@ -319,7 +319,7 @@ fn get_authority(rawurl: &str) ->
                 userinfo = Some(UserInfo::new(user, Some(pass)));
                 st = State::InHost;
               }
-              _ => return Err("Invalid '@' in authority.".to_string()),
+              _ => return Err("Invalid '@' in authority.".to_owned()),
             }
             begin = i+1;
           }
@@ -338,7 +338,7 @@ fn get_authority(rawurl: &str) ->
       State::PassHostPort
       | State::Ip6Port => {
         if input != Input::Digit {
-            return Err("Non-digit characters in port.".to_string());
+            return Err("Non-digit characters in port.".to_owned());
         }
         host = &rawurl[begin..pos];
         port = Some(&rawurl[pos+1..end]);
@@ -347,7 +347,7 @@ fn get_authority(rawurl: &str) ->
       | State::InHost => host = &rawurl[begin..end],
       State::InPort => {
         if input != Input::Digit {
-            return Err("Non-digit characters in port.".to_string());
+            return Err("Non-digit characters in port.".to_owned());
         }
         port = Some(&rawurl[pos+1..end]);
       }
@@ -384,13 +384,13 @@ fn get_path(rawurl: &str, is_authority: bool) -> DecodeResult<(String, &str)> {
             end = i;
             break;
           }
-          _ => return Err("Invalid character in path.".to_string())
+          _ => return Err("Invalid character in path.".to_owned())
         }
     }
 
     if is_authority && end != 0 && !rawurl.starts_with("/") {
         Err("Non-empty path must begin with \
-            '/' in presence of authority.".to_string())
+            '/' in presence of authority.".to_owned())
     } else {
         Ok((try!(decode_component(&rawurl[0..end])), &rawurl[end..len]))
     }
