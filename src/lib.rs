@@ -24,7 +24,7 @@
 //!                   )", &[]).unwrap();
 //!     let me = Person {
 //!         id: 0,
-//!         name: "Steven".to_string(),
+//!         name: "Steven".to_owned(),
 //!         data: None
 //!     };
 //!     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
@@ -867,7 +867,7 @@ impl Connection {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
     ///     user: Some(UserInfo {
-    ///         user: "postgres".to_string(),
+    ///         user: "postgres".to_owned(),
     ///         password: None
     ///     }),
     ///     database: None,
