@@ -65,7 +65,7 @@ impl<'conn> Notifications<'conn> {
     ///
     /// # Note
     ///
-    /// THis iterator may start returning `Some` after previously returning
+    /// This iterator may start returning `Some` after previously returning
     /// `None` if more notifications are received.
     pub fn timeout_iter<'a>(&'a self, timeout: Duration) -> TimeoutIter<'a> {
         TimeoutIter {
