@@ -52,6 +52,7 @@ extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
+extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;

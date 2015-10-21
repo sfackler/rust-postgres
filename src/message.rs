@@ -1,10 +1,12 @@
 use std::io;
 use std::io::prelude::*;
 use std::mem;
+use std::time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use types::Oid;
 use util;
+use priv_io::ReadTimeout;
 
 use self::BackendMessage::*;
 use self::FrontendMessage::*;
@@ -282,12 +284,39 @@ impl<R: BufRead> ReadCStr for R {
 #[doc(hidden)]
 pub trait ReadMessage {
     fn read_message(&mut self) -> io::Result<BackendMessage>;
+
+    fn read_message_timeout(&mut self, timeout: Duration)
+                            -> io::Result<Option<BackendMessage>>;
+
+    fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage>;
 }
 
-impl<R: BufRead> ReadMessage for R {
+impl<R: BufRead + ReadTimeout> ReadMessage for R {
     fn read_message(&mut self) -> io::Result<BackendMessage> {
         let ident = try!(self.read_u8());
+        self.finish_read_message(ident)
+    }
 
+    fn read_message_timeout(&mut self, timeout: Duration)
+                            -> io::Result<Option<BackendMessage>> {
+        try!(self.set_read_timeout(Some(timeout)));
+        let ident = self.read_u8();
+        try!(self.set_read_timeout(None));
+
+        match ident {
+            Ok(ident) => self.finish_read_message(ident).map(Some),
+            Err(e) => {
+                let e: io::Error = e.into();
+                if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage> {
         // subtract size of length value
         let len = try!(self.read_u32::<BigEndian>()) - mem::size_of::<u32>() as u32;
         let mut rdr = self.by_ref().take(len as u64);
