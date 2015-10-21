@@ -68,6 +68,7 @@ use std::io::prelude::*;
 use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
+use std::time::Duration;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
@@ -502,6 +503,24 @@ impl InnerConnection {
                     }
                 }
                 ParameterStatus { parameter, value } => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val)
+            }
+        }
+    }
+
+    fn read_message_with_notification_timeout(&mut self, timeout: Duration)
+                                              -> std::io::Result<Option<BackendMessage>> {
+        debug_assert!(!self.desynchronized);
+        loop {
+            match try_desync!(self, self.stream.read_message_timeout(timeout)) {
+                Some(NoticeResponse { fields }) => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                Some(ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val)

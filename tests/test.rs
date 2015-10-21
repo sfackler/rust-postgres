@@ -9,6 +9,7 @@ use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 use std::io;
 use std::io::prelude::*;
+use std::time::Duration;
 
 use postgres::{HandleNotice,
                Connection,
@@ -607,6 +608,30 @@ fn test_notifications_next_block() {
         channel: "test_notifications_next_block".to_string(),
         payload: "foo".to_string()
     }, or_panic!(notifications.blocking_iter().next().unwrap()));
+}
+
+#[test]
+fn test_notification_next_timeout() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("LISTEN test_notifications_next_timeout", &[]));
+
+    let _t = thread::spawn(|| {
+        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+        thread::sleep_ms(500);
+        or_panic!(conn.execute("NOTIFY test_notifications_next_timeout, 'foo'", &[]));
+        thread::sleep_ms(1500);
+        or_panic!(conn.execute("NOTIFY test_notifications_next_timeout, 'foo'", &[]));
+    });
+
+    let notifications = conn.notifications();
+    let mut it = notifications.timeout_iter(Duration::from_secs(1));
+    check_notification(Notification {
+        pid: 0,
+        channel: "test_notifications_next_timeout".to_string(),
+        payload: "foo".to_string()
+    }, or_panic!(it.next().unwrap()));
+
+    assert!(it.next().is_none());
 }
 
 #[test]
