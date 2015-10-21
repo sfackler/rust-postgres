@@ -42,7 +42,8 @@ impl<'conn> Notifications<'conn> {
     /// # Note
     ///
     /// This iterator may start returning `Some` after previously returning
-    /// `None` if more notifications are received.
+    /// `None` if more notifications are received. However, those notifications
+    /// will not be registered until the connection is used in some way.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
             conn: self.conn,
