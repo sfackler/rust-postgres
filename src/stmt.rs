@@ -310,6 +310,10 @@ impl<'conn> Statement<'conn> {
 
         let (format, column_formats) = match try!(conn.read_message()) {
             CopyInResponse { format, column_formats } => (format, column_formats),
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return DbError::new(fields);
+            }
             _ => {
                 loop {
                     match try!(conn.read_message()) {
@@ -424,6 +428,10 @@ impl<'conn> Statement<'conn> {
                 return Err(Error::IoError(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "called `copy_out` on a non-`COPY TO STDOUT` statement")));
+            }
+            ErrorResponse { fields } => {
+                try!(conn.wait_for_ready());
+                return DbError::new(fields);
             }
             _ => {
                 loop {
