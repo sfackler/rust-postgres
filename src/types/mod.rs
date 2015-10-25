@@ -593,21 +593,12 @@ impl error::Error for WasNull {
 /// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
 /// nullable Postgres value.
 pub trait FromSql: Sized {
-    /// Creates a new value of this type from a `Read`er of Postgres data.
-    ///
-    /// If the value was `NULL`, the `Read`er will be `None`.
-    ///
-    /// The caller of this method is responsible for ensuring that this type
-    /// is compatible with the Postgres `Type`.
-    ///
-    /// The default implementation calls `FromSql::from_sql` when `raw` is
-    /// `Some` and returns `Err(Error::Conversion(Box::new(WasNull))` when
-    /// `raw` is `None`. It does not typically need to be overridden.
+    /// ### Deprecated
     fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
                                   -> Result<Self> {
         match raw {
             Some(raw) => FromSql::from_sql(ty, raw, ctx),
-            None => Err(Error::Conversion(Box::new(WasNull))),
+            None => FromSql::from_sql_null(ty, ctx),
         }
     }
 
@@ -618,22 +609,29 @@ pub trait FromSql: Sized {
     /// is compatible with the Postgres `Type`.
     fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self>;
 
+    /// Creates a new value of this type from a `NULL` SQL value.
+    ///
+    /// The caller of this method is responsible for ensuring that this type
+    /// is compatible with the Postgres `Type`.
+    ///
+    /// The default implementation returns
+    /// `Err(Error::Conversion(Box::new(WasNull))`.
+    fn from_sql_null(ty: &Type, ctx: &SessionInfo) -> Result<Self> {
+        Err(Error::Conversion(Box::new(WasNull)))
+    }
+
     /// Determines if a value of this type can be created from the specified
     /// Postgres `Type`.
     fn accepts(ty: &Type) -> bool;
 }
 
 impl<T: FromSql> FromSql for Option<T> {
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
-                                  -> Result<Option<T>> {
-        match raw {
-            Some(raw) => <T as FromSql>::from_sql(ty, raw, ctx).map(Some),
-            None => Ok(None),
-        }
-    }
-
     fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Option<T>> {
         <T as FromSql>::from_sql(ty, raw, ctx).map(Some)
+    }
+
+    fn from_sql_null(_: &Type, _: &SessionInfo) -> Result<Option<T>> {
+        Ok(None)
     }
 
     fn accepts(ty: &Type) -> bool {
