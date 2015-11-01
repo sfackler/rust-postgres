@@ -938,7 +938,7 @@ impl Connection {
         self.conn.borrow_mut().prepare(query, self)
     }
 
-    /// Creates cached prepared statement.
+    /// Creates a cached prepared statement.
     ///
     /// Like `prepare`, except that the statement is only prepared once over
     /// the lifetime of the connection and then cached. If the same statement
