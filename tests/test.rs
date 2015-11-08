@@ -9,6 +9,7 @@ use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 use std::io;
 use std::io::prelude::*;
+use std::time::Duration;
 
 use postgres::{HandleNotice,
                Connection,
@@ -17,7 +18,7 @@ use postgres::{HandleNotice,
                IntoConnectParams,
                IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
-use postgres::types::{Type, Kind};
+use postgres::types::{Oid, Type, Kind};
 use postgres::error::SqlState::{SyntaxError,
                                 QueryCanceled,
                                 UndefinedTable,
@@ -610,6 +611,30 @@ fn test_notifications_next_block() {
 }
 
 #[test]
+fn test_notification_next_timeout() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.execute("LISTEN test_notifications_next_timeout", &[]));
+
+    let _t = thread::spawn(|| {
+        let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+        thread::sleep_ms(500);
+        or_panic!(conn.execute("NOTIFY test_notifications_next_timeout, 'foo'", &[]));
+        thread::sleep_ms(1500);
+        or_panic!(conn.execute("NOTIFY test_notifications_next_timeout, 'foo'", &[]));
+    });
+
+    let notifications = conn.notifications();
+    let mut it = notifications.timeout_iter(Duration::from_secs(1));
+    check_notification(Notification {
+        pid: 0,
+        channel: "test_notifications_next_timeout".to_string(),
+        payload: "foo".to_string()
+    }, or_panic!(it.next().unwrap()));
+
+    assert!(it.next().is_none());
+}
+
+#[test]
 // This test is pretty sad, but I don't think there's a better way :(
 fn test_cancel_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
@@ -787,6 +812,21 @@ fn test_copy_out() {
 }
 
 #[test]
+fn test_copy_out_error() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    or_panic!(conn.batch_execute("
+         CREATE TEMPORARY TABLE foo (id INT);
+         INSERT INTO foo (id) VALUES (0), (1), (2), (3)"));
+    let stmt = or_panic!(conn.prepare("COPY (SELECT id FROM foo ORDER BY id) TO STDOUT (OIDS)"));
+    let mut buf = vec![];
+    match stmt.copy_out(&[], &mut buf) {
+        Ok(_) => panic!("unexpected success"),
+        Err(Error::DbError(..)) => {}
+        Err(e) => panic!("unexpected error {}", e),
+    }
+}
+
+#[test]
 // Just make sure the impls don't infinite loop
 fn test_generic_connection() {
     fn f<T>(t: &T) where T: GenericConnection {
@@ -812,6 +852,7 @@ fn test_custom_range_element_type() {
         &Type::Other(ref u) => {
             assert_eq!("floatrange", u.name());
             assert_eq!(&Kind::Range(Type::Float8), u.kind());
+            assert_eq!("public", u.schema());
         }
         t => panic!("Unexpected type {:?}", t)
     }
@@ -927,4 +968,20 @@ fn test_row_case_insensitive() {
     assert_eq!(Some(1), "bar".idx(&stmt));
     assert_eq!(Some(1), "bAr".idx(&stmt));
     assert_eq!(Some(2), "Bar".idx(&stmt));
+}
+
+#[test]
+fn test_type_names() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let stmt = conn.prepare("SELECT t.oid, t.typname
+                                FROM pg_catalog.pg_type t, pg_namespace n
+                             WHERE n.oid = t.typnamespace
+                                AND n.nspname = 'pg_catalog'
+                                AND t.oid < 10000
+                                AND t.typtype != 'c'").unwrap();
+    for row in stmt.query(&[]).unwrap() {
+        let id: Oid = row.get(0);
+        let name: String = row.get(1);
+        assert_eq!(Type::from_oid(id).unwrap().name(), name);
+    }
 }

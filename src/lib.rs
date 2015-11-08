@@ -24,7 +24,7 @@
 //!                   )", &[]).unwrap();
 //!     let me = Person {
 //!         id: 0,
-//!         name: "Steven".to_string(),
+//!         name: "Steven".to_owned(),
 //!         data: None
 //!     };
 //!     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
@@ -41,7 +41,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.10.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.10.1")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -52,6 +52,7 @@ extern crate phf;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
+extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;
@@ -67,6 +68,7 @@ use std::io::prelude::*;
 use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
+use std::time::Duration;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
@@ -455,10 +457,12 @@ impl InnerConnection {
 
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, r.rngsubtype \
+                               "SELECT t.typname, t.typelem, r.rngsubtype, n.nspname \
                                 FROM pg_catalog.pg_type t \
                                 LEFT OUTER JOIN pg_catalog.pg_range r \
                                     ON r.rngtypid = t.oid \
+                                INNER JOIN pg_catalog.pg_namespace n \
+                                    ON t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => return Ok(()),
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
@@ -469,9 +473,11 @@ impl InnerConnection {
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT typname, typelem, NULL::OID \
-                                FROM pg_catalog.pg_type \
-                                WHERE oid = $1") {
+                               "SELECT t.typname, t.typelem, NULL::OID, n.nspname \
+                                FROM pg_catalog.pg_type t \
+                                INNER JOIN pg_catalog.pg_namespace n \
+                                    ON t.typnamespace = n.oid \
+                                WHERE t.oid = $1") {
             Ok(..) => Ok(()),
             Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),
             Err(Error::DbError(e)) => Err(ConnectError::DbError(e)),
@@ -497,6 +503,24 @@ impl InnerConnection {
                     }
                 }
                 ParameterStatus { parameter, value } => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val)
+            }
+        }
+    }
+
+    fn read_message_with_notification_timeout(&mut self, timeout: Duration)
+                                              -> std::io::Result<Option<BackendMessage>> {
+        debug_assert!(!self.desynchronized);
+        loop {
+            match try_desync!(self, self.stream.read_message_timeout(timeout)) {
+                Some(NoticeResponse { fields }) => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                Some(ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val)
@@ -661,7 +685,7 @@ impl InnerConnection {
     }
 
     fn get_type(&mut self, oid: Oid) -> Result<Type> {
-        if let Some(ty) = Type::new(oid) {
+        if let Some(ty) = Type::from_oid(oid) {
             return Ok(ty);
         }
 
@@ -696,7 +720,7 @@ impl InnerConnection {
             }
             _ => bad_response!(self)
         }
-        let (name, elem_oid, rngsubtype): (String, Oid, Option<Oid>) =
+        let (name, elem_oid, rngsubtype, schema): (String, Oid, Option<Oid>, String) =
                 match try!(self.read_message()) {
             DataRow { row } => {
                 let ctx = SessionInfo::new(self);
@@ -708,6 +732,9 @@ impl InnerConnection {
                                                  &ctx)),
                  try!(FromSql::from_sql_nullable(&Type::Oid,
                                                  row[2].as_ref().map(|r| &**r).as_mut(),
+                                                 &ctx)),
+                 try!(FromSql::from_sql_nullable(&Type::Name,
+                                                 row[3].as_ref().map(|r| &**r).as_mut(),
                                                  &ctx)))
             }
             ErrorResponse { fields } => {
@@ -735,7 +762,7 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(Other::new(name, oid, kind)));
+        let type_ = Type::Other(Box::new(Other::new(name, oid, kind, schema)));
         self.unknown_types.insert(oid, type_.clone());
         Ok(type_)
     }
@@ -860,7 +887,7 @@ impl Connection {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
     ///     user: Some(UserInfo {
-    ///         user: "postgres".to_string(),
+    ///         user: "postgres".to_owned(),
     ///         password: None
     ///     }),
     ///     database: None,
@@ -911,7 +938,7 @@ impl Connection {
         self.conn.borrow_mut().prepare(query, self)
     }
 
-    /// Creates cached prepared statement.
+    /// Creates a cached prepared statement.
     ///
     /// Like `prepare`, except that the statement is only prepared once over
     /// the lifetime of the connection and then cached. If the same statement
@@ -1337,17 +1364,13 @@ impl<'a> GenericConnection for Transaction<'a> {
 }
 
 trait OtherNew {
-    fn new(name: String, oid: Oid, kind: Kind) -> Other;
+    fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
 }
 
 trait DbErrorNew {
     fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()>;
     fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError>;
     fn new<T>(fields: Vec<(u8, String)>) -> Result<T>;
-}
-
-trait TypeNew {
-    fn new(oid: Oid) -> Option<Type>;
 }
 
 trait RowsNew<'a> {

@@ -1,7 +1,10 @@
 use byteorder::ReadBytesExt;
+use net2::TcpStreamExt;
 use std::io;
 use std::io::prelude::*;
 use std::net::TcpStream;
+use std::time::Duration;
+use bufstream::BufStream;
 #[cfg(feature = "unix_socket")]
 use unix_socket::UnixStream;
 #[cfg(unix)]
@@ -16,6 +19,21 @@ use message::{self, WriteMessage};
 use message::FrontendMessage::SslRequest;
 
 const DEFAULT_PORT: u16 = 5432;
+
+#[doc(hidden)]
+pub trait ReadTimeout {
+    fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
+}
+
+impl ReadTimeout for BufStream<Box<StreamWrapper>> {
+    fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        match self.get_ref().get_ref().0 {
+            InternalStream::Tcp(ref s) => <TcpStream as TcpStreamExt>::set_read_timeout(s, timeout),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
+        }
+    }
+}
 
 /// A connection to the Postgres server.
 ///

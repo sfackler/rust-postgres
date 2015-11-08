@@ -1,6 +1,7 @@
 //! Asynchronous notifications.
 
 use std::fmt;
+use std::time::Duration;
 
 use {desynchronized, Result, Connection, NotificationsNew};
 use message::BackendMessage::NotificationResponse;
@@ -41,20 +42,35 @@ impl<'conn> Notifications<'conn> {
     /// # Note
     ///
     /// This iterator may start returning `Some` after previously returning
-    /// `None` if more notifications are received.
+    /// `None` if more notifications are received. However, those notifications
+    /// will not be registered until the connection is used in some way.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
             conn: self.conn,
         }
     }
 
-    /// Returns an iterator over notifications, blocking until one is received
-    /// if none are pending.
+    /// Returns an iterator over notifications that blocks until one is
+    /// received if none are pending.
     ///
     /// The iterator will never return `None`.
     pub fn blocking_iter<'a>(&'a self) -> BlockingIter<'a> {
         BlockingIter {
             conn: self.conn,
+        }
+    }
+
+    /// Returns an iterator over notifications that blocks for a limited time
+    /// waiting to receive one if none are pending.
+    ///
+    /// # Note
+    ///
+    /// This iterator may start returning `Some` after previously returning
+    /// `None` if more notifications are received.
+    pub fn timeout_iter<'a>(&'a self, timeout: Duration) -> TimeoutIter<'a> {
+        TimeoutIter {
+            conn: self.conn,
+            timeout: timeout,
         }
     }
 }
@@ -116,6 +132,42 @@ impl<'a> Iterator for BlockingIter<'a> {
                     payload: payload
                 }))
             }
+            Err(err) => Some(Err(Error::IoError(err))),
+            _ => unreachable!()
+        }
+    }
+}
+
+/// An iterator over notifications which will block for a period of time if
+/// none are pending.
+pub struct TimeoutIter<'a> {
+    conn: &'a Connection,
+    timeout: Duration,
+}
+
+impl<'a> Iterator for TimeoutIter<'a> {
+    type Item = Result<Notification>;
+
+    fn next(&mut self) -> Option<Result<Notification>> {
+        let mut conn = self.conn.conn.borrow_mut();
+
+        if let Some(notification) = conn.notifications.pop_front() {
+            return Some(Ok(notification));
+        }
+
+        if conn.is_desynchronized() {
+            return Some(Err(Error::IoError(desynchronized())));
+        }
+
+        match conn.read_message_with_notification_timeout(self.timeout) {
+            Ok(Some(NotificationResponse { pid, channel, payload })) => {
+                Some(Ok(Notification {
+                    pid: pid,
+                    channel: channel,
+                    payload: payload
+                }))
+            }
+            Ok(None) => None,
             Err(err) => Some(Err(Error::IoError(err))),
             _ => unreachable!()
         }

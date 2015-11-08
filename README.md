@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.0/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.1/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -57,7 +57,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.2 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.3 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 
@@ -200,7 +200,7 @@ types. The driver currently supports the following conversions:
             <td>
                 <a href="https://github.com/rust-lang/rustc-serialize">serialize::json::Json</a>
                 and
-                <a href="https://github.com/erickt/serde">serde::json::Value</a>
+                <a href="https://github.com/erickt/serde_json">serde_json::Value</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>JSON, JSONB</td>
@@ -284,7 +284,7 @@ implementations for `uuid`'s `Uuid` type.
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
 support is provided optionally by the `rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
-the `serde` feature, which adds implementations for `serde`'s `json::Value`
+the `serde` feature, which adds implementations for `serde_json`'s `Value`
 type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
