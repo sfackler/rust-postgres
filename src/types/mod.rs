@@ -49,8 +49,8 @@ mod time;
 mod slice;
 #[cfg(feature = "rustc-serialize")]
 mod rustc_serialize;
-#[cfg(feature = "serde")]
-mod serde;
+#[cfg(feature = "serde_json")]
+mod serde_json;
 #[cfg(feature = "chrono")]
 mod chrono;
 
@@ -571,13 +571,13 @@ impl error::Error for WasNull {
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name. For example, the `serde` feature enables the implementation for the
-/// `serde::json::Value` type.
+/// name. For example, the `serde_json` feature enables the implementation for
+/// the `serde_json::Value` type.
 ///
 /// | Rust type                           | Postgres type(s)                    |
 /// |-------------------------------------|-------------------------------------|
 /// | serialize::json::Json               | JSON, JSONB                         |
-/// | serde::json::Value                  | JSON, JSONB                         |
+/// | serde_json::Value                   | JSON, JSONB                         |
 /// | time::Timespec                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | chrono::NaiveDateTime               | TIMESTAMP                           |
 /// | chrono::DateTime&lt;UTC&gt;         | TIMESTAMP WITH TIME ZONE            |
@@ -616,6 +616,7 @@ pub trait FromSql: Sized {
     ///
     /// The default implementation returns
     /// `Err(Error::Conversion(Box::new(WasNull))`.
+    #[allow(unused_variables)]
     fn from_sql_null(ty: &Type, ctx: &SessionInfo) -> Result<Self> {
         Err(Error::Conversion(Box::new(WasNull)))
     }
@@ -776,13 +777,13 @@ pub enum IsNull {
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name. For example, the `serde` feature enables the implementation for the
-/// `serde::json::Value` type.
+/// name. For example, the `serde_json` feature enables the implementation for
+/// the `serde_json::Value` type.
 ///
 /// | Rust type                           | Postgres type(s)                    |
 /// |-------------------------------------|-------------------------------------|
 /// | serialize::json::Json               | JSON, JSONB                         |
-/// | serde::json::Value                  | JSON, JSONB                         |
+/// | serde_json::Value                   | JSON, JSONB                         |
 /// | time::Timespec                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | chrono::NaiveDateTime               | TIMESTAMP                           |
 /// | chrono::DateTime&lt;UTC&gt;         | TIMESTAMP WITH TIME ZONE            |

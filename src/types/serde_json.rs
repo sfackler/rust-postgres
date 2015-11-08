@@ -1,9 +1,9 @@
-extern crate serde;
+extern crate serde_json;
 
 use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use self::serde::json::{self, Value};
+use self::serde_json::Value;
 
 use Result;
 use error::Error;
@@ -18,7 +18,7 @@ impl FromSql for Value {
                 return Err(Error::Conversion(err));
             }
         }
-        json::de::from_reader(raw).map_err(|err| Error::Conversion(Box::new(err)))
+        serde_json::de::from_reader(raw).map_err(|err| Error::Conversion(Box::new(err)))
     }
 
     accepts!(Type::Json, Type::Jsonb);
