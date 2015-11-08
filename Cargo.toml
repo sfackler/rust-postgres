@@ -25,7 +25,7 @@ phf_codegen = "0.7"
 
 [dependencies]
 bufstream = "0.1"
-byteorder = "0.3"
+byteorder = ">= 0.3, < 0.5"
 log = "0.3"
 phf = "0.7"
 rustc-serialize = "0.3"
