@@ -51,6 +51,8 @@ mod slice;
 mod rustc_serialize;
 #[cfg(feature = "serde_json")]
 mod serde_json;
+#[cfg(feature = "serde")]
+mod serde;
 #[cfg(feature = "chrono")]
 mod chrono;
 
