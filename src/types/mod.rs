@@ -37,7 +37,7 @@ macro_rules! to_sql_checked {
             if !<Self as $crate::types::ToSql>::accepts(ty) {
                 return Err($crate::error::Error::WrongType(ty.clone()));
             }
-            self.to_sql(ty, out, ctx)
+            <Self as $crate::types::ToSql>::to_sql(self, ty, out, ctx)
         }
     }
 }
