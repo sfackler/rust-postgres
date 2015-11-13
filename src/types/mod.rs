@@ -842,8 +842,6 @@ impl<'a, T> ToSql for &'a T where T: ToSql {
     fn accepts(ty: &Type) -> bool { T::accepts(ty) }
 }
 
-
-
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
