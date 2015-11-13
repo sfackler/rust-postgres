@@ -219,7 +219,7 @@ fn test_slice_wrong_type() {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::WrongType(..)) => {}
         Err(e) => panic!("Unexpected error {:?}", e),
-    }
+    };
 }
 
 #[test]
@@ -231,5 +231,5 @@ fn test_slice_range() {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::WrongType(..)) => {}
         Err(e) => panic!("Unexpected error {:?}", e),
-    }
+    };
 }

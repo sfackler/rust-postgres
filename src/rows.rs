@@ -16,6 +16,7 @@ use message::FrontendMessage::*;
 
 enum StatementContainer<'a> {
     Borrowed(&'a Statement<'a>),
+    Owned(Statement<'a>),
 }
 
 impl<'a> Deref for StatementContainer<'a> {
@@ -24,6 +25,7 @@ impl<'a> Deref for StatementContainer<'a> {
     fn deref(&self) -> &Statement<'a> {
         match *self {
             StatementContainer::Borrowed(s) => s,
+            StatementContainer::Owned(ref s) => s,
         }
     }
 }

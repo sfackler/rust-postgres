@@ -385,7 +385,7 @@ FROM (SELECT gs.i
         Err(Error::DbError(ref e)) if e.code() == &CardinalityViolation => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure"),
-    }
+    };
 }
 
 #[test]
@@ -751,7 +751,7 @@ fn test_execute_copy_from_err() {
         Err(Error::DbError(ref err)) if err.message().contains("COPY") => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
-    }
+    };
 }
 
 #[test]
@@ -810,7 +810,7 @@ fn test_query_copy_out_err() {
         Ok(_) => panic!("unexpected success"),
         Err(Error::IoError(ref e)) if e.to_string().contains("COPY") => {}
         Err(e) => panic!("unexpected error {:?}", e),
-    }
+    };
 }
 
 #[test]
