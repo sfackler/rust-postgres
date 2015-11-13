@@ -826,14 +826,7 @@ pub trait ToSql: fmt::Debug {
 }
 
 impl<'a, T> ToSql for &'a T where T: ToSql {
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a T as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
-
+    to_sql_checked!();
 
     fn to_sql<W: Write + ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
         (*self).to_sql(ty, out, ctx)
@@ -871,14 +864,7 @@ impl ToSql for bool {
 }
 
 impl<'a> ToSql for &'a [u8] {
-    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a [u8] as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
+    to_sql_checked!();
 
     fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
                                -> Result<IsNull> {
@@ -903,14 +889,7 @@ impl ToSql for Vec<u8> {
 }
 
 impl<'a> ToSql for &'a str {
-    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a str as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
+    to_sql_checked!();
 
     fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
                                -> Result<IsNull> {
