@@ -1,9 +1,10 @@
 //! Query result rows.
 
 use std::ascii::AsciiExt;
-use std::fmt;
-use std::collections::VecDeque;
 use std::borrow::Cow;
+use std::collections::VecDeque;
+use std::fmt;
+use std::ops::Deref;
 use std::slice;
 
 use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
@@ -13,16 +14,30 @@ use stmt::{Statement, Column};
 use error::Error;
 use message::FrontendMessage::*;
 
+enum StatementContainer<'a> {
+    Borrowed(&'a Statement<'a>),
+}
+
+impl<'a> Deref for StatementContainer<'a> {
+    type Target = Statement<'a>;
+
+    fn deref(&self) -> &Statement<'a> {
+        match *self {
+            StatementContainer::Borrowed(s) => s,
+        }
+    }
+}
+
 /// The resulting rows of a query.
 pub struct Rows<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
+    stmt: StatementContainer<'stmt>,
     data: Vec<Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> RowsNew<'a> for Rows<'a> {
     fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
         Rows {
-            stmt: stmt,
+            stmt: StatementContainer::Borrowed(stmt),
             data: data,
         }
     }
@@ -39,7 +54,7 @@ impl<'a> fmt::Debug for Rows<'a> {
 
 impl<'stmt> Rows<'stmt> {
     /// Returns a slice describing the columns of the `Rows`.
-    pub fn columns(&self) -> &'stmt [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
     }
 
@@ -55,7 +70,7 @@ impl<'stmt> Rows<'stmt> {
     /// Panics if `idx` is out of bounds.
     pub fn get<'a>(&'a self, idx: usize) -> Row<'a> {
         Row {
-            stmt: self.stmt,
+            stmt: &*self.stmt,
             data: Cow::Borrowed(&self.data[idx]),
         }
     }
@@ -63,7 +78,7 @@ impl<'stmt> Rows<'stmt> {
     /// Returns an iterator over the `Row`s.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
-            stmt: self.stmt,
+            stmt: &*self.stmt,
             iter: self.data.iter(),
         }
     }
@@ -90,7 +105,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Row<'a>> {
         self.iter.next().map(|row| {
             Row {
-                stmt: self.stmt,
+                stmt: &*self.stmt,
                 data: Cow::Borrowed(row),
             }
         })
@@ -105,7 +120,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
     fn next_back(&mut self) -> Option<Row<'a>> {
         self.iter.next_back().map(|row| {
             Row {
-                stmt: self.stmt,
+                stmt: &*self.stmt,
                 data: Cow::Borrowed(row),
             }
         })
