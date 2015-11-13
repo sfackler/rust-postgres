@@ -995,7 +995,7 @@ fn test_type_names() {
                                 AND n.nspname = 'pg_catalog'
                                 AND t.oid < 10000
                                 AND t.typtype != 'c'").unwrap();
-    for row in stmt.query(&[]).unwrap() {
+    for row in &stmt.query(&[]).unwrap() {
         let id: Oid = row.get(0);
         let name: String = row.get(1);
         assert_eq!(Type::from_oid(id).unwrap().name(), name);

@@ -45,7 +45,7 @@ fn main() {
                  &[&me.name, &me.data]).unwrap();
 
     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-    for row in stmt.query(&[]).unwrap() {
+    for row in &stmt.query(&[]).unwrap() {
         let person = Person {
             id: row.get(0),
             name: row.get(1),

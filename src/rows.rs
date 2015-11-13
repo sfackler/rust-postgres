@@ -5,7 +5,6 @@ use std::fmt;
 use std::collections::VecDeque;
 use std::borrow::Cow;
 use std::slice;
-use std::vec;
 
 use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
      StatementInternals};
@@ -79,18 +78,6 @@ impl<'a> IntoIterator for &'a Rows<'a> {
     }
 }
 
-impl<'stmt> IntoIterator for Rows<'stmt> {
-    type Item = Row<'stmt>;
-    type IntoIter = IntoIter<'stmt>;
-
-    fn into_iter(self) -> IntoIter<'stmt> {
-        IntoIter {
-            stmt: self.stmt,
-            iter: self.data.into_iter(),
-        }
-    }
-}
-
 /// An iterator over `Row`s.
 pub struct Iter<'a> {
     stmt: &'a Statement<'a>,
@@ -126,42 +113,6 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 }
 
 impl<'a> ExactSizeIterator for Iter<'a> {}
-
-/// An owning iterator over `Row`s.
-pub struct IntoIter<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    iter: vec::IntoIter<Vec<Option<Vec<u8>>>>,
-}
-
-impl<'stmt> Iterator for IntoIter<'stmt> {
-    type Item = Row<'stmt>;
-
-    fn next(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'stmt> DoubleEndedIterator for IntoIter<'stmt> {
-    fn next_back(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next_back().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-}
-
-impl<'stmt> ExactSizeIterator for IntoIter<'stmt> {}
 
 /// A single result row of a query.
 pub struct Row<'a> {
@@ -226,7 +177,7 @@ impl<'a> Row<'a> {
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
-    /// for row in stmt.query(&[]).unwrap() {
+    /// for row in &stmt.query(&[]).unwrap() {
     ///     let foo: i32 = row.get(0);
     ///     let bar: String = row.get("bar");
     ///     println!("{}: {}", foo, bar);

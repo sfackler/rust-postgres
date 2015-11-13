@@ -229,7 +229,7 @@ impl<'conn> Statement<'conn> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// for row in stmt.query(&[&baz]).unwrap() {
+    /// for row in &stmt.query(&[&baz]).unwrap() {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }

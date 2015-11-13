@@ -31,7 +31,7 @@
 //!                  &[&me.name, &me.data]).unwrap();
 //!
 //!     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-//!     for row in stmt.query(&[]).unwrap() {
+//!     for row in &stmt.query(&[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
@@ -986,7 +986,7 @@ impl Connection {
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in stmt.query(&[&x]).unwrap() {
+    /// for row in &stmt.query(&[&x]).unwrap() {
     ///     let foo: String = row.get(0);
     ///     println!("foo: {}", foo);
     /// }
@@ -1009,7 +1009,7 @@ impl Connection {
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in stmt.query(&[&x]).unwrap() {
+    /// for row in &stmt.query(&[&x]).unwrap() {
     ///     let foo: String = row.get(0);
     ///     println!("foo: {}", foo);
     /// }
