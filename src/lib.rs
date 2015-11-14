@@ -1006,6 +1006,8 @@ impl Connection {
 
     /// Sets the isolation level which will be used for future transactions.
     ///
+    /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
+    ///
     /// ## Note
     ///
     /// This will not change the behavior of an active transaction.
@@ -1014,6 +1016,8 @@ impl Connection {
     }
 
     /// Returns the isolation level which will be used for future transactions.
+    ///
+    /// This is a simple wrapper around `SHOW TRANSACTION ISOLATION LEVEL`.
     pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
