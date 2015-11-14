@@ -930,6 +930,23 @@ impl Connection {
         stmt.execute(params)
     }
 
+    /// A convenience function for queries that are only run once.
+    ///
+    /// If an error is returned, it could have come from either the preparation
+    /// or execution of the statement.
+    ///
+    /// On success, returns the resulting rows.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
+    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let stmt = Statement::new(self, "".to_owned(), param_types, columns, Cell::new(0), true);
+        stmt.into_query(params)
+    }
+
     /// Begins a new transaction.
     ///
     /// Returns a `Transaction` object which should be used instead of
@@ -1386,6 +1403,7 @@ trait DbErrorNew {
 
 trait RowsNew<'a> {
     fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
+    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
 }
 
 trait LazyRowsNew<'trans, 'stmt> {
@@ -1413,6 +1431,8 @@ trait StatementInternals<'conn> {
            -> Statement<'conn>;
 
     fn conn(&self) -> &'conn Connection;
+
+    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>>;
 }
 
 trait ColumnNew {

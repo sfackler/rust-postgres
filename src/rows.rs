@@ -43,6 +43,13 @@ impl<'a> RowsNew<'a> for Rows<'a> {
             data: data,
         }
     }
+
+    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
+        Rows {
+            stmt: StatementContainer::Owned(stmt),
+            data: data,
+        }
+    }
 }
 
 impl<'a> fmt::Debug for Rows<'a> {

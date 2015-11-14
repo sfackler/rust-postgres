@@ -1001,3 +1001,18 @@ fn test_type_names() {
         assert_eq!(Type::from_oid(id).unwrap().name(), name);
     }
 }
+
+#[test]
+fn test_conn_query() {
+    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    conn.batch_execute("
+        CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
+        INSERT INTO foo (id) VALUES (1), (2), (3);
+        ").unwrap();
+    let ids = conn.query("SELECT id FROM foo ORDER BY id", &[])
+                  .unwrap()
+                  .iter()
+                  .map(|r| r.get(0))
+                  .collect::<Vec<i32>>();
+    assert_eq!(ids, [1, 2, 3]);
+}
