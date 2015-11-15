@@ -180,9 +180,10 @@ impl<'a> Row<'a> {
             return Err(Error::WrongType(ty.clone()));
         }
         let conn = self.stmt.conn().conn.borrow();
-        FromSql::from_sql_nullable(ty,
-                                   self.data[idx].as_ref().map(|e| &**e).as_mut(),
-                                   &SessionInfo::new(&*conn))
+        match self.data[idx] {
+            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
+            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn))
+        }
     }
 
     /// Retrieves the contents of a field of the row.

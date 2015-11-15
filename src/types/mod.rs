@@ -596,17 +596,6 @@ impl error::Error for WasNull {
 /// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
 /// nullable Postgres value.
 pub trait FromSql: Sized {
-    /// ### Deprecated
-    fn from_sql_nullable<R: Read>(ty: &Type,
-                                  raw: Option<&mut R>,
-                                  ctx: &SessionInfo)
-                                  -> Result<Self> {
-        match raw {
-            Some(raw) => FromSql::from_sql(ty, raw, ctx),
-            None => FromSql::from_sql_null(ty, ctx),
-        }
-    }
-
     /// Creates a new value of this type from a `Read`er of the binary format
     /// of the specified Postgres `Type`.
     ///

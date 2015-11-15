@@ -725,29 +725,30 @@ impl InnerConnection {
             }
             _ => bad_response!(self),
         }
-        let (name, elem_oid, rngsubtype, schema): (String, Oid, Option<Oid>, String) =
-            match try!(self.read_message()) {
-                DataRow { row } => {
-                    let ctx = SessionInfo::new(self);
-                    (try!(FromSql::from_sql_nullable(&Type::Name,
-                                                     row[0].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                     row[1].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                     row[2].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Name,
-                                                     row[3].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)))
-                }
-                ErrorResponse { fields } => {
-                    try!(self.wait_for_ready());
-                    return DbError::new(fields);
-                }
-                _ => bad_response!(self),
-            };
+        let (name, elem_oid, rngsubtype, schema) = match try!(self.read_message()) {
+            DataRow { row } => {
+                let ctx = SessionInfo::new(self);
+                let name = try!(String::from_sql(&Type::Name,
+                                                 &mut &**row[0].as_ref().unwrap(),
+                                                 &ctx));
+                let elem_oid = try!(Oid::from_sql(&Type::Oid,
+                                                  &mut &**row[1].as_ref().unwrap(),
+                                                  &ctx));
+                let rngsubtype = match row[2] {
+                    Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
+                    None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
+                };
+                let schema = try!(String::from_sql(&Type::Name,
+                                                   &mut &**row[3].as_ref().unwrap(),
+                                                   &ctx));
+                (name, elem_oid, rngsubtype, schema)
+            }
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => bad_response!(self)
+        };
         match try!(self.read_message()) {
             CommandComplete { .. } => {}
             ErrorResponse { fields } => {
