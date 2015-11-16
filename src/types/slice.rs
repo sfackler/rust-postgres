@@ -38,7 +38,11 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
         self.to_sql(ty, out, ctx)
     }
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, mut w: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 mut w: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
         let member_type = match ty.kind() {
             &Kind::Array(ref member) => member,
             _ => panic!("expected array type"),

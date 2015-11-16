@@ -23,12 +23,12 @@ pub struct Url {
 pub struct Path {
     pub path: String,
     pub query: Query,
-    pub fragment: Option<String>
+    pub fragment: Option<String>,
 }
 
 pub struct UserInfo {
     pub user: String,
-    pub pass: Option<String>
+    pub pass: Option<String>,
 }
 
 pub type Query = Vec<(String, String)>;
@@ -47,7 +47,7 @@ impl Url {
             user: user,
             host: host,
             port: port,
-            path: Path::new(path, query, fragment)
+            path: Path::new(path, query, fragment),
         }
     }
 
@@ -66,21 +66,18 @@ impl Url {
         let (query, fragment) = try!(get_query_fragment(rest));
 
         let url = Url::new(scheme.to_owned(),
-                            userinfo,
-                            host.to_owned(),
-                            port,
-                            path,
-                            query,
-                            fragment);
+                           userinfo,
+                           host.to_owned(),
+                           port,
+                           path,
+                           query,
+                           fragment);
         Ok(url)
     }
 }
 
 impl Path {
-    pub fn new(path: String,
-               query: Query,
-               fragment: Option<String>)
-               -> Path {
+    pub fn new(path: String, query: Query, fragment: Option<String>) -> Path {
         Path {
             path: path,
             query: query,
@@ -94,14 +91,21 @@ impl Path {
         // query and fragment
         let (query, fragment) = try!(get_query_fragment(&rest));
 
-        Ok(Path{ path: path, query: query, fragment: fragment })
+        Ok(Path {
+            path: path,
+            query: query,
+            fragment: fragment,
+        })
     }
 }
 
 impl UserInfo {
     #[inline]
     pub fn new(user: String, pass: Option<String>) -> UserInfo {
-        UserInfo { user: user, pass: pass }
+        UserInfo {
+            user: user,
+            pass: pass,
+        }
     }
 }
 
@@ -121,28 +125,40 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                 '%' => {
                     let bytes = match (iter.next(), iter.next()) {
                         (Some(one), Some(two)) => [one, two],
-                        _ => return Err(format!("Malformed input: found '%' \
-                                                without two trailing bytes")),
+                        _ => return Err(format!("Malformed input: found '%' without two \
+                                                 trailing bytes")),
                     };
 
                     // Only decode some characters if full_url:
                     match str::from_utf8(&bytes).unwrap().from_hex().unwrap()[0] as char {
                         // gen-delims:
-                        ':' | '/' | '?' | '#' | '[' | ']' | '@' |
-
-                        // sub-delims:
-                        '!' | '$' | '&' | '"' | '(' | ')' | '*' |
-                        '+' | ',' | ';' | '='
-                            if full_url => {
+                        ':' |
+                        '/' |
+                        '?' |
+                        '#' |
+                        '[' |
+                        ']' |
+                        '@' |
+                        '!' |
+                        '$' |
+                        '&' |
+                        '"' |
+                        '(' |
+                        ')' |
+                        '*' |
+                        '+' |
+                        ',' |
+                        ';' |
+                        '=' if full_url => {
                             out.push('%');
                             out.push(bytes[0] as char);
                             out.push(bytes[1] as char);
                         }
 
-                        ch => out.push(ch)
+                        ch => out.push(ch),
                     }
                 }
-                ch => out.push(ch)
+                ch => out.push(ch),
             },
             None => return Ok(out),
         }
@@ -160,12 +176,11 @@ fn split_char_first(s: &str, c: char) -> (&str, &str) {
 }
 
 fn query_from_str(rawquery: &str) -> DecodeResult<Query> {
-    let mut query: Query = vec!();
+    let mut query: Query = vec![];
     if !rawquery.is_empty() {
         for p in rawquery.split('&') {
             let (k, v) = split_char_first(p, '=');
-            query.push((try!(decode_component(k)),
-                        try!(decode_component(v))));
+            query.push((try!(decode_component(k)), try!(decode_component(v))));
         }
     }
 
@@ -173,12 +188,14 @@ fn query_from_str(rawquery: &str) -> DecodeResult<Query> {
 }
 
 pub fn get_scheme(rawurl: &str) -> DecodeResult<(&str, &str)> {
-    for (i,c) in rawurl.chars().enumerate() {
+    for (i, c) in rawurl.chars().enumerate() {
         let result = match c {
-            'A' ... 'Z'
-            | 'a' ... 'z' => continue,
-            '0' ... '9' | '+' | '-' | '.' => {
-                if i != 0 { continue }
+            'A'...'Z' |
+            'a'...'z' => continue,
+            '0'...'9' | '+' | '-' | '.' => {
+                if i != 0 {
+                    continue;
+                }
 
                 Err("url: Scheme must begin with a letter.".to_owned())
             }
@@ -186,7 +203,7 @@ pub fn get_scheme(rawurl: &str) -> DecodeResult<(&str, &str)> {
                 if i == 0 {
                     Err("url: Scheme cannot be empty.".to_owned())
                 } else {
-                    Ok((&rawurl[0..i], &rawurl[i+1..rawurl.len()]))
+                    Ok((&rawurl[0..i], &rawurl[i + 1..rawurl.len()]))
                 }
             }
             _ => Err("url: Invalid character in scheme.".to_owned()),
@@ -199,22 +216,21 @@ pub fn get_scheme(rawurl: &str) -> DecodeResult<(&str, &str)> {
 }
 
 // returns userinfo, host, port, and unparsed part, or an error
-fn get_authority(rawurl: &str) ->
-    DecodeResult<(Option<UserInfo>, &str, Option<u16>, &str)> {
+fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u16>, &str)> {
     enum State {
         Start, // starting state
         PassHostPort, // could be in user or port
         Ip6Port, // either in ipv6 host or port
         Ip6Host, // are in an ipv6 host
         InHost, // are in a host - may be ipv6, but don't know yet
-        InPort // are in port
+        InPort, // are in port
     }
 
     #[derive(Clone, PartialEq)]
     enum Input {
         Digit, // all digits
         Hex, // digits and letters a-f
-        Unreserved // all other legal characters
+        Unreserved, // all other legal characters
     }
 
     if !rawurl.starts_with("//") {
@@ -235,23 +251,35 @@ fn get_authority(rawurl: &str) ->
     let mut begin = 2;
     let mut end = len;
 
-    for (i,c) in rawurl.chars().enumerate()
-                               // ignore the leading '//' handled by early return
-                               .skip(2) {
+    for (i, c) in rawurl.chars()
+                        .enumerate()
+                        .skip(2) {
         // deal with input class first
         match c {
-            '0' ... '9' => (),
-            'A' ... 'F'
-            | 'a' ... 'f' => {
+            '0'...'9' => (),
+            'A'...'F' |
+            'a'...'f' => {
                 if input == Input::Digit {
                     input = Input::Hex;
                 }
             }
-            'G' ... 'Z'
-            | 'g' ... 'z'
-            | '-' | '.' | '_' | '~' | '%'
-            | '&' |'\'' | '(' | ')' | '+'
-            | '!' | '*' | ',' | ';' | '=' => input = Input::Unreserved,
+            'G'...'Z' |
+            'g'...'z' |
+            '-' |
+            '.' |
+            '_' |
+            '~' |
+            '%' |
+            '&' |
+            '\'' |
+            '(' |
+            ')' |
+            '+' |
+            '!' |
+            '*' |
+            ',' |
+            ';' |
+            '=' => input = Input::Unreserved,
             ':' | '@' | '?' | '#' | '/' => {
                 // separators, don't change anything
             }
@@ -260,97 +288,96 @@ fn get_authority(rawurl: &str) ->
 
         // now process states
         match c {
-          ':' => {
-            colon_count += 1;
-            match st {
-              State::Start => {
-                pos = i;
-                st = State::PassHostPort;
-              }
-              State::PassHostPort => {
-                // multiple colons means ipv6 address.
-                if input == Input::Unreserved {
-                    return Err(
-                        "Illegal characters in IPv6 address.".to_owned());
+            ':' => {
+                colon_count += 1;
+                match st {
+                    State::Start => {
+                        pos = i;
+                        st = State::PassHostPort;
+                    }
+                    State::PassHostPort => {
+                        // multiple colons means ipv6 address.
+                        if input == Input::Unreserved {
+                            return Err("Illegal characters in IPv6 address.".to_owned());
+                        }
+                        st = State::Ip6Host;
+                    }
+                    State::InHost => {
+                        pos = i;
+                        if input == Input::Unreserved {
+                            // must be port
+                            host = &rawurl[begin..i];
+                            st = State::InPort;
+                        } else {
+                            // can't be sure whether this is an ipv6 address or a port
+                            st = State::Ip6Port;
+                        }
+                    }
+                    State::Ip6Port => {
+                        if input == Input::Unreserved {
+                            return Err("Illegal characters in authority.".to_owned());
+                        }
+                        st = State::Ip6Host;
+                    }
+                    State::Ip6Host => {
+                        if colon_count > 7 {
+                            host = &rawurl[begin..i];
+                            pos = i;
+                            st = State::InPort;
+                        }
+                    }
+                    _ => return Err("Invalid ':' in authority.".to_owned()),
                 }
-                st = State::Ip6Host;
-              }
-              State::InHost => {
-                pos = i;
-                if input == Input::Unreserved {
-                    // must be port
-                    host = &rawurl[begin..i];
-                    st = State::InPort;
-                } else {
-                    // can't be sure whether this is an ipv6 address or a port
-                    st = State::Ip6Port;
-                }
-              }
-              State::Ip6Port => {
-                if input == Input::Unreserved {
-                    return Err("Illegal characters in authority.".to_owned());
-                }
-                st = State::Ip6Host;
-              }
-              State::Ip6Host => {
-                if colon_count > 7 {
-                    host = &rawurl[begin..i];
-                    pos = i;
-                    st = State::InPort;
-                }
-              }
-              _ => return Err("Invalid ':' in authority.".to_owned()),
+                input = Input::Digit; // reset input class
             }
-            input = Input::Digit; // reset input class
-          }
 
-          '@' => {
-            input = Input::Digit; // reset input class
-            colon_count = 0; // reset count
-            match st {
-              State::Start => {
-                let user = try!(decode_component(&rawurl[begin..i]));
-                userinfo = Some(UserInfo::new(user, None));
-                st = State::InHost;
-              }
-              State::PassHostPort => {
-                let user = try!(decode_component(&rawurl[begin..pos]));
-                let pass = try!(decode_component(&rawurl[pos+1..i]));
-                userinfo = Some(UserInfo::new(user, Some(pass)));
-                st = State::InHost;
-              }
-              _ => return Err("Invalid '@' in authority.".to_owned()),
+            '@' => {
+                input = Input::Digit; // reset input class
+                colon_count = 0; // reset count
+                match st {
+                    State::Start => {
+                        let user = try!(decode_component(&rawurl[begin..i]));
+                        userinfo = Some(UserInfo::new(user, None));
+                        st = State::InHost;
+                    }
+                    State::PassHostPort => {
+                        let user = try!(decode_component(&rawurl[begin..pos]));
+                        let pass = try!(decode_component(&rawurl[pos + 1..i]));
+                        userinfo = Some(UserInfo::new(user, Some(pass)));
+                        st = State::InHost;
+                    }
+                    _ => return Err("Invalid '@' in authority.".to_owned()),
+                }
+                begin = i + 1;
             }
-            begin = i+1;
-          }
 
-          '?' | '#' | '/' => {
-            end = i;
-            break;
-          }
-          _ => ()
+            '?' | '#' | '/' => {
+                end = i;
+                break;
+            }
+            _ => (),
         }
     }
 
     // finish up
     match st {
-      State::Start => host = &rawurl[begin..end],
-      State::PassHostPort
-      | State::Ip6Port => {
-        if input != Input::Digit {
-            return Err("Non-digit characters in port.".to_owned());
+        State::Start => host = &rawurl[begin..end],
+        State::PassHostPort |
+        State::Ip6Port => {
+            if input != Input::Digit {
+                return Err("Non-digit characters in port.".to_owned());
+            }
+            host = &rawurl[begin..pos];
+            port = Some(&rawurl[pos + 1..end]);
         }
-        host = &rawurl[begin..pos];
-        port = Some(&rawurl[pos+1..end]);
-      }
-      State::Ip6Host
-      | State::InHost => host = &rawurl[begin..end],
-      State::InPort => {
-        if input != Input::Digit {
-            return Err("Non-digit characters in port.".to_owned());
+        State::Ip6Host |
+        State::InHost => host = &rawurl[begin..end],
+        State::InPort => {
+            if input != Input::Digit {
+                return Err("Non-digit characters in port.".to_owned());
+            }
+            port = Some(&rawurl[pos + 1..end]);
         }
-        port = Some(&rawurl[pos+1..end]);
-      }
     }
 
     let rest = &rawurl[end..len];
@@ -359,8 +386,8 @@ fn get_authority(rawurl: &str) ->
         None => None,
         opt => match opt.and_then(|p| FromStr::from_str(p).ok()) {
             None => return Err(format!("Failed to parse port: {:?}", port)),
-            opt => opt
-        }
+            opt => opt,
+        },
     };
 
     Ok((userinfo, host, port, rest))
@@ -371,26 +398,39 @@ fn get_authority(rawurl: &str) ->
 fn get_path(rawurl: &str, is_authority: bool) -> DecodeResult<(String, &str)> {
     let len = rawurl.len();
     let mut end = len;
-    for (i,c) in rawurl.chars().enumerate() {
+    for (i, c) in rawurl.chars().enumerate() {
         match c {
-          'A' ... 'Z'
-          | 'a' ... 'z'
-          | '0' ... '9'
-          | '&' |'\'' | '(' | ')' | '.'
-          | '@' | ':' | '%' | '/' | '+'
-          | '!' | '*' | ',' | ';' | '='
-          | '_' | '-' | '~' => continue,
-          '?' | '#' => {
-            end = i;
-            break;
-          }
-          _ => return Err("Invalid character in path.".to_owned())
+            'A'...'Z' |
+            'a'...'z' |
+            '0'...'9' |
+            '&' |
+            '\'' |
+            '(' |
+            ')' |
+            '.' |
+            '@' |
+            ':' |
+            '%' |
+            '/' |
+            '+' |
+            '!' |
+            '*' |
+            ',' |
+            ';' |
+            '=' |
+            '_' |
+            '-' |
+            '~' => continue,
+            '?' | '#' => {
+                end = i;
+                break;
+            }
+            _ => return Err("Invalid character in path.".to_owned()),
         }
     }
 
     if is_authority && end != 0 && !rawurl.starts_with("/") {
-        Err("Non-empty path must begin with \
-            '/' in presence of authority.".to_owned())
+        Err("Non-empty path must begin with '/' in presence of authority.".to_owned())
     } else {
         Ok((try!(decode_component(&rawurl[0..end])), &rawurl[end..len]))
     }
@@ -403,12 +443,12 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
     // Parse the fragment if available
     let fragment = match raw_fragment {
         "" => None,
-        raw => Some(try!(decode_component(raw)))
+        raw => Some(try!(decode_component(raw))),
     };
 
     match before_fragment.chars().next() {
         Some('?') => Ok((try!(query_from_str(&before_fragment[1..])), fragment)),
-        None => Ok((vec!(), fragment)),
+        None => Ok((vec![], fragment)),
         _ => Err(format!("Query didn't start with '?': '{}..'", before_fragment)),
     }
 }
@@ -426,4 +466,3 @@ impl FromStr for Path {
         Path::parse(s)
     }
 }
-

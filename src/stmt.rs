@@ -28,10 +28,10 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Statement")
-            .field("name", &self.name)
-            .field("parameter_types", &self.param_types)
-            .field("columns", &self.columns)
-            .finish()
+           .field("name", &self.name)
+           .field("parameter_types", &self.param_types)
+           .field("columns", &self.columns)
+           .finish()
     }
 }
 
@@ -47,7 +47,8 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
            param_types: Vec<Type>,
            columns: Vec<Column>,
            next_portal_id: Cell<u32>,
-           finished: bool) -> Statement<'conn> {
+           finished: bool)
+           -> Statement<'conn> {
         Statement {
             conn: conn,
             name: name,
@@ -81,7 +82,9 @@ impl<'conn> Statement<'conn> {
                 "expected {} parameters but got {}",
                 self.param_types.len(),
                 params.len());
-        debug!("executing statement {} with parameters: {:?}", self.name, params);
+        debug!("executing statement {} with parameters: {:?}",
+               self.name,
+               params);
         let mut values = vec![];
         for (param, ty) in params.iter().zip(self.param_types.iter()) {
             let mut buf = vec![];
@@ -89,21 +92,20 @@ impl<'conn> Statement<'conn> {
                 IsNull::Yes => values.push(None),
                 IsNull::No => values.push(Some(buf)),
             }
-        };
+        }
 
-        try!(conn.write_messages(&[
-            Bind {
-                portal: portal_name,
-                statement: &self.name,
-                formats: &[1],
-                values: &values,
-                result_formats: &[1]
-            },
-            Execute {
-                portal: portal_name,
-                max_rows: row_limit
-            },
-            Sync]));
+        try!(conn.write_messages(&[Bind {
+                                       portal: portal_name,
+                                       statement: &self.name,
+                                       formats: &[1],
+                                       values: &values,
+                                       result_formats: &[1],
+                                   },
+                                   Execute {
+                                       portal: portal_name,
+                                       max_rows: row_limit,
+                                   },
+                                   Sync]));
 
         match try!(conn.read_message()) {
             BindComplete => Ok(()),
@@ -118,7 +120,10 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    fn inner_query<'a>(&'a self, portal_name: &str, row_limit: i32, params: &[&ToSql])
+    fn inner_query<'a>(&'a self,
+                       portal_name: &str,
+                       row_limit: i32,
+                       params: &[&ToSql])
                        -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
         try!(self.inner_execute(portal_name, row_limit, params));
 
@@ -181,11 +186,11 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 CopyInResponse { .. } => {
-                    try!(conn.write_messages(&[
-                        CopyFail {
-                            message: "COPY queries cannot be directly executed",
-                        },
-                        Sync]));
+                    try!(conn.write_messages(&[CopyFail {
+                                                   message: "COPY queries cannot be directly \
+                                                             executed",
+                                               },
+                                               Sync]));
                 }
                 CopyOutResponse { .. } => {
                     loop {
@@ -237,9 +242,7 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
-        self.inner_query("", 0, params).map(|(buf, _)| {
-            Rows::new(self, buf.into_iter().collect())
-        })
+        self.inner_query("", 0, params).map(|(buf, _)| Rows::new(self, buf.into_iter().collect()))
     }
 
     /// Executes the prepared statement, returning a lazily loaded iterator
@@ -318,9 +321,10 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(
-                                        io::ErrorKind::InvalidInput,
-                                        "called `copy_in` on a non-`COPY FROM STDIN` statement")));
+                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                                                                     "called `copy_in` on a \
+                                                                      non-`COPY FROM STDIN` \
+                                                                      statement")));
                         }
                         _ => {}
                     }
@@ -339,20 +343,15 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try_desync!(info.conn, info.conn.stream.write_message(
-                        &CopyData {
-                            data: &buf[..len],
-                        }));
+                    try_desync!(info.conn,
+                                info.conn.stream.write_message(&CopyData { data: &buf[..len] }));
                 }
                 Err(err) => {
-                    try!(info.conn.write_messages(&[
-                        CopyFail {
-                            message: "",
-                        },
-                        CopyDone,
-                        Sync]));
+                    try!(info.conn.write_messages(&[CopyFail { message: "" }, CopyDone, Sync]));
                     match try!(info.conn.read_message()) {
-                        ErrorResponse { .. } => { /* expected from the CopyFail */ }
+                        ErrorResponse { .. } => {
+                            // expected from the CopyFail
+                        }
                         _ => {
                             info.conn.desynchronized = true;
                             return Err(Error::IoError(bad_response()));
@@ -411,23 +410,20 @@ impl<'conn> Statement<'conn> {
         let (format, column_formats) = match try!(conn.read_message()) {
             CopyOutResponse { format, column_formats } => (format, column_formats),
             CopyInResponse { .. } => {
-                try!(conn.write_messages(&[
-                    CopyFail {
-                        message: "",
-                    },
-                    CopyDone,
-                    Sync]));
+                try!(conn.write_messages(&[CopyFail { message: "" }, CopyDone, Sync]));
                 match try!(conn.read_message()) {
-                    ErrorResponse { .. } => { /* expected from the CopyFail */ }
+                    ErrorResponse { .. } => {
+                        // expected from the CopyFail
+                    }
                     _ => {
                         conn.desynchronized = true;
                         return Err(Error::IoError(bad_response()));
                     }
                 }
                 try!(conn.wait_for_ready());
-                return Err(Error::IoError(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "called `copy_out` on a non-`COPY TO STDOUT` statement")));
+                return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                                                         "called `copy_out` on a non-`COPY TO \
+                                                          STDOUT` statement")));
             }
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -437,9 +433,10 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(
-                                        io::ErrorKind::InvalidInput,
-                                        "called `copy_out` on a non-`COPY TO STDOUT` statement")));
+                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                                                                     "called `copy_out` on a \
+                                                                      non-`COPY TO STDOUT` \
+                                                                      statement")));
                         }
                         _ => {}
                     }
@@ -472,7 +469,7 @@ impl<'conn> Statement<'conn> {
                         }
                     }
                 }
-                BCopyDone => {},
+                BCopyDone => {}
                 CommandComplete { tag } => {
                     count = util::parse_update_count(tag);
                     break;
@@ -512,8 +509,7 @@ impl<'conn> Statement<'conn> {
     }
 }
 
-fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &CopyInfo)
-                                  -> io::Result<usize> {
+fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &CopyInfo) -> io::Result<usize> {
     let mut nread = 0;
     while nread < buf.len() {
         match r.read_with_info(&mut buf[nread..], info) {
@@ -530,7 +526,7 @@ fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &CopyInfo)
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Column {
     name: String,
-    type_: Type
+    type_: Type,
 }
 
 impl ColumnNew for Column {

@@ -20,14 +20,14 @@ pub enum BackendMessage {
     AuthenticationGSS,
     AuthenticationKerberosV5,
     AuthenticationMD5Password {
-        salt: [u8; 4]
+        salt: [u8; 4],
     },
     AuthenticationOk,
     AuthenticationSCMCredential,
     AuthenticationSSPI,
     BackendKeyData {
         process_id: u32,
-        secret_key: u32
+        secret_key: u32,
     },
     BindComplete,
     CloseComplete,
@@ -48,15 +48,15 @@ pub enum BackendMessage {
         column_formats: Vec<u16>,
     },
     DataRow {
-        row: Vec<Option<Vec<u8>>>
+        row: Vec<Option<Vec<u8>>>,
     },
     EmptyQueryResponse,
     ErrorResponse {
-        fields: Vec<(u8, String)>
+        fields: Vec<(u8, String)>,
     },
     NoData,
     NoticeResponse {
-        fields: Vec<(u8, String)>
+        fields: Vec<(u8, String)>,
     },
     NotificationResponse {
         pid: u32,
@@ -64,7 +64,7 @@ pub enum BackendMessage {
         payload: String,
     },
     ParameterDescription {
-        types: Vec<Oid>
+        types: Vec<Oid>,
     },
     ParameterStatus {
         parameter: String,
@@ -73,11 +73,11 @@ pub enum BackendMessage {
     ParseComplete,
     PortalSuspended,
     ReadyForQuery {
-        _state: u8
+        _state: u8,
     },
     RowDescription {
-        descriptions: Vec<RowDescriptionEntry>
-    }
+        descriptions: Vec<RowDescriptionEntry>,
+    },
 }
 
 pub struct RowDescriptionEntry {
@@ -87,7 +87,7 @@ pub struct RowDescriptionEntry {
     pub type_oid: Oid,
     pub type_size: i16,
     pub type_modifier: i32,
-    pub format: i16
+    pub format: i16,
 }
 
 pub enum FrontendMessage<'a> {
@@ -96,7 +96,7 @@ pub enum FrontendMessage<'a> {
         statement: &'a str,
         formats: &'a [i16],
         values: &'a [Option<Vec<u8>>],
-        result_formats: &'a [i16]
+        result_formats: &'a [i16],
     },
     CancelRequest {
         code: u32,
@@ -105,43 +105,43 @@ pub enum FrontendMessage<'a> {
     },
     Close {
         variant: u8,
-        name: &'a str
+        name: &'a str,
     },
     CopyData {
         data: &'a [u8],
     },
     CopyDone,
     CopyFail {
-        message: &'a str
+        message: &'a str,
     },
     Describe {
         variant: u8,
-        name: &'a str
+        name: &'a str,
     },
     Execute {
         portal: &'a str,
-        max_rows: i32
+        max_rows: i32,
     },
     Parse {
         name: &'a str,
         query: &'a str,
-        param_types: &'a [Oid]
+        param_types: &'a [Oid],
     },
     PasswordMessage {
-        password: &'a str
+        password: &'a str,
     },
     Query {
-        query: &'a str
+        query: &'a str,
     },
     SslRequest {
-        code: u32
+        code: u32,
     },
     StartupMessage {
         version: u32,
-        parameters: &'a [(String, String)]
+        parameters: &'a [(String, String)],
     },
     Sync,
-    Terminate
+    Terminate,
 }
 
 #[doc(hidden)]
@@ -158,7 +158,7 @@ impl<W: Write> WriteCStr for W {
 
 #[doc(hidden)]
 pub trait WriteMessage {
-    fn write_message(&mut self, &FrontendMessage) -> io::Result<()> ;
+    fn write_message(&mut self, &FrontendMessage) -> io::Result<()>;
 }
 
 impl<W: Write> WriteMessage for W {
@@ -285,8 +285,7 @@ impl<R: BufRead> ReadCStr for R {
 pub trait ReadMessage {
     fn read_message(&mut self) -> io::Result<BackendMessage>;
 
-    fn read_message_timeout(&mut self, timeout: Duration)
-                            -> io::Result<Option<BackendMessage>>;
+    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<BackendMessage>>;
 
     fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage>;
 }
@@ -297,8 +296,7 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
         self.finish_read_message(ident)
     }
 
-    fn read_message_timeout(&mut self, timeout: Duration)
-                            -> io::Result<Option<BackendMessage>> {
+    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<BackendMessage>> {
         try!(self.set_read_timeout(Some(timeout)));
         let ident = self.read_u8();
         try!(self.set_read_timeout(None));
@@ -328,16 +326,14 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
             b'A' => NotificationResponse {
                 pid: try!(rdr.read_u32::<BigEndian>()),
                 channel: try!(rdr.read_cstr()),
-                payload: try!(rdr.read_cstr())
+                payload: try!(rdr.read_cstr()),
             },
             b'c' => BCopyDone,
             b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
             b'd' => {
                 let mut data = vec![];
                 try!(rdr.read_to_end(&mut data));
-                BCopyData {
-                    data: data,
-                }
+                BCopyData { data: data }
             }
             b'D' => try!(read_data_row(&mut rdr)),
             b'E' => ErrorResponse { fields: try!(read_fields(&mut rdr)) },
@@ -366,7 +362,7 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
             b'I' => EmptyQueryResponse,
             b'K' => BackendKeyData {
                 process_id: try!(rdr.read_u32::<BigEndian>()),
-                secret_key: try!(rdr.read_u32::<BigEndian>())
+                secret_key: try!(rdr.read_u32::<BigEndian>()),
             },
             b'n' => NoData,
             b'N' => NoticeResponse { fields: try!(read_fields(&mut rdr)) },
@@ -374,7 +370,7 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
             b's' => PortalSuspended,
             b'S' => ParameterStatus {
                 parameter: try!(rdr.read_cstr()),
-                value: try!(rdr.read_cstr())
+                value: try!(rdr.read_cstr()),
             },
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
@@ -431,7 +427,7 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
             let mut salt = [0; 4];
             try!(util::read_all(buf, &mut salt));
             AuthenticationMD5Password { salt: salt }
-        },
+        }
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,

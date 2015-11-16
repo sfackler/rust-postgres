@@ -13,7 +13,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use {SslMode, ConnectParams, ConnectTarget};
-use error::{ConnectError};
+use error::ConnectError;
 use io::{NegotiateSsl, StreamWrapper};
 use message::{self, WriteMessage};
 use message::FrontendMessage::SslRequest;
@@ -28,7 +28,8 @@ pub trait ReadTimeout {
 impl ReadTimeout for BufStream<Box<StreamWrapper>> {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
-            InternalStream::Tcp(ref s) => <TcpStream as TcpStreamExt>::set_read_timeout(s, timeout),
+            InternalStream::Tcp(ref s) =>
+                <TcpStream as TcpStreamExt>::set_read_timeout(s, timeout),
             #[cfg(feature = "unix_socket")]
             InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
         }
@@ -136,8 +137,9 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     }
 }
 
-pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
-                            -> Result<Box<StreamWrapper>, ConnectError> {
+pub fn initialize_stream(params: &ConnectParams,
+                         ssl: &SslMode)
+                         -> Result<Box<StreamWrapper>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
     let (ssl_required, negotiator) = match *ssl {
@@ -161,11 +163,11 @@ pub fn initialize_stream(params: &ConnectParams, ssl: &SslMode)
     let host = match params.target {
         ConnectTarget::Tcp(ref host) => host,
         #[cfg(feature = "unix_socket")]
-        ConnectTarget::Unix(_) => return Err(ConnectError::IoError(::bad_response()))
+        ConnectTarget::Unix(_) => return Err(ConnectError::IoError(::bad_response())),
     };
 
     match negotiator.negotiate_ssl(host, socket) {
         Ok(stream) => Ok(stream),
-        Err(err) => Err(ConnectError::SslError(err))
+        Err(err) => Err(ConnectError::SslError(err)),
     }
 }

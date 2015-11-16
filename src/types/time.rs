@@ -31,7 +31,11 @@ impl FromSql for Timespec {
 }
 
 impl ToSql for Timespec {
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 _: &Type,
+                                 mut w: &mut W,
+                                 _: &SessionInfo)
+                                 -> Result<IsNull> {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
         try!(w.write_i64::<BigEndian>(t));
         Ok(IsNull::No)

@@ -20,14 +20,14 @@ pub struct Notification {
 
 /// An iterator over asynchronous notifications.
 pub struct Notifications<'conn> {
-    conn: &'conn Connection
+    conn: &'conn Connection,
 }
 
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Notifications")
-            .field("pending", &self.len())
-            .finish()
+           .field("pending", &self.len())
+           .finish()
     }
 }
 
@@ -45,9 +45,7 @@ impl<'conn> Notifications<'conn> {
     /// `None` if more notifications are received. However, those notifications
     /// will not be registered until the connection is used in some way.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
-        Iter {
-            conn: self.conn,
-        }
+        Iter { conn: self.conn }
     }
 
     /// Returns an iterator over notifications that blocks until one is
@@ -55,9 +53,7 @@ impl<'conn> Notifications<'conn> {
     ///
     /// The iterator will never return `None`.
     pub fn blocking_iter<'a>(&'a self) -> BlockingIter<'a> {
-        BlockingIter {
-            conn: self.conn,
-        }
+        BlockingIter { conn: self.conn }
     }
 
     /// Returns an iterator over notifications that blocks for a limited time
@@ -86,9 +82,7 @@ impl<'a, 'conn> IntoIterator for &'a Notifications<'conn> {
 
 impl<'conn> NotificationsNew<'conn> for Notifications<'conn> {
     fn new(conn: &'conn Connection) -> Notifications<'conn> {
-        Notifications {
-            conn: conn,
-        }
+        Notifications { conn: conn }
     }
 }
 
@@ -129,11 +123,11 @@ impl<'a> Iterator for BlockingIter<'a> {
                 Some(Ok(Notification {
                     pid: pid,
                     channel: channel,
-                    payload: payload
+                    payload: payload,
                 }))
             }
             Err(err) => Some(Err(Error::IoError(err))),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -164,12 +158,12 @@ impl<'a> Iterator for TimeoutIter<'a> {
                 Some(Ok(Notification {
                     pid: pid,
                     channel: channel,
-                    payload: payload
+                    payload: payload,
                 }))
             }
             Ok(None) => None,
             Err(err) => Some(Err(Error::IoError(err))),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
