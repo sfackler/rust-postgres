@@ -3,7 +3,7 @@ sudo: required
 rust:
 - nightly
 - beta
-- 1.3.0
+- 1.4.0
 addons:
   postgresql: 9.4
 before_script:
