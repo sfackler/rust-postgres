@@ -198,7 +198,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/rustc-serialize">serialize::json::Json</a>
+                <a href="https://github.com/rust-lang-nursery/rustc-serialize">serialize::json::Json</a>
                 and
                 <a href="https://github.com/erickt/serde_json">serde_json::Value</a>
                 (<a href="#optional-features">optional</a>)
@@ -207,7 +207,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                <a href="https://github.com/rust-lang-deprecated/time">time::Timespec</a>
                 and
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveDateTime</a>
                 (<a href="#optional-features">optional</a>)
@@ -216,7 +216,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>,
+                <a href="https://github.com/rust-lang-deprecated/time">time::Timespec</a>,
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>,
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Local&gt;</a>,
                 and
@@ -241,7 +241,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/uuid">uuid::Uuid</a>
+                <a href="https://github.com/rust-lang-nursery/uuid">uuid::Uuid</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>UUID</td>
