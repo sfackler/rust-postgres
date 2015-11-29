@@ -1209,6 +1209,11 @@ impl<'conn> Transaction<'conn> {
         self.conn.execute(query, params)
     }
 
+    /// Like `Connection::query`.
+    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        self.conn.query(query, params)
+    }
+
     /// Like `Connection::batch_execute`.
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         self.conn.batch_execute(query)
@@ -1330,6 +1335,9 @@ pub trait GenericConnection {
     /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
+    /// Like `Connection::query`.
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>>;
+
     /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
 
@@ -1351,6 +1359,10 @@ impl GenericConnection for Connection {
 
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
+    }
+
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        self.query(query, params)
     }
 
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
@@ -1377,6 +1389,10 @@ impl<'a> GenericConnection for Transaction<'a> {
 
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
+    }
+
+    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'b>> {
+        self.query(query, params)
     }
 
     fn transaction<'b>(&'b self) -> Result<Transaction<'b>> {
