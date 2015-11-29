@@ -200,7 +200,7 @@ types. The driver currently supports the following conversions:
             <td>
                 <a href="https://github.com/rust-lang-nursery/rustc-serialize">serialize::json::Json</a>
                 and
-                <a href="https://github.com/erickt/serde_json">serde_json::Value</a>
+                <a href="https://github.com/serde-rs/json">serde_json::Value</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>JSON, JSONB</td>
