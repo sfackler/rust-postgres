@@ -146,12 +146,12 @@ impl<'conn> Statement<'conn> {
     ///
     /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -219,12 +219,12 @@ impl<'conn> Statement<'conn> {
 
     /// Executes the prepared statement, returning the resulting rows.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -257,7 +257,7 @@ impl<'conn> Statement<'conn> {
     /// object representing the active transaction must be passed to
     /// `lazy_query`.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the provided `Transaction` is not associated with the same
     /// `Connection` as this `Statement`, if the `Transaction` is not

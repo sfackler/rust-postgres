@@ -215,12 +215,12 @@ impl<'a> Row<'a> {
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -243,7 +243,7 @@ impl<'a> Row<'a> {
 
     /// Retrieves the specified field as a raw buffer of Postgres data.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the index does not reference a column.
     pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>

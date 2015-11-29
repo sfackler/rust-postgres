@@ -257,7 +257,7 @@ pub struct CancelData {
 /// Only the host and port of the connection info are used. See
 /// `Connection::connect` for details of the `params` argument.
 ///
-/// ## Example
+/// # Example
 ///
 /// ```rust,no_run
 /// # use postgres::{Connection, SslMode};
@@ -869,7 +869,7 @@ impl Connection {
     /// struct should be created manually and passed in. Note that Postgres
     /// does not support SSL over Unix sockets.
     ///
-    /// ## Examples
+    /// # Examples
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -932,7 +932,7 @@ impl Connection {
     /// The statement is associated with the connection that created it and may
     /// not outlive that connection.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -953,7 +953,7 @@ impl Connection {
     /// is going to be used frequently, caching it can improve performance by
     /// reducing the number of round trips to the Postgres backend.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -976,15 +976,15 @@ impl Connection {
     /// the connection for the duration of the transaction. The transaction
     /// is active until the `Transaction` object falls out of scope.
     ///
-    /// ## Note
+    /// # Note
     /// A transaction will roll back by default. The `set_commit`,
     /// `set_rollback`, and `commit` methods alter this behavior.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if a transaction is already active.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
@@ -1017,7 +1017,7 @@ impl Connection {
     ///
     /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
     ///
-    /// ## Note
+    /// # Note
     ///
     /// This will not change the behavior of an active transaction.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
@@ -1041,7 +1041,7 @@ impl Connection {
     ///
     /// On success, returns the number of rows modified or 0 if not applicable.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
@@ -1063,14 +1063,14 @@ impl Connection {
     /// execution of batches of non-dynamic statements - for example, creation
     /// of a schema for a fresh database.
     ///
-    /// ## Warning
+    /// # Warning
     ///
     /// Prepared statements should be used for any SQL statement which contains
     /// user-specified data, as it provides functionality to safely embed that
     /// data in the statement. Do not form statements via string concatenation
     /// and feed them into this method.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, Result};
@@ -1204,7 +1204,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::transaction`.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if there is an active nested transaction.
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
