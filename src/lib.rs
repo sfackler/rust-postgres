@@ -800,7 +800,8 @@ impl InnerConnection {
                                    })
                                    .collect());
                 }
-                CopyInResponse { .. } => {
+                CopyInResponse { .. } |
+                CopyOutResponse { .. } => {
                     try!(self.write_messages(&[CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
