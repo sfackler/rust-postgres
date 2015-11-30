@@ -225,11 +225,12 @@ impl<'a> Row<'a> {
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// # let stmt = conn.prepare("").unwrap();
-    /// # let mut result = stmt.query(&[]).unwrap();
-    /// # let row = result.iter().next().unwrap();
-    /// let foo: i32 = row.get(0);
-    /// let bar: String = row.get("bar");
+    /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
+    /// for row in stmt.query(&[]).unwrap() {
+    ///     let foo: i32 = row.get(0);
+    ///     let bar: String = row.get("bar");
+    ///     println!("{}: {}", foo, bar);
+    /// }
     /// ```
     pub fn get<I, T>(&self, idx: I) -> T
         where I: RowIndex + fmt::Debug + Clone,

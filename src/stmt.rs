@@ -159,10 +159,8 @@ impl<'conn> Statement<'conn> {
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
-    /// match stmt.execute(&[&bar, &baz]) {
-    ///     Ok(count) => println!("{} row(s) updated", count),
-    ///     Err(err) => println!("Error executing query: {:?}", err)
-    /// }
+    /// let rows_updated = stmt.execute(&[&bar, &baz]).unwrap();
+    /// println!("{} rows updated", rows_updated);
     /// ```
     pub fn execute(&self, params: &[&ToSql]) -> Result<u64> {
         check_desync!(self.conn);
@@ -231,11 +229,7 @@ impl<'conn> Statement<'conn> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// let rows = match stmt.query(&[&baz]) {
-    ///     Ok(rows) => rows,
-    ///     Err(err) => panic!("Error running query: {:?}", err)
-    /// };
-    /// for row in &rows {
+    /// for row in stmt.query(&[&baz]).unwrap() {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }

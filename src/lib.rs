@@ -268,8 +268,7 @@ pub struct CancelData {
 /// thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
-/// # let _ =
-/// postgres::cancel_query(url, &SslMode::None, cancel_data);
+/// postgres::cancel_query(url, &SslMode::None, cancel_data).unwrap();
 /// ```
 pub fn cancel_query<T>(params: T,
                        ssl: &SslMode,
@@ -873,25 +872,24 @@ impl Connection {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
+    /// use postgres::{Connection, SslMode};
+    ///
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let conn = try!(Connection::connect(url, &SslMode::None));
-    /// # Ok(()) };
+    /// let conn = Connection::connect(url, &SslMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
+    /// use postgres::{Connection, SslMode};
+    ///
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let conn = try!(Connection::connect(url, &SslMode::None));
-    /// # Ok(()) };
+    /// let conn = Connection::connect(url, &SslMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
+    /// use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
+    ///
     /// # #[cfg(feature = "unix_socket")]
-    /// # fn f() -> Result<(), ::postgres::error::ConnectError> {
+    /// # fn f() {
     /// # let some_crazy_path = Path::new("");
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
@@ -903,8 +901,8 @@ impl Connection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let conn = try!(Connection::connect(params, &SslMode::None));
-    /// # Ok(()) };
+    /// let conn = Connection::connect(params, &SslMode::None).unwrap();
+    /// # }
     /// ```
     pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, ConnectError>
         where T: IntoConnectParams
@@ -937,12 +935,14 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
+    /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let maybe_stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1");
-    /// let stmt = match maybe_stmt {
-    ///     Ok(stmt) => stmt,
-    ///     Err(err) => panic!("Error preparing statement: {:?}", err)
-    /// };
+    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
+    /// for row in stmt.query(&[&x]).unwrap() {
+    ///     let foo: String = row.get(0);
+    ///     println!("foo: {}", foo);
+    /// }
+    /// ```
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.conn.borrow_mut().prepare(query, self)
     }
@@ -958,14 +958,13 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # fn f() -> postgres::Result<()> {
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let stmt = try!(conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1"));
-    /// for row in try!(stmt.query(&[&x])) {
-    ///     println!("foo: {}", row.get::<_, String>(0));
+    /// let stmt = conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1").unwrap();
+    /// for row in stmt.query(&[&x]).unwrap() {
+    ///     let foo: String = row.get(0);
+    ///     println!("foo: {}", foo);
     /// }
-    /// # Ok(()) };
     /// ```
     pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.conn.borrow_mut().prepare_cached(query, self)
@@ -989,15 +988,12 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # fn foo() -> Result<(), postgres::error::Error> {
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let trans = try!(conn.transaction());
-    /// try!(trans.execute("UPDATE foo SET bar = 10", &[]));
+    /// let trans = conn.transaction().unwrap();
+    /// trans.execute("UPDATE foo SET bar = 10", &[]).unwrap();
     /// // ...
     ///
-    /// try!(trans.commit());
-    /// # Ok(())
-    /// # }
+    /// trans.commit().unwrap();
     /// ```
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         let mut conn = self.conn.borrow_mut();
@@ -1074,23 +1070,22 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, Result};
-    /// fn init_db(conn: &Connection) -> Result<()> {
-    ///     conn.batch_execute("
-    ///         CREATE TABLE person (
-    ///             id SERIAL PRIMARY KEY,
-    ///             name NOT NULL
-    ///         );
+    /// # use postgres::{Connection, SslMode, Result};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// conn.batch_execute("
+    ///     CREATE TABLE person (
+    ///         id SERIAL PRIMARY KEY,
+    ///         name NOT NULL
+    ///     );
     ///
-    ///         CREATE TABLE purchase (
-    ///             id SERIAL PRIMARY KEY,
-    ///             person INT NOT NULL REFERENCES person (id),
-    ///             time TIMESTAMPTZ NOT NULL,
-    ///         );
+    ///     CREATE TABLE purchase (
+    ///         id SERIAL PRIMARY KEY,
+    ///         person INT NOT NULL REFERENCES person (id),
+    ///         time TIMESTAMPTZ NOT NULL,
+    ///     );
     ///
-    ///         CREATE INDEX ON purchase (time);
-    ///         ")
-    /// }
+    ///     CREATE INDEX ON purchase (time);
+    ///     ").unwrap();
     /// ```
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         self.conn.borrow_mut().quick_query(query).map(|_| ())
