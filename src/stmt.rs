@@ -394,7 +394,7 @@ impl<'conn> Statement<'conn> {
     ///         INSERT INTO people (id, name) VALUES (1, 'john'), (2, 'jane');").unwrap();
     /// let stmt = conn.prepare("COPY people TO STDOUT").unwrap();
     /// let mut buf = vec![];
-    /// let mut r = stmt.copy_out(&[], &mut buf).unwrap();
+    /// stmt.copy_out(&[], &mut buf).unwrap();
     /// assert_eq!(buf, b"1\tjohn\n2\tjane\n");
     /// ```
     pub fn copy_out<'a, W: WriteWithInfo>(&'a self, params: &[&ToSql], w: &mut W) -> Result<u64> {
