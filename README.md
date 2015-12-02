@@ -116,8 +116,8 @@ for row in try!(stmt.query(&[])) {
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `Connection` has a utility `execute` method which is useful if a
-statement is only going to be executed once:
+In addition, `Connection` has utility `execute` and `query` methods which are
+useful if a statement is only going to be executed once:
 ```rust
 let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
                                 &[&1i32, &"biz"]));
