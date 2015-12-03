@@ -37,7 +37,7 @@ macro_rules! to_sql_checked {
             if !<Self as $crate::types::ToSql>::accepts(ty) {
                 return Err($crate::error::Error::WrongType(ty.clone()));
             }
-            self.to_sql(ty, out, ctx)
+            $crate::types::ToSql::to_sql(self, ty, out, ctx)
         }
     }
 }
@@ -63,9 +63,7 @@ pub struct SessionInfo<'a> {
 
 impl<'a> SessionInfoNew<'a> for SessionInfo<'a> {
     fn new(conn: &'a InnerConnection) -> SessionInfo<'a> {
-        SessionInfo {
-            conn: conn
-        }
+        SessionInfo { conn: conn }
     }
 }
 
@@ -176,317 +174,317 @@ macro_rules! make_postgres_type {
 
 // Values from pg_type.h
 make_postgres_type! {
-    #[doc="BOOL - boolean, 'true'/'false'"]
+    /// BOOL - boolean, 'true'/'false'
     16: "bool" => Bool: Kind::Simple,
-    #[doc="BYTEA - variable-length string, binary values escaped"]
+    /// BYTEA - variable-length string, binary values escaped
     17: "bytea" => Bytea: Kind::Simple,
-    #[doc="\"char\" - single character"]
+    /// "char" - single character
     18: "char" => Char: Kind::Simple,
-    #[doc="NAME - 63-byte type for storing system identifiers"]
+    /// NAME - 63-byte type for storing system identifiers
     19: "name" => Name: Kind::Simple,
-    #[doc="INT8/BIGINT - ~18 digit integer, 8-byte storage"]
+    /// INT8/BIGINT - ~18 digit integer, 8-byte storage
     20: "int8" => Int8: Kind::Simple,
-    #[doc="INT2/SMALLINT - -32 thousand to 32 thousand, 2-byte storage"]
+    /// INT2/SMALLINT - -32 thousand to 32 thousand, 2-byte storage
     21: "int2" => Int2: Kind::Simple,
-    #[doc="INT2VECTOR - array of int2, used in system tables"]
+    /// INT2VECTOR - array of int2, used in system tables
     22: "int2vector" => Int2Vector: Kind::Array(Type::Int2),
-    #[doc="INT4/INT - -2 billion to 2 billion integer, 4-byte storage"]
+    /// INT4/INT - -2 billion to 2 billion integer, 4-byte storage
     23: "int4" => Int4: Kind::Simple,
-    #[doc="REGPROC - registered procedure"]
+    /// REGPROC - registered procedure
     24: "regproc" => Regproc: Kind::Simple,
-    #[doc="TEXT - variable-length string, no limit specified"]
+    /// TEXT - variable-length string, no limit specified
     25: "text" => Text: Kind::Simple,
-    #[doc="OID - object identifier(oid), maximum 4 billion"]
+    /// OID - object identifier(oid), maximum 4 billion
     26: "oid" => Oid: Kind::Simple,
-    #[doc="TID - (block, offset), physical location of tuple"]
+    /// TID - (block, offset), physical location of tuple
     27: "tid" => Tid: Kind::Simple,
-    #[doc="XID - transaction id"]
+    /// XID - transaction id
     28: "xid" => Xid: Kind::Simple,
-    #[doc="CID - command identifier type, sequence in transaction id"]
+    /// CID - command identifier type, sequence in transaction id
     29: "cid" => Cid: Kind::Simple,
-    #[doc="OIDVECTOR - array of oids, used in system tables"]
+    /// OIDVECTOR - array of oids, used in system tables
     30: "oidvector" => OidVector: Kind::Array(Type::Oid),
-    #[doc="PG_TYPE"]
+    /// PG_TYPE
     71: "pg_type" => PgType: Kind::Simple,
-    #[doc="PG_ATTRIBUTE"]
+    /// PG_ATTRIBUTE
     75: "pg_attribute" => PgAttribute: Kind::Simple,
-    #[doc="PG_PROC"]
+    /// PG_PROC
     81: "pg_proc" => PgProc: Kind::Simple,
-    #[doc="PG_CLASS"]
+    /// PG_CLASS
     83: "pg_class" => PgClass: Kind::Simple,
-    #[doc="JSON"]
+    /// JSON
     114: "json" => Json: Kind::Simple,
-    #[doc="XML - XML content"]
+    /// XML - XML content
     142: "xml" => Xml: Kind::Simple,
-    #[doc="XML[]"]
+    /// XML[]
     143: "_xml" => XmlArray: Kind::Array(Type::Xml),
-    #[doc="PG_NODE_TREE - string representing an internal node tree"]
+    /// PG_NODE_TREE - string representing an internal node tree
     194: "pg_node_tree" => PgNodeTree: Kind::Simple,
-    #[doc="JSON[]"]
+    /// JSON[]
     199: "_json" => JsonArray: Kind::Array(Type::Json),
-    #[doc="SMGR - storage manager"]
+    /// SMGR - storage manager
     210: "smgr" => Smgr: Kind::Simple,
-    #[doc="POINT - geometric point '(x, y)'"]
+    /// POINT - geometric point '(x, y)'
     600: "point" => Point: Kind::Simple,
-    #[doc="LSEG - geometric line segment '(pt1,pt2)'"]
+    /// LSEG - geometric line segment '(pt1,pt2)'
     601: "lseg" => Lseg: Kind::Simple,
-    #[doc="PATH - geometric path '(pt1,...)'"]
+    /// PATH - geometric path '(pt1,...)'
     602: "path" => Path: Kind::Simple,
-    #[doc="BOX - geometric box '(lower left,upper right)'"]
+    /// BOX - geometric box '(lower left,upper right)'
     603: "box" => Box: Kind::Simple,
-    #[doc="POLYGON - geometric polygon '(pt1,...)'"]
+    /// POLYGON - geometric polygon '(pt1,...)'
     604: "polygon" => Polygon: Kind::Simple,
-    #[doc="LINE - geometric line"]
+    /// LINE - geometric line
     628: "line" => Line: Kind::Simple,
-    #[doc="LINE[]"]
+    /// LINE[]
     629: "_line" => LineArray: Kind::Array(Type::Line),
-    #[doc="CIDR - network IP address/netmask, network address"]
+    /// CIDR - network IP address/netmask, network address
     650: "cidr" => Cidr: Kind::Simple,
-    #[doc="CIDR[]"]
+    /// CIDR[]
     651: "_cidr" => CidrArray: Kind::Array(Type::Cidr),
-    #[doc="FLOAT4/REAL - single-precision floating point number, 4-byte storage"]
+    /// FLOAT4/REAL - single-precision floating point number, 4-byte storage
     700: "float4" => Float4: Kind::Simple,
-    #[doc="FLOAT8/DOUBLE PRECISION - double-precision floating point number, 8-byte storage"]
+    /// FLOAT8/DOUBLE PRECISION - double-precision floating point number, 8-byte storage
     701: "float8" => Float8: Kind::Simple,
-    #[doc="ABSTIME - absolute, limited-range date and time (Unix system time)"]
+    /// ABSTIME - absolute, limited-range date and time (Unix system time)
     702: "abstime" => Abstime: Kind::Simple,
-    #[doc="RELTIME - relative, limited-range date and time (Unix delta time)"]
+    /// RELTIME - relative, limited-range date and time (Unix delta time)
     703: "reltime" => Reltime: Kind::Simple,
-    #[doc="TINTERVAL - (abstime,abstime), time interval"]
+    /// TINTERVAL - (abstime,abstime), time interval
     704: "tinterval" => Tinterval: Kind::Simple,
-    #[doc="UNKNOWN"]
+    /// UNKNOWN
     705: "unknown" => Unknown: Kind::Simple,
-    #[doc="CIRCLE - geometric circle '(center,radius)'"]
+    /// CIRCLE - geometric circle '(center,radius)'
     718: "circle" => Circle: Kind::Simple,
-    #[doc="CIRCLE[]"]
+    /// CIRCLE[]
     719: "_circle" => CircleArray: Kind::Array(Type::Circle),
-    #[doc="MONEY - monetary amounts, $d,ddd.cc"]
+    /// MONEY - monetary amounts, $d,ddd.cc
     790: "money" => Money: Kind::Simple,
-    #[doc="MONEY[]"]
+    /// MONEY[]
     791: "_money" => MoneyArray: Kind::Array(Type::Money),
-    #[doc="MACADDR - XX:XX:XX:XX:XX:XX, MAC address"]
+    /// MACADDR - XX:XX:XX:XX:XX:XX, MAC address
     829: "macaddr" => Macaddr: Kind::Simple,
-    #[doc="INET - IP address/netmask, host address, netmask optional"]
+    /// INET - IP address/netmask, host address, netmask optional
     869: "inet" => Inet: Kind::Simple,
-    #[doc="BOOL[]"]
+    /// BOOL[]
     1000: "_bool" => BoolArray: Kind::Array(Type::Bool),
-    #[doc="BYTEA[]"]
+    /// BYTEA[]
     1001: "_bytea" => ByteaArray: Kind::Array(Type::Bytea),
-    #[doc="\"char\"[]"]
+    /// "char"[]
     1002: "_char" => CharArray: Kind::Array(Type::Char),
-    #[doc="NAME[]"]
+    /// NAME[]
     1003: "_name" => NameArray: Kind::Array(Type::Name),
-    #[doc="INT2[]"]
+    /// INT2[]
     1005: "_int2" => Int2Array: Kind::Array(Type::Int2),
-    #[doc="INT2VECTOR[]"]
+    /// INT2VECTOR[]
     1006: "_int2vector" => Int2VectorArray: Kind::Array(Type::Int2Vector),
-    #[doc="INT4[]"]
+    /// INT4[]
     1007: "_int4" => Int4Array: Kind::Array(Type::Int4),
-    #[doc="REGPROC[]"]
+    /// REGPROC[]
     1008: "_regproc" => RegprocArray: Kind::Array(Type::Regproc),
-    #[doc="TEXT[]"]
+    /// TEXT[]
     1009: "_text" => TextArray: Kind::Array(Type::Text),
-    #[doc="TID[]"]
+    /// TID[]
     1010: "_tid" => TidArray: Kind::Array(Type::Tid),
-    #[doc="XID[]"]
+    /// XID[]
     1011: "_xid" => XidArray: Kind::Array(Type::Xid),
-    #[doc="CID[]"]
+    /// CID[]
     1012: "_cid" => CidArray: Kind::Array(Type::Cid),
-    #[doc="OIDVECTOR[]"]
+    /// OIDVECTOR[]
     1013: "_oidvector" => OidVectorArray: Kind::Array(Type::OidVector),
-    #[doc="BPCHAR[]"]
+    /// BPCHAR[]
     1014: "_bpchar" => BpcharArray: Kind::Array(Type::Bpchar),
-    #[doc="VARCHAR[]"]
+    /// VARCHAR[]
     1015: "_varchar" => VarcharArray: Kind::Array(Type::Varchar),
-    #[doc="INT8[]"]
+    /// INT8[]
     1016: "_int8" => Int8Array: Kind::Array(Type::Int8),
-    #[doc="POINT[]"]
+    /// POINT[]
     1017: "_point" => PointArray: Kind::Array(Type::Point),
-    #[doc="LSEG[]"]
+    /// LSEG[]
     1018: "_lseg" => LsegArray: Kind::Array(Type::Lseg),
-    #[doc="PATH[]"]
+    /// PATH[]
     1019: "_path" => PathArray: Kind::Array(Type::Path),
-    #[doc="BOX[]"]
+    /// BOX[]
     1020: "_box" => BoxArray: Kind::Array(Type::Box),
-    #[doc="FLOAT4[]"]
+    /// FLOAT4[]
     1021: "_float4" => Float4Array: Kind::Array(Type::Float4),
-    #[doc="FLOAT8[]"]
+    /// FLOAT8[]
     1022: "_float8" => Float8Array: Kind::Array(Type::Float8),
-    #[doc="ABSTIME[]"]
+    /// ABSTIME[]
     1023: "_abstime" => AbstimeArray: Kind::Array(Type::Abstime),
-    #[doc="RELTIME[]"]
+    /// RELTIME[]
     1024: "_reltime" => ReltimeArray: Kind::Array(Type::Reltime),
-    #[doc="TINTERVAL[]"]
+    /// TINTERVAL[]
     1025: "_tinterval" => TintervalArray: Kind::Array(Type::Tinterval),
-    #[doc="POLYGON[]"]
+    /// POLYGON[]
     1027: "_polygon" => PolygonArray: Kind::Array(Type::Polygon),
-    #[doc="OID[]"]
+    /// OID[]
     1028: "_oid" => OidArray: Kind::Array(Type::Oid),
-    #[doc="ACLITEM - access control list"]
+    /// ACLITEM - access control list
     1033: "aclitem" => Aclitem: Kind::Simple,
-    #[doc="ACLITEM[]"]
+    /// ACLITEM[]
     1034: "_aclitem" => AclitemArray: Kind::Array(Type::Aclitem),
-    #[doc="MACADDR[]"]
+    /// MACADDR[]
     1040: "_macaddr" => MacaddrArray: Kind::Array(Type::Macaddr),
-    #[doc="INET[]"]
+    /// INET[]
     1041: "_inet" => InetArray: Kind::Array(Type::Inet),
-    #[doc="BPCHAR - char(length), blank-padded string, fixed storage length"]
+    /// BPCHAR - char(length), blank-padded string, fixed storage length
     1042: "bpchar" => Bpchar: Kind::Simple,
-    #[doc="VARCHAR - varchar(length), non-blank-padded string, variable storage length"]
+    /// VARCHAR - varchar(length), non-blank-padded string, variable storage length
     1043: "varchar" => Varchar: Kind::Simple,
-    #[doc="DATE - date"]
+    /// DATE - date
     1082: "date" => Date: Kind::Simple,
-    #[doc="TIME - time of day"]
+    /// TIME - time of day
     1083: "time" => Time: Kind::Simple,
-    #[doc="TIMESTAMP - date and time"]
+    /// TIMESTAMP - date and time
     1114: "timestamp" => Timestamp: Kind::Simple,
-    #[doc="TIMESTAMP[]"]
+    /// TIMESTAMP[]
     1115: "_timestamp" => TimestampArray: Kind::Array(Type::Timestamp),
-    #[doc="DATE[]"]
+    /// DATE[]
     1182: "_date" => DateArray: Kind::Array(Type::Date),
-    #[doc="TIME[]"]
+    /// TIME[]
     1183: "_time" => TimeArray: Kind::Array(Type::Time),
-    #[doc="TIMESTAMPTZ - date and time with time zone"]
+    /// TIMESTAMPTZ - date and time with time zone
     1184: "timestamptz" => TimestampTZ: Kind::Simple,
-    #[doc="TIMESTAMPTZ[]"]
+    /// TIMESTAMPTZ[]
     1185: "_timestamptz" => TimestampTZArray: Kind::Array(Type::TimestampTZ),
-    #[doc="INTERVAL - @ &lt;number&gt; &lt;units&gt;, time interval"]
+    /// INTERVAL - @ &lt;number&gt; &lt;units&gt;, time interval
     1186: "interval" => Interval: Kind::Simple,
-    #[doc="INTERVAL[]"]
+    /// INTERVAL[]
     1187: "_interval" => IntervalArray: Kind::Array(Type::Interval),
-    #[doc="NUMERIC[]"]
+    /// NUMERIC[]
     1231: "_numeric" => NumericArray: Kind::Array(Type::Numeric),
-    #[doc="CSTRING[]"]
+    /// CSTRING[]
     1263: "_cstring" => CstringArray: Kind::Array(Type::Cstring),
-    #[doc="TIMETZ - time of day with time zone"]
+    /// TIMETZ - time of day with time zone
     1266: "timetz" => Timetz: Kind::Simple,
-    #[doc="TIMETZ[]"]
+    /// TIMETZ[]
     1270: "_timetz" => TimetzArray: Kind::Array(Type::Timetz),
-    #[doc="BIT - fixed-length bit string"]
+    /// BIT - fixed-length bit string
     1560: "bit" => Bit: Kind::Simple,
-    #[doc="BIT[]"]
+    /// BIT[]
     1561: "_bit" => BitArray: Kind::Array(Type::Bit),
-    #[doc="VARBIT - variable-length bit string"]
+    /// VARBIT - variable-length bit string
     1562: "varbit" => Varbit: Kind::Simple,
-    #[doc="VARBIT[]"]
+    /// VARBIT[]
     1563: "_varbit" => VarbitArray: Kind::Array(Type::Varbit),
-    #[doc="NUMERIC - numeric(precision, decimal), arbitrary precision number"]
+    /// NUMERIC - numeric(precision, decimal), arbitrary precision number
     1700: "numeric" => Numeric: Kind::Simple,
-    #[doc="REFCURSOR - reference to cursor (portal name)"]
+    /// REFCURSOR - reference to cursor (portal name)
     1790: "refcursor" => Refcursor: Kind::Simple,
-    #[doc="REFCURSOR[]"]
+    /// REFCURSOR[]
     2201: "_refcursor" => RefcursorArray: Kind::Array(Type::Refcursor),
-    #[doc="REGPROCEDURE - registered procedure (with args)"]
+    /// REGPROCEDURE - registered procedure (with args)
     2202: "regprocedure" => Regprocedure: Kind::Simple,
-    #[doc="REGOPER - registered operator"]
+    /// REGOPER - registered operator
     2203: "regoper" => Regoper: Kind::Simple,
-    #[doc="REGOPERATOR - registered operator (with args)"]
+    /// REGOPERATOR - registered operator (with args)
     2204: "regoperator" => Regoperator: Kind::Simple,
-    #[doc="REGCLASS - registered class"]
+    /// REGCLASS - registered class
     2205: "regclass" => Regclass: Kind::Simple,
-    #[doc="REGTYPE - registered type"]
+    /// REGTYPE - registered type
     2206: "regtype" => Regtype: Kind::Simple,
-    #[doc="REGPROCEDURE[]"]
+    /// REGPROCEDURE[]
     2207: "_regprocedure" => RegprocedureArray: Kind::Array(Type::Regprocedure),
-    #[doc="REGOPER[]"]
+    /// REGOPER[]
     2208: "_regoper" => RegoperArray: Kind::Array(Type::Regoper),
-    #[doc="REGOPERATOR[]"]
+    /// REGOPERATOR[]
     2209: "_regoperator" => RegoperatorArray: Kind::Array(Type::Regoperator),
-    #[doc="REGCLASS[]"]
+    /// REGCLASS[]
     2210: "_regclass" => RegclassArray: Kind::Array(Type::Regclass),
-    #[doc="REGTYPE[]"]
+    /// REGTYPE[]
     2211: "_regtype" => RegtypeArray: Kind::Array(Type::Regtype),
-    #[doc="RECORD"]
+    /// RECORD
     2249: "record" => Record: Kind::Simple,
-    #[doc="CSTRING"]
+    /// CSTRING
     2275: "cstring" => Cstring: Kind::Simple,
-    #[doc="ANY"]
+    /// ANY
     2276: "any" => Any: Kind::Simple,
-    #[doc="ANYARRAY"]
+    /// ANYARRAY
     2277: "anyarray" => AnyArray: Kind::Array(Type::Any),
-    #[doc="VOID"]
+    /// VOID
     2278: "void" => Void: Kind::Simple,
-    #[doc="TRIGGER"]
+    /// TRIGGER
     2279: "trigger" => Trigger: Kind::Simple,
-    #[doc="LANGUAGE_HANDLER"]
+    /// LANGUAGE_HANDLER
     2280: "language_handler" => LanguageHandler: Kind::Simple,
-    #[doc="INTERNAL"]
+    /// INTERNAL
     2281: "internal" => Internal: Kind::Simple,
-    #[doc="OPAQUE"]
+    /// OPAQUE
     2282: "opaque" => Opaque: Kind::Simple,
-    #[doc="ANYELEMENT"]
+    /// ANYELEMENT
     2283: "anyelement" => Anyelement: Kind::Simple,
-    #[doc="RECORD[]"]
+    /// RECORD[]
     2287: "_record" => RecordArray: Kind::Array(Type::Record),
-    #[doc="ANYNONARRAY"]
+    /// ANYNONARRAY
     2776: "anynonarray" => Anynonarray: Kind::Simple,
-    #[doc="TXID_SNAPSHOT[]"]
+    /// TXID_SNAPSHOT[]
     2949: "_txid_snapshot" => TxidSnapshotArray: Kind::Array(Type::TxidSnapshot),
-    #[doc="UUID - UUID datatype"]
+    /// UUID - UUID datatype
     2950: "uuid" => Uuid: Kind::Simple,
-    #[doc="TXID_SNAPSHOT - txid snapshot"]
+    /// TXID_SNAPSHOT - txid snapshot
     2970: "txid_snapshot" => TxidSnapshot: Kind::Simple,
-    #[doc="UUID[]"]
+    /// UUID[]
     2951: "_uuid" => UuidArray: Kind::Array(Type::Uuid),
-    #[doc="FDW_HANDLER"]
+    /// FDW_HANDLER
     3115: "fdw_handler" => FdwHandler: Kind::Simple,
-    #[doc="PG_LSN - PostgreSQL LSN datatype"]
+    /// PG_LSN - PostgreSQL LSN datatype
     3220: "pg_lsn" => PgLsn: Kind::Simple,
-    #[doc="PG_LSN[]"]
+    /// PG_LSN[]
     3221: "_pg_lsn" => PgLsnArray: Kind::Array(Type::PgLsn),
-    #[doc="ANYENUM"]
+    /// ANYENUM
     3500: "anyenum" => Anyenum: Kind::Simple,
-    #[doc="TSVECTOR - text representation for text search"]
+    /// TSVECTOR - text representation for text search
     3614: "tsvector" => Tsvector: Kind::Simple,
-    #[doc="TSQUERY - query representation for text search"]
+    /// TSQUERY - query representation for text search
     3615: "tsquery" => Tsquery: Kind::Simple,
-    #[doc="GTSVECTOR - GiST index internal text representation for text search"]
+    /// GTSVECTOR - GiST index internal text representation for text search
     3642: "gtsvector" => Gtsvector: Kind::Simple,
-    #[doc="TSVECTOR[]"]
+    /// TSVECTOR[]
     3643: "_tsvector" => TsvectorArray: Kind::Array(Type::Tsvector),
-    #[doc="GTSVECTOR[]"]
+    /// GTSVECTOR[]
     3644: "_gtsvector" => GtsvectorArray: Kind::Array(Type::Gtsvector),
-    #[doc="TSQUERY[]"]
+    /// TSQUERY[]
     3645: "_tsquery" => TsqueryArray: Kind::Array(Type::Tsquery),
-    #[doc="REGCONFIG - registered text search configuration"]
+    /// REGCONFIG - registered text search configuration
     3734: "regconfig" => Regconfig: Kind::Simple,
-    #[doc="REGCONFIG[]"]
+    /// REGCONFIG[]
     3735: "_regconfig" => RegconfigArray: Kind::Array(Type::Regconfig),
-    #[doc="REGDICTIONARY - registered text search dictionary"]
+    /// REGDICTIONARY - registered text search dictionary
     3769: "regdictionary" => Regdictionary: Kind::Simple,
-    #[doc="REGDICTIONARY[]"]
+    /// REGDICTIONARY[]
     3770: "_regdictionary" => RegdictionaryArray: Kind::Array(Type::Regdictionary),
-    #[doc="JSONB"]
+    /// JSONB
     3802: "jsonb" => Jsonb: Kind::Simple,
-    #[doc="ANYRANGE"]
+    /// ANYRANGE
     3831: "anyrange" => Anyrange: Kind::Simple,
-    #[doc="JSONB[]"]
+    /// JSONB[]
     3807: "_jsonb" => JsonbArray: Kind::Array(Type::Jsonb),
-    #[doc="INT4RANGE - range of integers"]
+    /// INT4RANGE - range of integers
     3904: "int4range" => Int4Range: Kind::Range(Type::Int4),
-    #[doc="INT4RANGE[]"]
+    /// INT4RANGE[]
     3905: "_int4range" => Int4RangeArray: Kind::Array(Type::Int4Range),
-    #[doc="NUMRANGE - range of numerics"]
+    /// NUMRANGE - range of numerics
     3906: "numrange" => NumRange: Kind::Range(Type::Numeric),
-    #[doc="NUMRANGE[]"]
+    /// NUMRANGE[]
     3907: "_numrange" => NumRangeArray: Kind::Array(Type::NumRange),
-    #[doc="TSRANGE - range of timestamps without time zone"]
+    /// TSRANGE - range of timestamps without time zone
     3908: "tsrange" => TsRange: Kind::Range(Type::Timestamp),
-    #[doc="TSRANGE[]"]
+    /// TSRANGE[]
     3909: "_tsrange" => TsRangeArray: Kind::Array(Type::TsRange),
-    #[doc="TSTZRANGE - range of timestamps with time zone"]
+    /// TSTZRANGE - range of timestamps with time zone
     3910: "tstzrange" => TstzRange: Kind::Range(Type::TimestampTZ),
-    #[doc="TSTZRANGE[]"]
+    /// TSTZRANGE[]
     3911: "_tstzrange" => TstzRangeArray: Kind::Array(Type::TstzRange),
-    #[doc="DATERANGE - range of dates"]
+    /// DATERANGE - range of dates
     3912: "daterange" => DateRange: Kind::Range(Type::Date),
-    #[doc="DATERANGE[]"]
+    /// DATERANGE[]
     3913: "_daterange" => DateRangeArray: Kind::Array(Type::DateRange),
-    #[doc="INT8RANGE - range of bigints"]
+    /// INT8RANGE - range of bigints
     3926: "int8range" => Int8Range: Kind::Range(Type::Int8),
-    #[doc="INT8RANGE[]"]
+    /// INT8RANGE[]
     3927: "_int8range" => Int8RangeArray: Kind::Array(Type::Int8Range),
-    #[doc="EVENT_TRIGGER"]
+    /// EVENT_TRIGGER
     3838: "event_trigger" => EventTrigger: Kind::Simple
 }
 
@@ -596,7 +594,9 @@ impl error::Error for WasNull {
 /// nullable Postgres value.
 pub trait FromSql: Sized {
     /// ### Deprecated
-    fn from_sql_nullable<R: Read>(ty: &Type, raw: Option<&mut R>, ctx: &SessionInfo)
+    fn from_sql_nullable<R: Read>(ty: &Type,
+                                  raw: Option<&mut R>,
+                                  ctx: &SessionInfo)
                                   -> Result<Self> {
         match raw {
             Some(raw) => FromSql::from_sql(ty, raw, ctx),
@@ -704,7 +704,9 @@ primitive_from!(f32, read_f32, Type::Float4);
 primitive_from!(f64, read_f64, Type::Float8);
 
 impl FromSql for HashMap<String, Option<String>> {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo)
+    fn from_sql<R: Read>(_: &Type,
+                         raw: &mut R,
+                         _: &SessionInfo)
                          -> Result<HashMap<String, Option<String>>> {
         let mut map = HashMap::new();
 
@@ -740,7 +742,7 @@ impl FromSql for HashMap<String, Option<String>> {
     fn accepts(ty: &Type) -> bool {
         match *ty {
             Type::Other(ref u) if u.name() == "hstore" => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -811,7 +813,8 @@ pub trait ToSql: fmt::Debug {
     /// `NULL`. If this is the case, implementations **must not** write
     /// anything to `out`.
     fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull>
-            where Self: Sized, W: Write;
+        where Self: Sized,
+              W: Write;
 
     /// Determines if a value of this type can be converted to the specified
     /// Postgres `Type`.
@@ -821,34 +824,33 @@ pub trait ToSql: fmt::Debug {
     ///
     /// *All* implementations of this method should be generated by the
     /// `to_sql_checked!()` macro.
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull>;
+    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull>;
 }
 
 impl<'a, T> ToSql for &'a T where T: ToSql {
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a T as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
+    to_sql_checked!();
 
-
-    fn to_sql<W: Write + ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 out: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
         (*self).to_sql(ty, out, ctx)
     }
 
-    fn accepts(ty: &Type) -> bool { T::accepts(ty) }
+    fn accepts(ty: &Type) -> bool {
+        T::accepts(ty)
+    }
 }
-
-
 
 impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 out: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
         match *self {
             Some(ref val) => val.to_sql(ty, out, ctx),
             None => Ok(IsNull::Yes),
@@ -863,8 +865,11 @@ impl<T: ToSql> ToSql for Option<T> {
 impl ToSql for bool {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 _: &Type,
+                                 mut w: &mut W,
+                                 _: &SessionInfo)
+                                 -> Result<IsNull> {
         try!(w.write_u8(*self as u8));
         Ok(IsNull::No)
     }
@@ -873,17 +878,9 @@ impl ToSql for bool {
 }
 
 impl<'a> ToSql for &'a [u8] {
-    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a [u8] as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
+    to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
         try!(w.write_all(*self));
         Ok(IsNull::No)
     }
@@ -894,8 +891,7 @@ impl<'a> ToSql for &'a [u8] {
 impl ToSql for Vec<u8> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
         <&[u8] as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
@@ -905,17 +901,9 @@ impl ToSql for Vec<u8> {
 }
 
 impl<'a> ToSql for &'a str {
-    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo)
-                      -> Result<IsNull> {
-        if !<&'a str as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
+    to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
         Ok(IsNull::No)
     }
@@ -932,8 +920,7 @@ impl<'a> ToSql for &'a str {
 impl ToSql for String {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
         <&str as ToSql>::to_sql(&&**self, ty, w, ctx)
     }
 
@@ -945,8 +932,11 @@ impl ToSql for String {
 impl ToSql for i8 {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 _: &Type,
+                                 mut w: &mut W,
+                                 _: &SessionInfo)
+                                 -> Result<IsNull> {
         try!(w.write_i8(*self));
         Ok(IsNull::No)
     }
@@ -980,8 +970,11 @@ to_primitive!(f64, write_f64, Type::Float8);
 impl ToSql for HashMap<String, Option<String>> {
     to_sql_checked!();
 
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, mut w: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 _: &Type,
+                                 mut w: &mut W,
+                                 _: &SessionInfo)
+                                 -> Result<IsNull> {
         try!(w.write_i32::<BigEndian>(try!(downcast(self.len()))));
 
         for (key, val) in self {
@@ -993,7 +986,7 @@ impl ToSql for HashMap<String, Option<String>> {
                     try!(w.write_i32::<BigEndian>(try!(downcast(val.len()))));
                     try!(w.write_all(val.as_bytes()));
                 }
-                None => try!(w.write_i32::<BigEndian>(-1))
+                None => try!(w.write_i32::<BigEndian>(-1)),
             }
         }
 
@@ -1010,7 +1003,7 @@ impl ToSql for HashMap<String, Option<String>> {
 
 fn downcast(len: usize) -> Result<i32> {
     if len > i32::max_value() as usize {
-        let err: Box<error::Error+Sync+Send> = "value too large to transmit".into();
+        let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
         Err(Error::Conversion(err))
     } else {
         Ok(len as i32)

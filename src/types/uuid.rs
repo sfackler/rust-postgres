@@ -18,7 +18,7 @@ impl FromSql for Uuid {
 }
 
 impl ToSql for Uuid {
-    fn to_sql<W: Write+?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
         try!(w.write_all(self.as_bytes()));
         Ok(IsNull::No)
     }

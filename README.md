@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.1/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.2/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -198,16 +198,16 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/rustc-serialize">serialize::json::Json</a>
+                <a href="https://github.com/rust-lang-nursery/rustc-serialize">serialize::json::Json</a>
                 and
-                <a href="https://github.com/erickt/serde_json">serde_json::Value</a>
+                <a href="https://github.com/serde-rs/json">serde_json::Value</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>JSON, JSONB</td>
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>
+                <a href="https://github.com/rust-lang-deprecated/time">time::Timespec</a>
                 and
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveDateTime</a>
                 (<a href="#optional-features">optional</a>)
@@ -216,7 +216,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/time">time::Timespec</a>,
+                <a href="https://github.com/rust-lang-deprecated/time">time::Timespec</a>,
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>,
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Local&gt;</a>,
                 and
@@ -241,7 +241,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang/uuid">uuid::Uuid</a>
+                <a href="https://github.com/rust-lang-nursery/uuid">uuid::Uuid</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>UUID</td>
@@ -284,8 +284,9 @@ implementations for `uuid`'s `Uuid` type.
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
 support is provided optionally by the `rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
-the `serde` feature, which adds implementations for `serde_json`'s `Value`
-type.
+the `serde_json` feature, which adds implementations for `serde_json`'s `Value`
+type. The `serde` feature provides implementations for the older
+`serde::json::Value` type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 

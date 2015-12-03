@@ -7,13 +7,7 @@ use std::borrow::Cow;
 use std::slice;
 use std::vec;
 
-use {Result,
-     Transaction,
-     read_rows,
-     DbErrorNew,
-     SessionInfoNew,
-     RowsNew,
-     LazyRowsNew,
+use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
      StatementInternals};
 use types::{FromSql, SessionInfo};
 use stmt::{Statement, Column};
@@ -38,9 +32,9 @@ impl<'a> RowsNew<'a> for Rows<'a> {
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Rows")
-            .field("columns", &self.columns())
-            .field("rows", &self.data.len())
-            .finish()
+           .field("columns", &self.columns())
+           .field("rows", &self.data.len())
+           .finish()
     }
 }
 
@@ -71,7 +65,7 @@ impl<'stmt> Rows<'stmt> {
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
             stmt: self.stmt,
-            iter: self.data.iter()
+            iter: self.data.iter(),
         }
     }
 }
@@ -92,7 +86,7 @@ impl<'stmt> IntoIterator for Rows<'stmt> {
     fn into_iter(self) -> IntoIter<'stmt> {
         IntoIter {
             stmt: self.stmt,
-            iter: self.data.into_iter()
+            iter: self.data.into_iter(),
         }
     }
 }
@@ -172,14 +166,14 @@ impl<'stmt> ExactSizeIterator for IntoIter<'stmt> {}
 /// A single result row of a query.
 pub struct Row<'a> {
     stmt: &'a Statement<'a>,
-    data: Cow<'a, [Option<Vec<u8>>]>
+    data: Cow<'a, [Option<Vec<u8>>]>,
 }
 
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Row")
-            .field("statement", self.stmt)
-            .finish()
+           .field("statement", self.stmt)
+           .finish()
     }
 }
 
@@ -201,14 +195,18 @@ impl<'a> Row<'a> {
     ///
     /// Returns an `Error` value if the index does not reference a column or
     /// the return type is not compatible with the Postgres type.
-    pub fn get_opt<I, T>(&self, idx: I) -> Result<T> where I: RowIndex, T: FromSql {
+    pub fn get_opt<I, T>(&self, idx: I) -> Result<T>
+        where I: RowIndex,
+              T: FromSql
+    {
         let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
         let ty = self.stmt.columns()[idx].type_();
         if !<T as FromSql>::accepts(ty) {
             return Err(Error::WrongType(ty.clone()));
         }
         let conn = self.stmt.conn().conn.borrow();
-        FromSql::from_sql_nullable(ty, self.data[idx].as_ref().map(|e| &**e).as_mut(),
+        FromSql::from_sql_nullable(ty,
+                                   self.data[idx].as_ref().map(|e| &**e).as_mut(),
                                    &SessionInfo::new(&*conn))
     }
 
@@ -217,35 +215,41 @@ impl<'a> Row<'a> {
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
     ///
-    /// ## Example
+    /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
     /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// # let stmt = conn.prepare("").unwrap();
-    /// # let mut result = stmt.query(&[]).unwrap();
-    /// # let row = result.iter().next().unwrap();
-    /// let foo: i32 = row.get(0);
-    /// let bar: String = row.get("bar");
+    /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
+    /// for row in stmt.query(&[]).unwrap() {
+    ///     let foo: i32 = row.get(0);
+    ///     let bar: String = row.get("bar");
+    ///     println!("{}: {}", foo, bar);
+    /// }
     /// ```
-    pub fn get<I, T>(&self, idx: I) -> T where I: RowIndex + fmt::Debug + Clone, T: FromSql {
+    pub fn get<I, T>(&self, idx: I) -> T
+        where I: RowIndex + fmt::Debug + Clone,
+              T: FromSql
+    {
         match self.get_opt(idx.clone()) {
             Ok(ok) => ok,
-            Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err)
+            Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err),
         }
     }
 
     /// Retrieves the specified field as a raw buffer of Postgres data.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the index does not reference a column.
-    pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]> where I: RowIndex + fmt::Debug {
+    pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>
+        where I: RowIndex + fmt::Debug
+    {
         match idx.idx(self.stmt) {
             Some(idx) => self.data[idx].as_ref().map(|e| &**e),
             None => panic!("invalid index {:?}", idx),
@@ -303,7 +307,8 @@ impl<'trans, 'stmt> LazyRowsNew<'trans, 'stmt> for LazyRows<'trans, 'stmt> {
            row_limit: i32,
            more_rows: bool,
            finished: bool,
-           trans: &'trans Transaction<'trans>) -> LazyRows<'trans, 'stmt> {
+           trans: &'trans Transaction<'trans>)
+           -> LazyRows<'trans, 'stmt> {
         LazyRows {
             stmt: stmt,
             data: data,
@@ -311,7 +316,7 @@ impl<'trans, 'stmt> LazyRowsNew<'trans, 'stmt> for LazyRows<'trans, 'stmt> {
             row_limit: row_limit,
             more_rows: more_rows,
             finished: finished,
-            _trans: trans
+            _trans: trans,
         }
     }
 }
@@ -327,11 +332,11 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LazyRows")
-            .field("name", &self.name)
-            .field("row_limit", &self.row_limit)
-            .field("remaining_rows", &self.data.len())
-            .field("more_rows", &self.more_rows)
-            .finish()
+           .field("name", &self.name)
+           .field("row_limit", &self.row_limit)
+           .field("remaining_rows", &self.data.len())
+           .field("more_rows", &self.more_rows)
+           .finish()
     }
 }
 
@@ -345,12 +350,11 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().conn.borrow_mut();
 
-        try!(conn.write_messages(&[
-            Execute {
-                portal: &self.name,
-                max_rows: self.row_limit
-            },
-            Sync]));
+        try!(conn.write_messages(&[Execute {
+                                       portal: &self.name,
+                                       max_rows: self.row_limit,
+                                   },
+                                   Sync]));
         read_rows(&mut conn, &mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 

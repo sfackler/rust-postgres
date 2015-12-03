@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.10.1"
+version = "0.10.2"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.10.1/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.10.2/postgres"
 readme = "README.md"
 keywords = ["database", "sql"]
 build = "build.rs"
@@ -31,7 +31,7 @@ phf = "0.7"
 rustc-serialize = "0.3"
 net2 = { version = "0.2", features = ["nightly"] }
 chrono = { version = "0.2.14", optional = true }
-openssl = { version = "0.6.4", optional = true }
+openssl = { version = ">= 0.6.4, < 0.8", optional = true }
 serde = { version = "0.3", optional = true } # Delete for 0.11
 serde_json = { version = "0.6", optional = true }
 time = { version = "0.1.14", optional = true }

@@ -26,6 +26,8 @@ pub trait NegotiateSsl {
     ///
     /// The host portion of the connection parameters is provided for hostname
     /// verification.
-    fn negotiate_ssl(&self, host: &str, stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error+Sync+Send>>;
+    fn negotiate_ssl(&self,
+                     host: &str,
+                     stream: Stream)
+                     -> Result<Box<StreamWrapper>, Box<Error + Sync + Send>>;
 }

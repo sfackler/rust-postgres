@@ -12,7 +12,8 @@ impl FromSql for json::Json {
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
             if try!(raw.read_u8()) != 1 {
-                let err: Box<error::Error+Sync+Send> = "unsupported JSONB encoding version".into();
+                let err: Box<error::Error + Sync + Send> = "unsupported JSONB encoding version"
+                                                               .into();
                 return Err(Error::Conversion(err));
             }
         }
@@ -23,8 +24,11 @@ impl FromSql for json::Json {
 }
 
 impl ToSql for json::Json {
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, mut out: &mut W, _: &SessionInfo)
-                               -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 mut out: &mut W,
+                                 _: &SessionInfo)
+                                 -> Result<IsNull> {
         if let Type::Jsonb = *ty {
             try!(out.write_u8(1));
         }
