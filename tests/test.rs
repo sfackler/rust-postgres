@@ -3,6 +3,8 @@ extern crate rustc_serialize as serialize;
 extern crate url;
 #[cfg(feature = "openssl")]
 extern crate openssl;
+#[cfg(feature = "security-framework")]
+extern crate security_framework;
 
 #[cfg(feature = "openssl")]
 use openssl::ssl::{SslContext, SslMethod};
@@ -668,6 +670,21 @@ fn test_prefer_ssl_conn() {
     let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                                     &mut SslMode::Prefer(Box::new(ctx))));
+    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
+}
+
+#[test]
+#[cfg(feature = "security-framework")]
+fn security_framework_ssl() {
+    use security_framework::certificate::SecCertificate;
+    use security_framework::secure_transport::ClientBuilder;
+
+    let certificate = include_bytes!("../.travis/server.der");
+    let certificate = or_panic!(SecCertificate::from_der(certificate));
+    let mut builder = ClientBuilder::new();
+    builder.anchor_certificates(&[certificate]);
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
+                                             &mut SslMode::Require(Box::new(builder))));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 

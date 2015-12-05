@@ -6,6 +6,8 @@ use std::io::prelude::*;
 
 #[cfg(feature = "openssl")]
 mod openssl;
+#[cfg(feature = "security-framework")]
+mod security_framework;
 
 /// A trait implemented by SSL adaptors.
 pub trait StreamWrapper: Read+Write+Send {
@@ -20,6 +22,9 @@ pub trait StreamWrapper: Read+Write+Send {
 ///
 /// If the `openssl` Cargo feature is enabled, this trait will be implemented
 /// for `openssl::ssl::SslContext`.
+///
+/// If the `security-framework` Cargo feature is enabled, this trait will be
+/// implemented for `security_framework::secure_transport::ClientBuilder`.
 pub trait NegotiateSsl {
     /// Negotiates an SSL session, returning a wrapper around the provided
     /// stream.
