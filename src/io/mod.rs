@@ -25,6 +25,9 @@ pub trait StreamWrapper: Read+Write+Send {
 ///
 /// If the `security-framework` Cargo feature is enabled, this trait will be
 /// implemented for `security_framework::secure_transport::ClientBuilder`.
+///
+/// It is also implemented for `Fn(&str, Stream) -> Result<Box<StreamWrapper>,
+/// Box<Error + Sync + Send>` closures.
 pub trait NegotiateSsl {
     /// Negotiates an SSL session, returning a wrapper around the provided
     /// stream.
@@ -35,4 +38,15 @@ pub trait NegotiateSsl {
                      host: &str,
                      stream: Stream)
                      -> Result<Box<StreamWrapper>, Box<Error + Sync + Send>>;
+}
+
+impl<F> NegotiateSsl for F
+    where F: Fn(&str, Stream) -> Result<Box<StreamWrapper>, Box<Error + Sync + Send>>
+{
+    fn negotiate_ssl(&self,
+                     host: &str,
+                     stream: Stream)
+                     -> Result<Box<StreamWrapper>, Box<Error + Sync + Send>> {
+        (*self)(host, stream)
+    }
 }

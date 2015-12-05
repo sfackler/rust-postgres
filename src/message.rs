@@ -323,11 +323,13 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
             b'1' => ParseComplete,
             b'2' => BindComplete,
             b'3' => CloseComplete,
-            b'A' => NotificationResponse {
-                pid: try!(rdr.read_u32::<BigEndian>()),
-                channel: try!(rdr.read_cstr()),
-                payload: try!(rdr.read_cstr()),
-            },
+            b'A' => {
+                NotificationResponse {
+                    pid: try!(rdr.read_u32::<BigEndian>()),
+                    channel: try!(rdr.read_cstr()),
+                    payload: try!(rdr.read_cstr()),
+                }
+            }
             b'c' => BCopyDone,
             b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
             b'd' => {
@@ -360,23 +362,29 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
                 }
             }
             b'I' => EmptyQueryResponse,
-            b'K' => BackendKeyData {
-                process_id: try!(rdr.read_u32::<BigEndian>()),
-                secret_key: try!(rdr.read_u32::<BigEndian>()),
-            },
+            b'K' => {
+                BackendKeyData {
+                    process_id: try!(rdr.read_u32::<BigEndian>()),
+                    secret_key: try!(rdr.read_u32::<BigEndian>()),
+                }
+            }
             b'n' => NoData,
             b'N' => NoticeResponse { fields: try!(read_fields(&mut rdr)) },
             b'R' => try!(read_auth_message(&mut rdr)),
             b's' => PortalSuspended,
-            b'S' => ParameterStatus {
-                parameter: try!(rdr.read_cstr()),
-                value: try!(rdr.read_cstr()),
-            },
+            b'S' => {
+                ParameterStatus {
+                    parameter: try!(rdr.read_cstr()),
+                    value: try!(rdr.read_cstr()),
+                }
+            }
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
             b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
-            t => return Err(io::Error::new(io::ErrorKind::Other,
-                                           format!("unexpected message tag `{}`", t))),
+            t => {
+                return Err(io::Error::new(io::ErrorKind::Other,
+                                          format!("unexpected message tag `{}`", t)))
+            }
         };
         if rdr.limit() != 0 {
             return Err(io::Error::new(io::ErrorKind::Other, "didn't read entire message"));
@@ -431,8 +439,10 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         6 => AuthenticationSCMCredential,
         7 => AuthenticationGSS,
         9 => AuthenticationSSPI,
-        t => return Err(io::Error::new(io::ErrorKind::Other,
-                                       format!("unexpected authentication tag `{}`", t))),
+        t => {
+            return Err(io::Error::new(io::ErrorKind::Other,
+                                      format!("unexpected authentication tag `{}`", t)))
+        }
     })
 }
 

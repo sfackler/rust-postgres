@@ -21,8 +21,8 @@ struct StepUp<T> {
     ammount: T,
 }
 
-impl <T> Iterator for StepUp<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> Iterator for StepUp<T> where T: Add<T, Output = T> + PartialOrd + Copy
+{
     type Item = T;
 
     #[inline]
@@ -41,8 +41,8 @@ trait RangeExt<T> {
     fn step_up(self, ammount: T) -> StepUp<T>;
 }
 
-impl <T> RangeExt<T> for Range<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> RangeExt<T> for Range<T> where T: Add<T, Output = T> + PartialOrd + Copy
+{
     fn step_up(self, ammount: T) -> StepUp<T> {
         StepUp {
             next: self.start,
@@ -108,7 +108,7 @@ trait StandardPadding {
     fn standard_padding<F: FnMut(&[u8])>(&mut self, rem: usize, func: F);
 }
 
-impl <T: FixedBuffer> StandardPadding for T {
+impl<T: FixedBuffer> StandardPadding for T {
     fn standard_padding<F: FnMut(&[u8])>(&mut self, rem: usize, mut func: F) {
         let size = self.size();
 

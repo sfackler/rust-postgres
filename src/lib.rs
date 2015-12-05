@@ -477,7 +477,7 @@ impl InnerConnection {
                                 WHERE t.oid = $1") {
             Ok(..) => return Ok(()),
             Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
-            // Range types weren't added until Postgres 9.2, so pg_range may not exist
+    // Range types weren't added until Postgres 9.2, so pg_range may not exist
             Err(Error::DbError(ref e)) if e.code() == &SqlState::UndefinedTable => {}
             Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
             _ => unreachable!(),
@@ -825,8 +825,7 @@ impl InnerConnection {
 }
 
 fn _ensure_send() {
-    fn _is_send<T: Send>() {
-    }
+    fn _is_send<T: Send>() {}
     _is_send::<Connection>();
 }
 

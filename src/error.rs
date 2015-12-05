@@ -45,13 +45,17 @@ impl DbErrorNew for DbError {
             hint: map.remove(&b'H'),
             position: match map.remove(&b'P') {
                 Some(pos) => Some(ErrorPosition::Normal(try!(pos.parse().map_err(|_| ())))),
-                None => match map.remove(&b'p') {
-                    Some(pos) => Some(ErrorPosition::Internal {
-                        position: try!(pos.parse().map_err(|_| ())),
-                        query: try!(map.remove(&b'q').ok_or(())),
-                    }),
-                    None => None,
-                },
+                None => {
+                    match map.remove(&b'p') {
+                        Some(pos) => {
+                            Some(ErrorPosition::Internal {
+                                position: try!(pos.parse().map_err(|_| ())),
+                                query: try!(map.remove(&b'q').ok_or(())),
+                            })
+                        }
+                        None => None,
+                    }
+                }
             },
             where_: map.remove(&b'W'),
             schema: map.remove(&b's'),
@@ -231,8 +235,9 @@ impl error::Error for ConnectError {
             ConnectError::BadConnectParams(_) => "Error creating `ConnectParams`",
             ConnectError::MissingUser => "User missing in `ConnectParams`",
             ConnectError::DbError(_) => "Error reported by Postgres",
-            ConnectError::MissingPassword =>
-                "The server requested a password but none was provided",
+            ConnectError::MissingPassword => {
+                "The server requested a password but none was provided"
+            }
             ConnectError::UnsupportedAuthentication => {
                 "The server requested an unsupported authentication method"
             }
