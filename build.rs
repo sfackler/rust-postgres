@@ -335,6 +335,10 @@ fn main() {
     make_map(&mut file);
     make_impl(&mut file);
     make_debug(&mut file);
+
+    // This is already assumed to be the case but there's no way to say that
+    // you don't depend on anything at all
+    println!("cargo:rerun-if-changed=build.rs");
 }
 
 fn make_enum(file: &mut BufWriter<File>) {
