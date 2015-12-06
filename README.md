@@ -247,6 +247,13 @@ types. The driver currently supports the following conversions:
             <td>UUID</td>
         </tr>
         <tr>
+            <td>
+                <a href="https://github.com/contain-rs/bit-vec">bit_vec::BitVec</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>BIT, VARBIT</td>
+        </tr>
+        <tr>
             <td>HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
@@ -295,3 +302,9 @@ support is provided optionally by the `time` feature, which adds `ToSql` and
 `FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
 `DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
+
+### BIT/VARBIT types
+
+[BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
+support is provided optionally by the `bit-vec` feature, which adds `ToSql` and
+`FromSql` implementations for `bit-vec`'s `BitVec` type.
