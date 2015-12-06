@@ -77,7 +77,7 @@ fn read_u32v_le(dst: &mut [u32], input: &[u8]) {
     unsafe {
         let mut x: *mut u32 = dst.get_unchecked_mut(0);
         let mut y: *const u8 = input.get_unchecked(0);
-        for _ in (0..dst.len()) {
+        for _ in 0..dst.len() {
             let mut tmp: u32 = mem::uninitialized();
             ptr::copy_nonoverlapping(y, &mut tmp as *mut _ as *mut u8, 4);
             *x = u32::from_le(tmp);
