@@ -10,7 +10,7 @@
 use std::io::prelude::*;
 use std::str::FromStr;
 use std::str;
-use serialize::hex::FromHex;
+use hex::FromHex;
 
 pub struct Url {
     pub scheme: String,
@@ -133,7 +133,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                         };
 
                         // Only decode some characters if full_url:
-                        match str::from_utf8(&bytes).unwrap().from_hex().unwrap()[0] as char {
+                        match Vec::<u8>::from_hex(str::from_utf8(&bytes).unwrap()).unwrap()[0] as char {
                             // gen-delims:
                             ':' |
                             '/' |

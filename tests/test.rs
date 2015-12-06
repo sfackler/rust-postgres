@@ -1,5 +1,4 @@
 extern crate postgres;
-extern crate rustc_serialize as serialize;
 extern crate url;
 #[cfg(feature = "openssl")]
 extern crate openssl;

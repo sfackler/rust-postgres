@@ -1,4 +1,6 @@
-use serialize::json;
+extern crate rustc_serialize;
+
+use self::rustc_serialize::json;
 use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};

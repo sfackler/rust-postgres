@@ -46,10 +46,10 @@
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate hex;
 #[macro_use]
 extern crate log;
 extern crate phf;
-extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
 extern crate net2;
