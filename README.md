@@ -13,9 +13,7 @@ postgres = "0.10"
 ```
 
 ## Overview
-Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
-exposes a high level interface in the vein of JDBC or Go's `database/sql`
-package.
+Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database.
 ```rust
 extern crate postgres;
 
@@ -44,8 +42,7 @@ fn main() {
     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
                  &[&me.name, &me.data]).unwrap();
 
-    let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-    for row in &stmt.query(&[]).unwrap() {
+    for row in &conn.query("SELECT id, name, data FROM person", &[]).unwrap() {
         let person = Person {
             id: row.get(0),
             name: row.get(1),

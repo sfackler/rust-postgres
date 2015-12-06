@@ -30,8 +30,7 @@
 //!     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
 //!                  &[&me.name, &me.data]).unwrap();
 //!
-//!     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-//!     for row in &stmt.query(&[]).unwrap() {
+//!     for row in &conn.query("SELECT id, name, data FROM person", &[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
