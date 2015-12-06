@@ -139,14 +139,14 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 }
 
 pub fn initialize_stream(params: &ConnectParams,
-                         ssl: &SslMode)
+                         ssl: SslMode)
                          -> Result<Box<StreamWrapper>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
-    let (ssl_required, negotiator) = match *ssl {
+    let (ssl_required, negotiator) = match ssl {
         SslMode::None => return Ok(Box::new(socket)),
-        SslMode::Prefer(ref negotiator) => (false, negotiator),
-        SslMode::Require(ref negotiator) => (true, negotiator),
+        SslMode::Prefer(negotiator) => (false, negotiator),
+        SslMode::Require(negotiator) => (true, negotiator),
     };
 
     try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));

@@ -17,7 +17,7 @@ use types::{Type, ToSql, Kind, IsNull, SessionInfo, downcast};
 /// # use postgres::{Connection, SslMode};
 /// use postgres::types::Slice;
 ///
-/// # let conn = Connection::connect("", &SslMode::None).unwrap();
+/// # let conn = Connection::connect("", SslMode::None).unwrap();
 /// let values = &[1i32, 2, 3, 4, 5, 6];
 /// let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
 /// for row in &stmt.query(&[&Slice(values)]).unwrap() {
