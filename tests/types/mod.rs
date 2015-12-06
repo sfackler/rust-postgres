@@ -7,6 +7,8 @@ use postgres::{Connection, SslMode};
 use postgres::error::Error;
 use postgres::types::{ToSql, FromSql, Slice};
 
+#[cfg(feature = "bit-vec")]
+mod bit_vec;
 #[cfg(feature = "uuid")]
 mod uuid;
 #[cfg(feature = "time")]

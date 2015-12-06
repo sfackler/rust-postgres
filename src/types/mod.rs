@@ -42,6 +42,8 @@ macro_rules! to_sql_checked {
     }
 }
 
+#[cfg(feature = "bit-vec")]
+mod bit_vec;
 #[cfg(feature = "uuid")]
 mod uuid;
 #[cfg(feature = "time")]
@@ -586,6 +588,7 @@ impl error::Error for WasNull {
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
 /// | uuid::Uuid                          | UUID                                |
+/// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///
 /// # Nullability
 ///
@@ -796,6 +799,7 @@ pub enum IsNull {
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
 /// | uuid::Uuid                          | UUID                                |
+/// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///
 /// # Nullability
 ///
