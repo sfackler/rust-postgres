@@ -14,16 +14,15 @@ use types::{Type, ToSql, Kind, IsNull, SessionInfo, downcast};
 /// # Examples
 ///
 /// ```rust,no_run
-/// # fn foo() -> postgres::Result<()> {
 /// # use postgres::{Connection, SslMode};
-/// # use postgres::types::Slice;
+/// use postgres::types::Slice;
+///
 /// # let conn = Connection::connect("", &SslMode::None).unwrap();
 /// let values = &[1i32, 2, 3, 4, 5, 6];
-/// let stmt = try!(conn.prepare("SELECT * FROM foo WHERE id = ANY($1)"));
-/// for row in &try!(stmt.query(&[&Slice(values)])) {
+/// let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
+/// for row in &stmt.query(&[&Slice(values)]).unwrap() {
 ///     // ...
 /// }
-/// # Ok(()) }
 /// ```
 #[derive(Debug)]
 pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
