@@ -799,8 +799,7 @@ impl InnerConnection {
                                    })
                                    .collect());
                 }
-                CopyInResponse { .. } |
-                CopyOutResponse { .. } => {
+                CopyInResponse { .. } => {
                     try!(self.write_messages(&[CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
