@@ -131,14 +131,12 @@ The `transaction` method will start a new transaction. It returns a
 transaction:
 ```rust
 let trans = try!(conn.transaction());
+
 try!(trans.execute(...));
 let stmt = try!(trans.prepare(...));
+// ...
 
-if the_coast_is_clear {
-    trans.set_commit();
-}
-
-try!(trans.finish());
+try!(trans.commit());
 ```
 The transaction will be active until the `Transaction` object falls out of
 scope. A transaction will roll back by default. Nested transactions are
