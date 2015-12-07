@@ -267,11 +267,11 @@ pub struct CancelData {
 /// thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
-/// postgres::cancel_query(url, SslMode::None, cancel_data).unwrap();
+/// postgres::cancel_query(url, SslMode::None, &cancel_data).unwrap();
 /// ```
 pub fn cancel_query<T>(params: T,
                        ssl: SslMode,
-                       data: CancelData)
+                       data: &CancelData)
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
 {

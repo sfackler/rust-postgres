@@ -644,7 +644,7 @@ fn test_cancel_query() {
     let _t = thread::spawn(move || {
         thread::sleep(Duration::from_millis(500));
         assert!(postgres::cancel_query("postgres://postgres@localhost", SslMode::None,
-                                       cancel_data).is_ok());
+                                       &cancel_data).is_ok());
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
