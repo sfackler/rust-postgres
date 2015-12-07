@@ -908,17 +908,33 @@ impl Connection {
         InnerConnection::connect(params, ssl).map(|conn| Connection { conn: RefCell::new(conn) })
     }
 
-    /// A convenience function for queries that are only run once.
+    /// Executes a statement, returning the number of rows modified.
     ///
-    /// If an error is returned, it could have come from either the preparation
-    /// or execution of the statement.
+    /// A statement may contain parameters, specified by `$n` where `n` is the
+    /// index of the parameter in the list provided, 1-indexed.
     ///
-    /// On success, returns the number of rows modified or 0 if not applicable.
+    /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
+    ///
+    /// If the same statement will be repeatedly executed (perhaps with
+    /// different query parameters), consider using the `prepare` and
+    /// `prepare_cached` methods.
     ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let bar = 1i32;
+    /// # let baz = true;
+    /// let rows_updated = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&bar, &baz])
+    ///                        .unwrap();
+    /// println!("{} rows updated", rows_updated);
+    /// ```
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement::new(self,
@@ -930,17 +946,31 @@ impl Connection {
         stmt.execute(params)
     }
 
-    /// A convenience function for queries that are only run once.
+    /// Executes a statement, returning the resulting rows.
     ///
-    /// If an error is returned, it could have come from either the preparation
-    /// or execution of the statement.
+    /// A statement may contain parameters, specified by `$n` where `n` is the
+    /// index of the parameter in the list provided, 1-indexed.
     ///
-    /// On success, returns the resulting rows.
+    /// If the same statement will be repeatedly executed (perhaps with
+    /// different query parameters), consider using the `prepare` and
+    /// `prepare_cached` methods.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let baz = true;
+    /// for row in &conn.query("SELECT foo FROM bar WHERE baz = $1", &[&baz]).unwrap() {
+    ///     let foo: i32 = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// ```
     pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
         let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
         let stmt = Statement::new(self, "".to_owned(), param_types, columns, Cell::new(0), true);
@@ -989,9 +1019,8 @@ impl Connection {
 
     /// Creates a new prepared statement.
     ///
-    /// A statement may contain parameters, specified by `$n` where `n` is the
-    /// index of the parameter in the list provided at execution time,
-    /// 1-indexed.
+    /// If the same statement will be executed repeatedly, explicitly preparing
+    /// it can improve performance.
     ///
     /// The statement is associated with the connection that created it and may
     /// not outlive that connection.
@@ -1016,8 +1045,8 @@ impl Connection {
     ///
     /// Like `prepare`, except that the statement is only prepared once over
     /// the lifetime of the connection and then cached. If the same statement
-    /// is going to be used frequently, caching it can improve performance by
-    /// reducing the number of round trips to the Postgres backend.
+    /// is going to be prepared frequently, caching it can improve performance
+    /// by reducing the number of round trips to the Postgres backend.
     ///
     /// # Example
     ///

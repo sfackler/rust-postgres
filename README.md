@@ -68,7 +68,7 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    &SslMode::None));
+                                    SslMode::None));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -77,48 +77,49 @@ defaults to the value of `user` if not specified. The driver supports `trust`,
 Unix domain sockets can be used as well by activating the `unix_socket` feature.
 The `host` portion of the URI should be set to the absolute path to the
 directory containing the socket file. Since `/` is a reserved character in
-URLs, the path should be URL encoded.
+URLs, the path should be URL encoded. If Postgres stored its socket files in
+`/run/postgres`, the connection would then look like:
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", &SslMode::None));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
 
-### Statement Preparation
-Prepared statements can have parameters, represented as `$n` where `n` is an
-index into the parameter array starting from 1:
-```rust
-let stmt = try!(conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2"));
-```
-
 ### Querying
-A prepared statement can be executed with the `query` and `execute` methods.
-Both methods take an array of parameters to bind to the query represented as
-`&ToSql` trait objects. `execute` returns the number of rows affected by the
-query (or 0 if not applicable):
+SQL statements can be executed with the `query` and `execute` methods. Both
+methods take a query string as well as a slice of parameters to bind to the
+query. The `i`th query parameter is specified in the query string by `$i`. Note
+that query parameters are 1-indexed rather than the more common 0-indexing.
+
+`execute` returns the number of rows affected by the query (or 0 if not
+applicable):
 ```rust
-let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
-let updates = try!(stmt.execute(&[&1i32, &"biz"]));
+let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
-`query` returns an iterator over the rows returned from the database. The
-fields in a row can be accessed either by their indices or their column names,
-though access by index is more efficient. Unlike statement parameters, result
-columns are zero-indexed.
+
+`query` returns an iterable object holding the rows returned from the database.
+The fields in a row can be accessed either by their indices or their column
+names, though access by index is more efficient. Unlike statement parameters,
+result columns are zero-indexed.
 ```rust
 let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
-for row in try!(stmt.query(&[])) {
+for row in &try!(conn.query("SELECT bar, baz FROM foo WHERE buz = $1", &[&1i32])) {
     let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `Connection` has utility `execute` and `query` methods which are
-useful if a statement is only going to be executed once:
+
+### Statement Preparation
+If the same statement will be executed repeatedly (possibly with different
+parameters), explicitly preparing it can improve performance:
+
 ```rust
-let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                &[&1i32, &"biz"]));
-println!("{} rows were updated", updates);
+let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
+for (bar, baz) in updates {
+    try!(stmt.update(&[bar, baz]));
+}
 ```
 
 ### Transactions
