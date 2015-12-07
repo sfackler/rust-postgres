@@ -641,7 +641,7 @@ fn test_cancel_query() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let cancel_data = conn.cancel_data();
 
-    let _t = thread::spawn(move || {
+    let t = thread::spawn(move || {
         thread::sleep(Duration::from_millis(500));
         assert!(postgres::cancel_query("postgres://postgres@localhost", SslMode::None,
                                        &cancel_data).is_ok());
@@ -652,6 +652,8 @@ fn test_cancel_query() {
         Err(res) => panic!("Unexpected result {:?}", res),
         _ => panic!("Unexpected result"),
     }
+
+    t.join().unwrap();
 }
 
 #[test]
