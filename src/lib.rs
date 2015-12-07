@@ -909,16 +909,66 @@ impl Connection {
         InnerConnection::connect(params, ssl).map(|conn| Connection { conn: RefCell::new(conn) })
     }
 
-    /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
-        self.conn.borrow_mut().set_notice_handler(handler)
+    /// A convenience function for queries that are only run once.
+    ///
+    /// If an error is returned, it could have come from either the preparation
+    /// or execution of the statement.
+    ///
+    /// On success, returns the number of rows modified or 0 if not applicable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
+        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let stmt = Statement::new(self,
+                                  "".to_owned(),
+                                  param_types,
+                                  columns,
+                                  Cell::new(0),
+                                  true);
+        stmt.execute(params)
     }
 
-    /// Returns a structure providing access to asynchronous notifications.
+    /// Begins a new transaction.
     ///
-    /// Use the `LISTEN` command to register this connection for notifications.
-    pub fn notifications<'a>(&'a self) -> Notifications<'a> {
-        Notifications::new(self)
+    /// Returns a `Transaction` object which should be used instead of
+    /// the connection for the duration of the transaction. The transaction
+    /// is active until the `Transaction` object falls out of scope.
+    ///
+    /// # Note
+    /// A transaction will roll back by default. The `set_commit`,
+    /// `set_rollback`, and `commit` methods alter this behavior.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a transaction is already active.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// let trans = conn.transaction().unwrap();
+    /// trans.execute("UPDATE foo SET bar = 10", &[]).unwrap();
+    /// // ...
+    ///
+    /// trans.commit().unwrap();
+    /// ```
+    pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
+        let mut conn = self.conn.borrow_mut();
+        check_desync!(conn);
+        assert!(conn.trans_depth == 0,
+                "`transaction` must be called on the active transaction");
+        try!(conn.quick_query("BEGIN"));
+        conn.trans_depth += 1;
+        Ok(Transaction {
+            conn: self,
+            commit: Cell::new(false),
+            depth: 1,
+            finished: false,
+        })
     }
 
     /// Creates a new prepared statement.
@@ -969,46 +1019,6 @@ impl Connection {
         self.conn.borrow_mut().prepare_cached(query, self)
     }
 
-    /// Begins a new transaction.
-    ///
-    /// Returns a `Transaction` object which should be used instead of
-    /// the connection for the duration of the transaction. The transaction
-    /// is active until the `Transaction` object falls out of scope.
-    ///
-    /// # Note
-    /// A transaction will roll back by default. The `set_commit`,
-    /// `set_rollback`, and `commit` methods alter this behavior.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a transaction is already active.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let trans = conn.transaction().unwrap();
-    /// trans.execute("UPDATE foo SET bar = 10", &[]).unwrap();
-    /// // ...
-    ///
-    /// trans.commit().unwrap();
-    /// ```
-    pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
-        let mut conn = self.conn.borrow_mut();
-        check_desync!(conn);
-        assert!(conn.trans_depth == 0,
-                "`transaction` must be called on the active transaction");
-        try!(conn.quick_query("BEGIN"));
-        conn.trans_depth += 1;
-        Ok(Transaction {
-            conn: self,
-            commit: Cell::new(false),
-            depth: 1,
-            finished: false,
-        })
-    }
-
     /// Sets the isolation level which will be used for future transactions.
     ///
     /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
@@ -1028,28 +1038,6 @@ impl Connection {
         check_desync!(conn);
         let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
         IsolationLevel::parse(result[0][0].as_ref().unwrap())
-    }
-
-    /// A convenience function for queries that are only run once.
-    ///
-    /// If an error is returned, it could have come from either the preparation
-    /// or execution of the statement.
-    ///
-    /// On success, returns the number of rows modified or 0 if not applicable.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number
-    /// expected.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
-        let stmt = Statement::new(self,
-                                  "".to_owned(),
-                                  param_types,
-                                  columns,
-                                  Cell::new(0),
-                                  true);
-        stmt.execute(params)
     }
 
     /// Execute a sequence of SQL statements.
@@ -1090,6 +1078,13 @@ impl Connection {
         self.conn.borrow_mut().quick_query(query).map(|_| ())
     }
 
+    /// Returns a structure providing access to asynchronous notifications.
+    ///
+    /// Use the `LISTEN` command to register this connection for notifications.
+    pub fn notifications<'a>(&'a self) -> Notifications<'a> {
+        Notifications::new(self)
+    }
+
     /// Returns information used to cancel pending queries.
     ///
     /// Used with the `cancel_query` function. The object returned can be used
@@ -1102,6 +1097,11 @@ impl Connection {
     /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<String> {
         self.conn.borrow().parameters.get(param).cloned()
+    }
+
+    /// Sets the notice handler for the connection, returning the old handler.
+    pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
+        self.conn.borrow_mut().set_notice_handler(handler)
     }
 
     /// Returns whether or not the stream has been desynchronized due to an
