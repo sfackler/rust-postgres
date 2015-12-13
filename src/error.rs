@@ -17,21 +17,73 @@ include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
 /// A Postgres error or notice.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DbError {
-    severity: String,
-    code: SqlState,
-    message: String,
-    detail: Option<String>,
-    hint: Option<String>,
-    position: Option<ErrorPosition>,
-    where_: Option<String>,
-    schema: Option<String>,
-    table: Option<String>,
-    column: Option<String>,
-    datatype: Option<String>,
-    constraint: Option<String>,
-    file: String,
-    line: u32,
-    routine: String,
+    /// The field contents are ERROR, FATAL, or PANIC (in an error message),
+    /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
+    /// localized translation of one of these.
+    pub severity: String,
+
+    /// The SQLSTATE code for the error.
+    pub code: SqlState,
+
+    /// The primary human-readable error message. This should be accurate but
+    /// terse (typically one line).
+    pub message: String,
+
+    /// An optional secondary error message carrying more detail about the
+    /// problem. Might run to multiple lines.
+    pub detail: Option<String>,
+
+    /// An optional suggestion what to do about the problem. This is intended
+    /// to differ from Detail in that it offers advice (potentially
+    /// inappropriate) rather than hard facts. Might run to multiple lines.
+    pub hint: Option<String>,
+
+    /// An optional error cursor position into either the original query string
+    /// or an internally generated query.
+    pub position: Option<ErrorPosition>,
+
+    /// An indication of the context in which the error occurred. Presently
+    /// this includes a call stack traceback of active procedural language
+    /// functions and internally-generated queries. The trace is one entry per
+    /// line, most recent first.
+    pub where_: Option<String>,
+
+    /// If the error was associated with a specific database object, the name
+    /// of the schema containing that object, if any. (PostgreSQL 9.3+)
+    pub schema: Option<String>,
+
+    /// If the error was associated with a specific table, the name of the
+    /// table. (Refer to the schema name field for the name of the table's
+    /// schema.) (PostgreSQL 9.3+)
+    pub table: Option<String>,
+
+    /// If the error was associated with a specific table column, the name of
+    /// the column. (Refer to the schema and table name fields to identify the
+    /// table.) (PostgreSQL 9.3+)
+    pub column: Option<String>,
+
+    /// If the error was associated with a specific data type, the name of the
+    /// data type. (Refer to the schema name field for the name of the data
+    /// type's schema.) (PostgreSQL 9.3+)
+    pub datatype: Option<String>,
+
+    /// If the error was associated with a specific constraint, the name of the
+    /// constraint. Refer to fields listed above for the associated table or
+    /// domain. (For this purpose, indexes are treated as constraints, even if
+    /// they weren't created with constraint syntax.) (PostgreSQL 9.3+)
+    pub constraint: Option<String>,
+
+    /// The file name of the source-code location where the error was reported.
+    pub file: String,
+
+    /// The line number of the source-code location where the error was
+    /// reported.
+    pub line: u32,
+
+    /// The name of the source-code routine reporting the error.
+    pub routine: String,
+
+    _p: (),
 }
 
 impl DbErrorNew for DbError {
@@ -66,6 +118,7 @@ impl DbErrorNew for DbError {
             file: try!(map.remove(&b'F').ok_or(())),
             line: try!(map.remove(&b'L').and_then(|l| l.parse().ok()).ok_or(())),
             routine: try!(map.remove(&b'R').ok_or(())),
+            _p: (),
         })
     }
 
@@ -81,104 +134,6 @@ impl DbErrorNew for DbError {
             Ok(err) => Err(Error::DbError(Box::new(err))),
             Err(()) => Err(Error::IoError(::bad_response())),
         }
-    }
-}
-
-impl DbError {
-    /// The field contents are ERROR, FATAL, or PANIC (in an error message),
-    /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
-    /// localized translation of one of these.
-    pub fn severity(&self) -> &str {
-        &self.severity
-    }
-
-    /// The SQLSTATE code for the error.
-    pub fn code(&self) -> &SqlState {
-        &self.code
-    }
-
-    /// The primary human-readable error message. This should be accurate but
-    /// terse (typically one line).
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-
-    /// An optional secondary error message carrying more detail about the
-    /// problem. Might run to multiple lines.
-    pub fn detail(&self) -> Option<&str> {
-        self.detail.as_ref().map(|s| &**s)
-    }
-
-    /// An optional suggestion what to do about the problem. This is intended
-    /// to differ from Detail in that it offers advice (potentially
-    /// inappropriate) rather than hard facts. Might run to multiple lines.
-    pub fn hint(&self) -> Option<&str> {
-        self.hint.as_ref().map(|s| &**s)
-    }
-
-    /// An optional error cursor position into either the original query string
-    /// or an internally generated query.
-    pub fn position(&self) -> Option<&ErrorPosition> {
-        self.position.as_ref()
-    }
-
-    /// An indication of the context in which the error occurred. Presently
-    /// this includes a call stack traceback of active procedural language
-    /// functions and internally-generated queries. The trace is one entry per
-    /// line, most recent first.
-    pub fn where_(&self) -> Option<&str> {
-        self.where_.as_ref().map(|s| &**s)
-    }
-
-    /// If the error was associated with a specific database object, the name
-    /// of the schema containing that object, if any. (PostgreSQL 9.3+)
-    pub fn schema(&self) -> Option<&str> {
-        self.schema.as_ref().map(|s| &**s)
-    }
-
-    /// If the error was associated with a specific table, the name of the
-    /// table. (Refer to the schema name field for the name of the table's
-    /// schema.) (PostgreSQL 9.3+)
-    pub fn table(&self) -> Option<&str> {
-        self.table.as_ref().map(|s| &**s)
-    }
-
-    /// If the error was associated with a specific table column, the name of
-    /// the column. (Refer to the schema and table name fields to identify the
-    /// table.) (PostgreSQL 9.3+)
-    pub fn column(&self) -> Option<&str> {
-        self.column.as_ref().map(|s| &**s)
-    }
-
-    /// If the error was associated with a specific data type, the name of the
-    /// data type. (Refer to the schema name field for the name of the data
-    /// type's schema.) (PostgreSQL 9.3+)
-    pub fn datatype(&self) -> Option<&str> {
-        self.datatype.as_ref().map(|s| &**s)
-    }
-
-    /// If the error was associated with a specific constraint, the name of the
-    /// constraint. Refer to fields listed above for the associated table or
-    /// domain. (For this purpose, indexes are treated as constraints, even if
-    /// they weren't created with constraint syntax.) (PostgreSQL 9.3+)
-    pub fn constraint(&self) -> Option<&str> {
-        self.constraint.as_ref().map(|s| &**s)
-    }
-
-    /// The file name of the source-code location where the error was reported.
-    pub fn file(&self) -> &str {
-        &self.file
-    }
-
-    /// The line number of the source-code location where the error was
-    /// reported.
-    pub fn line(&self) -> u32 {
-        self.line
-    }
-
-    /// The name of the source-code routine reporting the error.
-    pub fn routine(&self) -> &str {
-        &self.routine
     }
 }
 
