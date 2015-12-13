@@ -1,6 +1,4 @@
-//! Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
-//! exposes a high level interface in the vein of JDBC or Go's `database/sql`
-//! package.
+//! A pure-Rust frontend for the popular PostgreSQL database.
 //!
 //! ```rust,no_run
 //! extern crate postgres;
@@ -1036,10 +1034,11 @@ impl Connection {
     /// # use postgres::{Connection, SslMode};
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", SslMode::None).unwrap();
-    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in &stmt.query(&[&x]).unwrap() {
-    ///     let foo: String = row.get(0);
-    ///     println!("foo: {}", foo);
+    /// # let (a, b) = (0i32, 1i32);
+    /// # let updates = vec![(&a, &b)];
+    /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
+    /// for (bar, baz) in updates {
+    ///     stmt.execute(&[bar, baz]).unwrap();
     /// }
     /// ```
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
@@ -1059,10 +1058,11 @@ impl Connection {
     /// # use postgres::{Connection, SslMode};
     /// # let x = 10i32;
     /// # let conn = Connection::connect("", SslMode::None).unwrap();
-    /// let stmt = conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in &stmt.query(&[&x]).unwrap() {
-    ///     let foo: String = row.get(0);
-    ///     println!("foo: {}", foo);
+    /// # let (a, b) = (0i32, 1i32);
+    /// # let updates = vec![(&a, &b)];
+    /// let stmt = conn.prepare_cached("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
+    /// for (bar, baz) in updates {
+    ///     stmt.execute(&[bar, baz]).unwrap();
     /// }
     /// ```
     pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {

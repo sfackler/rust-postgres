@@ -117,7 +117,7 @@ parameters), explicitly preparing it can improve performance:
 ```rust
 let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
 for (bar, baz) in updates {
-    try!(stmt.update(&[bar, baz]));
+    try!(stmt.execute(&[bar, baz]));
 }
 ```
 
