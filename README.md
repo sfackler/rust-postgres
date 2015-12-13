@@ -103,7 +103,6 @@ The fields in a row can be accessed either by their indices or their column
 names, though access by index is more efficient. Unlike statement parameters,
 result columns are zero-indexed.
 ```rust
-let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
 for row in &try!(conn.query("SELECT bar, baz FROM foo WHERE buz = $1", &[&1i32])) {
     let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
