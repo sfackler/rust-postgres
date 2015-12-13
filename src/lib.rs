@@ -746,7 +746,7 @@ impl InnerConnection {
                 try!(self.wait_for_ready());
                 return DbError::new(fields);
             }
-            _ => bad_response!(self)
+            _ => bad_response!(self),
         };
         match try!(self.read_message()) {
             CommandComplete { .. } => {}
@@ -973,7 +973,12 @@ impl Connection {
     /// ```
     pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
         let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
-        let stmt = Statement::new(self, "".to_owned(), param_types, columns, Cell::new(0), true);
+        let stmt = Statement::new(self,
+                                  "".to_owned(),
+                                  param_types,
+                                  columns,
+                                  Cell::new(0),
+                                  true);
         stmt.into_query(params)
     }
 

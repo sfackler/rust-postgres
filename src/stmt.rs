@@ -65,9 +65,8 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
 
     fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>> {
         check_desync!(self.conn);
-        self.inner_query("", 0, params).map(|(buf, _)| {
-            Rows::new_owned(self, buf.into_iter().collect())
-        })
+        self.inner_query("", 0, params)
+            .map(|(buf, _)| Rows::new_owned(self, buf.into_iter().collect()))
     }
 }
 
