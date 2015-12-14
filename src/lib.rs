@@ -352,6 +352,7 @@ impl IsolationLevel {
 }
 
 /// Specifies the SSL support requested for a new connection.
+#[derive(Debug)]
 pub enum SslMode<'a> {
     /// The connection will not use SSL.
     None,
@@ -359,16 +360,6 @@ pub enum SslMode<'a> {
     Prefer(&'a NegotiateSsl),
     /// The connection must use SSL.
     Require(&'a NegotiateSsl),
-}
-
-impl<'a> fmt::Debug for SslMode<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SslMode::None => fmt.write_str("None"),
-            SslMode::Prefer(..) => fmt.write_str("Prefer"),
-            SslMode::Require(..) => fmt.write_str("Require"),
-        }
-    }
 }
 
 #[derive(Clone)]
