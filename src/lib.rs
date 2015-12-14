@@ -826,6 +826,7 @@ impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
         fmt.debug_struct("Connection")
+           .field("stream", &conn.stream.get_ref())
            .field("cancel_data", &conn.cancel_data)
            .field("notifications", &conn.notifications.len())
            .field("transaction_depth", &conn.trans_depth)

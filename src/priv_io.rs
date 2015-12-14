@@ -2,6 +2,7 @@ use byteorder::ReadBytesExt;
 use net2::TcpStreamExt;
 use std::io;
 use std::io::prelude::*;
+use std::fmt;
 use std::net::TcpStream;
 use std::time::Duration;
 use bufstream::BufStream;
@@ -42,6 +43,16 @@ impl ReadTimeout for BufStream<Box<StreamWrapper>> {
 /// It implements `Read`, `Write` and `StreamWrapper`, as well as `AsRawFd` on
 /// Unix platforms and `AsRawSocket` on Windows platforms.
 pub struct Stream(InternalStream);
+
+impl fmt::Debug for Stream {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            InternalStream::Tcp(ref s) => fmt::Debug::fmt(s, fmt),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref s) => fmt::Debug::fmt(s, fmt),
+        }
+    }
+}
 
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

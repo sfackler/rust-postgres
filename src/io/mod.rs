@@ -11,7 +11,7 @@ mod openssl;
 mod security_framework;
 
 /// A trait implemented by SSL adaptors.
-pub trait StreamWrapper: Read+Write+Send {
+pub trait StreamWrapper: fmt::Debug + Read + Write + Send {
     /// Returns a reference to the underlying `Stream`.
     fn get_ref(&self) -> &Stream;
 
