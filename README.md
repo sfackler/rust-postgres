@@ -26,7 +26,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None)
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None)
             .unwrap();
 
     conn.execute("CREATE TABLE person (
