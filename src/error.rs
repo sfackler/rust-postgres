@@ -15,7 +15,7 @@ use types::Type;
 include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
 
 /// A Postgres error or notice.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct DbError {
     /// The field contents are ERROR, FATAL, or PANIC (in an error message),
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
@@ -134,6 +134,29 @@ impl DbErrorNew for DbError {
             Ok(err) => Err(Error::DbError(Box::new(err))),
             Err(()) => Err(Error::IoError(::bad_response())),
         }
+    }
+}
+
+// manual impl to leave out _p
+impl fmt::Debug for DbError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("DbError")
+           .field("severity", &self.severity)
+           .field("code", &self.code)
+           .field("message", &self.message)
+           .field("detail", &self.detail)
+           .field("hint", &self.hint)
+           .field("position", &self.position)
+           .field("where_", &self.where_)
+           .field("schema", &self.schema)
+           .field("table", &self.table)
+           .field("column", &self.column)
+           .field("datatype", &self.datatype)
+           .field("constraint", &self.constraint)
+           .field("file", &self.file)
+           .field("line", &self.line)
+           .field("routine", &self.routine)
+           .finish()
     }
 }
 
