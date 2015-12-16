@@ -168,29 +168,6 @@ impl<'a> Row<'a> {
     /// A field can be accessed by the name or index of its column, though
     /// access by index is more efficient. Rows are 0-indexed.
     ///
-    /// Returns an `Error` value if the index does not reference a column or
-    /// the return type is not compatible with the Postgres type.
-    pub fn get_opt<I, T>(&self, idx: I) -> Result<T>
-        where I: RowIndex,
-              T: FromSql
-    {
-        let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        let ty = self.stmt.columns()[idx].type_();
-        if !<T as FromSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        let conn = self.stmt.conn().conn.borrow();
-        match self.data[idx] {
-            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
-            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
-        }
-    }
-
-    /// Retrieves the contents of a field of the row.
-    ///
-    /// A field can be accessed by the name or index of its column, though
-    /// access by index is more efficient. Rows are 0-indexed.
-    ///
     /// # Panics
     ///
     /// Panics if the index does not reference a column or the return type is
@@ -209,12 +186,42 @@ impl<'a> Row<'a> {
     /// }
     /// ```
     pub fn get<I, T>(&self, idx: I) -> T
-        where I: RowIndex + fmt::Debug + Clone,
+        where I: RowIndex + fmt::Debug,
               T: FromSql
     {
-        match self.get_opt(idx.clone()) {
+        match self.get_inner(&idx) {
             Ok(ok) => ok,
             Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err),
+        }
+    }
+
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// Returns an `Error` value if the index does not reference a column or
+    /// the return type is not compatible with the Postgres type.
+    pub fn get_opt<I, T>(&self, idx: I) -> Result<T>
+        where I: RowIndex,
+              T: FromSql
+    {
+        self.get_inner(&idx)
+    }
+
+    fn get_inner<I, T>(&self, idx: &I) -> Result<T>
+        where I: RowIndex,
+              T: FromSql
+    {
+        let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
+        let ty = self.stmt.columns()[idx].type_();
+        if !<T as FromSql>::accepts(ty) {
+            return Err(Error::WrongType(ty.clone()));
+        }
+        let conn = self.stmt.conn().conn.borrow();
+        match self.data[idx] {
+            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
+            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
         }
     }
 

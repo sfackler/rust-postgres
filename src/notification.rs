@@ -18,7 +18,7 @@ pub struct Notification {
     pub payload: String,
 }
 
-/// An iterator over asynchronous notifications.
+/// Notifications from the Postgres backend.
 pub struct Notifications<'conn> {
     conn: &'conn Connection,
 }

@@ -538,6 +538,18 @@ impl ColumnNew for Column {
     }
 }
 
+impl Column {
+    /// The name of the column.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The type of the data in the column.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
 /// A struct containing information relevant for a `COPY` operation.
 pub struct CopyInfo<'a> {
     conn: RefMut<'a, InnerConnection>,
@@ -587,18 +599,6 @@ pub trait WriteWithInfo {
 impl<W: Write> WriteWithInfo for W {
     fn write_with_info(&mut self, buf: &[u8], _: &CopyInfo) -> io::Result<usize> {
         self.write(buf)
-    }
-}
-
-impl Column {
-    /// The name of the column.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// The type of the data in the column.
-    pub fn type_(&self) -> &Type {
-        &self.type_
     }
 }
 
