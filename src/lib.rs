@@ -875,10 +875,11 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
+    /// # use std::path::PathBuf;
     ///
     /// # #[cfg(feature = "unix_socket")]
     /// # fn f() {
-    /// # let some_crazy_path = Path::new("");
+    /// # let some_crazy_path = PathBuf::new();
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
