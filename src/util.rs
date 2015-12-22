@@ -6,11 +6,10 @@ pub fn parse_update_count(tag: String) -> u64 {
 }
 
 pub fn read_all<R: Read>(r: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
-    let mut start = 0;
-    while start != buf.len() {
-        match r.read(&mut buf[start..]) {
+    while !buf.is_empty() {
+        match r.read(buf) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::Other, "unexpected EOF")),
-            Ok(len) => start += len,
+            Ok(len) => buf = &mut {buf}[len..],
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(e) => return Err(e),
         }
