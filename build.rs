@@ -7,7 +7,7 @@ use std::path::Path;
 use std::convert::AsRef;
 
 // From http://www.postgresql.org/docs/9.2/static/errcodes-appendix.html
-static SQLSTATES: &'static [(&'static str, &'static str)] = &[
+const SQLSTATES: &'static [(&'static str, &'static str)] = &[
         // Class 00 — Successful Completion
         ("00000", "SuccessfulCompletion"),
 
