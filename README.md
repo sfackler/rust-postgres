@@ -287,8 +287,7 @@ implementations for `uuid`'s `Uuid` type.
 support is provided optionally by the `rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
 the `serde_json` feature, which adds implementations for `serde_json`'s `Value`
-type. The `serde` feature provides implementations for the older
-`serde::json::Value` type.
+type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
