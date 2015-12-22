@@ -397,7 +397,7 @@ impl SqlState {{
     }
 
     write!(file, r#"
-            SqlState::Unknown(ref s) => &**s,
+            SqlState::Unknown(ref s) => s,
         }}
     }}
 }}
