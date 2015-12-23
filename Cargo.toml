@@ -30,7 +30,7 @@ byteorder = ">= 0.3, < 0.5"
 log = "0.3"
 phf = "0.7"
 hex = "0.1"
-net2 = { version = "0.2", features = ["nightly"] }
+net2 = "0.2.16"
 rustc-serialize = { version = "0.3", optional = true }
 chrono = { version = "0.2.14", optional = true }
 openssl = { version = ">= 0.6.4, < 0.8", optional = true }
