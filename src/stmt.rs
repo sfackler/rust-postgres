@@ -121,7 +121,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                Err(Error::IoError(bad_response()))
+                Err(Error::Io(bad_response()))
             }
         }
     }
@@ -212,7 +212,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::IoError(bad_response()));
+                    return Err(Error::Io(bad_response()));
                 }
             }
         }
@@ -321,7 +321,7 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                                      "called `copy_in` on a \
                                                                       non-`COPY FROM STDIN` \
                                                                       statement")));
@@ -354,11 +354,11 @@ impl<'conn> Statement<'conn> {
                         }
                         _ => {
                             info.conn.desynchronized = true;
-                            return Err(Error::IoError(bad_response()));
+                            return Err(Error::Io(bad_response()));
                         }
                     }
                     try!(info.conn.wait_for_ready());
-                    return Err(Error::IoError(err));
+                    return Err(Error::Io(err));
                 }
             }
         }
@@ -373,7 +373,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 info.conn.desynchronized = true;
-                return Err(Error::IoError(bad_response()));
+                return Err(Error::Io(bad_response()));
             }
         };
 
@@ -417,11 +417,11 @@ impl<'conn> Statement<'conn> {
                     }
                     _ => {
                         conn.desynchronized = true;
-                        return Err(Error::IoError(bad_response()));
+                        return Err(Error::Io(bad_response()));
                     }
                 }
                 try!(conn.wait_for_ready());
-                return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                          "called `copy_out` on a non-`COPY TO \
                                                           STDOUT` statement")));
             }
@@ -433,7 +433,7 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
+                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                                      "called `copy_out` on a \
                                                                       non-`COPY TO STDOUT` \
                                                                       statement")));
@@ -461,7 +461,7 @@ impl<'conn> Statement<'conn> {
                             Err(e) => {
                                 loop {
                                     match try!(info.conn.read_message()) {
-                                        ReadyForQuery { .. } => return Err(Error::IoError(e)),
+                                        ReadyForQuery { .. } => return Err(Error::Io(e)),
                                         _ => {}
                                     }
                                 }
@@ -485,7 +485,7 @@ impl<'conn> Statement<'conn> {
                 _ => {
                     loop {
                         match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return Err(Error::IoError(bad_response())),
+                            ReadyForQuery { .. } => return Err(Error::Io(bad_response())),
                             _ => {}
                         }
                     }

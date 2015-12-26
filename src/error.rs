@@ -124,15 +124,15 @@ impl DbErrorNew for DbError {
 
     fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(ConnectError::DbError(Box::new(err))),
-            Err(()) => Err(ConnectError::IoError(::bad_response())),
+            Ok(err) => Err(ConnectError::Db(Box::new(err))),
+            Err(()) => Err(ConnectError::Io(::bad_response())),
         }
     }
 
     fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
         match DbError::new_raw(fields) {
-            Ok(err) => Err(Error::DbError(Box::new(err))),
-            Err(()) => Err(Error::IoError(::bad_response())),
+            Ok(err) => Err(Error::Db(Box::new(err))),
+            Err(()) => Err(Error::Io(::bad_response())),
         }
     }
 }
@@ -180,7 +180,7 @@ pub enum ConnectError {
     /// The `ConnectParams` was missing a user.
     MissingUser,
     /// An error from the Postgres server itself.
-    DbError(Box<DbError>),
+    Db(Box<DbError>),
     /// A password was required but not provided in the `ConnectParams`.
     MissingPassword,
     /// The Postgres server requested an authentication method not supported
@@ -189,9 +189,9 @@ pub enum ConnectError {
     /// The Postgres server does not support SSL encryption.
     NoSslSupport,
     /// An error initializing the SSL session.
-    SslError(Box<error::Error + Sync + Send>),
+    Ssl(Box<error::Error + Sync + Send>),
     /// An error communicating with the server.
-    IoError(io::Error),
+    Io(io::Error),
 }
 
 impl fmt::Display for ConnectError {
@@ -199,9 +199,9 @@ impl fmt::Display for ConnectError {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
             ConnectError::BadConnectParams(ref msg) => write!(fmt, ": {}", msg),
-            ConnectError::DbError(ref err) => write!(fmt, ": {}", err),
-            ConnectError::SslError(ref err) => write!(fmt, ": {}", err),
-            ConnectError::IoError(ref err) => write!(fmt, ": {}", err),
+            ConnectError::Db(ref err) => write!(fmt, ": {}", err),
+            ConnectError::Ssl(ref err) => write!(fmt, ": {}", err),
+            ConnectError::Io(ref err) => write!(fmt, ": {}", err),
             _ => Ok(()),
         }
     }
@@ -212,7 +212,7 @@ impl error::Error for ConnectError {
         match *self {
             ConnectError::BadConnectParams(_) => "Error creating `ConnectParams`",
             ConnectError::MissingUser => "User missing in `ConnectParams`",
-            ConnectError::DbError(_) => "Error reported by Postgres",
+            ConnectError::Db(_) => "Error reported by Postgres",
             ConnectError::MissingPassword => {
                 "The server requested a password but none was provided"
             }
@@ -220,17 +220,17 @@ impl error::Error for ConnectError {
                 "The server requested an unsupported authentication method"
             }
             ConnectError::NoSslSupport => "The server does not support SSL",
-            ConnectError::SslError(_) => "Error initiating SSL session",
-            ConnectError::IoError(_) => "Error communicating with the server",
+            ConnectError::Ssl(_) => "Error initiating SSL session",
+            ConnectError::Io(_) => "Error communicating with the server",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             ConnectError::BadConnectParams(ref err) => Some(&**err),
-            ConnectError::DbError(ref err) => Some(&**err),
-            ConnectError::SslError(ref err) => Some(&**err),
-            ConnectError::IoError(ref err) => Some(err),
+            ConnectError::Db(ref err) => Some(&**err),
+            ConnectError::Ssl(ref err) => Some(&**err),
+            ConnectError::Io(ref err) => Some(err),
             _ => None,
         }
     }
@@ -238,19 +238,19 @@ impl error::Error for ConnectError {
 
 impl From<io::Error> for ConnectError {
     fn from(err: io::Error) -> ConnectError {
-        ConnectError::IoError(err)
+        ConnectError::Io(err)
     }
 }
 
 impl From<DbError> for ConnectError {
     fn from(err: DbError) -> ConnectError {
-        ConnectError::DbError(Box::new(err))
+        ConnectError::Db(Box::new(err))
     }
 }
 
 impl From<byteorder::Error> for ConnectError {
     fn from(err: byteorder::Error) -> ConnectError {
-        ConnectError::IoError(From::from(err))
+        ConnectError::Io(From::from(err))
     }
 }
 
@@ -272,9 +272,9 @@ pub enum ErrorPosition {
 #[derive(Debug)]
 pub enum Error {
     /// An error reported by the Postgres server.
-    DbError(Box<DbError>),
+    Db(Box<DbError>),
     /// An error communicating with the Postgres server.
-    IoError(io::Error),
+    Io(io::Error),
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types.
     WrongType(Type),
@@ -286,8 +286,8 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
-            Error::DbError(ref err) => write!(fmt, ": {}", err),
-            Error::IoError(ref err) => write!(fmt, ": {}", err),
+            Error::Db(ref err) => write!(fmt, ": {}", err),
+            Error::Io(ref err) => write!(fmt, ": {}", err),
             Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
             Error::Conversion(ref err) => write!(fmt, ": {}", err),
         }
@@ -297,8 +297,8 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::DbError(_) => "Error reported by Postgres",
-            Error::IoError(_) => "Error communicating with the server",
+            Error::Db(_) => "Error reported by Postgres",
+            Error::Io(_) => "Error communicating with the server",
             Error::WrongType(_) => "Unexpected type",
             Error::Conversion(_) => "Error converting between Postgres and Rust types",
         }
@@ -306,8 +306,8 @@ impl error::Error for Error {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            Error::DbError(ref err) => Some(&**err),
-            Error::IoError(ref err) => Some(err),
+            Error::Db(ref err) => Some(&**err),
+            Error::Io(ref err) => Some(err),
             Error::Conversion(ref err) => Some(&**err),
             _ => None,
         }
@@ -316,19 +316,19 @@ impl error::Error for Error {
 
 impl From<DbError> for Error {
     fn from(err: DbError) -> Error {
-        Error::DbError(Box::new(err))
+        Error::Db(Box::new(err))
     }
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
-        Error::IoError(err)
+        Error::Io(err)
     }
 }
 
 impl From<byteorder::Error> for Error {
     fn from(err: byteorder::Error) -> Error {
-        Error::IoError(From::from(err))
+        Error::Io(From::from(err))
     }
 }
 

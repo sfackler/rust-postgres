@@ -13,7 +13,7 @@ macro_rules! try_desync {
 macro_rules! check_desync {
     ($e:expr) => ({
         if $e.is_desynchronized() {
-            return Err(::error::Error::IoError(::desynchronized()));
+            return Err(::error::Error::Io(::desynchronized()));
         }
     })
 }
@@ -22,6 +22,6 @@ macro_rules! bad_response {
     ($s:expr) => ({
         debug!("Bad response at {}:{}", file!(), line!());
         $s.desynchronized = true;
-        return Err(::error::Error::IoError(::bad_response()));
+        return Err(::error::Error::Io(::bad_response()));
     })
 }

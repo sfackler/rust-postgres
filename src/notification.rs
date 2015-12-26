@@ -115,7 +115,7 @@ impl<'a> Iterator for BlockingIter<'a> {
         }
 
         if conn.is_desynchronized() {
-            return Some(Err(Error::IoError(desynchronized())));
+            return Some(Err(Error::Io(desynchronized())));
         }
 
         match conn.read_message_with_notification() {
@@ -126,7 +126,7 @@ impl<'a> Iterator for BlockingIter<'a> {
                     payload: payload,
                 }))
             }
-            Err(err) => Some(Err(Error::IoError(err))),
+            Err(err) => Some(Err(Error::Io(err))),
             _ => unreachable!(),
         }
     }
@@ -150,7 +150,7 @@ impl<'a> Iterator for TimeoutIter<'a> {
         }
 
         if conn.is_desynchronized() {
-            return Some(Err(Error::IoError(desynchronized())));
+            return Some(Err(Error::Io(desynchronized())));
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
@@ -162,7 +162,7 @@ impl<'a> Iterator for TimeoutIter<'a> {
                 }))
             }
             Ok(None) => None,
-            Err(err) => Some(Err(Error::IoError(err))),
+            Err(err) => Some(Err(Error::Io(err))),
             _ => unreachable!(),
         }
     }

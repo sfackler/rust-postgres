@@ -346,7 +346,7 @@ impl IsolationLevel {
         } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
             Ok(IsolationLevel::Serializable)
         } else {
-            Err(Error::IoError(bad_response()))
+            Err(Error::Io(bad_response()))
         }
     }
 }
@@ -444,7 +444,7 @@ impl InnerConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => return DbError::new_connect(fields),
-                _ => return Err(ConnectError::IoError(bad_response())),
+                _ => return Err(ConnectError::Io(bad_response())),
             }
         }
 
@@ -464,10 +464,10 @@ impl InnerConnection {
                                     t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => return Ok(()),
-            Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
+            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
-            Err(Error::DbError(ref e)) if e.code == SqlState::UndefinedTable => {}
-            Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
+            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
             _ => unreachable!(),
         }
 
@@ -478,8 +478,8 @@ impl InnerConnection {
                                     ON t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => Ok(()),
-            Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),
-            Err(Error::DbError(e)) => Err(ConnectError::DbError(e)),
+            Err(Error::Io(e)) => Err(ConnectError::Io(e)),
+            Err(Error::Db(e)) => Err(ConnectError::Db(e)),
             _ => unreachable!(),
         }
     }
@@ -567,13 +567,13 @@ impl InnerConnection {
             AuthenticationGSS |
             AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::IoError(bad_response())),
+            _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::IoError(bad_response())),
+            _ => return Err(ConnectError::Io(bad_response())),
         }
     }
 
@@ -1336,13 +1336,13 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
                         _ => {}
                     }
                 }
-                return Err(Error::IoError(std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
                                                              "COPY queries cannot be directly \
                                                               executed")));
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::IoError(bad_response()));
+                return Err(Error::Io(bad_response()));
             }
         }
     }

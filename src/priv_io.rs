@@ -180,6 +180,6 @@ pub fn initialize_stream(params: &ConnectParams,
 
     match negotiator.negotiate_ssl(host, socket) {
         Ok(stream) => Ok(stream),
-        Err(err) => Err(ConnectError::SslError(err)),
+        Err(err) => Err(ConnectError::Ssl(err)),
     }
 }
