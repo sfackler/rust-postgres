@@ -217,7 +217,7 @@ impl<'a> Row<'a> {
     {
         let idx = match idx.idx(self.stmt) {
             Some(idx) => idx,
-            None => return None
+            None => return None,
         };
 
         let ty = self.stmt.columns()[idx].type_();

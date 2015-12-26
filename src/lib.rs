@@ -1337,8 +1337,8 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
                     }
                 }
                 return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
-                                                             "COPY queries cannot be directly \
-                                                              executed")));
+                                                        "COPY queries cannot be directly \
+                                                         executed")));
             }
             _ => {
                 conn.desynchronized = true;

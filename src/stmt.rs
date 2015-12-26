@@ -322,9 +322,9 @@ impl<'conn> Statement<'conn> {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
                             return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                     "called `copy_in` on a \
-                                                                      non-`COPY FROM STDIN` \
-                                                                      statement")));
+                                                                "called `copy_in` on a \
+                                                                 non-`COPY FROM STDIN` \
+                                                                 statement")));
                         }
                         _ => {}
                     }
@@ -422,8 +422,8 @@ impl<'conn> Statement<'conn> {
                 }
                 try!(conn.wait_for_ready());
                 return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                         "called `copy_out` on a non-`COPY TO \
-                                                          STDOUT` statement")));
+                                                    "called `copy_out` on a non-`COPY TO \
+                                                     STDOUT` statement")));
             }
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -434,9 +434,8 @@ impl<'conn> Statement<'conn> {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
                             return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                     "called `copy_out` on a \
-                                                                      non-`COPY TO STDOUT` \
-                                                                      statement")));
+                                                                "called `copy_out` on a \
+                                                                 non-`COPY TO STDOUT` statement")));
                         }
                         _ => {}
                     }
