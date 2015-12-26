@@ -495,8 +495,8 @@ fn test_get_named_err() {
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
     let result = or_panic!(stmt.query(&[]));
 
-    match result.iter().next().unwrap().get_opt::<&str, i32>("asdf") {
-        Err(Error::InvalidColumn) => {}
+    match result.iter().next().unwrap().get_opt::<_, i32>("asdf") {
+        None => {}
         res => panic!("unexpected result {:?}", res),
     };
 }
@@ -507,8 +507,8 @@ fn test_get_was_null() {
     let stmt = or_panic!(conn.prepare("SELECT NULL::INT as id"));
     let result = or_panic!(stmt.query(&[]));
 
-    match result.iter().next().unwrap().get_opt::<usize, i32>(0) {
-        Err(Error::Conversion(..)) => {}
+    match result.iter().next().unwrap().get_opt::<_, i32>(0) {
+        Some(Err(Error::Conversion(..))) => {}
         res => panic!("unexpected result {:?}", res),
     };
 }
@@ -519,8 +519,8 @@ fn test_get_off_by_one() {
     let stmt = or_panic!(conn.prepare("SELECT 10::INT as id"));
     let result = or_panic!(stmt.query(&[]));
 
-    match result.iter().next().unwrap().get_opt::<usize, i32>(1) {
-        Err(Error::InvalidColumn) => {}
+    match result.iter().next().unwrap().get_opt::<_, i32>(1) {
+        None => {}
         res => panic!("unexpected result {:?}", res),
     };
 }
@@ -936,9 +936,10 @@ fn test_get_opt_wrong_type() {
     let stmt = conn.prepare("SELECT 1::INT").unwrap();
     let res = stmt.query(&[]).unwrap();
     match res.iter().next().unwrap().get_opt::<_, String>(0) {
-        Ok(_) => panic!("unexpected success"),
-        Err(Error::WrongType(Type::Int4)) => {}
-        Err(e) => panic!("unexpected error {}", e),
+        Some(Ok(_)) => panic!("unexpected success"),
+        Some(Err(Error::WrongType(Type::Int4))) => {}
+        Some(Err(e)) => panic!("unexpected error {}", e),
+        None => panic!("unexpected None"),
     }
 }
 

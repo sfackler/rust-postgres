@@ -193,8 +193,8 @@ fn test_pg_database_datname() {
     let result = or_panic!(stmt.query(&[]));
 
     let next = result.iter().next().unwrap();
-    or_panic!(next.get_opt::<usize, String>(0));
-    or_panic!(next.get_opt::<&str, String>("datname"));
+    or_panic!(next.get_opt::<_, String>(0).unwrap());
+    or_panic!(next.get_opt::<_, String>("datname").unwrap());
 }
 
 #[test]

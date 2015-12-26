@@ -278,8 +278,6 @@ pub enum Error {
     /// An attempt was made to convert between incompatible Rust and Postgres
     /// types.
     WrongType(Type),
-    /// An attempt was made to read from a column that does not exist.
-    InvalidColumn,
     /// An error converting between Postgres and Rust types.
     Conversion(Box<error::Error + Sync + Send>),
 }
@@ -292,7 +290,6 @@ impl fmt::Display for Error {
             Error::IoError(ref err) => write!(fmt, ": {}", err),
             Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
             Error::Conversion(ref err) => write!(fmt, ": {}", err),
-            _ => Ok(()),
         }
     }
 }
@@ -303,7 +300,6 @@ impl error::Error for Error {
             Error::DbError(_) => "Error reported by Postgres",
             Error::IoError(_) => "Error communicating with the server",
             Error::WrongType(_) => "Unexpected type",
-            Error::InvalidColumn => "Invalid column",
             Error::Conversion(_) => "Error converting between Postgres and Rust types",
         }
     }
