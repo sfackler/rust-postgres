@@ -146,6 +146,10 @@ impl<'a> Iterator for BlockingIter<'a> {
             _ => unreachable!(),
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::max_value(), None)
+    }
 }
 
 /// An iterator over notifications which will block for a period of time if
