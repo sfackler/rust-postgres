@@ -349,7 +349,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
-    pub fn columns(&self) -> &'stmt [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
     }
 
