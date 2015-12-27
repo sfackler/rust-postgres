@@ -30,9 +30,7 @@ pub trait StreamOptions {
 impl StreamOptions for BufStream<Box<StreamWrapper>> {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
-            InternalStream::Tcp(ref s) => {
-                <TcpStream as TcpStreamExt>::set_read_timeout(s, timeout)
-            }
+            InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
             #[cfg(feature = "unix_socket")]
             InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
         }
