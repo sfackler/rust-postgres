@@ -42,8 +42,7 @@ impl<'conn> Notifications<'conn> {
     /// # Note
     ///
     /// This iterator may start returning `Some` after previously returning
-    /// `None` if more notifications are received. However, those notifications
-    /// will not be registered until the connection is used in some way.
+    /// `None` if more notifications are received.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter { conn: self.conn }
     }
@@ -72,7 +71,7 @@ impl<'conn> Notifications<'conn> {
 }
 
 impl<'a, 'conn> IntoIterator for &'a Notifications<'conn> {
-    type Item = Notification;
+    type Item = Result<Notification>;
     type IntoIter = Iter<'a>;
 
     fn into_iter(self) -> Iter<'a> {
@@ -92,10 +91,27 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Notification;
+    type Item = Result<Notification>;
 
-    fn next(&mut self) -> Option<Notification> {
-        self.conn.conn.borrow_mut().notifications.pop_front()
+    fn next(&mut self) -> Option<Result<Notification>> {
+        let mut conn = self.conn.conn.borrow_mut();
+
+        if let Some(notification) = conn.notifications.pop_front() {
+            return Some(Ok(notification));
+        }
+
+        match conn.read_message_with_notification_nonblocking() {
+            Ok(Some(NotificationResponse { pid, channel, payload })) => {
+                Some(Ok(Notification {
+                    pid: pid,
+                    channel: channel,
+                    payload: payload,
+                }))
+            }
+            Ok(None) => None,
+            Err(err) => Some(Err(Error::Io(err))),
+            _ => unreachable!(),
+        }
     }
 }
 

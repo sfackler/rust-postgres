@@ -575,12 +575,12 @@ fn test_notification_iterator_some() {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "hello".to_string()
-    }, it.next().unwrap());
+    }, it.next().unwrap().unwrap());
     check_notification(Notification {
         pid: 0,
         channel: "test_notification_iterator_one_channel2".to_string(),
         payload: "world".to_string()
-    }, it.next().unwrap());
+    }, it.next().unwrap().unwrap());
     assert!(it.next().is_none());
 
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", &[]));
@@ -588,7 +588,7 @@ fn test_notification_iterator_some() {
         pid: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "!".to_string()
-    }, it.next().unwrap());
+    }, it.next().unwrap().unwrap());
     assert!(it.next().is_none());
 }
 

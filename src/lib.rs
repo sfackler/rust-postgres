@@ -527,6 +527,24 @@ impl InnerConnection {
         }
     }
 
+    fn read_message_with_notification_nonblocking(&mut self)
+                                                  -> std::io::Result<Option<BackendMessage>> {
+        debug_assert!(!self.desynchronized);
+        loop {
+            match try_desync!(self, self.stream.read_message_nonblocking()) {
+                Some(NoticeResponse { fields }) => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                Some(ParameterStatus { parameter, value }) => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val),
+            }
+        }
+    }
+
     fn read_message(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             match try!(self.read_message_with_notification()) {

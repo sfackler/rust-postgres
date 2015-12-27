@@ -6,7 +6,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use types::Oid;
 use util;
-use priv_io::ReadTimeout;
+use priv_io::StreamOptions;
 
 use self::BackendMessage::*;
 use self::FrontendMessage::*;
@@ -287,10 +287,12 @@ pub trait ReadMessage {
 
     fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<BackendMessage>>;
 
+    fn read_message_nonblocking(&mut self) -> io::Result<Option<BackendMessage>>;
+
     fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage>;
 }
 
-impl<R: BufRead + ReadTimeout> ReadMessage for R {
+impl<R: BufRead + StreamOptions> ReadMessage for R {
     fn read_message(&mut self) -> io::Result<BackendMessage> {
         let ident = try!(self.read_u8());
         self.finish_read_message(ident)
@@ -306,6 +308,24 @@ impl<R: BufRead + ReadTimeout> ReadMessage for R {
             Err(e) => {
                 let e: io::Error = e.into();
                 if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    fn read_message_nonblocking(&mut self) -> io::Result<Option<BackendMessage>> {
+        try!(self.set_nonblocking(true));
+        let ident = self.read_u8();
+        try!(self.set_nonblocking(false));
+
+        match ident {
+            Ok(ident) => self.finish_read_message(ident).map(Some),
+            Err(e) => {
+                let e: io::Error = e.into();
+                if e.kind() == io::ErrorKind::WouldBlock {
                     Ok(None)
                 } else {
                     Err(e)
