@@ -102,6 +102,8 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
+    #[doc(hidden)]
+    __PseudoPrivateForExtensibility,
 }
 
 macro_rules! as_pat {
