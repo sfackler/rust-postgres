@@ -90,6 +90,14 @@ impl<'a> SessionInfo<'a> {
     }
 }
 
+impl<'a> fmt::Debug for SessionInfo<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SessionInfo")
+           .field("parameters", &self.conn.parameters)
+           .finish()
+    }
+}
+
 /// A Postgres OID.
 pub type Oid = u32;
 
@@ -134,6 +142,16 @@ macro_rules! make_postgres_type {
                     Type::Other(ref u) => return fmt::Debug::fmt(u, fmt),
                 };
                 fmt.write_str(s)
+            }
+        }
+
+        impl fmt::Display for Type {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                match self.schema() {
+                    "public" | "pg_catalog" => {}
+                    schema => try!(write!(fmt, "{}.", schema)),
+                }
+                fmt.write_str(self.name())
             }
         }
 
@@ -571,7 +589,7 @@ pub struct WrongType(Type);
 
 impl fmt::Display for WrongType {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "cannot convert to or from a Postgres value of type {:?}", self.0)
+        write!(fmt, "cannot convert to or from a Postgres value of type `{}`", self.0)
     }
 }
 
