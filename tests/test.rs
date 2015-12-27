@@ -19,7 +19,7 @@ use postgres::{HandleNotice,
                IntoConnectParams,
                IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
-use postgres::types::{Oid, Type, Kind};
+use postgres::types::{Oid, Type, Kind, WrongType};
 use postgres::error::SqlState::{SyntaxError,
                                 QueryCanceled,
                                 UndefinedTable,
@@ -451,7 +451,7 @@ fn test_execute_counts() {
 fn test_wrong_param_type() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     match conn.execute("SELECT $1::VARCHAR", &[&1i32]) {
-        Err(Error::WrongType(_)) => {}
+        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         res => panic!("unexpected result {:?}", res)
     }
 }
@@ -937,7 +937,7 @@ fn test_get_opt_wrong_type() {
     let res = stmt.query(&[]).unwrap();
     match res.iter().next().unwrap().get_opt::<_, String>(0) {
         Some(Ok(_)) => panic!("unexpected success"),
-        Some(Err(Error::WrongType(Type::Int4))) => {}
+        Some(Err(Error::Conversion(ref e))) if e.is::<WrongType>() => {}
         Some(Err(e)) => panic!("unexpected error {}", e),
         None => panic!("unexpected None"),
     }

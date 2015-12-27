@@ -8,8 +8,8 @@ use std::ops::Deref;
 use std::slice;
 
 use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
-     StatementInternals};
-use types::{FromSql, SessionInfo};
+     StatementInternals, WrongTypeNew};
+use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
 use message::FrontendMessage::*;
@@ -222,7 +222,7 @@ impl<'a> Row<'a> {
 
         let ty = self.stmt.columns()[idx].type_();
         if !<T as FromSql>::accepts(ty) {
-            return Some(Err(Error::WrongType(ty.clone())));
+            return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
         let conn = self.stmt.conn().conn.borrow();
         let value = match self.data[idx] {

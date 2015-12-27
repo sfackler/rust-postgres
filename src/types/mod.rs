@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew};
 use error::Error;
 use util;
 
@@ -31,15 +31,30 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write,
+        fn to_sql_checked(&self,
+                          ty: &$crate::types::Type,
+                          out: &mut ::std::io::Write,
                           ctx: &$crate::types::SessionInfo)
                           -> $crate::Result<$crate::types::IsNull> {
-            if !<Self as $crate::types::ToSql>::accepts(ty) {
-                return Err($crate::error::Error::WrongType(ty.clone()));
-            }
-            $crate::types::ToSql::to_sql(self, ty, out, ctx)
+            $crate::types::__to_sql_checked(self, ty, out, ctx)
         }
     }
+}
+
+// WARNING: this function is not considered part of this crate's public API.
+// It is subject to change at any time.
+#[doc(hidden)]
+pub fn __to_sql_checked<T>(v: &T,
+                           ty: &Type,
+                           out: &mut Write,
+                           ctx: &SessionInfo)
+                           -> Result<IsNull>
+    where T: ToSql
+{
+    if !T::accepts(ty) {
+        return Err(Error::Conversion(Box::new(WrongType(ty.clone()))));
+    }
+    v.to_sql(ty, out, ctx)
 }
 
 #[cfg(feature = "bit-vec")]
@@ -544,6 +559,29 @@ impl fmt::Display for WasNull {
 impl error::Error for WasNull {
     fn description(&self) -> &str {
         "a Postgres value was `NULL`"
+    }
+}
+
+/// An error indicating that a conversion was attempted between incompatible
+/// Rust and Postgres types.
+#[derive(Debug)]
+pub struct WrongType(Type);
+
+impl fmt::Display for WrongType {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "cannot convert to or from a Postgres value of type {:?}", self.0)
+    }
+}
+
+impl error::Error for WrongType {
+    fn description(&self) -> &str {
+        "cannot convert to or from a Postgres value"
+    }
+}
+
+impl WrongTypeNew for WrongType {
+    fn new(ty: Type) -> WrongType {
+        WrongType(ty)
     }
 }
 

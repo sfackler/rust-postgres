@@ -10,7 +10,6 @@ use std::result;
 use std::collections::HashMap;
 
 use {Result, DbErrorNew};
-use types::Type;
 
 include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
 
@@ -275,9 +274,6 @@ pub enum Error {
     Db(Box<DbError>),
     /// An error communicating with the Postgres server.
     Io(io::Error),
-    /// An attempt was made to convert between incompatible Rust and Postgres
-    /// types.
-    WrongType(Type),
     /// An error converting between Postgres and Rust types.
     Conversion(Box<error::Error + Sync + Send>),
 }
@@ -288,7 +284,6 @@ impl fmt::Display for Error {
         match *self {
             Error::Db(ref err) => write!(fmt, ": {}", err),
             Error::Io(ref err) => write!(fmt, ": {}", err),
-            Error::WrongType(ref ty) => write!(fmt, ": saw type {:?}", ty),
             Error::Conversion(ref err) => write!(fmt, ": {}", err),
         }
     }
@@ -299,7 +294,6 @@ impl error::Error for Error {
         match *self {
             Error::Db(_) => "Error reported by Postgres",
             Error::Io(_) => "Error communicating with the server",
-            Error::WrongType(_) => "Unexpected type",
             Error::Conversion(_) => "Error converting between Postgres and Rust types",
         }
     }
@@ -309,7 +303,6 @@ impl error::Error for Error {
             Error::Db(ref err) => Some(&**err),
             Error::Io(ref err) => Some(err),
             Error::Conversion(ref err) => Some(&**err),
-            _ => None,
         }
     }
 }

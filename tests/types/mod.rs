@@ -5,7 +5,7 @@ use std::fmt;
 
 use postgres::{Connection, SslMode};
 use postgres::error::Error;
-use postgres::types::{ToSql, FromSql, Slice};
+use postgres::types::{ToSql, FromSql, Slice, WrongType};
 
 #[cfg(feature = "bit-vec")]
 mod bit_vec;
@@ -217,7 +217,7 @@ fn test_slice_wrong_type() {
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
     match stmt.query(&[&Slice(&["hi"])]) {
         Ok(_) => panic!("Unexpected success"),
-        Err(Error::WrongType(..)) => {}
+        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
     };
 }
@@ -229,7 +229,7 @@ fn test_slice_range() {
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
     match stmt.query(&[&Slice(&[1i64])]) {
         Ok(_) => panic!("Unexpected success"),
-        Err(Error::WrongType(..)) => {}
+        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
     };
 }

@@ -78,8 +78,7 @@ use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
-use types::{ToSql, FromSql};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql};
 use url::Url;
 
 #[macro_use]
@@ -1484,4 +1483,8 @@ trait ColumnNew {
 
 trait NotificationsNew<'conn> {
     fn new(conn: &'conn Connection) -> Notifications<'conn>;
+}
+
+trait WrongTypeNew {
+    fn new(ty: Type) -> WrongType;
 }
