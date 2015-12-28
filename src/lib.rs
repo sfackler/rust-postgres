@@ -108,7 +108,7 @@ pub enum ConnectTarget {
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     ///
-    /// Only available on Unix platforms with the `unix_socket` feature.
+    /// Requires the `unix_socket` feature.
     #[cfg(feature = "unix_socket")]
     Unix(PathBuf),
 }
