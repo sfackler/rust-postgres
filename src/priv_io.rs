@@ -185,8 +185,5 @@ pub fn initialize_stream(params: &ConnectParams,
         ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    match negotiator.negotiate_ssl(host, socket) {
-        Ok(stream) => Ok(stream),
-        Err(err) => Err(ConnectError::Ssl(err)),
-    }
+    negotiator.negotiate_ssl(host, socket).map_err(ConnectError::Ssl)
 }
