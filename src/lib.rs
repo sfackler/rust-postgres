@@ -467,7 +467,7 @@ impl InnerConnection {
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
             Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
             Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
-            _ => unreachable!(),
+            Err(Error::Conversion(_)) => unreachable!(),
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
@@ -479,7 +479,7 @@ impl InnerConnection {
             Ok(..) => Ok(()),
             Err(Error::Io(e)) => Err(ConnectError::Io(e)),
             Err(Error::Db(e)) => Err(ConnectError::Db(e)),
-            _ => unreachable!(),
+            Err(Error::Conversion(_)) => unreachable!(),
         }
     }
 
