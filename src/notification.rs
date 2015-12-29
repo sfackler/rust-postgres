@@ -117,6 +117,10 @@ impl<'a> Iterator for Iter<'a> {
             _ => unreachable!(),
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.conn.conn.borrow().notifications.len(), None)
+    }
 }
 
 /// An iterator over notifications which will block if none are pending.
@@ -189,5 +193,9 @@ impl<'a> Iterator for TimeoutIter<'a> {
             Err(err) => Some(Err(Error::Io(err))),
             _ => unreachable!(),
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.conn.conn.borrow().notifications.len(), None)
     }
 }
