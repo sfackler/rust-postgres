@@ -100,6 +100,10 @@ impl<'a> Iterator for Iter<'a> {
             return Some(Ok(notification));
         }
 
+        if conn.is_desynchronized() {
+            return Some(Err(Error::Io(desynchronized())));
+        }
+
         match conn.read_message_with_notification_nonblocking() {
             Ok(Some(NotificationResponse { pid, channel, payload })) => {
                 Some(Ok(Notification {
