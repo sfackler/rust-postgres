@@ -62,7 +62,7 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
 
     fn accepts(ty: &Type) -> bool {
         match ty.kind() {
-            &Kind::Array(ref member) => <T as ToSql>::accepts(member),
+            &Kind::Array(ref member) => T::accepts(member),
             _ => false,
         }
     }

@@ -170,7 +170,7 @@ pub fn initialize_stream(params: &ConnectParams,
     try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
     try!(socket.flush());
 
-    if try!(socket.read_u8()) == 'N' as u8 {
+    if try!(socket.read_u8()) == b'N' {
         if ssl_required {
             return Err(ConnectError::NoSslSupport);
         } else {

@@ -570,12 +570,12 @@ impl InnerConnection {
             AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
                 let mut hasher = Md5::new();
-                let _ = hasher.input(pass.as_bytes());
-                let _ = hasher.input(user.user.as_bytes());
+                hasher.input(pass.as_bytes());
+                hasher.input(user.user.as_bytes());
                 let output = hasher.result_str();
                 hasher.reset();
-                let _ = hasher.input(output.as_bytes());
-                let _ = hasher.input(&salt);
+                hasher.input(output.as_bytes());
+                hasher.input(&salt);
                 let output = format!("md5{}", hasher.result_str());
                 try!(self.write_messages(&[PasswordMessage { password: &output }]));
             }
