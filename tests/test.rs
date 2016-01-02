@@ -698,7 +698,7 @@ fn test_plaintext_pass() {
 fn test_plaintext_pass_no_pass() {
     let ret = Connection::connect("postgres://pass_user@localhost/postgres", SslMode::None);
     match ret {
-        Err(ConnectError::MissingPassword) => (),
+        Err(ConnectError::ConnectParams(..)) => (),
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error")
     }
@@ -723,7 +723,7 @@ fn test_md5_pass() {
 fn test_md5_pass_no_pass() {
     let ret = Connection::connect("postgres://md5_user@localhost/postgres", SslMode::None);
     match ret {
-        Err(ConnectError::MissingPassword) => (),
+        Err(ConnectError::ConnectParams(..)) => (),
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error")
     }

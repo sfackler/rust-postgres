@@ -272,7 +272,7 @@ pub fn cancel_query<T>(params: T,
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
 {
-    let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
+    let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
@@ -394,12 +394,18 @@ impl InnerConnection {
     fn connect<T>(params: T, ssl: SslMode) -> result::Result<InnerConnection, ConnectError>
         where T: IntoConnectParams
     {
-        let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
+        let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
         let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
-        let user = try!(user.ok_or(ConnectError::MissingUser));
+        let user = match user {
+            Some(user) => user,
+            None => {
+                let err: Box<StdError + StdSync + Send> = "User missing from connection parameters".into();
+                return Err(ConnectError::ConnectParams(err));
+            }
+        };
 
         let mut conn = InnerConnection {
             stream: BufStream::new(stream),
@@ -564,11 +570,15 @@ impl InnerConnection {
         match try!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
-                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
+                let pass = try!(user.password.ok_or_else(|| {
+                    ConnectError::ConnectParams("a password was requested but not provided".into())
+                }));
                 try!(self.write_messages(&[PasswordMessage { password: &pass }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
+                let pass = try!(user.password.ok_or_else(|| {
+                    ConnectError::ConnectParams("a password was requested but not provided".into())
+                }));
                 let mut hasher = Md5::new();
                 hasher.input(pass.as_bytes());
                 hasher.input(user.user.as_bytes());
@@ -582,7 +592,10 @@ impl InnerConnection {
             AuthenticationKerberosV5 |
             AuthenticationSCMCredential |
             AuthenticationGSS |
-            AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
+            AuthenticationSSPI => {
+                return Err(ConnectError::Io(std_io::Error::new(std_io::ErrorKind::Other,
+                                                               "unsupported authentication")))
+            }
             ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::Io(bad_response())),
         }

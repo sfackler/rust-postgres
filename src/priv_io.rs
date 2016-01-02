@@ -1,5 +1,6 @@
 use byteorder::ReadBytesExt;
 use net2::TcpStreamExt;
+use std::error::Error;
 use std::io;
 use std::io::prelude::*;
 use std::fmt;
@@ -172,7 +173,8 @@ pub fn initialize_stream(params: &ConnectParams,
 
     if try!(socket.read_u8()) == b'N' {
         if ssl_required {
-            return Err(ConnectError::NoSslSupport);
+            let err: Box<Error + Sync + Send> = "The server does not support SSL".into();
+            return Err(ConnectError::Ssl(err));
         } else {
             return Ok(Box::new(socket));
         }

@@ -174,19 +174,10 @@ impl error::Error for DbError {
 /// Reasons a new Postgres connection could fail.
 #[derive(Debug)]
 pub enum ConnectError {
-    /// An error creating `ConnectParams`.
-    BadConnectParams(Box<error::Error + Sync + Send>),
-    /// The `ConnectParams` was missing a user.
-    MissingUser,
+    /// An error relating to connection parameters.
+    ConnectParams(Box<error::Error + Sync + Send>),
     /// An error from the Postgres server itself.
     Db(Box<DbError>),
-    /// A password was required but not provided in the `ConnectParams`.
-    MissingPassword,
-    /// The Postgres server requested an authentication method not supported
-    /// by the driver.
-    UnsupportedAuthentication,
-    /// The Postgres server does not support SSL encryption.
-    NoSslSupport,
     /// An error initializing the SSL session.
     Ssl(Box<error::Error + Sync + Send>),
     /// An error communicating with the server.
@@ -197,11 +188,10 @@ impl fmt::Display for ConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str(error::Error::description(self)));
         match *self {
-            ConnectError::BadConnectParams(ref msg) => write!(fmt, ": {}", msg),
+            ConnectError::ConnectParams(ref msg) => write!(fmt, ": {}", msg),
             ConnectError::Db(ref err) => write!(fmt, ": {}", err),
             ConnectError::Ssl(ref err) => write!(fmt, ": {}", err),
             ConnectError::Io(ref err) => write!(fmt, ": {}", err),
-            _ => Ok(()),
         }
     }
 }
@@ -209,16 +199,8 @@ impl fmt::Display for ConnectError {
 impl error::Error for ConnectError {
     fn description(&self) -> &str {
         match *self {
-            ConnectError::BadConnectParams(_) => "Error creating `ConnectParams`",
-            ConnectError::MissingUser => "User missing in `ConnectParams`",
+            ConnectError::ConnectParams(_) => "Invalid connection parameters",
             ConnectError::Db(_) => "Error reported by Postgres",
-            ConnectError::MissingPassword => {
-                "The server requested a password but none was provided"
-            }
-            ConnectError::UnsupportedAuthentication => {
-                "The server requested an unsupported authentication method"
-            }
-            ConnectError::NoSslSupport => "The server does not support SSL",
             ConnectError::Ssl(_) => "Error initiating SSL session",
             ConnectError::Io(_) => "Error communicating with the server",
         }
@@ -226,11 +208,10 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::BadConnectParams(ref err) => Some(&**err),
+            ConnectError::ConnectParams(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
             ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
-            _ => None,
         }
     }
 }
