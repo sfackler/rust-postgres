@@ -44,11 +44,7 @@ macro_rules! to_sql_checked {
 // WARNING: this function is not considered part of this crate's public API.
 // It is subject to change at any time.
 #[doc(hidden)]
-pub fn __to_sql_checked<T>(v: &T,
-                           ty: &Type,
-                           out: &mut Write,
-                           ctx: &SessionInfo)
-                           -> Result<IsNull>
+pub fn __to_sql_checked<T>(v: &T, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull>
     where T: ToSql
 {
     if !T::accepts(ty) {
@@ -589,7 +585,9 @@ pub struct WrongType(Type);
 
 impl fmt::Display for WrongType {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "cannot convert to or from a Postgres value of type `{}`", self.0)
+        write!(fmt,
+               "cannot convert to or from a Postgres value of type `{}`",
+               self.0)
     }
 }
 
