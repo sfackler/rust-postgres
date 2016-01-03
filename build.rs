@@ -6,7 +6,7 @@ use std::io::{Write, BufWriter};
 use std::path::Path;
 use std::convert::AsRef;
 
-// From http://www.postgresql.org/docs/9.2/static/errcodes-appendix.html
+// From http://www.postgresql.org/docs/9.5/static/errcodes-appendix.html
 const SQLSTATES: &'static [(&'static str, &'static str)] = &[
         // Class 00 — Successful Completion
         ("00000", "SuccessfulCompletion"),
@@ -93,6 +93,8 @@ const SQLSTATES: &'static [(&'static str, &'static str)] = &[
         ("2201B", "InvalidRegularExpression"),
         ("2201W", "InvalidRowCountInLimitClause"),
         ("2201X", "InvalidRowCountInResultOffsetClause"),
+        ("2202H", "InvalidTablesampleArgument"),
+        ("2202G", "InavlidTablesampleRepeat"),
         ("22009", "InvalidTimeZoneDisplacementValue"),
         ("2200C", "InvalidUseOfEscapeCharacter"),
         ("2200G", "MostSpecificTypeMismatch"),
@@ -181,6 +183,7 @@ const SQLSTATES: &'static [(&'static str, &'static str)] = &[
         ("39004", "NullValueNotAllowedExternalRoutine"),
         ("39P01", "TriggerProtocolViolated"),
         ("39P02", "SrfProtocolViolated"),
+        ("39P03", "EventTriggerProtocolViolated"),
 
         // Class 3B — Savepoint Exception
         ("3B000", "SavepointException"),
@@ -318,6 +321,7 @@ const SQLSTATES: &'static [(&'static str, &'static str)] = &[
         ("P0001", "RaiseException"),
         ("P0002", "NoDataFound"),
         ("P0003", "TooManyRows"),
+        ("P0004", "AssertFailure"),
 
         // Class XX — Internal Error
         ("XX000", "InternalError"),
