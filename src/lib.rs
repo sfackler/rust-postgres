@@ -373,7 +373,7 @@ struct InnerConnection {
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
-    unknown_types: HashMap<Oid, Type>,
+    unknown_types: HashMap<Oid, Other>,
     cached_statements: HashMap<String, CachedStatement>,
     parameters: HashMap<String, String>,
     next_stmt_id: u32,
@@ -715,7 +715,7 @@ impl InnerConnection {
         }
 
         if let Some(ty) = self.unknown_types.get(&oid) {
-            return Ok(ty.clone());
+            return Ok(Type::Other(ty.clone()));
         }
 
         // Ew @ doing this manually :(
@@ -787,9 +787,9 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(Other::new(name, oid, kind, schema)));
+        let type_ = Other::new(name, oid, kind, schema);
         self.unknown_types.insert(oid, type_.clone());
-        Ok(type_)
+        Ok(Type::Other(type_))
     }
 
     fn is_desynchronized(&self) -> bool {

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::io::prelude::*;
+use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
@@ -128,7 +129,7 @@ macro_rules! make_postgres_type {
                 $variant,
             )+
             /// An unknown type.
-            Other(Box<Other>),
+            Other(Other),
         }
 
         impl fmt::Debug for Type {
@@ -520,8 +521,22 @@ make_postgres_type! {
 }
 
 /// Information about an unknown type.
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Other {
+#[derive(PartialEq, Eq, Clone)]
+pub struct Other(Arc<OtherInner>);
+
+impl fmt::Debug for Other {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Other")
+           .field("name", &self.0.name)
+           .field("oid", &self.0.oid)
+           .field("kind", &self.0.kind)
+           .field("schema", &self.0.schema)
+           .finish()
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct OtherInner {
     name: String,
     oid: Oid,
     kind: Kind,
@@ -530,34 +545,34 @@ pub struct Other {
 
 impl OtherNew for Other {
     fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
-        Other {
+        Other(Arc::new(OtherInner {
             name: name,
             oid: oid,
             kind: kind,
             schema: schema,
-        }
+        }))
     }
 }
 
 impl Other {
     /// The name of the type.
     pub fn name(&self) -> &str {
-        &self.name
+        &self.0.name
     }
 
     /// The OID of this type.
     pub fn oid(&self) -> Oid {
-        self.oid
+        self.0.oid
     }
 
     /// The kind of this type.
     pub fn kind(&self) -> &Kind {
-        &self.kind
+        &self.0.kind
     }
 
     /// The schema of this type.
     pub fn schema(&self) -> &str {
-        &self.schema
+        &self.0.schema
     }
 }
 
