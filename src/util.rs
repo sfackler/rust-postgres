@@ -9,6 +9,7 @@ pub fn read_all<R: Read>(r: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
     while !buf.is_empty() {
         match r.read(buf) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::Other, "unexpected EOF")),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(len) => buf = &mut {buf}[len..],
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(e) => return Err(e),
