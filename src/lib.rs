@@ -65,6 +65,7 @@ use std::io::prelude::*;
 use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
+use std::sync::Arc;
 use std::time::Duration;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
@@ -361,8 +362,7 @@ pub enum SslMode<'a> {
     Require(&'a NegotiateSsl),
 }
 
-#[derive(Clone)]
-struct CachedStatement {
+struct StatementInfo {
     name: String,
     param_types: Vec<Type>,
     columns: Vec<Column>,
@@ -374,7 +374,7 @@ struct InnerConnection {
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
     unknown_types: HashMap<Oid, Other>,
-    cached_statements: HashMap<String, CachedStatement>,
+    cached_statements: HashMap<String, Arc<StatementInfo>>,
     parameters: HashMap<String, String>,
     next_stmt_id: u32,
     trans_depth: u32,
@@ -670,28 +670,33 @@ impl InnerConnection {
     fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
         let stmt_name = self.make_stmt_name();
         let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
-        Ok(Statement::new(conn, stmt_name, param_types, columns, Cell::new(0), false))
+        let info = Arc::new(StatementInfo {
+            name: stmt_name,
+            param_types: param_types,
+            columns: columns,
+        });
+        Ok(Statement::new(conn, info, Cell::new(0), false))
     }
 
     fn prepare_cached<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
-        let stmt = self.cached_statements.get(query).cloned();
+        let info = self.cached_statements.get(query).cloned();
 
-        let CachedStatement { name, param_types, columns } = match stmt {
-            Some(stmt) => stmt,
+        let info = match info {
+            Some(info) => info,
             None => {
                 let stmt_name = self.make_stmt_name();
                 let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
-                let stmt = CachedStatement {
+                let info = Arc::new(StatementInfo {
                     name: stmt_name,
                     param_types: param_types,
                     columns: columns,
-                };
-                self.cached_statements.insert(query.to_owned(), stmt.clone());
-                stmt
+                });
+                self.cached_statements.insert(query.to_owned(), info.clone());
+                info
             }
         };
 
-        Ok(Statement::new(conn, name, param_types, columns, Cell::new(0), true))
+        Ok(Statement::new(conn, info, Cell::new(0), true))
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
@@ -959,12 +964,12 @@ impl Connection {
     /// ```
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
-        let stmt = Statement::new(self,
-                                  "".to_owned(),
-                                  param_types,
-                                  columns,
-                                  Cell::new(0),
-                                  true);
+        let info = Arc::new(StatementInfo {
+            name: String::new(),
+            param_types: param_types,
+            columns: columns,
+        });
+        let stmt = Statement::new(self, info, Cell::new(0), true);
         stmt.execute(params)
     }
 
@@ -995,12 +1000,12 @@ impl Connection {
     /// ```
     pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
         let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
-        let stmt = Statement::new(self,
-                                  "".to_owned(),
-                                  param_types,
-                                  columns,
-                                  Cell::new(0),
-                                  true);
+        let info = Arc::new(StatementInfo {
+            name: String::new(),
+            param_types: param_types,
+            columns: columns,
+        });
+        let stmt = Statement::new(self, info, Cell::new(0), true);
         stmt.into_query(params)
     }
 
@@ -1497,9 +1502,7 @@ trait SessionInfoNew<'a> {
 
 trait StatementInternals<'conn> {
     fn new(conn: &'conn Connection,
-           name: String,
-           param_types: Vec<Type>,
-           columns: Vec<Column>,
+           info: Arc<StatementInfo>,
            next_portal_id: Cell<u32>,
            finished: bool)
            -> Statement<'conn>;

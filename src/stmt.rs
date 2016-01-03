@@ -4,6 +4,7 @@ use std::cell::{Cell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::sync::Arc;
 
 use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql, IsNull};
@@ -13,14 +14,12 @@ use message::WriteMessage;
 use util;
 use rows::{Rows, LazyRows};
 use {read_rows, bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
-use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew};
+use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
     conn: &'conn Connection,
-    name: String,
-    param_types: Vec<Type>,
-    columns: Vec<Column>,
+    info: Arc<StatementInfo>,
     next_portal_id: Cell<u32>,
     finished: bool,
 }
@@ -28,9 +27,9 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Statement")
-           .field("name", &self.name)
-           .field("parameter_types", &self.param_types)
-           .field("columns", &self.columns)
+           .field("name", &self.info.name)
+           .field("parameter_types", &self.info.param_types)
+           .field("columns", &self.info.columns)
            .finish()
     }
 }
@@ -43,17 +42,13 @@ impl<'conn> Drop for Statement<'conn> {
 
 impl<'conn> StatementInternals<'conn> for Statement<'conn> {
     fn new(conn: &'conn Connection,
-           name: String,
-           param_types: Vec<Type>,
-           columns: Vec<Column>,
+           info: Arc<StatementInfo>,
            next_portal_id: Cell<u32>,
            finished: bool)
            -> Statement<'conn> {
         Statement {
             conn: conn,
-            name: name,
-            param_types: param_types,
-            columns: columns,
+            info: info,
             next_portal_id: next_portal_id,
             finished: finished,
         }
@@ -76,7 +71,7 @@ impl<'conn> Statement<'conn> {
             self.finished = true;
             let mut conn = self.conn.conn.borrow_mut();
             check_desync!(conn);
-            conn.close_statement(&self.name, b'S')
+            conn.close_statement(&self.info.name, b'S')
         } else {
             Ok(())
         }
@@ -86,13 +81,13 @@ impl<'conn> Statement<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         assert!(self.param_types().len() == params.len(),
                 "expected {} parameters but got {}",
-                self.param_types.len(),
+                self.param_types().len(),
                 params.len());
         debug!("executing statement {} with parameters: {:?}",
-               self.name,
+               self.info.name,
                params);
         let mut values = vec![];
-        for (param, ty) in params.iter().zip(self.param_types.iter()) {
+        for (param, ty) in params.iter().zip(self.param_types()) {
             let mut buf = vec![];
             match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(&*conn))) {
                 IsNull::Yes => values.push(None),
@@ -102,7 +97,7 @@ impl<'conn> Statement<'conn> {
 
         try!(conn.write_messages(&[Bind {
                                        portal: portal_name,
-                                       statement: &self.name,
+                                       statement: &self.info.name,
                                        formats: &[1],
                                        values: &values,
                                        result_formats: &[1],
@@ -140,12 +135,12 @@ impl<'conn> Statement<'conn> {
 
     /// Returns a slice containing the expected parameter types.
     pub fn param_types(&self) -> &[Type] {
-        &self.param_types
+        &self.info.param_types
     }
 
     /// Returns a slice describing the columns of the result of the query.
     pub fn columns(&self) -> &[Column] {
-        &self.columns
+        &self.info.columns
     }
 
     /// Executes the prepared statement, returning the number of rows modified.
@@ -279,7 +274,7 @@ impl<'conn> Statement<'conn> {
 
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}p{}", self.name, id);
+        let portal_name = format!("{}p{}", self.info.name, id);
 
         self.inner_query(&portal_name, row_limit, params).map(move |(data, more_rows)| {
             LazyRows::new(self, data, portal_name, row_limit, more_rows, false, trans)
