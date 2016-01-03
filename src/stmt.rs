@@ -4,6 +4,7 @@ use std::cell::{Cell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::sync::Arc;
 
 use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql, IsNull};
@@ -13,14 +14,12 @@ use message::WriteMessage;
 use util;
 use rows::{Rows, LazyRows};
 use {read_rows, bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
-use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew};
+use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
     conn: &'conn Connection,
-    name: String,
-    param_types: Vec<Type>,
-    columns: Vec<Column>,
+    info: Arc<StatementInfo>,
     next_portal_id: Cell<u32>,
     finished: bool,
 }
@@ -28,9 +27,9 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Statement")
-           .field("name", &self.name)
-           .field("parameter_types", &self.param_types)
-           .field("columns", &self.columns)
+           .field("name", &self.info.name)
+           .field("parameter_types", &self.info.param_types)
+           .field("columns", &self.info.columns)
            .finish()
     }
 }
@@ -43,17 +42,13 @@ impl<'conn> Drop for Statement<'conn> {
 
 impl<'conn> StatementInternals<'conn> for Statement<'conn> {
     fn new(conn: &'conn Connection,
-           name: String,
-           param_types: Vec<Type>,
-           columns: Vec<Column>,
+           info: Arc<StatementInfo>,
            next_portal_id: Cell<u32>,
            finished: bool)
            -> Statement<'conn> {
         Statement {
             conn: conn,
-            name: name,
-            param_types: param_types,
-            columns: columns,
+            info: info,
             next_portal_id: next_portal_id,
             finished: finished,
         }
@@ -61,6 +56,12 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
 
     fn conn(&self) -> &'conn Connection {
         self.conn
+    }
+
+    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>> {
+        check_desync!(self.conn);
+        self.inner_query("", 0, params)
+            .map(|(buf, _)| Rows::new_owned(self, buf.into_iter().collect()))
     }
 }
 
@@ -70,7 +71,7 @@ impl<'conn> Statement<'conn> {
             self.finished = true;
             let mut conn = self.conn.conn.borrow_mut();
             check_desync!(conn);
-            conn.close_statement(&self.name, b'S')
+            conn.close_statement(&self.info.name, b'S')
         } else {
             Ok(())
         }
@@ -80,13 +81,13 @@ impl<'conn> Statement<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         assert!(self.param_types().len() == params.len(),
                 "expected {} parameters but got {}",
-                self.param_types.len(),
+                self.param_types().len(),
                 params.len());
         debug!("executing statement {} with parameters: {:?}",
-               self.name,
+               self.info.name,
                params);
         let mut values = vec![];
-        for (param, ty) in params.iter().zip(self.param_types.iter()) {
+        for (param, ty) in params.iter().zip(self.param_types()) {
             let mut buf = vec![];
             match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(&*conn))) {
                 IsNull::Yes => values.push(None),
@@ -96,7 +97,7 @@ impl<'conn> Statement<'conn> {
 
         try!(conn.write_messages(&[Bind {
                                        portal: portal_name,
-                                       statement: &self.name,
+                                       statement: &self.info.name,
                                        formats: &[1],
                                        values: &values,
                                        result_formats: &[1],
@@ -115,7 +116,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                Err(Error::IoError(bad_response()))
+                Err(Error::Io(bad_response()))
             }
         }
     }
@@ -134,12 +135,12 @@ impl<'conn> Statement<'conn> {
 
     /// Returns a slice containing the expected parameter types.
     pub fn param_types(&self) -> &[Type] {
-        &self.param_types
+        &self.info.param_types
     }
 
     /// Returns a slice describing the columns of the result of the query.
     pub fn columns(&self) -> &[Column] {
-        &self.columns
+        &self.info.columns
     }
 
     /// Executes the prepared statement, returning the number of rows modified.
@@ -155,7 +156,7 @@ impl<'conn> Statement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -206,7 +207,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::IoError(bad_response()));
+                    return Err(Error::Io(bad_response()));
                 }
             }
         }
@@ -226,10 +227,10 @@ impl<'conn> Statement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
-    /// for row in stmt.query(&[&baz]).unwrap() {
+    /// for row in &stmt.query(&[&baz]).unwrap() {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }
@@ -273,7 +274,7 @@ impl<'conn> Statement<'conn> {
 
         let id = self.next_portal_id.get();
         self.next_portal_id.set(id + 1);
-        let portal_name = format!("{}p{}", self.name, id);
+        let portal_name = format!("{}p{}", self.info.name, id);
 
         self.inner_query(&portal_name, row_limit, params).map(move |(data, more_rows)| {
             LazyRows::new(self, data, portal_name, row_limit, more_rows, false, trans)
@@ -296,7 +297,7 @@ impl<'conn> Statement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// conn.batch_execute("CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR)").unwrap();
     /// let stmt = conn.prepare("COPY people FROM STDIN").unwrap();
     /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
@@ -315,10 +316,10 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                     "called `copy_in` on a \
-                                                                      non-`COPY FROM STDIN` \
-                                                                      statement")));
+                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                                "called `copy_in` on a \
+                                                                 non-`COPY FROM STDIN` \
+                                                                 statement")));
                         }
                         _ => {}
                     }
@@ -348,11 +349,11 @@ impl<'conn> Statement<'conn> {
                         }
                         _ => {
                             info.conn.desynchronized = true;
-                            return Err(Error::IoError(bad_response()));
+                            return Err(Error::Io(bad_response()));
                         }
                     }
                     try!(info.conn.wait_for_ready());
-                    return Err(Error::IoError(err));
+                    return Err(Error::Io(err));
                 }
             }
         }
@@ -367,7 +368,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 info.conn.desynchronized = true;
-                return Err(Error::IoError(bad_response()));
+                return Err(Error::Io(bad_response()));
             }
         };
 
@@ -388,7 +389,7 @@ impl<'conn> Statement<'conn> {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// conn.batch_execute("
     ///         CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR);
     ///         INSERT INTO people (id, name) VALUES (1, 'john'), (2, 'jane');").unwrap();
@@ -411,13 +412,13 @@ impl<'conn> Statement<'conn> {
                     }
                     _ => {
                         conn.desynchronized = true;
-                        return Err(Error::IoError(bad_response()));
+                        return Err(Error::Io(bad_response()));
                     }
                 }
                 try!(conn.wait_for_ready());
-                return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
-                                                         "called `copy_out` on a non-`COPY TO \
-                                                          STDOUT` statement")));
+                return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                    "called `copy_out` on a non-`COPY TO \
+                                                     STDOUT` statement")));
             }
             ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
@@ -427,10 +428,9 @@ impl<'conn> Statement<'conn> {
                 loop {
                     match try!(conn.read_message()) {
                         ReadyForQuery { .. } => {
-                            return Err(Error::IoError(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                     "called `copy_out` on a \
-                                                                      non-`COPY TO STDOUT` \
-                                                                      statement")));
+                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                                "called `copy_out` on a \
+                                                                 non-`COPY TO STDOUT` statement")));
                         }
                         _ => {}
                     }
@@ -455,7 +455,7 @@ impl<'conn> Statement<'conn> {
                             Err(e) => {
                                 loop {
                                     match try!(info.conn.read_message()) {
-                                        ReadyForQuery { .. } => return Err(Error::IoError(e)),
+                                        ReadyForQuery { .. } => return Err(Error::Io(e)),
                                         _ => {}
                                     }
                                 }
@@ -479,7 +479,7 @@ impl<'conn> Statement<'conn> {
                 _ => {
                     loop {
                         match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return Err(Error::IoError(bad_response())),
+                            ReadyForQuery { .. } => return Err(Error::Io(bad_response())),
                             _ => {}
                         }
                     }
@@ -532,6 +532,18 @@ impl ColumnNew for Column {
     }
 }
 
+impl Column {
+    /// The name of the column.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The type of the data in the column.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
 /// A struct containing information relevant for a `COPY` operation.
 pub struct CopyInfo<'a> {
     conn: RefMut<'a, InnerConnection>,
@@ -581,18 +593,6 @@ pub trait WriteWithInfo {
 impl<W: Write> WriteWithInfo for W {
     fn write_with_info(&mut self, buf: &[u8], _: &CopyInfo) -> io::Result<usize> {
         self.write(buf)
-    }
-}
-
-impl Column {
-    /// The name of the column.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// The type of the data in the column.
-    pub fn type_(&self) -> &Type {
-        &self.type_
     }
 }
 

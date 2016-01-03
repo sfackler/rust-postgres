@@ -1,4 +1,6 @@
-use serialize::json::Json;
+extern crate rustc_serialize;
+
+use self::rustc_serialize::json::Json;
 
 use types::test_type;
 

@@ -21,8 +21,8 @@ struct StepUp<T> {
     ammount: T,
 }
 
-impl <T> Iterator for StepUp<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> Iterator for StepUp<T> where T: Add<T, Output = T> + PartialOrd + Copy
+{
     type Item = T;
 
     #[inline]
@@ -41,8 +41,8 @@ trait RangeExt<T> {
     fn step_up(self, ammount: T) -> StepUp<T>;
 }
 
-impl <T> RangeExt<T> for Range<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> RangeExt<T> for Range<T> where T: Add<T, Output = T> + PartialOrd + Copy
+{
     fn step_up(self, ammount: T) -> StepUp<T> {
         StepUp {
             next: self.start,
@@ -77,7 +77,7 @@ fn read_u32v_le(dst: &mut [u32], input: &[u8]) {
     unsafe {
         let mut x: *mut u32 = dst.get_unchecked_mut(0);
         let mut y: *const u8 = input.get_unchecked(0);
-        for _ in (0..dst.len()) {
+        for _ in 0..dst.len() {
             let mut tmp: u32 = mem::uninitialized();
             ptr::copy_nonoverlapping(y, &mut tmp as *mut _ as *mut u8, 4);
             *x = u32::from_le(tmp);
@@ -108,7 +108,7 @@ trait StandardPadding {
     fn standard_padding<F: FnMut(&[u8])>(&mut self, rem: usize, func: F);
 }
 
-impl <T: FixedBuffer> StandardPadding for T {
+impl<T: FixedBuffer> StandardPadding for T {
     fn standard_padding<F: FnMut(&[u8])>(&mut self, rem: usize, mut func: F) {
         let size = self.size();
 
@@ -477,11 +477,11 @@ impl Md5 {
     }
 
     pub fn result_str(&mut self) -> String {
-        use serialize::hex::ToHex;
+        use hex::ToHex;
 
         let mut buf: Vec<u8> = repeat(0).take((self.output_bits() + 7) / 8).collect();
         self.result(&mut buf);
-        buf[..].to_hex()
+        buf.to_hex()
     }
 }
 

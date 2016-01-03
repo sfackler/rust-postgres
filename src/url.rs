@@ -10,7 +10,7 @@
 use std::io::prelude::*;
 use std::str::FromStr;
 use std::str;
-use serialize::hex::FromHex;
+use hex::FromHex;
 
 pub struct Url {
     pub scheme: String,
@@ -121,45 +121,51 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
 
     loop {
         match iter.next() {
-            Some(b) => match b as char {
-                '%' => {
-                    let bytes = match (iter.next(), iter.next()) {
-                        (Some(one), Some(two)) => [one, two],
-                        _ => return Err(format!("Malformed input: found '%' without two \
-                                                 trailing bytes")),
-                    };
+            Some(b) => {
+                match b as char {
+                    '%' => {
+                        let bytes = match (iter.next(), iter.next()) {
+                            (Some(one), Some(two)) => [one, two],
+                            _ => {
+                                return Err(format!("Malformed input: found '%' without two \
+                                                    trailing bytes"))
+                            }
+                        };
 
-                    // Only decode some characters if full_url:
-                    match str::from_utf8(&bytes).unwrap().from_hex().unwrap()[0] as char {
-                        // gen-delims:
-                        ':' |
-                        '/' |
-                        '?' |
-                        '#' |
-                        '[' |
-                        ']' |
-                        '@' |
-                        '!' |
-                        '$' |
-                        '&' |
-                        '"' |
-                        '(' |
-                        ')' |
-                        '*' |
-                        '+' |
-                        ',' |
-                        ';' |
-                        '=' if full_url => {
-                            out.push('%');
-                            out.push(bytes[0] as char);
-                            out.push(bytes[1] as char);
+                        // Only decode some characters if full_url:
+                        match Vec::<u8>::from_hex(str::from_utf8(&bytes)
+                                                      .unwrap())
+                                  .unwrap()[0] as char {
+                            // gen-delims:
+                            ':' |
+                            '/' |
+                            '?' |
+                            '#' |
+                            '[' |
+                            ']' |
+                            '@' |
+                            '!' |
+                            '$' |
+                            '&' |
+                            '"' |
+                            '(' |
+                            ')' |
+                            '*' |
+                            '+' |
+                            ',' |
+                            ';' |
+                            '=' if full_url => {
+                                out.push('%');
+                                out.push(bytes[0] as char);
+                                out.push(bytes[1] as char);
+                            }
+
+                            ch => out.push(ch),
                         }
-
-                        ch => out.push(ch),
                     }
+                    ch => out.push(ch),
                 }
-                ch => out.push(ch),
-            },
+            }
             None => return Ok(out),
         }
     }
@@ -384,10 +390,12 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
     // If we have a port string, ensure it parses to u16.
     let port = match port {
         None => None,
-        opt => match opt.and_then(|p| FromStr::from_str(p).ok()) {
-            None => return Err(format!("Failed to parse port: {:?}", port)),
-            opt => opt,
-        },
+        opt => {
+            match opt.and_then(|p| FromStr::from_str(p).ok()) {
+                None => return Err(format!("Failed to parse port: {:?}", port)),
+                opt => opt,
+            }
+        }
     };
 
     Ok((userinfo, host, port, rest))

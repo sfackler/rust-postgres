@@ -1,7 +1,9 @@
 use byteorder::ReadBytesExt;
 use net2::TcpStreamExt;
+use std::error::Error;
 use std::io;
 use std::io::prelude::*;
+use std::fmt;
 use std::net::TcpStream;
 use std::time::Duration;
 use bufstream::BufStream;
@@ -21,17 +23,25 @@ use message::FrontendMessage::SslRequest;
 const DEFAULT_PORT: u16 = 5432;
 
 #[doc(hidden)]
-pub trait ReadTimeout {
+pub trait StreamOptions {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
+    fn set_nonblocking(&self, nonblock: bool) -> io::Result<()>;
 }
 
-impl ReadTimeout for BufStream<Box<StreamWrapper>> {
+impl StreamOptions for BufStream<Box<StreamWrapper>> {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
-            InternalStream::Tcp(ref s) =>
-                <TcpStream as TcpStreamExt>::set_read_timeout(s, timeout),
+            InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
             #[cfg(feature = "unix_socket")]
             InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
+        }
+    }
+
+    fn set_nonblocking(&self, nonblock: bool) -> io::Result<()> {
+        match self.get_ref().get_ref().0 {
+            InternalStream::Tcp(ref s) => s.set_nonblocking(nonblock),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref s) => s.set_nonblocking(nonblock),
         }
     }
 }
@@ -41,6 +51,16 @@ impl ReadTimeout for BufStream<Box<StreamWrapper>> {
 /// It implements `Read`, `Write` and `StreamWrapper`, as well as `AsRawFd` on
 /// Unix platforms and `AsRawSocket` on Windows platforms.
 pub struct Stream(InternalStream);
+
+impl fmt::Debug for Stream {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            InternalStream::Tcp(ref s) => fmt::Debug::fmt(s, fmt),
+            #[cfg(feature = "unix_socket")]
+            InternalStream::Unix(ref s) => fmt::Debug::fmt(s, fmt),
+        }
+    }
+}
 
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -138,22 +158,23 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 }
 
 pub fn initialize_stream(params: &ConnectParams,
-                         ssl: &SslMode)
+                         ssl: SslMode)
                          -> Result<Box<StreamWrapper>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
-    let (ssl_required, negotiator) = match *ssl {
+    let (ssl_required, negotiator) = match ssl {
         SslMode::None => return Ok(Box::new(socket)),
-        SslMode::Prefer(ref negotiator) => (false, negotiator),
-        SslMode::Require(ref negotiator) => (true, negotiator),
+        SslMode::Prefer(negotiator) => (false, negotiator),
+        SslMode::Require(negotiator) => (true, negotiator),
     };
 
     try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
     try!(socket.flush());
 
-    if try!(socket.read_u8()) == 'N' as u8 {
+    if try!(socket.read_u8()) == b'N' {
         if ssl_required {
-            return Err(ConnectError::NoSslSupport);
+            let err: Box<Error + Sync + Send> = "The server does not support SSL".into();
+            return Err(ConnectError::Ssl(err));
         } else {
             return Ok(Box::new(socket));
         }
@@ -163,11 +184,8 @@ pub fn initialize_stream(params: &ConnectParams,
     let host = match params.target {
         ConnectTarget::Tcp(ref host) => host,
         #[cfg(feature = "unix_socket")]
-        ConnectTarget::Unix(_) => return Err(ConnectError::IoError(::bad_response())),
+        ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    match negotiator.negotiate_ssl(host, socket) {
-        Ok(stream) => Ok(stream),
-        Err(err) => Err(ConnectError::SslError(err)),
-    }
+    negotiator.negotiate_ssl(host, socket).map_err(ConnectError::Ssl)
 }

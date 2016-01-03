@@ -3,12 +3,15 @@ pub use priv_io::Stream;
 
 use std::error::Error;
 use std::io::prelude::*;
+use std::fmt;
 
 #[cfg(feature = "openssl")]
 mod openssl;
+#[cfg(feature = "security-framework")]
+mod security_framework;
 
 /// A trait implemented by SSL adaptors.
-pub trait StreamWrapper: Read+Write+Send {
+pub trait StreamWrapper: fmt::Debug + Read + Write + Send {
     /// Returns a reference to the underlying `Stream`.
     fn get_ref(&self) -> &Stream;
 
@@ -20,7 +23,10 @@ pub trait StreamWrapper: Read+Write+Send {
 ///
 /// If the `openssl` Cargo feature is enabled, this trait will be implemented
 /// for `openssl::ssl::SslContext`.
-pub trait NegotiateSsl {
+///
+/// If the `security-framework` Cargo feature is enabled, this trait will be
+/// implemented for `security_framework::secure_transport::ClientBuilder`.
+pub trait NegotiateSsl: fmt::Debug {
     /// Negotiates an SSL session, returning a wrapper around the provided
     /// stream.
     ///

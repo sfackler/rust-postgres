@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.10.2/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.0/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -9,13 +9,11 @@ You can integrate Rust-Postgres into your project through the [releases on crate
 ```toml
 # Cargo.toml
 [dependencies]
-postgres = "0.10"
+postgres = "0.11"
 ```
 
 ## Overview
-Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
-exposes a high level interface in the vein of JDBC or Go's `database/sql`
-package.
+Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database.
 ```rust
 extern crate postgres;
 
@@ -28,7 +26,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None)
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None)
             .unwrap();
 
     conn.execute("CREATE TABLE person (
@@ -44,8 +42,7 @@ fn main() {
     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
                  &[&me.name, &me.data]).unwrap();
 
-    let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-    for row in stmt.query(&[]).unwrap() {
+    for row in &conn.query("SELECT id, name, data FROM person", &[]).unwrap() {
         let person = Person {
             id: row.get(0),
             name: row.get(1),
@@ -57,7 +54,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.3 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.4 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 
@@ -71,7 +68,7 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    &SslMode::None));
+                                    SslMode::None));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -80,48 +77,48 @@ defaults to the value of `user` if not specified. The driver supports `trust`,
 Unix domain sockets can be used as well by activating the `unix_socket` feature.
 The `host` portion of the URI should be set to the absolute path to the
 directory containing the socket file. Since `/` is a reserved character in
-URLs, the path should be URL encoded.
+URLs, the path should be URL encoded. If Postgres stored its socket files in
+`/run/postgres`, the connection would then look like:
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", &SslMode::None));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
 
-### Statement Preparation
-Prepared statements can have parameters, represented as `$n` where `n` is an
-index into the parameter array starting from 1:
-```rust
-let stmt = try!(conn.prepare("SELECT * FROM foo WHERE bar = $1 AND baz = $2"));
-```
-
 ### Querying
-A prepared statement can be executed with the `query` and `execute` methods.
-Both methods take an array of parameters to bind to the query represented as
-`&ToSql` trait objects. `execute` returns the number of rows affected by the
-query (or 0 if not applicable):
+SQL statements can be executed with the `query` and `execute` methods. Both
+methods take a query string as well as a slice of parameters to bind to the
+query. The `i`th query parameter is specified in the query string by `$i`. Note
+that query parameters are 1-indexed rather than the more common 0-indexing.
+
+`execute` returns the number of rows affected by the query (or 0 if not
+applicable):
 ```rust
-let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
-let updates = try!(stmt.execute(&[&1i32, &"biz"]));
+let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&1i32, &"biz"]));
 println!("{} rows were updated", updates);
 ```
-`query` returns an iterator over the rows returned from the database. The
-fields in a row can be accessed either by their indices or their column names,
-though access by index is more efficient. Unlike statement parameters, result
-columns are zero-indexed.
+
+`query` returns an iterable object holding the rows returned from the database.
+The fields in a row can be accessed either by their indices or their column
+names, though access by index is more efficient. Unlike statement parameters,
+result columns are zero-indexed.
 ```rust
-let stmt = try!(conn.prepare("SELECT bar, baz FROM foo"));
-for row in try!(stmt.query(&[])) {
+for row in &try!(conn.query("SELECT bar, baz FROM foo WHERE buz = $1", &[&1i32])) {
     let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
 }
 ```
-In addition, `Connection` has a utility `execute` method which is useful if a
-statement is only going to be executed once:
+
+### Statement Preparation
+If the same statement will be executed repeatedly (possibly with different
+parameters), explicitly preparing it can improve performance:
+
 ```rust
-let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2",
-                                &[&1i32, &"biz"]));
-println!("{} rows were updated", updates);
+let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
+for (bar, baz) in updates {
+    try!(stmt.execute(&[bar, baz]));
+}
 ```
 
 ### Transactions
@@ -131,14 +128,12 @@ The `transaction` method will start a new transaction. It returns a
 transaction:
 ```rust
 let trans = try!(conn.transaction());
+
 try!(trans.execute(...));
 let stmt = try!(trans.prepare(...));
+// ...
 
-if the_coast_is_clear {
-    trans.set_commit();
-}
-
-try!(trans.finish());
+try!(trans.commit());
 ```
 The transaction will be active until the `Transaction` object falls out of
 scope. A transaction will roll back by default. Nested transactions are
@@ -247,6 +242,13 @@ types. The driver currently supports the following conversions:
             <td>UUID</td>
         </tr>
         <tr>
+            <td>
+                <a href="https://github.com/contain-rs/bit-vec">bit_vec::BitVec</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>BIT, VARBIT</td>
+        </tr>
+        <tr>
             <td>HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
@@ -285,8 +287,7 @@ implementations for `uuid`'s `Uuid` type.
 support is provided optionally by the `rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
 the `serde_json` feature, which adds implementations for `serde_json`'s `Value`
-type. The `serde` feature provides implementations for the older
-`serde::json::Value` type.
+type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
@@ -295,3 +296,9 @@ support is provided optionally by the `time` feature, which adds `ToSql` and
 `FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
 `DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
+
+### BIT/VARBIT types
+
+[BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
+support is provided optionally by the `bit-vec` feature, which adds `ToSql` and
+`FromSql` implementations for `bit-vec`'s `BitVec` type.

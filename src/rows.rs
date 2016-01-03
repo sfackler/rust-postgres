@@ -1,29 +1,52 @@
 //! Query result rows.
 
 use std::ascii::AsciiExt;
-use std::fmt;
-use std::collections::VecDeque;
 use std::borrow::Cow;
+use std::collections::VecDeque;
+use std::fmt;
+use std::ops::Deref;
 use std::slice;
-use std::vec;
 
 use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
-     StatementInternals};
-use types::{FromSql, SessionInfo};
+     StatementInternals, WrongTypeNew};
+use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
 use message::FrontendMessage::*;
 
+enum StatementContainer<'a> {
+    Borrowed(&'a Statement<'a>),
+    Owned(Statement<'a>),
+}
+
+impl<'a> Deref for StatementContainer<'a> {
+    type Target = Statement<'a>;
+
+    fn deref(&self) -> &Statement<'a> {
+        match *self {
+            StatementContainer::Borrowed(s) => s,
+            StatementContainer::Owned(ref s) => s,
+        }
+    }
+}
+
 /// The resulting rows of a query.
 pub struct Rows<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
+    stmt: StatementContainer<'stmt>,
     data: Vec<Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> RowsNew<'a> for Rows<'a> {
     fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
         Rows {
-            stmt: stmt,
+            stmt: StatementContainer::Borrowed(stmt),
+            data: data,
+        }
+    }
+
+    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
+        Rows {
+            stmt: StatementContainer::Owned(stmt),
             data: data,
         }
     }
@@ -40,7 +63,7 @@ impl<'a> fmt::Debug for Rows<'a> {
 
 impl<'stmt> Rows<'stmt> {
     /// Returns a slice describing the columns of the `Rows`.
-    pub fn columns(&self) -> &'stmt [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
     }
 
@@ -56,7 +79,7 @@ impl<'stmt> Rows<'stmt> {
     /// Panics if `idx` is out of bounds.
     pub fn get<'a>(&'a self, idx: usize) -> Row<'a> {
         Row {
-            stmt: self.stmt,
+            stmt: &*self.stmt,
             data: Cow::Borrowed(&self.data[idx]),
         }
     }
@@ -64,7 +87,7 @@ impl<'stmt> Rows<'stmt> {
     /// Returns an iterator over the `Row`s.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
-            stmt: self.stmt,
+            stmt: &*self.stmt,
             iter: self.data.iter(),
         }
     }
@@ -76,18 +99,6 @@ impl<'a> IntoIterator for &'a Rows<'a> {
 
     fn into_iter(self) -> Iter<'a> {
         self.iter()
-    }
-}
-
-impl<'stmt> IntoIterator for Rows<'stmt> {
-    type Item = Row<'stmt>;
-    type IntoIter = IntoIter<'stmt>;
-
-    fn into_iter(self) -> IntoIter<'stmt> {
-        IntoIter {
-            stmt: self.stmt,
-            iter: self.data.into_iter(),
-        }
     }
 }
 
@@ -103,7 +114,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Row<'a>> {
         self.iter.next().map(|row| {
             Row {
-                stmt: self.stmt,
+                stmt: &*self.stmt,
                 data: Cow::Borrowed(row),
             }
         })
@@ -118,7 +129,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
     fn next_back(&mut self) -> Option<Row<'a>> {
         self.iter.next_back().map(|row| {
             Row {
-                stmt: self.stmt,
+                stmt: &*self.stmt,
                 data: Cow::Borrowed(row),
             }
         })
@@ -126,42 +137,6 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 }
 
 impl<'a> ExactSizeIterator for Iter<'a> {}
-
-/// An owning iterator over `Row`s.
-pub struct IntoIter<'stmt> {
-    stmt: &'stmt Statement<'stmt>,
-    iter: vec::IntoIter<Vec<Option<Vec<u8>>>>,
-}
-
-impl<'stmt> Iterator for IntoIter<'stmt> {
-    type Item = Row<'stmt>;
-
-    fn next(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'stmt> DoubleEndedIterator for IntoIter<'stmt> {
-    fn next_back(&mut self) -> Option<Row<'stmt>> {
-        self.iter.next_back().map(|row| {
-            Row {
-                stmt: self.stmt,
-                data: Cow::Owned(row),
-            }
-        })
-    }
-}
-
-impl<'stmt> ExactSizeIterator for IntoIter<'stmt> {}
 
 /// A single result row of a query.
 pub struct Row<'a> {
@@ -184,30 +159,8 @@ impl<'a> Row<'a> {
     }
 
     /// Returns a slice describing the columns of the `Row`.
-    pub fn columns(&self) -> &'a [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
-    }
-
-    /// Retrieves the contents of a field of the row.
-    ///
-    /// A field can be accessed by the name or index of its column, though
-    /// access by index is more efficient. Rows are 0-indexed.
-    ///
-    /// Returns an `Error` value if the index does not reference a column or
-    /// the return type is not compatible with the Postgres type.
-    pub fn get_opt<I, T>(&self, idx: I) -> Result<T>
-        where I: RowIndex,
-              T: FromSql
-    {
-        let idx = try!(idx.idx(self.stmt).ok_or(Error::InvalidColumn));
-        let ty = self.stmt.columns()[idx].type_();
-        if !<T as FromSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        let conn = self.stmt.conn().conn.borrow();
-        FromSql::from_sql_nullable(ty,
-                                   self.data[idx].as_ref().map(|e| &**e).as_mut(),
-                                   &SessionInfo::new(&*conn))
     }
 
     /// Retrieves the contents of a field of the row.
@@ -224,22 +177,59 @@ impl<'a> Row<'a> {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
-    /// for row in stmt.query(&[]).unwrap() {
+    /// for row in &stmt.query(&[]).unwrap() {
     ///     let foo: i32 = row.get(0);
     ///     let bar: String = row.get("bar");
     ///     println!("{}: {}", foo, bar);
     /// }
     /// ```
     pub fn get<I, T>(&self, idx: I) -> T
-        where I: RowIndex + fmt::Debug + Clone,
+        where I: RowIndex + fmt::Debug,
               T: FromSql
     {
-        match self.get_opt(idx.clone()) {
-            Ok(ok) => ok,
-            Err(err) => panic!("error retrieving column {:?}: {:?}", idx, err),
+        match self.get_inner(&idx) {
+            Some(Ok(ok)) => ok,
+            Some(Err(err)) => panic!("error retrieving column {:?}: {:?}", idx, err),
+            None => panic!("no such column {:?}"),
         }
+    }
+
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// Returns `None` if the index does not reference a column, `Some(Err(..))`
+    /// if there was an error converting the result value, and `Some(Ok(..))`
+    /// on success.
+    pub fn get_opt<I, T>(&self, idx: I) -> Option<Result<T>>
+        where I: RowIndex,
+              T: FromSql
+    {
+        self.get_inner(&idx)
+    }
+
+    fn get_inner<I, T>(&self, idx: &I) -> Option<Result<T>>
+        where I: RowIndex,
+              T: FromSql
+    {
+        let idx = match idx.idx(self.stmt) {
+            Some(idx) => idx,
+            None => return None,
+        };
+
+        let ty = self.stmt.columns()[idx].type_();
+        if !<T as FromSql>::accepts(ty) {
+            return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
+        }
+        let conn = self.stmt.conn().conn.borrow();
+        let value = match self.data[idx] {
+            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
+            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
+        };
+        Some(value)
     }
 
     /// Retrieves the specified field as a raw buffer of Postgres data.
@@ -359,7 +349,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
-    pub fn columns(&self) -> &'stmt [Column] {
+    pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
     }
 

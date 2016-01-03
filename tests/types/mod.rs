@@ -5,8 +5,10 @@ use std::fmt;
 
 use postgres::{Connection, SslMode};
 use postgres::error::Error;
-use postgres::types::{ToSql, FromSql, Slice};
+use postgres::types::{ToSql, FromSql, Slice, WrongType};
 
+#[cfg(feature = "bit-vec")]
+mod bit_vec;
 #[cfg(feature = "uuid")]
 mod uuid;
 #[cfg(feature = "time")]
@@ -19,7 +21,7 @@ mod serde_json;
 mod chrono;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
         let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
@@ -33,7 +35,7 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks
 
 #[test]
 fn test_ref_tosql() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let stmt = conn.prepare("SELECT $1::Int").unwrap();
     let num: &ToSql = &&7;
     stmt.query(&[num]).unwrap();
@@ -113,7 +115,7 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
@@ -129,7 +131,7 @@ fn test_bpchar_params() {
 
 #[test]
 fn test_citext_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CITEXT
@@ -167,7 +169,7 @@ fn test_hstore_params() {
 }
 
 fn test_nan_param<T: PartialEq+ToSql+FromSql>(sql_type: &str) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
     let result = or_panic!(stmt.query(&[]));
     let val: T = result.iter().next().unwrap().get(0);
@@ -186,18 +188,18 @@ fn test_f64_nan_param() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", &SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
     let result = or_panic!(stmt.query(&[]));
 
     let next = result.iter().next().unwrap();
-    or_panic!(next.get_opt::<usize, String>(0));
-    or_panic!(next.get_opt::<&str, String>("datname"));
+    or_panic!(next.get_opt::<_, String>(0).unwrap());
+    or_panic!(next.get_opt::<_, String>("datname").unwrap());
 }
 
 #[test]
 fn test_slice() {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');").unwrap();
 
@@ -209,25 +211,25 @@ fn test_slice() {
 
 #[test]
 fn test_slice_wrong_type() {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)").unwrap();
 
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
     match stmt.query(&[&Slice(&["hi"])]) {
         Ok(_) => panic!("Unexpected success"),
-        Err(Error::WrongType(..)) => {}
+        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
-    }
+    };
 }
 
 #[test]
 fn test_slice_range() {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
 
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
     match stmt.query(&[&Slice(&[1i64])]) {
         Ok(_) => panic!("Unexpected success"),
-        Err(Error::WrongType(..)) => {}
+        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
-    }
+    };
 }

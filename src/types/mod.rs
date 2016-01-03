@@ -4,10 +4,11 @@ use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::io::prelude::*;
+use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew};
 use error::Error;
 use util;
 
@@ -31,17 +32,30 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self, ty: &$crate::types::Type, out: &mut ::std::io::Write,
+        fn to_sql_checked(&self,
+                          ty: &$crate::types::Type,
+                          out: &mut ::std::io::Write,
                           ctx: &$crate::types::SessionInfo)
                           -> $crate::Result<$crate::types::IsNull> {
-            if !<Self as $crate::types::ToSql>::accepts(ty) {
-                return Err($crate::error::Error::WrongType(ty.clone()));
-            }
-            $crate::types::ToSql::to_sql(self, ty, out, ctx)
+            $crate::types::__to_sql_checked(self, ty, out, ctx)
         }
     }
 }
 
+// WARNING: this function is not considered part of this crate's public API.
+// It is subject to change at any time.
+#[doc(hidden)]
+pub fn __to_sql_checked<T>(v: &T, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull>
+    where T: ToSql
+{
+    if !T::accepts(ty) {
+        return Err(Error::Conversion(Box::new(WrongType(ty.clone()))));
+    }
+    v.to_sql(ty, out, ctx)
+}
+
+#[cfg(feature = "bit-vec")]
+mod bit_vec;
 #[cfg(feature = "uuid")]
 mod uuid;
 #[cfg(feature = "time")]
@@ -51,8 +65,6 @@ mod slice;
 mod rustc_serialize;
 #[cfg(feature = "serde_json")]
 mod serde_json;
-#[cfg(feature = "serde")]
-mod serde;
 #[cfg(feature = "chrono")]
 mod chrono;
 
@@ -75,6 +87,14 @@ impl<'a> SessionInfo<'a> {
     }
 }
 
+impl<'a> fmt::Debug for SessionInfo<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SessionInfo")
+           .field("parameters", &self.conn.parameters)
+           .finish()
+    }
+}
+
 /// A Postgres OID.
 pub type Oid = u32;
 
@@ -87,6 +107,8 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
+    #[doc(hidden)]
+    __PseudoPrivateForExtensibility,
 }
 
 macro_rules! as_pat {
@@ -107,7 +129,7 @@ macro_rules! make_postgres_type {
                 $variant,
             )+
             /// An unknown type.
-            Other(Box<Other>),
+            Other(Other),
         }
 
         impl fmt::Debug for Type {
@@ -117,6 +139,16 @@ macro_rules! make_postgres_type {
                     Type::Other(ref u) => return fmt::Debug::fmt(u, fmt),
                 };
                 fmt.write_str(s)
+            }
+        }
+
+        impl fmt::Display for Type {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                match self.schema() {
+                    "public" | "pg_catalog" => {}
+                    schema => try!(write!(fmt, "{}.", schema)),
+                }
+                fmt.write_str(self.name())
             }
         }
 
@@ -489,8 +521,22 @@ make_postgres_type! {
 }
 
 /// Information about an unknown type.
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Other {
+#[derive(PartialEq, Eq, Clone)]
+pub struct Other(Arc<OtherInner>);
+
+impl fmt::Debug for Other {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Other")
+           .field("name", &self.0.name)
+           .field("oid", &self.0.oid)
+           .field("kind", &self.0.kind)
+           .field("schema", &self.0.schema)
+           .finish()
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct OtherInner {
     name: String,
     oid: Oid,
     kind: Kind,
@@ -499,34 +545,34 @@ pub struct Other {
 
 impl OtherNew for Other {
     fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
-        Other {
+        Other(Arc::new(OtherInner {
             name: name,
             oid: oid,
             kind: kind,
             schema: schema,
-        }
+        }))
     }
 }
 
 impl Other {
     /// The name of the type.
     pub fn name(&self) -> &str {
-        &self.name
+        &self.0.name
     }
 
     /// The OID of this type.
     pub fn oid(&self) -> Oid {
-        self.oid
+        self.0.oid
     }
 
     /// The kind of this type.
     pub fn kind(&self) -> &Kind {
-        &self.kind
+        &self.0.kind
     }
 
     /// The schema of this type.
     pub fn schema(&self) -> &str {
-        &self.schema
+        &self.0.schema
     }
 }
 
@@ -544,6 +590,31 @@ impl fmt::Display for WasNull {
 impl error::Error for WasNull {
     fn description(&self) -> &str {
         "a Postgres value was `NULL`"
+    }
+}
+
+/// An error indicating that a conversion was attempted between incompatible
+/// Rust and Postgres types.
+#[derive(Debug)]
+pub struct WrongType(Type);
+
+impl fmt::Display for WrongType {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt,
+               "cannot convert to or from a Postgres value of type `{}`",
+               self.0)
+    }
+}
+
+impl error::Error for WrongType {
+    fn description(&self) -> &str {
+        "cannot convert to or from a Postgres value"
+    }
+}
+
+impl WrongTypeNew for WrongType {
+    fn new(ty: Type) -> WrongType {
+        WrongType(ty)
     }
 }
 
@@ -586,6 +657,7 @@ impl error::Error for WasNull {
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
 /// | uuid::Uuid                          | UUID                                |
+/// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///
 /// # Nullability
 ///
@@ -593,17 +665,6 @@ impl error::Error for WasNull {
 /// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
 /// nullable Postgres value.
 pub trait FromSql: Sized {
-    /// ### Deprecated
-    fn from_sql_nullable<R: Read>(ty: &Type,
-                                  raw: Option<&mut R>,
-                                  ctx: &SessionInfo)
-                                  -> Result<Self> {
-        match raw {
-            Some(raw) => FromSql::from_sql(ty, raw, ctx),
-            None => FromSql::from_sql_null(ty, ctx),
-        }
-    }
-
     /// Creates a new value of this type from a `Read`er of the binary format
     /// of the specified Postgres `Type`.
     ///
@@ -796,6 +857,7 @@ pub enum IsNull {
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
 /// | uuid::Uuid                          | UUID                                |
+/// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///
 /// # Nullability
 ///
@@ -827,7 +889,8 @@ pub trait ToSql: fmt::Debug {
     fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull>;
 }
 
-impl<'a, T> ToSql for &'a T where T: ToSql {
+impl<'a, T> ToSql for &'a T where T: ToSql
+{
     to_sql_checked!();
 
     fn to_sql<W: Write + ?Sized>(&self,

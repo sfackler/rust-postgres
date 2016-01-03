@@ -2,7 +2,6 @@ use std::io::prelude::*;
 use byteorder::{WriteBytesExt, BigEndian};
 
 use Result;
-use error::Error;
 use types::{Type, ToSql, Kind, IsNull, SessionInfo, downcast};
 
 /// An adapter type mapping slices to Postgres arrays.
@@ -15,29 +14,20 @@ use types::{Type, ToSql, Kind, IsNull, SessionInfo, downcast};
 /// # Examples
 ///
 /// ```rust,no_run
-/// # fn foo() -> postgres::Result<()> {
 /// # use postgres::{Connection, SslMode};
-/// # use postgres::types::Slice;
-/// # let conn = Connection::connect("", &SslMode::None).unwrap();
+/// use postgres::types::Slice;
+///
+/// # let conn = Connection::connect("", SslMode::None).unwrap();
 /// let values = &[1i32, 2, 3, 4, 5, 6];
-/// let stmt = try!(conn.prepare("SELECT * FROM foo WHERE id = ANY($1)"));
-/// for row in &try!(stmt.query(&[&Slice(values)])) {
+/// let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
+/// for row in &stmt.query(&[&Slice(values)]).unwrap() {
 ///     // ...
 /// }
-/// # Ok(()) }
 /// ```
 #[derive(Debug)]
 pub struct Slice<'a, T: 'a + ToSql>(pub &'a [T]);
 
 impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
-    // FIXME should use to_sql_checked!() but blocked on rust-lang/rust#24308
-    fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull> {
-        if !<Slice<'a, T> as ToSql>::accepts(ty) {
-            return Err(Error::WrongType(ty.clone()));
-        }
-        self.to_sql(ty, out, ctx)
-    }
-
     fn to_sql<W: Write + ?Sized>(&self,
                                  ty: &Type,
                                  mut w: &mut W,
@@ -72,8 +62,10 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
 
     fn accepts(ty: &Type) -> bool {
         match ty.kind() {
-            &Kind::Array(ref member) => <T as ToSql>::accepts(member),
+            &Kind::Array(ref member) => T::accepts(member),
             _ => false,
         }
     }
+
+    to_sql_checked!();
 }

@@ -1,6 +1,4 @@
-//! Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database. It
-//! exposes a high level interface in the vein of JDBC or Go's `database/sql`
-//! package.
+//! A pure-Rust frontend for the popular PostgreSQL database.
 //!
 //! ```rust,no_run
 //! extern crate postgres;
@@ -14,7 +12,7 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = Connection::connect("postgresql://postgres@localhost", &SslMode::None)
+//!     let conn = Connection::connect("postgresql://postgres@localhost", SslMode::None)
 //!             .unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
@@ -30,8 +28,7 @@
 //!     conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
 //!                  &[&me.name, &me.data]).unwrap();
 //!
-//!     let stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
-//!     for row in stmt.query(&[]).unwrap() {
+//!     for row in &conn.query("SELECT id, name, data FROM person", &[]).unwrap() {
 //!         let person = Person {
 //!             id: row.get(0),
 //!             name: row.get(1),
@@ -41,15 +38,15 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.10.2")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.0")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate hex;
 #[macro_use]
 extern crate log;
 extern crate phf;
-extern crate rustc_serialize as serialize;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
 extern crate net2;
@@ -68,6 +65,7 @@ use std::io::prelude::*;
 use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
+use std::sync::Arc;
 use std::time::Duration;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
@@ -81,8 +79,7 @@ use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other};
-use types::{ToSql, FromSql};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql};
 use url::Url;
 
 #[macro_use]
@@ -112,7 +109,7 @@ pub enum ConnectTarget {
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     ///
-    /// Only available on Unix platforms with the `unix_socket` feature.
+    /// Requires the `unix_socket` feature.
     #[cfg(feature = "unix_socket")]
     Unix(PathBuf),
 }
@@ -232,7 +229,7 @@ pub struct LoggingNoticeHandler;
 
 impl HandleNotice for LoggingNoticeHandler {
     fn handle_notice(&mut self, notice: DbError) {
-        info!("{}: {}", notice.severity(), notice.message());
+        info!("{}: {}", notice.severity, notice.message);
     }
 }
 
@@ -263,20 +260,20 @@ pub struct CancelData {
 /// # use postgres::{Connection, SslMode};
 /// # use std::thread;
 /// # let url = "";
-/// let conn = Connection::connect(url, &SslMode::None).unwrap();
+/// let conn = Connection::connect(url, SslMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
-/// postgres::cancel_query(url, &SslMode::None, cancel_data).unwrap();
+/// postgres::cancel_query(url, SslMode::None, &cancel_data).unwrap();
 /// ```
 pub fn cancel_query<T>(params: T,
-                       ssl: &SslMode,
-                       data: CancelData)
+                       ssl: SslMode,
+                       data: &CancelData)
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
 {
-    let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
+    let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
     try!(socket.write_message(&CancelRequest {
@@ -349,33 +346,23 @@ impl IsolationLevel {
         } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
             Ok(IsolationLevel::Serializable)
         } else {
-            Err(Error::IoError(bad_response()))
+            Err(Error::Io(bad_response()))
         }
     }
 }
 
 /// Specifies the SSL support requested for a new connection.
-pub enum SslMode {
+#[derive(Debug)]
+pub enum SslMode<'a> {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
-    Prefer(Box<NegotiateSsl + std::marker::Sync + Send>),
+    Prefer(&'a NegotiateSsl),
     /// The connection must use SSL.
-    Require(Box<NegotiateSsl + std::marker::Sync + Send>),
+    Require(&'a NegotiateSsl),
 }
 
-impl fmt::Debug for SslMode {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SslMode::None => fmt.write_str("None"),
-            SslMode::Prefer(..) => fmt.write_str("Prefer"),
-            SslMode::Require(..) => fmt.write_str("Require"),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct CachedStatement {
+struct StatementInfo {
     name: String,
     param_types: Vec<Type>,
     columns: Vec<Column>,
@@ -386,8 +373,8 @@ struct InnerConnection {
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
-    unknown_types: HashMap<Oid, Type>,
-    cached_statements: HashMap<String, CachedStatement>,
+    unknown_types: HashMap<Oid, Other>,
+    cached_statements: HashMap<String, Arc<StatementInfo>>,
     parameters: HashMap<String, String>,
     next_stmt_id: u32,
     trans_depth: u32,
@@ -404,15 +391,22 @@ impl Drop for InnerConnection {
 }
 
 impl InnerConnection {
-    fn connect<T>(params: T, ssl: &SslMode) -> result::Result<InnerConnection, ConnectError>
+    fn connect<T>(params: T, ssl: SslMode) -> result::Result<InnerConnection, ConnectError>
         where T: IntoConnectParams
     {
-        let params = try!(params.into_connect_params().map_err(ConnectError::BadConnectParams));
+        let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
         let stream = try!(priv_io::initialize_stream(&params, ssl));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
-        let user = try!(user.ok_or(ConnectError::MissingUser));
+        let user = match user {
+            Some(user) => user,
+            None => {
+                let err: Box<StdError + StdSync + Send> = "User missing from connection parameters"
+                                                              .into();
+                return Err(ConnectError::ConnectParams(err));
+            }
+        };
 
         let mut conn = InnerConnection {
             stream: BufStream::new(stream),
@@ -456,7 +450,7 @@ impl InnerConnection {
                 }
                 ReadyForQuery { .. } => break,
                 ErrorResponse { fields } => return DbError::new_connect(fields),
-                _ => return Err(ConnectError::IoError(bad_response())),
+                _ => return Err(ConnectError::Io(bad_response())),
             }
         }
 
@@ -476,11 +470,11 @@ impl InnerConnection {
                                     t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => return Ok(()),
-            Err(Error::IoError(e)) => return Err(ConnectError::IoError(e)),
+            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
-            Err(Error::DbError(ref e)) if e.code() == &SqlState::UndefinedTable => {}
-            Err(Error::DbError(e)) => return Err(ConnectError::DbError(e)),
-            _ => unreachable!(),
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
+            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+            Err(Error::Conversion(_)) => unreachable!(),
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
@@ -490,9 +484,9 @@ impl InnerConnection {
                                     ON t.typnamespace = n.oid \
                                 WHERE t.oid = $1") {
             Ok(..) => Ok(()),
-            Err(Error::IoError(e)) => Err(ConnectError::IoError(e)),
-            Err(Error::DbError(e)) => Err(ConnectError::DbError(e)),
-            _ => unreachable!(),
+            Err(Error::Io(e)) => Err(ConnectError::Io(e)),
+            Err(Error::Db(e)) => Err(ConnectError::Db(e)),
+            Err(Error::Conversion(_)) => unreachable!(),
         }
     }
 
@@ -540,6 +534,24 @@ impl InnerConnection {
         }
     }
 
+    fn read_message_with_notification_nonblocking(&mut self)
+                                                  -> std::io::Result<Option<BackendMessage>> {
+        debug_assert!(!self.desynchronized);
+        loop {
+            match try_desync!(self, self.stream.read_message_nonblocking()) {
+                Some(NoticeResponse { fields }) => {
+                    if let Ok(err) = DbError::new_raw(fields) {
+                        self.notice_handler.handle_notice(err);
+                    }
+                }
+                Some(ParameterStatus { parameter, value }) => {
+                    self.parameters.insert(parameter, value);
+                }
+                val => return Ok(val),
+            }
+        }
+    }
+
     fn read_message(&mut self) -> std_io::Result<BackendMessage> {
         loop {
             match try!(self.read_message_with_notification()) {
@@ -559,33 +571,40 @@ impl InnerConnection {
         match try!(self.read_message()) {
             AuthenticationOk => return Ok(()),
             AuthenticationCleartextPassword => {
-                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
+                let pass = try!(user.password.ok_or_else(|| {
+                    ConnectError::ConnectParams("a password was requested but not provided".into())
+                }));
                 try!(self.write_messages(&[PasswordMessage { password: &pass }]));
             }
             AuthenticationMD5Password { salt } => {
-                let pass = try!(user.password.ok_or(ConnectError::MissingPassword));
+                let pass = try!(user.password.ok_or_else(|| {
+                    ConnectError::ConnectParams("a password was requested but not provided".into())
+                }));
                 let mut hasher = Md5::new();
-                let _ = hasher.input(pass.as_bytes());
-                let _ = hasher.input(user.user.as_bytes());
+                hasher.input(pass.as_bytes());
+                hasher.input(user.user.as_bytes());
                 let output = hasher.result_str();
                 hasher.reset();
-                let _ = hasher.input(output.as_bytes());
-                let _ = hasher.input(&salt);
+                hasher.input(output.as_bytes());
+                hasher.input(&salt);
                 let output = format!("md5{}", hasher.result_str());
                 try!(self.write_messages(&[PasswordMessage { password: &output }]));
             }
             AuthenticationKerberosV5 |
             AuthenticationSCMCredential |
             AuthenticationGSS |
-            AuthenticationSSPI => return Err(ConnectError::UnsupportedAuthentication),
+            AuthenticationSSPI => {
+                return Err(ConnectError::Io(std_io::Error::new(std_io::ErrorKind::Other,
+                                                               "unsupported authentication")))
+            }
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::IoError(bad_response())),
+            _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
             ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::IoError(bad_response())),
+            _ => return Err(ConnectError::Io(bad_response())),
         }
     }
 
@@ -651,28 +670,33 @@ impl InnerConnection {
     fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
         let stmt_name = self.make_stmt_name();
         let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
-        Ok(Statement::new(conn, stmt_name, param_types, columns, Cell::new(0), false))
+        let info = Arc::new(StatementInfo {
+            name: stmt_name,
+            param_types: param_types,
+            columns: columns,
+        });
+        Ok(Statement::new(conn, info, Cell::new(0), false))
     }
 
     fn prepare_cached<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
-        let stmt = self.cached_statements.get(query).cloned();
+        let info = self.cached_statements.get(query).cloned();
 
-        let CachedStatement { name, param_types, columns } = match stmt {
-            Some(stmt) => stmt,
+        let info = match info {
+            Some(info) => info,
             None => {
                 let stmt_name = self.make_stmt_name();
                 let (param_types, columns) = try!(self.raw_prepare(&stmt_name, query));
-                let stmt = CachedStatement {
+                let info = Arc::new(StatementInfo {
                     name: stmt_name,
                     param_types: param_types,
                     columns: columns,
-                };
-                self.cached_statements.insert(query.to_owned(), stmt.clone());
-                stmt
+                });
+                self.cached_statements.insert(query.to_owned(), info.clone());
+                info
             }
         };
 
-        Ok(Statement::new(conn, name, param_types, columns, Cell::new(0), true))
+        Ok(Statement::new(conn, info, Cell::new(0), true))
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
@@ -696,7 +720,7 @@ impl InnerConnection {
         }
 
         if let Some(ty) = self.unknown_types.get(&oid) {
-            return Ok(ty.clone());
+            return Ok(Type::Other(ty.clone()));
         }
 
         // Ew @ doing this manually :(
@@ -725,29 +749,30 @@ impl InnerConnection {
             }
             _ => bad_response!(self),
         }
-        let (name, elem_oid, rngsubtype, schema): (String, Oid, Option<Oid>, String) =
-            match try!(self.read_message()) {
-                DataRow { row } => {
-                    let ctx = SessionInfo::new(self);
-                    (try!(FromSql::from_sql_nullable(&Type::Name,
-                                                     row[0].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                     row[1].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Oid,
-                                                     row[2].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)),
-                     try!(FromSql::from_sql_nullable(&Type::Name,
-                                                     row[3].as_ref().map(|r| &**r).as_mut(),
-                                                     &ctx)))
-                }
-                ErrorResponse { fields } => {
-                    try!(self.wait_for_ready());
-                    return DbError::new(fields);
-                }
-                _ => bad_response!(self),
-            };
+        let (name, elem_oid, rngsubtype, schema) = match try!(self.read_message()) {
+            DataRow { row } => {
+                let ctx = SessionInfo::new(self);
+                let name = try!(String::from_sql(&Type::Name,
+                                                 &mut &**row[0].as_ref().unwrap(),
+                                                 &ctx));
+                let elem_oid = try!(Oid::from_sql(&Type::Oid,
+                                                  &mut &**row[1].as_ref().unwrap(),
+                                                  &ctx));
+                let rngsubtype = match row[2] {
+                    Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
+                    None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
+                };
+                let schema = try!(String::from_sql(&Type::Name,
+                                                   &mut &**row[3].as_ref().unwrap(),
+                                                   &ctx));
+                (name, elem_oid, rngsubtype, schema)
+            }
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                return DbError::new(fields);
+            }
+            _ => bad_response!(self),
+        };
         match try!(self.read_message()) {
             CommandComplete { .. } => {}
             ErrorResponse { fields } => {
@@ -767,9 +792,9 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Type::Other(Box::new(Other::new(name, oid, kind, schema)));
+        let type_ = Other::new(name, oid, kind, schema);
         self.unknown_types.insert(oid, type_.clone());
-        Ok(type_)
+        Ok(Type::Other(type_))
     }
 
     fn is_desynchronized(&self) -> bool {
@@ -799,8 +824,7 @@ impl InnerConnection {
                                    })
                                    .collect());
                 }
-                CopyInResponse { .. } |
-                CopyOutResponse { .. } => {
+                CopyInResponse { .. } => {
                     try!(self.write_messages(&[CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
@@ -825,8 +849,7 @@ impl InnerConnection {
 }
 
 fn _ensure_send() {
-    fn _is_send<T: Send>() {
-    }
+    fn _is_send<T: Send>() {}
     _is_send::<Connection>();
 }
 
@@ -839,6 +862,7 @@ impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
         fmt.debug_struct("Connection")
+           .field("stream", &conn.stream.get_ref())
            .field("cancel_data", &conn.cancel_data)
            .field("notifications", &conn.notifications.len())
            .field("transaction_depth", &conn.trans_depth)
@@ -875,22 +899,23 @@ impl Connection {
     /// use postgres::{Connection, SslMode};
     ///
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let conn = Connection::connect(url, &SslMode::None).unwrap();
+    /// let conn = Connection::connect(url, SslMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
     /// use postgres::{Connection, SslMode};
     ///
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let conn = Connection::connect(url, &SslMode::None).unwrap();
+    /// let conn = Connection::connect(url, SslMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
     /// use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
+    /// # use std::path::PathBuf;
     ///
     /// # #[cfg(feature = "unix_socket")]
     /// # fn f() {
-    /// # let some_crazy_path = Path::new("");
+    /// # let some_crazy_path = PathBuf::new();
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
@@ -901,73 +926,87 @@ impl Connection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let conn = Connection::connect(params, &SslMode::None).unwrap();
+    /// let conn = Connection::connect(params, SslMode::None).unwrap();
     /// # }
     /// ```
-    pub fn connect<T>(params: T, ssl: &SslMode) -> result::Result<Connection, ConnectError>
+    pub fn connect<T>(params: T, ssl: SslMode) -> result::Result<Connection, ConnectError>
         where T: IntoConnectParams
     {
         InnerConnection::connect(params, ssl).map(|conn| Connection { conn: RefCell::new(conn) })
     }
 
-    /// Sets the notice handler for the connection, returning the old handler.
-    pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
-        self.conn.borrow_mut().set_notice_handler(handler)
-    }
-
-    /// Returns a structure providing access to asynchronous notifications.
-    ///
-    /// Use the `LISTEN` command to register this connection for notifications.
-    pub fn notifications<'a>(&'a self) -> Notifications<'a> {
-        Notifications::new(self)
-    }
-
-    /// Creates a new prepared statement.
+    /// Executes a statement, returning the number of rows modified.
     ///
     /// A statement may contain parameters, specified by `$n` where `n` is the
-    /// index of the parameter in the list provided at execution time,
-    /// 1-indexed.
+    /// index of the parameter in the list provided, 1-indexed.
     ///
-    /// The statement is associated with the connection that created it and may
-    /// not outlive that connection.
+    /// If the statement does not modify any rows (e.g. SELECT), 0 is returned.
+    ///
+    /// If the same statement will be repeatedly executed (perhaps with
+    /// different query parameters), consider using the `prepare` and
+    /// `prepare_cached` methods.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
     ///
     /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let x = 10i32;
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in stmt.query(&[&x]).unwrap() {
-    ///     let foo: String = row.get(0);
-    ///     println!("foo: {}", foo);
-    /// }
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let bar = 1i32;
+    /// # let baz = true;
+    /// let rows_updated = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&bar, &baz])
+    ///                        .unwrap();
+    /// println!("{} rows updated", rows_updated);
     /// ```
-    pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.conn.borrow_mut().prepare(query, self)
+    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
+        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let info = Arc::new(StatementInfo {
+            name: String::new(),
+            param_types: param_types,
+            columns: columns,
+        });
+        let stmt = Statement::new(self, info, Cell::new(0), true);
+        stmt.execute(params)
     }
 
-    /// Creates a cached prepared statement.
+    /// Executes a statement, returning the resulting rows.
     ///
-    /// Like `prepare`, except that the statement is only prepared once over
-    /// the lifetime of the connection and then cached. If the same statement
-    /// is going to be used frequently, caching it can improve performance by
-    /// reducing the number of round trips to the Postgres backend.
+    /// A statement may contain parameters, specified by `$n` where `n` is the
+    /// index of the parameter in the list provided, 1-indexed.
+    ///
+    /// If the same statement will be repeatedly executed (perhaps with
+    /// different query parameters), consider using the `prepare` and
+    /// `prepare_cached` methods.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
     ///
     /// # Example
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let x = 10i32;
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
-    /// let stmt = conn.prepare_cached("SELECT foo FROM bar WHERE baz = $1").unwrap();
-    /// for row in stmt.query(&[&x]).unwrap() {
-    ///     let foo: String = row.get(0);
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let baz = true;
+    /// for row in &conn.query("SELECT foo FROM bar WHERE baz = $1", &[&baz]).unwrap() {
+    ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.conn.borrow_mut().prepare_cached(query, self)
+    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let info = Arc::new(StatementInfo {
+            name: String::new(),
+            param_types: param_types,
+            columns: columns,
+        });
+        let stmt = Statement::new(self, info, Cell::new(0), true);
+        stmt.into_query(params)
     }
 
     /// Begins a new transaction.
@@ -988,7 +1027,7 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// let trans = conn.transaction().unwrap();
     /// trans.execute("UPDATE foo SET bar = 10", &[]).unwrap();
     /// // ...
@@ -1010,15 +1049,53 @@ impl Connection {
         })
     }
 
-    /// Sets the isolation level which will be used for future transactions.
+    /// Creates a new prepared statement.
     ///
-    /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
+    /// If the same statement will be executed repeatedly, explicitly preparing
+    /// it can improve performance.
     ///
-    /// # Note
+    /// The statement is associated with the connection that created it and may
+    /// not outlive that connection.
     ///
-    /// This will not change the behavior of an active transaction.
-    pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
-        self.batch_execute(level.to_set_query())
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let x = 10i32;
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let (a, b) = (0i32, 1i32);
+    /// # let updates = vec![(&a, &b)];
+    /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
+    /// for (bar, baz) in updates {
+    ///     stmt.execute(&[bar, baz]).unwrap();
+    /// }
+    /// ```
+    pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.conn.borrow_mut().prepare(query, self)
+    }
+
+    /// Creates a cached prepared statement.
+    ///
+    /// Like `prepare`, except that the statement is only prepared once over
+    /// the lifetime of the connection and then cached. If the same statement
+    /// is going to be prepared frequently, caching it can improve performance
+    /// by reducing the number of round trips to the Postgres backend.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, SslMode};
+    /// # let x = 10i32;
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let (a, b) = (0i32, 1i32);
+    /// # let updates = vec![(&a, &b)];
+    /// let stmt = conn.prepare_cached("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
+    /// for (bar, baz) in updates {
+    ///     stmt.execute(&[bar, baz]).unwrap();
+    /// }
+    /// ```
+    pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.conn.borrow_mut().prepare_cached(query, self)
     }
 
     /// Returns the isolation level which will be used for future transactions.
@@ -1031,26 +1108,15 @@ impl Connection {
         IsolationLevel::parse(result[0][0].as_ref().unwrap())
     }
 
-    /// A convenience function for queries that are only run once.
+    /// Sets the isolation level which will be used for future transactions.
     ///
-    /// If an error is returned, it could have come from either the preparation
-    /// or execution of the statement.
+    /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
     ///
-    /// On success, returns the number of rows modified or 0 if not applicable.
+    /// # Note
     ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number
-    /// expected.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
-        let stmt = Statement::new(self,
-                                  "".to_owned(),
-                                  param_types,
-                                  columns,
-                                  Cell::new(0),
-                                  true);
-        stmt.execute(params)
+    /// This will not change the behavior of an active transaction.
+    pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
+        self.batch_execute(level.to_set_query())
     }
 
     /// Execute a sequence of SQL statements.
@@ -1071,7 +1137,7 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// # use postgres::{Connection, SslMode, Result};
-    /// # let conn = Connection::connect("", &SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", SslMode::None).unwrap();
     /// conn.batch_execute("
     ///     CREATE TABLE person (
     ///         id SERIAL PRIMARY KEY,
@@ -1091,6 +1157,13 @@ impl Connection {
         self.conn.borrow_mut().quick_query(query).map(|_| ())
     }
 
+    /// Returns a structure providing access to asynchronous notifications.
+    ///
+    /// Use the `LISTEN` command to register this connection for notifications.
+    pub fn notifications<'a>(&'a self) -> Notifications<'a> {
+        Notifications::new(self)
+    }
+
     /// Returns information used to cancel pending queries.
     ///
     /// Used with the `cancel_query` function. The object returned can be used
@@ -1103,6 +1176,11 @@ impl Connection {
     /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<String> {
         self.conn.borrow().parameters.get(param).cloned()
+    }
+
+    /// Sets the notice handler for the connection, returning the old handler.
+    pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
+        self.conn.borrow_mut().set_notice_handler(handler)
     }
 
     /// Returns whether or not the stream has been desynchronized due to an
@@ -1191,6 +1269,11 @@ impl<'conn> Transaction<'conn> {
     /// Like `Connection::execute`.
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.conn.execute(query, params)
+    }
+
+    /// Like `Connection::query`.
+    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        self.conn.query(query, params)
     }
 
     /// Like `Connection::batch_execute`.
@@ -1289,13 +1372,13 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
                         _ => {}
                     }
                 }
-                return Err(Error::IoError(std_io::Error::new(std_io::ErrorKind::InvalidInput,
-                                                             "COPY queries cannot be directly \
-                                                              executed")));
+                return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                                                        "COPY queries cannot be directly \
+                                                         executed")));
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::IoError(bad_response()));
+                return Err(Error::Io(bad_response()));
             }
         }
     }
@@ -1305,14 +1388,17 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
 
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericConnection {
+    /// Like `Connection::execute`.
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
+
+    /// Like `Connection::query`.
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>>;
+
     /// Like `Connection::prepare`.
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::prepare_cached`.
     fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
-
-    /// Like `Connection::execute`.
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
     /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
@@ -1325,16 +1411,20 @@ pub trait GenericConnection {
 }
 
 impl GenericConnection for Connection {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
+        self.execute(query, params)
+    }
+
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+        self.query(query, params)
+    }
+
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare(query)
     }
 
     fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
         self.prepare_cached(query)
-    }
-
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        self.execute(query, params)
     }
 
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
@@ -1351,16 +1441,20 @@ impl GenericConnection for Connection {
 }
 
 impl<'a> GenericConnection for Transaction<'a> {
+    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
+        self.execute(query, params)
+    }
+
+    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'b>> {
+        self.query(query, params)
+    }
+
     fn prepare<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
         self.prepare(query)
     }
 
     fn prepare_cached<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
         self.prepare_cached(query)
-    }
-
-    fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        self.execute(query, params)
     }
 
     fn transaction<'b>(&'b self) -> Result<Transaction<'b>> {
@@ -1388,6 +1482,7 @@ trait DbErrorNew {
 
 trait RowsNew<'a> {
     fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
+    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
 }
 
 trait LazyRowsNew<'trans, 'stmt> {
@@ -1407,14 +1502,14 @@ trait SessionInfoNew<'a> {
 
 trait StatementInternals<'conn> {
     fn new(conn: &'conn Connection,
-           name: String,
-           param_types: Vec<Type>,
-           columns: Vec<Column>,
+           info: Arc<StatementInfo>,
            next_portal_id: Cell<u32>,
            finished: bool)
            -> Statement<'conn>;
 
     fn conn(&self) -> &'conn Connection;
+
+    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>>;
 }
 
 trait ColumnNew {
@@ -1423,4 +1518,8 @@ trait ColumnNew {
 
 trait NotificationsNew<'conn> {
     fn new(conn: &'conn Connection) -> Notifications<'conn>;
+}
+
+trait WrongTypeNew {
+    fn new(ty: Type) -> WrongType;
 }
