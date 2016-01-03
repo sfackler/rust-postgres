@@ -358,7 +358,7 @@ pub enum SqlState {{
 
     write!(file,
 "    /// An unknown code
-    Unknown(String)
+    Other(String)
 }}
 "
            ).unwrap();
@@ -381,7 +381,7 @@ impl SqlState {{
     pub fn from_code(s: String) -> SqlState {{
         match SQLSTATE_MAP.get(&*s) {{
             Some(state) => state.clone(),
-            None => SqlState::Unknown(s)
+            None => SqlState::Other(s)
         }}
     }}
 
@@ -397,7 +397,7 @@ impl SqlState {{
     }
 
     write!(file, r#"
-            SqlState::Unknown(ref s) => s,
+            SqlState::Other(ref s) => s,
         }}
     }}
 }}
@@ -419,7 +419,7 @@ impl fmt::Debug for SqlState {{
     }
 
     write!(file, r#"
-            SqlState::Unknown(ref s) => return write!(fmt, "Unknown({{:?}})", s),
+            SqlState::Other(ref s) => return write!(fmt, "Other({{:?}})", s),
         }};
         fmt.write_str(s)
     }}
