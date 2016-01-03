@@ -1098,6 +1098,16 @@ impl Connection {
         self.conn.borrow_mut().prepare_cached(query, self)
     }
 
+    /// Returns the isolation level which will be used for future transactions.
+    ///
+    /// This is a simple wrapper around `SHOW TRANSACTION ISOLATION LEVEL`.
+    pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
+        let mut conn = self.conn.borrow_mut();
+        check_desync!(conn);
+        let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
+        IsolationLevel::parse(result[0][0].as_ref().unwrap())
+    }
+
     /// Sets the isolation level which will be used for future transactions.
     ///
     /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
@@ -1107,16 +1117,6 @@ impl Connection {
     /// This will not change the behavior of an active transaction.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
         self.batch_execute(level.to_set_query())
-    }
-
-    /// Returns the isolation level which will be used for future transactions.
-    ///
-    /// This is a simple wrapper around `SHOW TRANSACTION ISOLATION LEVEL`.
-    pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
-        let mut conn = self.conn.borrow_mut();
-        check_desync!(conn);
-        let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
-        IsolationLevel::parse(result[0][0].as_ref().unwrap())
     }
 
     /// Execute a sequence of SQL statements.
@@ -1388,17 +1388,17 @@ fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>
 
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericConnection {
-    /// Like `Connection::prepare`.
-    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
-
-    /// Like `Connection::prepare_cached`.
-    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
-
     /// Like `Connection::execute`.
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
     /// Like `Connection::query`.
     fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>>;
+
+    /// Like `Connection::prepare`.
+    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
+
+    /// Like `Connection::prepare_cached`.
+    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
 
     /// Like `Connection::transaction`.
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
@@ -1411,20 +1411,20 @@ pub trait GenericConnection {
 }
 
 impl GenericConnection for Connection {
-    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.prepare(query)
-    }
-
-    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.prepare_cached(query)
-    }
-
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
     }
 
     fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
         self.query(query, params)
+    }
+
+    fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.prepare(query)
+    }
+
+    fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
+        self.prepare_cached(query)
     }
 
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
@@ -1441,20 +1441,20 @@ impl GenericConnection for Connection {
 }
 
 impl<'a> GenericConnection for Transaction<'a> {
-    fn prepare<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
-        self.prepare(query)
-    }
-
-    fn prepare_cached<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
-        self.prepare_cached(query)
-    }
-
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         self.execute(query, params)
     }
 
     fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'b>> {
         self.query(query, params)
+    }
+
+    fn prepare<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
+        self.prepare(query)
+    }
+
+    fn prepare_cached<'b>(&'b self, query: &str) -> Result<Statement<'b>> {
+        self.prepare_cached(query)
     }
 
     fn transaction<'b>(&'b self) -> Result<Transaction<'b>> {
