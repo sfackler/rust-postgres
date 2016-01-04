@@ -42,4 +42,4 @@ security-framework = { version = "0.1.2", optional = true }
 bit-vec = { version = "0.4", optional = true }
 
 [dev-dependencies]
-url = "0.2"
+url = "0.5"
