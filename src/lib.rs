@@ -462,7 +462,7 @@ impl InnerConnection {
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, r.rngsubtype, n.nspname \
+                               "SELECT t.typname, t.typelem, r.rngsubtype, t.typbasetype, n.nspname \
                                 FROM pg_catalog.pg_type t \
                                 LEFT OUTER JOIN pg_catalog.pg_range r ON \
                                     r.rngtypid = t.oid \
@@ -478,7 +478,7 @@ impl InnerConnection {
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, NULL::OID, n.nspname \
+                               "SELECT t.typname, t.typelem, NULL::OID, t.typbasetype, n.nspname \
                                 FROM pg_catalog.pg_type t \
                                 INNER JOIN pg_catalog.pg_namespace n \
                                     ON t.typnamespace = n.oid \
@@ -749,7 +749,7 @@ impl InnerConnection {
             }
             _ => bad_response!(self),
         }
-        let (name, elem_oid, rngsubtype, schema) = match try!(self.read_message()) {
+        let (name, elem_oid, rngsubtype, basetype, schema) = match try!(self.read_message()) {
             DataRow { row } => {
                 let ctx = SessionInfo::new(self);
                 let name = try!(String::from_sql(&Type::Name,
@@ -762,10 +762,13 @@ impl InnerConnection {
                     Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
                     None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
                 };
+                let basetype = try!(Oid::from_sql(&Type::Oid,
+                                                  &mut &**row[3].as_ref().unwrap(),
+                                                  &ctx));
                 let schema = try!(String::from_sql(&Type::Name,
-                                                   &mut &**row[3].as_ref().unwrap(),
+                                                   &mut &**row[4].as_ref().unwrap(),
                                                    &ctx));
-                (name, elem_oid, rngsubtype, schema)
+                (name, elem_oid, rngsubtype, basetype, schema)
             }
             ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
@@ -783,7 +786,9 @@ impl InnerConnection {
         }
         try!(self.wait_for_ready());
 
-        let kind = if elem_oid != 0 {
+        let kind = if basetype != 0 {
+            Kind::Domain(try!(self.get_type(basetype)))
+        } else if elem_oid != 0 {
             Kind::Array(try!(self.get_type(elem_oid)))
         } else {
             match rngsubtype {

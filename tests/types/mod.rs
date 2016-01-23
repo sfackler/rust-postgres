@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::f32;
 use std::f64;
 use std::fmt;
+use std::io::{Read, Write};
 
-use postgres::{Connection, SslMode};
+use postgres::{Connection, SslMode, Result};
 use postgres::error::Error;
-use postgres::types::{ToSql, FromSql, Slice, WrongType};
+use postgres::types::{ToSql, FromSql, Slice, WrongType, Type, IsNull, Kind, SessionInfo};
 
 #[cfg(feature = "bit-vec")]
 mod bit_vec;
@@ -232,4 +233,49 @@ fn test_slice_range() {
         Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
     };
+}
+
+#[test]
+fn domain() {
+    #[derive(Debug, PartialEq)]
+    struct SessionId(Vec<u8>);
+
+    impl ToSql for SessionId {
+        fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull>
+            where W: Write
+        {
+            let inner = match *ty.kind() {
+                Kind::Domain(ref inner) => inner,
+                _ => unreachable!(),
+            };
+            self.0.to_sql(inner, out, ctx)
+        }
+
+        fn accepts(ty: &Type) -> bool {
+            ty.name() == "session_id" && match *ty.kind() { Kind::Domain(_) => true, _ => false }
+        }
+
+        to_sql_checked!();
+    }
+
+    impl FromSql for SessionId {
+        fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self> {
+            Vec::<u8>::from_sql(ty, raw, ctx).map(SessionId)
+        }
+
+        fn accepts(ty: &Type) -> bool {
+            // This is super weird!
+            <Vec<u8> as FromSql>::accepts(ty)
+        }
+    }
+
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    conn.batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
+                        CREATE TABLE pg_temp.foo (id pg_temp.session_id);")
+        .unwrap();
+
+    let id = SessionId(b"0123456789abcdef".to_vec());
+    conn.execute("INSERT INTO pg_temp.foo (id) VALUES ($1)", &[&id]).unwrap();
+    let rows = conn.query("SELECT id FROM pg_temp.foo", &[]).unwrap();
+    assert_eq!(id, rows.get(0).get(0));
 }
