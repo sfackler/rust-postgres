@@ -891,7 +891,8 @@ pub trait ToSql: fmt::Debug {
     fn to_sql_checked(&self, ty: &Type, out: &mut Write, ctx: &SessionInfo) -> Result<IsNull>;
 }
 
-impl<'a, T> ToSql for &'a T where T: ToSql
+impl<'a, T> ToSql for &'a T
+    where T: ToSql
 {
     to_sql_checked!();
 
