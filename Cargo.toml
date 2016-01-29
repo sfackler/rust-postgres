@@ -7,7 +7,7 @@ description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
 documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.0/postgres"
 readme = "README.md"
-keywords = ["database", "sql"]
+keywords = ["database", "postgres", "postgresql", "sql"]
 build = "build.rs"
 include = ["src/*", "build.rs", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
 
