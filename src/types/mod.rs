@@ -107,7 +107,7 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
-    /// Domain type along with its underlying type.
+    /// A domain type along with its underlying type.
     Domain(Type),
     #[doc(hidden)]
     __PseudoPrivateForExtensibility,
