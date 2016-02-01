@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate postgres;
 extern crate url;
 #[cfg(feature = "openssl")]

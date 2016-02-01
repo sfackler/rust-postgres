@@ -21,7 +21,8 @@ struct StepUp<T> {
     ammount: T,
 }
 
-impl<T> Iterator for StepUp<T> where T: Add<T, Output = T> + PartialOrd + Copy
+impl<T> Iterator for StepUp<T>
+    where T: Add<T, Output = T> + PartialOrd + Copy
 {
     type Item = T;
 
@@ -41,7 +42,8 @@ trait RangeExt<T> {
     fn step_up(self, ammount: T) -> StepUp<T>;
 }
 
-impl<T> RangeExt<T> for Range<T> where T: Add<T, Output = T> + PartialOrd + Copy
+impl<T> RangeExt<T> for Range<T>
+    where T: Add<T, Output = T> + PartialOrd + Copy
 {
     fn step_up(self, ammount: T) -> StepUp<T> {
         StepUp {
