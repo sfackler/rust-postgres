@@ -117,16 +117,16 @@ pub enum ConnectTarget {
 /// Authentication information.
 #[derive(Clone, Debug)]
 pub struct UserInfo {
-    /// The username
+    /// The username.
     pub user: String,
-    /// An optional password
+    /// An optional password.
     pub password: Option<String>,
 }
 
 /// Information necessary to open a new connection to a Postgres server.
 #[derive(Clone, Debug)]
 pub struct ConnectParams {
-    /// The target server
+    /// The target server.
     pub target: ConnectTarget,
     /// The target port.
     ///
@@ -136,7 +136,9 @@ pub struct ConnectParams {
     ///
     /// `Connection::connect` requires a user but `cancel_query` does not.
     pub user: Option<UserInfo>,
-    /// The database to connect to. Defaults the value of `user`.
+    /// The database to connect to.
+    ///
+    /// Defaults the value of `user`.
     pub database: Option<String>,
     /// Runtime parameters to be passed to the Postgres backend.
     pub options: Vec<(String, String)>,
