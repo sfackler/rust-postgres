@@ -493,7 +493,6 @@ fn main() {
     make_enum(&codes, &mut file);
     make_map(&codes, &mut file);
     make_impl(&codes, &mut file);
-    make_debug(&codes, &mut file);
 
     // This is already assumed to be the case but there's no way to say that
     // you don't depend on anything at all
@@ -571,7 +570,7 @@ fn variant_name(code: &str) -> Option<String> {
 fn make_enum(codes: &[Code], file: &mut BufWriter<File>) {
     write!(file,
 r#"/// SQLSTATE error codes
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum SqlState {{
 "#
            ).unwrap();
@@ -626,29 +625,6 @@ impl SqlState {{
     write!(file, r#"
             SqlState::Other(ref s) => s,
         }}
-    }}
-}}
-"#
-           ).unwrap();
-}
-
-fn make_debug(codes: &[Code], file: &mut BufWriter<File>) {
-    write!(file, r#"
-impl fmt::Debug for SqlState {{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {{
-        let s = match *self {{"#
-           ).unwrap();
-
-    for code in codes {
-        write!(file, r#"
-            SqlState::{0} => "{0}","#,
-               code.variant).unwrap();
-    }
-
-    write!(file, r#"
-            SqlState::Other(ref s) => return write!(fmt, "Other({{:?}})", s),
-        }};
-        fmt.write_str(s)
     }}
 }}
 "#
