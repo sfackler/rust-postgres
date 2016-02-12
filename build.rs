@@ -26,9 +26,8 @@ fn main() {
     make_map(&codes, &mut file);
     make_impl(&codes, &mut file);
 
-    // This is already assumed to be the case but there's no way to say that
-    // you don't depend on anything at all
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=errcodes.txt");
 }
 
 fn parse_codes() -> Vec<Code> {
