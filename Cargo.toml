@@ -9,7 +9,7 @@ documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.1/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 build = "build.rs"
-include = ["src/*", "build.rs", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
+include = ["src/*", "build.rs", "errcodes.txt", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
 
 [lib]
 name = "postgres"
