@@ -252,6 +252,13 @@ types. The driver currently supports the following conversions:
             <td>HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/abaumhauer/eui48">eui48::MacAddress</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>MACADDR</td>
+        </tr>
     </tbody>
 </table>
 
