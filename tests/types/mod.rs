@@ -10,6 +10,8 @@ use postgres::types::{ToSql, FromSql, Slice, WrongType, Type, IsNull, Kind, Sess
 
 #[cfg(feature = "bit-vec")]
 mod bit_vec;
+#[cfg(feature = "eui48")]
+mod eui48;
 #[cfg(feature = "uuid")]
 mod uuid;
 #[cfg(feature = "time")]
