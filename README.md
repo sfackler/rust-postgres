@@ -252,6 +252,13 @@ types. The driver currently supports the following conversions:
             <td>HashMap&lt;String, Option&lt;String&gt;&gt;</td>
             <td>HSTORE</td>
         </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/abaumhauer/eui48">eui48::MacAddress</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>MACADDR</td>
+        </tr>
     </tbody>
 </table>
 
@@ -302,3 +309,9 @@ feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
 [BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
 support is provided optionally by the `bit-vec` feature, which adds `ToSql` and
 `FromSql` implementations for `bit-vec`'s `BitVec` type.
+
+### MACADDR type
+
+[MACADDR](http://www.postgresql.org/docs/9.4/static/datatype-net-types.html#DATATYPE-MACADDR)
+support is provided optionally by the `eui48` feature, which adds `ToSql` and
+`FromSql` implementations for `eui48`'s `MacAddress` type.

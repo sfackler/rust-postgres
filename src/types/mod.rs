@@ -67,6 +67,8 @@ mod rustc_serialize;
 mod serde_json;
 #[cfg(feature = "chrono")]
 mod chrono;
+#[cfg(feature = "eui48")]
+mod eui48;
 
 /// A structure providing information for conversion methods.
 pub struct SessionInfo<'a> {
@@ -658,6 +660,7 @@ impl WrongTypeNew for WrongType {
 /// | chrono::DateTime&lt;FixedOffset&gt; | TIMESTAMP WITH TIME ZONE            |
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
+/// | eui48::MacAddress                   | MACADDR                             |
 /// | uuid::Uuid                          | UUID                                |
 /// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///
