@@ -818,71 +818,34 @@ impl InnerConnection {
             return Ok(Type::Other(ty.clone()));
         }
 
-        // Ew @ doing this manually :(
-        let mut buf = vec![];
-        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf, &SessionInfo::new(self))) {
-            IsNull::Yes => None,
-            IsNull::No => Some(buf),
-        };
-        try!(self.write_messages(&[Bind {
-                                       portal: "",
-                                       statement: TYPEINFO_QUERY,
-                                       formats: &[1],
-                                       values: &[value],
-                                       result_formats: &[1],
-                                   },
-                                   Execute {
-                                       portal: "",
-                                       max_rows: 0,
-                                   },
-                                   Sync]));
-        match try!(self.read_message()) {
-            BindComplete => {}
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
-        }
-        let (name, type_, elem_oid, rngsubtype, basetype, schema) = match try!(self.read_message()) {
-            DataRow { row } => {
-                let ctx = SessionInfo::new(self);
-                let name = try!(String::from_sql(&Type::Name,
-                                                 &mut &**row[0].as_ref().unwrap(),
-                                                 &ctx));
-                let type_ = try!(i8::from_sql(&Type::Char,
-                                              &mut &**row[1].as_ref().unwrap(),
+        try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+        let row = rows.pop_front().unwrap();
+
+        let (name, type_, elem_oid, rngsubtype, basetype, schema) = {
+            let ctx = SessionInfo::new(self);
+            let name = try!(String::from_sql(&Type::Name,
+                                             &mut &**row[0].as_ref().unwrap(),
+                                             &ctx));
+            let type_ = try!(i8::from_sql(&Type::Char,
+                                          &mut &**row[1].as_ref().unwrap(),
+                                          &ctx));
+            let elem_oid = try!(Oid::from_sql(&Type::Oid,
+                                              &mut &**row[2].as_ref().unwrap(),
                                               &ctx));
-                let elem_oid = try!(Oid::from_sql(&Type::Oid,
-                                                  &mut &**row[2].as_ref().unwrap(),
-                                                  &ctx));
-                let rngsubtype = match row[3] {
-                    Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
-                    None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
-                };
-                let basetype = try!(Oid::from_sql(&Type::Oid,
-                                                  &mut &**row[4].as_ref().unwrap(),
-                                                  &ctx));
-                let schema = try!(String::from_sql(&Type::Name,
-                                                   &mut &**row[5].as_ref().unwrap(),
-                                                   &ctx));
-                (name, type_, elem_oid, rngsubtype, basetype, schema)
-            }
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
+            let rngsubtype = match row[3] {
+                Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
+                None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
+            };
+            let basetype = try!(Oid::from_sql(&Type::Oid,
+                                              &mut &**row[4].as_ref().unwrap(),
+                                              &ctx));
+            let schema = try!(String::from_sql(&Type::Name,
+                                               &mut &**row[5].as_ref().unwrap(),
+                                               &ctx));
+            (name, type_, elem_oid, rngsubtype, basetype, schema)
         };
-        match try!(self.read_message()) {
-            CommandComplete { .. } => {}
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
-        }
-        try!(self.wait_for_ready());
 
         let kind = if type_ == b'e' as i8 {
             Kind::Enum
