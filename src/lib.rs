@@ -665,6 +665,50 @@ impl InnerConnection {
         Ok((param_types, columns))
     }
 
+    fn read_rows(&mut self, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
+        let more_rows;
+        loop {
+            match try!(self.read_message()) {
+                EmptyQueryResponse | CommandComplete { .. } => {
+                    more_rows = false;
+                    break;
+                }
+                PortalSuspended => {
+                    more_rows = true;
+                    break;
+                }
+                DataRow { row } => buf.push_back(row),
+                ErrorResponse { fields } => {
+                    try!(self.wait_for_ready());
+                    return DbError::new(fields);
+                }
+                CopyInResponse { .. } => {
+                    try!(self.write_messages(&[CopyFail {
+                                                   message: "COPY queries cannot be directly executed",
+                                               },
+                                               Sync]));
+                }
+                CopyOutResponse { .. } => {
+                    loop {
+                        match try!(self.read_message()) {
+                            ReadyForQuery { .. } => break,
+                            _ => {}
+                        }
+                    }
+                    return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                                                            "COPY queries cannot be directly \
+                                                             executed")));
+                }
+                _ => {
+                    self.desynchronized = true;
+                    return Err(Error::Io(bad_response()));
+                }
+            }
+        }
+        try!(self.wait_for_ready());
+        Ok(more_rows)
+    }
+
     fn make_stmt_name(&mut self) -> String {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
@@ -1356,50 +1400,6 @@ impl<'conn> Transaction<'conn> {
         self.finished = true;
         self.finish_inner()
     }
-}
-
-fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
-    let more_rows;
-    loop {
-        match try!(conn.read_message()) {
-            EmptyQueryResponse | CommandComplete { .. } => {
-                more_rows = false;
-                break;
-            }
-            PortalSuspended => {
-                more_rows = true;
-                break;
-            }
-            DataRow { row } => buf.push_back(row),
-            ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
-                return DbError::new(fields);
-            }
-            CopyInResponse { .. } => {
-                try!(conn.write_messages(&[CopyFail {
-                                               message: "COPY queries cannot be directly executed",
-                                           },
-                                           Sync]));
-            }
-            CopyOutResponse { .. } => {
-                loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => break,
-                        _ => {}
-                    }
-                }
-                return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
-                                                        "COPY queries cannot be directly \
-                                                         executed")));
-            }
-            _ => {
-                conn.desynchronized = true;
-                return Err(Error::Io(bad_response()));
-            }
-        }
-    }
-    try!(conn.wait_for_ready());
-    Ok(more_rows)
 }
 
 /// A trait allowing abstraction over connections and transactions

@@ -13,7 +13,7 @@ use message::BackendMessage::*;
 use message::WriteMessage;
 use util;
 use rows::{Rows, LazyRows};
-use {read_rows, bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
+use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
 use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
 
 /// A prepared statement.
@@ -129,7 +129,7 @@ impl<'conn> Statement<'conn> {
         try!(self.inner_execute(portal_name, row_limit, params));
 
         let mut buf = VecDeque::new();
-        let more_rows = try!(read_rows(&mut self.conn.conn.borrow_mut(), &mut buf));
+        let more_rows = try!(self.conn.conn.borrow_mut().read_rows(&mut buf));
         Ok((buf, more_rows))
     }
 
