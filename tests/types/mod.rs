@@ -281,3 +281,29 @@ fn domain() {
     let rows = conn.query("SELECT id FROM pg_temp.foo", &[]).unwrap();
     assert_eq!(id, rows.get(0).get(0));
 }
+
+#[test]
+fn composite() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    conn.batch_execute("CREATE TYPE pg_temp.inventory_item AS (
+                            name TEXT,
+                            supplier INTEGER,
+                            price NUMERIC
+                        )")
+        .unwrap();
+
+    let stmt = conn.prepare("SELECT $1::inventory_item").unwrap();
+    let type_ = &stmt.param_types()[0];
+    assert_eq!(type_.name(), "inventory_item");
+    match type_.kind() {
+        &Kind::Composite(ref fields) => {
+            assert_eq!(fields[0].name(), "name");
+            assert_eq!(fields[0].type_(), &Type::Text);
+            assert_eq!(fields[1].name(), "supplier");
+            assert_eq!(fields[1].type_(), &Type::Int4);
+            assert_eq!(fields[2].name(), "price");
+            assert_eq!(fields[2].type_(), &Type::Numeric);
+        }
+        t => panic!("bad type {:?}", t),
+    }
+}

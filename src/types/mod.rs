@@ -8,7 +8,7 @@ use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
 use util;
 
@@ -115,8 +115,38 @@ pub enum Kind {
     Range(Type),
     /// A domain type along with its underlying type.
     Domain(Type),
+    /// A composite type along with information about its fields.
+    Composite(Vec<Field>),
     #[doc(hidden)]
     __PseudoPrivateForExtensibility,
+}
+
+/// Information about a field of a composite type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    name: String,
+    type_: Type,
+}
+
+impl Field {
+    /// Returns the name of the field.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the type of the field.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
+impl FieldNew for Field {
+    fn new(name: String, type_: Type) -> Field {
+        Field {
+            name: name,
+            type_: type_,
+        }
+    }
 }
 
 macro_rules! as_pat {

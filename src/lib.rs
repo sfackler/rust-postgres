@@ -79,7 +79,7 @@ use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
 use url::Url;
 
 #[macro_use]
@@ -97,7 +97,8 @@ pub mod stmt;
 pub mod types;
 pub mod notification;
 
-const TYPEINFO_QUERY: &'static str = "t";
+const TYPEINFO_QUERY: &'static str = "__typeinfo";
+const TYPEINFO_ARRAY_QUERY: &'static str = "__typeinfo_array";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -463,9 +464,22 @@ impl InnerConnection {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
+        match self.raw_prepare(TYPEINFO_ARRAY_QUERY,
+                               "SELECT attname, atttypid \
+                                FROM pg_catalog.pg_attribute \
+                                WHERE attrelid = $1 \
+                                AND NOT attisdropped \
+                                AND attnum > 0 \
+                                ORDER BY attnum") {
+            Ok(..) => {}
+            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+            Err(Error::Conversion(_)) => unreachable!(),
+        }
+
         match self.raw_prepare(TYPEINFO_QUERY,
                                "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
-                                       t.typbasetype, n.nspname \
+                                       t.typbasetype, n.nspname, t.typrelid \
                                 FROM pg_catalog.pg_type t \
                                 LEFT OUTER JOIN pg_catalog.pg_range r ON \
                                     r.rngtypid = t.oid \
@@ -823,7 +837,7 @@ impl InnerConnection {
         try!(self.read_rows(&mut rows));
         let row = rows.pop_front().unwrap();
 
-        let (name, type_, elem_oid, rngsubtype, basetype, schema) = {
+        let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(self);
             let name = try!(String::from_sql(&Type::Name,
                                              &mut &**row[0].as_ref().unwrap(),
@@ -844,7 +858,10 @@ impl InnerConnection {
             let schema = try!(String::from_sql(&Type::Name,
                                                &mut &**row[5].as_ref().unwrap(),
                                                &ctx));
-            (name, type_, elem_oid, rngsubtype, basetype, schema)
+            let relid = try!(Oid::from_sql(&Type::Oid,
+                                           &mut &**row[6].as_ref().unwrap(),
+                                           &ctx));
+            (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
         let kind = if type_ == b'e' as i8 {
@@ -855,6 +872,28 @@ impl InnerConnection {
             Kind::Domain(try!(self.get_type(basetype)))
         } else if elem_oid != 0 {
             Kind::Array(try!(self.get_type(elem_oid)))
+        } else if relid != 0 {
+            try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
+            let mut rows = VecDeque::new();
+            try!(self.read_rows(&mut rows));
+
+            let mut fields = vec![];
+            for row in rows {
+                let (name, type_) = {
+                    let ctx = SessionInfo::new(self);
+                    let name = try!(String::from_sql(&Type::Name,
+                                                     &mut &**row[0].as_ref().unwrap(),
+                                                     &ctx));
+                    let type_ = try!(Oid::from_sql(&Type::Oid,
+                                                   &mut &**row[1].as_ref().unwrap(),
+                                                   &ctx));
+                    (name, type_)
+                };
+                let type_ = try!(self.get_type(type_));
+                fields.push(Field::new(name, type_));
+            }
+
+            Kind::Composite(fields)
         } else {
             match rngsubtype {
                 Some(oid) => Kind::Range(try!(self.get_type(oid))),
@@ -1548,4 +1587,8 @@ trait NotificationsNew<'conn> {
 
 trait WrongTypeNew {
     fn new(ty: Type) -> WrongType;
+}
+
+trait FieldNew {
+    fn new(name: String, type_: Type) -> Field;
 }
