@@ -709,6 +709,53 @@ impl InnerConnection {
         Ok(more_rows)
     }
 
+    fn raw_execute(&mut self,
+                   stmt_name: &str,
+                   portal_name: &str,
+                   row_limit: i32,
+                   param_types: &[Type],
+                   params: &[&ToSql])
+                   -> Result<()> {
+        assert!(param_types.len() == params.len(),
+                "expected {} parameters but got {}",
+                param_types.len(),
+                params.len());
+        debug!("executing statement {} with parameters: {:?}", stmt_name, params);
+        let mut values = vec![];
+        for (param, ty) in params.iter().zip(param_types) {
+            let mut buf = vec![];
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self))) {
+                IsNull::Yes => values.push(None),
+                IsNull::No => values.push(Some(buf)),
+            }
+        }
+
+        try!(self.write_messages(&[Bind {
+                                       portal: portal_name,
+                                       statement: &stmt_name,
+                                       formats: &[1],
+                                       values: &values,
+                                       result_formats: &[1],
+                                   },
+                                   Execute {
+                                       portal: portal_name,
+                                       max_rows: row_limit,
+                                   },
+                                   Sync]));
+
+        match try!(self.read_message()) {
+            BindComplete => Ok(()),
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                DbError::new(fields)
+            }
+            _ => {
+                self.desynchronized = true;
+                Err(Error::Io(bad_response()))
+            }
+        }
+    }
+
     fn make_stmt_name(&mut self) -> String {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
