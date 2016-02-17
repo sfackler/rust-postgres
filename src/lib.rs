@@ -496,7 +496,7 @@ impl InnerConnection {
 
         match self.raw_prepare(TYPEINFO_QUERY,
                                "SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, \
-                                       n.nspname \
+                                       n.nspname, t.typrelid \
                                 FROM pg_catalog.pg_type t \
                                 INNER JOIN pg_catalog.pg_namespace n \
                                     ON t.typnamespace = n.oid \
