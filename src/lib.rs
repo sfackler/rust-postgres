@@ -38,7 +38,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.1")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.2")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -79,7 +79,7 @@ use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
 use url::Url;
 
 #[macro_use]
@@ -97,7 +97,8 @@ pub mod stmt;
 pub mod types;
 pub mod notification;
 
-const TYPEINFO_QUERY: &'static str = "t";
+const TYPEINFO_QUERY: &'static str = "__typeinfo";
+const TYPEINFO_ARRAY_QUERY: &'static str = "__typeinfo_array";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -117,16 +118,16 @@ pub enum ConnectTarget {
 /// Authentication information.
 #[derive(Clone, Debug)]
 pub struct UserInfo {
-    /// The username
+    /// The username.
     pub user: String,
-    /// An optional password
+    /// An optional password.
     pub password: Option<String>,
 }
 
 /// Information necessary to open a new connection to a Postgres server.
 #[derive(Clone, Debug)]
 pub struct ConnectParams {
-    /// The target server
+    /// The target server.
     pub target: ConnectTarget,
     /// The target port.
     ///
@@ -136,7 +137,9 @@ pub struct ConnectParams {
     ///
     /// `Connection::connect` requires a user but `cancel_query` does not.
     pub user: Option<UserInfo>,
-    /// The database to connect to. Defaults the value of `user`.
+    /// The database to connect to.
+    ///
+    /// Defaults the value of `user`.
     pub database: Option<String>,
     /// Runtime parameters to be passed to the Postgres backend.
     pub options: Vec<(String, String)>,
@@ -461,8 +464,22 @@ impl InnerConnection {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
+        match self.raw_prepare(TYPEINFO_ARRAY_QUERY,
+                               "SELECT attname, atttypid \
+                                FROM pg_catalog.pg_attribute \
+                                WHERE attrelid = $1 \
+                                AND NOT attisdropped \
+                                AND attnum > 0 \
+                                ORDER BY attnum") {
+            Ok(..) => {}
+            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+            Err(Error::Conversion(_)) => unreachable!(),
+        }
+
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, r.rngsubtype, t.typbasetype, n.nspname \
+                               "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
+                                       t.typbasetype, n.nspname, t.typrelid \
                                 FROM pg_catalog.pg_type t \
                                 LEFT OUTER JOIN pg_catalog.pg_range r ON \
                                     r.rngtypid = t.oid \
@@ -478,7 +495,8 @@ impl InnerConnection {
         }
 
         match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typelem, NULL::OID, t.typbasetype, n.nspname \
+                               "SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, \
+                                       n.nspname, t.typrelid \
                                 FROM pg_catalog.pg_type t \
                                 INNER JOIN pg_catalog.pg_namespace n \
                                     ON t.typnamespace = n.oid \
@@ -661,6 +679,97 @@ impl InnerConnection {
         Ok((param_types, columns))
     }
 
+    fn read_rows(&mut self, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
+        let more_rows;
+        loop {
+            match try!(self.read_message()) {
+                EmptyQueryResponse | CommandComplete { .. } => {
+                    more_rows = false;
+                    break;
+                }
+                PortalSuspended => {
+                    more_rows = true;
+                    break;
+                }
+                DataRow { row } => buf.push_back(row),
+                ErrorResponse { fields } => {
+                    try!(self.wait_for_ready());
+                    return DbError::new(fields);
+                }
+                CopyInResponse { .. } => {
+                    try!(self.write_messages(&[CopyFail {
+                                                   message: "COPY queries cannot be directly executed",
+                                               },
+                                               Sync]));
+                }
+                CopyOutResponse { .. } => {
+                    loop {
+                        match try!(self.read_message()) {
+                            ReadyForQuery { .. } => break,
+                            _ => {}
+                        }
+                    }
+                    return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
+                                                            "COPY queries cannot be directly \
+                                                             executed")));
+                }
+                _ => {
+                    self.desynchronized = true;
+                    return Err(Error::Io(bad_response()));
+                }
+            }
+        }
+        try!(self.wait_for_ready());
+        Ok(more_rows)
+    }
+
+    fn raw_execute(&mut self,
+                   stmt_name: &str,
+                   portal_name: &str,
+                   row_limit: i32,
+                   param_types: &[Type],
+                   params: &[&ToSql])
+                   -> Result<()> {
+        assert!(param_types.len() == params.len(),
+                "expected {} parameters but got {}",
+                param_types.len(),
+                params.len());
+        debug!("executing statement {} with parameters: {:?}", stmt_name, params);
+        let mut values = vec![];
+        for (param, ty) in params.iter().zip(param_types) {
+            let mut buf = vec![];
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self))) {
+                IsNull::Yes => values.push(None),
+                IsNull::No => values.push(Some(buf)),
+            }
+        }
+
+        try!(self.write_messages(&[Bind {
+                                       portal: portal_name,
+                                       statement: &stmt_name,
+                                       formats: &[1],
+                                       values: &values,
+                                       result_formats: &[1],
+                                   },
+                                   Execute {
+                                       portal: portal_name,
+                                       max_rows: row_limit,
+                                   },
+                                   Sync]));
+
+        match try!(self.read_message()) {
+            BindComplete => Ok(()),
+            ErrorResponse { fields } => {
+                try!(self.wait_for_ready());
+                DbError::new(fields)
+            }
+            _ => {
+                self.desynchronized = true;
+                Err(Error::Io(bad_response()))
+            }
+        }
+    }
+
     fn make_stmt_name(&mut self) -> String {
         let stmt_name = format!("s{}", self.next_stmt_id);
         self.next_stmt_id += 1;
@@ -723,73 +832,68 @@ impl InnerConnection {
             return Ok(Type::Other(ty.clone()));
         }
 
-        // Ew @ doing this manually :(
-        let mut buf = vec![];
-        let value = match try!(oid.to_sql_checked(&Type::Oid, &mut buf, &SessionInfo::new(self))) {
-            IsNull::Yes => None,
-            IsNull::No => Some(buf),
-        };
-        try!(self.write_messages(&[Bind {
-                                       portal: "",
-                                       statement: TYPEINFO_QUERY,
-                                       formats: &[1],
-                                       values: &[value],
-                                       result_formats: &[1],
-                                   },
-                                   Execute {
-                                       portal: "",
-                                       max_rows: 0,
-                                   },
-                                   Sync]));
-        match try!(self.read_message()) {
-            BindComplete => {}
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
-        }
-        let (name, elem_oid, rngsubtype, basetype, schema) = match try!(self.read_message()) {
-            DataRow { row } => {
-                let ctx = SessionInfo::new(self);
-                let name = try!(String::from_sql(&Type::Name,
-                                                 &mut &**row[0].as_ref().unwrap(),
-                                                 &ctx));
-                let elem_oid = try!(Oid::from_sql(&Type::Oid,
-                                                  &mut &**row[1].as_ref().unwrap(),
-                                                  &ctx));
-                let rngsubtype = match row[2] {
-                    Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
-                    None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
-                };
-                let basetype = try!(Oid::from_sql(&Type::Oid,
-                                                  &mut &**row[3].as_ref().unwrap(),
-                                                  &ctx));
-                let schema = try!(String::from_sql(&Type::Name,
-                                                   &mut &**row[4].as_ref().unwrap(),
-                                                   &ctx));
-                (name, elem_oid, rngsubtype, basetype, schema)
-            }
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
-        };
-        match try!(self.read_message()) {
-            CommandComplete { .. } => {}
-            ErrorResponse { fields } => {
-                try!(self.wait_for_ready());
-                return DbError::new(fields);
-            }
-            _ => bad_response!(self),
-        }
-        try!(self.wait_for_ready());
+        try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+        let row = rows.pop_front().unwrap();
 
-        let kind = if basetype != 0 {
+        let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
+            let ctx = SessionInfo::new(self);
+            let name = try!(String::from_sql(&Type::Name,
+                                             &mut &**row[0].as_ref().unwrap(),
+                                             &ctx));
+            let type_ = try!(i8::from_sql(&Type::Char,
+                                          &mut &**row[1].as_ref().unwrap(),
+                                          &ctx));
+            let elem_oid = try!(Oid::from_sql(&Type::Oid,
+                                              &mut &**row[2].as_ref().unwrap(),
+                                              &ctx));
+            let rngsubtype = match row[3] {
+                Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
+                None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
+            };
+            let basetype = try!(Oid::from_sql(&Type::Oid,
+                                              &mut &**row[4].as_ref().unwrap(),
+                                              &ctx));
+            let schema = try!(String::from_sql(&Type::Name,
+                                               &mut &**row[5].as_ref().unwrap(),
+                                               &ctx));
+            let relid = try!(Oid::from_sql(&Type::Oid,
+                                           &mut &**row[6].as_ref().unwrap(),
+                                           &ctx));
+            (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
+        };
+
+        let kind = if type_ == b'e' as i8 {
+            Kind::Enum
+        } else if type_ == b'p' as i8 {
+            Kind::Pseudo
+        } else if basetype != 0 {
             Kind::Domain(try!(self.get_type(basetype)))
         } else if elem_oid != 0 {
             Kind::Array(try!(self.get_type(elem_oid)))
+        } else if relid != 0 {
+            try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
+            let mut rows = VecDeque::new();
+            try!(self.read_rows(&mut rows));
+
+            let mut fields = vec![];
+            for row in rows {
+                let (name, type_) = {
+                    let ctx = SessionInfo::new(self);
+                    let name = try!(String::from_sql(&Type::Name,
+                                                     &mut &**row[0].as_ref().unwrap(),
+                                                     &ctx));
+                    let type_ = try!(Oid::from_sql(&Type::Oid,
+                                                   &mut &**row[1].as_ref().unwrap(),
+                                                   &ctx));
+                    (name, type_)
+                };
+                let type_ = try!(self.get_type(type_));
+                fields.push(Field::new(name, type_));
+            }
+
+            Kind::Composite(fields)
         } else {
             match rngsubtype {
                 Some(oid) => Kind::Range(try!(self.get_type(oid))),
@@ -1347,50 +1451,6 @@ impl<'conn> Transaction<'conn> {
     }
 }
 
-fn read_rows(conn: &mut InnerConnection, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
-    let more_rows;
-    loop {
-        match try!(conn.read_message()) {
-            EmptyQueryResponse | CommandComplete { .. } => {
-                more_rows = false;
-                break;
-            }
-            PortalSuspended => {
-                more_rows = true;
-                break;
-            }
-            DataRow { row } => buf.push_back(row),
-            ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
-                return DbError::new(fields);
-            }
-            CopyInResponse { .. } => {
-                try!(conn.write_messages(&[CopyFail {
-                                               message: "COPY queries cannot be directly executed",
-                                           },
-                                           Sync]));
-            }
-            CopyOutResponse { .. } => {
-                loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => break,
-                        _ => {}
-                    }
-                }
-                return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
-                                                        "COPY queries cannot be directly \
-                                                         executed")));
-            }
-            _ => {
-                conn.desynchronized = true;
-                return Err(Error::Io(bad_response()));
-            }
-        }
-    }
-    try!(conn.wait_for_ready());
-    Ok(more_rows)
-}
-
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericConnection {
     /// Like `Connection::execute`.
@@ -1527,4 +1587,8 @@ trait NotificationsNew<'conn> {
 
 trait WrongTypeNew {
     fn new(ty: Type) -> WrongType;
+}
+
+trait FieldNew {
+    fn new(name: String, type_: Type) -> Field;
 }

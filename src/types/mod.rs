@@ -8,7 +8,7 @@ use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
-use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew};
+use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
 use util;
 
@@ -67,6 +67,8 @@ mod rustc_serialize;
 mod serde_json;
 #[cfg(feature = "chrono")]
 mod chrono;
+#[cfg(feature = "eui48")]
+mod eui48;
 
 /// A structure providing information for conversion methods.
 pub struct SessionInfo<'a> {
@@ -103,14 +105,48 @@ pub type Oid = u32;
 pub enum Kind {
     /// A simple type like `VARCHAR` or `INTEGER`.
     Simple,
+    /// An enumerated type.
+    Enum,
+    /// A pseudo-type.
+    Pseudo,
     /// An array type along with the type of its elements.
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
-    /// Domain type along with its underlying type.
+    /// A domain type along with its underlying type.
     Domain(Type),
+    /// A composite type along with information about its fields.
+    Composite(Vec<Field>),
     #[doc(hidden)]
     __PseudoPrivateForExtensibility,
+}
+
+/// Information about a field of a composite type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    name: String,
+    type_: Type,
+}
+
+impl Field {
+    /// Returns the name of the field.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the type of the field.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
+impl FieldNew for Field {
+    fn new(name: String, type_: Type) -> Field {
+        Field {
+            name: name,
+            type_: type_,
+        }
+    }
 }
 
 macro_rules! as_pat {
@@ -429,29 +465,29 @@ make_postgres_type! {
     /// REGTYPE[]
     2211: "_regtype" => RegtypeArray: Kind::Array(Type::Regtype),
     /// RECORD
-    2249: "record" => Record: Kind::Simple,
+    2249: "record" => Record: Kind::Pseudo,
     /// CSTRING
-    2275: "cstring" => Cstring: Kind::Simple,
+    2275: "cstring" => Cstring: Kind::Pseudo,
     /// ANY
-    2276: "any" => Any: Kind::Simple,
+    2276: "any" => Any: Kind::Pseudo,
     /// ANYARRAY
-    2277: "anyarray" => AnyArray: Kind::Array(Type::Any),
+    2277: "anyarray" => AnyArray: Kind::Pseudo,
     /// VOID
-    2278: "void" => Void: Kind::Simple,
+    2278: "void" => Void: Kind::Pseudo,
     /// TRIGGER
-    2279: "trigger" => Trigger: Kind::Simple,
+    2279: "trigger" => Trigger: Kind::Pseudo,
     /// LANGUAGE_HANDLER
-    2280: "language_handler" => LanguageHandler: Kind::Simple,
+    2280: "language_handler" => LanguageHandler: Kind::Pseudo,
     /// INTERNAL
-    2281: "internal" => Internal: Kind::Simple,
+    2281: "internal" => Internal: Kind::Pseudo,
     /// OPAQUE
-    2282: "opaque" => Opaque: Kind::Simple,
+    2282: "opaque" => Opaque: Kind::Pseudo,
     /// ANYELEMENT
-    2283: "anyelement" => Anyelement: Kind::Simple,
+    2283: "anyelement" => Anyelement: Kind::Pseudo,
     /// RECORD[]
-    2287: "_record" => RecordArray: Kind::Array(Type::Record),
+    2287: "_record" => RecordArray: Kind::Pseudo,
     /// ANYNONARRAY
-    2776: "anynonarray" => Anynonarray: Kind::Simple,
+    2776: "anynonarray" => Anynonarray: Kind::Pseudo,
     /// TXID_SNAPSHOT[]
     2949: "_txid_snapshot" => TxidSnapshotArray: Kind::Array(Type::TxidSnapshot),
     /// UUID - UUID datatype
@@ -461,13 +497,13 @@ make_postgres_type! {
     /// UUID[]
     2951: "_uuid" => UuidArray: Kind::Array(Type::Uuid),
     /// FDW_HANDLER
-    3115: "fdw_handler" => FdwHandler: Kind::Simple,
+    3115: "fdw_handler" => FdwHandler: Kind::Pseudo,
     /// PG_LSN - PostgreSQL LSN datatype
     3220: "pg_lsn" => PgLsn: Kind::Simple,
     /// PG_LSN[]
     3221: "_pg_lsn" => PgLsnArray: Kind::Array(Type::PgLsn),
     /// ANYENUM
-    3500: "anyenum" => Anyenum: Kind::Simple,
+    3500: "anyenum" => Anyenum: Kind::Pseudo,
     /// TSVECTOR - text representation for text search
     3614: "tsvector" => Tsvector: Kind::Simple,
     /// TSQUERY - query representation for text search
@@ -491,7 +527,7 @@ make_postgres_type! {
     /// JSONB
     3802: "jsonb" => Jsonb: Kind::Simple,
     /// ANYRANGE
-    3831: "anyrange" => Anyrange: Kind::Simple,
+    3831: "anyrange" => Anyrange: Kind::Pseudo,
     /// JSONB[]
     3807: "_jsonb" => JsonbArray: Kind::Array(Type::Jsonb),
     /// INT4RANGE - range of integers
@@ -519,7 +555,7 @@ make_postgres_type! {
     /// INT8RANGE[]
     3927: "_int8range" => Int8RangeArray: Kind::Array(Type::Int8Range),
     /// EVENT_TRIGGER
-    3838: "event_trigger" => EventTrigger: Kind::Simple
+    3838: "event_trigger" => EventTrigger: Kind::Pseudo
 }
 
 /// Information about an unknown type.
@@ -658,6 +694,7 @@ impl WrongTypeNew for WrongType {
 /// | chrono::DateTime&lt;FixedOffset&gt; | TIMESTAMP WITH TIME ZONE            |
 /// | chrono::NaiveDate                   | DATE                                |
 /// | chrono::NaiveTime                   | TIME                                |
+/// | eui48::MacAddress                   | MACADDR                             |
 /// | uuid::Uuid                          | UUID                                |
 /// | bit_vec::BitVec                     | BIT, VARBIT                         |
 ///

@@ -7,13 +7,13 @@ use std::io::{self, Read, Write};
 use std::sync::Arc;
 
 use error::{Error, DbError};
-use types::{SessionInfo, Type, ToSql, IsNull};
+use types::{SessionInfo, Type, ToSql};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
 use message::WriteMessage;
 use util;
 use rows::{Rows, LazyRows};
-use {read_rows, bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
+use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
 use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
 
 /// A prepared statement.
@@ -77,59 +77,17 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    fn inner_execute(&self, portal_name: &str, row_limit: i32, params: &[&ToSql]) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
-        assert!(self.param_types().len() == params.len(),
-                "expected {} parameters but got {}",
-                self.param_types().len(),
-                params.len());
-        debug!("executing statement {} with parameters: {:?}",
-               self.info.name,
-               params);
-        let mut values = vec![];
-        for (param, ty) in params.iter().zip(self.param_types()) {
-            let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(&*conn))) {
-                IsNull::Yes => values.push(None),
-                IsNull::No => values.push(Some(buf)),
-            }
-        }
-
-        try!(conn.write_messages(&[Bind {
-                                       portal: portal_name,
-                                       statement: &self.info.name,
-                                       formats: &[1],
-                                       values: &values,
-                                       result_formats: &[1],
-                                   },
-                                   Execute {
-                                       portal: portal_name,
-                                       max_rows: row_limit,
-                                   },
-                                   Sync]));
-
-        match try!(conn.read_message()) {
-            BindComplete => Ok(()),
-            ErrorResponse { fields } => {
-                try!(conn.wait_for_ready());
-                DbError::new(fields)
-            }
-            _ => {
-                conn.desynchronized = true;
-                Err(Error::Io(bad_response()))
-            }
-        }
-    }
-
     fn inner_query<'a>(&'a self,
                        portal_name: &str,
                        row_limit: i32,
                        params: &[&ToSql])
                        -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
-        try!(self.inner_execute(portal_name, row_limit, params));
+        let mut conn = self.conn.conn.borrow_mut();
+
+        try!(conn.raw_execute(&self.info.name, portal_name, row_limit, self.param_types(), params));
 
         let mut buf = VecDeque::new();
-        let more_rows = try!(read_rows(&mut self.conn.conn.borrow_mut(), &mut buf));
+        let more_rows = try!(conn.read_rows(&mut buf));
         Ok((buf, more_rows))
     }
 
@@ -164,10 +122,10 @@ impl<'conn> Statement<'conn> {
     /// println!("{} rows updated", rows_updated);
     /// ```
     pub fn execute(&self, params: &[&ToSql]) -> Result<u64> {
-        check_desync!(self.conn);
-        try!(self.inner_execute("", 0, params));
-
         let mut conn = self.conn.conn.borrow_mut();
+        check_desync!(conn);
+        try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
+
         let num;
         loop {
             match try!(conn.read_message()) {
@@ -303,8 +261,8 @@ impl<'conn> Statement<'conn> {
     /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
     /// ```
     pub fn copy_in<R: ReadWithInfo>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
-        try!(self.inner_execute("", 0, params));
         let mut conn = self.conn.conn.borrow_mut();
+        try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
             CopyInResponse { format, column_formats } => (format, column_formats),
@@ -399,8 +357,8 @@ impl<'conn> Statement<'conn> {
     /// assert_eq!(buf, b"1\tjohn\n2\tjane\n");
     /// ```
     pub fn copy_out<'a, W: WriteWithInfo>(&'a self, params: &[&ToSql], w: &mut W) -> Result<u64> {
-        try!(self.inner_execute("", 0, params));
         let mut conn = self.conn.conn.borrow_mut();
+        try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
             CopyOutResponse { format, column_formats } => (format, column_formats),

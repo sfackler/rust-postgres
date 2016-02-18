@@ -7,7 +7,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, Transaction, read_rows, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
+use {Result, Transaction, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
      StatementInternals, WrongTypeNew};
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
@@ -345,7 +345,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
                                        max_rows: self.row_limit,
                                    },
                                    Sync]));
-        read_rows(&mut conn, &mut self.data).map(|more_rows| self.more_rows = more_rows)
+        conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.

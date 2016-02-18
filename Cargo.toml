@@ -1,15 +1,15 @@
 [package]
 name = "postgres"
-version = "0.11.1"
+version = "0.11.2"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.1/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.2/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 build = "build.rs"
-include = ["src/*", "build.rs", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
+include = ["src/*", "build.rs", "errcodes.txt", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
 
 [lib]
 name = "postgres"
@@ -40,6 +40,7 @@ unix_socket = { version = "0.5", optional = true }
 uuid = { version = "0.1", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 bit-vec = { version = "0.4", optional = true }
+eui48 = { version = "0.1", optional = true }
 
 [dev-dependencies]
 url = "0.5"
