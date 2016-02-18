@@ -38,7 +38,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.2")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.3")]
 #![warn(missing_docs)]
 
 extern crate bufstream;
@@ -98,6 +98,7 @@ pub mod types;
 pub mod notification;
 
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
+const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
 const TYPEINFO_ARRAY_QUERY: &'static str = "__typeinfo_array";
 
 /// A type alias of the result returned by many methods.
@@ -464,12 +465,23 @@ impl InnerConnection {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
+        match self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                               "SELECT enumlabel \
+                                FROM pg_catalog.pg_enum \
+                                WHERE enumtypid = $1 \
+                                ORDER BY enumsortorder") {
+            Ok(..) => {}
+            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+            Err(Error::Conversion(_)) => unreachable!(),
+        }
+
         match self.raw_prepare(TYPEINFO_ARRAY_QUERY,
                                "SELECT attname, atttypid \
                                 FROM pg_catalog.pg_attribute \
                                 WHERE attrelid = $1 \
-                                AND NOT attisdropped \
-                                AND attnum > 0 \
+                                    AND NOT attisdropped \
+                                    AND attnum > 0 \
                                 ORDER BY attnum") {
             Ok(..) => {}
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
@@ -865,7 +877,19 @@ impl InnerConnection {
         };
 
         let kind = if type_ == b'e' as i8 {
-            Kind::Enum
+            try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
+            let mut rows = VecDeque::new();
+            try!(self.read_rows(&mut rows));
+
+            let ctx = SessionInfo::new(self);
+            let mut variants = vec![];
+            for row in rows {
+                variants.push(try!(String::from_sql(&Type::Name,
+                                                    &mut &**row[0].as_ref().unwrap(),
+                                                    &ctx)));
+            }
+
+            Kind::Enum(variants)
         } else if type_ == b'p' as i8 {
             Kind::Pseudo
         } else if basetype != 0 {

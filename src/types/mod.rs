@@ -105,8 +105,8 @@ pub type Oid = u32;
 pub enum Kind {
     /// A simple type like `VARCHAR` or `INTEGER`.
     Simple,
-    /// An enumerated type.
-    Enum,
+    /// An enumerated type along with its variants.
+    Enum(Vec<String>),
     /// A pseudo-type.
     Pseudo,
     /// An array type along with the type of its elements.
