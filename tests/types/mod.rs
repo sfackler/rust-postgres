@@ -307,3 +307,19 @@ fn composite() {
         t => panic!("bad type {:?}", t),
     }
 }
+
+#[test]
+fn enum_() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    conn.batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');").unwrap();
+
+    let stmt = conn.prepare("SELECT $1::mood").unwrap();
+    let type_ = &stmt.param_types()[0];
+    assert_eq!(type_.name(), "mood");
+    match type_.kind() {
+        &Kind::Enum(ref variants) => {
+            assert_eq!(variants, &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
+        }
+        _ => panic!("bad type"),
+    }
+}
