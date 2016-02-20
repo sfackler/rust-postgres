@@ -100,7 +100,7 @@ pub mod notification;
 
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
-const TYPEINFO_ARRAY_QUERY: &'static str = "__typeinfo_array";
+const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -477,7 +477,7 @@ impl InnerConnection {
             Err(Error::Conversion(_)) => unreachable!(),
         }
 
-        match self.raw_prepare(TYPEINFO_ARRAY_QUERY,
+        match self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
                                "SELECT attname, atttypid \
                                 FROM pg_catalog.pg_attribute \
                                 WHERE attrelid = $1 \
@@ -919,7 +919,7 @@ impl InnerConnection {
     }
 
     fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
-        try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
+        try!(self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[Type::Oid], &[&relid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
 
