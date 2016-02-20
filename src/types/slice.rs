@@ -33,8 +33,8 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
                                  mut w: &mut W,
                                  ctx: &SessionInfo)
                                  -> Result<IsNull> {
-        let member_type = match ty.kind() {
-            &Kind::Array(ref member) => member,
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
             _ => panic!("expected array type"),
         };
 
@@ -61,8 +61,8 @@ impl<'a, T: 'a + ToSql> ToSql for Slice<'a, T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match ty.kind() {
-            &Kind::Array(ref member) => T::accepts(member),
+        match *ty.kind() {
+            Kind::Array(ref member) => T::accepts(member),
             _ => false,
         }
     }

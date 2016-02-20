@@ -272,14 +272,11 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => {
-                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                "called `copy_in` on a \
-                                                                 non-`COPY FROM STDIN` \
-                                                                 statement")));
-                        }
-                        _ => {}
+                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                            "called `copy_in` on a \
+                                                             non-`COPY FROM STDIN` \
+                                                             statement")));
                     }
                 }
             }
@@ -384,13 +381,10 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => {
-                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                "called `copy_out` on a \
-                                                                 non-`COPY TO STDOUT` statement")));
-                        }
-                        _ => {}
+                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                            "called `copy_out` on a \
+                                                             non-`COPY TO STDOUT` statement")));
                     }
                 }
             }
@@ -412,9 +406,8 @@ impl<'conn> Statement<'conn> {
                             Ok(n) => data = &data[n..],
                             Err(e) => {
                                 loop {
-                                    match try!(info.conn.read_message()) {
-                                        ReadyForQuery { .. } => return Err(Error::Io(e)),
-                                        _ => {}
+                                    if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                                        return Err(Error::Io(e));
                                     }
                                 }
                             }
@@ -428,17 +421,15 @@ impl<'conn> Statement<'conn> {
                 }
                 ErrorResponse { fields } => {
                     loop {
-                        match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return DbError::new(fields),
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                            return DbError::new(fields);
                         }
                     }
                 }
                 _ => {
                     loop {
-                        match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return Err(Error::Io(bad_response())),
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                            return Err(Error::Io(bad_response()));
                         }
                     }
                 }

@@ -144,13 +144,13 @@ trait FixedBuffer {
 
     /// Get a slice of the buffer of the specified size. There must be at least that many bytes
     /// remaining in the buffer.
-    fn next<'s>(&'s mut self, len: usize) -> &'s mut [u8];
+    fn next(&mut self, len: usize) -> &mut [u8];
 
     /// Get the current buffer. The buffer must already be full. This clears the buffer as well.
-    fn full_buffer<'s>(&'s mut self) -> &'s [u8];
+    fn full_buffer(&mut self) -> &[u8];
 
     /// Get the current buffer.
-    fn current_buffer<'s>(&'s mut self) -> &'s [u8];
+    fn current_buffer(&mut self) -> &[u8];
 
     /// Get the current position of the buffer.
     fn position(&self) -> usize;
@@ -217,18 +217,18 @@ macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
             self.buffer_idx = idx;
         }
 
-        fn next<'s>(&'s mut self, len: usize) -> &'s mut [u8] {
+        fn next(&mut self, len: usize) -> &mut [u8] {
             self.buffer_idx += len;
             &mut self.buffer[self.buffer_idx - len..self.buffer_idx]
         }
 
-        fn full_buffer<'s>(&'s mut self) -> &'s [u8] {
+        fn full_buffer(&mut self) -> &[u8] {
             assert!(self.buffer_idx == $size);
             self.buffer_idx = 0;
             &self.buffer[..$size]
         }
 
-        fn current_buffer<'s>(&'s mut self) -> &'s [u8] {
+        fn current_buffer(&mut self) -> &[u8] {
             let tmp = self.buffer_idx;
             self.buffer_idx = 0;
             &self.buffer[..tmp]

@@ -37,6 +37,11 @@ impl<'conn> Notifications<'conn> {
         self.conn.conn.borrow().notifications.len()
     }
 
+    /// Determines if there are any pending notifications.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns an iterator over pending notifications.
     ///
     /// # Note

@@ -40,6 +40,7 @@
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.3")]
 #![warn(missing_docs)]
+#![allow(unknown_lints, needless_lifetimes)] // for clippy
 
 extern crate bufstream;
 extern crate byteorder;
@@ -162,21 +163,13 @@ impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(err.into()),
+            Err(err) => Err(err.into()),
         }
     }
 }
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
-        let Url {
-            host,
-            port,
-            user,
-            path: url::Path { mut path, query: options, .. },
-            ..
-        } = self;
-
         #[cfg(feature = "unix_socket")]
         fn make_unix(maybe_path: String)
                      -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
@@ -187,8 +180,16 @@ impl IntoConnectParams for Url {
             Err("unix socket support requires the `unix_socket` feature".into())
         }
 
+        let Url {
+            host,
+            port,
+            user,
+            path: url::Path { mut path, query: options, .. },
+            ..
+        } = self;
+
         let maybe_path = try!(url::decode_component(&host));
-        let target = if maybe_path.starts_with("/") {
+        let target = if maybe_path.starts_with('/') {
             try!(make_unix(maybe_path))
         } else {
             ConnectTarget::Tcp(host)
@@ -633,8 +634,8 @@ impl InnerConnection {
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::Io(bad_response())),
+            ErrorResponse { fields } => DbError::new_connect(fields),
+            _ => Err(ConnectError::Io(bad_response())),
         }
     }
 
@@ -716,9 +717,8 @@ impl InnerConnection {
                 }
                 CopyOutResponse { .. } => {
                     loop {
-                        match try!(self.read_message()) {
-                            ReadyForQuery { .. } => break,
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(self.read_message()) {
+                            break;
                         }
                     }
                     return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,

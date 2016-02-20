@@ -208,9 +208,8 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::ConnectParams(ref err) => Some(&**err),
+            ConnectError::ConnectParams(ref err) | ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
-            ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
         }
     }

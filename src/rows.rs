@@ -72,6 +72,11 @@ impl<'stmt> Rows<'stmt> {
         self.data.len()
     }
 
+    /// Determines if there are any rows present.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns a specific `Row`.
     ///
     /// # Panics
@@ -158,6 +163,11 @@ impl<'a> Row<'a> {
         self.data.len()
     }
 
+    /// Determines if there are any values in the row.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns a slice describing the columns of the `Row`.
     pub fn columns(&self) -> &[Column] {
         self.stmt.columns()
@@ -192,7 +202,7 @@ impl<'a> Row<'a> {
         match self.get_inner(&idx) {
             Some(Ok(ok)) => ok,
             Some(Err(err)) => panic!("error retrieving column {:?}: {:?}", idx, err),
-            None => panic!("no such column {:?}"),
+            None => panic!("no such column {:?}", idx),
         }
     }
 
