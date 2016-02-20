@@ -844,6 +844,12 @@ impl InnerConnection {
             return Ok(Type::Other(ty.clone()));
         }
 
+        let ty = try!(self.read_type(oid));
+        self.unknown_types.insert(oid, ty.clone());
+        Ok(Type::Other(ty))
+    }
+
+    fn read_type(&mut self, oid: Oid) -> Result<Other> {
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
@@ -877,19 +883,7 @@ impl InnerConnection {
         };
 
         let kind = if type_ == b'e' as i8 {
-            try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
-            let mut rows = VecDeque::new();
-            try!(self.read_rows(&mut rows));
-
-            let ctx = SessionInfo::new(self);
-            let mut variants = vec![];
-            for row in rows {
-                variants.push(try!(String::from_sql(&Type::Name,
-                                                    &mut &**row[0].as_ref().unwrap(),
-                                                    &ctx)));
-            }
-
-            Kind::Enum(variants)
+            Kind::Enum(try!(self.read_enum_variants(oid)))
         } else if type_ == b'p' as i8 {
             Kind::Pseudo
         } else if basetype != 0 {
@@ -897,27 +891,7 @@ impl InnerConnection {
         } else if elem_oid != 0 {
             Kind::Array(try!(self.get_type(elem_oid)))
         } else if relid != 0 {
-            try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
-            let mut rows = VecDeque::new();
-            try!(self.read_rows(&mut rows));
-
-            let mut fields = vec![];
-            for row in rows {
-                let (name, type_) = {
-                    let ctx = SessionInfo::new(self);
-                    let name = try!(String::from_sql(&Type::Name,
-                                                     &mut &**row[0].as_ref().unwrap(),
-                                                     &ctx));
-                    let type_ = try!(Oid::from_sql(&Type::Oid,
-                                                   &mut &**row[1].as_ref().unwrap(),
-                                                   &ctx));
-                    (name, type_)
-                };
-                let type_ = try!(self.get_type(type_));
-                fields.push(Field::new(name, type_));
-            }
-
-            Kind::Composite(fields)
+            Kind::Composite(try!(self.read_composite_fields(relid)))
         } else {
             match rngsubtype {
                 Some(oid) => Kind::Range(try!(self.get_type(oid))),
@@ -925,9 +899,47 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Other::new(name, oid, kind, schema);
-        self.unknown_types.insert(oid, type_.clone());
-        Ok(Type::Other(type_))
+        Ok(Other::new(name, oid, kind, schema))
+    }
+
+    fn read_enum_variants(&mut self, oid: Oid) -> Result<Vec<String>> {
+        try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+
+        let ctx = SessionInfo::new(self);
+        let mut variants = vec![];
+        for row in rows {
+            variants.push(try!(String::from_sql(&Type::Name,
+                                                &mut &**row[0].as_ref().unwrap(),
+                                                &ctx)));
+        }
+
+        Ok(variants)
+    }
+
+    fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
+        try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+
+        let mut fields = vec![];
+        for row in rows {
+            let (name, type_) = {
+                let ctx = SessionInfo::new(self);
+                let name = try!(String::from_sql(&Type::Name,
+                                                 &mut &**row[0].as_ref().unwrap(),
+                                                 &ctx));
+                let type_ = try!(Oid::from_sql(&Type::Oid,
+                                               &mut &**row[1].as_ref().unwrap(),
+                                               &ctx));
+                (name, type_)
+            };
+            let type_ = try!(self.get_type(type_));
+            fields.push(Field::new(name, type_));
+        }
+
+        Ok(fields)
     }
 
     fn is_desynchronized(&self) -> bool {
