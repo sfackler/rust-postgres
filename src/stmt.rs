@@ -77,6 +77,7 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    #[allow(type_complexity)]
     fn inner_query<'a>(&'a self,
                        portal_name: &str,
                        row_limit: i32,

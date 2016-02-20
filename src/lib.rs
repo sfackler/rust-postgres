@@ -946,6 +946,7 @@ impl InnerConnection {
         self.desynchronized
     }
 
+    #[allow(needless_return)]
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),

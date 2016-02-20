@@ -162,6 +162,7 @@ pub trait WriteMessage {
 }
 
 impl<W: Write> WriteMessage for W {
+    #[allow(cyclomatic_complexity)]
     fn write_message(&mut self, message: &FrontendMessage) -> io::Result<()> {
         let mut buf = vec![];
         let mut ident = None;
@@ -334,6 +335,7 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
         }
     }
 
+    #[allow(cyclomatic_complexity)]
     fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage> {
         // subtract size of length value
         let len = try!(self.read_u32::<BigEndian>()) - mem::size_of::<u32>() as u32;
