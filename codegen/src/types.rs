@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Write, BufWriter};
 use std::path::Path;
+use marksman_escape::Escape;
 
 use snake_to_camel;
 
@@ -99,6 +100,8 @@ fn parse_types(ranges: &BTreeMap<u32, u32>) -> BTreeMap<u32, Type> {
             doc.push_str(" - ");
             doc.push_str(descr);
         }
+        let doc = Escape::new(doc.as_bytes().iter().cloned()).collect();
+        let doc = String::from_utf8(doc).unwrap();
 
         let type_ = Type {
             name: name,
@@ -120,6 +123,7 @@ fn make_header(w: &mut BufWriter<File>) {
 use std::fmt;
 
 use types::{{Oid, Kind, Other}};
+
 "
            ).unwrap();
 }

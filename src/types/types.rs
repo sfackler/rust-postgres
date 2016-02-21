@@ -2,10 +2,11 @@
 use std::fmt;
 
 use types::{Oid, Kind, Other};
+
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Type {
-    /// BOOL - boolean, 'true'/'false'
+    /// BOOL - boolean, &#39;true&#39;/&#39;false&#39;
     Bool,
     /// BYTEA - variable-length string, binary values escaped
     Bytea,
@@ -25,9 +26,9 @@ pub enum Type {
     Regproc,
     /// TEXT - variable-length string, no limit specified
     Text,
-    /// OID - object identifier(oid), maximum 4 billion
+    /// OID - object identifier&#40;oid&#41;, maximum 4 billion
     Oid,
-    /// TID - (block, offset), physical location of tuple
+    /// TID - &#40;block, offset&#41;, physical location of tuple
     Tid,
     /// XID - transaction id
     Xid,
@@ -41,121 +42,121 @@ pub enum Type {
     Json,
     /// XML - XML content
     Xml,
-    /// XML[]
+    /// XML&#91;&#93;
     XmlArray,
     /// PG_NODE_TREE - string representing an internal node tree
     PgNodeTree,
-    /// JSON[]
+    /// JSON&#91;&#93;
     JsonArray,
     /// SMGR - storage manager
     Smgr,
-    /// POINT - geometric point '(x, y)'
+    /// POINT - geometric point &#39;&#40;x, y&#41;&#39;
     Point,
-    /// LSEG - geometric line segment '(pt1,pt2)'
+    /// LSEG - geometric line segment &#39;&#40;pt1,pt2&#41;&#39;
     Lseg,
-    /// PATH - geometric path '(pt1,...)'
+    /// PATH - geometric path &#39;&#40;pt1,...&#41;&#39;
     Path,
-    /// BOX - geometric box '(lower left,upper right)'
+    /// BOX - geometric box &#39;&#40;lower left,upper right&#41;&#39;
     Box,
-    /// POLYGON - geometric polygon '(pt1,...)'
+    /// POLYGON - geometric polygon &#39;&#40;pt1,...&#41;&#39;
     Polygon,
     /// LINE - geometric line
     Line,
-    /// LINE[]
+    /// LINE&#91;&#93;
     LineArray,
     /// CIDR - network IP address/netmask, network address
     Cidr,
-    /// CIDR[]
+    /// CIDR&#91;&#93;
     CidrArray,
     /// FLOAT4 - single-precision floating point number, 4-byte storage
     Float4,
     /// FLOAT8 - double-precision floating point number, 8-byte storage
     Float8,
-    /// ABSTIME - absolute, limited-range date and time (Unix system time)
+    /// ABSTIME - absolute, limited-range date and time &#40;Unix system time&#41;
     Abstime,
-    /// RELTIME - relative, limited-range time interval (Unix delta time)
+    /// RELTIME - relative, limited-range time interval &#40;Unix delta time&#41;
     Reltime,
-    /// TINTERVAL - (abstime,abstime), time interval
+    /// TINTERVAL - &#40;abstime,abstime&#41;, time interval
     Tinterval,
     /// UNKNOWN
     Unknown,
-    /// CIRCLE - geometric circle '(center,radius)'
+    /// CIRCLE - geometric circle &#39;&#40;center,radius&#41;&#39;
     Circle,
-    /// CIRCLE[]
+    /// CIRCLE&#91;&#93;
     CircleArray,
-    /// MONEY - monetary amounts, $d,ddd.cc
+    /// MONEY - monetary amounts, &#36;d,ddd.cc
     Money,
-    /// MONEY[]
+    /// MONEY&#91;&#93;
     MoneyArray,
     /// MACADDR - XX:XX:XX:XX:XX:XX, MAC address
     Macaddr,
     /// INET - IP address/netmask, host address, netmask optional
     Inet,
-    /// BOOL[]
+    /// BOOL&#91;&#93;
     BoolArray,
-    /// BYTEA[]
+    /// BYTEA&#91;&#93;
     ByteaArray,
-    /// CHAR[]
+    /// CHAR&#91;&#93;
     CharArray,
-    /// NAME[]
+    /// NAME&#91;&#93;
     NameArray,
-    /// INT2[]
+    /// INT2&#91;&#93;
     Int2Array,
-    /// INT2VECTOR[]
+    /// INT2VECTOR&#91;&#93;
     Int2VectorArray,
-    /// INT4[]
+    /// INT4&#91;&#93;
     Int4Array,
-    /// REGPROC[]
+    /// REGPROC&#91;&#93;
     RegprocArray,
-    /// TEXT[]
+    /// TEXT&#91;&#93;
     TextArray,
-    /// TID[]
+    /// TID&#91;&#93;
     TidArray,
-    /// XID[]
+    /// XID&#91;&#93;
     XidArray,
-    /// CID[]
+    /// CID&#91;&#93;
     CidArray,
-    /// OIDVECTOR[]
+    /// OIDVECTOR&#91;&#93;
     OidVectorArray,
-    /// BPCHAR[]
+    /// BPCHAR&#91;&#93;
     BpcharArray,
-    /// VARCHAR[]
+    /// VARCHAR&#91;&#93;
     VarcharArray,
-    /// INT8[]
+    /// INT8&#91;&#93;
     Int8Array,
-    /// POINT[]
+    /// POINT&#91;&#93;
     PointArray,
-    /// LSEG[]
+    /// LSEG&#91;&#93;
     LsegArray,
-    /// PATH[]
+    /// PATH&#91;&#93;
     PathArray,
-    /// BOX[]
+    /// BOX&#91;&#93;
     BoxArray,
-    /// FLOAT4[]
+    /// FLOAT4&#91;&#93;
     Float4Array,
-    /// FLOAT8[]
+    /// FLOAT8&#91;&#93;
     Float8Array,
-    /// ABSTIME[]
+    /// ABSTIME&#91;&#93;
     AbstimeArray,
-    /// RELTIME[]
+    /// RELTIME&#91;&#93;
     ReltimeArray,
-    /// TINTERVAL[]
+    /// TINTERVAL&#91;&#93;
     TintervalArray,
-    /// POLYGON[]
+    /// POLYGON&#91;&#93;
     PolygonArray,
-    /// OID[]
+    /// OID&#91;&#93;
     OidArray,
     /// ACLITEM - access control list
     Aclitem,
-    /// ACLITEM[]
+    /// ACLITEM&#91;&#93;
     AclitemArray,
-    /// MACADDR[]
+    /// MACADDR&#91;&#93;
     MacaddrArray,
-    /// INET[]
+    /// INET&#91;&#93;
     InetArray,
-    /// BPCHAR - char(length), blank-padded string, fixed storage length
+    /// BPCHAR - char&#40;length&#41;, blank-padded string, fixed storage length
     Bpchar,
-    /// VARCHAR - varchar(length), non-blank-padded string, variable storage length
+    /// VARCHAR - varchar&#40;length&#41;, non-blank-padded string, variable storage length
     Varchar,
     /// DATE - date
     Date,
@@ -163,61 +164,61 @@ pub enum Type {
     Time,
     /// TIMESTAMP - date and time
     Timestamp,
-    /// TIMESTAMP[]
+    /// TIMESTAMP&#91;&#93;
     TimestampArray,
-    /// DATE[]
+    /// DATE&#91;&#93;
     DateArray,
-    /// TIME[]
+    /// TIME&#91;&#93;
     TimeArray,
     /// TIMESTAMPTZ - date and time with time zone
     Timestamptz,
-    /// TIMESTAMPTZ[]
+    /// TIMESTAMPTZ&#91;&#93;
     TimestamptzArray,
-    /// INTERVAL - @ <number> <units>, time interval
+    /// INTERVAL - &#64; &lt;number&gt; &lt;units&gt;, time interval
     Interval,
-    /// INTERVAL[]
+    /// INTERVAL&#91;&#93;
     IntervalArray,
-    /// NUMERIC[]
+    /// NUMERIC&#91;&#93;
     NumericArray,
-    /// CSTRING[]
+    /// CSTRING&#91;&#93;
     CstringArray,
     /// TIMETZ - time of day with time zone
     Timetz,
-    /// TIMETZ[]
+    /// TIMETZ&#91;&#93;
     TimetzArray,
     /// BIT - fixed-length bit string
     Bit,
-    /// BIT[]
+    /// BIT&#91;&#93;
     BitArray,
     /// VARBIT - variable-length bit string
     Varbit,
-    /// VARBIT[]
+    /// VARBIT&#91;&#93;
     VarbitArray,
-    /// NUMERIC - numeric(precision, decimal), arbitrary precision number
+    /// NUMERIC - numeric&#40;precision, decimal&#41;, arbitrary precision number
     Numeric,
-    /// REFCURSOR - reference to cursor (portal name)
+    /// REFCURSOR - reference to cursor &#40;portal name&#41;
     Refcursor,
-    /// REFCURSOR[]
+    /// REFCURSOR&#91;&#93;
     RefcursorArray,
-    /// REGPROCEDURE - registered procedure (with args)
+    /// REGPROCEDURE - registered procedure &#40;with args&#41;
     Regprocedure,
     /// REGOPER - registered operator
     Regoper,
-    /// REGOPERATOR - registered operator (with args)
+    /// REGOPERATOR - registered operator &#40;with args&#41;
     Regoperator,
     /// REGCLASS - registered class
     Regclass,
     /// REGTYPE - registered type
     Regtype,
-    /// REGPROCEDURE[]
+    /// REGPROCEDURE&#91;&#93;
     RegprocedureArray,
-    /// REGOPER[]
+    /// REGOPER&#91;&#93;
     RegoperArray,
-    /// REGOPERATOR[]
+    /// REGOPERATOR&#91;&#93;
     RegoperatorArray,
-    /// REGCLASS[]
+    /// REGCLASS&#91;&#93;
     RegclassArray,
-    /// REGTYPE[]
+    /// REGTYPE&#91;&#93;
     RegtypeArray,
     /// RECORD
     Record,
@@ -239,15 +240,15 @@ pub enum Type {
     Opaque,
     /// ANYELEMENT
     Anyelement,
-    /// RECORD[]
+    /// RECORD&#91;&#93;
     RecordArray,
     /// ANYNONARRAY
     Anynonarray,
-    /// TXID_SNAPSHOT[]
+    /// TXID_SNAPSHOT&#91;&#93;
     TxidSnapshotArray,
     /// UUID - UUID datatype
     Uuid,
-    /// UUID[]
+    /// UUID&#91;&#93;
     UuidArray,
     /// TXID_SNAPSHOT - txid snapshot
     TxidSnapshot,
@@ -255,7 +256,7 @@ pub enum Type {
     FdwHandler,
     /// PG_LSN - PostgreSQL LSN datatype
     PgLsn,
-    /// PG_LSN[]
+    /// PG_LSN&#91;&#93;
     PgLsnArray,
     /// TSM_HANDLER
     TsmHandler,
@@ -267,23 +268,23 @@ pub enum Type {
     Tsquery,
     /// GTSVECTOR - GiST index internal text representation for text search
     GtsVector,
-    /// TSVECTOR[]
+    /// TSVECTOR&#91;&#93;
     TsVectorArray,
-    /// GTSVECTOR[]
+    /// GTSVECTOR&#91;&#93;
     GtsVectorArray,
-    /// TSQUERY[]
+    /// TSQUERY&#91;&#93;
     TsqueryArray,
     /// REGCONFIG - registered text search configuration
     Regconfig,
-    /// REGCONFIG[]
+    /// REGCONFIG&#91;&#93;
     RegconfigArray,
     /// REGDICTIONARY - registered text search dictionary
     Regdictionary,
-    /// REGDICTIONARY[]
+    /// REGDICTIONARY&#91;&#93;
     RegdictionaryArray,
     /// JSONB - Binary JSON
     Jsonb,
-    /// JSONB[]
+    /// JSONB&#91;&#93;
     JsonbArray,
     /// ANYRANGE
     Anyrange,
@@ -291,35 +292,35 @@ pub enum Type {
     EventTrigger,
     /// INT4RANGE - range of integers
     Int4Range,
-    /// INT4RANGE[]
+    /// INT4RANGE&#91;&#93;
     Int4RangeArray,
     /// NUMRANGE - range of numerics
     NumRange,
-    /// NUMRANGE[]
+    /// NUMRANGE&#91;&#93;
     NumRangeArray,
     /// TSRANGE - range of timestamps without time zone
     TsRange,
-    /// TSRANGE[]
+    /// TSRANGE&#91;&#93;
     TsRangeArray,
     /// TSTZRANGE - range of timestamps with time zone
     TstzRange,
-    /// TSTZRANGE[]
+    /// TSTZRANGE&#91;&#93;
     TstzRangeArray,
     /// DATERANGE - range of dates
     DateRange,
-    /// DATERANGE[]
+    /// DATERANGE&#91;&#93;
     DateRangeArray,
     /// INT8RANGE - range of bigints
     Int8Range,
-    /// INT8RANGE[]
+    /// INT8RANGE&#91;&#93;
     Int8RangeArray,
     /// REGNAMESPACE - registered namespace
     Regnamespace,
-    /// REGNAMESPACE[]
+    /// REGNAMESPACE&#91;&#93;
     RegnamespaceArray,
     /// REGROLE - registered role
     Regrole,
-    /// REGROLE[]
+    /// REGROLE&#91;&#93;
     RegroleArray,
     /// An unknown type.
     Other(Other),
