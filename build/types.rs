@@ -119,15 +119,15 @@ fn parse_types(ranges: &BTreeMap<u32, u32>) -> BTreeMap<u32, Type> {
 
 fn make_enum(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     write!(w,
-r#"/// A Postgres type.
+"/// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Type {{
-"#
+"
            ).unwrap();
 
     for type_ in types.values() {
         write!(w,
-r"    /// {}
+"    /// {}
     {},
 "
                , type_.doc, type_.variant).unwrap();
