@@ -1,7 +1,6 @@
 //! Error types.
 
 use byteorder;
-use phf;
 use std::error;
 use std::convert::From;
 use std::fmt;
@@ -9,9 +8,10 @@ use std::io;
 use std::result;
 use std::collections::HashMap;
 
+pub use self::sqlstate::SqlState;
 use {Result, DbErrorNew};
 
-include!("sqlstate.rs");
+mod sqlstate;
 
 /// A Postgres error or notice.
 #[derive(Clone, PartialEq, Eq)]

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
+pub use self::types::Type;
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
 use util;
@@ -69,6 +70,8 @@ mod serde_json;
 mod chrono;
 #[cfg(feature = "eui48")]
 mod eui48;
+
+mod types;
 
 /// A structure providing information for conversion methods.
 pub struct SessionInfo<'a> {
@@ -148,8 +151,6 @@ impl FieldNew for Field {
         }
     }
 }
-
-include!("types.rs");
 
 /// Information about an unknown type.
 #[derive(PartialEq, Eq, Clone)]
