@@ -71,6 +71,8 @@ fn parse_types(ranges: &BTreeMap<u32, u32>) -> BTreeMap<u32, Type> {
 
         let variant = match name {
             "anyrange" => "Anyrange".to_owned(),
+            "timestamptz" => "TimestampTZ".to_owned(),
+            "_timestamptz" => "TimestampTZArray".to_owned(),
             name => {
                 let variant = range_vector_re.replace(name, "_$1");
                 let variant = array_re.replace(&variant, "$1_array");

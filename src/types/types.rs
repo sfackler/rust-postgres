@@ -171,9 +171,9 @@ pub enum Type {
     /// TIME&#91;&#93;
     TimeArray,
     /// TIMESTAMPTZ - date and time with time zone
-    Timestamptz,
+    TimestampTZ,
     /// TIMESTAMPTZ&#91;&#93;
-    TimestamptzArray,
+    TimestampTZArray,
     /// INTERVAL - &#64; &lt;number&gt; &lt;units&gt;, time interval
     Interval,
     /// INTERVAL&#91;&#93;
@@ -423,8 +423,8 @@ impl Type {
             1115 => Some(Type::TimestampArray),
             1182 => Some(Type::DateArray),
             1183 => Some(Type::TimeArray),
-            1184 => Some(Type::Timestamptz),
-            1185 => Some(Type::TimestamptzArray),
+            1184 => Some(Type::TimestampTZ),
+            1185 => Some(Type::TimestampTZArray),
             1186 => Some(Type::Interval),
             1187 => Some(Type::IntervalArray),
             1231 => Some(Type::NumericArray),
@@ -588,8 +588,8 @@ impl Type {
             Type::TimestampArray => 1115,
             Type::DateArray => 1182,
             Type::TimeArray => 1183,
-            Type::Timestamptz => 1184,
-            Type::TimestamptzArray => 1185,
+            Type::TimestampTZ => 1184,
+            Type::TimestampTZArray => 1185,
             Type::Interval => 1186,
             Type::IntervalArray => 1187,
             Type::NumericArray => 1231,
@@ -999,12 +999,12 @@ impl Type {
                 const V: &'static Kind = &Kind::Array(Type::Time);
                 V
             }
-            Type::Timestamptz => {
+            Type::TimestampTZ => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::TimestamptzArray => {
-                const V: &'static Kind = &Kind::Array(Type::Timestamptz);
+            Type::TimestampTZArray => {
+                const V: &'static Kind = &Kind::Array(Type::TimestampTZ);
                 V
             }
             Type::Interval => {
@@ -1264,7 +1264,7 @@ impl Type {
                 V
             }
             Type::TstzRange => {
-                const V: &'static Kind = &Kind::Range(Type::Timestamptz);
+                const V: &'static Kind = &Kind::Range(Type::TimestampTZ);
                 V
             }
             Type::TstzRangeArray => {
@@ -1400,8 +1400,8 @@ impl Type {
             Type::TimestampArray => "_timestamp",
             Type::DateArray => "_date",
             Type::TimeArray => "_time",
-            Type::Timestamptz => "timestamptz",
-            Type::TimestamptzArray => "_timestamptz",
+            Type::TimestampTZ => "timestamptz",
+            Type::TimestampTZArray => "_timestamptz",
             Type::Interval => "interval",
             Type::IntervalArray => "_interval",
             Type::NumericArray => "_numeric",
