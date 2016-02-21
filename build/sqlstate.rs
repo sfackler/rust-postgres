@@ -1,11 +1,11 @@
-extern crate phf_codegen;
-
-use std::ascii::AsciiExt;
 use std::env;
 use std::fs::File;
 use std::io::{Write, BufWriter};
 use std::path::Path;
 use std::convert::AsRef;
+use phf_codegen;
+
+use snake_to_camel;
 
 const ERRCODES_TXT: &'static str = include_str!("errcodes.txt");
 
@@ -14,7 +14,7 @@ struct Code {
     variant: String,
 }
 
-fn main() {
+pub fn build() {
     let path = env::var_os("OUT_DIR").unwrap();
     let path: &Path = path.as_ref();
     let path = path.join("sqlstate.rs");
@@ -25,9 +25,6 @@ fn main() {
     make_enum(&codes, &mut file);
     make_map(&codes, &mut file);
     make_impl(&codes, &mut file);
-
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=errcodes.txt");
 }
 
 fn parse_codes() -> Vec<Code> {
@@ -59,27 +56,6 @@ fn parse_codes() -> Vec<Code> {
     }
 
     codes
-}
-
-fn snake_to_camel(s: &str) -> String {
-    let mut out = String::new();
-
-    let mut upper = true;
-    for ch in s.chars() {
-        if ch == '_' {
-            upper = true;
-        } else {
-            let ch = if upper {
-                upper = false;
-                ch.to_ascii_uppercase()
-            } else {
-                ch
-            };
-            out.push(ch);
-        }
-    }
-
-    out
 }
 
 fn variant_name(code: &str) -> Option<String> {
@@ -161,3 +137,4 @@ impl SqlState {{
 "#
            ).unwrap();
 }
+
