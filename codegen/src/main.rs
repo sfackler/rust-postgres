@@ -2,15 +2,15 @@ extern crate phf_codegen;
 extern crate regex;
 
 use std::ascii::AsciiExt;
+use std::path::Path;
 
 mod sqlstate;
 mod types;
 
 fn main() {
-    sqlstate::build();
-    types::build();
-
-    println!("cargo:rerun-if-changed=build");
+    let path = Path::new("../src");
+    sqlstate::build(path);
+    types::build(path);
 }
 
 fn snake_to_camel(s: &str) -> String {

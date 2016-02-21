@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use {Result, DbErrorNew};
 
-include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
+include!("sqlstate.rs");
 
 /// A Postgres error or notice.
 #[derive(Clone, PartialEq, Eq)]

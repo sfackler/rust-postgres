@@ -1,7 +1,6 @@
 use regex::Regex;
 use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
-use std::env;
 use std::fs::File;
 use std::io::{Write, BufWriter};
 use std::path::Path;
@@ -19,11 +18,8 @@ struct Type {
     doc: String,
 }
 
-pub fn build() {
-    let path = env::var_os("OUT_DIR").unwrap();
-    let path: &Path = path.as_ref();
-    let path = path.join("type.rs");
-    let mut file = BufWriter::new(File::create(&path).unwrap());
+pub fn build(path: &Path) {
+    let mut file = BufWriter::new(File::create(path.join("types/types.rs")).unwrap());
 
     let ranges = parse_ranges();
     let types = parse_types(&ranges);

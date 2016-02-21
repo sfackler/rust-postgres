@@ -1,8 +1,6 @@
-use std::env;
 use std::fs::File;
 use std::io::{Write, BufWriter};
 use std::path::Path;
-use std::convert::AsRef;
 use phf_codegen;
 
 use snake_to_camel;
@@ -14,11 +12,8 @@ struct Code {
     variant: String,
 }
 
-pub fn build() {
-    let path = env::var_os("OUT_DIR").unwrap();
-    let path: &Path = path.as_ref();
-    let path = path.join("sqlstate.rs");
-    let mut file = BufWriter::new(File::create(&path).unwrap());
+pub fn build(path: &Path) {
+    let mut file = BufWriter::new(File::create(path.join("error/sqlstate.rs")).unwrap());
 
     let codes = parse_codes();
 

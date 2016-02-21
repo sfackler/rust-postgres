@@ -149,7 +149,7 @@ impl FieldNew for Field {
     }
 }
 
-include!(concat!(env!("OUT_DIR"), "/type.rs"));
+include!("types.rs");
 
 /// Information about an unknown type.
 #[derive(PartialEq, Eq, Clone)]
