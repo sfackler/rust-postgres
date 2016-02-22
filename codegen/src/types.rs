@@ -70,7 +70,13 @@ fn parse_types(ranges: &BTreeMap<u32, u32>) -> BTreeMap<u32, Type> {
         let name = split[5];
 
         let variant = match name {
+            "anyarray" => "AnyArray".to_owned(),
+            // FIXME remove following overrides for 0.12
             "anyrange" => "Anyrange".to_owned(),
+            "tsvector" => "Tsvector".to_owned(),
+            "gtsvector" => "Gtsvector".to_owned(),
+            "_tsvector" => "TsvectorArray".to_owned(),
+            "_gtsvector" => "GtsvectorArray".to_owned(),
             "timestamptz" => "TimestampTZ".to_owned(),
             "_timestamptz" => "TimestampTZArray".to_owned(),
             name => {
@@ -81,10 +87,14 @@ fn parse_types(ranges: &BTreeMap<u32, u32>) -> BTreeMap<u32, Type> {
         };
 
         let kind = split[11];
+
+        // FIXME enable for 0.12
+        /*
         // we need to be able to pull composite fields and enum variants at runtime
         if kind == "C" || kind == "E" {
             continue;
         }
+        */
 
         let element = if let Some(&element) = ranges.get(&oid) {
             element

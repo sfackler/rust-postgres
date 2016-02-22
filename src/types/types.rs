@@ -38,6 +38,14 @@ pub enum Type {
     OidVector,
     /// PG_DDL_COMMAND - internal type for passing CollectedCommand
     PgDdlCommand,
+    /// PG_TYPE
+    PgType,
+    /// PG_ATTRIBUTE
+    PgAttribute,
+    /// PG_PROC
+    PgProc,
+    /// PG_CLASS
+    PgClass,
     /// JSON
     Json,
     /// XML - XML content
@@ -227,7 +235,7 @@ pub enum Type {
     /// ANY
     Any,
     /// ANYARRAY
-    Anyarray,
+    AnyArray,
     /// VOID
     Void,
     /// TRIGGER
@@ -263,15 +271,15 @@ pub enum Type {
     /// ANYENUM
     Anyenum,
     /// TSVECTOR - text representation for text search
-    TsVector,
+    Tsvector,
     /// TSQUERY - query representation for text search
     Tsquery,
     /// GTSVECTOR - GiST index internal text representation for text search
-    GtsVector,
+    Gtsvector,
     /// TSVECTOR&#91;&#93;
-    TsVectorArray,
+    TsvectorArray,
     /// GTSVECTOR&#91;&#93;
-    GtsVectorArray,
+    GtsvectorArray,
     /// TSQUERY&#91;&#93;
     TsqueryArray,
     /// REGCONFIG - registered text search configuration
@@ -357,6 +365,10 @@ impl Type {
             29 => Some(Type::Cid),
             30 => Some(Type::OidVector),
             32 => Some(Type::PgDdlCommand),
+            71 => Some(Type::PgType),
+            75 => Some(Type::PgAttribute),
+            81 => Some(Type::PgProc),
+            83 => Some(Type::PgClass),
             114 => Some(Type::Json),
             142 => Some(Type::Xml),
             143 => Some(Type::XmlArray),
@@ -451,7 +463,7 @@ impl Type {
             2249 => Some(Type::Record),
             2275 => Some(Type::Cstring),
             2276 => Some(Type::Any),
-            2277 => Some(Type::Anyarray),
+            2277 => Some(Type::AnyArray),
             2278 => Some(Type::Void),
             2279 => Some(Type::Trigger),
             2280 => Some(Type::LanguageHandler),
@@ -469,11 +481,11 @@ impl Type {
             3221 => Some(Type::PgLsnArray),
             3310 => Some(Type::TsmHandler),
             3500 => Some(Type::Anyenum),
-            3614 => Some(Type::TsVector),
+            3614 => Some(Type::Tsvector),
             3615 => Some(Type::Tsquery),
-            3642 => Some(Type::GtsVector),
-            3643 => Some(Type::TsVectorArray),
-            3644 => Some(Type::GtsVectorArray),
+            3642 => Some(Type::Gtsvector),
+            3643 => Some(Type::TsvectorArray),
+            3644 => Some(Type::GtsvectorArray),
             3645 => Some(Type::TsqueryArray),
             3734 => Some(Type::Regconfig),
             3735 => Some(Type::RegconfigArray),
@@ -522,6 +534,10 @@ impl Type {
             Type::Cid => 29,
             Type::OidVector => 30,
             Type::PgDdlCommand => 32,
+            Type::PgType => 71,
+            Type::PgAttribute => 75,
+            Type::PgProc => 81,
+            Type::PgClass => 83,
             Type::Json => 114,
             Type::Xml => 142,
             Type::XmlArray => 143,
@@ -616,7 +632,7 @@ impl Type {
             Type::Record => 2249,
             Type::Cstring => 2275,
             Type::Any => 2276,
-            Type::Anyarray => 2277,
+            Type::AnyArray => 2277,
             Type::Void => 2278,
             Type::Trigger => 2279,
             Type::LanguageHandler => 2280,
@@ -634,11 +650,11 @@ impl Type {
             Type::PgLsnArray => 3221,
             Type::TsmHandler => 3310,
             Type::Anyenum => 3500,
-            Type::TsVector => 3614,
+            Type::Tsvector => 3614,
             Type::Tsquery => 3615,
-            Type::GtsVector => 3642,
-            Type::TsVectorArray => 3643,
-            Type::GtsVectorArray => 3644,
+            Type::Gtsvector => 3642,
+            Type::TsvectorArray => 3643,
+            Type::GtsvectorArray => 3644,
             Type::TsqueryArray => 3645,
             Type::Regconfig => 3734,
             Type::RegconfigArray => 3735,
@@ -733,6 +749,22 @@ impl Type {
             }
             Type::PgDdlCommand => {
                 const V: &'static Kind = &Kind::Pseudo;
+                V
+            }
+            Type::PgType => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::PgAttribute => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::PgProc => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::PgClass => {
+                const V: &'static Kind = &Kind::Simple;
                 V
             }
             Type::Json => {
@@ -1111,7 +1143,7 @@ impl Type {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
-            Type::Anyarray => {
+            Type::AnyArray => {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
@@ -1183,7 +1215,7 @@ impl Type {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
-            Type::TsVector => {
+            Type::Tsvector => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
@@ -1191,16 +1223,16 @@ impl Type {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::GtsVector => {
+            Type::Gtsvector => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::TsVectorArray => {
-                const V: &'static Kind = &Kind::Array(Type::TsVector);
+            Type::TsvectorArray => {
+                const V: &'static Kind = &Kind::Array(Type::Tsvector);
                 V
             }
-            Type::GtsVectorArray => {
-                const V: &'static Kind = &Kind::Array(Type::GtsVector);
+            Type::GtsvectorArray => {
+                const V: &'static Kind = &Kind::Array(Type::Gtsvector);
                 V
             }
             Type::TsqueryArray => {
@@ -1334,6 +1366,10 @@ impl Type {
             Type::Cid => "cid",
             Type::OidVector => "oidvector",
             Type::PgDdlCommand => "pg_ddl_command",
+            Type::PgType => "pg_type",
+            Type::PgAttribute => "pg_attribute",
+            Type::PgProc => "pg_proc",
+            Type::PgClass => "pg_class",
             Type::Json => "json",
             Type::Xml => "xml",
             Type::XmlArray => "_xml",
@@ -1428,7 +1464,7 @@ impl Type {
             Type::Record => "record",
             Type::Cstring => "cstring",
             Type::Any => "any",
-            Type::Anyarray => "anyarray",
+            Type::AnyArray => "anyarray",
             Type::Void => "void",
             Type::Trigger => "trigger",
             Type::LanguageHandler => "language_handler",
@@ -1446,11 +1482,11 @@ impl Type {
             Type::PgLsnArray => "_pg_lsn",
             Type::TsmHandler => "tsm_handler",
             Type::Anyenum => "anyenum",
-            Type::TsVector => "tsvector",
+            Type::Tsvector => "tsvector",
             Type::Tsquery => "tsquery",
-            Type::GtsVector => "gtsvector",
-            Type::TsVectorArray => "_tsvector",
-            Type::GtsVectorArray => "_gtsvector",
+            Type::Gtsvector => "gtsvector",
+            Type::TsvectorArray => "_tsvector",
+            Type::GtsvectorArray => "_gtsvector",
             Type::TsqueryArray => "_tsquery",
             Type::Regconfig => "regconfig",
             Type::RegconfigArray => "_regconfig",
