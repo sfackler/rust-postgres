@@ -61,7 +61,7 @@ impl<T: ToSql> ToSql for Date<T> {
     to_sql_checked!();
 }
 
-/// A wrapper that can be used to represent infinity with `Type::Timestamp` and `Type::TimestampTZ`
+/// A wrapper that can be used to represent infinity with `Type::Timestamp` and `Type::Timestamptz`
 /// types.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Timestamp<T> {
@@ -75,7 +75,7 @@ pub enum Timestamp<T> {
 
 impl<T: FromSql> FromSql for Timestamp<T> {
     fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self> {
-        if *ty != Type::Timestamp && *ty != Type::TimestampTZ {
+        if *ty != Type::Timestamp && *ty != Type::Timestamptz {
             return Err(Error::Conversion("expected timestamp or timestamptz type".into()));
         }
 
@@ -90,13 +90,13 @@ impl<T: FromSql> FromSql for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        (*ty == Type::Timestamp || *ty == Type::TimestampTZ) && T::accepts(ty)
+        (*ty == Type::Timestamp || *ty == Type::Timestamptz) && T::accepts(ty)
     }
 }
 
 impl<T: ToSql> ToSql for Timestamp<T> {
     fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
-        if *ty != Type::Timestamp && *ty != Type::TimestampTZ {
+        if *ty != Type::Timestamp && *ty != Type::Timestamptz {
             return Err(Error::Conversion("expected timestamp or timestamptz type".into()));
         }
 
@@ -111,7 +111,7 @@ impl<T: ToSql> ToSql for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        (*ty == Type::Timestamp || *ty == Type::TimestampTZ) && T::accepts(ty)
+        (*ty == Type::Timestamp || *ty == Type::Timestamptz) && T::accepts(ty)
     }
 
     to_sql_checked!();

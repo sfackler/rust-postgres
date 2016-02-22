@@ -46,7 +46,7 @@ impl FromSql for DateTime<UTC> {
         Ok(DateTime::from_utc(naive, UTC))
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
 }
 
 impl ToSql for DateTime<UTC> {
@@ -58,7 +58,7 @@ impl ToSql for DateTime<UTC> {
         self.naive_utc().to_sql(type_, w, info)
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
     to_sql_checked!();
 }
 
@@ -68,7 +68,7 @@ impl FromSql for DateTime<Local> {
         Ok(utc.with_timezone(&Local))
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
 }
 
 impl ToSql for DateTime<Local> {
@@ -80,7 +80,7 @@ impl ToSql for DateTime<Local> {
         self.with_timezone(&UTC).to_sql(type_, w, info)
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
     to_sql_checked!();
 }
 
@@ -93,7 +93,7 @@ impl FromSql for DateTime<FixedOffset> {
         Ok(utc.with_timezone(&FixedOffset::east(0)))
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
 }
 
 impl ToSql for DateTime<FixedOffset> {
@@ -105,7 +105,7 @@ impl ToSql for DateTime<FixedOffset> {
         self.with_timezone(&UTC).to_sql(type_, w, info)
     }
 
-    accepts!(Type::TimestampTZ);
+    accepts!(Type::Timestamptz);
     to_sql_checked!();
 }
 

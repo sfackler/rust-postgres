@@ -27,7 +27,7 @@ impl FromSql for Timespec {
         Ok(Timespec::new(sec, (usec * NSEC_PER_USEC) as i32))
     }
 
-    accepts!(Type::Timestamp, Type::TimestampTZ);
+    accepts!(Type::Timestamp, Type::Timestamptz);
 }
 
 impl ToSql for Timespec {
@@ -41,6 +41,6 @@ impl ToSql for Timespec {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Timestamp, Type::TimestampTZ);
+    accepts!(Type::Timestamp, Type::Timestamptz);
     to_sql_checked!();
 }
