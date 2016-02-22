@@ -265,6 +265,10 @@ types. The driver currently supports the following conversions:
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
+The [postgres-deriving](https://github.com/sfackler/rust-postgres-deriving)
+crate will synthesize `ToSql` and `FromSql` implementations for enum, domain,
+and composite Postgres types.
+
 Support for array types is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
@@ -272,7 +276,8 @@ Support for range types is located in the
 [postgres-range](https://github.com/sfackler/rust-postgres-range) crate.
 
 Support for the large object API is located in the
-[postgres-large-object](https://github.com/sfackler/rust-postgres-large-object) crate.
+[postgres-large-object](https://github.com/sfackler/rust-postgres-large-object)
+crate.
 
 ## Optional features
 
