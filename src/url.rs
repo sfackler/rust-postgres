@@ -376,7 +376,8 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
             port = Some(&rawurl[pos + 1..end]);
         }
         State::Ip6Host |
-        State::InHost | State::Start => host = &rawurl[begin..end],
+        State::InHost |
+        State::Start => host = &rawurl[begin..end],
         State::InPort => {
             if input != Input::Digit {
                 return Err("Non-digit characters in port.".to_owned());

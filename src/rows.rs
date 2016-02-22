@@ -7,8 +7,8 @@ use std::fmt;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, Transaction, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew,
-     StatementInternals, WrongTypeNew};
+use {Result, Transaction, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals,
+     WrongTypeNew};
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;

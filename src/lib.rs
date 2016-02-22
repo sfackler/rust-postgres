@@ -180,13 +180,7 @@ impl IntoConnectParams for Url {
             Err("unix socket support requires the `unix_socket` feature".into())
         }
 
-        let Url {
-            host,
-            port,
-            user,
-            path: url::Path { mut path, query: options, .. },
-            ..
-        } = self;
+        let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
 
         let maybe_path = try!(url::decode_component(&host));
         let target = if maybe_path.starts_with('/') {
@@ -711,7 +705,8 @@ impl InnerConnection {
                 }
                 CopyInResponse { .. } => {
                     try!(self.write_messages(&[CopyFail {
-                                                   message: "COPY queries cannot be directly executed",
+                                                   message: "COPY queries cannot be directly \
+                                                             executed",
                                                },
                                                Sync]));
                 }
@@ -746,7 +741,9 @@ impl InnerConnection {
                 "expected {} parameters but got {}",
                 param_types.len(),
                 params.len());
-        debug!("executing statement {} with parameters: {:?}", stmt_name, params);
+        debug!("executing statement {} with parameters: {:?}",
+               stmt_name,
+               params);
         let mut values = vec![];
         for (param, ty) in params.iter().zip(param_types) {
             let mut buf = vec![];
@@ -857,28 +854,18 @@ impl InnerConnection {
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(self);
-            let name = try!(String::from_sql(&Type::Name,
-                                             &mut &**row[0].as_ref().unwrap(),
-                                             &ctx));
-            let type_ = try!(i8::from_sql(&Type::Char,
-                                          &mut &**row[1].as_ref().unwrap(),
-                                          &ctx));
-            let elem_oid = try!(Oid::from_sql(&Type::Oid,
-                                              &mut &**row[2].as_ref().unwrap(),
-                                              &ctx));
+            let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx));
+            let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx));
+            let elem_oid = try!(Oid::from_sql(&Type::Oid, &mut &**row[2].as_ref().unwrap(), &ctx));
             let rngsubtype = match row[3] {
                 Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
                 None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
             };
-            let basetype = try!(Oid::from_sql(&Type::Oid,
-                                              &mut &**row[4].as_ref().unwrap(),
-                                              &ctx));
+            let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx));
             let schema = try!(String::from_sql(&Type::Name,
                                                &mut &**row[5].as_ref().unwrap(),
                                                &ctx));
-            let relid = try!(Oid::from_sql(&Type::Oid,
-                                           &mut &**row[6].as_ref().unwrap(),
-                                           &ctx));
+            let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
@@ -930,9 +917,7 @@ impl InnerConnection {
                 let name = try!(String::from_sql(&Type::Name,
                                                  &mut &**row[0].as_ref().unwrap(),
                                                  &ctx));
-                let type_ = try!(Oid::from_sql(&Type::Oid,
-                                               &mut &**row[1].as_ref().unwrap(),
-                                               &ctx));
+                let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx));
                 (name, type_)
             };
             let type_ = try!(self.get_type(type_));

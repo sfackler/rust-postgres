@@ -85,7 +85,11 @@ impl<'conn> Statement<'conn> {
                        -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
         let mut conn = self.conn.conn.borrow_mut();
 
-        try!(conn.raw_execute(&self.info.name, portal_name, row_limit, self.param_types(), params));
+        try!(conn.raw_execute(&self.info.name,
+                              portal_name,
+                              row_limit,
+                              self.param_types(),
+                              params));
 
         let mut buf = VecDeque::new();
         let more_rows = try!(conn.read_rows(&mut buf));

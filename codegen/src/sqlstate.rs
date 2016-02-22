@@ -96,14 +96,16 @@ pub enum SqlState {{
 
     write!(file,
 "    /// An unknown code
-    Other(String)
+    Other(String),
 }}
 "
            ).unwrap();
 }
 
 fn make_map(codes: &[Code], file: &mut BufWriter<File>) {
-    write!(file, "static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ").unwrap();
+    write!(file,
+"#[cfg_attr(rustfmt, rustfmt_skip)]
+static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ").unwrap();
     let mut builder = phf_codegen::Map::new();
     for code in codes {
         builder.entry(&*code.code, &format!("SqlState::{}", code.variant));
@@ -119,7 +121,7 @@ impl SqlState {{
     pub fn from_code(s: String) -> SqlState {{
         match SQLSTATE_MAP.get(&*s) {{
             Some(state) => state.clone(),
-            None => SqlState::Other(s)
+            None => SqlState::Other(s),
         }}
     }}
 

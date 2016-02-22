@@ -477,8 +477,9 @@ pub enum SqlState {
     /// `XX002`
     IndexCorrupted,
     /// An unknown code
-    Other(String)
+    Other(String),
 }
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
     key: 1897749892740154578,
     disps: &[
@@ -776,7 +777,7 @@ impl SqlState {
     pub fn from_code(s: String) -> SqlState {
         match SQLSTATE_MAP.get(&*s) {
             Some(state) => state.clone(),
-            None => SqlState::Other(s)
+            None => SqlState::Other(s),
         }
     }
 
