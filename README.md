@@ -265,7 +265,7 @@ types. The driver currently supports the following conversions:
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
-The [postgres-deriving](https://github.com/sfackler/rust-postgres-deriving)
+The [postgres-derive](https://github.com/sfackler/rust-postgres-derive)
 crate will synthesize `ToSql` and `FromSql` implementations for enum, domain,
 and composite Postgres types.
 
