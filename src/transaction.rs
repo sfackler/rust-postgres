@@ -3,10 +3,77 @@
 use std::cell::Cell;
 use std::fmt;
 
-use {Result, Connection, TransactionInternals};
+use {Result, Connection, TransactionInternals, ConfigInternals, IsolationLevel};
 use stmt::Statement;
 use rows::Rows;
 use types::ToSql;
+
+#[derive(Debug)]
+pub struct Config {
+    isolation_level: Option<IsolationLevel>,
+    read_only: Option<bool>,
+    deferrable: Option<bool>,
+}
+
+impl ConfigInternals for Config {
+    fn build_command(&self, s: &mut String) {
+        let mut first = true;
+
+        if let Some(isolation_level) = self.isolation_level {
+            s.push_str(" ISOLATION LEVEL ");
+            s.push_str(isolation_level.to_sql());
+            first = false;
+        }
+
+        if let Some(read_only) = self.read_only {
+            if first {
+                s.push(',');
+            }
+            if read_only {
+                s.push_str(" READ ONLY");
+            } else {
+                s.push_str(" READ WRITE");
+            }
+            first = false;
+        }
+
+        if let Some(deferrable) = self.deferrable {
+            if first {
+                s.push(',');
+            }
+            if deferrable {
+                s.push_str(" DEFERRABLE");
+            } else {
+                s.push_str(" NOT DEFERRABLE");
+            }
+        }
+    }
+}
+
+impl Config {
+    pub fn new() -> Config {
+        Config {
+            isolation_level: None,
+            read_only: None,
+            deferrable: None,
+        }
+    }
+
+    pub fn isolation_level(&mut self, isolation_level: IsolationLevel) -> &mut Config {
+        self.isolation_level = Some(isolation_level);
+        self
+    }
+
+    pub fn read_only(&mut self, read_only: bool) -> &mut Config {
+        self.read_only = Some(read_only);
+        self
+    }
+
+    pub fn deferrable(&mut self, deferrable: bool) -> &mut Config {
+        self.deferrable = Some(deferrable);
+        self
+    }
+}
 
 /// A transaction on a database connection.
 ///

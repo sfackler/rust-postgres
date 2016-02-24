@@ -322,20 +322,12 @@ pub enum IsolationLevel {
 }
 
 impl IsolationLevel {
-    fn to_set_query(&self) -> &'static str {
+    fn to_sql(&self) -> &'static str {
         match *self {
-            IsolationLevel::ReadUncommitted => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"
-            }
-            IsolationLevel::ReadCommitted => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED"
-            }
-            IsolationLevel::RepeatableRead => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
-            }
-            IsolationLevel::Serializable => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE"
-            }
+            IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
+            IsolationLevel::ReadCommitted => "READ COMMITTED",
+            IsolationLevel::RepeatableRead => "REPEATABLE READ",
+            IsolationLevel::Serializable => "SERIALIZABLE",
         }
     }
 
@@ -1246,7 +1238,13 @@ impl Connection {
     ///
     /// This will not change the behavior of an active transaction.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
-        self.batch_execute(level.to_set_query())
+        self.set_transaction_config(transaction::Config::new().isolation_level(level))
+    }
+
+    pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
+        let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
+        config.build_command(&mut command);
+        self.batch_execute(&command)
     }
 
     /// Execute a sequence of SQL statements.
@@ -1490,4 +1488,8 @@ trait TransactionInternals<'conn> {
     fn conn(&self) -> &'conn Connection;
 
     fn depth(&self) -> u32;
+}
+
+trait ConfigInternals {
+    fn build_command(&self, s: &mut String);
 }
