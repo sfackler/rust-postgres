@@ -13,8 +13,8 @@ use message::BackendMessage::*;
 use message::WriteMessage;
 use util;
 use rows::{Rows, LazyRows};
-use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
-use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
+use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
+     SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
@@ -226,12 +226,12 @@ impl<'conn> Statement<'conn> {
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
-        assert!(self.conn as *const _ == trans.conn as *const _,
+        assert!(self.conn as *const _ == trans.conn() as *const _,
                 "the `Transaction` passed to `lazy_query` must be associated with the same \
                  `Connection` as the `Statement`");
         let conn = self.conn.conn.borrow();
         check_desync!(conn);
-        assert!(conn.trans_depth == trans.depth,
+        assert!(conn.trans_depth == trans.depth(),
                 "`lazy_query` must be passed the active transaction");
         drop(conn);
 
