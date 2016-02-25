@@ -13,12 +13,8 @@ use std::io;
 use std::io::prelude::*;
 use std::time::Duration;
 
-use postgres::{HandleNotice,
-               Connection,
-               GenericConnection,
-               SslMode,
-               IntoConnectParams,
-               IsolationLevel};
+use postgres::{HandleNotice, Connection, GenericConnection, SslMode, IntoConnectParams,
+               IsolationLevel, transaction};
 use postgres::error::{Error, ConnectError, DbError};
 use postgres::types::{Oid, Type, Kind, WrongType};
 use postgres::error::SqlState::{SyntaxError,
@@ -1019,4 +1015,36 @@ fn test_conn_query() {
                   .map(|r| r.get(0))
                   .collect::<Vec<i32>>();
     assert_eq!(ids, [1, 2, 3]);
+}
+
+#[test]
+fn transaction_config() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    conn.set_transaction_config(&config).unwrap();
+}
+
+#[test]
+fn transaction_with() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    conn.transaction_with(&config).unwrap().finish().unwrap();
+}
+
+#[test]
+fn transaction_set_config() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let trans = conn.transaction().unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    trans.set_config(&config).unwrap();
+    trans.finish().unwrap();
 }

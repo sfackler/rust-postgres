@@ -8,6 +8,7 @@ use stmt::Statement;
 use rows::Rows;
 use types::ToSql;
 
+/// Configuration of a transaction.
 #[derive(Debug)]
 pub struct Config {
     isolation_level: Option<IsolationLevel>,
@@ -51,6 +52,7 @@ impl ConfigInternals for Config {
 }
 
 impl Config {
+    /// Creates a new `Config` with no configuration overrides.
     pub fn new() -> Config {
         Config {
             isolation_level: None,
@@ -59,16 +61,27 @@ impl Config {
         }
     }
 
+    /// Sets the isolation level of the configuration.
     pub fn isolation_level(&mut self, isolation_level: IsolationLevel) -> &mut Config {
         self.isolation_level = Some(isolation_level);
         self
     }
 
+    /// Sets the read-only property of a transaction.
+    ///
+    /// If enabled, a transaction will be unable to modify any persistent
+    /// database state.
     pub fn read_only(&mut self, read_only: bool) -> &mut Config {
         self.read_only = Some(read_only);
         self
     }
 
+    /// Sets the deferrable property of a transaction.
+    ///
+    /// If enabled in a read only, serializable transaction, the transaction may
+    /// block when created, after which it will run without the normal overhead
+    /// of a serializable transaction and will not be forced to roll back due
+    /// to serialization failures.
     pub fn deferrable(&mut self, deferrable: bool) -> &mut Config {
         self.deferrable = Some(deferrable);
         self
@@ -191,6 +204,13 @@ impl<'conn> Transaction<'conn> {
     /// Like `Connection::is_active`.
     pub fn is_active(&self) -> bool {
         self.conn.conn.borrow().trans_depth == self.depth
+    }
+
+    /// Alters the configuration of the active transaction.
+    pub fn set_config(&self, config: &Config) -> Result<()> {
+        let mut command = "SET TRANSACTION".to_owned();
+        config.build_command(&mut command);
+        self.batch_execute(&command)
     }
 
     /// Determines if the transaction is currently set to commit or roll back.

@@ -1162,11 +1162,18 @@ impl Connection {
     /// trans.commit().unwrap();
     /// ```
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
+        self.transaction_with(&transaction::Config::new())
+    }
+
+    /// Begins a new transaction with the specified configuration.
+    pub fn transaction_with<'a>(&'a self, config: &transaction::Config) -> Result<Transaction<'a>> {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == 0,
                 "`transaction` must be called on the active transaction");
-        try!(conn.quick_query("BEGIN"));
+        let mut query = "BEGIN".to_owned();
+        config.build_command(&mut query);
+        try!(conn.quick_query(&query));
         conn.trans_depth += 1;
         Ok(Transaction::new(self, 1))
     }
@@ -1230,17 +1237,14 @@ impl Connection {
         IsolationLevel::parse(result[0][0].as_ref().unwrap())
     }
 
-    /// Sets the isolation level which will be used for future transactions.
+    /// # Deprecated
     ///
-    /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
-    ///
-    /// # Note
-    ///
-    /// This will not change the behavior of an active transaction.
+    /// Use `Connection::set_transaction_config` instead.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
         self.set_transaction_config(transaction::Config::new().isolation_level(level))
     }
 
+    /// Sets the configuration that will be used for future transactions.
     pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
         let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
         config.build_command(&mut command);
