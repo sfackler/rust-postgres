@@ -5,12 +5,11 @@ use std::io::prelude::*;
 use self::uuid::Uuid;
 use types::{FromSql, ToSql, Type, IsNull, SessionInfo};
 use Result;
-use util;
 
 impl FromSql for Uuid {
     fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<Uuid> {
         let mut bytes = [0; 16];
-        try!(util::read_all(raw, &mut bytes));
+        try!(raw.read_exact(&mut bytes));
         Ok(Uuid::from_bytes(&bytes).unwrap())
     }
 
