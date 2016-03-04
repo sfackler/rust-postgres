@@ -67,9 +67,6 @@ use std::time::Duration;
 #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
 use std::path::PathBuf;
 
-// FIXME remove in 0.12
-pub use transaction::{Transaction, IsolationLevel};
-
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{StreamWrapper, NegotiateSsl};
 use message::{Frontend, Backend, RowDescriptionEntry};
@@ -79,6 +76,7 @@ use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
 use url::Url;
+use transaction::{Transaction, IsolationLevel};
 
 #[macro_use]
 mod macros;

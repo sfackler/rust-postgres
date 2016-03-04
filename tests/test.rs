@@ -13,8 +13,8 @@ use std::io;
 use std::io::prelude::*;
 use std::time::Duration;
 
-use postgres::{HandleNotice, Connection, GenericConnection, SslMode, IntoConnectParams,
-               IsolationLevel, transaction};
+use postgres::{HandleNotice, Connection, GenericConnection, SslMode, IntoConnectParams};
+use postgres::transaction::{self, IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
 use postgres::types::{Oid, Type, Kind, WrongType};
 use postgres::error::SqlState::{SyntaxError,

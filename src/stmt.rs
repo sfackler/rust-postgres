@@ -10,8 +10,9 @@ use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql};
 use message::{WriteMessage, Backend, Frontend};
 use rows::{Rows, LazyRows};
-use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
-     SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
+use transaction::Transaction;
+use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, SessionInfoNew,
+     LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
