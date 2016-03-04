@@ -11,7 +11,6 @@ pub use self::slice::Slice;
 pub use self::types::Type;
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
-use util;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -409,7 +408,7 @@ impl FromSql for HashMap<String, Option<String>> {
         for _ in 0..count {
             let key_len = try!(raw.read_i32::<BigEndian>());
             let mut key = vec![0; key_len as usize];
-            try!(util::read_all(raw, &mut key));
+            try!(raw.read_exact(&mut key));
             let key = match String::from_utf8(key) {
                 Ok(key) => key,
                 Err(err) => return Err(Error::Conversion(Box::new(err))),
@@ -420,7 +419,7 @@ impl FromSql for HashMap<String, Option<String>> {
                 None
             } else {
                 let mut val = vec![0; val_len as usize];
-                try!(util::read_all(raw, &mut val));
+                try!(raw.read_exact(&mut val));
                 match String::from_utf8(val) {
                     Ok(val) => Some(val),
                     Err(err) => return Err(Error::Conversion(Box::new(err))),

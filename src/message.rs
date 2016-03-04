@@ -5,7 +5,6 @@ use std::time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use types::Oid;
-use util;
 use priv_io::StreamOptions;
 
 use self::BackendMessage::*;
@@ -438,7 +437,7 @@ fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
             -1 => None,
             len => {
                 let mut data = vec![0; len as usize];
-                try!(util::read_all(buf, &mut data));
+                try!(buf.read_exact(&mut data));
                 Some(data)
             }
         };
@@ -455,7 +454,7 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         3 => AuthenticationCleartextPassword,
         5 => {
             let mut salt = [0; 4];
-            try!(util::read_all(buf, &mut salt));
+            try!(buf.read_exact(&mut salt));
             AuthenticationMD5Password { salt: salt }
         }
         6 => AuthenticationSCMCredential,
