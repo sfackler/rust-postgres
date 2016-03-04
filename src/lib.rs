@@ -93,7 +93,6 @@ mod md5;
 mod message;
 mod priv_io;
 mod url;
-mod util;
 pub mod error;
 pub mod io;
 pub mod notification;

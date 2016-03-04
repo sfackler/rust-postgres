@@ -11,7 +11,6 @@ use types::{SessionInfo, Type, ToSql};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
 use message::WriteMessage;
-use util;
 use rows::{Rows, LazyRows};
 use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
      SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
@@ -140,7 +139,7 @@ impl<'conn> Statement<'conn> {
                     return DbError::new(fields);
                 }
                 CommandComplete { tag } => {
-                    num = util::parse_update_count(tag);
+                    num = parse_update_count(tag);
                     break;
                 }
                 EmptyQueryResponse => {
@@ -321,7 +320,7 @@ impl<'conn> Statement<'conn> {
         try!(info.conn.write_messages(&[CopyDone, Sync]));
 
         let num = match try!(info.conn.read_message()) {
-            CommandComplete { tag } => util::parse_update_count(tag),
+            CommandComplete { tag } => parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(info.conn.wait_for_ready());
                 return DbError::new(fields);
@@ -421,7 +420,7 @@ impl<'conn> Statement<'conn> {
                 }
                 BCopyDone => {}
                 CommandComplete { tag } => {
-                    count = util::parse_update_count(tag);
+                    count = parse_update_count(tag);
                     break;
                 }
                 ErrorResponse { fields } => {
@@ -566,4 +565,8 @@ impl Format {
             _ => Format::Binary,
         }
     }
+}
+
+fn parse_update_count(tag: String) -> u64 {
+    tag.split(' ').last().unwrap().parse().unwrap_or(0)
 }
