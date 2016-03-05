@@ -218,9 +218,17 @@ impl IntoConnectParams for Url {
 }
 
 /// Trait for types that can handle Postgres notice messages
+///
+/// It is implemented for all `Send + FnMut(DbError)` closures.
 pub trait HandleNotice: Send {
     /// Handle a Postgres notice message
     fn handle_notice(&mut self, notice: DbError);
+}
+
+impl<F: Send + FnMut(DbError)> HandleNotice for F {
+    fn handle_notice(&mut self, notice: DbError) {
+        self(notice)
+    }
 }
 
 /// A notice handler which logs at the `info` level.
