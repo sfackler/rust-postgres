@@ -5,7 +5,6 @@ use std::time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use types::Oid;
-use util;
 use priv_io::StreamOptions;
 
 use self::BackendMessage::*;
@@ -162,6 +161,7 @@ pub trait WriteMessage {
 }
 
 impl<W: Write> WriteMessage for W {
+    #[allow(cyclomatic_complexity)]
     fn write_message(&mut self, message: &FrontendMessage) -> io::Result<()> {
         let mut buf = vec![];
         let mut ident = None;
@@ -334,6 +334,7 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
         }
     }
 
+    #[allow(cyclomatic_complexity)]
     fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage> {
         // subtract size of length value
         let len = try!(self.read_u32::<BigEndian>()) - mem::size_of::<u32>() as u32;
@@ -436,7 +437,7 @@ fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
             -1 => None,
             len => {
                 let mut data = vec![0; len as usize];
-                try!(util::read_all(buf, &mut data));
+                try!(buf.read_exact(&mut data));
                 Some(data)
             }
         };
@@ -453,7 +454,7 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
         3 => AuthenticationCleartextPassword,
         5 => {
             let mut salt = [0; 4];
-            try!(util::read_all(buf, &mut salt));
+            try!(buf.read_exact(&mut salt));
             AuthenticationMD5Password { salt: salt }
         }
         6 => AuthenticationSCMCredential,

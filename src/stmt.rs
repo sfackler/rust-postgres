@@ -11,10 +11,9 @@ use types::{SessionInfo, Type, ToSql};
 use message::FrontendMessage::*;
 use message::BackendMessage::*;
 use message::WriteMessage;
-use util;
 use rows::{Rows, LazyRows};
-use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew};
-use {InnerConnection, SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo};
+use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
+     SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
@@ -77,6 +76,7 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    #[allow(type_complexity)]
     fn inner_query<'a>(&'a self,
                        portal_name: &str,
                        row_limit: i32,
@@ -84,7 +84,11 @@ impl<'conn> Statement<'conn> {
                        -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
         let mut conn = self.conn.conn.borrow_mut();
 
-        try!(conn.raw_execute(&self.info.name, portal_name, row_limit, self.param_types(), params));
+        try!(conn.raw_execute(&self.info.name,
+                              portal_name,
+                              row_limit,
+                              self.param_types(),
+                              params));
 
         let mut buf = VecDeque::new();
         let more_rows = try!(conn.read_rows(&mut buf));
@@ -135,7 +139,7 @@ impl<'conn> Statement<'conn> {
                     return DbError::new(fields);
                 }
                 CommandComplete { tag } => {
-                    num = util::parse_update_count(tag);
+                    num = parse_update_count(tag);
                     break;
                 }
                 EmptyQueryResponse => {
@@ -221,12 +225,12 @@ impl<'conn> Statement<'conn> {
                                      params: &[&ToSql],
                                      row_limit: i32)
                                      -> Result<LazyRows<'trans, 'stmt>> {
-        assert!(self.conn as *const _ == trans.conn as *const _,
+        assert!(self.conn as *const _ == trans.conn() as *const _,
                 "the `Transaction` passed to `lazy_query` must be associated with the same \
                  `Connection` as the `Statement`");
         let conn = self.conn.conn.borrow();
         check_desync!(conn);
-        assert!(conn.trans_depth == trans.depth,
+        assert!(conn.trans_depth == trans.depth(),
                 "`lazy_query` must be passed the active transaction");
         drop(conn);
 
@@ -272,14 +276,11 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => {
-                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                "called `copy_in` on a \
-                                                                 non-`COPY FROM STDIN` \
-                                                                 statement")));
-                        }
-                        _ => {}
+                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                            "called `copy_in` on a \
+                                                             non-`COPY FROM STDIN` \
+                                                             statement")));
                     }
                 }
             }
@@ -319,7 +320,7 @@ impl<'conn> Statement<'conn> {
         try!(info.conn.write_messages(&[CopyDone, Sync]));
 
         let num = match try!(info.conn.read_message()) {
-            CommandComplete { tag } => util::parse_update_count(tag),
+            CommandComplete { tag } => parse_update_count(tag),
             ErrorResponse { fields } => {
                 try!(info.conn.wait_for_ready());
                 return DbError::new(fields);
@@ -384,13 +385,10 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 loop {
-                    match try!(conn.read_message()) {
-                        ReadyForQuery { .. } => {
-                            return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                                "called `copy_out` on a \
-                                                                 non-`COPY TO STDOUT` statement")));
-                        }
-                        _ => {}
+                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
+                                                            "called `copy_out` on a \
+                                                             non-`COPY TO STDOUT` statement")));
                     }
                 }
             }
@@ -412,9 +410,8 @@ impl<'conn> Statement<'conn> {
                             Ok(n) => data = &data[n..],
                             Err(e) => {
                                 loop {
-                                    match try!(info.conn.read_message()) {
-                                        ReadyForQuery { .. } => return Err(Error::Io(e)),
-                                        _ => {}
+                                    if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                                        return Err(Error::Io(e));
                                     }
                                 }
                             }
@@ -423,22 +420,20 @@ impl<'conn> Statement<'conn> {
                 }
                 BCopyDone => {}
                 CommandComplete { tag } => {
-                    count = util::parse_update_count(tag);
+                    count = parse_update_count(tag);
                     break;
                 }
                 ErrorResponse { fields } => {
                     loop {
-                        match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return DbError::new(fields),
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                            return DbError::new(fields);
                         }
                     }
                 }
                 _ => {
                     loop {
-                        match try!(info.conn.read_message()) {
-                            ReadyForQuery { .. } => return Err(Error::Io(bad_response())),
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                            return Err(Error::Io(bad_response()));
                         }
                     }
                 }
@@ -570,4 +565,8 @@ impl Format {
             _ => Format::Binary,
         }
     }
+}
+
+fn parse_update_count(tag: String) -> u64 {
+    tag.split(' ').last().unwrap().parse().unwrap_or(0)
 }

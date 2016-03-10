@@ -38,8 +38,9 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.3")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.4")]
 #![warn(missing_docs)]
+#![allow(unknown_lints, needless_lifetimes)] // for clippy
 
 extern crate bufstream;
 extern crate byteorder;
@@ -70,6 +71,9 @@ use std::time::Duration;
 #[cfg(feature = "unix_socket")]
 use std::path::PathBuf;
 
+// FIXME remove in 0.12
+pub use transaction::Transaction;
+
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{StreamWrapper, NegotiateSsl};
 use message::BackendMessage::*;
@@ -89,17 +93,17 @@ mod md5;
 mod message;
 mod priv_io;
 mod url;
-mod util;
 pub mod error;
 pub mod io;
+pub mod notification;
 pub mod rows;
 pub mod stmt;
+pub mod transaction;
 pub mod types;
-pub mod notification;
 
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
-const TYPEINFO_ARRAY_QUERY: &'static str = "__typeinfo_array";
+const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
@@ -162,21 +166,13 @@ impl<'a> IntoConnectParams for &'a str {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
-            Err(err) => return Err(err.into()),
+            Err(err) => Err(err.into()),
         }
     }
 }
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
-        let Url {
-            host,
-            port,
-            user,
-            path: url::Path { mut path, query: options, .. },
-            ..
-        } = self;
-
         #[cfg(feature = "unix_socket")]
         fn make_unix(maybe_path: String)
                      -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
@@ -187,8 +183,10 @@ impl IntoConnectParams for Url {
             Err("unix socket support requires the `unix_socket` feature".into())
         }
 
+        let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
+
         let maybe_path = try!(url::decode_component(&host));
-        let target = if maybe_path.starts_with("/") {
+        let target = if maybe_path.starts_with('/') {
             try!(make_unix(maybe_path))
         } else {
             ConnectTarget::Tcp(host)
@@ -220,9 +218,17 @@ impl IntoConnectParams for Url {
 }
 
 /// Trait for types that can handle Postgres notice messages
+///
+/// It is implemented for all `Send + FnMut(DbError)` closures.
 pub trait HandleNotice: Send {
     /// Handle a Postgres notice message
     fn handle_notice(&mut self, notice: DbError);
+}
+
+impl<F: Send + FnMut(DbError)> HandleNotice for F {
+    fn handle_notice(&mut self, notice: DbError) {
+        self(notice)
+    }
 }
 
 /// A notice handler which logs at the `info` level.
@@ -323,20 +329,12 @@ pub enum IsolationLevel {
 }
 
 impl IsolationLevel {
-    fn to_set_query(&self) -> &'static str {
+    fn to_sql(&self) -> &'static str {
         match *self {
-            IsolationLevel::ReadUncommitted => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"
-            }
-            IsolationLevel::ReadCommitted => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED"
-            }
-            IsolationLevel::RepeatableRead => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
-            }
-            IsolationLevel::Serializable => {
-                "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE"
-            }
+            IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
+            IsolationLevel::ReadCommitted => "READ COMMITTED",
+            IsolationLevel::RepeatableRead => "REPEATABLE READ",
+            IsolationLevel::Serializable => "SERIALIZABLE",
         }
     }
 
@@ -476,7 +474,7 @@ impl InnerConnection {
             Err(Error::Conversion(_)) => unreachable!(),
         }
 
-        match self.raw_prepare(TYPEINFO_ARRAY_QUERY,
+        match self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
                                "SELECT attname, atttypid \
                                 FROM pg_catalog.pg_attribute \
                                 WHERE attrelid = $1 \
@@ -633,8 +631,8 @@ impl InnerConnection {
 
         match try!(self.read_message()) {
             AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => return DbError::new_connect(fields),
-            _ => return Err(ConnectError::Io(bad_response())),
+            ErrorResponse { fields } => DbError::new_connect(fields),
+            _ => Err(ConnectError::Io(bad_response())),
         }
     }
 
@@ -710,15 +708,15 @@ impl InnerConnection {
                 }
                 CopyInResponse { .. } => {
                     try!(self.write_messages(&[CopyFail {
-                                                   message: "COPY queries cannot be directly executed",
+                                                   message: "COPY queries cannot be directly \
+                                                             executed",
                                                },
                                                Sync]));
                 }
                 CopyOutResponse { .. } => {
                     loop {
-                        match try!(self.read_message()) {
-                            ReadyForQuery { .. } => break,
-                            _ => {}
+                        if let ReadyForQuery { .. } = try!(self.read_message()) {
+                            break;
                         }
                     }
                     return Err(Error::Io(std_io::Error::new(std_io::ErrorKind::InvalidInput,
@@ -746,7 +744,9 @@ impl InnerConnection {
                 "expected {} parameters but got {}",
                 param_types.len(),
                 params.len());
-        debug!("executing statement {} with parameters: {:?}", stmt_name, params);
+        debug!("executing statement {} with parameters: {:?}",
+               stmt_name,
+               params);
         let mut values = vec![];
         for (param, ty) in params.iter().zip(param_types) {
             let mut buf = vec![];
@@ -844,6 +844,12 @@ impl InnerConnection {
             return Ok(Type::Other(ty.clone()));
         }
 
+        let ty = try!(self.read_type(oid));
+        self.unknown_types.insert(oid, ty.clone());
+        Ok(Type::Other(ty))
+    }
+
+    fn read_type(&mut self, oid: Oid) -> Result<Other> {
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
@@ -851,45 +857,23 @@ impl InnerConnection {
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(self);
-            let name = try!(String::from_sql(&Type::Name,
-                                             &mut &**row[0].as_ref().unwrap(),
-                                             &ctx));
-            let type_ = try!(i8::from_sql(&Type::Char,
-                                          &mut &**row[1].as_ref().unwrap(),
-                                          &ctx));
-            let elem_oid = try!(Oid::from_sql(&Type::Oid,
-                                              &mut &**row[2].as_ref().unwrap(),
-                                              &ctx));
+            let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx));
+            let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx));
+            let elem_oid = try!(Oid::from_sql(&Type::Oid, &mut &**row[2].as_ref().unwrap(), &ctx));
             let rngsubtype = match row[3] {
                 Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
                 None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
             };
-            let basetype = try!(Oid::from_sql(&Type::Oid,
-                                              &mut &**row[4].as_ref().unwrap(),
-                                              &ctx));
+            let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx));
             let schema = try!(String::from_sql(&Type::Name,
                                                &mut &**row[5].as_ref().unwrap(),
                                                &ctx));
-            let relid = try!(Oid::from_sql(&Type::Oid,
-                                           &mut &**row[6].as_ref().unwrap(),
-                                           &ctx));
+            let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
         let kind = if type_ == b'e' as i8 {
-            try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
-            let mut rows = VecDeque::new();
-            try!(self.read_rows(&mut rows));
-
-            let ctx = SessionInfo::new(self);
-            let mut variants = vec![];
-            for row in rows {
-                variants.push(try!(String::from_sql(&Type::Name,
-                                                    &mut &**row[0].as_ref().unwrap(),
-                                                    &ctx)));
-            }
-
-            Kind::Enum(variants)
+            Kind::Enum(try!(self.read_enum_variants(oid)))
         } else if type_ == b'p' as i8 {
             Kind::Pseudo
         } else if basetype != 0 {
@@ -897,27 +881,7 @@ impl InnerConnection {
         } else if elem_oid != 0 {
             Kind::Array(try!(self.get_type(elem_oid)))
         } else if relid != 0 {
-            try!(self.raw_execute(TYPEINFO_ARRAY_QUERY, "", 0, &[Type::Oid], &[&relid]));
-            let mut rows = VecDeque::new();
-            try!(self.read_rows(&mut rows));
-
-            let mut fields = vec![];
-            for row in rows {
-                let (name, type_) = {
-                    let ctx = SessionInfo::new(self);
-                    let name = try!(String::from_sql(&Type::Name,
-                                                     &mut &**row[0].as_ref().unwrap(),
-                                                     &ctx));
-                    let type_ = try!(Oid::from_sql(&Type::Oid,
-                                                   &mut &**row[1].as_ref().unwrap(),
-                                                   &ctx));
-                    (name, type_)
-                };
-                let type_ = try!(self.get_type(type_));
-                fields.push(Field::new(name, type_));
-            }
-
-            Kind::Composite(fields)
+            Kind::Composite(try!(self.read_composite_fields(relid)))
         } else {
             match rngsubtype {
                 Some(oid) => Kind::Range(try!(self.get_type(oid))),
@@ -925,15 +889,52 @@ impl InnerConnection {
             }
         };
 
-        let type_ = Other::new(name, oid, kind, schema);
-        self.unknown_types.insert(oid, type_.clone());
-        Ok(Type::Other(type_))
+        Ok(Other::new(name, oid, kind, schema))
+    }
+
+    fn read_enum_variants(&mut self, oid: Oid) -> Result<Vec<String>> {
+        try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+
+        let ctx = SessionInfo::new(self);
+        let mut variants = vec![];
+        for row in rows {
+            variants.push(try!(String::from_sql(&Type::Name,
+                                                &mut &**row[0].as_ref().unwrap(),
+                                                &ctx)));
+        }
+
+        Ok(variants)
+    }
+
+    fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
+        try!(self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[Type::Oid], &[&relid]));
+        let mut rows = VecDeque::new();
+        try!(self.read_rows(&mut rows));
+
+        let mut fields = vec![];
+        for row in rows {
+            let (name, type_) = {
+                let ctx = SessionInfo::new(self);
+                let name = try!(String::from_sql(&Type::Name,
+                                                 &mut &**row[0].as_ref().unwrap(),
+                                                 &ctx));
+                let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx));
+                (name, type_)
+            };
+            let type_ = try!(self.get_type(type_));
+            fields.push(Field::new(name, type_));
+        }
+
+        Ok(fields)
     }
 
     fn is_desynchronized(&self) -> bool {
         self.desynchronized
     }
 
+    #[allow(needless_return)]
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
             ReadyForQuery { .. } => Ok(()),
@@ -1168,18 +1169,20 @@ impl Connection {
     /// trans.commit().unwrap();
     /// ```
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
+        self.transaction_with(&transaction::Config::new())
+    }
+
+    /// Begins a new transaction with the specified configuration.
+    pub fn transaction_with<'a>(&'a self, config: &transaction::Config) -> Result<Transaction<'a>> {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == 0,
                 "`transaction` must be called on the active transaction");
-        try!(conn.quick_query("BEGIN"));
+        let mut query = "BEGIN".to_owned();
+        config.build_command(&mut query);
+        try!(conn.quick_query(&query));
         conn.trans_depth += 1;
-        Ok(Transaction {
-            conn: self,
-            commit: Cell::new(false),
-            depth: 1,
-            finished: false,
-        })
+        Ok(Transaction::new(self, 1))
     }
 
     /// Creates a new prepared statement.
@@ -1241,15 +1244,18 @@ impl Connection {
         IsolationLevel::parse(result[0][0].as_ref().unwrap())
     }
 
-    /// Sets the isolation level which will be used for future transactions.
+    /// # Deprecated
     ///
-    /// This is a simple wrapper around `SET TRANSACTION ISOLATION LEVEL ...`.
-    ///
-    /// # Note
-    ///
-    /// This will not change the behavior of an active transaction.
+    /// Use `Connection::set_transaction_config` instead.
     pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
-        self.batch_execute(level.to_set_query())
+        self.set_transaction_config(transaction::Config::new().isolation_level(level))
+    }
+
+    /// Sets the configuration that will be used for future transactions.
+    pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
+        let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
+        config.build_command(&mut command);
+        self.batch_execute(&command)
     }
 
     /// Execute a sequence of SQL statements.
@@ -1342,136 +1348,6 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
-    }
-}
-
-/// Represents a transaction on a database connection.
-///
-/// The transaction will roll back by default.
-pub struct Transaction<'conn> {
-    conn: &'conn Connection,
-    depth: u32,
-    commit: Cell<bool>,
-    finished: bool,
-}
-
-impl<'a> fmt::Debug for Transaction<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Transaction")
-           .field("commit", &self.commit.get())
-           .field("depth", &self.depth)
-           .finish()
-    }
-}
-
-impl<'conn> Drop for Transaction<'conn> {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.finish_inner();
-        }
-    }
-}
-
-impl<'conn> Transaction<'conn> {
-    fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
-        debug_assert!(self.depth == conn.trans_depth);
-        let query = match (self.commit.get(), self.depth != 1) {
-            (false, true) => "ROLLBACK TO sp",
-            (false, false) => "ROLLBACK",
-            (true, true) => "RELEASE sp",
-            (true, false) => "COMMIT",
-        };
-        conn.trans_depth -= 1;
-        conn.quick_query(query).map(|_| ())
-    }
-
-    /// Like `Connection::prepare`.
-    pub fn prepare(&self, query: &str) -> Result<Statement<'conn>> {
-        self.conn.prepare(query)
-    }
-
-    /// Like `Connection::prepare_cached`.
-    ///
-    /// Note that the statement will be cached for the duration of the
-    /// connection, not just the duration of this transaction.
-    pub fn prepare_cached(&self, query: &str) -> Result<Statement<'conn>> {
-        self.conn.prepare_cached(query)
-    }
-
-    /// Like `Connection::execute`.
-    pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        self.conn.execute(query, params)
-    }
-
-    /// Like `Connection::query`.
-    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
-        self.conn.query(query, params)
-    }
-
-    /// Like `Connection::batch_execute`.
-    pub fn batch_execute(&self, query: &str) -> Result<()> {
-        self.conn.batch_execute(query)
-    }
-
-    /// Like `Connection::transaction`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there is an active nested transaction.
-    pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
-        let mut conn = self.conn.conn.borrow_mut();
-        check_desync!(conn);
-        assert!(conn.trans_depth == self.depth,
-                "`transaction` may only be called on the active transaction");
-        try!(conn.quick_query("SAVEPOINT sp"));
-        conn.trans_depth += 1;
-        Ok(Transaction {
-            conn: self.conn,
-            commit: Cell::new(false),
-            depth: self.depth + 1,
-            finished: false,
-        })
-    }
-
-    /// Returns a reference to the `Transaction`'s `Connection`.
-    pub fn connection(&self) -> &'conn Connection {
-        self.conn
-    }
-
-    /// Like `Connection::is_active`.
-    pub fn is_active(&self) -> bool {
-        self.conn.conn.borrow().trans_depth == self.depth
-    }
-
-    /// Determines if the transaction is currently set to commit or roll back.
-    pub fn will_commit(&self) -> bool {
-        self.commit.get()
-    }
-
-    /// Sets the transaction to commit at its completion.
-    pub fn set_commit(&self) {
-        self.commit.set(true);
-    }
-
-    /// Sets the transaction to roll back at its completion.
-    pub fn set_rollback(&self) {
-        self.commit.set(false);
-    }
-
-    /// A convenience method which consumes and commits a transaction.
-    pub fn commit(self) -> Result<()> {
-        self.set_commit();
-        self.finish()
-    }
-
-    /// Consumes the transaction, commiting or rolling it back as appropriate.
-    ///
-    /// Functionally equivalent to the `Drop` implementation of `Transaction`
-    /// except that it returns any error to the caller.
-    pub fn finish(mut self) -> Result<()> {
-        self.finished = true;
-        self.finish_inner()
     }
 }
 
@@ -1615,4 +1491,16 @@ trait WrongTypeNew {
 
 trait FieldNew {
     fn new(name: String, type_: Type) -> Field;
+}
+
+trait TransactionInternals<'conn> {
+    fn new(conn: &'conn Connection, depth: u32) -> Transaction<'conn>;
+
+    fn conn(&self) -> &'conn Connection;
+
+    fn depth(&self) -> u32;
+}
+
+trait ConfigInternals {
+    fn build_command(&self, s: &mut String);
 }

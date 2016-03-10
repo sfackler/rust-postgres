@@ -1,0 +1,9 @@
+[package]
+name = "codegen"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]
+phf_codegen = "0.7"
+regex = "0.1"
+marksman_escape = "0.1"

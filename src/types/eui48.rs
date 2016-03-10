@@ -6,12 +6,11 @@ use self::eui48::MacAddress;
 
 use types::{FromSql, ToSql, Type, IsNull, SessionInfo};
 use Result;
-use util;
 
 impl FromSql for MacAddress {
     fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<MacAddress> {
         let mut bytes = [0; 6];
-        try!(util::read_all(raw, &mut bytes));
+        try!(raw.read_exact(&mut bytes));
         Ok(MacAddress::new(bytes))
     }
 

@@ -117,7 +117,7 @@ pub fn decode_component(container: &str) -> DecodeResult<String> {
 
 fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
     let mut out = String::new();
-    let mut iter = c.as_bytes().iter().map(|&b| b);
+    let mut iter = c.as_bytes().iter().cloned();
 
     loop {
         match iter.next() {
@@ -367,7 +367,6 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
 
     // finish up
     match st {
-        State::Start => host = &rawurl[begin..end],
         State::PassHostPort |
         State::Ip6Port => {
             if input != Input::Digit {
@@ -377,7 +376,8 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
             port = Some(&rawurl[pos + 1..end]);
         }
         State::Ip6Host |
-        State::InHost => host = &rawurl[begin..end],
+        State::InHost |
+        State::Start => host = &rawurl[begin..end],
         State::InPort => {
             if input != Input::Digit {
                 return Err("Non-digit characters in port.".to_owned());
@@ -437,7 +437,7 @@ fn get_path(rawurl: &str, is_authority: bool) -> DecodeResult<(String, &str)> {
         }
     }
 
-    if is_authority && end != 0 && !rawurl.starts_with("/") {
+    if is_authority && end != 0 && !rawurl.starts_with('/') {
         Err("Non-empty path must begin with '/' in presence of authority.".to_owned())
     } else {
         Ok((try!(decode_component(&rawurl[0..end])), &rawurl[end..len]))

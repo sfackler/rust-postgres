@@ -13,12 +13,8 @@ use std::io;
 use std::io::prelude::*;
 use std::time::Duration;
 
-use postgres::{HandleNotice,
-               Connection,
-               GenericConnection,
-               SslMode,
-               IntoConnectParams,
-               IsolationLevel};
+use postgres::{HandleNotice, Connection, GenericConnection, SslMode, IntoConnectParams,
+               IsolationLevel, transaction};
 use postgres::error::{Error, ConnectError, DbError};
 use postgres::types::{Oid, Type, Kind, WrongType};
 use postgres::error::SqlState::{SyntaxError,
@@ -861,17 +857,15 @@ fn test_generic_connection() {
 #[test]
 fn test_custom_range_element_type() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
-    let trans = or_panic!(conn.transaction());
-    or_panic!(trans.execute("CREATE TYPE floatrange AS RANGE (
+    or_panic!(conn.execute("CREATE TYPE pg_temp.floatrange AS RANGE (
                                 subtype = float8,
                                 subtype_diff = float8mi
                              )", &[]));
-    let stmt = or_panic!(trans.prepare("SELECT $1::floatrange"));
+    let stmt = or_panic!(conn.prepare("SELECT $1::floatrange"));
     match &stmt.param_types()[0] {
         &Type::Other(ref u) => {
             assert_eq!("floatrange", u.name());
             assert_eq!(&Kind::Range(Type::Float8), u.kind());
-            assert_eq!("public", u.schema());
         }
         t => panic!("Unexpected type {:?}", t)
     }
@@ -1019,4 +1013,36 @@ fn test_conn_query() {
                   .map(|r| r.get(0))
                   .collect::<Vec<i32>>();
     assert_eq!(ids, [1, 2, 3]);
+}
+
+#[test]
+fn transaction_config() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    conn.set_transaction_config(&config).unwrap();
+}
+
+#[test]
+fn transaction_with() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    conn.transaction_with(&config).unwrap().finish().unwrap();
+}
+
+#[test]
+fn transaction_set_config() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let trans = conn.transaction().unwrap();
+    let mut config = transaction::Config::new();
+    config.isolation_level(IsolationLevel::Serializable)
+          .read_only(true)
+          .deferrable(true);
+    trans.set_config(&config).unwrap();
+    trans.finish().unwrap();
 }

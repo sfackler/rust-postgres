@@ -1,7 +1,6 @@
 //! Error types.
 
 use byteorder;
-use phf;
 use std::error;
 use std::convert::From;
 use std::fmt;
@@ -9,9 +8,10 @@ use std::io;
 use std::result;
 use std::collections::HashMap;
 
+pub use self::sqlstate::SqlState;
 use {Result, DbErrorNew};
 
-include!(concat!(env!("OUT_DIR"), "/sqlstate.rs"));
+mod sqlstate;
 
 /// A Postgres error or notice.
 #[derive(Clone, PartialEq, Eq)]
@@ -208,9 +208,8 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::ConnectParams(ref err) => Some(&**err),
+            ConnectError::ConnectParams(ref err) | ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
-            ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
         }
     }
