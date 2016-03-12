@@ -22,7 +22,7 @@ path = "tests/test.rs"
 
 [dependencies]
 bufstream = "0.1"
-byteorder = ">= 0.3, < 0.5"
+byteorder = "0.5"
 log = "0.3"
 phf = "0.7"
 hex = "0.1"
