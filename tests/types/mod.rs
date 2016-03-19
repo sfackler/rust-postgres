@@ -22,6 +22,8 @@ mod rustc_serialize;
 mod serde_json;
 #[cfg(feature = "chrono")]
 mod chrono;
+#[cfg(feature = "num")]
+mod num;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));

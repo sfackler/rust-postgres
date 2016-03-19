@@ -87,7 +87,7 @@ impl ToSql for BigRational {
                                      0,
                                      Zero::zero(),
                                      fraction.numer().clone(),
-                                     fraction.denom().clone());
+                                     fraction.denom().clone());     
         let itg_digits = get_bigint_digits(&integral) as f64;
         let mut itg_buf16: Vec<u16> = Vec::new();
         let segments = (itg_digits / 4f64).ceil() as u64;
