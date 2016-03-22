@@ -41,3 +41,4 @@ num = { version = "0.1", optional = true }
 
 [dev-dependencies]
 url = "0.5"
+rand = "0.3"

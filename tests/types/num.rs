@@ -1,8 +1,12 @@
 extern crate num;
+extern crate rand;
 
 use self::num::rational::BigRational;
 use self::num::bigint::{BigInt};
 use self::num::traits::{FromPrimitive, Zero};
+
+use self::rand::Rng;
+use self::rand::distributions::{IndependentSample, Range};
 
 use types::test_type;
 
@@ -41,8 +45,118 @@ fn test_negative() {
 }
 
 #[test]
-fn test_third() {  // will fail, arbitrary precision is impossible as a decimal
+#[should_panic] // will fail, arbitrary precision is impossible here as a decimal
+fn test_third_meant_to_fail() {
     let third = BigRational::new(BigInt::from_u64(1).unwrap(),
                                  BigInt::from_u64(3).unwrap());
     test_type("NUMERIC", &[(Some(third), "'0.333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333'"), (None, "NULL")]);
+}
+
+fn generate_integer<R: Rng>(rng: &mut R) -> (BigRational, String) {
+    let size_max = Range::new(1, 1000);        
+    let mut count = 0;
+    let size = size_max.ind_sample(rng);
+    let mut digits: String = String::new();
+    let mut char_gen = rng.gen_ascii_chars();
+    while count < size {
+        let character: char = char_gen.next().unwrap();
+        if character.is_digit(10) {
+            digits.push(character);
+            count += 1;
+        }
+    }
+    let integer = BigRational::from_integer(BigInt::parse_bytes(digits.as_bytes(), 10).unwrap());
+    (integer, digits.trim_left_matches('0').to_string())
+}
+
+#[test]
+fn test_battery_integer() {
+    let mut rng = rand::thread_rng();
+    let times = 1;  // add zeroes here if you want to test more
+    let mut count = 0;
+    while count < times {
+        count += 1;
+        let (integer, num_string) = generate_integer(&mut rng);
+        test_type("NUMERIC", &[(Some(integer), &num_string[..]), (None, "NULL")]);
+    }
+}
+
+fn generate_fractional<R: Rng>(rng: &mut R) -> (BigRational, String) {
+    let precision_max = Range::new(1, 999);
+    let mut count = 0;
+    let precision = precision_max.ind_sample(rng);
+    let mut digits: String = String::new();
+    let mut char_gen = rng.gen_ascii_chars();
+    while count < precision {
+        let character: char = char_gen.next().unwrap();
+        if character.is_digit(10) {
+            digits.push(character);
+            count += 1;
+        }
+    }
+    let divisor = num::pow(BigInt::from_u64(10).unwrap(), precision as usize);
+    let fractional = BigRational::new(BigInt::parse_bytes(digits.as_bytes(), 10).unwrap(), divisor);
+    digits.insert(0, '.');
+    digits.insert(0, '0');
+    (fractional, digits.trim_right_matches('0').to_string())
+}
+
+#[test]
+fn test_battery_fractional() {
+    let mut rng = rand::thread_rng();
+    let times = 1;  // add zeroes here to test more
+    let mut count = 0;
+    while count < times {
+        count += 1;
+        let (fractional, num_string) = generate_fractional(&mut rng);
+        test_type("NUMERIC", &[(Some(fractional), &num_string[..]), (None, "NULL")]);
+    }
+}
+
+fn generate_decimal<R: Rng>(rng: &mut R) -> (BigRational, String) {
+    let size_max = Range::new(1, 10);
+    let size = size_max.ind_sample(rng);
+    let precision_max = Range::new(0, size);
+    let precision = precision_max.ind_sample(rng);
+    let integral_size = size - precision;
+    let mut integral_digits: String = String::new();
+    let mut fractional_digits: String = String::new();
+    let mut char_gen = rng.gen_ascii_chars();
+    let mut count = 0;
+    while count < size {
+        let character: char = char_gen.next().unwrap();
+        if character.is_digit(10) {
+            if count < integral_size {
+                integral_digits.push(character);
+            } else {
+                fractional_digits.push(character);
+            }
+            count += 1;
+        }
+    }
+    let divisor = num::pow(BigInt::from_u64(10).unwrap(), precision as usize);
+    let combined_num = integral_digits.clone() + &fractional_digits.clone()[..];
+    let formatted_num = if integral_digits.is_empty() && fractional_digits.is_empty() {
+        "0".to_string()
+    } else if !integral_digits.is_empty() && fractional_digits.is_empty() {
+        integral_digits.clone()
+    } else if integral_digits.is_empty() && !fractional_digits.is_empty() {
+        "0.".to_string() + &fractional_digits[..]
+    } else {
+        integral_digits + "." + &fractional_digits[..]
+    };
+    let decimal = BigRational::new(BigInt::parse_bytes(combined_num.as_bytes(), 10).unwrap(), divisor);
+    (decimal, formatted_num.trim_matches('0').to_string())
+}
+
+#[test]
+fn test_battery_decimal() {
+    let mut rng = rand::thread_rng();
+    let times = 1;   // add zeroes here to test more
+    let mut count = 0;
+    while count < times {
+        count += 1;
+        let (decimal, num_string) = generate_decimal(&mut rng);
+        test_type("NUMERIC", &[(Some(decimal), &num_string[..]), (None, "NULL")]);
+    }
 }
