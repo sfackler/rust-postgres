@@ -98,7 +98,12 @@ fn generate_fractional<R: Rng>(rng: &mut R) -> (BigRational, String) {
     let fractional = BigRational::new(BigInt::parse_bytes(digits.as_bytes(), 10).unwrap(), divisor);
     digits.insert(0, '.');
     digits.insert(0, '0');
-    (fractional, digits.trim_right_matches('0').to_string())
+    let trimmed = if digits.len() > 3 {
+        digits.trim_right_matches('0').to_string()
+    } else {
+        digits
+    };            
+    (fractional, trimmed)
 }
 
 #[test]
@@ -114,7 +119,7 @@ fn test_battery_fractional() {
 }
 
 fn generate_decimal<R: Rng>(rng: &mut R) -> (BigRational, String) {
-    let size_max = Range::new(1, 10);
+    let size_max = Range::new(1, 1000);
     let size = size_max.ind_sample(rng);
     let precision_max = Range::new(0, size);
     let precision = precision_max.ind_sample(rng);
@@ -136,6 +141,8 @@ fn generate_decimal<R: Rng>(rng: &mut R) -> (BigRational, String) {
     }
     let divisor = num::pow(BigInt::from_u64(10).unwrap(), precision as usize);
     let combined_num = integral_digits.clone() + &fractional_digits.clone()[..];
+    integral_digits = integral_digits.trim_left_matches('0').to_string();
+    fractional_digits = fractional_digits.trim_right_matches('0').to_string();
     let formatted_num = if integral_digits.is_empty() && fractional_digits.is_empty() {
         "0".to_string()
     } else if !integral_digits.is_empty() && fractional_digits.is_empty() {
@@ -145,8 +152,12 @@ fn generate_decimal<R: Rng>(rng: &mut R) -> (BigRational, String) {
     } else {
         integral_digits + "." + &fractional_digits[..]
     };
-    let decimal = BigRational::new(BigInt::parse_bytes(combined_num.as_bytes(), 10).unwrap(), divisor);
-    (decimal, formatted_num.trim_matches('0').to_string())
+    let decimal = if formatted_num == "0" {
+        Zero::zero()
+    } else {
+        BigRational::new(BigInt::parse_bytes(combined_num.as_bytes(), 10).unwrap(), divisor)
+    };
+    (decimal, formatted_num)
 }
 
 #[test]
