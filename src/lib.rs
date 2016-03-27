@@ -1020,13 +1020,13 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// Connection via Unix sockets is supported with the `unix_socket`
-    /// feature. To connect to the server via Unix sockets, `host` should be
-    /// set to the absolute path of the directory containing the socket file.
-    /// Since `/` is a reserved character in URLs, the path should be URL
-    /// encoded. If the path contains non-UTF 8 characters, a `ConnectParams`
-    /// struct should be created manually and passed in. Note that Postgres
-    /// does not support SSL over Unix sockets.
+    /// Connection via Unix sockets is supported with either the `unix_socket`
+    /// or `nightly` features. To connect to the server via Unix sockets, `host`
+    /// should be set to the absolute path of the directory containing the
+    /// socket file.  Since `/` is a reserved character in URLs, the path should
+    /// be URL encoded. If the path contains non-UTF 8 characters, a
+    /// `ConnectParams` struct should be created manually and passed in. Note
+    /// that Postgres does not support SSL over Unix sockets.
     ///
     /// # Examples
     ///

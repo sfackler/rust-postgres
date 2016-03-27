@@ -74,11 +74,11 @@ let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password`, and `md5` authentication.
 
-Unix domain sockets can be used as well by activating the `unix_socket` feature.
-The `host` portion of the URI should be set to the absolute path to the
-directory containing the socket file. Since `/` is a reserved character in
-URLs, the path should be URL encoded. If Postgres stored its socket files in
-`/run/postgres`, the connection would then look like:
+Unix domain sockets can be used as well by activating the `unix_socket` or
+`nightly` features.  The `host` portion of the URI should be set to the absolute
+path to the directory containing the socket file. Since `/` is a reserved
+character in URLs, the path should be URL encoded. If Postgres stored its socket
+files in `/run/postgres`, the connection would then look like:
 ```rust
 let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
 ```
