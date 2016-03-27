@@ -284,8 +284,8 @@ crate.
 ### Unix socket connections
 
 Support for connections through Unix domain sockets is provided optionally by
-the `unix_socket` feature. It is only available on "unixy" platforms such as
-OSX, BSD and Linux.
+either the `unix_socket` or `nightly` features. It is only available on "unixy"
+platforms such as OSX, BSD and Linux.
 
 ### UUID type
 
