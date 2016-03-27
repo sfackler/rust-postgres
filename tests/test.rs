@@ -75,7 +75,7 @@ fn test_connection_finish() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "unix_socket"), ignore)]
+#[cfg_attr(not(any(feature = "unix_socket", feature = "nightly")), ignore)]
 fn test_unix_connection() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let stmt = or_panic!(conn.prepare("SHOW unix_socket_directories"));

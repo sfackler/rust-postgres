@@ -20,6 +20,9 @@ bench = false
 name = "test"
 path = "tests/test.rs"
 
+[features]
+nightly = []
+
 [dependencies]
 bufstream = "0.1"
 byteorder = "0.5"

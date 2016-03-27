@@ -41,6 +41,7 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.4")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
+#![cfg_attr(feature = "nightly", feature(unix_socket))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -68,7 +69,7 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
-#[cfg(feature = "unix_socket")]
+#[cfg(any(feature = "unix_socket", feature = "nightly"))]
 use std::path::PathBuf;
 
 // FIXME remove in 0.12
@@ -115,8 +116,8 @@ pub enum ConnectTarget {
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     ///
-    /// Requires the `unix_socket` feature.
-    #[cfg(feature = "unix_socket")]
+    /// Requires the `unix_socket` or `nightly` feature.
+    #[cfg(any(feature = "unix_socket", feature = "nightly"))]
     Unix(PathBuf),
 }
 
@@ -173,12 +174,12 @@ impl<'a> IntoConnectParams for &'a str {
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
-        #[cfg(feature = "unix_socket")]
+        #[cfg(any(feature = "unix_socket", feature = "nightly"))]
         fn make_unix(maybe_path: String)
                      -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
-        #[cfg(not(feature = "unix_socket"))]
+        #[cfg(not(any(feature = "unix_socket", feature = "nightly")))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
             Err("unix socket support requires the `unix_socket` feature".into())
         }
