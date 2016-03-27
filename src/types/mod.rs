@@ -69,6 +69,8 @@ mod serde_json;
 mod chrono;
 #[cfg(feature = "eui48")]
 mod eui48;
+#[cfg(feature = "num")]
+mod num;
 
 mod types;
 

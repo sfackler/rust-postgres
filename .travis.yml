@@ -10,4 +10,4 @@ before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "uuid rustc-serialize time unix_socket serde_json chrono openssl bit-vec eui48"
+- cargo test --features "uuid rustc-serialize time unix_socket serde_json chrono openssl bit-vec eui48 num"
