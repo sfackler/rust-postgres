@@ -7,7 +7,6 @@ use std::io::prelude::*;
 use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
-pub use self::slice::Slice;
 pub use self::types::Type;
 pub use self::special::{Date, Timestamp};
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
@@ -61,7 +60,6 @@ mod bit_vec;
 mod uuid;
 #[cfg(feature = "time")]
 mod time;
-mod slice;
 #[cfg(feature = "rustc-serialize")]
 mod rustc_serialize;
 #[cfg(feature = "serde_json")]
