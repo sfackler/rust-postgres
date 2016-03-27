@@ -269,7 +269,7 @@ The [postgres-derive](https://github.com/sfackler/rust-postgres-derive)
 crate will synthesize `ToSql` and `FromSql` implementations for enum, domain,
 and composite Postgres types.
 
-Support for array types is located in the
+Full support for array types is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
 Support for range types is located in the

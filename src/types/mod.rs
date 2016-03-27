@@ -296,6 +296,11 @@ impl WrongTypeNew for WrongType {
 /// In addition to the types listed above, `FromSql` is implemented for
 /// `Option<T>` where `T` implements `FromSql`. An `Option<T>` represents a
 /// nullable Postgres value.
+///
+/// # Arrays
+///
+/// `FromSql` is implemented for `Vec<T>` where `T` implements `FromSql`, and
+/// corresponds to one-dimensional Postgres arrays.
 pub trait FromSql: Sized {
     /// Creates a new value of this type from a `Read`er of the binary format
     /// of the specified Postgres `Type`.
@@ -341,6 +346,46 @@ impl FromSql for bool {
     }
 
     accepts!(Type::Bool);
+}
+
+impl<T: FromSql> FromSql for Vec<T> {
+    fn from_sql<R: Read>(ty: &Type, raw: &mut R, info: &SessionInfo) -> Result<Vec<T>> {
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
+            _ => panic!("expected array type"),
+        };
+
+        if try!(raw.read_i32::<BigEndian>()) != 1 {
+            return Err(Error::Conversion("array contains too many dimensions".into()));
+        }
+
+        let _has_nulls = try!(raw.read_i32::<BigEndian>());
+        let _member_oid = try!(raw.read_u32::<BigEndian>());
+
+        let count = try!(raw.read_i32::<BigEndian>());
+        let _index_offset = try!(raw.read_i32::<BigEndian>());
+
+        let mut out = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            let len = try!(raw.read_i32::<BigEndian>());
+            let value = if len < 0 {
+                try!(T::from_sql_null(&member_type, info))
+            } else {
+                let mut raw = raw.take(len as u64);
+                try!(T::from_sql(&member_type, &mut raw, info))
+            };
+            out.push(value)
+        }
+
+        Ok(out)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Array(ref inner) => T::accepts(inner),
+            _ => false,
+        }
+    }
 }
 
 impl FromSql for Vec<u8> {
@@ -496,6 +541,12 @@ pub enum IsNull {
 /// In addition to the types listed above, `ToSql` is implemented for
 /// `Option<T>` where `T` implements `ToSql`. An `Option<T>` represents a
 /// nullable Postgres value.
+///
+/// # Arrays
+///
+/// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
+/// and corresponds to one-dimentional Postgres arrays with an index offset of
+/// 0.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, writing it to `out`.
@@ -573,6 +624,48 @@ impl ToSql for bool {
     accepts!(Type::Bool);
 }
 
+impl<'a, T: ToSql> ToSql for &'a [T] {
+    to_sql_checked!();
+
+    fn to_sql<W: Write + ?Sized>(&self, ty: &Type,
+                                 mut w: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
+            _ => panic!("expected array type"),
+        };
+
+        try!(w.write_i32::<BigEndian>(1)); // number of dimensions
+        try!(w.write_i32::<BigEndian>(1)); // has nulls
+        try!(w.write_u32::<BigEndian>(member_type.oid()));
+
+        try!(w.write_i32::<BigEndian>(try!(downcast(self.len()))));
+        try!(w.write_i32::<BigEndian>(0)); // index offset
+
+        let mut inner_buf = vec![];
+        for e in *self {
+            match try!(e.to_sql(&member_type, &mut inner_buf, ctx)) {
+                IsNull::No => {
+                    try!(w.write_i32::<BigEndian>(try!(downcast(inner_buf.len()))));
+                    try!(w.write_all(&inner_buf));
+                }
+                IsNull::Yes => try!(w.write_i32::<BigEndian>(-1)),
+            }
+            inner_buf.clear();
+        }
+
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Array(ref member) => T::accepts(member),
+            _ => false,
+        }
+    }
+}
+
 impl<'a> ToSql for &'a [u8] {
     to_sql_checked!();
 
@@ -582,6 +675,18 @@ impl<'a> ToSql for &'a [u8] {
     }
 
     accepts!(Type::Bytea);
+}
+
+impl<T: ToSql> ToSql for Vec<T> {
+    to_sql_checked!();
+
+    fn to_sql<W: Write + ?Sized>(&self, ty: &Type, w: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+        <&[T] as ToSql>::to_sql(&&**self, ty, w, ctx)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[T] as ToSql>::accepts(ty)
+    }
 }
 
 impl ToSql for Vec<u8> {
