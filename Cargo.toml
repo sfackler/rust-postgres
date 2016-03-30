@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.11.4"
+version = "0.11.5"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.4/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.5/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
@@ -20,11 +20,14 @@ bench = false
 name = "test"
 path = "tests/test.rs"
 
+[features]
+nightly = []
+
 [dependencies]
 bufstream = "0.1"
-byteorder = ">= 0.3, < 0.5"
+byteorder = "0.5"
 log = "0.3"
-phf = "0.7"
+phf = "=0.7.14"
 hex = "0.1"
 net2 = "0.2.16"
 rustc-serialize = { version = "0.3", optional = true }

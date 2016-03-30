@@ -1,6 +1,5 @@
 //! Error types.
 
-use byteorder;
 use std::error;
 use std::convert::From;
 use std::fmt;
@@ -227,12 +226,6 @@ impl From<DbError> for ConnectError {
     }
 }
 
-impl From<byteorder::Error> for ConnectError {
-    fn from(err: byteorder::Error) -> ConnectError {
-        ConnectError::Io(From::from(err))
-    }
-}
-
 /// Represents the position of an error in a query.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ErrorPosition {
@@ -296,12 +289,6 @@ impl From<DbError> for Error {
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
         Error::Io(err)
-    }
-}
-
-impl From<byteorder::Error> for Error {
-    fn from(err: byteorder::Error) -> Error {
-        Error::Io(From::from(err))
     }
 }
 

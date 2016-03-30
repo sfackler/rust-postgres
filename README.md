@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.4/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.5/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -74,11 +74,11 @@ let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password`, and `md5` authentication.
 
-Unix domain sockets can be used as well by activating the `unix_socket` feature.
-The `host` portion of the URI should be set to the absolute path to the
-directory containing the socket file. Since `/` is a reserved character in
-URLs, the path should be URL encoded. If Postgres stored its socket files in
-`/run/postgres`, the connection would then look like:
+Unix domain sockets can be used as well by activating the `unix_socket` or
+`nightly` features.  The `host` portion of the URI should be set to the absolute
+path to the directory containing the socket file. Since `/` is a reserved
+character in URLs, the path should be URL encoded. If Postgres stored its socket
+files in `/run/postgres`, the connection would then look like:
 ```rust
 let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
 ```
@@ -269,7 +269,7 @@ The [postgres-derive](https://github.com/sfackler/rust-postgres-derive)
 crate will synthesize `ToSql` and `FromSql` implementations for enum, domain,
 and composite Postgres types.
 
-Support for array types is located in the
+Full support for array types is located in the
 [postgres-array](https://github.com/sfackler/rust-postgres-array) crate.
 
 Support for range types is located in the
@@ -284,8 +284,8 @@ crate.
 ### Unix socket connections
 
 Support for connections through Unix domain sockets is provided optionally by
-the `unix_socket` feature. It is only available on "unixy" platforms such as
-OSX, BSD and Linux.
+either the `unix_socket` or `nightly` features. It is only available on "unixy"
+platforms such as OSX, BSD and Linux.
 
 ### UUID type
 

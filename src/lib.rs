@@ -38,9 +38,10 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.4")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.5")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
+#![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -68,7 +69,7 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
-#[cfg(feature = "unix_socket")]
+#[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
 use std::path::PathBuf;
 
 // FIXME remove in 0.12
@@ -115,8 +116,8 @@ pub enum ConnectTarget {
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     ///
-    /// Requires the `unix_socket` feature.
-    #[cfg(feature = "unix_socket")]
+    /// Requires the `unix_socket` or `nightly` feature.
+    #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
     Unix(PathBuf),
 }
 
@@ -173,14 +174,14 @@ impl<'a> IntoConnectParams for &'a str {
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
-        #[cfg(feature = "unix_socket")]
+        #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
         fn make_unix(maybe_path: String)
                      -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
-        #[cfg(not(feature = "unix_socket"))]
+        #[cfg(not(any(feature = "unix_socket", all(unix, feature = "nightly"))))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
-            Err("unix socket support requires the `unix_socket` feature".into())
+            Err("unix socket support requires the `unix_socket` or `nightly` features".into())
         }
 
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
@@ -1019,13 +1020,13 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// Connection via Unix sockets is supported with the `unix_socket`
-    /// feature. To connect to the server via Unix sockets, `host` should be
-    /// set to the absolute path of the directory containing the socket file.
-    /// Since `/` is a reserved character in URLs, the path should be URL
-    /// encoded. If the path contains non-UTF 8 characters, a `ConnectParams`
-    /// struct should be created manually and passed in. Note that Postgres
-    /// does not support SSL over Unix sockets.
+    /// Connection via Unix sockets is supported with either the `unix_socket`
+    /// or `nightly` features. To connect to the server via Unix sockets, `host`
+    /// should be set to the absolute path of the directory containing the
+    /// socket file.  Since `/` is a reserved character in URLs, the path should
+    /// be URL encoded. If the path contains non-UTF 8 characters, a
+    /// `ConnectParams` struct should be created manually and passed in. Note
+    /// that Postgres does not support SSL over Unix sockets.
     ///
     /// # Examples
     ///

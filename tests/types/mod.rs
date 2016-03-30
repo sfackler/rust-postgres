@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 
 use postgres::{Connection, SslMode, Result};
 use postgres::error::Error;
-use postgres::types::{ToSql, FromSql, Slice, WrongType, Type, IsNull, Kind, SessionInfo};
+use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, SessionInfo};
 
 #[cfg(feature = "bit-vec")]
 mod bit_vec;
@@ -207,7 +207,7 @@ fn test_slice() {
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');").unwrap();
 
     let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)").unwrap();
-    let result = stmt.query(&[&Slice(&[1i32, 3, 4])]).unwrap();
+    let result = stmt.query(&[&&[1i32, 3, 4][..]]).unwrap();
     assert_eq!(vec!["a".to_owned(), "c".to_owned(), "d".to_owned()],
                result.iter().map(|r| r.get::<_, String>(0)).collect::<Vec<_>>());
 }
@@ -218,7 +218,7 @@ fn test_slice_wrong_type() {
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)").unwrap();
 
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
-    match stmt.query(&[&Slice(&["hi"])]) {
+    match stmt.query(&[&&["hi"][..]]) {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
@@ -230,7 +230,7 @@ fn test_slice_range() {
     let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
 
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
-    match stmt.query(&[&Slice(&[1i64])]) {
+    match stmt.query(&[&&[1i64][..]]) {
         Ok(_) => panic!("Unexpected success"),
         Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
         Err(e) => panic!("Unexpected error {:?}", e),
