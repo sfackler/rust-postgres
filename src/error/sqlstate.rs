@@ -482,7 +482,7 @@ pub enum SqlState {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
     key: 1897749892740154578,
-    disps: &[
+    disps: ::phf::Slice::Static(&[
         (0, 10),
         (1, 206),
         (0, 38),
@@ -531,8 +531,8 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
         (0, 233),
         (2, 149),
         (0, 105),
-    ],
-    entries: &[
+    ]),
+    entries: ::phf::Slice::Static(&[
         ("42P03", SqlState::DuplicateCursor),
         ("22019", SqlState::InvalidEscapeCharacter),
         ("22022", SqlState::IndicatorOverflow),
@@ -769,7 +769,7 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
         ("28000", SqlState::InvalidAuthorizationSpecification),
         ("0Z002", SqlState::StackedDiagnosticsAccessedWithoutActiveHandler),
         ("02000", SqlState::NoData),
-    ]
+    ]),
 };
 
 impl SqlState {
