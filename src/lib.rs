@@ -41,7 +41,7 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.4")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
-#![cfg_attr(feature = "nightly", feature(unix_socket))]
+#![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -69,7 +69,7 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
-#[cfg(any(feature = "unix_socket", feature = "nightly"))]
+#[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
 use std::path::PathBuf;
 
 // FIXME remove in 0.12
@@ -117,7 +117,7 @@ pub enum ConnectTarget {
     /// Connect via a Unix domain socket in the specified directory.
     ///
     /// Requires the `unix_socket` or `nightly` feature.
-    #[cfg(any(feature = "unix_socket", feature = "nightly"))]
+    #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
     Unix(PathBuf),
 }
 
@@ -174,14 +174,14 @@ impl<'a> IntoConnectParams for &'a str {
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
-        #[cfg(any(feature = "unix_socket", feature = "nightly"))]
+        #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
         fn make_unix(maybe_path: String)
                      -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
-        #[cfg(not(any(feature = "unix_socket", feature = "nightly")))]
+        #[cfg(not(any(feature = "unix_socket", all(unix, feature = "nightly"))))]
         fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
-            Err("unix socket support requires the `unix_socket` feature".into())
+            Err("unix socket support requires the `unix_socket` or `nightly` features".into())
         }
 
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
