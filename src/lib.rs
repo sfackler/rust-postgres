@@ -38,7 +38,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.5")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.6")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
@@ -471,6 +471,8 @@ impl InnerConnection {
                                 ORDER BY enumsortorder") {
             Ok(..) => {}
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            // Old versions of Postgres and things like Redshift don't support enums
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
             Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
             Err(Error::Conversion(_)) => unreachable!(),
         }
@@ -484,6 +486,8 @@ impl InnerConnection {
                                 ORDER BY attnum") {
             Ok(..) => {}
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            // Old versions of Postgres and things like Redshift don't support composites
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
             Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
             Err(Error::Conversion(_)) => unreachable!(),
         }
