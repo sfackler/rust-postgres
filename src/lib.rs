@@ -75,9 +75,9 @@ pub use transaction::Transaction;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{StreamWrapper, NegotiateSsl};
-use message::BackendMessage::*;
-use message::FrontendMessage::*;
-use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
+use message::Backend::*;
+use message::Frontend::*;
+use message::{Frontend, Backend, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
@@ -521,7 +521,7 @@ impl InnerConnection {
         }
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> std_io::Result<()> {
+    fn write_messages(&mut self, messages: &[Frontend]) -> std_io::Result<()> {
         debug_assert!(!self.desynchronized);
         for message in messages {
             try_desync!(self, self.stream.write_message(message));
@@ -529,7 +529,7 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
@@ -548,7 +548,7 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> std::io::Result<Option<BackendMessage>> {
+                                              -> std::io::Result<Option<Backend>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
@@ -566,7 +566,7 @@ impl InnerConnection {
     }
 
     fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> std::io::Result<Option<BackendMessage>> {
+                                                  -> std::io::Result<Option<Backend>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
@@ -583,7 +583,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> std_io::Result<BackendMessage> {
+    fn read_message(&mut self) -> std_io::Result<Backend> {
         loop {
             match try!(self.read_message_with_notification()) {
                 NotificationResponse { pid, channel, payload } => {

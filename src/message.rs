@@ -7,14 +7,14 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use types::Oid;
 use priv_io::StreamOptions;
 
-use self::BackendMessage::*;
-use self::FrontendMessage::*;
+use self::Backend::*;
+use self::Frontend::*;
 
 pub const PROTOCOL_VERSION: u32 = 0x0003_0000;
 pub const CANCEL_CODE: u32 = 80877102;
 pub const SSL_CODE: u32 = 80877103;
 
-pub enum BackendMessage {
+pub enum Backend {
     AuthenticationCleartextPassword,
     AuthenticationGSS,
     AuthenticationKerberosV5,
@@ -89,7 +89,7 @@ pub struct RowDescriptionEntry {
     pub format: i16,
 }
 
-pub enum FrontendMessage<'a> {
+pub enum Frontend<'a> {
     Bind {
         portal: &'a str,
         statement: &'a str,
@@ -157,12 +157,12 @@ impl<W: Write> WriteCStr for W {
 
 #[doc(hidden)]
 pub trait WriteMessage {
-    fn write_message(&mut self, &FrontendMessage) -> io::Result<()>;
+    fn write_message(&mut self, &Frontend) -> io::Result<()>;
 }
 
 impl<W: Write> WriteMessage for W {
     #[allow(cyclomatic_complexity)]
-    fn write_message(&mut self, message: &FrontendMessage) -> io::Result<()> {
+    fn write_message(&mut self, message: &Frontend) -> io::Result<()> {
         let mut buf = vec![];
         let mut ident = None;
 
@@ -283,22 +283,22 @@ impl<R: BufRead> ReadCStr for R {
 
 #[doc(hidden)]
 pub trait ReadMessage {
-    fn read_message(&mut self) -> io::Result<BackendMessage>;
+    fn read_message(&mut self) -> io::Result<Backend>;
 
-    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<BackendMessage>>;
+    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<Backend>>;
 
-    fn read_message_nonblocking(&mut self) -> io::Result<Option<BackendMessage>>;
+    fn read_message_nonblocking(&mut self) -> io::Result<Option<Backend>>;
 
-    fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage>;
+    fn finish_read_message(&mut self, ident: u8) -> io::Result<Backend>;
 }
 
 impl<R: BufRead + StreamOptions> ReadMessage for R {
-    fn read_message(&mut self) -> io::Result<BackendMessage> {
+    fn read_message(&mut self) -> io::Result<Backend> {
         let ident = try!(self.read_u8());
         self.finish_read_message(ident)
     }
 
-    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<BackendMessage>> {
+    fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<Backend>> {
         try!(self.set_read_timeout(Some(timeout)));
         let ident = self.read_u8();
         try!(self.set_read_timeout(None));
@@ -316,7 +316,7 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
         }
     }
 
-    fn read_message_nonblocking(&mut self) -> io::Result<Option<BackendMessage>> {
+    fn read_message_nonblocking(&mut self) -> io::Result<Option<Backend>> {
         try!(self.set_nonblocking(true));
         let ident = self.read_u8();
         try!(self.set_nonblocking(false));
@@ -335,7 +335,7 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
     }
 
     #[allow(cyclomatic_complexity)]
-    fn finish_read_message(&mut self, ident: u8) -> io::Result<BackendMessage> {
+    fn finish_read_message(&mut self, ident: u8) -> io::Result<Backend> {
         // subtract size of length value
         let len = try!(self.read_u32::<BigEndian>()) - mem::size_of::<u32>() as u32;
         let mut rdr = self.by_ref().take(len as u64);
@@ -428,7 +428,7 @@ fn read_fields<R: BufRead>(buf: &mut R) -> io::Result<Vec<(u8, String)>> {
     Ok(fields)
 }
 
-fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
+fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<Backend> {
     let len = try!(buf.read_u16::<BigEndian>()) as usize;
     let mut values = Vec::with_capacity(len);
 
@@ -447,7 +447,7 @@ fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
     Ok(DataRow { row: values })
 }
 
-fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
+fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<Backend> {
     Ok(match try!(buf.read_i32::<BigEndian>()) {
         0 => AuthenticationOk,
         2 => AuthenticationKerberosV5,
@@ -467,7 +467,7 @@ fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
     })
 }
 
-fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<BackendMessage> {
+fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<Backend> {
     let len = try!(buf.read_u16::<BigEndian>()) as usize;
     let mut types = Vec::with_capacity(len);
 
@@ -478,7 +478,7 @@ fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<BackendMessage
     Ok(ParameterDescription { types: types })
 }
 
-fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<BackendMessage> {
+fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<Backend> {
     let len = try!(buf.read_u16::<BigEndian>()) as usize;
     let mut types = Vec::with_capacity(len);
 

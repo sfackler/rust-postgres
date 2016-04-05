@@ -12,7 +12,7 @@ use {Result, Transaction, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew, Stat
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
-use message::FrontendMessage::*;
+use message::Frontend::*;
 
 enum StatementContainer<'a> {
     Borrowed(&'a Statement<'a>),

@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql};
-use message::FrontendMessage::*;
-use message::BackendMessage::*;
+use message::Frontend::*;
+use message::Backend::*;
 use message::WriteMessage;
 use rows::{Rows, LazyRows};
 use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
