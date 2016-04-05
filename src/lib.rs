@@ -62,7 +62,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io as std_io;
 use std::io::prelude::*;
-use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
 use std::sync::Arc;
@@ -150,17 +149,17 @@ pub struct ConnectParams {
 /// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>>;
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>>;
 }
 
 impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => Err(err.into()),
@@ -169,14 +168,14 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
         fn make_unix(maybe_path: String)
-                     -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
+                     -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(any(feature = "unix_socket", all(unix, feature = "nightly"))))]
-        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
+        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
             Err("unix socket support requires the `unix_socket` or `nightly` features".into())
         }
 
@@ -401,7 +400,7 @@ impl InnerConnection {
         let user = match user {
             Some(user) => user,
             None => {
-                let err: Box<StdError + StdSync + Send> = "User missing from connection parameters"
+                let err: Box<StdError + Sync + Send> = "User missing from connection parameters"
                                                               .into();
                 return Err(ConnectError::ConnectParams(err));
             }
