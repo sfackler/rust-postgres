@@ -154,7 +154,7 @@ impl<'conn> Statement<'conn> {
                 Backend::CopyOutResponse { .. } => {
                     loop {
                         match try!(conn.read_message()) {
-                            Backend::BCopyDone => break,
+                            Backend::CopyDone => break,
                             Backend::ErrorResponse { fields } => {
                                 try!(conn.wait_for_ready());
                                 return DbError::new(fields);
@@ -405,7 +405,7 @@ impl<'conn> Statement<'conn> {
         let count;
         loop {
             match try!(info.conn.read_message()) {
-                Backend::BCopyData { data } => {
+                Backend::CopyData { data } => {
                     let mut data = &data[..];
                     while !data.is_empty() {
                         match w.write_with_info(data, &info) {
@@ -420,7 +420,7 @@ impl<'conn> Statement<'conn> {
                         }
                     }
                 }
-                Backend::BCopyDone => {}
+                Backend::CopyDone => {}
                 Backend::CommandComplete { tag } => {
                     count = parse_update_count(tag);
                     break;

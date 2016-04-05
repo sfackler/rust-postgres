@@ -30,11 +30,10 @@ pub enum Backend {
     CommandComplete {
         tag: String,
     },
-    // FIXME naming
-    BCopyData {
+    CopyData {
         data: Vec<u8>,
     },
-    BCopyDone,
+    CopyDone,
     CopyInResponse {
         format: u8,
         column_formats: Vec<u16>,
@@ -348,12 +347,12 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
                     payload: try!(rdr.read_cstr()),
                 }
             }
-            b'c' => Backend::BCopyDone,
+            b'c' => Backend::CopyDone,
             b'C' => Backend::CommandComplete { tag: try!(rdr.read_cstr()) },
             b'd' => {
                 let mut data = vec![];
                 try!(rdr.read_to_end(&mut data));
-                Backend::BCopyData { data: data }
+                Backend::CopyData { data: data }
             }
             b'D' => try!(read_data_row(&mut rdr)),
             b'E' => Backend::ErrorResponse { fields: try!(read_fields(&mut rdr)) },
