@@ -400,9 +400,7 @@ impl InnerConnection {
         let user = match user {
             Some(user) => user,
             None => {
-                let err: Box<StdError + Sync + Send> = "User missing from connection parameters"
-                                                              .into();
-                return Err(ConnectError::ConnectParams(err));
+                return Err(ConnectError::ConnectParams("User missing from connection parameters".into()));
             }
         };
 
