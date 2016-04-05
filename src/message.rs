@@ -7,9 +7,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use types::Oid;
 use priv_io::StreamOptions;
 
-use self::Backend::*;
-use self::Frontend::*;
-
 pub const PROTOCOL_VERSION: u32 = 0x0003_0000;
 pub const CANCEL_CODE: u32 = 80877102;
 pub const SSL_CODE: u32 = 80877103;
@@ -167,7 +164,7 @@ impl<W: Write> WriteMessage for W {
         let mut ident = None;
 
         match *message {
-            Bind { portal, statement, formats, values, result_formats } => {
+            Frontend::Bind { portal, statement, formats, values, result_formats } => {
                 ident = Some(b'B');
                 try!(buf.write_cstr(portal));
                 try!(buf.write_cstr(statement));
@@ -193,36 +190,36 @@ impl<W: Write> WriteMessage for W {
                     try!(buf.write_i16::<BigEndian>(format));
                 }
             }
-            CancelRequest { code, process_id, secret_key } => {
+            Frontend::CancelRequest { code, process_id, secret_key } => {
                 try!(buf.write_u32::<BigEndian>(code));
                 try!(buf.write_u32::<BigEndian>(process_id));
                 try!(buf.write_u32::<BigEndian>(secret_key));
             }
-            Close { variant, name } => {
+            Frontend::Close { variant, name } => {
                 ident = Some(b'C');
                 try!(buf.write_u8(variant));
                 try!(buf.write_cstr(name));
             }
-            CopyData { data } => {
+            Frontend::CopyData { data } => {
                 ident = Some(b'd');
                 try!(buf.write_all(data));
             }
-            CopyDone => ident = Some(b'c'),
-            CopyFail { message } => {
+            Frontend::CopyDone => ident = Some(b'c'),
+            Frontend::CopyFail { message } => {
                 ident = Some(b'f');
                 try!(buf.write_cstr(message));
             }
-            Describe { variant, name } => {
+            Frontend::Describe { variant, name } => {
                 ident = Some(b'D');
                 try!(buf.write_u8(variant));
                 try!(buf.write_cstr(name));
             }
-            Execute { portal, max_rows } => {
+            Frontend::Execute { portal, max_rows } => {
                 ident = Some(b'E');
                 try!(buf.write_cstr(portal));
                 try!(buf.write_i32::<BigEndian>(max_rows));
             }
-            Parse { name, query, param_types } => {
+            Frontend::Parse { name, query, param_types } => {
                 ident = Some(b'P');
                 try!(buf.write_cstr(name));
                 try!(buf.write_cstr(query));
@@ -231,15 +228,15 @@ impl<W: Write> WriteMessage for W {
                     try!(buf.write_u32::<BigEndian>(ty));
                 }
             }
-            PasswordMessage { password } => {
+            Frontend::PasswordMessage { password } => {
                 ident = Some(b'p');
                 try!(buf.write_cstr(password));
             }
-            Query { query } => {
+            Frontend::Query { query } => {
                 ident = Some(b'Q');
                 try!(buf.write_cstr(query));
             }
-            StartupMessage { version, parameters } => {
+            Frontend::StartupMessage { version, parameters } => {
                 try!(buf.write_u32::<BigEndian>(version));
                 for &(ref k, ref v) in parameters {
                     try!(buf.write_cstr(&**k));
@@ -247,9 +244,9 @@ impl<W: Write> WriteMessage for W {
                 }
                 try!(buf.write_u8(0));
             }
-            SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
-            Sync => ident = Some(b'S'),
-            Terminate => ident = Some(b'X'),
+            Frontend::SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
+            Frontend::Sync => ident = Some(b'S'),
+            Frontend::Terminate => ident = Some(b'X'),
         }
 
         if let Some(ident) = ident {
@@ -341,32 +338,32 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
         let mut rdr = self.by_ref().take(len as u64);
 
         let ret = match ident {
-            b'1' => ParseComplete,
-            b'2' => BindComplete,
-            b'3' => CloseComplete,
+            b'1' => Backend::ParseComplete,
+            b'2' => Backend::BindComplete,
+            b'3' => Backend::CloseComplete,
             b'A' => {
-                NotificationResponse {
+                Backend::NotificationResponse {
                     pid: try!(rdr.read_u32::<BigEndian>()),
                     channel: try!(rdr.read_cstr()),
                     payload: try!(rdr.read_cstr()),
                 }
             }
-            b'c' => BCopyDone,
-            b'C' => CommandComplete { tag: try!(rdr.read_cstr()) },
+            b'c' => Backend::BCopyDone,
+            b'C' => Backend::CommandComplete { tag: try!(rdr.read_cstr()) },
             b'd' => {
                 let mut data = vec![];
                 try!(rdr.read_to_end(&mut data));
-                BCopyData { data: data }
+                Backend::BCopyData { data: data }
             }
             b'D' => try!(read_data_row(&mut rdr)),
-            b'E' => ErrorResponse { fields: try!(read_fields(&mut rdr)) },
+            b'E' => Backend::ErrorResponse { fields: try!(read_fields(&mut rdr)) },
             b'G' => {
                 let format = try!(rdr.read_u8());
                 let mut column_formats = vec![];
                 for _ in 0..try!(rdr.read_u16::<BigEndian>()) {
                     column_formats.push(try!(rdr.read_u16::<BigEndian>()));
                 }
-                CopyInResponse {
+                Backend::CopyInResponse {
                     format: format,
                     column_formats: column_formats,
                 }
@@ -377,31 +374,31 @@ impl<R: BufRead + StreamOptions> ReadMessage for R {
                 for _ in 0..try!(rdr.read_u16::<BigEndian>()) {
                     column_formats.push(try!(rdr.read_u16::<BigEndian>()));
                 }
-                CopyOutResponse {
+                Backend::CopyOutResponse {
                     format: format,
                     column_formats: column_formats,
                 }
             }
-            b'I' => EmptyQueryResponse,
+            b'I' => Backend::EmptyQueryResponse,
             b'K' => {
-                BackendKeyData {
+                Backend::BackendKeyData {
                     process_id: try!(rdr.read_u32::<BigEndian>()),
                     secret_key: try!(rdr.read_u32::<BigEndian>()),
                 }
             }
-            b'n' => NoData,
-            b'N' => NoticeResponse { fields: try!(read_fields(&mut rdr)) },
+            b'n' => Backend::NoData,
+            b'N' => Backend::NoticeResponse { fields: try!(read_fields(&mut rdr)) },
             b'R' => try!(read_auth_message(&mut rdr)),
-            b's' => PortalSuspended,
+            b's' => Backend::PortalSuspended,
             b'S' => {
-                ParameterStatus {
+                Backend::ParameterStatus {
                     parameter: try!(rdr.read_cstr()),
                     value: try!(rdr.read_cstr()),
                 }
             }
             b't' => try!(read_parameter_description(&mut rdr)),
             b'T' => try!(read_row_description(&mut rdr)),
-            b'Z' => ReadyForQuery { _state: try!(rdr.read_u8()) },
+            b'Z' => Backend::ReadyForQuery { _state: try!(rdr.read_u8()) },
             t => {
                 return Err(io::Error::new(io::ErrorKind::Other,
                                           format!("unexpected message tag `{}`", t)))
@@ -444,22 +441,22 @@ fn read_data_row<R: BufRead>(buf: &mut R) -> io::Result<Backend> {
         values.push(val);
     }
 
-    Ok(DataRow { row: values })
+    Ok(Backend::DataRow { row: values })
 }
 
 fn read_auth_message<R: Read>(buf: &mut R) -> io::Result<Backend> {
     Ok(match try!(buf.read_i32::<BigEndian>()) {
-        0 => AuthenticationOk,
-        2 => AuthenticationKerberosV5,
-        3 => AuthenticationCleartextPassword,
+        0 => Backend::AuthenticationOk,
+        2 => Backend::AuthenticationKerberosV5,
+        3 => Backend::AuthenticationCleartextPassword,
         5 => {
             let mut salt = [0; 4];
             try!(buf.read_exact(&mut salt));
-            AuthenticationMD5Password { salt: salt }
+            Backend::AuthenticationMD5Password { salt: salt }
         }
-        6 => AuthenticationSCMCredential,
-        7 => AuthenticationGSS,
-        9 => AuthenticationSSPI,
+        6 => Backend::AuthenticationSCMCredential,
+        7 => Backend::AuthenticationGSS,
+        9 => Backend::AuthenticationSSPI,
         t => {
             return Err(io::Error::new(io::ErrorKind::Other,
                                       format!("unexpected authentication tag `{}`", t)))
@@ -475,7 +472,7 @@ fn read_parameter_description<R: Read>(buf: &mut R) -> io::Result<Backend> {
         types.push(try!(buf.read_u32::<BigEndian>()));
     }
 
-    Ok(ParameterDescription { types: types })
+    Ok(Backend::ParameterDescription { types: types })
 }
 
 fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<Backend> {
@@ -494,7 +491,7 @@ fn read_row_description<R: BufRead>(buf: &mut R) -> io::Result<Backend> {
         })
     }
 
-    Ok(RowDescription { descriptions: types })
+    Ok(Backend::RowDescription { descriptions: types })
 }
 
 trait FromUsize: Sized {

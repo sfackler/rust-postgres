@@ -8,9 +8,7 @@ use std::sync::Arc;
 
 use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql};
-use message::Frontend::*;
-use message::Backend::*;
-use message::WriteMessage;
+use message::{WriteMessage, Backend, Frontend};
 use rows::{Rows, LazyRows};
 use {bad_response, Connection, Transaction, StatementInternals, Result, RowsNew, InnerConnection,
      SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
@@ -133,31 +131,31 @@ impl<'conn> Statement<'conn> {
         let num;
         loop {
             match try!(conn.read_message()) {
-                DataRow { .. } => {}
-                ErrorResponse { fields } => {
+                Backend::DataRow { .. } => {}
+                Backend::ErrorResponse { fields } => {
                     try!(conn.wait_for_ready());
                     return DbError::new(fields);
                 }
-                CommandComplete { tag } => {
+                Backend::CommandComplete { tag } => {
                     num = parse_update_count(tag);
                     break;
                 }
-                EmptyQueryResponse => {
+                Backend::EmptyQueryResponse => {
                     num = 0;
                     break;
                 }
-                CopyInResponse { .. } => {
-                    try!(conn.write_messages(&[CopyFail {
+                Backend::CopyInResponse { .. } => {
+                    try!(conn.write_messages(&[Frontend::CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
                                                },
-                                               Sync]));
+                                               Frontend::Sync]));
                 }
-                CopyOutResponse { .. } => {
+                Backend::CopyOutResponse { .. } => {
                     loop {
                         match try!(conn.read_message()) {
-                            BCopyDone => break,
-                            ErrorResponse { fields } => {
+                            Backend::BCopyDone => break,
+                            Backend::ErrorResponse { fields } => {
                                 try!(conn.wait_for_ready());
                                 return DbError::new(fields);
                             }
@@ -269,14 +267,14 @@ impl<'conn> Statement<'conn> {
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
-            CopyInResponse { format, column_formats } => (format, column_formats),
-            ErrorResponse { fields } => {
+            Backend::CopyInResponse { format, column_formats } => (format, column_formats),
+            Backend::ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
                 return DbError::new(fields);
             }
             _ => {
                 loop {
-                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                    if let Backend::ReadyForQuery { .. } = try!(conn.read_message()) {
                         return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                             "called `copy_in` on a \
                                                              non-`COPY FROM STDIN` \
@@ -298,12 +296,14 @@ impl<'conn> Statement<'conn> {
                 Ok(0) => break,
                 Ok(len) => {
                     try_desync!(info.conn,
-                                info.conn.stream.write_message(&CopyData { data: &buf[..len] }));
+                                info.conn.stream.write_message(&Frontend::CopyData { data: &buf[..len] }));
                 }
                 Err(err) => {
-                    try!(info.conn.write_messages(&[CopyFail { message: "" }, CopyDone, Sync]));
+                    try!(info.conn.write_messages(&[Frontend::CopyFail { message: "" },
+                                                    Frontend::CopyDone,
+                                                    Frontend::Sync]));
                     match try!(info.conn.read_message()) {
-                        ErrorResponse { .. } => {
+                        Backend::ErrorResponse { .. } => {
                             // expected from the CopyFail
                         }
                         _ => {
@@ -317,11 +317,11 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.write_messages(&[CopyDone, Sync]));
+        try!(info.conn.write_messages(&[Frontend::CopyDone, Frontend::Sync]));
 
         let num = match try!(info.conn.read_message()) {
-            CommandComplete { tag } => parse_update_count(tag),
-            ErrorResponse { fields } => {
+            Backend::CommandComplete { tag } => parse_update_count(tag),
+            Backend::ErrorResponse { fields } => {
                 try!(info.conn.wait_for_ready());
                 return DbError::new(fields);
             }
@@ -362,11 +362,13 @@ impl<'conn> Statement<'conn> {
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
-            CopyOutResponse { format, column_formats } => (format, column_formats),
-            CopyInResponse { .. } => {
-                try!(conn.write_messages(&[CopyFail { message: "" }, CopyDone, Sync]));
+            Backend::CopyOutResponse { format, column_formats } => (format, column_formats),
+            Backend::CopyInResponse { .. } => {
+                try!(conn.write_messages(&[Frontend::CopyFail { message: "" },
+                                           Frontend::CopyDone,
+                                           Frontend::Sync]));
                 match try!(conn.read_message()) {
-                    ErrorResponse { .. } => {
+                    Backend::ErrorResponse { .. } => {
                         // expected from the CopyFail
                     }
                     _ => {
@@ -379,13 +381,13 @@ impl<'conn> Statement<'conn> {
                                                     "called `copy_out` on a non-`COPY TO \
                                                      STDOUT` statement")));
             }
-            ErrorResponse { fields } => {
+            Backend::ErrorResponse { fields } => {
                 try!(conn.wait_for_ready());
                 return DbError::new(fields);
             }
             _ => {
                 loop {
-                    if let ReadyForQuery { .. } = try!(conn.read_message()) {
+                    if let Backend::ReadyForQuery { .. } = try!(conn.read_message()) {
                         return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                             "called `copy_out` on a \
                                                              non-`COPY TO STDOUT` statement")));
@@ -403,14 +405,14 @@ impl<'conn> Statement<'conn> {
         let count;
         loop {
             match try!(info.conn.read_message()) {
-                BCopyData { data } => {
+                Backend::BCopyData { data } => {
                     let mut data = &data[..];
                     while !data.is_empty() {
                         match w.write_with_info(data, &info) {
                             Ok(n) => data = &data[n..],
                             Err(e) => {
                                 loop {
-                                    if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                                    if let Backend::ReadyForQuery { .. } = try!(info.conn.read_message()) {
                                         return Err(Error::Io(e));
                                     }
                                 }
@@ -418,21 +420,21 @@ impl<'conn> Statement<'conn> {
                         }
                     }
                 }
-                BCopyDone => {}
-                CommandComplete { tag } => {
+                Backend::BCopyDone => {}
+                Backend::CommandComplete { tag } => {
                     count = parse_update_count(tag);
                     break;
                 }
-                ErrorResponse { fields } => {
+                Backend::ErrorResponse { fields } => {
                     loop {
-                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                        if let Backend::ReadyForQuery { .. } = try!(info.conn.read_message()) {
                             return DbError::new(fields);
                         }
                     }
                 }
                 _ => {
                     loop {
-                        if let ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                        if let Backend::ReadyForQuery { .. } = try!(info.conn.read_message()) {
                             return Err(Error::Io(bad_response()));
                         }
                     }
