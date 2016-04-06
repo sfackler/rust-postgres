@@ -9,7 +9,6 @@
 // except according to those terms.
 use std::io::prelude::*;
 use std::str::FromStr;
-use std::str;
 use hex::FromHex;
 
 pub struct Url {
@@ -133,8 +132,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                         };
 
                         // Only decode some characters if full_url:
-                        match Vec::<u8>::from_hex(str::from_utf8(&bytes)
-                                                      .unwrap())
+                        match Vec::<u8>::from_hex(&bytes)
                                   .unwrap()[0] as char {
                             // gen-delims:
                             ':' |
