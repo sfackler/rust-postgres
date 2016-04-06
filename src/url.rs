@@ -132,8 +132,7 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                         };
 
                         // Only decode some characters if full_url:
-                        match Vec::<u8>::from_hex(&bytes)
-                                  .unwrap()[0] as char {
+                        match Vec::<u8>::from_hex(&bytes).unwrap()[0] as char {
                             // gen-delims:
                             ':' |
                             '/' |
