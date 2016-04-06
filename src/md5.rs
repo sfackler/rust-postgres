@@ -100,7 +100,7 @@ fn write_u32_le(dst: &mut [u8], mut input: u32) {
     }
 }
 
-/// The StandardPadding trait adds a method useful for various hash algorithms to a FixedBuffer
+/// The `StandardPadding` trait adds a method useful for various hash algorithms to a `FixedBuffer`
 /// struct.
 trait StandardPadding {
     /// Add standard padding to the buffer. The buffer must not be full when this method is called
@@ -125,11 +125,11 @@ impl<T: FixedBuffer> StandardPadding for T {
     }
 }
 
-/// A FixedBuffer, likes its name implies, is a fixed size buffer. When the buffer becomes full, it
-/// must be processed. The input() method takes care of processing and then clearing the buffer
+/// A `FixedBuffer`, likes its name implies, is a fixed size buffer. When the buffer becomes full,
+/// it must be processed. The input() method takes care of processing and then clearing the buffer
 /// automatically. However, other methods do not and require the caller to process the buffer. Any
-/// method that modifies the buffer directory or provides the caller with bytes that can be modifies
-/// results in those bytes being marked as used by the buffer.
+/// method that modifies the buffer directory or provides the caller with bytes that can be
+/// modifies results in those bytes being marked as used by the buffer.
 trait FixedBuffer {
     /// Input a vector of bytes. If the buffer becomes full, process it with the provided
     /// function and then clear the buffer.
@@ -257,6 +257,7 @@ impl Clone for FixedBuffer64 {
 
 impl FixedBuffer64 {
     /// Create a new buffer
+    #[allow(new_without_default)]
     fn new() -> FixedBuffer64 {
         FixedBuffer64 {
             buffer: [0u8; 64],
@@ -276,6 +277,7 @@ struct Md5State {
 }
 
 impl Md5State {
+    #[allow(new_without_default)]
     fn new() -> Md5State {
         Md5State {
             s0: 0x67452301,
@@ -292,6 +294,7 @@ impl Md5State {
         self.s3 = 0x10325476;
     }
 
+    #[allow(many_single_char_names)]
     fn process_block(&mut self, input: &[u8]) {
         fn f(u: u32, v: u32, w: u32) -> u32 {
             (u & v) | (!u & w)
@@ -429,6 +432,7 @@ pub struct Md5 {
 
 impl Md5 {
     /// Construct a new instance of the MD5 Digest.
+    #[allow(new_without_default)]
     pub fn new() -> Md5 {
         Md5 {
             length_bytes: 0,

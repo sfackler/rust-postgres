@@ -64,13 +64,13 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
 
 impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
-        if !self.finished {
+        if self.finished {
+            Ok(())
+        } else {
             self.finished = true;
             let mut conn = self.conn.conn.borrow_mut();
             check_desync!(conn);
             conn.close_statement(&self.info.name, b'S')
-        } else {
-            Ok(())
         }
     }
 

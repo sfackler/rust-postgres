@@ -42,6 +42,8 @@
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -800,6 +802,7 @@ impl InnerConnection {
         Ok(Type::Other(ty))
     }
 
+    #[allow(if_not_else)]
     fn read_type(&mut self, oid: Oid) -> Result<Other> {
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();

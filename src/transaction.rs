@@ -67,6 +67,16 @@ pub struct Config {
     deferrable: Option<bool>,
 }
 
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            isolation_level: None,
+            read_only: None,
+            deferrable: None,
+        }
+    }
+}
+
 impl ConfigInternals for Config {
     fn build_command(&self, s: &mut String) {
         let mut first = true;
@@ -105,11 +115,7 @@ impl ConfigInternals for Config {
 impl Config {
     /// Creates a new `Config` with no configuration overrides.
     pub fn new() -> Config {
-        Config {
-            isolation_level: None,
-            read_only: None,
-            deferrable: None,
-        }
+        Config::default()
     }
 
     /// Sets the isolation level of the configuration.
