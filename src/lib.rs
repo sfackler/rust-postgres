@@ -55,7 +55,6 @@ extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;
-use std::ascii::AsciiExt;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::error::Error as StdError;
@@ -70,7 +69,7 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 // FIXME remove in 0.12
-pub use transaction::Transaction;
+pub use transaction::{Transaction, IsolationLevel};
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{StreamWrapper, NegotiateSsl};
@@ -301,52 +300,6 @@ fn desynchronized() -> std_io::Error {
     std_io::Error::new(std_io::ErrorKind::Other,
                        "communication with the server has desynchronized due to an earlier IO \
                         error")
-}
-
-/// An enumeration of transaction isolation levels.
-///
-/// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)
-/// for full details on the semantics of each level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IsolationLevel {
-    /// The "read uncommitted" level.
-    ///
-    /// In current versions of Postgres, this behaves identically to
-    /// `ReadCommitted`.
-    ReadUncommitted,
-    /// The "read committed" level.
-    ///
-    /// This is the default isolation level in Postgres.
-    ReadCommitted,
-    /// The "repeatable read" level.
-    RepeatableRead,
-    /// The "serializable" level.
-    Serializable,
-}
-
-impl IsolationLevel {
-    fn to_sql(&self) -> &'static str {
-        match *self {
-            IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
-            IsolationLevel::ReadCommitted => "READ COMMITTED",
-            IsolationLevel::RepeatableRead => "REPEATABLE READ",
-            IsolationLevel::Serializable => "SERIALIZABLE",
-        }
-    }
-
-    fn parse(raw: &str) -> Result<IsolationLevel> {
-        if raw.eq_ignore_ascii_case("READ UNCOMMITTED") {
-            Ok(IsolationLevel::ReadUncommitted)
-        } else if raw.eq_ignore_ascii_case("READ COMMITTED") {
-            Ok(IsolationLevel::ReadCommitted)
-        } else if raw.eq_ignore_ascii_case("REPEATABLE READ") {
-            Ok(IsolationLevel::RepeatableRead)
-        } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
-            Ok(IsolationLevel::Serializable)
-        } else {
-            Err(Error::Io(bad_response()))
-        }
-    }
 }
 
 /// Specifies the SSL support requested for a new connection.
@@ -1239,7 +1192,7 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
-        IsolationLevel::parse(result[0][0].as_ref().unwrap())
+        IsolationLevel::new(result[0][0].as_ref().unwrap())
     }
 
     /// # Deprecated
@@ -1501,4 +1454,8 @@ trait TransactionInternals<'conn> {
 
 trait ConfigInternals {
     fn build_command(&self, s: &mut String);
+}
+
+trait IsolationLevelNew {
+    fn new(level: &str) -> Result<IsolationLevel>;
 }
