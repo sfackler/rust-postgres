@@ -2,11 +2,62 @@
 
 use std::cell::Cell;
 use std::fmt;
+use std::ascii::AsciiExt;
 
-use {Result, Connection, TransactionInternals, ConfigInternals, IsolationLevel};
-use stmt::Statement;
+use {bad_response, Result, Connection, TransactionInternals, ConfigInternals,
+     IsolationLevelNew};
+use error::Error;
 use rows::Rows;
+use stmt::Statement;
 use types::ToSql;
+
+/// An enumeration of transaction isolation levels.
+///
+/// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)
+/// for full details on the semantics of each level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IsolationLevel {
+    /// The "read uncommitted" level.
+    ///
+    /// In current versions of Postgres, this behaves identically to
+    /// `ReadCommitted`.
+    ReadUncommitted,
+    /// The "read committed" level.
+    ///
+    /// This is the default isolation level in Postgres.
+    ReadCommitted,
+    /// The "repeatable read" level.
+    RepeatableRead,
+    /// The "serializable" level.
+    Serializable,
+}
+
+impl IsolationLevelNew for IsolationLevel {
+    fn new(raw: &str) -> Result<IsolationLevel> {
+        if raw.eq_ignore_ascii_case("READ UNCOMMITTED") {
+            Ok(IsolationLevel::ReadUncommitted)
+        } else if raw.eq_ignore_ascii_case("READ COMMITTED") {
+            Ok(IsolationLevel::ReadCommitted)
+        } else if raw.eq_ignore_ascii_case("REPEATABLE READ") {
+            Ok(IsolationLevel::RepeatableRead)
+        } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
+            Ok(IsolationLevel::Serializable)
+        } else {
+            Err(Error::Io(bad_response()))
+        }
+    }
+}
+
+impl IsolationLevel {
+    fn to_sql(&self) -> &'static str {
+        match *self {
+            IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
+            IsolationLevel::ReadCommitted => "READ COMMITTED",
+            IsolationLevel::RepeatableRead => "REPEATABLE READ",
+            IsolationLevel::Serializable => "SERIALIZABLE",
+        }
+    }
+}
 
 /// Configuration of a transaction.
 #[derive(Debug)]
@@ -14,6 +65,16 @@ pub struct Config {
     isolation_level: Option<IsolationLevel>,
     read_only: Option<bool>,
     deferrable: Option<bool>,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            isolation_level: None,
+            read_only: None,
+            deferrable: None,
+        }
+    }
 }
 
 impl ConfigInternals for Config {
@@ -54,11 +115,7 @@ impl ConfigInternals for Config {
 impl Config {
     /// Creates a new `Config` with no configuration overrides.
     pub fn new() -> Config {
-        Config {
-            isolation_level: None,
-            read_only: None,
-            deferrable: None,
-        }
+        Config::default()
     }
 
     /// Sets the isolation level of the configuration.

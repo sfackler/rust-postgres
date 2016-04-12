@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.11.6"
+version = "0.11.7"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.6/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.7/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
@@ -28,7 +28,7 @@ bufstream = "0.1"
 byteorder = "0.5"
 log = "0.3"
 phf = "=0.7.14"
-hex = "0.1"
+hex = "0.2"
 net2 = "0.2.16"
 rustc-serialize = { version = "0.3", optional = true }
 chrono = { version = "0.2.14", optional = true }
@@ -36,10 +36,11 @@ openssl = { version = ">= 0.6.4, < 0.8", optional = true }
 serde_json = { version = ">= 0.6, < 0.8", optional = true }
 time = { version = "0.1.14", optional = true }
 unix_socket = { version = "0.5", optional = true }
-uuid = { version = "0.1", optional = true }
+uuid = { version = ">= 0.1, < 0.3", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 bit-vec = { version = "0.4", optional = true }
 eui48 = { version = "0.1", optional = true }
+clippy = { version = "0.0.61", optional = true }
 
 [dev-dependencies]
 url = "0.5"

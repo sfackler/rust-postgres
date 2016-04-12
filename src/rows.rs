@@ -12,7 +12,7 @@ use {Result, Transaction, DbErrorNew, SessionInfoNew, RowsNew, LazyRowsNew, Stat
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
-use message::FrontendMessage::*;
+use message::Frontend;
 
 enum StatementContainer<'a> {
     Borrowed(&'a Statement<'a>),
@@ -350,11 +350,11 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().conn.borrow_mut();
 
-        try!(conn.write_messages(&[Execute {
+        try!(conn.write_messages(&[Frontend::Execute {
                                        portal: &self.name,
                                        max_rows: self.row_limit,
                                    },
-                                   Sync]));
+                                   Frontend::Sync]));
         conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 

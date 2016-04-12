@@ -20,7 +20,7 @@ use {SslMode, ConnectParams, ConnectTarget};
 use error::ConnectError;
 use io::{NegotiateSsl, StreamWrapper};
 use message::{self, WriteMessage};
-use message::FrontendMessage::SslRequest;
+use message::Frontend;
 
 const DEFAULT_PORT: u16 = 5432;
 
@@ -170,7 +170,7 @@ pub fn initialize_stream(params: &ConnectParams,
         SslMode::Require(negotiator) => (true, negotiator),
     };
 
-    try!(socket.write_message(&SslRequest { code: message::SSL_CODE }));
+    try!(socket.write_message(&Frontend::SslRequest { code: message::SSL_CODE }));
     try!(socket.flush());
 
     if try!(socket.read_u8()) == b'N' {

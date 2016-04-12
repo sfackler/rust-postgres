@@ -4,7 +4,7 @@ use std::fmt;
 use std::time::Duration;
 
 use {desynchronized, Result, Connection, NotificationsNew};
-use message::BackendMessage::NotificationResponse;
+use message::Backend;
 use error::Error;
 
 /// An asynchronous notification.
@@ -110,7 +110,7 @@ impl<'a> Iterator for Iter<'a> {
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(NotificationResponse { pid, channel, payload })) => {
+            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
                 Some(Ok(Notification {
                     pid: pid,
                     channel: channel,
@@ -148,7 +148,7 @@ impl<'a> Iterator for BlockingIter<'a> {
         }
 
         match conn.read_message_with_notification() {
-            Ok(NotificationResponse { pid, channel, payload }) => {
+            Ok(Backend::NotificationResponse { pid, channel, payload }) => {
                 Some(Ok(Notification {
                     pid: pid,
                     channel: channel,
@@ -187,7 +187,7 @@ impl<'a> Iterator for TimeoutIter<'a> {
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(NotificationResponse { pid, channel, payload })) => {
+            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
                 Some(Ok(Notification {
                     pid: pid,
                     channel: channel,

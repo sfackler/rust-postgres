@@ -38,10 +38,12 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.6")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.7")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -55,16 +57,12 @@ extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;
-use std::ascii::AsciiExt;
-use std::borrow::ToOwned;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::error::Error as StdError;
 use std::fmt;
-use std::iter::IntoIterator;
 use std::io as std_io;
 use std::io::prelude::*;
-use std::marker::Sync as StdSync;
 use std::mem;
 use std::result;
 use std::sync::Arc;
@@ -73,13 +71,11 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 // FIXME remove in 0.12
-pub use transaction::Transaction;
+pub use transaction::{Transaction, IsolationLevel};
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{StreamWrapper, NegotiateSsl};
-use message::BackendMessage::*;
-use message::FrontendMessage::*;
-use message::{FrontendMessage, BackendMessage, RowDescriptionEntry};
+use message::{Frontend, Backend, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
 use rows::{Rows, LazyRows};
@@ -154,17 +150,17 @@ pub struct ConnectParams {
 /// A trait implemented by types that can be converted into a `ConnectParams`.
 pub trait IntoConnectParams {
     /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>>;
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>>;
 }
 
 impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         Ok(self)
     }
 }
 
 impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         match Url::parse(self) {
             Ok(url) => url.into_connect_params(),
             Err(err) => Err(err.into()),
@@ -173,14 +169,14 @@ impl<'a> IntoConnectParams for &'a str {
 }
 
 impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + StdSync + Send>> {
+    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
         #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
         fn make_unix(maybe_path: String)
-                     -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
+                     -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
             Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
         }
         #[cfg(not(any(feature = "unix_socket", all(unix, feature = "nightly"))))]
-        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + StdSync + Send>> {
+        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
             Err("unix socket support requires the `unix_socket` or `nightly` features".into())
         }
 
@@ -287,7 +283,7 @@ pub fn cancel_query<T>(params: T,
     let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, ssl));
 
-    try!(socket.write_message(&CancelRequest {
+    try!(socket.write_message(&Frontend::CancelRequest {
         code: message::CANCEL_CODE,
         process_id: data.process_id,
         secret_key: data.secret_key,
@@ -306,52 +302,6 @@ fn desynchronized() -> std_io::Error {
     std_io::Error::new(std_io::ErrorKind::Other,
                        "communication with the server has desynchronized due to an earlier IO \
                         error")
-}
-
-/// An enumeration of transaction isolation levels.
-///
-/// See the [Postgres documentation](http://www.postgresql.org/docs/9.4/static/transaction-iso.html)
-/// for full details on the semantics of each level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IsolationLevel {
-    /// The "read uncommitted" level.
-    ///
-    /// In current versions of Postgres, this behaves identically to
-    /// `ReadCommitted`.
-    ReadUncommitted,
-    /// The "read committed" level.
-    ///
-    /// This is the default isolation level in Postgres.
-    ReadCommitted,
-    /// The "repeatable read" level.
-    RepeatableRead,
-    /// The "serializable" level.
-    Serializable,
-}
-
-impl IsolationLevel {
-    fn to_sql(&self) -> &'static str {
-        match *self {
-            IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
-            IsolationLevel::ReadCommitted => "READ COMMITTED",
-            IsolationLevel::RepeatableRead => "REPEATABLE READ",
-            IsolationLevel::Serializable => "SERIALIZABLE",
-        }
-    }
-
-    fn parse(raw: &str) -> Result<IsolationLevel> {
-        if raw.eq_ignore_ascii_case("READ UNCOMMITTED") {
-            Ok(IsolationLevel::ReadUncommitted)
-        } else if raw.eq_ignore_ascii_case("READ COMMITTED") {
-            Ok(IsolationLevel::ReadCommitted)
-        } else if raw.eq_ignore_ascii_case("REPEATABLE READ") {
-            Ok(IsolationLevel::RepeatableRead)
-        } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
-            Ok(IsolationLevel::Serializable)
-        } else {
-            Err(Error::Io(bad_response()))
-        }
-    }
 }
 
 /// Specifies the SSL support requested for a new connection.
@@ -405,9 +355,7 @@ impl InnerConnection {
         let user = match user {
             Some(user) => user,
             None => {
-                let err: Box<StdError + StdSync + Send> = "User missing from connection parameters"
-                                                              .into();
-                return Err(ConnectError::ConnectParams(err));
+                return Err(ConnectError::ConnectParams("User missing from connection parameters".into()));
             }
         };
 
@@ -438,7 +386,7 @@ impl InnerConnection {
             options.push(("database".to_owned(), database));
         }
 
-        try!(conn.write_messages(&[StartupMessage {
+        try!(conn.write_messages(&[Frontend::StartupMessage {
                                        version: message::PROTOCOL_VERSION,
                                        parameters: &options,
                                    }]));
@@ -447,12 +395,12 @@ impl InnerConnection {
 
         loop {
             match try!(conn.read_message()) {
-                BackendKeyData { process_id, secret_key } => {
+                Backend::BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
                 }
-                ReadyForQuery { .. } => break,
-                ErrorResponse { fields } => return DbError::new_connect(fields),
+                Backend::ReadyForQuery { .. } => break,
+                Backend::ErrorResponse { fields } => return DbError::new_connect(fields),
                 _ => return Err(ConnectError::Io(bad_response())),
             }
         }
@@ -523,7 +471,7 @@ impl InnerConnection {
         }
     }
 
-    fn write_messages(&mut self, messages: &[FrontendMessage]) -> std_io::Result<()> {
+    fn write_messages(&mut self, messages: &[Frontend]) -> std_io::Result<()> {
         debug_assert!(!self.desynchronized);
         for message in messages {
             try_desync!(self, self.stream.write_message(message));
@@ -531,16 +479,16 @@ impl InnerConnection {
         Ok(try_desync!(self, self.stream.flush()))
     }
 
-    fn read_message_with_notification(&mut self) -> std_io::Result<BackendMessage> {
+    fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
-                NoticeResponse { fields } => {
+                Backend::NoticeResponse { fields } => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                ParameterStatus { parameter, value } => {
+                Backend::ParameterStatus { parameter, value } => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -550,16 +498,16 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> std::io::Result<Option<BackendMessage>> {
+                                              -> std::io::Result<Option<Backend>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
-                Some(NoticeResponse { fields }) => {
+                Some(Backend::NoticeResponse { fields }) => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(ParameterStatus { parameter, value }) => {
+                Some(Backend::ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -568,16 +516,16 @@ impl InnerConnection {
     }
 
     fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> std::io::Result<Option<BackendMessage>> {
+                                                  -> std::io::Result<Option<Backend>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
-                Some(NoticeResponse { fields }) => {
+                Some(Backend::NoticeResponse { fields }) => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(ParameterStatus { parameter, value }) => {
+                Some(Backend::ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -585,10 +533,10 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> std_io::Result<BackendMessage> {
+    fn read_message(&mut self) -> std_io::Result<Backend> {
         loop {
             match try!(self.read_message_with_notification()) {
-                NotificationResponse { pid, channel, payload } => {
+                Backend::NotificationResponse { pid, channel, payload } => {
                     self.notifications.push_back(Notification {
                         pid: pid,
                         channel: channel,
@@ -602,14 +550,14 @@ impl InnerConnection {
 
     fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
         match try!(self.read_message()) {
-            AuthenticationOk => return Ok(()),
-            AuthenticationCleartextPassword => {
+            Backend::AuthenticationOk => return Ok(()),
+            Backend::AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                try!(self.write_messages(&[PasswordMessage { password: &pass }]));
+                try!(self.write_messages(&[Frontend::PasswordMessage { password: &pass }]));
             }
-            AuthenticationMD5Password { salt } => {
+            Backend::AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
@@ -621,22 +569,22 @@ impl InnerConnection {
                 hasher.input(output.as_bytes());
                 hasher.input(&salt);
                 let output = format!("md5{}", hasher.result_str());
-                try!(self.write_messages(&[PasswordMessage { password: &output }]));
+                try!(self.write_messages(&[Frontend::PasswordMessage { password: &output }]));
             }
-            AuthenticationKerberosV5 |
-            AuthenticationSCMCredential |
-            AuthenticationGSS |
-            AuthenticationSSPI => {
+            Backend::AuthenticationKerberosV5 |
+            Backend::AuthenticationSCMCredential |
+            Backend::AuthenticationGSS |
+            Backend::AuthenticationSSPI => {
                 return Err(ConnectError::Io(std_io::Error::new(std_io::ErrorKind::Other,
                                                                "unsupported authentication")))
             }
-            ErrorResponse { fields } => return DbError::new_connect(fields),
+            Backend::ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
-            AuthenticationOk => Ok(()),
-            ErrorResponse { fields } => DbError::new_connect(fields),
+            Backend::AuthenticationOk => Ok(()),
+            Backend::ErrorResponse { fields } => DbError::new_connect(fields),
             _ => Err(ConnectError::Io(bad_response())),
         }
     }
@@ -648,20 +596,20 @@ impl InnerConnection {
     fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        try!(self.write_messages(&[Parse {
+        try!(self.write_messages(&[Frontend::Parse {
                                        name: stmt_name,
                                        query: query,
                                        param_types: &[],
                                    },
-                                   Describe {
+                                   Frontend::Describe {
                                        variant: b'S',
                                        name: stmt_name,
                                    },
-                                   Sync]));
+                                   Frontend::Sync]));
 
         match try!(self.read_message()) {
-            ParseComplete => {}
-            ErrorResponse { fields } => {
+            Backend::ParseComplete => {}
+            Backend::ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 return DbError::new(fields);
             }
@@ -669,13 +617,13 @@ impl InnerConnection {
         }
 
         let raw_param_types = match try!(self.read_message()) {
-            ParameterDescription { types } => types,
+            Backend::ParameterDescription { types } => types,
             _ => bad_response!(self),
         };
 
         let raw_columns = match try!(self.read_message()) {
-            RowDescription { descriptions } => descriptions,
-            NoData => vec![],
+            Backend::RowDescription { descriptions } => descriptions,
+            Backend::NoData => vec![],
             _ => bad_response!(self),
         };
 
@@ -698,29 +646,29 @@ impl InnerConnection {
         let more_rows;
         loop {
             match try!(self.read_message()) {
-                EmptyQueryResponse | CommandComplete { .. } => {
+                Backend::EmptyQueryResponse | Backend::CommandComplete { .. } => {
                     more_rows = false;
                     break;
                 }
-                PortalSuspended => {
+                Backend::PortalSuspended => {
                     more_rows = true;
                     break;
                 }
-                DataRow { row } => buf.push_back(row),
-                ErrorResponse { fields } => {
+                Backend::DataRow { row } => buf.push_back(row),
+                Backend::ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return DbError::new(fields);
                 }
-                CopyInResponse { .. } => {
-                    try!(self.write_messages(&[CopyFail {
+                Backend::CopyInResponse { .. } => {
+                    try!(self.write_messages(&[Frontend::CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
                                                },
-                                               Sync]));
+                                               Frontend::Sync]));
                 }
-                CopyOutResponse { .. } => {
+                Backend::CopyOutResponse { .. } => {
                     loop {
-                        if let ReadyForQuery { .. } = try!(self.read_message()) {
+                        if let Backend::ReadyForQuery { .. } = try!(self.read_message()) {
                             break;
                         }
                     }
@@ -761,22 +709,22 @@ impl InnerConnection {
             }
         }
 
-        try!(self.write_messages(&[Bind {
+        try!(self.write_messages(&[Frontend::Bind {
                                        portal: portal_name,
                                        statement: &stmt_name,
                                        formats: &[1],
                                        values: &values,
                                        result_formats: &[1],
                                    },
-                                   Execute {
+                                   Frontend::Execute {
                                        portal: portal_name,
                                        max_rows: row_limit,
                                    },
-                                   Sync]));
+                                   Frontend::Sync]));
 
         match try!(self.read_message()) {
-            BindComplete => Ok(()),
-            ErrorResponse { fields } => {
+            Backend::BindComplete => Ok(()),
+            Backend::ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 DbError::new(fields)
             }
@@ -826,14 +774,14 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
-        try!(self.write_messages(&[Close {
+        try!(self.write_messages(&[Frontend::Close {
                                        variant: type_,
                                        name: name,
                                    },
-                                   Sync]));
+                                   Frontend::Sync]));
         let resp = match try!(self.read_message()) {
-            CloseComplete => Ok(()),
-            ErrorResponse { fields } => DbError::new(fields),
+            Backend::CloseComplete => Ok(()),
+            Backend::ErrorResponse { fields } => DbError::new(fields),
             _ => bad_response!(self),
         };
         try!(self.wait_for_ready());
@@ -854,6 +802,7 @@ impl InnerConnection {
         Ok(Type::Other(ty))
     }
 
+    #[allow(if_not_else)]
     fn read_type(&mut self, oid: Oid) -> Result<Other> {
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
@@ -942,7 +891,7 @@ impl InnerConnection {
     #[allow(needless_return)]
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
-            ReadyForQuery { .. } => Ok(()),
+            Backend::ReadyForQuery { .. } => Ok(()),
             _ => bad_response!(self),
         }
     }
@@ -950,27 +899,27 @@ impl InnerConnection {
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        try!(self.write_messages(&[Query { query: query }]));
+        try!(self.write_messages(&[Frontend::Query { query: query }]));
 
         let mut result = vec![];
         loop {
             match try!(self.read_message()) {
-                ReadyForQuery { .. } => break,
-                DataRow { row } => {
+                Backend::ReadyForQuery { .. } => break,
+                Backend::DataRow { row } => {
                     result.push(row.into_iter()
                                    .map(|opt| {
                                        opt.map(|b| String::from_utf8_lossy(&b).into_owned())
                                    })
                                    .collect());
                 }
-                CopyInResponse { .. } => {
-                    try!(self.write_messages(&[CopyFail {
+                Backend::CopyInResponse { .. } => {
+                    try!(self.write_messages(&[Frontend::CopyFail {
                                                    message: "COPY queries cannot be directly \
                                                              executed",
                                                },
-                                               Sync]));
+                                               Frontend::Sync]));
                 }
-                ErrorResponse { fields } => {
+                Backend::ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return DbError::new(fields);
                 }
@@ -982,7 +931,7 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        try!(self.write_messages(&[Terminate]));
+        try!(self.write_messages(&[Frontend::Terminate]));
         Ok(())
     }
 }
@@ -1246,7 +1195,7 @@ impl Connection {
         let mut conn = self.conn.borrow_mut();
         check_desync!(conn);
         let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
-        IsolationLevel::parse(result[0][0].as_ref().unwrap())
+        IsolationLevel::new(result[0][0].as_ref().unwrap())
     }
 
     /// # Deprecated
@@ -1508,4 +1457,8 @@ trait TransactionInternals<'conn> {
 
 trait ConfigInternals {
     fn build_command(&self, s: &mut String);
+}
+
+trait IsolationLevelNew {
+    fn new(level: &str) -> Result<IsolationLevel>;
 }
