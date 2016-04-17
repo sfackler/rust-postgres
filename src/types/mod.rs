@@ -286,6 +286,9 @@ impl WrongTypeNew for WrongType {
 /// | `chrono::DateTime&lt;Local&gt;`       | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime&lt;FixedOffset&gt;` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`                   | DATE                                |
+/// | `chrono::Date&lt;UTC&gt;`             | DATE                                |
+/// | `chrono::Date&lt;Local&gt;`           | DATE                                |
+/// | `chrono::Date&lt;FixedOffset&gt;`     | DATE                                |
 /// | `chrono::NaiveTime`                   | TIME                                |
 /// | `eui48::MacAddress`                   | MACADDR                             |
 /// | `uuid::Uuid`                          | UUID                                |
