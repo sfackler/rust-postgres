@@ -262,6 +262,13 @@ types. The driver currently supports the following conversions:
     </tbody>
 </table>
 
+`Option<T>` implements `FromSql` where `T: FromSql` and `ToSql` where `T:
+ToSql`, and represents nullable Postgres values.
+
+`&[T]` and `Vec<T>` implement `ToSql` where `T: ToSql`, and  `Vec<T>`
+additionally implements `FromSql` where `T: FromSql`, which represent
+one-dimensional Postgres arrays.
+
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.
 
