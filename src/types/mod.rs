@@ -553,7 +553,7 @@ pub enum IsNull {
 ///
 /// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
 /// and corresponds to one-dimentional Postgres arrays with an index offset of
-/// 0.
+/// 1.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, writing it to `out`.
@@ -648,7 +648,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
         try!(w.write_u32::<BigEndian>(member_type.oid()));
 
         try!(w.write_i32::<BigEndian>(try!(downcast(self.len()))));
-        try!(w.write_i32::<BigEndian>(0)); // index offset
+        try!(w.write_i32::<BigEndian>(1)); // index offset
 
         let mut inner_buf = vec![];
         for e in *self {
