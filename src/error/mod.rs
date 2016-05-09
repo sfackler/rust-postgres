@@ -72,14 +72,14 @@ pub struct DbError {
     pub constraint: Option<String>,
 
     /// The file name of the source-code location where the error was reported.
-    pub file: String,
+    pub file: Option<String>,
 
     /// The line number of the source-code location where the error was
     /// reported.
-    pub line: u32,
+    pub line: Option<u32>,
 
     /// The name of the source-code routine reporting the error.
-    pub routine: String,
+    pub routine: Option<String>,
 
     _p: (),
 }
@@ -113,9 +113,9 @@ impl DbErrorNew for DbError {
             column: map.remove(&b'c'),
             datatype: map.remove(&b'd'),
             constraint: map.remove(&b'n'),
-            file: try!(map.remove(&b'F').ok_or(())),
-            line: try!(map.remove(&b'L').and_then(|l| l.parse().ok()).ok_or(())),
-            routine: try!(map.remove(&b'R').ok_or(())),
+            file: map.remove(&b'F'),
+            line: map.remove(&b'L').and_then(|l| l.parse().ok()),
+            routine: map.remove(&b'R'),
             _p: (),
         })
     }
