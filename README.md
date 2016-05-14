@@ -223,6 +223,10 @@ types. The driver currently supports the following conversions:
         <tr>
             <td>
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::NaiveDate</a>
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::Date&lt;UTC&gt;</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::Date&lt;Local&gt;</a>,
+                and
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::Date&lt;FixedOffset&gt;</a>
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>DATE</td>
@@ -314,7 +318,7 @@ type.
 support is provided optionally by the `time` feature, which adds `ToSql` and
 `FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
-`DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
+`DateTime`, `NaiveDateTime`, `NaiveDate`, `NaiveTime` and `Date` types.
 
 ### BIT/VARBIT types
 

@@ -3,7 +3,7 @@ extern crate chrono;
 use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
-use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC, Local,
+use self::chrono::{Date, Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC, Local,
                    FixedOffset};
 
 use Result;
@@ -66,6 +66,28 @@ impl ToSql for DateTime<UTC> {
     to_sql_checked!();
 }
 
+impl FromSql for Date<UTC> {
+    fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo) -> Result<Date<UTC>> {
+        let naive = try!(NaiveDate::from_sql(type_, raw, info));
+        Ok(Date::from_utc(naive, UTC))
+    }
+
+    accepts!(Type::TimestampTZ);
+}
+
+impl ToSql for Date<UTC> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 type_: &Type,
+                                 mut w: &mut W,
+                                 info: &SessionInfo)
+                                 -> Result<IsNull> {
+        self.naive_utc().to_sql(type_, w, info)
+    }
+
+    accepts!(Type::TimestampTZ);
+    to_sql_checked!();
+}
+
 impl FromSql for DateTime<Local> {
     fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo) -> Result<DateTime<Local>> {
         let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
@@ -76,6 +98,28 @@ impl FromSql for DateTime<Local> {
 }
 
 impl ToSql for DateTime<Local> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 type_: &Type,
+                                 mut w: &mut W,
+                                 info: &SessionInfo)
+                                 -> Result<IsNull> {
+        self.with_timezone(&UTC).to_sql(type_, w, info)
+    }
+
+    accepts!(Type::TimestampTZ);
+    to_sql_checked!();
+}
+
+impl FromSql for Date<Local> {
+    fn from_sql<R: Read>(type_: &Type, raw: &mut R, info: &SessionInfo) -> Result<Date<Local>> {
+        let utc = try!(Date::<UTC>::from_sql(type_, raw, info));
+        Ok(utc.with_timezone(&Local))
+    }
+
+    accepts!(Type::TimestampTZ);
+}
+
+impl ToSql for Date<Local> {
     fn to_sql<W: Write + ?Sized>(&self,
                                  type_: &Type,
                                  mut w: &mut W,
@@ -101,6 +145,31 @@ impl FromSql for DateTime<FixedOffset> {
 }
 
 impl ToSql for DateTime<FixedOffset> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 type_: &Type,
+                                 mut w: &mut W,
+                                 info: &SessionInfo)
+                                 -> Result<IsNull> {
+        self.with_timezone(&UTC).to_sql(type_, w, info)
+    }
+
+    accepts!(Type::TimestampTZ);
+    to_sql_checked!();
+}
+
+impl FromSql for Date<FixedOffset> {
+    fn from_sql<R: Read>(type_: &Type,
+                         raw: &mut R,
+                         info: &SessionInfo)
+                         -> Result<Date<FixedOffset>> {
+        let utc = try!(Date::<UTC>::from_sql(type_, raw, info));
+        Ok(utc.with_timezone(&FixedOffset::east(0)))
+    }
+
+    accepts!(Type::TimestampTZ);
+}
+
+impl ToSql for Date<FixedOffset> {
     fn to_sql<W: Write + ?Sized>(&self,
                                  type_: &Type,
                                  mut w: &mut W,
