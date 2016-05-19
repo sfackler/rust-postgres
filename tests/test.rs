@@ -939,6 +939,11 @@ fn test_get_opt_wrong_type() {
 }
 
 #[test]
+fn url_unencoded_password() {
+    assert!("postgresql://username:password%1*@localhost".into_connect_params().is_err())
+}
+
+#[test]
 fn url_encoded_password() {
     let params = "postgresql://username%7b%7c:password%7b%7c@localhost".into_connect_params().unwrap();
     assert_eq!("username{|", &params.user.as_ref().unwrap().user[..]);
