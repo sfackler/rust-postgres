@@ -151,6 +151,7 @@ impl Config {
 pub struct Transaction<'conn> {
     conn: &'conn Connection,
     depth: u32,
+    savepoint_name: Option<&'conn str>,
     commit: Cell<bool>,
     finished: bool,
 }
@@ -177,6 +178,7 @@ impl<'conn> TransactionInternals<'conn> for Transaction<'conn> {
         Transaction {
             conn: conn,
             depth: depth,
+            savepoint_name: None,
             commit: Cell::new(false),
             finished: false,
         }
@@ -195,14 +197,13 @@ impl<'conn> Transaction<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.conn.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
-        let query = match (self.commit.get(), self.depth != 1) {
-            (false, true) => "ROLLBACK TO sp",
-            (false, false) => "ROLLBACK",
-            (true, true) => "RELEASE sp",
-            (true, false) => "COMMIT",
-        };
         conn.trans_depth -= 1;
-        conn.quick_query(query).map(|_| ())
+        match (self.commit.get(), self.savepoint_name) {
+            (false, Some(savepoint_name)) => conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name)),
+            (false, None) => conn.quick_query("ROLLBACK"),
+            (true, Some(savepoint_name)) => conn.quick_query(&format!("RELEASE {}", savepoint_name)),
+            (true, None) => conn.quick_query("COMMIT"),
+        }.map(|_| ())
     }
 
     /// Like `Connection::prepare`.
@@ -233,22 +234,33 @@ impl<'conn> Transaction<'conn> {
         self.conn.batch_execute(query)
     }
 
-    /// Like `Connection::transaction`.
+    /// Like `Connection::transaction`, but creates a nested transaction.
     ///
     /// # Panics
     ///
     /// Panics if there is an active nested transaction.
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
+        self.savepoint("sp")
+    }
+    
+    /// Like `Connection::transaction`, but creates a nested transaction
+    /// with the provided name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is an active nested transaction.
+    pub fn savepoint<'a>(&'a self, name: &'a str) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == self.depth,
-                "`transaction` may only be called on the active transaction");
-        try!(conn.quick_query("SAVEPOINT sp"));
+                "`savepoint` may only be called on the active transaction");
+        try!(conn.quick_query(&format!("SAVEPOINT {}", name)));
         conn.trans_depth += 1;
         Ok(Transaction {
             conn: self.conn,
-            commit: Cell::new(false),
             depth: self.depth + 1,
+            savepoint_name: Some(name),
+            commit: Cell::new(false),
             finished: false,
         })
     }
