@@ -151,7 +151,7 @@ impl Config {
 pub struct Transaction<'conn> {
     conn: &'conn Connection,
     depth: u32,
-    savepoint_name: Option<&'conn str>,
+    savepoint_name: Option<String>,
     commit: Cell<bool>,
     finished: bool,
 }
@@ -198,11 +198,11 @@ impl<'conn> Transaction<'conn> {
         let mut conn = self.conn.conn.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
-        match (self.commit.get(), self.savepoint_name) {
-            (false, Some(savepoint_name)) => conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name)),
-            (false, None) => conn.quick_query("ROLLBACK"),
-            (true, Some(savepoint_name)) => conn.quick_query(&format!("RELEASE {}", savepoint_name)),
-            (true, None) => conn.quick_query("COMMIT"),
+        match (self.commit.get(), &self.savepoint_name) {
+            (false, &Some(ref savepoint_name)) => conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name)),
+            (false, &None) => conn.quick_query("ROLLBACK"),
+            (true, &Some(ref savepoint_name)) => conn.quick_query(&format!("RELEASE {}", savepoint_name)),
+            (true, &None) => conn.quick_query("COMMIT"),
         }.map(|_| ())
     }
 
@@ -249,7 +249,7 @@ impl<'conn> Transaction<'conn> {
     /// # Panics
     ///
     /// Panics if there is an active nested transaction.
-    pub fn savepoint<'a>(&'a self, name: &'a str) -> Result<Transaction<'a>> {
+    pub fn savepoint<'a>(&'a self, name: &str) -> Result<Transaction<'a>> {
         let mut conn = self.conn.conn.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == self.depth,
@@ -259,7 +259,7 @@ impl<'conn> Transaction<'conn> {
         Ok(Transaction {
             conn: self.conn,
             depth: self.depth + 1,
-            savepoint_name: Some(name),
+            savepoint_name: Some(name.to_owned()),
             commit: Cell::new(false),
             finished: false,
         })
