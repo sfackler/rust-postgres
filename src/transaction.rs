@@ -199,9 +199,13 @@ impl<'conn> Transaction<'conn> {
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
         match (self.commit.get(), &self.savepoint_name) {
-            (false, &Some(ref savepoint_name)) => conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name)),
+            (false, &Some(ref savepoint_name)) => {
+                conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name))
+            }
             (false, &None) => conn.quick_query("ROLLBACK"),
-            (true, &Some(ref savepoint_name)) => conn.quick_query(&format!("RELEASE {}", savepoint_name)),
+            (true, &Some(ref savepoint_name)) => {
+                conn.quick_query(&format!("RELEASE {}", savepoint_name))
+            }
             (true, &None) => conn.quick_query("COMMIT"),
         }.map(|_| ())
     }
@@ -234,7 +238,8 @@ impl<'conn> Transaction<'conn> {
         self.conn.batch_execute(query)
     }
 
-    /// Like `Connection::transaction`, but creates a nested transaction.
+    /// Like `Connection::transaction`, but creates a nested transaction via
+    /// a savepoint.
     ///
     /// # Panics
     ///
@@ -242,9 +247,9 @@ impl<'conn> Transaction<'conn> {
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
         self.savepoint("sp")
     }
-    
-    /// Like `Connection::transaction`, but creates a nested transaction
-    /// with the provided name.
+
+    /// Like `Connection::transaction`, but creates a nested transaction via
+    /// a savepoint with the specified name.
     ///
     /// # Panics
     ///
