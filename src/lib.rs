@@ -421,7 +421,7 @@ impl InnerConnection {
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
             // Old versions of Postgres and things like Redshift don't support enums
             Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
-            // Some Postgres compliant databases are missing a pg_catalog
+            // Some Postgres-like databases are missing a pg_catalog (e.g. Cockroach)
             Err(Error::Db(ref e)) if e.code == SqlState::InvalidCatalogName => return Ok(()),
             Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
             Err(Error::Conversion(_)) => unreachable!(),
