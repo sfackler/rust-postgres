@@ -3,12 +3,13 @@ sudo: required
 rust:
 - nightly
 - beta
-- 1.6.0
+- 1.7.0
 addons:
   postgresql: 9.4
 before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
+- cargo update -p bitflags --precise 0.5.0
 - cargo test --features "uuid rustc-serialize time unix_socket serde_json chrono openssl bit-vec eui48"
 - (test $TRAVIS_RUST_VERSION != "nightly" || cargo test --features nightly)

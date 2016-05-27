@@ -1,7 +1,7 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.7/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.8/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
@@ -54,7 +54,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.6 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.7 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 
@@ -261,6 +261,13 @@ types. The driver currently supports the following conversions:
         </tr>
     </tbody>
 </table>
+
+`Option<T>` implements `FromSql` where `T: FromSql` and `ToSql` where `T:
+ToSql`, and represents nullable Postgres values.
+
+`&[T]` and `Vec<T>` implement `ToSql` where `T: ToSql`, and  `Vec<T>`
+additionally implements `FromSql` where `T: FromSql`, which represent
+one-dimensional Postgres arrays.
 
 More conversions can be defined by implementing the `ToSql` and `FromSql`
 traits.

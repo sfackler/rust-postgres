@@ -131,8 +131,17 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                             }
                         };
 
+                        let bytes_from_hex = match Vec::<u8>::from_hex(&bytes) {
+                            Ok(b) => b,
+                            _ => {
+                                return Err("Malformed input: found '%' followed by \
+                                            invalid hex  values. Character '%' must \
+                                            escaped.".to_owned())
+                            }
+                        };
+
                         // Only decode some characters if full_url:
-                        match Vec::<u8>::from_hex(&bytes).unwrap()[0] as char {
+                        match bytes_from_hex[0] as char {
                             // gen-delims:
                             ':' |
                             '/' |

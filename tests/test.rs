@@ -89,7 +89,7 @@ fn test_unix_connection() {
     let unix_socket_directory = unix_socket_directories.split(',').next().unwrap();
 
     let path = url::percent_encoding::utf8_percent_encode(
-        unix_socket_directory, url::percent_encoding::USERNAME_ENCODE_SET);
+        unix_socket_directory, url::percent_encoding::USERINFO_ENCODE_SET);
     let url = format!("postgres://postgres@{}", path);
     let conn = or_panic!(Connection::connect(&url[..], SslMode::None));
     assert!(conn.finish().is_ok());
@@ -202,9 +202,9 @@ fn test_nested_transactions() {
             }
 
             {
-                let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", &[]));
-                assert!(trans3.commit().is_ok());
+                let sp = or_panic!(trans2.savepoint("custom"));
+                or_panic!(sp.execute("INSERT INTO foo (id) VALUES (6)", &[]));
+                assert!(sp.commit().is_ok());
             }
 
             assert!(trans2.commit().is_ok());
@@ -250,10 +250,10 @@ fn test_nested_transactions_finish() {
             }
 
             {
-                let trans3 = or_panic!(trans2.transaction());
-                or_panic!(trans3.execute("INSERT INTO foo (id) VALUES (6)", &[]));
-                trans3.set_commit();
-                assert!(trans3.finish().is_ok());
+                let sp = or_panic!(trans2.savepoint("custom"));
+                or_panic!(sp.execute("INSERT INTO foo (id) VALUES (6)", &[]));
+                sp.set_commit();
+                assert!(sp.finish().is_ok());
             }
 
             trans2.set_commit();
@@ -292,6 +292,15 @@ fn test_trans_with_nested_trans() {
     let trans = or_panic!(conn.transaction());
     let _trans2 = or_panic!(trans.transaction());
     trans.transaction().unwrap();
+}
+
+#[test]
+#[should_panic(expected = "active transaction")]
+fn test_trans_with_savepoints() {
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let trans = or_panic!(conn.transaction());
+    let _sp = or_panic!(trans.savepoint("custom"));
+    trans.savepoint("custom2").unwrap();
 }
 
 #[test]
@@ -936,6 +945,11 @@ fn test_get_opt_wrong_type() {
         Some(Err(e)) => panic!("unexpected error {}", e),
         None => panic!("unexpected None"),
     }
+}
+
+#[test]
+fn url_unencoded_password() {
+    assert!("postgresql://username:password%1*@localhost".into_connect_params().is_err())
 }
 
 #[test]

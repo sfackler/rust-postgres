@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.11.7"
+version = "0.11.8"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.7/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.11.8/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
@@ -43,4 +43,4 @@ eui48 = { version = "0.1", optional = true }
 clippy = { version = "0.0.61", optional = true }
 
 [dev-dependencies]
-url = "0.5"
+url = "1.0"

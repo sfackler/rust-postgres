@@ -38,7 +38,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.7")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.8")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
@@ -421,6 +421,8 @@ impl InnerConnection {
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
             // Old versions of Postgres and things like Redshift don't support enums
             Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
+            // Some Postgres-like databases are missing a pg_catalog (e.g. Cockroach)
+            Err(Error::Db(ref e)) if e.code == SqlState::InvalidCatalogName => return Ok(()),
             Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
             Err(Error::Conversion(_)) => unreachable!(),
         }
