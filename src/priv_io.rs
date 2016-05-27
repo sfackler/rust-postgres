@@ -1,5 +1,4 @@
 use byteorder::ReadBytesExt;
-use net2::TcpStreamExt;
 use std::error::Error;
 use std::io;
 use std::io::prelude::*;
@@ -18,7 +17,7 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use {SslMode, ConnectParams, ConnectTarget};
 use error::ConnectError;
-use io::{NegotiateSsl, StreamWrapper};
+use io::StreamWrapper;
 use message::{self, WriteMessage};
 use message::Frontend;
 
