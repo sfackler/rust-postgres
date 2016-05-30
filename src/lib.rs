@@ -1,4 +1,4 @@
-//! A pure-Rust frontend for the popular `PostgreSQL` database.
+//! A pure-Rust frontend for the popular PostgreSQL database.
 //!
 //! ```rust,no_run
 //! extern crate postgres;

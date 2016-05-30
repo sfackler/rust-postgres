@@ -1,4 +1,7 @@
 use byteorder::ReadBytesExt;
+// this import needs to stay to support pre 1.9 users
+#[allow(unused_imports)]
+use net2::TcpStreamExt;
 use std::error::Error;
 use std::io;
 use std::io::prelude::*;
