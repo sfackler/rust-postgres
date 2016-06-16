@@ -1040,6 +1040,13 @@ fn transaction_config() {
 }
 
 #[test]
+fn transaction_config_one_setting() {
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    conn.set_transaction_config(&transaction::Config::new().read_only(true)).unwrap();
+    conn.set_transaction_config(&transaction::Config::new().deferrable(true)).unwrap();
+}
+
+#[test]
 fn transaction_with() {
     let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
     let mut config = transaction::Config::new();
