@@ -479,6 +479,7 @@ pub enum SqlState {
     /// An unknown code
     Other(String),
 }
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
     key: 1897749892740154578,

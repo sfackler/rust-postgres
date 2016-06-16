@@ -98,6 +98,7 @@ pub enum SqlState {{
 "    /// An unknown code
     Other(String),
 }}
+
 "
            ).unwrap();
 }
