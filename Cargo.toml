@@ -27,7 +27,7 @@ nightly = []
 bufstream = "0.1"
 byteorder = "0.5"
 log = "0.3"
-phf = "=0.7.14"
+phf = "=0.7.15"
 hex = "0.2"
 net2 = "0.2.16"
 rustc-serialize = { version = "0.3", optional = true }
