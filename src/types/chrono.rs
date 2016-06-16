@@ -1,6 +1,5 @@
 extern crate chrono;
 
-use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC, Local,
@@ -31,10 +30,7 @@ impl ToSql for NaiveDateTime {
                                  -> Result<IsNull> {
         let time = match (*self - base()).num_microseconds() {
             Some(time) => time,
-            None => {
-                let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
-                return Err(Error::Conversion(err));
-            }
+            None => return Err(Error::Conversion("value too large to transmit".into())),
         };
         try!(w.write_i64::<BigEndian>(time));
         Ok(IsNull::No)
@@ -130,8 +126,7 @@ impl ToSql for NaiveDate {
                                  -> Result<IsNull> {
         let jd = (*self - base().date()).num_days();
         if jd > i32::max_value() as i64 || jd < i32::min_value() as i64 {
-            let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
-            return Err(Error::Conversion(err));
+            return Err(Error::Conversion("value too large to transmit".into()));
         }
 
         try!(w.write_i32::<BigEndian>(jd as i32));
@@ -160,10 +155,7 @@ impl ToSql for NaiveTime {
         let delta = *self - NaiveTime::from_hms(0, 0, 0);
         let time = match delta.num_microseconds() {
             Some(time) => time,
-            None => {
-                let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
-                return Err(Error::Conversion(err));
-            }
+            None => return Err(Error::Conversion("value too large to transmit".into())),
         };
         try!(w.write_i64::<BigEndian>(time));
         Ok(IsNull::No)

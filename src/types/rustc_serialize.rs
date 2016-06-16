@@ -1,7 +1,6 @@
 extern crate rustc_serialize;
 
 use self::rustc_serialize::json;
-use std::error;
 use std::io::prelude::*;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
@@ -14,9 +13,7 @@ impl FromSql for json::Json {
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
             if try!(raw.read_u8()) != 1 {
-                let err: Box<error::Error + Sync + Send> = "unsupported JSONB encoding version"
-                                                               .into();
-                return Err(Error::Conversion(err));
+                return Err(Error::Conversion("unsupported JSONB encoding version".into()));
             }
         }
         json::Json::from_reader(raw).map_err(|err| Error::Conversion(Box::new(err)))
