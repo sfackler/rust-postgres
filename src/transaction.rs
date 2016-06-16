@@ -88,7 +88,7 @@ impl ConfigInternals for Config {
         }
 
         if let Some(read_only) = self.read_only {
-            if first {
+            if !first {
                 s.push(',');
             }
             if read_only {
@@ -100,7 +100,7 @@ impl ConfigInternals for Config {
         }
 
         if let Some(deferrable) = self.deferrable {
-            if first {
+            if !first {
                 s.push(',');
             }
             if deferrable {

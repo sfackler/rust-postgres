@@ -8,7 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::io::prelude::*;
 use std::ptr;
 use std::mem;
 use std::ops::{Add, Range};
@@ -277,7 +276,7 @@ struct Md5State {
 }
 
 impl Md5State {
-    #[allow(new_without_default)]
+    #[allow(new_without_default_derive)]
     fn new() -> Md5State {
         Md5State {
             s0: 0x67452301,

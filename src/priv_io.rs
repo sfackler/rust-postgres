@@ -1,4 +1,6 @@
 use byteorder::ReadBytesExt;
+// this import needs to stay to support pre 1.9 users
+#[allow(unused_imports)]
 use net2::TcpStreamExt;
 use std::error::Error;
 use std::io;
@@ -18,7 +20,7 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use {SslMode, ConnectParams, ConnectTarget};
 use error::ConnectError;
-use io::{NegotiateSsl, StreamWrapper};
+use io::StreamWrapper;
 use message::{self, WriteMessage};
 use message::Frontend;
 
