@@ -9,6 +9,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
 pub use self::types::Type;
+pub use self::special::{Date, Timestamp};
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
 
@@ -70,6 +71,7 @@ mod chrono;
 #[cfg(feature = "eui48")]
 mod eui48;
 
+mod special;
 mod types;
 
 /// A structure providing information for conversion methods.
