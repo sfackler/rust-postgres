@@ -42,8 +42,6 @@
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate bufstream;
 extern crate byteorder;
