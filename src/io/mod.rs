@@ -5,10 +5,13 @@ use std::error::Error;
 use std::io::prelude::*;
 use std::fmt;
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 mod openssl;
 #[cfg(feature = "security-framework")]
 mod security_framework;
+
+#[cfg(all(feature = "openssl", not(feature = "with-openssl")))]
+const _CHECK: OpensslFeatureRenamedSeeDocs = "";
 
 /// A trait implemented by SSL adaptors.
 pub trait StreamWrapper: fmt::Debug + Read + Write + Send {
@@ -21,8 +24,8 @@ pub trait StreamWrapper: fmt::Debug + Read + Write + Send {
 
 /// A trait implemented by types that can negotiate SSL over a Postgres stream.
 ///
-/// If the `openssl` Cargo feature is enabled, this trait will be implemented
-/// for `openssl::ssl::SslContext`.
+/// If the `with-openssl` Cargo feature is enabled, this trait will be
+/// implemented for `openssl::ssl::SslContext`.
 ///
 /// If the `security-framework` Cargo feature is enabled, this trait will be
 /// implemented for `security_framework::secure_transport::ClientBuilder`.

@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate postgres;
 extern crate url;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 extern crate openssl;
 #[cfg(feature = "security-framework")]
 extern crate security_framework;
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 use openssl::ssl::{SslContext, SslMethod};
 use std::thread;
 use std::io;
@@ -663,18 +663,20 @@ fn test_cancel_query() {
 }
 
 #[test]
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
-    let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+    let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+    ctx.set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              SslMode::Require(&ctx)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 
 #[test]
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
-    let ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+    let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+    ctx.set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              SslMode::Prefer(&ctx)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
