@@ -8,9 +8,9 @@ use self::openssl::ssl::{IntoSsl, SslContext, SslStream, SslMethod, SSL_VERIFY_P
                          SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
 use self::openssl::ssl::error::SslError;
 use self::openssl_verify::verify_callback;
-use io::{StreamWrapper, Stream, NegotiateSsl};
+use io::{TlsStream, Stream, TlsHandshake};
 
-impl StreamWrapper for SslStream<Stream> {
+impl TlsStream for SslStream<Stream> {
     fn get_ref(&self) -> &Stream {
         self.get_ref()
     }
@@ -20,17 +20,17 @@ impl StreamWrapper for SslStream<Stream> {
     }
 }
 
-/// A `NegotiateSsl` implementation that uses OpenSSL.
+/// A `TlsHandshake` implementation that uses OpenSSL.
 ///
 /// Requires the `with-openssl` feature.
 #[derive(Debug)]
-pub struct Negotiator(SslContext);
+pub struct OpenSsl(SslContext);
 
-impl Negotiator {
-    /// Creates a `Negotiator` with a reasonable default configuration.
+impl OpenSsl {
+    /// Creates a `OpenSsl` with a reasonable default configuration.
     ///
     /// The configuration is modeled after libcurl's and is subject to change.
-    pub fn new() -> Result<Negotiator, SslError> {
+    pub fn new() -> Result<OpenSsl, SslError> {
         let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
         try!(ctx.set_default_verify_paths());
         ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
@@ -49,17 +49,17 @@ impl Negotiator {
     }
 }
 
-impl From<SslContext> for Negotiator {
-    fn from(ctx: SslContext) -> Negotiator {
-        Negotiator(ctx)
+impl From<SslContext> for OpenSsl {
+    fn from(ctx: SslContext) -> OpenSsl {
+        OpenSsl(ctx)
     }
 }
 
-impl NegotiateSsl for Negotiator {
-    fn negotiate_ssl(&self,
+impl TlsHandshake for OpenSsl {
+    fn tls_handshake(&self,
                      domain: &str,
                      stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error + Send + Sync>> {
+                     -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let domain = domain.to_owned();
         let mut ssl = try!(self.0.into_ssl());
         ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));

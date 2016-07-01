@@ -68,7 +68,7 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use error::{Error, ConnectError, SqlState, DbError};
-use io::{StreamWrapper, NegotiateSsl};
+use io::{TlsStream, TlsHandshake};
 use message::{Frontend, Backend, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
@@ -305,9 +305,9 @@ pub enum SslMode<'a> {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
-    Prefer(&'a NegotiateSsl),
+    Prefer(&'a TlsHandshake),
     /// The connection must use SSL.
-    Require(&'a NegotiateSsl),
+    Require(&'a TlsHandshake),
 }
 
 struct StatementInfo {
@@ -317,7 +317,7 @@ struct StatementInfo {
 }
 
 struct InnerConnection {
-    stream: BufStream<Box<StreamWrapper>>,
+    stream: BufStream<Box<TlsStream>>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,

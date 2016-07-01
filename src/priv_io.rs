@@ -17,7 +17,7 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use {SslMode, ConnectParams, ConnectTarget};
 use error::ConnectError;
-use io::StreamWrapper;
+use io::TlsStream;
 use message::{self, WriteMessage};
 use message::Frontend;
 
@@ -29,7 +29,7 @@ pub trait StreamOptions {
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()>;
 }
 
-impl StreamOptions for BufStream<Box<StreamWrapper>> {
+impl StreamOptions for BufStream<Box<TlsStream>> {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
@@ -49,7 +49,7 @@ impl StreamOptions for BufStream<Box<StreamWrapper>> {
 
 /// A connection to the Postgres server.
 ///
-/// It implements `Read`, `Write` and `StreamWrapper`, as well as `AsRawFd` on
+/// It implements `Read`, `Write` and `TlsStream`, as well as `AsRawFd` on
 /// Unix platforms and `AsRawSocket` on Windows platforms.
 pub struct Stream(InternalStream);
 
@@ -79,7 +79,7 @@ impl Write for Stream {
     }
 }
 
-impl StreamWrapper for Stream {
+impl TlsStream for Stream {
     fn get_ref(&self) -> &Stream {
         self
     }
@@ -160,7 +160,7 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 
 pub fn initialize_stream(params: &ConnectParams,
                          ssl: SslMode)
-                         -> Result<Box<StreamWrapper>, ConnectError> {
+                         -> Result<Box<TlsStream>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
     let (ssl_required, negotiator) = match ssl {
@@ -188,5 +188,5 @@ pub fn initialize_stream(params: &ConnectParams,
         ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    negotiator.negotiate_ssl(host, socket).map_err(ConnectError::Ssl)
+    negotiator.tls_handshake(host, socket).map_err(ConnectError::Ssl)
 }

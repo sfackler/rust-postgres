@@ -2,10 +2,10 @@
 extern crate security_framework;
 
 use self::security_framework::secure_transport::{SslStream, ClientBuilder};
-use io::{Stream, StreamWrapper, NegotiateSsl};
+use io::{Stream, TlsStream, TlsHandshake};
 use std::error::Error;
 
-impl StreamWrapper for SslStream<Stream> {
+impl TlsStream for SslStream<Stream> {
     fn get_ref(&self) -> &Stream {
         self.get_ref()
     }
@@ -15,15 +15,15 @@ impl StreamWrapper for SslStream<Stream> {
     }
 }
 
-/// A `NegotiateSsl` implementation that uses Security Framework.
+/// A `TlsHandshake` implementation that uses the Security Framework.
 ///
 /// Requires the `security-framework` feature.
 #[derive(Debug)]
-pub struct Negotiator(ClientBuilder);
+pub struct SecurityFramework(ClientBuilder);
 
-impl Negotiator {
-    /// Returns a new `Negotiator` with default settings.
-    pub fn new() -> Negotiator {
+impl SecurityFramework {
+    /// Returns a new `SecurityFramework` with default settings.
+    pub fn new() -> SecurityFramework {
         ClientBuilder::new().into()
     }
 
@@ -38,17 +38,17 @@ impl Negotiator {
     }
 }
 
-impl From<ClientBuilder> for Negotiator {
-    fn from(b: ClientBuilder) -> Negotiator {
-        Negotiator(b)
+impl From<ClientBuilder> for SecurityFramework {
+    fn from(b: ClientBuilder) -> SecurityFramework {
+        SecurityFramework(b)
     }
 }
 
-impl NegotiateSsl for Negotiator {
-    fn negotiate_ssl(&self,
+impl TlsHandshake for SecurityFramework {
+    fn tls_handshake(&self,
                      domain: &str,
                      stream: Stream)
-                     -> Result<Box<StreamWrapper>, Box<Error + Send + Sync>> {
+                     -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let stream = try!(self.0.handshake(domain, stream));
         Ok(Box::new(stream))
     }

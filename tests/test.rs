@@ -663,9 +663,9 @@ fn test_cancel_query() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
-    use postgres::io::openssl::Negotiator;
+    use postgres::io::openssl::OpenSsl;
 
-    let mut negotiator = Negotiator::new().unwrap();
+    let mut negotiator = OpenSsl::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              SslMode::Require(&negotiator)));
@@ -675,9 +675,9 @@ fn test_require_ssl_conn() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
-    use postgres::io::openssl::Negotiator;
+    use postgres::io::openssl::OpenSsl;
 
-    let mut negotiator = Negotiator::new().unwrap();
+    let mut negotiator = OpenSsl::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              SslMode::Require(&negotiator)));
@@ -687,12 +687,12 @@ fn test_prefer_ssl_conn() {
 #[test]
 #[cfg(feature = "security-framework")]
 fn security_framework_ssl() {
-    use postgres::io::security_framework::Negotiator;
+    use postgres::io::security_framework::SecurityFramework;
     use security_framework::certificate::SecCertificate;
 
     let certificate = include_bytes!("../.travis/server.der");
     let certificate = or_panic!(SecCertificate::from_der(certificate));
-    let mut negotiator = Negotiator::new();
+    let mut negotiator = SecurityFramework::new();
     negotiator.builder_mut().anchor_certificates(&[certificate]);
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              SslMode::Require(&negotiator)));
