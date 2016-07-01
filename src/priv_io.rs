@@ -15,7 +15,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
 
-use {SslMode, ConnectParams, ConnectTarget};
+use {TlsMode, ConnectParams, ConnectTarget};
 use error::ConnectError;
 use io::TlsStream;
 use message::{self, WriteMessage};
@@ -159,14 +159,14 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 }
 
 pub fn initialize_stream(params: &ConnectParams,
-                         ssl: SslMode)
+                         ssl: TlsMode)
                          -> Result<Box<TlsStream>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
     let (ssl_required, negotiator) = match ssl {
-        SslMode::None => return Ok(Box::new(socket)),
-        SslMode::Prefer(negotiator) => (false, negotiator),
-        SslMode::Require(negotiator) => (true, negotiator),
+        TlsMode::None => return Ok(Box::new(socket)),
+        TlsMode::Prefer(negotiator) => (false, negotiator),
+        TlsMode::Require(negotiator) => (true, negotiator),
     };
 
     try!(socket.write_message(&Frontend::SslRequest { code: message::SSL_CODE }));

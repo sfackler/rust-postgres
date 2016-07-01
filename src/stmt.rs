@@ -116,8 +116,8 @@ impl<'conn> Statement<'conn> {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -187,8 +187,8 @@ impl<'conn> Statement<'conn> {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
     /// # let baz = true;
     /// for row in &stmt.query(&[&baz]).unwrap() {
@@ -257,8 +257,8 @@ impl<'conn> Statement<'conn> {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// conn.batch_execute("CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR)").unwrap();
     /// let stmt = conn.prepare("COPY people FROM STDIN").unwrap();
     /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
@@ -348,8 +348,8 @@ impl<'conn> Statement<'conn> {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// conn.batch_execute("
     ///         CREATE TABLE people (id INT PRIMARY KEY, name VARCHAR);
     ///         INSERT INTO people (id, name) VALUES (1, 'john'), (2, 'jane');").unwrap();

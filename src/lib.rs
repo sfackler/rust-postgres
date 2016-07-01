@@ -3,7 +3,7 @@
 //! ```rust,no_run
 //! extern crate postgres;
 //!
-//! use postgres::{Connection, SslMode};
+//! use postgres::{Connection, TlsMode};
 //!
 //! struct Person {
 //!     id: i32,
@@ -12,7 +12,7 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = Connection::connect("postgresql://postgres@localhost", SslMode::None)
+//!     let conn = Connection::connect("postgresql://postgres@localhost", TlsMode::None)
 //!             .unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
@@ -259,18 +259,18 @@ pub struct CancelData {
 /// # Example
 ///
 /// ```rust,no_run
-/// # use postgres::{Connection, SslMode};
+/// # use postgres::{Connection, TlsMode};
 /// # use std::thread;
 /// # let url = "";
-/// let conn = Connection::connect(url, SslMode::None).unwrap();
+/// let conn = Connection::connect(url, TlsMode::None).unwrap();
 /// let cancel_data = conn.cancel_data();
 /// thread::spawn(move || {
 ///     conn.execute("SOME EXPENSIVE QUERY", &[]).unwrap();
 /// });
-/// postgres::cancel_query(url, SslMode::None, &cancel_data).unwrap();
+/// postgres::cancel_query(url, TlsMode::None, &cancel_data).unwrap();
 /// ```
 pub fn cancel_query<T>(params: T,
-                       ssl: SslMode,
+                       ssl: TlsMode,
                        data: &CancelData)
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
@@ -299,9 +299,9 @@ fn desynchronized() -> std_io::Error {
                         error")
 }
 
-/// Specifies the SSL support requested for a new connection.
+/// Specifies the TLS support requested for a new connection.
 #[derive(Debug)]
-pub enum SslMode<'a> {
+pub enum TlsMode<'a> {
     /// The connection will not use SSL.
     None,
     /// The connection will use SSL if the backend supports it.
@@ -339,7 +339,7 @@ impl Drop for InnerConnection {
 }
 
 impl InnerConnection {
-    fn connect<T>(params: T, ssl: SslMode) -> result::Result<InnerConnection, ConnectError>
+    fn connect<T>(params: T, ssl: TlsMode) -> result::Result<InnerConnection, ConnectError>
         where T: IntoConnectParams
     {
         let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
@@ -994,21 +994,21 @@ impl Connection {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use postgres::{Connection, SslMode};
+    /// use postgres::{Connection, TlsMode};
     ///
     /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
-    /// let conn = Connection::connect(url, SslMode::None).unwrap();
+    /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
-    /// use postgres::{Connection, SslMode};
+    /// use postgres::{Connection, TlsMode};
     ///
     /// let url = "postgresql://postgres@%2Frun%2Fpostgres";
-    /// let conn = Connection::connect(url, SslMode::None).unwrap();
+    /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///
     /// ```rust,no_run
-    /// use postgres::{Connection, UserInfo, ConnectParams, SslMode, ConnectTarget};
+    /// use postgres::{Connection, UserInfo, ConnectParams, TlsMode, ConnectTarget};
     /// # use std::path::PathBuf;
     ///
     /// # #[cfg(feature = "unix_socket")]
@@ -1024,10 +1024,10 @@ impl Connection {
     ///     database: None,
     ///     options: vec![],
     /// };
-    /// let conn = Connection::connect(params, SslMode::None).unwrap();
+    /// let conn = Connection::connect(params, TlsMode::None).unwrap();
     /// # }
     /// ```
-    pub fn connect<T>(params: T, ssl: SslMode) -> result::Result<Connection, ConnectError>
+    pub fn connect<T>(params: T, ssl: TlsMode) -> result::Result<Connection, ConnectError>
         where T: IntoConnectParams
     {
         InnerConnection::connect(params, ssl).map(|conn| Connection { conn: RefCell::new(conn) })
@@ -1052,8 +1052,8 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// # let bar = 1i32;
     /// # let baz = true;
     /// let rows_updated = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&bar, &baz])
@@ -1088,8 +1088,8 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// # let baz = true;
     /// for row in &conn.query("SELECT foo FROM bar WHERE baz = $1", &[&baz]).unwrap() {
     ///     let foo: i32 = row.get("foo");
@@ -1124,8 +1124,8 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// let trans = conn.transaction().unwrap();
     /// trans.execute("UPDATE foo SET bar = 10", &[]).unwrap();
     /// // ...
@@ -1160,9 +1160,9 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
+    /// # use postgres::{Connection, TlsMode};
     /// # let x = 10i32;
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// # let (a, b) = (0i32, 1i32);
     /// # let updates = vec![(&a, &b)];
     /// let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -1184,9 +1184,9 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
+    /// # use postgres::{Connection, TlsMode};
     /// # let x = 10i32;
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// # let (a, b) = (0i32, 1i32);
     /// # let updates = vec![(&a, &b)];
     /// let stmt = conn.prepare_cached("UPDATE foo SET bar = $1 WHERE baz = $2").unwrap();
@@ -1239,8 +1239,8 @@ impl Connection {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode, Result};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode, Result};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// conn.batch_execute("
     ///     CREATE TABLE person (
     ///         id SERIAL PRIMARY KEY,

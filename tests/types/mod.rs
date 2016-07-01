@@ -4,7 +4,7 @@ use std::f64;
 use std::fmt;
 use std::io::{Read, Write};
 
-use postgres::{Connection, SslMode, Result};
+use postgres::{Connection, TlsMode, Result};
 use postgres::error::Error;
 use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, SessionInfo};
 
@@ -24,7 +24,7 @@ mod serde_json;
 mod chrono;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
         let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
@@ -38,7 +38,7 @@ fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks
 
 #[test]
 fn test_ref_tosql() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     let stmt = conn.prepare("SELECT $1::Int").unwrap();
     let num: &ToSql = &&7;
     stmt.query(&[num]).unwrap();
@@ -118,7 +118,7 @@ fn test_text_params() {
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
@@ -134,7 +134,7 @@ fn test_bpchar_params() {
 
 #[test]
 fn test_citext_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CITEXT
@@ -180,7 +180,7 @@ fn test_array_params() {
 }
 
 fn test_nan_param<T: PartialEq+ToSql+FromSql>(sql_type: &str) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
     let result = or_panic!(stmt.query(&[]));
     let val: T = result.iter().next().unwrap().get(0);
@@ -199,7 +199,7 @@ fn test_f64_nan_param() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
     let result = or_panic!(stmt.query(&[]));
 
@@ -210,7 +210,7 @@ fn test_pg_database_datname() {
 
 #[test]
 fn test_slice() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');").unwrap();
 
@@ -222,7 +222,7 @@ fn test_slice() {
 
 #[test]
 fn test_slice_wrong_type() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)").unwrap();
 
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)").unwrap();
@@ -235,7 +235,7 @@ fn test_slice_wrong_type() {
 
 #[test]
 fn test_slice_range() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
 
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
     match stmt.query(&[&&[1i64][..]]) {
@@ -279,7 +279,7 @@ fn domain() {
         }
     }
 
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
                         CREATE TABLE pg_temp.foo (id pg_temp.session_id);")
         .unwrap();
@@ -292,7 +292,7 @@ fn domain() {
 
 #[test]
 fn composite() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TYPE pg_temp.inventory_item AS (
                             name TEXT,
                             supplier INTEGER,
@@ -318,7 +318,7 @@ fn composite() {
 
 #[test]
 fn enum_() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');").unwrap();
 
     let stmt = conn.prepare("SELECT $1::mood").unwrap();

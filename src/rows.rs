@@ -186,8 +186,8 @@ impl<'a> Row<'a> {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
     /// for row in &stmt.query(&[]).unwrap() {
     ///     let foo: i32 = row.get(0);
