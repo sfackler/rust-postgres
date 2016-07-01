@@ -270,13 +270,13 @@ pub struct CancelData {
 /// postgres::cancel_query(url, TlsMode::None, &cancel_data).unwrap();
 /// ```
 pub fn cancel_query<T>(params: T,
-                       ssl: TlsMode,
+                       tls: TlsMode,
                        data: &CancelData)
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
 {
     let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
-    let mut socket = try!(priv_io::initialize_stream(&params, ssl));
+    let mut socket = try!(priv_io::initialize_stream(&params, tls));
 
     try!(socket.write_message(&Frontend::CancelRequest {
         code: message::CANCEL_CODE,
@@ -302,11 +302,11 @@ fn desynchronized() -> std_io::Error {
 /// Specifies the TLS support requested for a new connection.
 #[derive(Debug)]
 pub enum TlsMode<'a> {
-    /// The connection will not use SSL.
+    /// The connection will not use TLS.
     None,
-    /// The connection will use SSL if the backend supports it.
+    /// The connection will use TLS if the backend supports it.
     Prefer(&'a TlsHandshake),
-    /// The connection must use SSL.
+    /// The connection must use TLS.
     Require(&'a TlsHandshake),
 }
 
@@ -339,11 +339,11 @@ impl Drop for InnerConnection {
 }
 
 impl InnerConnection {
-    fn connect<T>(params: T, ssl: TlsMode) -> result::Result<InnerConnection, ConnectError>
+    fn connect<T>(params: T, tls: TlsMode) -> result::Result<InnerConnection, ConnectError>
         where T: IntoConnectParams
     {
         let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
-        let stream = try!(priv_io::initialize_stream(&params, ssl));
+        let stream = try!(priv_io::initialize_stream(&params, tls));
 
         let ConnectParams { user, database, mut options, .. } = params;
 
@@ -1027,10 +1027,10 @@ impl Connection {
     /// let conn = Connection::connect(params, TlsMode::None).unwrap();
     /// # }
     /// ```
-    pub fn connect<T>(params: T, ssl: TlsMode) -> result::Result<Connection, ConnectError>
+    pub fn connect<T>(params: T, tls: TlsMode) -> result::Result<Connection, ConnectError>
         where T: IntoConnectParams
     {
-        InnerConnection::connect(params, ssl).map(|conn| Connection { conn: RefCell::new(conn) })
+        InnerConnection::connect(params, tls).map(|conn| Connection { conn: RefCell::new(conn) })
     }
 
     /// Executes a statement, returning the number of rows modified.

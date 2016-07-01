@@ -17,7 +17,7 @@ Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database.
 ```rust
 extern crate postgres;
 
-use postgres::{Connection, SslMode};
+use postgres::{Connection, TlsMode};
 
 struct Person {
     id: i32,
@@ -26,7 +26,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
@@ -65,7 +65,7 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    SslMode::None));
+                                    TlsMode::None));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -77,7 +77,7 @@ path to the directory containing the socket file. Since `/` is a reserved
 character in URLs, the path should be URL encoded. If Postgres stored its socket
 files in `/run/postgres`, the connection would then look like:
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", TlsMode::None));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
