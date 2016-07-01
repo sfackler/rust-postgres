@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use std::fmt;
 
 #[cfg(feature = "with-openssl")]
-mod openssl;
+pub mod openssl;
 #[cfg(feature = "security-framework")]
 mod security_framework;
 
