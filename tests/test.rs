@@ -24,8 +24,6 @@ use postgres::error::SqlState::{SyntaxError,
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
 use postgres::notification::Notification;
-#[cfg(feature = "with-openssl")]
-use postgres::io::openssl::Negotiator;
 
 macro_rules! or_panic {
     ($e:expr) => (
@@ -665,6 +663,8 @@ fn test_cancel_query() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
+    use postgres::io::openssl::Negotiator;
+
     let mut negotiator = Negotiator::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
@@ -675,6 +675,8 @@ fn test_require_ssl_conn() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
+    use postgres::io::openssl::Negotiator;
+
     let mut negotiator = Negotiator::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
@@ -685,15 +687,15 @@ fn test_prefer_ssl_conn() {
 #[test]
 #[cfg(feature = "security-framework")]
 fn security_framework_ssl() {
+    use postgres::io::security_framework::Negotiator;
     use security_framework::certificate::SecCertificate;
-    use security_framework::secure_transport::ClientBuilder;
 
     let certificate = include_bytes!("../.travis/server.der");
     let certificate = or_panic!(SecCertificate::from_der(certificate));
-    let mut builder = ClientBuilder::new();
-    builder.anchor_certificates(&[certificate]);
+    let mut negotiator = Negotiator::new();
+    negotiator.builder_mut().anchor_certificates(&[certificate]);
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
-                                             SslMode::Require(&builder)));
+                                             SslMode::Require(&negotiator)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
 }
 

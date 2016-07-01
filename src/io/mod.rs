@@ -8,7 +8,7 @@ use std::fmt;
 #[cfg(feature = "with-openssl")]
 pub mod openssl;
 #[cfg(feature = "security-framework")]
-mod security_framework;
+pub mod security_framework;
 
 #[cfg(all(feature = "openssl", not(feature = "with-openssl")))]
 const _CHECK: OpensslFeatureRenamedSeeDocs = "";

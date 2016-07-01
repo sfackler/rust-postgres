@@ -1,4 +1,4 @@
-//! NegotiateSsl support for OpenSSL.
+//! OpenSSL support.
 extern crate openssl;
 extern crate openssl_verify;
 
