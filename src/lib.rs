@@ -1208,13 +1208,6 @@ impl Connection {
         IsolationLevel::new(result[0][0].as_ref().unwrap())
     }
 
-    /// # Deprecated
-    ///
-    /// Use `Connection::set_transaction_config` instead.
-    pub fn set_transaction_isolation(&self, level: IsolationLevel) -> Result<()> {
-        self.set_transaction_config(transaction::Config::new().isolation_level(level))
-    }
-
     /// Sets the configuration that will be used for future transactions.
     pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
         let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
