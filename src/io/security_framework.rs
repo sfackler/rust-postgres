@@ -16,6 +16,8 @@ impl StreamWrapper for SslStream<Stream> {
 }
 
 /// A `NegotiateSsl` implementation that uses Security Framework.
+///
+/// Requires the `security-framework` feature.
 #[derive(Debug)]
 pub struct Negotiator(ClientBuilder);
 

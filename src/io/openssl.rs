@@ -21,6 +21,8 @@ impl StreamWrapper for SslStream<Stream> {
 }
 
 /// A `NegotiateSsl` implementation that uses OpenSSL.
+///
+/// Requires the `with-openssl` feature.
 #[derive(Debug)]
 pub struct Negotiator(SslContext);
 

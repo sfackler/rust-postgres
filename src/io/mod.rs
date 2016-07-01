@@ -23,12 +23,6 @@ pub trait StreamWrapper: fmt::Debug + Read + Write + Send {
 }
 
 /// A trait implemented by types that can negotiate SSL over a Postgres stream.
-///
-/// If the `with-openssl` Cargo feature is enabled, this trait will be
-/// implemented for `openssl::ssl::SslContext`.
-///
-/// If the `security-framework` Cargo feature is enabled, this trait will be
-/// implemented for `security_framework::secure_transport::ClientBuilder`.
 pub trait NegotiateSsl: fmt::Debug {
     /// Negotiates an SSL session, returning a wrapper around the provided
     /// stream.
