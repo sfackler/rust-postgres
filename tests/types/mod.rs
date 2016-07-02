@@ -8,19 +8,19 @@ use postgres::{Connection, TlsMode, Result};
 use postgres::error::Error;
 use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, SessionInfo};
 
-#[cfg(feature = "bit-vec")]
+#[cfg(feature = "with-bit-vec")]
 mod bit_vec;
-#[cfg(feature = "eui48")]
+#[cfg(feature = "with-eui48")]
 mod eui48;
-#[cfg(feature = "uuid")]
+#[cfg(feature = "with-uuid")]
 mod uuid;
-#[cfg(feature = "time")]
+#[cfg(feature = "with-time")]
 mod time;
-#[cfg(feature = "rustc-serialize")]
+#[cfg(feature = "with-rustc-serialize")]
 mod rustc_serialize;
-#[cfg(feature = "serde_json")]
+#[cfg(feature = "with-serde_json")]
 mod serde_json;
-#[cfg(feature = "chrono")]
+#[cfg(feature = "with-chrono")]
 mod chrono;
 
 fn test_type<T: PartialEq+FromSql+ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {

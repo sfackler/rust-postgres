@@ -54,19 +54,19 @@ pub fn __to_sql_checked<T>(v: &T, ty: &Type, out: &mut Write, ctx: &SessionInfo)
     v.to_sql(ty, out, ctx)
 }
 
-#[cfg(feature = "bit-vec")]
+#[cfg(feature = "with-bit-vec")]
 mod bit_vec;
-#[cfg(feature = "uuid")]
+#[cfg(feature = "with-uuid")]
 mod uuid;
-#[cfg(feature = "time")]
+#[cfg(feature = "with-time")]
 mod time;
-#[cfg(feature = "rustc-serialize")]
+#[cfg(feature = "with-rustc-serialize")]
 mod rustc_serialize;
-#[cfg(feature = "serde_json")]
+#[cfg(feature = "with-serde_json")]
 mod serde_json;
-#[cfg(feature = "chrono")]
+#[cfg(feature = "with-chrono")]
 mod chrono;
-#[cfg(feature = "eui48")]
+#[cfg(feature = "with-eui48")]
 mod eui48;
 
 mod special;
@@ -273,8 +273,8 @@ impl WrongTypeNew for WrongType {
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name. For example, the `serde_json` feature enables the implementation for
-/// the `serde_json::Value` type.
+/// name prefixed by `with-`. For example, the `with-serde_json` feature enables
+/// the implementation for the `serde_json::Value` type.
 ///
 /// | Rust type                       | Postgres type(s)                    |
 /// |---------------------------------|-------------------------------------|
@@ -525,8 +525,8 @@ pub enum IsNull {
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name. For example, the `serde_json` feature enables the implementation for
-/// the `serde_json::Value` type.
+/// name prefixed by `with-`. For example, the `with-serde_json` feature enables
+/// the implementation for the `serde_json::Value` type.
 ///
 /// | Rust type                       | Postgres type(s)                    |
 /// |---------------------------------|-------------------------------------|

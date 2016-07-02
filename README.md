@@ -71,7 +71,7 @@ let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password`, and `md5` authentication.
 
-Unix domain sockets can be used as well by activating the `unix_socket` or
+Unix domain sockets can be used as well by activating the `with-unix_socket` or
 `nightly` features.  The `host` portion of the URI should be set to the absolute
 path to the directory containing the socket file. Since `/` is a reserved
 character in URLs, the path should be URL encoded. If Postgres stored its socket
@@ -288,39 +288,39 @@ crate.
 ### Unix socket connections
 
 Support for connections through Unix domain sockets is provided optionally by
-either the `unix_socket` or `nightly` features. It is only available on "unixy"
-platforms such as OSX, BSD and Linux.
+either the `with-unix_socket` or `nightly` features. It is only available on
+"unixy" platforms such as OSX, BSD and Linux.
 
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature, which adds `ToSql` and `FromSql`
+provided optionally by the `with-uuid` feature, which adds `ToSql` and `FromSql`
 implementations for `uuid`'s `Uuid` type.
 
 ### JSON/JSONB types
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
-support is provided optionally by the `rustc-serialize` feature, which adds
+support is provided optionally by the `with-rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
-the `serde_json` feature, which adds implementations for `serde_json`'s `Value`
-type.
+the `with-serde_json` feature, which adds implementations for `serde_json`'s
+`Value` type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
 [Date and Time](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
-support is provided optionally by the `time` feature, which adds `ToSql` and
-`FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
+support is provided optionally by the `with-time` feature, which adds `ToSql`
+and `FromSql` implementations for `time`'s `Timespec` type, or the `with-chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
 `DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
 
 ### BIT/VARBIT types
 
 [BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
-support is provided optionally by the `bit-vec` feature, which adds `ToSql` and
-`FromSql` implementations for `bit-vec`'s `BitVec` type.
+support is provided optionally by the `with-bit-vec` feature, which adds `ToSql`
+and `FromSql` implementations for `bit-vec`'s `BitVec` type.
 
 ### MACADDR type
 
 [MACADDR](http://www.postgresql.org/docs/9.4/static/datatype-net-types.html#DATATYPE-MACADDR)
-support is provided optionally by the `eui48` feature, which adds `ToSql` and
-`FromSql` implementations for `eui48`'s `MacAddress` type.
+support is provided optionally by the `with-eui48` feature, which adds `ToSql`
+and `FromSql` implementations for `eui48`'s `MacAddress` type.

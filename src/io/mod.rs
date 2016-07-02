@@ -7,11 +7,8 @@ use std::fmt;
 
 #[cfg(feature = "with-openssl")]
 pub mod openssl;
-#[cfg(feature = "security-framework")]
+#[cfg(feature = "with-security-framework")]
 pub mod security_framework;
-
-#[cfg(all(feature = "openssl", not(feature = "with-openssl")))]
-const _CHECK: OpensslFeatureRenamedSeeDocs = "";
 
 /// A trait implemented by TLS adaptors.
 pub trait TlsStream: fmt::Debug + Read + Write + Send {

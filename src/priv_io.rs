@@ -6,9 +6,9 @@ use std::fmt;
 use std::net::TcpStream;
 use std::time::Duration;
 use bufstream::BufStream;
-#[cfg(feature = "unix_socket")]
+#[cfg(feature = "with-unix_socket")]
 use unix_socket::UnixStream;
-#[cfg(all(not(feature = "unix_socket"), all(unix, feature = "nightly")))]
+#[cfg(all(not(feature = "with-unix_socket"), all(unix, feature = "nightly")))]
 use std::os::unix::net::UnixStream;
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -33,7 +33,7 @@ impl StreamOptions for BufStream<Box<TlsStream>> {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
         }
     }
@@ -41,7 +41,7 @@ impl StreamOptions for BufStream<Box<TlsStream>> {
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()> {
         match self.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_nonblocking(nonblock),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref s) => s.set_nonblocking(nonblock),
         }
     }
@@ -57,7 +57,7 @@ impl fmt::Debug for Stream {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             InternalStream::Tcp(ref s) => fmt::Debug::fmt(s, fmt),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref s) => fmt::Debug::fmt(s, fmt),
         }
     }
@@ -94,7 +94,7 @@ impl AsRawFd for Stream {
     fn as_raw_fd(&self) -> RawFd {
         match self.0 {
             InternalStream::Tcp(ref s) => s.as_raw_fd(),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref s) => s.as_raw_fd(),
         }
     }
@@ -112,7 +112,7 @@ impl AsRawSocket for Stream {
 
 enum InternalStream {
     Tcp(TcpStream),
-    #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+    #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
     Unix(UnixStream),
 }
 
@@ -120,7 +120,7 @@ impl Read for InternalStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.read(buf),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref mut s) => s.read(buf),
         }
     }
@@ -130,7 +130,7 @@ impl Write for InternalStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.write(buf),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref mut s) => s.write(buf),
         }
     }
@@ -138,7 +138,7 @@ impl Write for InternalStream {
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             InternalStream::Tcp(ref mut s) => s.flush(),
-            #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+            #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
             InternalStream::Unix(ref mut s) => s.flush(),
         }
     }
@@ -150,7 +150,7 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
         ConnectTarget::Tcp(ref host) => {
             Ok(try!(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)))
         }
-        #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+        #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
         ConnectTarget::Unix(ref path) => {
             let path = path.join(&format!(".s.PGSQL.{}", port));
             Ok(try!(UnixStream::connect(&path).map(InternalStream::Unix)))
@@ -184,7 +184,7 @@ pub fn initialize_stream(params: &ConnectParams,
     // Postgres doesn't support SSL over unix sockets
     let host = match params.target {
         ConnectTarget::Tcp(ref host) => host,
-        #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+        #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
         ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 

@@ -3,7 +3,7 @@ extern crate postgres;
 extern crate url;
 #[cfg(feature = "with-openssl")]
 extern crate openssl;
-#[cfg(feature = "security-framework")]
+#[cfg(feature = "with-security-framework")]
 extern crate security_framework;
 
 use std::thread;
@@ -685,7 +685,7 @@ fn test_prefer_ssl_conn() {
 }
 
 #[test]
-#[cfg(feature = "security-framework")]
+#[cfg(feature = "with-security-framework")]
 fn security_framework_ssl() {
     use postgres::io::security_framework::SecurityFramework;
     use security_framework::certificate::SecCertificate;

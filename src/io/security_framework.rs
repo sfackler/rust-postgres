@@ -17,7 +17,7 @@ impl TlsStream for SslStream<Stream> {
 
 /// A `TlsHandshake` implementation that uses the Security Framework.
 ///
-/// Requires the `security-framework` feature.
+/// Requires the `with-security-framework` feature.
 #[derive(Debug)]
 pub struct SecurityFramework(ClientBuilder);
 
