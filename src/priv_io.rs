@@ -1,5 +1,4 @@
 use byteorder::ReadBytesExt;
-use std::error::Error;
 use std::io;
 use std::io::prelude::*;
 use std::fmt;
@@ -159,34 +158,33 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 }
 
 pub fn initialize_stream(params: &ConnectParams,
-                         ssl: TlsMode)
+                         tls: TlsMode)
                          -> Result<Box<TlsStream>, ConnectError> {
     let mut socket = Stream(try!(open_socket(params)));
 
-    let (ssl_required, negotiator) = match ssl {
+    let (tls_required, handshaker) = match tls {
         TlsMode::None => return Ok(Box::new(socket)),
-        TlsMode::Prefer(negotiator) => (false, negotiator),
-        TlsMode::Require(negotiator) => (true, negotiator),
+        TlsMode::Prefer(handshaker) => (false, handshaker),
+        TlsMode::Require(handshaker) => (true, handshaker),
     };
 
     try!(socket.write_message(&Frontend::SslRequest { code: message::SSL_CODE }));
     try!(socket.flush());
 
     if try!(socket.read_u8()) == b'N' {
-        if ssl_required {
-            let err: Box<Error + Sync + Send> = "The server does not support SSL".into();
-            return Err(ConnectError::Ssl(err));
+        if tls_required {
+            return Err(ConnectError::Ssl("the server does not support TLS".into()));
         } else {
             return Ok(Box::new(socket));
         }
     }
 
-    // Postgres doesn't support SSL over unix sockets
     let host = match params.target {
         ConnectTarget::Tcp(ref host) => host,
+        // Postgres doesn't support TLS over unix sockets
         #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
         ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    negotiator.tls_handshake(host, socket).map_err(ConnectError::Ssl)
+    handshaker.tls_handshake(host, socket).map_err(ConnectError::Ssl)
 }
