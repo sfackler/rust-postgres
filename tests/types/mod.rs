@@ -171,6 +171,14 @@ fn test_hstore_params() {
                 (None, "NULL")]);
 }
 
+#[test]
+fn test_array_params() {
+    test_type("integer[]", &[(Some(vec!(1i32, 2i32)), "ARRAY[1,2]"),
+                             (Some(vec!(1i32)), "ARRAY[1]"),
+                             (Some(vec!()), "ARRAY[]"),
+                             (None, "NULL")]);
+}
+
 fn test_nan_param<T: PartialEq+ToSql+FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", SslMode::None));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
