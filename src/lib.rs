@@ -49,8 +49,6 @@ extern crate hex;
 #[macro_use]
 extern crate log;
 extern crate phf;
-#[cfg(feature = "with-unix_socket")]
-extern crate unix_socket;
 
 use bufstream::BufStream;
 use md5::Md5;
@@ -61,11 +59,10 @@ use std::fmt;
 use std::io as std_io;
 use std::io::prelude::*;
 use std::mem;
+use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
-#[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
-use std::path::PathBuf;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{TlsStream, TlsHandshake};
@@ -108,8 +105,7 @@ pub enum ConnectTarget {
     Tcp(String),
     /// Connect via a Unix domain socket in the specified directory.
     ///
-    /// Requires the `unix_socket` or `nightly` feature.
-    #[cfg(any(feature = "unix_socket", all(unix, feature = "nightly")))]
+    /// Unix sockets are only supported on Unixy platforms (i.e. not Windows).
     Unix(PathBuf),
 }
 
@@ -166,21 +162,11 @@ impl<'a> IntoConnectParams for &'a str {
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
-        #[cfg(any(feature = "with-unix_socket", all(unix, feature = "nightly")))]
-        fn make_unix(maybe_path: String)
-                     -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
-            Ok(ConnectTarget::Unix(PathBuf::from(maybe_path)))
-        }
-        #[cfg(not(any(feature = "with-unix_socket", all(unix, feature = "nightly"))))]
-        fn make_unix(_: String) -> result::Result<ConnectTarget, Box<StdError + Sync + Send>> {
-            Err("unix socket support requires the `with-unix_socket` or `nightly` features".into())
-        }
-
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
 
         let maybe_path = try!(url::decode_component(&host));
         let target = if maybe_path.starts_with('/') {
-            try!(make_unix(maybe_path))
+            ConnectTarget::Unix(PathBuf::from(maybe_path))
         } else {
             ConnectTarget::Tcp(host)
         };
@@ -984,13 +970,12 @@ impl Connection {
     /// (5432) is used if none is specified. The database name defaults to the
     /// username if not specified.
     ///
-    /// Connection via Unix sockets is supported with either the
-    /// `with-unix_socket` or `nightly` features. To connect to the server via
-    /// Unix sockets, `host` should be set to the absolute path of the directory
-    /// containing the socket file.  Since `/` is a reserved character in URLs,
-    /// the path should be URL encoded. If the path contains non-UTF 8
-    /// characters, a `ConnectParams` struct should be created manually and
-    /// passed in. Note that Postgres does not support SSL over Unix sockets.
+    /// To connect to the server via Unix sockets, `host` should be set to the
+    /// absolute path of the directory containing the socket file.  Since `/` is
+    /// a reserved character in URLs, the path should be URL encoded. If the
+    /// path contains non-UTF 8 characters, a `ConnectParams` struct should be
+    /// created manually and passed in. Note that Postgres does not support TLS
+    /// over Unix sockets.
     ///
     /// # Examples
     ///
@@ -1012,7 +997,7 @@ impl Connection {
     /// use postgres::{Connection, UserInfo, ConnectParams, TlsMode, ConnectTarget};
     /// # use std::path::PathBuf;
     ///
-    /// # #[cfg(feature = "with-unix_socket")]
+    /// # #[cfg(unix)]
     /// # fn f() {
     /// # let some_crazy_path = PathBuf::new();
     /// let params = ConnectParams {
