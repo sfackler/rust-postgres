@@ -51,7 +51,6 @@ extern crate log;
 extern crate phf;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
-extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;
