@@ -358,14 +358,17 @@ impl<T: FromSql> FromSql for Vec<T> {
             _ => panic!("expected array type"),
         };
 
-        match try!(raw.read_i32::<BigEndian>()) {
-            0 => return Ok(Vec::new()),
-            1 => (),
-            _ => return Err(Error::Conversion("array contains too many dimensions".into())),
-        };
+        let dimensions = try!(raw.read_i32::<BigEndian>());
+        if dimensions > 1 {
+            return Err(Error::Conversion("array contains too many dimensions".into()));
+        }
 
         let _has_nulls = try!(raw.read_i32::<BigEndian>());
         let _member_oid = try!(raw.read_u32::<BigEndian>());
+
+        if dimensions == 0 {
+            return Ok(vec![]);
+        }
 
         let count = try!(raw.read_i32::<BigEndian>());
         let _index_offset = try!(raw.read_i32::<BigEndian>());
