@@ -813,8 +813,7 @@ impl ToSql for HashMap<String, Option<String>> {
 
 fn downcast(len: usize) -> Result<i32> {
     if len > i32::max_value() as usize {
-        let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
-        Err(Error::Conversion(err))
+        Err(Error::Conversion("value too large to transmit".into()))
     } else {
         Ok(len as i32)
     }
