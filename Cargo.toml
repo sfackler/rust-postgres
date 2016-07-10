@@ -21,7 +21,6 @@ name = "test"
 path = "tests/test.rs"
 
 [features]
-nightly = []
 with-bit-vec = ["bit-vec"]
 with-chrono = ["chrono"]
 with-eui48 = ["eui48"]
