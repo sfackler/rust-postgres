@@ -38,12 +38,10 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.9")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.10")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes)] // for clippy
 #![cfg_attr(all(unix, feature = "nightly"), feature(unix_socket))]
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate bufstream;
 extern crate byteorder;
@@ -53,7 +51,6 @@ extern crate log;
 extern crate phf;
 #[cfg(feature = "unix_socket")]
 extern crate unix_socket;
-extern crate net2;
 
 use bufstream::BufStream;
 use md5::Md5;
@@ -419,6 +416,19 @@ impl InnerConnection {
                                 ORDER BY enumsortorder") {
             Ok(..) => {}
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            // Postgres 9.0 doesn't have enumsortorder
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedColumn => {
+                match self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                                       "SELECT enumlabel \
+                                        FROM pg_catalog.pg_enum \
+                                        WHERE enumtypid = $1 \
+                                        ORDER BY oid") {
+                    Ok(..) => {}
+                    Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+                    Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+                    Err(Error::Conversion(_)) => unreachable!(),
+                }
+            }
             // Old versions of Postgres and things like Redshift don't support enums
             Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
             // Some Postgres-like databases are missing a pg_catalog (e.g. Cockroach)

@@ -9,6 +9,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 pub use self::slice::Slice;
 pub use self::types::Type;
+pub use self::special::{Date, Timestamp};
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
 use error::Error;
 
@@ -70,6 +71,7 @@ mod chrono;
 #[cfg(feature = "eui48")]
 mod eui48;
 
+mod special;
 mod types;
 
 /// A structure providing information for conversion methods.
@@ -256,19 +258,19 @@ impl WrongTypeNew for WrongType {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                                     | Postgres type(s)               |
-/// |-----------------------------------------------|--------------------------------|
-/// | `bool`                                        | BOOL                           |
-/// | `i8`                                          | "char"                         |
-/// | `i16`                                         | SMALLINT, SMALLSERIAL          |
-/// | `i32`                                         | INT, SERIAL                    |
-/// | `u32`                                         | OID                            |
-/// | `i64`                                         | BIGINT, BIGSERIAL              |
-/// | `f32`                                         | REAL                           |
-/// | `f64`                                         | DOUBLE PRECISION               |
-/// | `String`                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec&lt;u8&gt;`                               | BYTEA                          |
-/// | `HashMap&lt;String, Option&lt;String&gt;&gt;` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)               |
+/// |-----------------------------------|--------------------------------|
+/// | `bool`                            | BOOL                           |
+/// | `i8`                              | "char"                         |
+/// | `i16`                             | SMALLINT, SMALLSERIAL          |
+/// | `i32`                             | INT, SERIAL                    |
+/// | `u32`                             | OID                            |
+/// | `i64`                             | BIGINT, BIGSERIAL              |
+/// | `f32`                             | REAL                           |
+/// | `f64`                             | DOUBLE PRECISION               |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `Vec<u8>`                         | BYTEA                          |
+/// | `HashMap<String, Option<String>>` | HSTORE                         |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -276,21 +278,21 @@ impl WrongTypeNew for WrongType {
 /// name. For example, the `serde_json` feature enables the implementation for
 /// the `serde_json::Value` type.
 ///
-/// | Rust type                             | Postgres type(s)                    |
-/// |---------------------------------------|-------------------------------------|
-/// | `serialize::json::Json`               | JSON, JSONB                         |
-/// | `serde_json::Value`                   | JSON, JSONB                         |
-/// | `time::Timespec`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | `chrono::NaiveDateTime`               | TIMESTAMP                           |
-/// | `chrono::DateTime&lt;UTC&gt;`         | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;Local&gt;`       | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;FixedOffset&gt;` | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::NaiveDate`                   | DATE                                |
-/// | `chrono::NaiveTime`                   | TIME                                |
-/// | `eui48::MacAddress`                   | MACADDR                             |
-/// | `uuid::Uuid`                          | UUID                                |
-/// | `bit_vec::BitVec`                     | BIT, VARBIT                         |
-/// | `eui48::MacAddress`                   | MACADDR                             |
+/// | Rust type                       | Postgres type(s)                    |
+/// |---------------------------------|-------------------------------------|
+/// | `serialize::json::Json`         | JSON, JSONB                         |
+/// | `serde_json::Value`             | JSON, JSONB                         |
+/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
+/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::NaiveDate`             | DATE                                |
+/// | `chrono::NaiveTime`             | TIME                                |
+/// | `eui48::MacAddress`             | MACADDR                             |
+/// | `uuid::Uuid`                    | UUID                                |
+/// | `bit_vec::BitVec`               | BIT, VARBIT                         |
+/// | `eui48::MacAddress`             | MACADDR                             |
 ///
 /// # Nullability
 ///
@@ -356,12 +358,17 @@ impl<T: FromSql> FromSql for Vec<T> {
             _ => panic!("expected array type"),
         };
 
-        if try!(raw.read_i32::<BigEndian>()) != 1 {
+        let dimensions = try!(raw.read_i32::<BigEndian>());
+        if dimensions > 1 {
             return Err(Error::Conversion("array contains too many dimensions".into()));
         }
 
         let _has_nulls = try!(raw.read_i32::<BigEndian>());
         let _member_oid = try!(raw.read_u32::<BigEndian>());
+
+        if dimensions == 0 {
+            return Ok(vec![]);
+        }
 
         let count = try!(raw.read_i32::<BigEndian>());
         let _index_offset = try!(raw.read_i32::<BigEndian>());
@@ -501,21 +508,21 @@ pub enum IsNull {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                                     | Postgres type(s)               |
-/// |-----------------------------------------------|--------------------------------|
-/// | `bool`                                        | BOOL                           |
-/// | `i8`                                          | "char"                         |
-/// | `i16`                                         | SMALLINT, SMALLSERIAL          |
-/// | `i32`                                         | INT, SERIAL                    |
-/// | `u32`                                         | OID                            |
-/// | `i64`                                         | BIGINT, BIGSERIAL              |
-/// | `f32`                                         | REAL                           |
-/// | `f64`                                         | DOUBLE PRECISION               |
-/// | `String`                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `&str`                                        | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec&lt;u8&gt;`                               | BYTEA                          |
-/// | `&[u8]`                                       | BYTEA                          |
-/// | `HashMap&lt;String, Option&lt;String&gt;&gt;` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)               |
+/// |-----------------------------------|--------------------------------|
+/// | `bool`                            | BOOL                           |
+/// | `i8`                              | "char"                         |
+/// | `i16`                             | SMALLINT, SMALLSERIAL          |
+/// | `i32`                             | INT, SERIAL                    |
+/// | `u32`                             | OID                            |
+/// | `i64`                             | BIGINT, BIGSERIAL              |
+/// | `f32`                             | REAL                           |
+/// | `f64`                             | DOUBLE PRECISION               |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `&str`                            | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `Vec<u8>`                         | BYTEA                          |
+/// | `&[u8]`                           | BYTEA                          |
+/// | `HashMap<String, Option<String>>` | HSTORE                         |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -523,20 +530,20 @@ pub enum IsNull {
 /// name. For example, the `serde_json` feature enables the implementation for
 /// the `serde_json::Value` type.
 ///
-/// | Rust type                             | Postgres type(s)                    |
-/// |---------------------------------------|-------------------------------------|
-/// | `serialize::json::Json`               | JSON, JSONB                         |
-/// | `serde_json::Value`                   | JSON, JSONB                         |
-/// | `time::Timespec`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | `chrono::NaiveDateTime`               | TIMESTAMP                           |
-/// | `chrono::DateTime&lt;UTC&gt;`         | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;Local&gt;`       | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;FixedOffset&gt;` | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::NaiveDate`                   | DATE                                |
-/// | `chrono::NaiveTime`                   | TIME                                |
-/// | `uuid::Uuid`                          | UUID                                |
-/// | `bit_vec::BitVec`                     | BIT, VARBIT                         |
-/// | `eui48::MacAddress`                   | MACADDR                             |
+/// | Rust type                       | Postgres type(s)                    |
+/// |---------------------------------|-------------------------------------|
+/// | `serialize::json::Json`         | JSON, JSONB                         |
+/// | `serde_json::Value`             | JSON, JSONB                         |
+/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
+/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::NaiveDate`             | DATE                                |
+/// | `chrono::NaiveTime`             | TIME                                |
+/// | `uuid::Uuid`                    | UUID                                |
+/// | `bit_vec::BitVec`               | BIT, VARBIT                         |
+/// | `eui48::MacAddress`             | MACADDR                             |
 ///
 /// # Nullability
 ///
@@ -806,8 +813,7 @@ impl ToSql for HashMap<String, Option<String>> {
 
 fn downcast(len: usize) -> Result<i32> {
     if len > i32::max_value() as usize {
-        let err: Box<error::Error + Sync + Send> = "value too large to transmit".into();
-        Err(Error::Conversion(err))
+        Err(Error::Conversion("value too large to transmit".into()))
     } else {
         Ok(len as i32)
     }
