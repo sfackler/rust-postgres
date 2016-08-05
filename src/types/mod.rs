@@ -258,19 +258,19 @@ impl WrongTypeNew for WrongType {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                                     | Postgres type(s)               |
-/// |-----------------------------------------------|--------------------------------|
-/// | `bool`                                        | BOOL                           |
-/// | `i8`                                          | "char"                         |
-/// | `i16`                                         | SMALLINT, SMALLSERIAL          |
-/// | `i32`                                         | INT, SERIAL                    |
-/// | `u32`                                         | OID                            |
-/// | `i64`                                         | BIGINT, BIGSERIAL              |
-/// | `f32`                                         | REAL                           |
-/// | `f64`                                         | DOUBLE PRECISION               |
-/// | `String`                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec&lt;u8&gt;`                               | BYTEA                          |
-/// | `HashMap&lt;String, Option&lt;String&gt;&gt;` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)               |
+/// |-----------------------------------|--------------------------------|
+/// | `bool`                            | BOOL                           |
+/// | `i8`                              | "char"                         |
+/// | `i16`                             | SMALLINT, SMALLSERIAL          |
+/// | `i32`                             | INT, SERIAL                    |
+/// | `u32`                             | OID                            |
+/// | `i64`                             | BIGINT, BIGSERIAL              |
+/// | `f32`                             | REAL                           |
+/// | `f64`                             | DOUBLE PRECISION               |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `Vec<u8>`                         | BYTEA                          |
+/// | `HashMap<String, Option<String>>` | HSTORE                         |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -278,21 +278,21 @@ impl WrongTypeNew for WrongType {
 /// name. For example, the `serde_json` feature enables the implementation for
 /// the `serde_json::Value` type.
 ///
-/// | Rust type                             | Postgres type(s)                    |
-/// |---------------------------------------|-------------------------------------|
-/// | `serialize::json::Json`               | JSON, JSONB                         |
-/// | `serde_json::Value`                   | JSON, JSONB                         |
-/// | `time::Timespec`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | `chrono::NaiveDateTime`               | TIMESTAMP                           |
-/// | `chrono::DateTime&lt;UTC&gt;`         | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;Local&gt;`       | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;FixedOffset&gt;` | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::NaiveDate`                   | DATE                                |
-/// | `chrono::NaiveTime`                   | TIME                                |
-/// | `eui48::MacAddress`                   | MACADDR                             |
-/// | `uuid::Uuid`                          | UUID                                |
-/// | `bit_vec::BitVec`                     | BIT, VARBIT                         |
-/// | `eui48::MacAddress`                   | MACADDR                             |
+/// | Rust type                       | Postgres type(s)                    |
+/// |---------------------------------|-------------------------------------|
+/// | `serialize::json::Json`         | JSON, JSONB                         |
+/// | `serde_json::Value`             | JSON, JSONB                         |
+/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
+/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::NaiveDate`             | DATE                                |
+/// | `chrono::NaiveTime`             | TIME                                |
+/// | `eui48::MacAddress`             | MACADDR                             |
+/// | `uuid::Uuid`                    | UUID                                |
+/// | `bit_vec::BitVec`               | BIT, VARBIT                         |
+/// | `eui48::MacAddress`             | MACADDR                             |
 ///
 /// # Nullability
 ///
@@ -508,21 +508,21 @@ pub enum IsNull {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                                     | Postgres type(s)               |
-/// |-----------------------------------------------|--------------------------------|
-/// | `bool`                                        | BOOL                           |
-/// | `i8`                                          | "char"                         |
-/// | `i16`                                         | SMALLINT, SMALLSERIAL          |
-/// | `i32`                                         | INT, SERIAL                    |
-/// | `u32`                                         | OID                            |
-/// | `i64`                                         | BIGINT, BIGSERIAL              |
-/// | `f32`                                         | REAL                           |
-/// | `f64`                                         | DOUBLE PRECISION               |
-/// | `String`                                      | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `&str`                                        | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec&lt;u8&gt;`                               | BYTEA                          |
-/// | `&[u8]`                                       | BYTEA                          |
-/// | `HashMap&lt;String, Option&lt;String&gt;&gt;` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)               |
+/// |-----------------------------------|--------------------------------|
+/// | `bool`                            | BOOL                           |
+/// | `i8`                              | "char"                         |
+/// | `i16`                             | SMALLINT, SMALLSERIAL          |
+/// | `i32`                             | INT, SERIAL                    |
+/// | `u32`                             | OID                            |
+/// | `i64`                             | BIGINT, BIGSERIAL              |
+/// | `f32`                             | REAL                           |
+/// | `f64`                             | DOUBLE PRECISION               |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `&str`                            | VARCHAR, CHAR(n), TEXT, CITEXT |
+/// | `Vec<u8>`                         | BYTEA                          |
+/// | `&[u8]`                           | BYTEA                          |
+/// | `HashMap<String, Option<String>>` | HSTORE                         |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -530,20 +530,20 @@ pub enum IsNull {
 /// name. For example, the `serde_json` feature enables the implementation for
 /// the `serde_json::Value` type.
 ///
-/// | Rust type                             | Postgres type(s)                    |
-/// |---------------------------------------|-------------------------------------|
-/// | `serialize::json::Json`               | JSON, JSONB                         |
-/// | `serde_json::Value`                   | JSON, JSONB                         |
-/// | `time::Timespec`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
-/// | `chrono::NaiveDateTime`               | TIMESTAMP                           |
-/// | `chrono::DateTime&lt;UTC&gt;`         | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;Local&gt;`       | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::DateTime&lt;FixedOffset&gt;` | TIMESTAMP WITH TIME ZONE            |
-/// | `chrono::NaiveDate`                   | DATE                                |
-/// | `chrono::NaiveTime`                   | TIME                                |
-/// | `uuid::Uuid`                          | UUID                                |
-/// | `bit_vec::BitVec`                     | BIT, VARBIT                         |
-/// | `eui48::MacAddress`                   | MACADDR                             |
+/// | Rust type                       | Postgres type(s)                    |
+/// |---------------------------------|-------------------------------------|
+/// | `serialize::json::Json`         | JSON, JSONB                         |
+/// | `serde_json::Value`             | JSON, JSONB                         |
+/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
+/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::NaiveDate`             | DATE                                |
+/// | `chrono::NaiveTime`             | TIME                                |
+/// | `uuid::Uuid`                    | UUID                                |
+/// | `bit_vec::BitVec`               | BIT, VARBIT                         |
+/// | `eui48::MacAddress`             | MACADDR                             |
 ///
 /// # Nullability
 ///
