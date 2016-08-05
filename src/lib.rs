@@ -416,6 +416,19 @@ impl InnerConnection {
                                 ORDER BY enumsortorder") {
             Ok(..) => {}
             Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+            // Postgres 9.0 doesn't have enumsortorder
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedColumn => {
+                match self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                                       "SELECT enumlabel \
+                                        FROM pg_catalog.pg_enum \
+                                        WHERE enumtypid = $1 \
+                                        ORDER BY oid") {
+                    Ok(..) => {}
+                    Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
+                    Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
+                    Err(Error::Conversion(_)) => unreachable!(),
+                }
+            }
             // Old versions of Postgres and things like Redshift don't support enums
             Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
             // Some Postgres-like databases are missing a pg_catalog (e.g. Cockroach)
