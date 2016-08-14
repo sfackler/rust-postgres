@@ -40,8 +40,8 @@ phf = "=0.7.15"
 bit-vec = { version = "0.4", optional = true }
 chrono = { version = "0.2.14", optional = true }
 eui48 = { version = "0.1", optional = true }
-openssl-verify = { version = "0.1", optional = true }
-openssl = { version = ">= 0.6.4, < 0.8", optional = true }
+openssl-verify = { version = "0.2", optional = true }
+openssl = { version = "0.8", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 serde_json = { version = ">= 0.6, < 0.9", optional = true }

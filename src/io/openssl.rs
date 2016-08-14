@@ -4,9 +4,9 @@ extern crate openssl_verify;
 
 use std::error::Error;
 
+use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{IntoSsl, SslContext, SslStream, SslMethod, SSL_VERIFY_PEER,
                          SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
-use self::openssl::ssl::error::SslError;
 use self::openssl_verify::verify_callback;
 use io::{TlsStream, Stream, TlsHandshake};
 
@@ -30,7 +30,7 @@ impl OpenSsl {
     /// Creates a `OpenSsl` with a reasonable default configuration.
     ///
     /// The configuration is modeled after libcurl's and is subject to change.
-    pub fn new() -> Result<OpenSsl, SslError> {
+    pub fn new() -> Result<OpenSsl, ErrorStack> {
         let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
         try!(ctx.set_default_verify_paths());
         ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
