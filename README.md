@@ -33,14 +33,7 @@ struct Person {
 }
 
 fn main() {
-    let uri = "postgres://postgres@localhost";
-    let conn = match Connection::connect(uri, SslMode::None) {
-        Ok(conn) => conn,
-        Err(e) => {
-            println!("Connection error: {}", e);
-            return;
-        }
-    };
+    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
