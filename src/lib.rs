@@ -89,6 +89,10 @@ pub mod stmt;
 pub mod transaction;
 pub mod types;
 
+const TYPEINFO_QUERY_BIT: u8 = 0b0000_0001;
+const TYPEINFO_ENUM_QUERY_BIT: u8 = 0b0000_0010;
+const TYPEINFO_COMPOSITE_QUERY_BIT: u8 = 0b0000_0100;
+
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
@@ -215,6 +219,7 @@ struct InnerConnection {
     trans_depth: u32,
     desynchronized: bool,
     finished: bool,
+    typeinfo_state: u8,
 }
 
 impl Drop for InnerConnection {
@@ -256,6 +261,7 @@ impl InnerConnection {
             desynchronized: false,
             finished: false,
             trans_depth: 0,
+            typeinfo_state: 0,
         };
 
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
@@ -287,85 +293,7 @@ impl InnerConnection {
             }
         }
 
-        try!(conn.setup_typeinfo_query());
-
         Ok(conn)
-    }
-
-    #[cfg_attr(rustfmt, rustfmt_skip)]
-    fn setup_typeinfo_query(&mut self) -> result::Result<(), ConnectError> {
-        match self.raw_prepare(TYPEINFO_ENUM_QUERY,
-                               "SELECT enumlabel \
-                                FROM pg_catalog.pg_enum \
-                                WHERE enumtypid = $1 \
-                                ORDER BY enumsortorder") {
-            Ok(..) => {}
-            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
-            // Postgres 9.0 doesn't have enumsortorder
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedColumn => {
-                match self.raw_prepare(TYPEINFO_ENUM_QUERY,
-                                       "SELECT enumlabel \
-                                        FROM pg_catalog.pg_enum \
-                                        WHERE enumtypid = $1 \
-                                        ORDER BY oid") {
-                    Ok(..) => {}
-                    Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
-                    Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
-                    Err(Error::Conversion(_)) => unreachable!(),
-                }
-            }
-            // Old versions of Postgres and things like Redshift don't support enums
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
-            // Some Postgres-like databases are missing a pg_catalog (e.g. Cockroach)
-            Err(Error::Db(ref e)) if e.code == SqlState::InvalidCatalogName => return Ok(()),
-            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
-            Err(Error::Conversion(_)) => unreachable!(),
-        }
-
-        match self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
-                               "SELECT attname, atttypid \
-                                FROM pg_catalog.pg_attribute \
-                                WHERE attrelid = $1 \
-                                    AND NOT attisdropped \
-                                    AND attnum > 0 \
-                                ORDER BY attnum") {
-            Ok(..) => {}
-            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
-            // Old versions of Postgres and things like Redshift don't support composites
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
-            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
-            Err(Error::Conversion(_)) => unreachable!(),
-        }
-
-        match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
-                                       t.typbasetype, n.nspname, t.typrelid \
-                                FROM pg_catalog.pg_type t \
-                                LEFT OUTER JOIN pg_catalog.pg_range r ON \
-                                    r.rngtypid = t.oid \
-                                INNER JOIN pg_catalog.pg_namespace n ON \
-                                    t.typnamespace = n.oid \
-                                WHERE t.oid = $1") {
-            Ok(..) => return Ok(()),
-            Err(Error::Io(e)) => return Err(ConnectError::Io(e)),
-            // Range types weren't added until Postgres 9.2, so pg_range may not exist
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {}
-            Err(Error::Db(e)) => return Err(ConnectError::Db(e)),
-            Err(Error::Conversion(_)) => unreachable!(),
-        }
-
-        match self.raw_prepare(TYPEINFO_QUERY,
-                               "SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, \
-                                       n.nspname, t.typrelid \
-                                FROM pg_catalog.pg_type t \
-                                INNER JOIN pg_catalog.pg_namespace n \
-                                    ON t.typnamespace = n.oid \
-                                WHERE t.oid = $1") {
-            Ok(..) => Ok(()),
-            Err(Error::Io(e)) => Err(ConnectError::Io(e)),
-            Err(Error::Db(e)) => Err(ConnectError::Db(e)),
-            Err(Error::Conversion(_)) => unreachable!(),
-        }
     }
 
     fn write_messages(&mut self, messages: &[Frontend]) -> std_io::Result<()> {
@@ -699,8 +627,41 @@ impl InnerConnection {
         Ok(Type::Other(ty))
     }
 
+    fn setup_typeinfo_query(&mut self) -> Result<()> {
+        if self.typeinfo_state & TYPEINFO_QUERY_BIT != 0 {
+            return Ok(());
+        }
+
+        match self.raw_prepare(TYPEINFO_QUERY,
+                               "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
+                                       t.typbasetype, n.nspname, t.typrelid \
+                                FROM pg_catalog.pg_type t \
+                                LEFT OUTER JOIN pg_catalog.pg_range r ON \
+                                    r.rngtypid = t.oid \
+                                INNER JOIN pg_catalog.pg_namespace n ON \
+                                    t.typnamespace = n.oid \
+                                WHERE t.oid = $1") {
+            Ok(..) => {}
+            // Range types weren't added until Postgres 9.2, so pg_range may not exist
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {
+                try!(self.raw_prepare(TYPEINFO_QUERY,
+                                      "SELECT t.typname, t.typtype, t.typelem, NULL::OID, \
+                                           t.typbasetype, n.nspname, t.typrelid \
+                                       FROM pg_catalog.pg_type t \
+                                       INNER JOIN pg_catalog.pg_namespace n \
+                                           ON t.typnamespace = n.oid \
+                                       WHERE t.oid = $1"));
+            }
+            Err(e) => return Err(e),
+        }
+
+        self.typeinfo_state |= TYPEINFO_QUERY_BIT;
+        Ok(())
+    }
+
     #[allow(if_not_else)]
     fn read_type(&mut self, oid: Oid) -> Result<Other> {
+        try!(self.setup_typeinfo_query());
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
@@ -743,7 +704,34 @@ impl InnerConnection {
         Ok(Other::new(name, oid, kind, schema))
     }
 
+    fn setup_typeinfo_enum_query(&mut self) -> Result<()> {
+        if self.typeinfo_state & TYPEINFO_ENUM_QUERY_BIT != 0 {
+            return Ok(());
+        }
+
+        match self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                               "SELECT enumlabel \
+                                FROM pg_catalog.pg_enum \
+                                WHERE enumtypid = $1 \
+                                ORDER BY enumsortorder") {
+            Ok(..) => {}
+            // Postgres 9.0 doesn't have enumsortorder
+            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedColumn => {
+                try!(self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                                      "SELECT enumlabel \
+                                       FROM pg_catalog.pg_enum \
+                                       WHERE enumtypid = $1 \
+                                       ORDER BY oid"));
+            }
+            Err(e) => return Err(e),
+        }
+
+        self.typeinfo_state |= TYPEINFO_ENUM_QUERY_BIT;
+        Ok(())
+    }
+
     fn read_enum_variants(&mut self, oid: Oid) -> Result<Vec<String>> {
+        try!(self.setup_typeinfo_enum_query());
         try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
@@ -759,7 +747,25 @@ impl InnerConnection {
         Ok(variants)
     }
 
+    fn setup_typeinfo_composite_query(&mut self) -> Result<()> {
+        if self.typeinfo_state & TYPEINFO_COMPOSITE_QUERY_BIT != 0 {
+            return Ok(());
+        }
+
+        try!(self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
+                              "SELECT attname, atttypid \
+                               FROM pg_catalog.pg_attribute \
+                               WHERE attrelid = $1 \
+                                   AND NOT attisdropped \
+                                   AND attnum > 0 \
+                               ORDER BY attnum"));
+
+        self.typeinfo_state |= TYPEINFO_COMPOSITE_QUERY_BIT;
+        Ok(())
+    }
+
     fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
+        try!(self.setup_typeinfo_composite_query());
         try!(self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[Type::Oid], &[&relid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
