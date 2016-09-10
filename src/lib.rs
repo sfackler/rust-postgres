@@ -53,12 +53,10 @@ use bufstream::BufStream;
 use md5::Md5;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
-use std::error::Error as StdError;
 use std::fmt;
 use std::io as std_io;
 use std::io::prelude::*;
 use std::mem;
-use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -68,10 +66,10 @@ use io::{TlsStream, TlsHandshake};
 use message::{Frontend, Backend, RowDescriptionEntry};
 use message::{WriteMessage, ReadMessage};
 use notification::{Notifications, Notification};
+use params::{ConnectParams, IntoConnectParams, UserInfo};
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
-use url::Url;
 use transaction::{Transaction, IsolationLevel};
 
 #[macro_use]
@@ -85,6 +83,7 @@ mod url;
 pub mod error;
 pub mod io;
 pub mod notification;
+pub mod params;
 pub mod rows;
 pub mod stmt;
 pub mod transaction;
@@ -96,104 +95,6 @@ const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
-
-/// Specifies the target server to connect to.
-#[derive(Clone, Debug)]
-pub enum ConnectTarget {
-    /// Connect via TCP to the specified host.
-    Tcp(String),
-    /// Connect via a Unix domain socket in the specified directory.
-    ///
-    /// Unix sockets are only supported on Unixy platforms (i.e. not Windows).
-    Unix(PathBuf),
-}
-
-/// Authentication information.
-#[derive(Clone, Debug)]
-pub struct UserInfo {
-    /// The username.
-    pub user: String,
-    /// An optional password.
-    pub password: Option<String>,
-}
-
-/// Information necessary to open a new connection to a Postgres server.
-#[derive(Clone, Debug)]
-pub struct ConnectParams {
-    /// The target server.
-    pub target: ConnectTarget,
-    /// The target port.
-    ///
-    /// Defaults to 5432 if not specified.
-    pub port: Option<u16>,
-    /// The user to login as.
-    ///
-    /// `Connection::connect` requires a user but `cancel_query` does not.
-    pub user: Option<UserInfo>,
-    /// The database to connect to.
-    ///
-    /// Defaults the value of `user`.
-    pub database: Option<String>,
-    /// Runtime parameters to be passed to the Postgres backend.
-    pub options: Vec<(String, String)>,
-}
-
-/// A trait implemented by types that can be converted into a `ConnectParams`.
-pub trait IntoConnectParams {
-    /// Converts the value of `self` into a `ConnectParams`.
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>>;
-}
-
-impl IntoConnectParams for ConnectParams {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
-        Ok(self)
-    }
-}
-
-impl<'a> IntoConnectParams for &'a str {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
-        match Url::parse(self) {
-            Ok(url) => url.into_connect_params(),
-            Err(err) => Err(err.into()),
-        }
-    }
-}
-
-impl IntoConnectParams for Url {
-    fn into_connect_params(self) -> result::Result<ConnectParams, Box<StdError + Sync + Send>> {
-        let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
-
-        let maybe_path = try!(url::decode_component(&host));
-        let target = if maybe_path.starts_with('/') {
-            ConnectTarget::Unix(PathBuf::from(maybe_path))
-        } else {
-            ConnectTarget::Tcp(host)
-        };
-
-        let user = user.map(|url::UserInfo { user, pass }| {
-            UserInfo {
-                user: user,
-                password: pass,
-            }
-        });
-
-        let database = if path.is_empty() {
-            None
-        } else {
-            // path contains the leading /
-            path.remove(0);
-            Some(path)
-        };
-
-        Ok(ConnectParams {
-            target: target,
-            port: port,
-            user: user,
-            database: database,
-            options: options,
-        })
-    }
-}
 
 /// Trait for types that can handle Postgres notice messages
 ///
@@ -993,7 +894,8 @@ impl Connection {
     /// ```
     ///
     /// ```rust,no_run
-    /// use postgres::{Connection, UserInfo, ConnectParams, TlsMode, ConnectTarget};
+    /// use postgres::{Connection, TlsMode};
+    /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};
     /// # use std::path::PathBuf;
     ///
     /// # #[cfg(unix)]

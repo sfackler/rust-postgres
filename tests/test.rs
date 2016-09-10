@@ -8,10 +8,9 @@ extern crate security_framework;
 
 use std::thread;
 use std::io;
-use std::io::prelude::*;
 use std::time::Duration;
 
-use postgres::{HandleNotice, Connection, GenericConnection, TlsMode, IntoConnectParams};
+use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
 use postgres::types::{Oid, Type, Kind, WrongType};
@@ -24,6 +23,7 @@ use postgres::error::SqlState::{SyntaxError,
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
 use postgres::notification::Notification;
+use postgres::params::IntoConnectParams;
 
 macro_rules! or_panic {
     ($e:expr) => (
