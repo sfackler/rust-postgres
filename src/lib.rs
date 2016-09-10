@@ -89,10 +89,6 @@ pub mod stmt;
 pub mod transaction;
 pub mod types;
 
-const TYPEINFO_QUERY_BIT: u8 = 0b0000_0001;
-const TYPEINFO_ENUM_QUERY_BIT: u8 = 0b0000_0010;
-const TYPEINFO_COMPOSITE_QUERY_BIT: u8 = 0b0000_0100;
-
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
@@ -219,7 +215,9 @@ struct InnerConnection {
     trans_depth: u32,
     desynchronized: bool,
     finished: bool,
-    typeinfo_state: u8,
+    has_typeinfo_query: bool,
+    has_typeinfo_enum_query: bool,
+    has_typeinfo_composite_query: bool,
 }
 
 impl Drop for InnerConnection {
@@ -261,7 +259,9 @@ impl InnerConnection {
             desynchronized: false,
             finished: false,
             trans_depth: 0,
-            typeinfo_state: 0,
+            has_typeinfo_query: false,
+            has_typeinfo_enum_query: false,
+            has_typeinfo_composite_query: false,
         };
 
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
@@ -628,7 +628,7 @@ impl InnerConnection {
     }
 
     fn setup_typeinfo_query(&mut self) -> Result<()> {
-        if self.typeinfo_state & TYPEINFO_QUERY_BIT != 0 {
+        if self.has_typeinfo_query {
             return Ok(());
         }
 
@@ -655,7 +655,7 @@ impl InnerConnection {
             Err(e) => return Err(e),
         }
 
-        self.typeinfo_state |= TYPEINFO_QUERY_BIT;
+        self.has_typeinfo_query = true;
         Ok(())
     }
 
@@ -705,7 +705,7 @@ impl InnerConnection {
     }
 
     fn setup_typeinfo_enum_query(&mut self) -> Result<()> {
-        if self.typeinfo_state & TYPEINFO_ENUM_QUERY_BIT != 0 {
+        if self.has_typeinfo_enum_query {
             return Ok(());
         }
 
@@ -726,7 +726,7 @@ impl InnerConnection {
             Err(e) => return Err(e),
         }
 
-        self.typeinfo_state |= TYPEINFO_ENUM_QUERY_BIT;
+        self.has_typeinfo_enum_query = true;
         Ok(())
     }
 
@@ -748,7 +748,7 @@ impl InnerConnection {
     }
 
     fn setup_typeinfo_composite_query(&mut self) -> Result<()> {
-        if self.typeinfo_state & TYPEINFO_COMPOSITE_QUERY_BIT != 0 {
+        if self.has_typeinfo_composite_query {
             return Ok(());
         }
 
@@ -760,7 +760,7 @@ impl InnerConnection {
                                    AND attnum > 0 \
                                ORDER BY attnum"));
 
-        self.typeinfo_state |= TYPEINFO_COMPOSITE_QUERY_BIT;
+        self.has_typeinfo_composite_query = true;
         Ok(())
     }
 
