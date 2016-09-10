@@ -217,7 +217,9 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::prepare_cached`.
     ///
-    /// Note that the statement will be cached for the duration of the
+    /// # Note
+    ///
+    /// The statement will be cached for the duration of the
     /// connection, not just the duration of this transaction.
     pub fn prepare_cached(&self, query: &str) -> Result<Statement<'conn>> {
         self.conn.prepare_cached(query)

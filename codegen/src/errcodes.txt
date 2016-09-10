@@ -2,7 +2,7 @@
 # errcodes.txt
 #      PostgreSQL error codes
 #
-# Copyright (c) 2003-2015, PostgreSQL Global Development Group
+# Copyright (c) 2003-2016, PostgreSQL Global Development Group
 #
 # This list serves as the basis for generating source files containing error
 # codes. It is kept in a common format to make sure all these source files have
@@ -14,6 +14,9 @@
 #
 #   src/pl/plpgsql/src/plerrcodes.h
 #      a list of PL/pgSQL condition names and their SQLSTATE codes
+#
+#   src/pl/tcl/pltclerrcodes.h
+#      the same, for PL/Tcl
 #
 #   doc/src/sgml/errcodes-list.sgml
 #      a SGML table of error codes for inclusion in the documentation
@@ -229,6 +232,7 @@ Section: Class 25 - Invalid Transaction State
 25007    E    ERRCODE_SCHEMA_AND_DATA_STATEMENT_MIXING_NOT_SUPPORTED         schema_and_data_statement_mixing_not_supported
 25P01    E    ERRCODE_NO_ACTIVE_SQL_TRANSACTION                              no_active_sql_transaction
 25P02    E    ERRCODE_IN_FAILED_SQL_TRANSACTION                              in_failed_sql_transaction
+25P03    E    ERRCODE_IDLE_IN_TRANSACTION_SESSION_TIMEOUT                    idle_in_transaction_session_timeout
 
 Section: Class 26 - Invalid SQL Statement Name
 
@@ -412,6 +416,10 @@ Section: Class 58 - System Error (errors external to PostgreSQL itself)
 58030    E    ERRCODE_IO_ERROR                                               io_error
 58P01    E    ERRCODE_UNDEFINED_FILE                                         undefined_file
 58P02    E    ERRCODE_DUPLICATE_FILE                                         duplicate_file
+
+Section: Class 72 - Snapshot Failure
+# (class borrowed from Oracle)
+72000    E    ERRCODE_SNAPSHOT_TOO_OLD                                       snapshot_too_old
 
 Section: Class F0 - Configuration File Error
 

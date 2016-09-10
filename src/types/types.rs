@@ -50,6 +50,8 @@ pub enum Type {
     JsonArray,
     /// SMGR - storage manager
     Smgr,
+    /// INDEX_AM_HANDLER
+    IndexAmHandler,
     /// POINT - geometric point &#39;&#40;x, y&#41;&#39;
     Point,
     /// LSEG - geometric line segment &#39;&#40;pt1,pt2&#41;&#39;
@@ -363,6 +365,7 @@ impl Type {
             194 => Some(Type::PgNodeTree),
             199 => Some(Type::JsonArray),
             210 => Some(Type::Smgr),
+            325 => Some(Type::IndexAmHandler),
             600 => Some(Type::Point),
             601 => Some(Type::Lseg),
             602 => Some(Type::Path),
@@ -528,6 +531,7 @@ impl Type {
             Type::PgNodeTree => 194,
             Type::JsonArray => 199,
             Type::Smgr => 210,
+            Type::IndexAmHandler => 325,
             Type::Point => 600,
             Type::Lseg => 601,
             Type::Path => 602,
@@ -757,6 +761,10 @@ impl Type {
             }
             Type::Smgr => {
                 const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::IndexAmHandler => {
+                const V: &'static Kind = &Kind::Pseudo;
                 V
             }
             Type::Point => {
@@ -1340,6 +1348,7 @@ impl Type {
             Type::PgNodeTree => "pg_node_tree",
             Type::JsonArray => "_json",
             Type::Smgr => "smgr",
+            Type::IndexAmHandler => "index_am_handler",
             Type::Point => "point",
             Type::Lseg => "lseg",
             Type::Path => "path",
