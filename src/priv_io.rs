@@ -11,13 +11,12 @@ use std::os::unix::net::UnixStream;
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
+use postgres_protocol::message::frontend;
 
 use TlsMode;
 use params::{ConnectParams, ConnectTarget};
 use error::ConnectError;
 use io::TlsStream;
-use message::{self, WriteMessage};
-use message::Frontend;
 
 const DEFAULT_PORT: u16 = 5432;
 
@@ -171,7 +170,9 @@ pub fn initialize_stream(params: &ConnectParams,
         TlsMode::Require(handshaker) => (true, handshaker),
     };
 
-    try!(socket.write_message(&Frontend::SslRequest { code: message::SSL_CODE }));
+    let mut buf = vec![];
+    try!(frontend::Message::write(&frontend::SslRequest, &mut buf));
+    try!(socket.write_all(&buf));
     try!(socket.flush());
 
     if try!(socket.read_u8()) == b'N' {

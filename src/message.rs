@@ -7,9 +7,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use types::Oid;
 use priv_io::StreamOptions;
 
-pub const CANCEL_CODE: u32 = 80877102;
-pub const SSL_CODE: u32 = 80877103;
-
 pub enum Backend {
     AuthenticationCleartextPassword,
     AuthenticationGSS,
@@ -85,11 +82,6 @@ pub struct RowDescriptionEntry {
 }
 
 pub enum Frontend<'a> {
-    CancelRequest {
-        code: u32,
-        process_id: u32,
-        secret_key: u32,
-    },
     CopyData {
         data: &'a [u8],
     },
@@ -100,9 +92,6 @@ pub enum Frontend<'a> {
     Execute {
         portal: &'a str,
         max_rows: i32,
-    },
-    SslRequest {
-        code: u32,
     },
     Sync,
 }
@@ -128,14 +117,9 @@ impl<W: Write> WriteMessage for W {
     #[allow(cyclomatic_complexity)]
     fn write_message(&mut self, message: &Frontend) -> io::Result<()> {
         let mut buf = vec![];
-        let mut ident = None;
+        let ident;
 
         match *message {
-            Frontend::CancelRequest { code, process_id, secret_key } => {
-                try!(buf.write_u32::<BigEndian>(code));
-                try!(buf.write_u32::<BigEndian>(process_id));
-                try!(buf.write_u32::<BigEndian>(secret_key));
-            }
             Frontend::CopyData { data } => {
                 ident = Some(b'd');
                 try!(buf.write_all(data));
@@ -150,7 +134,6 @@ impl<W: Write> WriteMessage for W {
                 try!(buf.write_cstr(portal));
                 try!(buf.write_i32::<BigEndian>(max_rows));
             }
-            Frontend::SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
             Frontend::Sync => ident = Some(b'S'),
         }
 

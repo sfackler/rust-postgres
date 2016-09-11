@@ -167,11 +167,14 @@ pub fn cancel_query<T>(params: T,
     let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, tls));
 
-    try!(socket.write_message(&Frontend::CancelRequest {
-        code: message::CANCEL_CODE,
-        process_id: data.process_id,
-        secret_key: data.secret_key,
-    }));
+    let message = frontend::CancelRequest {
+        process_id: data.process_id as i32,
+        secret_key: data.secret_key as i32,
+    };
+    let mut buf = vec![];
+    try!(frontend::Message::write(&message, &mut buf));
+
+    try!(socket.write_all(&buf));
     try!(socket.flush());
 
     Ok(())
