@@ -3,16 +3,17 @@
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::io::Write;
 use std::fmt;
 use std::ops::Deref;
 use std::slice;
+use postgres_protocol::message::frontend;
 
 use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
 use transaction::Transaction;
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
-use message::Frontend;
 
 enum StatementContainer<'a> {
     Borrowed(&'a Statement<'a>),
@@ -350,11 +351,12 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().conn.borrow_mut();
 
-        try!(conn.write_messages(&[Frontend::Execute {
-                                       portal: &self.name,
-                                       max_rows: self.row_limit,
-                                   },
-                                   Frontend::Sync]));
+        try!(conn.write_message(&frontend::Execute {
+            portal: &self.name,
+            max_rows: self.row_limit,
+        }));
+        try!(conn.write_message(&frontend::Sync));
+        try!(conn.stream.flush());
         conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 

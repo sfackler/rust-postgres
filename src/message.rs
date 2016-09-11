@@ -2,7 +2,7 @@ use std::io;
 use std::io::prelude::*;
 use std::mem;
 use std::time::Duration;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt};
 
 use types::Oid;
 use priv_io::StreamOptions;
@@ -79,77 +79,6 @@ pub struct RowDescriptionEntry {
     pub type_size: i16,
     pub type_modifier: i32,
     pub format: i16,
-}
-
-pub enum Frontend<'a> {
-    CopyData {
-        data: &'a [u8],
-    },
-    CopyDone,
-    CopyFail {
-        message: &'a str,
-    },
-    Execute {
-        portal: &'a str,
-        max_rows: i32,
-    },
-    Sync,
-}
-
-#[doc(hidden)]
-trait WriteCStr {
-    fn write_cstr(&mut self, s: &str) -> io::Result<()>;
-}
-
-impl<W: Write> WriteCStr for W {
-    fn write_cstr(&mut self, s: &str) -> io::Result<()> {
-        try!(self.write_all(s.as_bytes()));
-        Ok(try!(self.write_u8(0)))
-    }
-}
-
-#[doc(hidden)]
-pub trait WriteMessage {
-    fn write_message(&mut self, &Frontend) -> io::Result<()>;
-}
-
-impl<W: Write> WriteMessage for W {
-    #[allow(cyclomatic_complexity)]
-    fn write_message(&mut self, message: &Frontend) -> io::Result<()> {
-        let mut buf = vec![];
-        let ident;
-
-        match *message {
-            Frontend::CopyData { data } => {
-                ident = Some(b'd');
-                try!(buf.write_all(data));
-            }
-            Frontend::CopyDone => ident = Some(b'c'),
-            Frontend::CopyFail { message } => {
-                ident = Some(b'f');
-                try!(buf.write_cstr(message));
-            }
-            Frontend::Execute { portal, max_rows } => {
-                ident = Some(b'E');
-                try!(buf.write_cstr(portal));
-                try!(buf.write_i32::<BigEndian>(max_rows));
-            }
-            Frontend::Sync => ident = Some(b'S'),
-        }
-
-        if let Some(ident) = ident {
-            try!(self.write_u8(ident));
-        }
-
-        // add size of length value
-        if buf.len() > u32::max_value() as usize - mem::size_of::<u32>() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "value too large to transmit"));
-        }
-        try!(self.write_u32::<BigEndian>((buf.len() + mem::size_of::<u32>()) as u32));
-        try!(self.write_all(&*buf));
-
-        Ok(())
-    }
 }
 
 #[doc(hidden)]

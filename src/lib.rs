@@ -65,8 +65,7 @@ use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{TlsStream, TlsHandshake};
-use message::{Frontend, Backend, RowDescriptionEntry};
-use message::{WriteMessage, ReadMessage};
+use message::{Backend, RowDescriptionEntry, ReadMessage};
 use notification::{Notifications, Notification};
 use params::{ConnectParams, IntoConnectParams, UserInfo};
 use rows::{Rows, LazyRows};
@@ -306,17 +305,11 @@ impl InnerConnection {
     fn write_message<M>(&mut self, message: &M) -> std_io::Result<()>
         where M: frontend::Message
     {
+        debug_assert!(!self.desynchronized);
         self.io_buf.clear();
         try!(message.write(&mut self.io_buf));
-        self.stream.write_all(&self.io_buf)
-    }
-
-    fn write_messages(&mut self, messages: &[Frontend]) -> std_io::Result<()> {
-        debug_assert!(!self.desynchronized);
-        for message in messages {
-            try_desync!(self, self.stream.write_message(message));
-        }
-        Ok(try_desync!(self, self.stream.flush()))
+        try_desync!(self, self.stream.write_all(&self.io_buf));
+        Ok(())
     }
 
     fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {

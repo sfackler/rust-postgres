@@ -5,10 +5,11 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::sync::Arc;
+use postgres_protocol::message::frontend;
 
 use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql};
-use message::{WriteMessage, Backend, Frontend};
+use message::Backend;
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
 use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, SessionInfoNew,
@@ -146,11 +147,11 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 Backend::CopyInResponse { .. } => {
-                    try!(conn.write_messages(&[Frontend::CopyFail {
-                                                   message: "COPY queries cannot be directly \
-                                                             executed",
-                                               },
-                                               Frontend::Sync]));
+                    try!(conn.write_message(&frontend::CopyFail {
+                        message: "COPY queries cannot be directly executed",
+                    }));
+                    try!(conn.write_message(&frontend::Sync));
+                    try!(conn.stream.flush());
                 }
                 Backend::CopyOutResponse { .. } => {
                     loop {
@@ -296,13 +297,13 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try_desync!(info.conn,
-                                info.conn.stream.write_message(&Frontend::CopyData { data: &buf[..len] }));
+                    try!(info.conn.write_message(&frontend::CopyData { data: &buf[..len] }));
                 }
                 Err(err) => {
-                    try!(info.conn.write_messages(&[Frontend::CopyFail { message: "" },
-                                                    Frontend::CopyDone,
-                                                    Frontend::Sync]));
+                    try!(info.conn.write_message(&frontend::CopyFail { message: "" }));
+                    try!(info.conn.write_message(&frontend::CopyDone));
+                    try!(info.conn.write_message(&frontend::Sync));
+                    try!(info.conn.stream.flush());
                     match try!(info.conn.read_message()) {
                         Backend::ErrorResponse { .. } => {
                             // expected from the CopyFail
@@ -318,7 +319,9 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.write_messages(&[Frontend::CopyDone, Frontend::Sync]));
+        try!(info.conn.write_message(&frontend::CopyDone));
+        try!(info.conn.write_message(&frontend::Sync));
+        try!(info.conn.stream.flush());
 
         let num = match try!(info.conn.read_message()) {
             Backend::CommandComplete { tag } => parse_update_count(tag),
@@ -365,9 +368,10 @@ impl<'conn> Statement<'conn> {
         let (format, column_formats) = match try!(conn.read_message()) {
             Backend::CopyOutResponse { format, column_formats } => (format, column_formats),
             Backend::CopyInResponse { .. } => {
-                try!(conn.write_messages(&[Frontend::CopyFail { message: "" },
-                                           Frontend::CopyDone,
-                                           Frontend::Sync]));
+                try!(conn.write_message(&frontend::CopyFail { message: "" }));
+                try!(conn.write_message(&frontend::CopyDone));
+                try!(conn.write_message(&frontend::Sync));
+                try!(conn.stream.flush());
                 match try!(conn.read_message()) {
                     Backend::ErrorResponse { .. } => {
                         // expected from the CopyFail
