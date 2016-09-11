@@ -7,7 +7,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use types::Oid;
 use priv_io::StreamOptions;
 
-pub const PROTOCOL_VERSION: u32 = 0x0003_0000;
 pub const CANCEL_CODE: u32 = 80877102;
 pub const SSL_CODE: u32 = 80877103;
 
@@ -122,18 +121,11 @@ pub enum Frontend<'a> {
         query: &'a str,
         param_types: &'a [Oid],
     },
-    PasswordMessage {
-        password: &'a str,
-    },
     Query {
         query: &'a str,
     },
     SslRequest {
         code: u32,
-    },
-    StartupMessage {
-        version: u32,
-        parameters: &'a [(String, String)],
     },
     Sync,
     Terminate,
@@ -227,21 +219,9 @@ impl<W: Write> WriteMessage for W {
                     try!(buf.write_u32::<BigEndian>(ty));
                 }
             }
-            Frontend::PasswordMessage { password } => {
-                ident = Some(b'p');
-                try!(buf.write_cstr(password));
-            }
             Frontend::Query { query } => {
                 ident = Some(b'Q');
                 try!(buf.write_cstr(query));
-            }
-            Frontend::StartupMessage { version, parameters } => {
-                try!(buf.write_u32::<BigEndian>(version));
-                for &(ref k, ref v) in parameters {
-                    try!(buf.write_cstr(&**k));
-                    try!(buf.write_cstr(&**v));
-                }
-                try!(buf.write_u8(0));
             }
             Frontend::SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
             Frontend::Sync => ident = Some(b'S'),

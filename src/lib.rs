@@ -48,6 +48,7 @@ extern crate hex;
 #[macro_use]
 extern crate log;
 extern crate phf;
+extern crate postgres_protocol;
 
 use bufstream::BufStream;
 use md5::Md5;
@@ -60,6 +61,7 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
+use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::{TlsStream, TlsHandshake};
@@ -205,6 +207,7 @@ struct StatementInfo {
 
 struct InnerConnection {
     stream: BufStream<Box<TlsStream>>,
+    io_buf: Vec<u8>,
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
@@ -246,6 +249,7 @@ impl InnerConnection {
 
         let mut conn = InnerConnection {
             stream: BufStream::new(stream),
+            io_buf: vec![],
             next_stmt_id: 0,
             notice_handler: Box::new(LoggingNoticeHandler),
             notifications: VecDeque::new(),
@@ -274,10 +278,10 @@ impl InnerConnection {
             options.push(("database".to_owned(), database));
         }
 
-        try!(conn.write_messages(&[Frontend::StartupMessage {
-                                       version: message::PROTOCOL_VERSION,
-                                       parameters: &options,
-                                   }]));
+        try!(conn.write_message(&frontend::StartupMessage {
+            parameters: &options,
+        }));
+        try!(conn.stream.flush());
 
         try!(conn.handle_auth(user));
 
@@ -294,6 +298,14 @@ impl InnerConnection {
         }
 
         Ok(conn)
+    }
+
+    fn write_message<M>(&mut self, message: &M) -> std_io::Result<()>
+        where M: frontend::Message
+    {
+        self.io_buf.clear();
+        try!(message.write(&mut self.io_buf));
+        self.stream.write_all(&self.io_buf)
     }
 
     fn write_messages(&mut self, messages: &[Frontend]) -> std_io::Result<()> {
@@ -380,7 +392,8 @@ impl InnerConnection {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                try!(self.write_messages(&[Frontend::PasswordMessage { password: &pass }]));
+                try!(self.write_message(&frontend::PasswordMessage { password: &pass }));
+                try!(self.stream.flush());
             }
             Backend::AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or_else(|| {
@@ -394,7 +407,8 @@ impl InnerConnection {
                 hasher.input(output.as_bytes());
                 hasher.input(&salt);
                 let output = format!("md5{}", hasher.result_str());
-                try!(self.write_messages(&[Frontend::PasswordMessage { password: &output }]));
+                try!(self.write_message(&frontend::PasswordMessage { password: &output }));
+                try!(self.stream.flush());
             }
             Backend::AuthenticationKerberosV5 |
             Backend::AuthenticationSCMCredential |
