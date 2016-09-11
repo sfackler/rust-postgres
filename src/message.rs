@@ -85,21 +85,10 @@ pub struct RowDescriptionEntry {
 }
 
 pub enum Frontend<'a> {
-    Bind {
-        portal: &'a str,
-        statement: &'a str,
-        formats: &'a [i16],
-        values: &'a [Option<Vec<u8>>],
-        result_formats: &'a [i16],
-    },
     CancelRequest {
         code: u32,
         process_id: u32,
         secret_key: u32,
-    },
-    Close {
-        variant: u8,
-        name: &'a str,
     },
     CopyData {
         data: &'a [u8],
@@ -108,27 +97,14 @@ pub enum Frontend<'a> {
     CopyFail {
         message: &'a str,
     },
-    Describe {
-        variant: u8,
-        name: &'a str,
-    },
     Execute {
         portal: &'a str,
         max_rows: i32,
-    },
-    Parse {
-        name: &'a str,
-        query: &'a str,
-        param_types: &'a [Oid],
-    },
-    Query {
-        query: &'a str,
     },
     SslRequest {
         code: u32,
     },
     Sync,
-    Terminate,
 }
 
 #[doc(hidden)]
@@ -155,41 +131,10 @@ impl<W: Write> WriteMessage for W {
         let mut ident = None;
 
         match *message {
-            Frontend::Bind { portal, statement, formats, values, result_formats } => {
-                ident = Some(b'B');
-                try!(buf.write_cstr(portal));
-                try!(buf.write_cstr(statement));
-
-                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(formats.len()))));
-                for &format in formats {
-                    try!(buf.write_i16::<BigEndian>(format));
-                }
-
-                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(values.len()))));
-                for value in values {
-                    match *value {
-                        None => try!(buf.write_i32::<BigEndian>(-1)),
-                        Some(ref value) => {
-                            try!(buf.write_i32::<BigEndian>(try!(i32::from_usize(value.len()))));
-                            try!(buf.write_all(&**value));
-                        }
-                    }
-                }
-
-                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(result_formats.len()))));
-                for &format in result_formats {
-                    try!(buf.write_i16::<BigEndian>(format));
-                }
-            }
             Frontend::CancelRequest { code, process_id, secret_key } => {
                 try!(buf.write_u32::<BigEndian>(code));
                 try!(buf.write_u32::<BigEndian>(process_id));
                 try!(buf.write_u32::<BigEndian>(secret_key));
-            }
-            Frontend::Close { variant, name } => {
-                ident = Some(b'C');
-                try!(buf.write_u8(variant));
-                try!(buf.write_cstr(name));
             }
             Frontend::CopyData { data } => {
                 ident = Some(b'd');
@@ -200,32 +145,13 @@ impl<W: Write> WriteMessage for W {
                 ident = Some(b'f');
                 try!(buf.write_cstr(message));
             }
-            Frontend::Describe { variant, name } => {
-                ident = Some(b'D');
-                try!(buf.write_u8(variant));
-                try!(buf.write_cstr(name));
-            }
             Frontend::Execute { portal, max_rows } => {
                 ident = Some(b'E');
                 try!(buf.write_cstr(portal));
                 try!(buf.write_i32::<BigEndian>(max_rows));
             }
-            Frontend::Parse { name, query, param_types } => {
-                ident = Some(b'P');
-                try!(buf.write_cstr(name));
-                try!(buf.write_cstr(query));
-                try!(buf.write_u16::<BigEndian>(try!(u16::from_usize(param_types.len()))));
-                for &ty in param_types {
-                    try!(buf.write_u32::<BigEndian>(ty));
-                }
-            }
-            Frontend::Query { query } => {
-                ident = Some(b'Q');
-                try!(buf.write_cstr(query));
-            }
             Frontend::SslRequest { code } => try!(buf.write_u32::<BigEndian>(code)),
             Frontend::Sync => ident = Some(b'S'),
-            Frontend::Terminate => ident = Some(b'X'),
         }
 
         if let Some(ident) = ident {

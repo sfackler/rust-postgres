@@ -435,16 +435,17 @@ impl InnerConnection {
     fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        try!(self.write_messages(&[Frontend::Parse {
-                                       name: stmt_name,
-                                       query: query,
-                                       param_types: &[],
-                                   },
-                                   Frontend::Describe {
-                                       variant: b'S',
-                                       name: stmt_name,
-                                   },
-                                   Frontend::Sync]));
+        try!(self.write_message(&frontend::Parse {
+            name: stmt_name,
+            query: query,
+            param_types: &[],
+        }));
+        try!(self.write_message(&frontend::Describe {
+            variant: b'S',
+            name: stmt_name,
+        }));
+        try!(self.write_message(&frontend::Sync));
+        try!(self.stream.flush());
 
         match try!(self.read_message()) {
             Backend::ParseComplete => {}
@@ -499,11 +500,11 @@ impl InnerConnection {
                     return DbError::new(fields);
                 }
                 Backend::CopyInResponse { .. } => {
-                    try!(self.write_messages(&[Frontend::CopyFail {
-                                                   message: "COPY queries cannot be directly \
-                                                             executed",
-                                               },
-                                               Frontend::Sync]));
+                    try!(self.write_message(&frontend::CopyFail {
+                        message: "COPY queries cannot be directly executed",
+                    }));
+                    try!(self.write_message(&frontend::Sync));
+                    try!(self.stream.flush());
                 }
                 Backend::CopyOutResponse { .. } => {
                     loop {
@@ -548,18 +549,19 @@ impl InnerConnection {
             }
         }
 
-        try!(self.write_messages(&[Frontend::Bind {
-                                       portal: portal_name,
-                                       statement: &stmt_name,
-                                       formats: &[1],
-                                       values: &values,
-                                       result_formats: &[1],
-                                   },
-                                   Frontend::Execute {
-                                       portal: portal_name,
-                                       max_rows: row_limit,
-                                   },
-                                   Frontend::Sync]));
+        try!(self.write_message(&frontend::Bind {
+            portal: portal_name,
+            statement: &stmt_name,
+            formats: &[1],
+            values: &values,
+            result_formats: &[1],
+        }));
+        try!(self.write_message(&frontend::Execute {
+            portal: portal_name,
+            max_rows: row_limit,
+        }));
+        try!(self.write_message(&frontend::Sync));
+        try!(self.stream.flush());
 
         match try!(self.read_message()) {
             Backend::BindComplete => Ok(()),
@@ -613,11 +615,12 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
-        try!(self.write_messages(&[Frontend::Close {
-                                       variant: type_,
-                                       name: name,
-                                   },
-                                   Frontend::Sync]));
+        try!(self.write_message(&frontend::Close {
+            variant: type_,
+            name: name,
+        }));
+        try!(self.write_message(&frontend::Sync));
+        try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             Backend::CloseComplete => Ok(()),
             Backend::ErrorResponse { fields } => DbError::new(fields),
@@ -816,7 +819,8 @@ impl InnerConnection {
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        try!(self.write_messages(&[Frontend::Query { query: query }]));
+        try!(self.write_message(&frontend::Query { query: query }));
+        try!(self.stream.flush());
 
         let mut result = vec![];
         loop {
@@ -830,11 +834,11 @@ impl InnerConnection {
                                    .collect());
                 }
                 Backend::CopyInResponse { .. } => {
-                    try!(self.write_messages(&[Frontend::CopyFail {
-                                                   message: "COPY queries cannot be directly \
-                                                             executed",
-                                               },
-                                               Frontend::Sync]));
+                    try!(self.write_message(&frontend::CopyFail {
+                        message: "COPY queries cannot be directly executed",
+                    }));
+                    try!(self.write_message(&frontend::Sync));
+                    try!(self.stream.flush());
                 }
                 Backend::ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
@@ -848,7 +852,8 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        try!(self.write_messages(&[Frontend::Terminate]));
+        try!(self.write_message(&frontend::Terminate));
+        try!(self.stream.flush());
         Ok(())
     }
 }
