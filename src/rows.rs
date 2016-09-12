@@ -3,7 +3,6 @@
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::io::Write;
 use std::fmt;
 use std::ops::Deref;
 use std::slice;

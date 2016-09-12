@@ -50,7 +50,6 @@ extern crate log;
 extern crate phf;
 extern crate postgres_protocol;
 
-use bufstream::BufStream;
 use md5::Md5;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
@@ -64,7 +63,7 @@ use std::time::Duration;
 use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
-use io::{TlsStream, TlsHandshake};
+use io::TlsHandshake;
 use message::{Backend, RowDescriptionEntry, ReadMessage};
 use notification::{Notifications, Notification};
 use params::{ConnectParams, IntoConnectParams, UserInfo};
@@ -304,7 +303,7 @@ impl InnerConnection {
     fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {
         debug_assert!(!self.desynchronized);
         loop {
-            match try_desync!(self, self.stream.read_message()) {
+            match try_desync!(self, ReadMessage::read_message(&mut self.stream)) {
                 Backend::NoticeResponse { fields } => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);

@@ -12,6 +12,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
 use postgres_protocol::message::frontend;
+use postgres_protocol::message::backend::{self, ParseResult};
 
 use TlsMode;
 use params::{ConnectParams, ConnectTarget};
@@ -19,6 +20,7 @@ use error::ConnectError;
 use io::TlsStream;
 
 const DEFAULT_PORT: u16 = 5432;
+const MESSAGE_HEADER_SIZE: usize = 5;
 
 pub struct MessageStream {
     stream: BufStream<Box<TlsStream>>,
@@ -41,6 +43,27 @@ impl MessageStream {
         self.buf.clear();
         try!(frontend::Message::write(message, &mut self.buf));
         self.stream.write_all(&self.buf)
+    }
+
+    pub fn read_message<'a>(&'a mut self) -> io::Result<backend::Message<'a>> {
+        self.buf.resize(MESSAGE_HEADER_SIZE, 0);
+        try!(self.stream.read_exact(&mut self.buf));
+
+        let len = match try!(backend::Message::parse(&self.buf)) {
+            // FIXME this is dumb but an explicit return runs into borrowck issues :(
+            ParseResult::Complete { .. } => None,
+            ParseResult::Incomplete { required_size } => Some(required_size.unwrap()),
+        };
+
+        if let Some(len) = len {
+            self.buf.resize(len, 0);
+            try!(self.stream.read_exact(&mut self.buf[MESSAGE_HEADER_SIZE..]));
+        };
+
+        match try!(backend::Message::parse(&self.buf)) {
+            ParseResult::Complete { message, .. } => Ok(message),
+            ParseResult::Incomplete { .. } => unreachable!(),
+        }
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
