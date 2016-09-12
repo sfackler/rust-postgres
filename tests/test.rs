@@ -576,12 +576,12 @@ fn test_notification_iterator_some() {
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel2, 'world'", &[]));
 
     check_notification(Notification {
-        pid: 0,
+        process_id: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "hello".to_string()
     }, it.next().unwrap().unwrap());
     check_notification(Notification {
-        pid: 0,
+        process_id: 0,
         channel: "test_notification_iterator_one_channel2".to_string(),
         payload: "world".to_string()
     }, it.next().unwrap().unwrap());
@@ -589,7 +589,7 @@ fn test_notification_iterator_some() {
 
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", &[]));
     check_notification(Notification {
-        pid: 0,
+        process_id: 0,
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "!".to_string()
     }, it.next().unwrap().unwrap());
@@ -609,7 +609,7 @@ fn test_notifications_next_block() {
 
     let notifications = conn.notifications();
     check_notification(Notification {
-        pid: 0,
+        process_id: 0,
         channel: "test_notifications_next_block".to_string(),
         payload: "foo".to_string()
     }, or_panic!(notifications.blocking_iter().next().unwrap()));
@@ -631,7 +631,7 @@ fn test_notification_next_timeout() {
     let notifications = conn.notifications();
     let mut it = notifications.timeout_iter(Duration::from_secs(1));
     check_notification(Notification {
-        pid: 0,
+        process_id: 0,
         channel: "test_notifications_next_timeout".to_string(),
         payload: "foo".to_string()
     }, or_panic!(it.next().unwrap()));

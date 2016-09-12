@@ -44,6 +44,7 @@
 
 extern crate bufstream;
 extern crate byteorder;
+extern crate fallible_iterator;
 extern crate hex;
 #[macro_use]
 extern crate log;
@@ -64,7 +65,7 @@ use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::TlsHandshake;
-use message::{Backend, RowDescriptionEntry, ReadMessage};
+use message::{Backend, RowDescriptionEntry};
 use notification::{Notifications, Notification};
 use params::{ConnectParams, IntoConnectParams, UserInfo};
 use priv_io::MessageStream;
@@ -288,8 +289,8 @@ impl InnerConnection {
         loop {
             match try!(conn.read_message()) {
                 Backend::BackendKeyData { process_id, secret_key } => {
-                    conn.cancel_data.process_id = process_id as i32;
-                    conn.cancel_data.secret_key = secret_key as i32;
+                    conn.cancel_data.process_id = process_id;
+                    conn.cancel_data.secret_key = secret_key;
                 }
                 Backend::ReadyForQuery { .. } => break,
                 Backend::ErrorResponse { fields } => return DbError::new_connect(fields),
@@ -303,7 +304,7 @@ impl InnerConnection {
     fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {
         debug_assert!(!self.desynchronized);
         loop {
-            match try_desync!(self, ReadMessage::read_message(&mut self.stream)) {
+            match try_desync!(self, self.stream.read_message()) {
                 Backend::NoticeResponse { fields } => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
@@ -357,9 +358,9 @@ impl InnerConnection {
     fn read_message(&mut self) -> std_io::Result<Backend> {
         loop {
             match try!(self.read_message_with_notification()) {
-                Backend::NotificationResponse { pid, channel, payload } => {
+                Backend::NotificationResponse { process_id, channel, payload } => {
                     self.notifications.push_back(Notification {
-                        pid: pid,
+                        process_id: process_id,
                         channel: channel,
                         payload: payload,
                     })

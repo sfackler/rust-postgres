@@ -15,9 +15,10 @@ use postgres_protocol::message::frontend;
 use postgres_protocol::message::backend::{self, ParseResult};
 
 use TlsMode;
-use params::{ConnectParams, ConnectTarget};
 use error::ConnectError;
 use io::TlsStream;
+use message::Backend;
+use params::{ConnectParams, ConnectTarget};
 
 const DEFAULT_PORT: u16 = 5432;
 const MESSAGE_HEADER_SIZE: usize = 5;
@@ -45,9 +46,10 @@ impl MessageStream {
         self.stream.write_all(&self.buf)
     }
 
-    pub fn read_message<'a>(&'a mut self) -> io::Result<backend::Message<'a>> {
+    fn raw_read_message<'a>(&'a mut self, b: u8) -> io::Result<backend::Message<'a>> {
         self.buf.resize(MESSAGE_HEADER_SIZE, 0);
-        try!(self.stream.read_exact(&mut self.buf));
+        self.buf[0] = b;
+        try!(self.stream.read_exact(&mut self.buf[1..]));
 
         let len = match try!(backend::Message::parse(&self.buf)) {
             // FIXME this is dumb but an explicit return runs into borrowck issues :(
@@ -66,34 +68,46 @@ impl MessageStream {
         }
     }
 
+    fn inner_read_message(&mut self, b: u8) -> io::Result<Backend> {
+        let message = try!(self.raw_read_message(b));
+        Backend::convert(message)
+    }
+
+    pub fn read_message(&mut self) -> io::Result<Backend> {
+        let b = try!(self.stream.read_u8());
+        self.inner_read_message(b)
+    }
+
+    pub fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<Backend>> {
+        try!(self.set_read_timeout(Some(timeout)));
+        let b = self.stream.read_u8();
+        try!(self.set_read_timeout(None));
+
+        match b {
+            Ok(b) => self.inner_read_message(b).map(Some),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<Backend>> {
+        try!(self.set_nonblocking(true));
+        let b = self.stream.read_u8();
+        try!(self.set_nonblocking(false));
+
+        match b {
+            Ok(b) => self.inner_read_message(b).map(Some),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
-}
 
-impl io::Read for MessageStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.stream.read(buf)
-    }
-}
-
-impl io::BufRead for MessageStream {
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        self.stream.fill_buf()
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.stream.consume(amt)
-    }
-}
-
-#[doc(hidden)]
-pub trait StreamOptions {
-    fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
-    fn set_nonblocking(&self, nonblock: bool) -> io::Result<()>;
-}
-
-impl StreamOptions for MessageStream {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
         match self.stream.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),

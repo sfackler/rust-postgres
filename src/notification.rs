@@ -11,7 +11,7 @@ use error::Error;
 #[derive(Clone, Debug)]
 pub struct Notification {
     /// The process ID of the notifying backend process.
-    pub pid: u32,
+    pub process_id: i32,
     /// The name of the channel that the notify has been raised on.
     pub channel: String,
     /// The "payload" string passed from the notifying process.
@@ -110,9 +110,9 @@ impl<'a> Iterator for Iter<'a> {
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
+            Ok(Some(Backend::NotificationResponse { process_id, channel, payload })) => {
                 Some(Ok(Notification {
-                    pid: pid,
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
@@ -148,9 +148,9 @@ impl<'a> Iterator for BlockingIter<'a> {
         }
 
         match conn.read_message_with_notification() {
-            Ok(Backend::NotificationResponse { pid, channel, payload }) => {
+            Ok(Backend::NotificationResponse { process_id, channel, payload }) => {
                 Some(Ok(Notification {
-                    pid: pid,
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
@@ -187,9 +187,9 @@ impl<'a> Iterator for TimeoutIter<'a> {
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
+            Ok(Some(Backend::NotificationResponse { process_id, channel, payload })) => {
                 Some(Ok(Notification {
-                    pid: pid,
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
