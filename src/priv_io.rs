@@ -20,15 +20,59 @@ use io::TlsStream;
 
 const DEFAULT_PORT: u16 = 5432;
 
+pub struct MessageStream {
+    stream: BufStream<Box<TlsStream>>,
+    buf: Vec<u8>,
+}
+
+impl MessageStream {
+    pub fn new(stream: Box<TlsStream>) -> MessageStream {
+        MessageStream {
+            stream: BufStream::new(stream),
+            buf: vec![],
+        }
+    }
+
+    pub fn get_ref(&self) -> &Box<TlsStream> {
+        self.stream.get_ref()
+    }
+
+    pub fn write_message(&mut self, message: &frontend::Message) -> io::Result<()> {
+        self.buf.clear();
+        try!(frontend::Message::write(message, &mut self.buf));
+        self.stream.write_all(&self.buf)
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}
+
+impl io::Read for MessageStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.stream.read(buf)
+    }
+}
+
+impl io::BufRead for MessageStream {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.stream.fill_buf()
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.stream.consume(amt)
+    }
+}
+
 #[doc(hidden)]
 pub trait StreamOptions {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()>;
 }
 
-impl StreamOptions for BufStream<Box<TlsStream>> {
+impl StreamOptions for MessageStream {
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        match self.get_ref().get_ref().0 {
+        match self.stream.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
             #[cfg(unix)]
             InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
@@ -36,7 +80,7 @@ impl StreamOptions for BufStream<Box<TlsStream>> {
     }
 
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()> {
-        match self.get_ref().get_ref().0 {
+        match self.stream.get_ref().get_ref().0 {
             InternalStream::Tcp(ref s) => s.set_nonblocking(nonblock),
             #[cfg(unix)]
             InternalStream::Unix(ref s) => s.set_nonblocking(nonblock),
