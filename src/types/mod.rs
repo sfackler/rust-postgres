@@ -7,6 +7,9 @@ use std::io::prelude::*;
 use std::sync::Arc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
+#[doc(inline)]
+pub use postgres_protocol::message::Oid;
+
 pub use self::types::Type;
 pub use self::special::{Date, Timestamp};
 use {Result, SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
@@ -98,9 +101,6 @@ impl<'a> fmt::Debug for SessionInfo<'a> {
            .finish()
     }
 }
-
-/// A Postgres OID.
-pub type Oid = u32;
 
 /// Represents the kind of a Postgres type.
 #[derive(Debug, Clone, PartialEq, Eq)]
