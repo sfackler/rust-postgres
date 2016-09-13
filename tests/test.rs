@@ -1,3 +1,4 @@
+extern crate fallible_iterator;
 #[macro_use]
 extern crate postgres;
 extern crate url;
@@ -6,10 +7,7 @@ extern crate openssl;
 #[cfg(feature = "with-security-framework")]
 extern crate security_framework;
 
-use std::thread;
-use std::io;
-use std::time::Duration;
-
+use fallible_iterator::FallibleIterator;
 use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError};
@@ -24,6 +22,9 @@ use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
 use postgres::notification::Notification;
 use postgres::params::IntoConnectParams;
+use std::thread;
+use std::io;
+use std::time::Duration;
 
 macro_rules! or_panic {
     ($e:expr) => (
@@ -557,7 +558,7 @@ fn test_custom_notice_handler() {
 #[test]
 fn test_notification_iterator_none() {
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
-    assert!(conn.notifications().iter().next().is_none());
+    assert!(conn.notifications().iter().next().unwrap().is_none());
 }
 
 fn check_notification(expected: Notification, actual: Notification) {
@@ -585,7 +586,7 @@ fn test_notification_iterator_some() {
         channel: "test_notification_iterator_one_channel2".to_string(),
         payload: "world".to_string()
     }, it.next().unwrap().unwrap());
-    assert!(it.next().is_none());
+    assert!(it.next().unwrap().is_none());
 
     or_panic!(conn.execute("NOTIFY test_notification_iterator_one_channel, '!'", &[]));
     check_notification(Notification {
@@ -593,7 +594,7 @@ fn test_notification_iterator_some() {
         channel: "test_notification_iterator_one_channel".to_string(),
         payload: "!".to_string()
     }, it.next().unwrap().unwrap());
-    assert!(it.next().is_none());
+    assert!(it.next().unwrap().is_none());
 }
 
 #[test]
@@ -612,7 +613,7 @@ fn test_notifications_next_block() {
         process_id: 0,
         channel: "test_notifications_next_block".to_string(),
         payload: "foo".to_string()
-    }, or_panic!(notifications.blocking_iter().next().unwrap()));
+    }, notifications.blocking_iter().next().unwrap().unwrap());
 }
 
 #[test]
@@ -634,9 +635,9 @@ fn test_notification_next_timeout() {
         process_id: 0,
         channel: "test_notifications_next_timeout".to_string(),
         payload: "foo".to_string()
-    }, or_panic!(it.next().unwrap()));
+    }, it.next().unwrap().unwrap());
 
-    assert!(it.next().is_none());
+    assert!(it.next().unwrap().is_none());
 }
 
 #[test]
