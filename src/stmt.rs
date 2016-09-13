@@ -12,8 +12,8 @@ use types::{SessionInfo, Type, ToSql};
 use message::Backend;
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
-use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, SessionInfoNew,
-     LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
+use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection,
+     SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
@@ -26,10 +26,10 @@ pub struct Statement<'conn> {
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Statement")
-           .field("name", &self.info.name)
-           .field("parameter_types", &self.info.param_types)
-           .field("columns", &self.info.columns)
-           .finish()
+            .field("name", &self.info.name)
+            .field("parameter_types", &self.info.param_types)
+            .field("columns", &self.info.columns)
+            .finish()
     }
 }
 
@@ -417,7 +417,8 @@ impl<'conn> Statement<'conn> {
                             Ok(n) => data = &data[n..],
                             Err(e) => {
                                 loop {
-                                    if let Backend::ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                                    if let Backend::ReadyForQuery { .. } =
+                                           try!(info.conn.read_message()) {
                                         return Err(Error::Io(e));
                                     }
                                 }

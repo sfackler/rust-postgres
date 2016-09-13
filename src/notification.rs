@@ -27,8 +27,8 @@ pub struct Notifications<'conn> {
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Notifications")
-           .field("pending", &self.len())
-           .finish()
+            .field("pending", &self.len())
+            .finish()
     }
 }
 

@@ -85,9 +85,8 @@ impl MessageStream {
 
         match b {
             Ok(b) => self.inner_read_message(b).map(Some),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
-                Ok(None)
-            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock ||
+                          e.kind() == io::ErrorKind::TimedOut => Ok(None),
             Err(e) => Err(e),
         }
     }

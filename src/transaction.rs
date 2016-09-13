@@ -4,8 +4,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::ascii::AsciiExt;
 
-use {bad_response, Result, Connection, TransactionInternals, ConfigInternals,
-     IsolationLevelNew};
+use {bad_response, Result, Connection, TransactionInternals, ConfigInternals, IsolationLevelNew};
 use error::Error;
 use rows::Rows;
 use stmt::Statement;
@@ -159,9 +158,9 @@ pub struct Transaction<'conn> {
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Transaction")
-           .field("commit", &self.commit.get())
-           .field("depth", &self.depth)
-           .finish()
+            .field("commit", &self.commit.get())
+            .field("depth", &self.depth)
+            .finish()
     }
 }
 
@@ -199,15 +198,13 @@ impl<'conn> Transaction<'conn> {
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
         match (self.commit.get(), &self.savepoint_name) {
-            (false, &Some(ref savepoint_name)) => {
-                conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name))
-            }
-            (false, &None) => conn.quick_query("ROLLBACK"),
-            (true, &Some(ref savepoint_name)) => {
-                conn.quick_query(&format!("RELEASE {}", savepoint_name))
-            }
-            (true, &None) => conn.quick_query("COMMIT"),
-        }.map(|_| ())
+            (false, &Some(ref sp)) => try!(conn.quick_query(&format!("ROLLBACK TO {}", sp))),
+            (false, &None) => try!(conn.quick_query("ROLLBACK")),
+            (true, &Some(ref sp)) => try!(conn.quick_query(&format!("RELEASE {}", sp))),
+            (true, &None) => try!(conn.quick_query("COMMIT")),
+        };
+
+        Ok(())
     }
 
     /// Like `Connection::prepare`.

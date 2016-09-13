@@ -397,11 +397,7 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let lower = self.data.len();
-        let upper = if self.more_rows {
-            None
-        } else {
-            Some(lower)
-        };
+        let upper = if self.more_rows { None } else { Some(lower) };
         (lower, upper)
     }
 }

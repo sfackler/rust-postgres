@@ -8,24 +8,15 @@ pub enum Backend {
     AuthenticationCleartextPassword,
     AuthenticationGSS,
     AuthenticationKerberosV5,
-    AuthenticationMD5Password {
-        salt: [u8; 4],
-    },
+    AuthenticationMD5Password { salt: [u8; 4] },
     AuthenticationOk,
     AuthenticationSCMCredential,
     AuthenticationSSPI,
-    BackendKeyData {
-        process_id: i32,
-        secret_key: i32,
-    },
+    BackendKeyData { process_id: i32, secret_key: i32 },
     BindComplete,
     CloseComplete,
-    CommandComplete {
-        tag: String,
-    },
-    CopyData {
-        data: Vec<u8>,
-    },
+    CommandComplete { tag: String },
+    CopyData { data: Vec<u8> },
     CopyDone,
     CopyInResponse {
         format: u8,
@@ -35,37 +26,22 @@ pub enum Backend {
         format: u8,
         column_formats: Vec<u16>,
     },
-    DataRow {
-        row: Vec<Option<Vec<u8>>>,
-    },
+    DataRow { row: Vec<Option<Vec<u8>>> },
     EmptyQueryResponse,
-    ErrorResponse {
-        fields: Vec<(u8, String)>,
-    },
+    ErrorResponse { fields: Vec<(u8, String)> },
     NoData,
-    NoticeResponse {
-        fields: Vec<(u8, String)>,
-    },
+    NoticeResponse { fields: Vec<(u8, String)> },
     NotificationResponse {
         process_id: i32,
         channel: String,
         payload: String,
     },
-    ParameterDescription {
-        types: Vec<Oid>,
-    },
-    ParameterStatus {
-        parameter: String,
-        value: String,
-    },
+    ParameterDescription { types: Vec<Oid> },
+    ParameterStatus { parameter: String, value: String },
     ParseComplete,
     PortalSuspended,
-    ReadyForQuery {
-        _state: u8,
-    },
-    RowDescription {
-        descriptions: Vec<RowDescriptionEntry>,
-    },
+    ReadyForQuery { _state: u8 },
+    RowDescription { descriptions: Vec<RowDescriptionEntry>, },
 }
 
 impl Backend {
@@ -89,9 +65,7 @@ impl Backend {
             Message::BindComplete => Backend::BindComplete,
             Message::CloseComplete => Backend::CloseComplete,
             Message::CommandComplete(body) => {
-                Backend::CommandComplete {
-                    tag: body.tag().to_owned()
-                }
+                Backend::CommandComplete { tag: body.tag().to_owned() }
             }
             Message::CopyData(body) => Backend::CopyData { data: body.data().to_owned() },
             Message::CopyDone => Backend::CopyDone,
@@ -115,13 +89,17 @@ impl Backend {
             Message::EmptyQueryResponse => Backend::EmptyQueryResponse,
             Message::ErrorResponse(body) => {
                 Backend::ErrorResponse {
-                    fields: try!(body.fields().map(|f| (f.type_(), f.value().to_owned())).collect()),
+                    fields: try!(body.fields()
+                        .map(|f| (f.type_(), f.value().to_owned()))
+                        .collect()),
                 }
             }
             Message::NoData => Backend::NoData,
             Message::NoticeResponse(body) => {
                 Backend::NoticeResponse {
-                    fields: try!(body.fields().map(|f| (f.type_(), f.value().to_owned())).collect()),
+                    fields: try!(body.fields()
+                        .map(|f| (f.type_(), f.value().to_owned()))
+                        .collect()),
                 }
             }
             Message::NotificationResponse(body) => {
@@ -132,9 +110,7 @@ impl Backend {
                 }
             }
             Message::ParameterDescription(body) => {
-                Backend::ParameterDescription {
-                    types: try!(body.parameters().collect()),
-                }
+                Backend::ParameterDescription { types: try!(body.parameters().collect()) }
             }
             Message::ParameterStatus(body) => {
                 Backend::ParameterStatus {
@@ -158,9 +134,7 @@ impl Backend {
                             format: f.format(),
                         }
                     });
-                Backend::RowDescription {
-                    descriptions: try!(fields.collect()),
-                }
+                Backend::RowDescription { descriptions: try!(fields.collect()) }
             }
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "unknown message type")),
         };

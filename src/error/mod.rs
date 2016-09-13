@@ -139,22 +139,22 @@ impl DbErrorNew for DbError {
 impl fmt::Debug for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("DbError")
-           .field("severity", &self.severity)
-           .field("code", &self.code)
-           .field("message", &self.message)
-           .field("detail", &self.detail)
-           .field("hint", &self.hint)
-           .field("position", &self.position)
-           .field("where_", &self.where_)
-           .field("schema", &self.schema)
-           .field("table", &self.table)
-           .field("column", &self.column)
-           .field("datatype", &self.datatype)
-           .field("constraint", &self.constraint)
-           .field("file", &self.file)
-           .field("line", &self.line)
-           .field("routine", &self.routine)
-           .finish()
+            .field("severity", &self.severity)
+            .field("code", &self.code)
+            .field("message", &self.message)
+            .field("detail", &self.detail)
+            .field("hint", &self.hint)
+            .field("position", &self.position)
+            .field("where_", &self.where_)
+            .field("schema", &self.schema)
+            .field("table", &self.table)
+            .field("column", &self.column)
+            .field("datatype", &self.datatype)
+            .field("constraint", &self.constraint)
+            .field("file", &self.file)
+            .field("line", &self.line)
+            .field("routine", &self.routine)
+            .finish()
     }
 }
 
@@ -207,7 +207,8 @@ impl error::Error for ConnectError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::ConnectParams(ref err) | ConnectError::Ssl(ref err) => Some(&**err),
+            ConnectError::ConnectParams(ref err) |
+            ConnectError::Ssl(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
         }

@@ -39,7 +39,11 @@ impl<T: FromSql> FromSql for Date<T> {
     }
 }
 impl<T: ToSql> ToSql for Date<T> {
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 out: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
         if *ty != Type::Date {
             return Err(Error::Conversion("expected date type".into()));
         }
@@ -95,7 +99,11 @@ impl<T: FromSql> FromSql for Timestamp<T> {
 }
 
 impl<T: ToSql> ToSql for Timestamp<T> {
-    fn to_sql<W: Write+?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull> {
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
+                                 out: &mut W,
+                                 ctx: &SessionInfo)
+                                 -> Result<IsNull> {
         if *ty != Type::Timestamp && *ty != Type::Timestamptz {
             return Err(Error::Conversion("expected timestamp or timestamptz type".into()));
         }

@@ -245,7 +245,8 @@ impl InnerConnection {
         let user = match user {
             Some(user) => user,
             None => {
-                return Err(ConnectError::ConnectParams("User missing from connection parameters".into()));
+                return Err(ConnectError::ConnectParams("User missing from connection parameters"
+                    .into()));
             }
         };
 
@@ -337,8 +338,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> std::io::Result<Option<Backend>> {
+    fn read_message_with_notification_nonblocking(&mut self) -> std::io::Result<Option<Backend>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
@@ -471,7 +471,8 @@ impl InnerConnection {
         let more_rows;
         loop {
             match try!(self.read_message()) {
-                Backend::EmptyQueryResponse | Backend::CommandComplete { .. } => {
+                Backend::EmptyQueryResponse |
+                Backend::CommandComplete { .. } => {
                     more_rows = false;
                     break;
                 }
@@ -813,10 +814,8 @@ impl InnerConnection {
                 Backend::ReadyForQuery { .. } => break,
                 Backend::DataRow { row } => {
                     result.push(row.into_iter()
-                                   .map(|opt| {
-                                       opt.map(|b| String::from_utf8_lossy(&b).into_owned())
-                                   })
-                                   .collect());
+                        .map(|opt| opt.map(|b| String::from_utf8_lossy(&b).into_owned()))
+                        .collect());
                 }
                 Backend::CopyInResponse { .. } => {
                     try!(self.stream.write_message(&frontend::CopyFail {
@@ -857,13 +856,13 @@ impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let conn = self.conn.borrow();
         fmt.debug_struct("Connection")
-           .field("stream", &conn.stream.get_ref())
-           .field("cancel_data", &conn.cancel_data)
-           .field("notifications", &conn.notifications.len())
-           .field("transaction_depth", &conn.trans_depth)
-           .field("desynchronized", &conn.desynchronized)
-           .field("cached_statements", &conn.cached_statements.len())
-           .finish()
+            .field("stream", &conn.stream.get_ref())
+            .field("cancel_data", &conn.cancel_data)
+            .field("notifications", &conn.notifications.len())
+            .field("transaction_depth", &conn.trans_depth)
+            .field("desynchronized", &conn.desynchronized)
+            .field("cached_statements", &conn.cached_statements.len())
+            .finish()
     }
 }
 

@@ -97,8 +97,8 @@ impl<'a> SessionInfo<'a> {
 impl<'a> fmt::Debug for SessionInfo<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SessionInfo")
-           .field("parameters", &self.conn.parameters)
-           .finish()
+            .field("parameters", &self.conn.parameters)
+            .finish()
     }
 }
 
@@ -158,11 +158,11 @@ pub struct Other(Arc<OtherInner>);
 impl fmt::Debug for Other {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Other")
-           .field("name", &self.0.name)
-           .field("oid", &self.0.oid)
-           .field("kind", &self.0.kind)
-           .field("schema", &self.0.schema)
-           .finish()
+            .field("name", &self.0.name)
+            .field("oid", &self.0.oid)
+            .field("kind", &self.0.kind)
+            .field("schema", &self.0.schema)
+            .finish()
     }
 }
 
@@ -634,7 +634,8 @@ impl ToSql for bool {
 impl<'a, T: ToSql> ToSql for &'a [T] {
     to_sql_checked!();
 
-    fn to_sql<W: Write + ?Sized>(&self, ty: &Type,
+    fn to_sql<W: Write + ?Sized>(&self,
+                                 ty: &Type,
                                  mut w: &mut W,
                                  ctx: &SessionInfo)
                                  -> Result<IsNull> {

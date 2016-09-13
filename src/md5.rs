@@ -166,11 +166,11 @@ macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
         fn input<F: FnMut(&[u8])>(&mut self, input: &[u8], mut func: F) {
             let mut i = 0;
 
-            // FIXME: #6304 - This local variable shouldn't be necessary.
+// FIXME: #6304 - This local variable shouldn't be necessary.
             let size = $size;
 
-            // If there is already data in the buffer, copy as much as we can into it and process
-            // the data if the buffer becomes full.
+// If there is already data in the buffer, copy as much as we can into it and process
+// the data if the buffer becomes full.
             if self.buffer_idx != 0 {
                 let buffer_remaining = size - self.buffer_idx;
                 if input.len() >= buffer_remaining {
@@ -189,16 +189,16 @@ macro_rules! impl_fixed_buffer( ($name:ident, $size:expr) => (
                 }
             }
 
-            // While we have at least a full buffer size chunks's worth of data, process that data
-            // without copying it into the buffer
+// While we have at least a full buffer size chunks's worth of data, process that data
+// without copying it into the buffer
             while input.len() - i >= size {
                 func(&input[i..i + size]);
                 i += size;
             }
 
-            // Copy any input data into the buffer. At this point in the method, the ammount of
-            // data left in the input vector will be less than the buffer size and the buffer will
-            // be empty.
+// Copy any input data into the buffer. At this point in the method, the ammount of
+// data left in the input vector will be less than the buffer size and the buffer will
+// be empty.
             let input_remaining = input.len() - i;
             copy_memory(
                 &input[i..],
