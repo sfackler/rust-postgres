@@ -1,12 +1,13 @@
 //! Query result rows.
 
+use fallible_iterator::FallibleIterator;
+use postgres_protocol::message::frontend;
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
 use std::ops::Deref;
 use std::slice;
-use postgres_protocol::message::frontend;
 
 use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
 use transaction::Transaction;
@@ -55,9 +56,9 @@ impl<'a> RowsNew<'a> for Rows<'a> {
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Rows")
-           .field("columns", &self.columns())
-           .field("rows", &self.data.len())
-           .finish()
+            .field("columns", &self.columns())
+            .field("rows", &self.data.len())
+            .finish()
     }
 }
 
@@ -152,8 +153,8 @@ pub struct Row<'a> {
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Row")
-           .field("statement", self.stmt)
-           .finish()
+            .field("statement", self.stmt)
+            .finish()
     }
 }
 
@@ -332,11 +333,11 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LazyRows")
-           .field("name", &self.name)
-           .field("row_limit", &self.row_limit)
-           .field("remaining_rows", &self.data.len())
-           .field("more_rows", &self.more_rows)
-           .finish()
+            .field("name", &self.name)
+            .field("row_limit", &self.row_limit)
+            .field("remaining_rows", &self.data.len())
+            .field("more_rows", &self.more_rows)
+            .finish()
     }
 }
 
@@ -373,22 +374,25 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 }
 
-impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
-    type Item = Result<Row<'stmt>>;
+impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
+    type Item = Row<'stmt>;
+    type Error = Error;
 
-    fn next(&mut self) -> Option<Result<Row<'stmt>>> {
+    fn next(&mut self) -> Result<Option<Row<'stmt>>> {
         if self.data.is_empty() && self.more_rows {
-            if let Err(err) = self.execute() {
-                return Some(Err(err));
-            }
+            try!(self.execute());
         }
 
-        self.data.pop_front().map(|r| {
-            Ok(Row {
-                stmt: self.stmt,
-                data: Cow::Owned(r),
-            })
-        })
+        let row = self.data
+            .pop_front()
+            .map(|r| {
+                Row {
+                    stmt: self.stmt,
+                    data: Cow::Owned(r),
+                }
+            });
+
+        Ok(row)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

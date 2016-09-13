@@ -406,7 +406,7 @@ fn test_lazy_query() {
     }
     let stmt = or_panic!(trans.prepare("SELECT id FROM foo ORDER BY id"));
     let result = or_panic!(stmt.lazy_query(&trans, &[], 2));
-    assert_eq!(values, result.map(|row| row.unwrap().get(0)).collect::<Vec<_>>());
+    assert_eq!(values, result.map(|row| row.get(0)).collect::<Vec<_>>().unwrap());
 }
 
 #[test]
