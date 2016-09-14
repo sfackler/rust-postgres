@@ -17,7 +17,6 @@ use postgres_protocol::message::backend::{self, ParseResult};
 use TlsMode;
 use error::ConnectError;
 use io::TlsStream;
-use message::Backend;
 use params::{ConnectParams, ConnectTarget};
 
 const DEFAULT_PORT: u16 = 5432;
@@ -46,14 +45,13 @@ impl MessageStream {
         self.stream.write_all(&self.buf)
     }
 
-    fn raw_read_message<'a>(&'a mut self, b: u8) -> io::Result<backend::Message<'a>> {
+    fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message> {
         self.buf.resize(MESSAGE_HEADER_SIZE, 0);
         self.buf[0] = b;
         try!(self.stream.read_exact(&mut self.buf[1..]));
 
         let len = match try!(backend::Message::parse(&self.buf)) {
-            // FIXME this is dumb but an explicit return runs into borrowck issues :(
-            ParseResult::Complete { .. } => None,
+            ParseResult::Complete { message, .. } => return Ok(message),
             ParseResult::Incomplete { required_size } => Some(required_size.unwrap()),
         };
 
@@ -68,17 +66,14 @@ impl MessageStream {
         }
     }
 
-    fn inner_read_message(&mut self, b: u8) -> io::Result<Backend> {
-        let message = try!(self.raw_read_message(b));
-        Backend::convert(message)
-    }
-
-    pub fn read_message(&mut self) -> io::Result<Backend> {
+    pub fn read_message(&mut self) -> io::Result<backend::Message> {
         let b = try!(self.stream.read_u8());
         self.inner_read_message(b)
     }
 
-    pub fn read_message_timeout(&mut self, timeout: Duration) -> io::Result<Option<Backend>> {
+    pub fn read_message_timeout(&mut self,
+                                timeout: Duration)
+                                -> io::Result<Option<backend::Message>> {
         try!(self.set_read_timeout(Some(timeout)));
         let b = self.stream.read_u8();
         try!(self.set_read_timeout(None));
@@ -91,7 +86,7 @@ impl MessageStream {
         }
     }
 
-    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<Backend>> {
+    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message>> {
         try!(self.set_nonblocking(true));
         let b = self.stream.read_u8();
         try!(self.set_nonblocking(false));

@@ -61,11 +61,11 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
+use postgres_protocol::message::backend::{self, RowDescriptionEntry};
 use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use io::TlsHandshake;
-use message::{Backend, RowDescriptionEntry};
 use notification::{Notifications, Notification};
 use params::{ConnectParams, IntoConnectParams, UserInfo};
 use priv_io::MessageStream;
@@ -79,7 +79,6 @@ mod macros;
 
 mod feature_check;
 mod md5;
-mod message;
 mod priv_io;
 mod url;
 pub mod error;
@@ -289,12 +288,12 @@ impl InnerConnection {
 
         loop {
             match try!(conn.read_message()) {
-                Backend::BackendKeyData { process_id, secret_key } => {
+                backend::Message::BackendKeyData { process_id, secret_key } => {
                     conn.cancel_data.process_id = process_id;
                     conn.cancel_data.secret_key = secret_key;
                 }
-                Backend::ReadyForQuery { .. } => break,
-                Backend::ErrorResponse { fields } => return DbError::new_connect(fields),
+                backend::Message::ReadyForQuery { .. } => break,
+                backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
                 _ => return Err(ConnectError::Io(bad_response())),
             }
         }
@@ -302,16 +301,16 @@ impl InnerConnection {
         Ok(conn)
     }
 
-    fn read_message_with_notification(&mut self) -> std_io::Result<Backend> {
+    fn read_message_with_notification(&mut self) -> std_io::Result<backend::Message> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
-                Backend::NoticeResponse { fields } => {
+                backend::Message::NoticeResponse { fields } => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Backend::ParameterStatus { parameter, value } => {
+                backend::Message::ParameterStatus { parameter, value } => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -321,16 +320,16 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> std::io::Result<Option<Backend>> {
+                                              -> std::io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
-                Some(Backend::NoticeResponse { fields }) => {
+                Some(backend::Message::NoticeResponse { fields }) => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(Backend::ParameterStatus { parameter, value }) => {
+                Some(backend::Message::ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -338,16 +337,16 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification_nonblocking(&mut self) -> std::io::Result<Option<Backend>> {
+    fn read_message_with_notification_nonblocking(&mut self) -> std::io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
-                Some(Backend::NoticeResponse { fields }) => {
+                Some(backend::Message::NoticeResponse { fields }) => {
                     if let Ok(err) = DbError::new_raw(fields) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(Backend::ParameterStatus { parameter, value }) => {
+                Some(backend::Message::ParameterStatus { parameter, value }) => {
                     self.parameters.insert(parameter, value);
                 }
                 val => return Ok(val),
@@ -355,10 +354,10 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> std_io::Result<Backend> {
+    fn read_message(&mut self) -> std_io::Result<backend::Message> {
         loop {
             match try!(self.read_message_with_notification()) {
-                Backend::NotificationResponse { process_id, channel, payload } => {
+                backend::Message::NotificationResponse { process_id, channel, payload } => {
                     self.notifications.push_back(Notification {
                         process_id: process_id,
                         channel: channel,
@@ -372,15 +371,15 @@ impl InnerConnection {
 
     fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
         match try!(self.read_message()) {
-            Backend::AuthenticationOk => return Ok(()),
-            Backend::AuthenticationCleartextPassword => {
+            backend::Message::AuthenticationOk => return Ok(()),
+            backend::Message::AuthenticationCleartextPassword => {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
                 try!(self.stream.write_message(&frontend::PasswordMessage { password: &pass }));
                 try!(self.stream.flush());
             }
-            Backend::AuthenticationMD5Password { salt } => {
+            backend::Message::AuthenticationMD5Password { salt } => {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
@@ -395,20 +394,20 @@ impl InnerConnection {
                 try!(self.stream.write_message(&frontend::PasswordMessage { password: &output }));
                 try!(self.stream.flush());
             }
-            Backend::AuthenticationKerberosV5 |
-            Backend::AuthenticationSCMCredential |
-            Backend::AuthenticationGSS |
-            Backend::AuthenticationSSPI => {
+            backend::Message::AuthenticationKerberosV5 |
+            backend::Message::AuthenticationSCMCredential |
+            backend::Message::AuthenticationGSS |
+            backend::Message::AuthenticationSSPI => {
                 return Err(ConnectError::Io(std_io::Error::new(std_io::ErrorKind::Other,
                                                                "unsupported authentication")))
             }
-            Backend::ErrorResponse { fields } => return DbError::new_connect(fields),
+            backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
-            Backend::AuthenticationOk => Ok(()),
-            Backend::ErrorResponse { fields } => DbError::new_connect(fields),
+            backend::Message::AuthenticationOk => Ok(()),
+            backend::Message::ErrorResponse { fields } => DbError::new_connect(fields),
             _ => Err(ConnectError::Io(bad_response())),
         }
     }
@@ -433,8 +432,8 @@ impl InnerConnection {
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
-            Backend::ParseComplete => {}
-            Backend::ErrorResponse { fields } => {
+            backend::Message::ParseComplete => {}
+            backend::Message::ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 return DbError::new(fields);
             }
@@ -442,13 +441,13 @@ impl InnerConnection {
         }
 
         let raw_param_types = match try!(self.read_message()) {
-            Backend::ParameterDescription { types } => types,
+            backend::Message::ParameterDescription { types } => types,
             _ => bad_response!(self),
         };
 
         let raw_columns = match try!(self.read_message()) {
-            Backend::RowDescription { descriptions } => descriptions,
-            Backend::NoData => vec![],
+            backend::Message::RowDescription { descriptions } => descriptions,
+            backend::Message::NoData => vec![],
             _ => bad_response!(self),
         };
 
@@ -471,30 +470,30 @@ impl InnerConnection {
         let more_rows;
         loop {
             match try!(self.read_message()) {
-                Backend::EmptyQueryResponse |
-                Backend::CommandComplete { .. } => {
+                backend::Message::EmptyQueryResponse |
+                backend::Message::CommandComplete { .. } => {
                     more_rows = false;
                     break;
                 }
-                Backend::PortalSuspended => {
+                backend::Message::PortalSuspended => {
                     more_rows = true;
                     break;
                 }
-                Backend::DataRow { row } => buf.push_back(row),
-                Backend::ErrorResponse { fields } => {
+                backend::Message::DataRow { row } => buf.push_back(row),
+                backend::Message::ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return DbError::new(fields);
                 }
-                Backend::CopyInResponse { .. } => {
+                backend::Message::CopyInResponse { .. } => {
                     try!(self.stream.write_message(&frontend::CopyFail {
                         message: "COPY queries cannot be directly executed",
                     }));
                     try!(self.stream.write_message(&frontend::Sync));
                     try!(self.stream.flush());
                 }
-                Backend::CopyOutResponse { .. } => {
+                backend::Message::CopyOutResponse { .. } => {
                     loop {
-                        if let Backend::ReadyForQuery { .. } = try!(self.read_message()) {
+                        if let backend::Message::ReadyForQuery { .. } = try!(self.read_message()) {
                             break;
                         }
                     }
@@ -550,8 +549,8 @@ impl InnerConnection {
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
-            Backend::BindComplete => Ok(()),
-            Backend::ErrorResponse { fields } => {
+            backend::Message::BindComplete => Ok(()),
+            backend::Message::ErrorResponse { fields } => {
                 try!(self.wait_for_ready());
                 DbError::new(fields)
             }
@@ -608,8 +607,8 @@ impl InnerConnection {
         try!(self.stream.write_message(&frontend::Sync));
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
-            Backend::CloseComplete => Ok(()),
-            Backend::ErrorResponse { fields } => DbError::new(fields),
+            backend::Message::CloseComplete => Ok(()),
+            backend::Message::ErrorResponse { fields } => DbError::new(fields),
             _ => bad_response!(self),
         };
         try!(self.wait_for_ready());
@@ -797,7 +796,7 @@ impl InnerConnection {
     #[allow(needless_return)]
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
-            Backend::ReadyForQuery { .. } => Ok(()),
+            backend::Message::ReadyForQuery { .. } => Ok(()),
             _ => bad_response!(self),
         }
     }
@@ -811,20 +810,20 @@ impl InnerConnection {
         let mut result = vec![];
         loop {
             match try!(self.read_message()) {
-                Backend::ReadyForQuery { .. } => break,
-                Backend::DataRow { row } => {
+                backend::Message::ReadyForQuery { .. } => break,
+                backend::Message::DataRow { row } => {
                     result.push(row.into_iter()
                         .map(|opt| opt.map(|b| String::from_utf8_lossy(&b).into_owned()))
                         .collect());
                 }
-                Backend::CopyInResponse { .. } => {
+                backend::Message::CopyInResponse { .. } => {
                     try!(self.stream.write_message(&frontend::CopyFail {
                         message: "COPY queries cannot be directly executed",
                     }));
                     try!(self.stream.write_message(&frontend::Sync));
                     try!(self.stream.flush());
                 }
-                Backend::ErrorResponse { fields } => {
+                backend::Message::ErrorResponse { fields } => {
                     try!(self.wait_for_ready());
                     return DbError::new(fields);
                 }

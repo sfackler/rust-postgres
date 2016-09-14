@@ -3,9 +3,9 @@
 use fallible_iterator::{FallibleIterator, IntoFallibleIterator};
 use std::fmt;
 use std::time::Duration;
+use postgres_protocol::message::backend;
 
 use {desynchronized, Result, Connection, NotificationsNew};
-use message::Backend;
 use error::Error;
 
 /// An asynchronous notification.
@@ -113,7 +113,7 @@ impl<'a> FallibleIterator for Iter<'a> {
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(Backend::NotificationResponse { process_id, channel, payload })) => {
+            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
                 Ok(Some(Notification {
                     process_id: process_id,
                     channel: channel,
@@ -152,7 +152,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
         }
 
         match conn.read_message_with_notification() {
-            Ok(Backend::NotificationResponse { process_id, channel, payload }) => {
+            Ok(backend::Message::NotificationResponse { process_id, channel, payload }) => {
                 Ok(Some(Notification {
                     process_id: process_id,
                     channel: channel,
@@ -188,7 +188,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(Backend::NotificationResponse { process_id, channel, payload })) => {
+            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
                 Ok(Some(Notification {
                     process_id: process_id,
                     channel: channel,
