@@ -528,7 +528,7 @@ impl InnerConnection {
         let mut values = vec![];
         for (param, ty) in params.iter().zip(param_types) {
             let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self))) {
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self)).map_err(Error::Conversion)) {
                 IsNull::Yes => values.push(None),
                 IsNull::No => values.push(Some(buf)),
             }
@@ -671,18 +671,30 @@ impl InnerConnection {
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(self);
-            let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx));
-            let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx));
-            let elem_oid = try!(Oid::from_sql(&Type::Oid, &mut &**row[2].as_ref().unwrap(), &ctx));
+            let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+                .map_err(Error::Conversion));
+            let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx)
+                .map_err(Error::Conversion));
+            let elem_oid = try!(Oid::from_sql(&Type::Oid, &mut &**row[2].as_ref().unwrap(), &ctx)
+                .map_err(Error::Conversion));
             let rngsubtype = match row[3] {
-                Some(ref data) => try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)),
-                None => try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)),
+                Some(ref data) => {
+                    try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)
+                        .map_err(Error::Conversion))
+                },
+                None => {
+                    try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)
+                        .map_err(Error::Conversion))
+                },
             };
-            let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx));
+            let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx)
+                .map_err(Error::Conversion));
             let schema = try!(String::from_sql(&Type::Name,
                                                &mut &**row[5].as_ref().unwrap(),
-                                               &ctx));
-            let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx));
+                                               &ctx)
+                .map_err(Error::Conversion));
+            let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx)
+                .map_err(Error::Conversion));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
@@ -743,7 +755,8 @@ impl InnerConnection {
         for row in rows {
             variants.push(try!(String::from_sql(&Type::Name,
                                                 &mut &**row[0].as_ref().unwrap(),
-                                                &ctx)));
+                                                &ctx)
+                .map_err(Error::Conversion)));
         }
 
         Ok(variants)
@@ -778,8 +791,10 @@ impl InnerConnection {
                 let ctx = SessionInfo::new(self);
                 let name = try!(String::from_sql(&Type::Name,
                                                  &mut &**row[0].as_ref().unwrap(),
-                                                 &ctx));
-                let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx));
+                                                 &ctx)
+                    .map_err(Error::Conversion));
+                let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx)
+                    .map_err(Error::Conversion));
                 (name, type_)
             };
             let type_ = try!(self.get_type(type_));

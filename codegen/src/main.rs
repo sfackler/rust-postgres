@@ -6,12 +6,12 @@ use std::ascii::AsciiExt;
 use std::path::Path;
 
 mod sqlstate;
-mod types;
+mod type_gen;
 
 fn main() {
     let path = Path::new("../src");
     sqlstate::build(path);
-    types::build(path);
+    type_gen::build(path);
 }
 
 fn snake_to_camel(s: &str) -> String {

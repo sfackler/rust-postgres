@@ -20,7 +20,7 @@ struct Type {
 }
 
 pub fn build(path: &Path) {
-    let mut file = BufWriter::new(File::create(path.join("types/types.rs")).unwrap());
+    let mut file = BufWriter::new(File::create(path.join("types/type_gen.rs")).unwrap());
 
     let ranges = parse_ranges();
     let types = parse_types(&ranges);

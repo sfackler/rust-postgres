@@ -52,3 +52,6 @@ uuid = { version = ">= 0.1, < 0.4", optional = true }
 
 [dev-dependencies]
 url = "1.0"
+
+[replace]
+"fallible-iterator:0.1.2" = { git = "https://github.com/sfackler/rust-fallible-iterator" }

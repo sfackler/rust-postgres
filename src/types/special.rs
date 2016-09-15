@@ -1,10 +1,7 @@
-use std::io::prelude::*;
+use postgres_protocol::types;
 use std::{i32, i64};
+use std::error::Error;
 
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
-
-use Result;
-use error::Error;
 use types::{Type, FromSql, ToSql, IsNull, SessionInfo};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
@@ -19,18 +16,11 @@ pub enum Date<T> {
 }
 
 impl<T: FromSql> FromSql for Date<T> {
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self> {
-        if *ty != Type::Date {
-            return Err(Error::Conversion("expected date type".into()));
-        }
-
-        let mut buf = [0; 4];
-        try!(raw.read_exact(buf.as_mut()));
-
-        match try!(buf.as_ref().read_i32::<BigEndian>()) {
+    fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> Result<Self, Box<Error + Sync + Send>> {
+        match try!(types::date_from_sql(raw)) {
             i32::MAX => Ok(Date::PosInfinity),
             i32::MIN => Ok(Date::NegInfinity),
-            _ => T::from_sql(ty, &mut &mut buf.as_ref(), ctx).map(Date::Value),
+            _ => T::from_sql(ty, raw, ctx).map(Date::Value),
         }
     }
 
@@ -39,22 +29,14 @@ impl<T: FromSql> FromSql for Date<T> {
     }
 }
 impl<T: ToSql> ToSql for Date<T> {
-    fn to_sql<W: Write + ?Sized>(&self,
-                                 ty: &Type,
-                                 out: &mut W,
-                                 ctx: &SessionInfo)
-                                 -> Result<IsNull> {
-        if *ty != Type::Date {
-            return Err(Error::Conversion("expected date type".into()));
-        }
-
+    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
         let value = match *self {
             Date::PosInfinity => i32::MAX,
             Date::NegInfinity => i32::MIN,
             Date::Value(ref v) => return v.to_sql(ty, out, ctx),
         };
 
-        try!(out.write_i32::<BigEndian>(value));
+        types::date_to_sql(value, out);
         Ok(IsNull::No)
     }
 
@@ -78,18 +60,11 @@ pub enum Timestamp<T> {
 }
 
 impl<T: FromSql> FromSql for Timestamp<T> {
-    fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self> {
-        if *ty != Type::Timestamp && *ty != Type::Timestamptz {
-            return Err(Error::Conversion("expected timestamp or timestamptz type".into()));
-        }
-
-        let mut buf = [0; 8];
-        try!(raw.read_exact(buf.as_mut()));
-
-        match try!(buf.as_ref().read_i64::<BigEndian>()) {
+    fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> Result<Self, Box<Error + Sync + Send>> {
+        match try!(types::timestamp_from_sql(raw)) {
             i64::MAX => Ok(Timestamp::PosInfinity),
             i64::MIN => Ok(Timestamp::NegInfinity),
-            _ => T::from_sql(ty, &mut &mut buf.as_ref(), ctx).map(Timestamp::Value),
+            _ => T::from_sql(ty, raw, ctx).map(Timestamp::Value),
         }
     }
 
@@ -99,22 +74,14 @@ impl<T: FromSql> FromSql for Timestamp<T> {
 }
 
 impl<T: ToSql> ToSql for Timestamp<T> {
-    fn to_sql<W: Write + ?Sized>(&self,
-                                 ty: &Type,
-                                 out: &mut W,
-                                 ctx: &SessionInfo)
-                                 -> Result<IsNull> {
-        if *ty != Type::Timestamp && *ty != Type::Timestamptz {
-            return Err(Error::Conversion("expected timestamp or timestamptz type".into()));
-        }
-
+    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
         let value = match *self {
             Timestamp::PosInfinity => i64::MAX,
             Timestamp::NegInfinity => i64::MIN,
             Timestamp::Value(ref v) => return v.to_sql(ty, out, ctx),
         };
 
-        try!(out.write_i64::<BigEndian>(value));
+        types::timestamp_to_sql(value, out);
         Ok(IsNull::No)
     }
 

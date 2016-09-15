@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::error;
 use std::f32;
 use std::f64;
 use std::fmt;
 use std::io::{Read, Write};
+use std::result;
 
 use postgres::{Connection, TlsMode, Result};
 use postgres::error::Error;
@@ -251,9 +253,7 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql<W: ?Sized>(&self, ty: &Type, out: &mut W, ctx: &SessionInfo) -> Result<IsNull>
-            where W: Write
-        {
+        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> result::Result<IsNull, Box<error::Error + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
@@ -269,7 +269,7 @@ fn domain() {
     }
 
     impl FromSql for SessionId {
-        fn from_sql<R: Read>(ty: &Type, raw: &mut R, ctx: &SessionInfo) -> Result<Self> {
+        fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> result::Result<Self, Box<error::Error + Sync + Send>> {
             Vec::<u8>::from_sql(ty, raw, ctx).map(SessionId)
         }
 

@@ -240,7 +240,7 @@ impl<'a> Row<'a> {
             Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
             None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
         };
-        Some(value)
+        Some(value.map_err(Error::Conversion))
     }
 
     /// Retrieves the specified field as a raw buffer of Postgres data.

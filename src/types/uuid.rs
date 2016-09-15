@@ -1,15 +1,14 @@
 extern crate uuid;
 
-use std::io::prelude::*;
-
+use postgres_protocol::types;
 use self::uuid::Uuid;
+use std::error::Error;
+
 use types::{FromSql, ToSql, Type, IsNull, SessionInfo};
-use Result;
 
 impl FromSql for Uuid {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<Uuid> {
-        let mut bytes = [0; 16];
-        try!(raw.read_exact(&mut bytes));
+    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<Uuid, Box<Error + Sync + Send>> {
+        let bytes = try!(types::uuid_from_sql(raw));
         Ok(Uuid::from_bytes(&bytes).unwrap())
     }
 
@@ -17,8 +16,8 @@ impl FromSql for Uuid {
 }
 
 impl ToSql for Uuid {
-    fn to_sql<W: Write + ?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
-        try!(w.write_all(self.as_bytes()));
+    fn to_sql(&self, _: &Type, w: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+        types::uuid_to_sql(*self.as_bytes(), w);
         Ok(IsNull::No)
     }
 
