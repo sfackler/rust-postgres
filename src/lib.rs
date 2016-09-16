@@ -279,9 +279,7 @@ impl InnerConnection {
             options.push(("database".to_owned(), database));
         }
 
-        try!(conn.stream.write_message(&frontend::StartupMessage {
-            parameters: &options,
-        }));
+        try!(conn.stream.write_message(&frontend::StartupMessage { parameters: &options }));
         try!(conn.stream.flush());
 
         try!(conn.handle_auth(user));
@@ -337,7 +335,8 @@ impl InnerConnection {
         }
     }
 
-    fn read_message_with_notification_nonblocking(&mut self) -> std::io::Result<Option<backend::Message>> {
+    fn read_message_with_notification_nonblocking(&mut self)
+                                                  -> std::io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
@@ -528,7 +527,8 @@ impl InnerConnection {
         let mut values = vec![];
         for (param, ty) in params.iter().zip(param_types) {
             let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self)).map_err(Error::Conversion)) {
+            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self))
+                .map_err(Error::Conversion)) {
                 IsNull::Yes => values.push(None),
                 IsNull::No => values.push(Some(buf)),
             }
@@ -681,18 +681,16 @@ impl InnerConnection {
                 Some(ref data) => {
                     try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)
                         .map_err(Error::Conversion))
-                },
+                }
                 None => {
-                    try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx)
-                        .map_err(Error::Conversion))
-                },
+                    try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx).map_err(Error::Conversion))
+                }
             };
             let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
-            let schema = try!(String::from_sql(&Type::Name,
-                                               &mut &**row[5].as_ref().unwrap(),
-                                               &ctx)
-                .map_err(Error::Conversion));
+            let schema =
+                try!(String::from_sql(&Type::Name, &mut &**row[5].as_ref().unwrap(), &ctx)
+                    .map_err(Error::Conversion));
             let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
@@ -753,10 +751,8 @@ impl InnerConnection {
         let ctx = SessionInfo::new(self);
         let mut variants = vec![];
         for row in rows {
-            variants.push(try!(String::from_sql(&Type::Name,
-                                                &mut &**row[0].as_ref().unwrap(),
-                                                &ctx)
-                .map_err(Error::Conversion)));
+            variants.push(try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+                    .map_err(Error::Conversion)));
         }
 
         Ok(variants)
@@ -789,10 +785,9 @@ impl InnerConnection {
         for row in rows {
             let (name, type_) = {
                 let ctx = SessionInfo::new(self);
-                let name = try!(String::from_sql(&Type::Name,
-                                                 &mut &**row[0].as_ref().unwrap(),
-                                                 &ctx)
-                    .map_err(Error::Conversion));
+                let name =
+                    try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+                        .map_err(Error::Conversion));
                 let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx)
                     .map_err(Error::Conversion));
                 (name, type_)

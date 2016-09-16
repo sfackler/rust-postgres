@@ -13,7 +13,10 @@ const NSEC_PER_USEC: i64 = 1_000;
 const TIME_SEC_CONVERSION: i64 = 946684800;
 
 impl FromSql for Timespec {
-    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<Timespec, Box<Error + Sync + Send>> {
+    fn from_sql(_: &Type,
+                raw: &[u8],
+                _: &SessionInfo)
+                -> Result<Timespec, Box<Error + Sync + Send>> {
         let t = try!(types::timestamp_from_sql(raw));
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
         let mut usec = t % USEC_PER_SEC;
@@ -30,7 +33,11 @@ impl FromSql for Timespec {
 }
 
 impl ToSql for Timespec {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self,
+              _: &Type,
+              w: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
         let t = (self.sec - TIME_SEC_CONVERSION) * USEC_PER_SEC + self.nsec as i64 / NSEC_PER_USEC;
         types::timestamp_to_sql(t, w);
         Ok(IsNull::No)

@@ -16,7 +16,11 @@ impl FromSql for Uuid {
 }
 
 impl ToSql for Uuid {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self,
+              _: &Type,
+              w: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
         types::uuid_to_sql(*self.as_bytes(), w);
         Ok(IsNull::No)
     }

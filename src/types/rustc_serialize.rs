@@ -8,7 +8,10 @@ use std::error::Error;
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for json::Json {
-    fn from_sql(ty: &Type, raw: &[u8], _: &SessionInfo) -> Result<json::Json, Box<Error + Sync + Send>> {
+    fn from_sql(ty: &Type,
+                raw: &[u8],
+                _: &SessionInfo)
+                -> Result<json::Json, Box<Error + Sync + Send>> {
         let mut raw = Cursor::new(raw);
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
@@ -23,7 +26,11 @@ impl FromSql for json::Json {
 }
 
 impl ToSql for json::Json {
-    fn to_sql(&self, ty: &Type, mut out: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self,
+              ty: &Type,
+              mut out: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             out.push(1);
         }

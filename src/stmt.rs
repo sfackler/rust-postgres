@@ -365,7 +365,9 @@ impl<'conn> Statement<'conn> {
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
-            backend::Message::CopyOutResponse { format, column_formats } => (format, column_formats),
+            backend::Message::CopyOutResponse { format, column_formats } => {
+                (format, column_formats)
+            }
             backend::Message::CopyInResponse { .. } => {
                 try!(conn.stream.write_message(&frontend::CopyFail { message: "" }));
                 try!(conn.stream.write_message(&frontend::CopyDone));
@@ -432,14 +434,16 @@ impl<'conn> Statement<'conn> {
                 }
                 backend::Message::ErrorResponse { fields } => {
                     loop {
-                        if let backend::Message::ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                        if let backend::Message::ReadyForQuery { .. } =
+                               try!(info.conn.read_message()) {
                             return DbError::new(fields);
                         }
                     }
                 }
                 _ => {
                     loop {
-                        if let backend::Message::ReadyForQuery { .. } = try!(info.conn.read_message()) {
+                        if let backend::Message::ReadyForQuery { .. } =
+                               try!(info.conn.read_message()) {
                             return Err(Error::Io(bad_response()));
                         }
                     }

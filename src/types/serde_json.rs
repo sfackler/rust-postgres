@@ -8,7 +8,10 @@ use std::io::Write;
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for Value {
-    fn from_sql(ty: &Type, mut raw: &[u8], _: &SessionInfo) -> Result<Value, Box<Error + Sync + Send>> {
+    fn from_sql(ty: &Type,
+                mut raw: &[u8],
+                _: &SessionInfo)
+                -> Result<Value, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             // We only support version 1 of the jsonb binary format
             if try!(raw.read_u8()) != 1 {
@@ -22,7 +25,11 @@ impl FromSql for Value {
 }
 
 impl ToSql for Value {
-    fn to_sql(&self, ty: &Type, mut out: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self,
+              ty: &Type,
+              mut out: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             out.push(1);
         }

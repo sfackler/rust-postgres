@@ -21,7 +21,11 @@ impl FromSql for BitVec {
 }
 
 impl ToSql for BitVec {
-    fn to_sql(&self, _: &Type, mut out: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self,
+              _: &Type,
+              mut out: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
         try!(types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out));
         Ok(IsNull::No)
     }
