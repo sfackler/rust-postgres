@@ -51,7 +51,6 @@ extern crate log;
 extern crate phf;
 extern crate postgres_protocol;
 
-use md5::Md5;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
@@ -61,6 +60,7 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
+use postgres_protocol::authentication;
 use postgres_protocol::message::backend::{self, RowDescriptionEntry};
 use postgres_protocol::message::frontend;
 
@@ -78,7 +78,6 @@ use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromS
 mod macros;
 
 mod feature_check;
-mod md5;
 mod priv_io;
 mod url;
 pub mod error;
@@ -382,14 +381,7 @@ impl InnerConnection {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                let mut hasher = Md5::new();
-                hasher.input(pass.as_bytes());
-                hasher.input(user.user.as_bytes());
-                let output = hasher.result_str();
-                hasher.reset();
-                hasher.input(output.as_bytes());
-                hasher.input(&salt);
-                let output = format!("md5{}", hasher.result_str());
+                let output = authentication::md5_hash(user.user.as_bytes(), pass.as_bytes(), salt);
                 try!(self.stream.write_message(&frontend::PasswordMessage { password: &output }));
                 try!(self.stream.flush());
             }
