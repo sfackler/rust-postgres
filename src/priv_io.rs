@@ -252,7 +252,7 @@ pub fn initialize_stream(params: &ConnectParams,
 
     if try!(socket.read_u8()) == b'N' {
         if tls_required {
-            return Err(ConnectError::Ssl("the server does not support TLS".into()));
+            return Err(ConnectError::Tls("the server does not support TLS".into()));
         } else {
             return Ok(Box::new(socket));
         }
@@ -264,5 +264,5 @@ pub fn initialize_stream(params: &ConnectParams,
         ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    handshaker.tls_handshake(host, socket).map_err(ConnectError::Ssl)
+    handshaker.tls_handshake(host, socket).map_err(ConnectError::Tls)
 }

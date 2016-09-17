@@ -177,8 +177,8 @@ pub enum ConnectError {
     ConnectParams(Box<error::Error + Sync + Send>),
     /// An error from the Postgres server itself.
     Db(Box<DbError>),
-    /// An error initializing the SSL session.
-    Ssl(Box<error::Error + Sync + Send>),
+    /// An error initializing the TLS session.
+    Tls(Box<error::Error + Sync + Send>),
     /// An error communicating with the server.
     Io(io::Error),
 }
@@ -189,7 +189,7 @@ impl fmt::Display for ConnectError {
         match *self {
             ConnectError::ConnectParams(ref msg) => write!(fmt, ": {}", msg),
             ConnectError::Db(ref err) => write!(fmt, ": {}", err),
-            ConnectError::Ssl(ref err) => write!(fmt, ": {}", err),
+            ConnectError::Tls(ref err) => write!(fmt, ": {}", err),
             ConnectError::Io(ref err) => write!(fmt, ": {}", err),
         }
     }
@@ -200,7 +200,7 @@ impl error::Error for ConnectError {
         match *self {
             ConnectError::ConnectParams(_) => "Invalid connection parameters",
             ConnectError::Db(_) => "Error reported by Postgres",
-            ConnectError::Ssl(_) => "Error initiating SSL session",
+            ConnectError::Tls(_) => "Error initiating SSL session",
             ConnectError::Io(_) => "Error communicating with the server",
         }
     }
@@ -208,7 +208,7 @@ impl error::Error for ConnectError {
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             ConnectError::ConnectParams(ref err) |
-            ConnectError::Ssl(ref err) => Some(&**err),
+            ConnectError::Tls(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
         }
