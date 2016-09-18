@@ -38,7 +38,10 @@ macro_rules! to_sql_checked {
                           ty: &$crate::types::Type,
                           out: &mut ::std::vec::Vec<u8>,
                           ctx: &$crate::types::SessionInfo)
-                          -> ::std::result::Result<$crate::types::IsNull, Box<::std::error::Error + ::std::marker::Sync + ::std::marker::Send>> {
+                          -> ::std::result::Result<$crate::types::IsNull,
+                                                   Box<::std::error::Error +
+                                                       ::std::marker::Sync +
+                                                       ::std::marker::Send>> {
             $crate::types::__to_sql_checked(self, ty, out, ctx)
         }
     }
@@ -411,7 +414,10 @@ impl FromSql for String {
 macro_rules! simple_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
-            fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<$t, Box<Error + Sync + Send>> {
+            fn from_sql(_: &Type,
+                        raw: &[u8],
+                        _: &SessionInfo)
+                        -> Result<$t, Box<Error + Sync + Send>> {
                 types::$f(raw)
             }
 
@@ -706,7 +712,11 @@ impl ToSql for String {
 macro_rules! simple_to {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl ToSql for $t {
-            fn to_sql(&self, _: &Type, w: &mut Vec<u8>, _: &SessionInfo) -> Result<IsNull, Box<Error + Sync + Send>> {
+            fn to_sql(&self,
+                      _: &Type,
+                      w: &mut Vec<u8>,
+                      _: &SessionInfo)
+                      -> Result<IsNull, Box<Error + Sync + Send>> {
                 types::$f(*self, w);
                 Ok(IsNull::No)
             }
