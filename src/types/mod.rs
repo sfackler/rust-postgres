@@ -1,6 +1,7 @@
 //! Traits dealing with Postgres data types
 
 use fallible_iterator::FallibleIterator;
+use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::collections::HashMap;
 use std::error::Error;
@@ -12,7 +13,7 @@ pub use postgres_protocol::Oid;
 
 pub use self::type_gen::Type;
 pub use self::special::{Date, Timestamp};
-use {SessionInfoNew, InnerConnection, OtherNew, WrongTypeNew, FieldNew};
+use {SessionInfoNew, OtherNew, WrongTypeNew, FieldNew};
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -82,13 +83,14 @@ mod special;
 mod type_gen;
 
 /// A structure providing information for conversion methods.
+#[derive(Debug)]
 pub struct SessionInfo<'a> {
-    conn: &'a InnerConnection,
+    parameters: &'a HashMap<String, String>,
 }
 
 impl<'a> SessionInfoNew<'a> for SessionInfo<'a> {
-    fn new(conn: &'a InnerConnection) -> SessionInfo<'a> {
-        SessionInfo { conn: conn }
+    fn new(parameters: &'a HashMap<String, String>) -> SessionInfo<'a> {
+        SessionInfo { parameters: parameters }
     }
 }
 
@@ -96,15 +98,7 @@ impl<'a> SessionInfo<'a> {
     /// Returns the value of the specified Postgres backend parameter, such
     /// as `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<&'a str> {
-        self.conn.parameters.get(param).map(|s| &**s)
-    }
-}
-
-impl<'a> fmt::Debug for SessionInfo<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("SessionInfo")
-            .field("parameters", &self.conn.parameters)
-            .finish()
+        self.parameters.get(param).map(|s| &**s)
     }
 }
 
@@ -607,8 +601,8 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
                                  self.iter(),
                                  |e, w| {
                                      match try!(e.to_sql(member_type, w, ctx)) {
-                                         IsNull::No => Ok(types::IsNull::No),
-                                         IsNull::Yes => Ok(types::IsNull::Yes),
+                                         IsNull::No => Ok(postgres_protocol::IsNull::No),
+                                         IsNull::Yes => Ok(postgres_protocol::IsNull::Yes),
                                      }
                                  },
                                  w));

@@ -39,6 +39,15 @@ impl MessageStream {
         self.stream.get_ref()
     }
 
+    pub fn write_message2<F, E>(&mut self, f: F) -> Result<(), E>
+        where F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
+              E: From<io::Error>
+    {
+        self.buf.clear();
+        try!(f(&mut self.buf));
+        self.stream.write_all(&self.buf).map_err(From::from)
+    }
+
     pub fn write_message(&mut self, message: &frontend::Message) -> io::Result<()> {
         self.buf.clear();
         try!(frontend::Message::write(message, &mut self.buf));

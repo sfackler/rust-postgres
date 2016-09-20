@@ -528,7 +528,7 @@ impl<'a> CopyInfo<'a> {
 
     /// Returns session info for the associated connection.
     pub fn session_info<'b>(&'b self) -> SessionInfo<'b> {
-        SessionInfo::new(&*self.conn)
+        SessionInfo::new(&self.conn.parameters)
     }
 }
 

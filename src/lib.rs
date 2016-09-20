@@ -165,13 +165,8 @@ pub fn cancel_query<T>(params: T,
     let params = try!(params.into_connect_params().map_err(ConnectError::ConnectParams));
     let mut socket = try!(priv_io::initialize_stream(&params, tls));
 
-    let message = frontend::CancelRequest {
-        process_id: data.process_id,
-        secret_key: data.secret_key,
-    };
     let mut buf = vec![];
-    try!(frontend::Message::write(&message, &mut buf));
-
+    frontend::cancel_request(data.process_id, data.secret_key, &mut buf);
     try!(socket.write_all(&buf));
     try!(socket.flush());
 
@@ -516,23 +511,31 @@ impl InnerConnection {
         debug!("executing statement {} with parameters: {:?}",
                stmt_name,
                params);
-        let mut values = vec![];
-        for (param, ty) in params.iter().zip(param_types) {
-            let mut buf = vec![];
-            match try!(param.to_sql_checked(ty, &mut buf, &SessionInfo::new(self))
-                .map_err(Error::Conversion)) {
-                IsNull::Yes => values.push(None),
-                IsNull::No => values.push(Some(buf)),
+
+        {
+            let info = SessionInfo::new(&self.parameters);
+            let r = self.stream.write_message2(|buf| {
+                frontend::bind(portal_name,
+                               &stmt_name,
+                               Some(1),
+                               params.iter().zip(param_types),
+                               |(param, ty), buf| {
+                                   match param.to_sql_checked(ty, buf, &info) {
+                                       Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                                       Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                                       Err(e) => Err(e),
+                                   }
+                               },
+                               Some(1),
+                               buf)
+            });
+            match r {
+                Ok(()) => {}
+                Err(frontend::BindError::Conversion(e)) => return Err(Error::Conversion(e)),
+                Err(frontend::BindError::Serialization(e)) => return Err(Error::Io(e)),
             }
         }
 
-        try!(self.stream.write_message(&frontend::Bind {
-            portal: portal_name,
-            statement: &stmt_name,
-            formats: &[1],
-            values: &values,
-            result_formats: &[1],
-        }));
         try!(self.stream.write_message(&frontend::Execute {
             portal: portal_name,
             max_rows: row_limit,
@@ -592,10 +595,7 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
-        try!(self.stream.write_message(&frontend::Close {
-            variant: type_,
-            name: name,
-        }));
+        try!(self.stream.write_message2(|buf| frontend::close(type_, name, buf)));
         try!(self.stream.write_message(&frontend::Sync));
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
@@ -662,7 +662,7 @@ impl InnerConnection {
         let row = rows.pop_front().unwrap();
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
-            let ctx = SessionInfo::new(self);
+            let ctx = SessionInfo::new(&self.parameters);
             let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
             let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx)
@@ -740,7 +740,7 @@ impl InnerConnection {
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
 
-        let ctx = SessionInfo::new(self);
+        let ctx = SessionInfo::new(&self.parameters);
         let mut variants = vec![];
         for row in rows {
             variants.push(try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
@@ -776,7 +776,7 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let ctx = SessionInfo::new(self);
+                let ctx = SessionInfo::new(&self.parameters);
                 let name =
                     try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
                         .map_err(Error::Conversion));
@@ -1316,7 +1316,7 @@ trait LazyRowsNew<'trans, 'stmt> {
 }
 
 trait SessionInfoNew<'a> {
-    fn new(conn: &'a InnerConnection) -> SessionInfo<'a>;
+    fn new(params: &'a HashMap<String, String>) -> SessionInfo<'a>;
 }
 
 trait StatementInternals<'conn> {

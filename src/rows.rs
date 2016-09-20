@@ -237,8 +237,8 @@ impl<'a> Row<'a> {
         }
         let conn = self.stmt.conn().conn.borrow();
         let value = match self.data[idx] {
-            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
-            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
+            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&conn.parameters)),
+            None => FromSql::from_sql_null(ty, &SessionInfo::new(&conn.parameters)),
         };
         Some(value.map_err(Error::Conversion))
     }
