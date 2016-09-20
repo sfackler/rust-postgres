@@ -146,8 +146,8 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(conn.stream.write_message(&frontend::CopyFail {
-                        message: "COPY queries cannot be directly executed",
+                    try!(conn.stream.write_message2(|buf| {
+                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(conn.stream.write_message(&frontend::Sync));
                     try!(conn.stream.flush());
@@ -299,8 +299,10 @@ impl<'conn> Statement<'conn> {
                     try!(info.conn.stream.write_message(&frontend::CopyData { data: &buf[..len] }));
                 }
                 Err(err) => {
-                    try!(info.conn.stream.write_message(&frontend::CopyFail { message: "" }));
-                    try!(info.conn.stream.write_message(&frontend::CopyDone));
+                    try!(info.conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
+                    try!(info.conn.stream.write_message2(|buf| {
+                        Ok::<(), io::Error>(frontend::copy_done(buf))
+                    }));
                     try!(info.conn.stream.write_message(&frontend::Sync));
                     try!(info.conn.stream.flush());
                     match try!(info.conn.read_message()) {
@@ -318,7 +320,9 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.stream.write_message(&frontend::CopyDone));
+        try!(info.conn.stream.write_message2(|buf| {
+            Ok::<(), io::Error>(frontend::copy_done(buf))
+        }));
         try!(info.conn.stream.write_message(&frontend::Sync));
         try!(info.conn.stream.flush());
 
@@ -369,8 +373,10 @@ impl<'conn> Statement<'conn> {
                 (format, column_formats)
             }
             backend::Message::CopyInResponse { .. } => {
-                try!(conn.stream.write_message(&frontend::CopyFail { message: "" }));
-                try!(conn.stream.write_message(&frontend::CopyDone));
+                try!(conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
+                try!(conn.stream.write_message2(|buf| {
+                    Ok::<(), io::Error>(frontend::copy_done(buf))
+                }));
                 try!(conn.stream.write_message(&frontend::Sync));
                 try!(conn.stream.flush());
                 match try!(conn.read_message()) {

@@ -471,8 +471,8 @@ impl InnerConnection {
                     return DbError::new(fields);
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(self.stream.write_message(&frontend::CopyFail {
-                        message: "COPY queries cannot be directly executed",
+                    try!(self.stream.write_message2(|buf| {
+                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream.write_message(&frontend::Sync));
                     try!(self.stream.flush());
@@ -819,8 +819,8 @@ impl InnerConnection {
                         .collect());
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(self.stream.write_message(&frontend::CopyFail {
-                        message: "COPY queries cannot be directly executed",
+                    try!(self.stream.write_message2(|buf| {
+                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream.write_message(&frontend::Sync));
                     try!(self.stream.flush());
