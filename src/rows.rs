@@ -6,6 +6,7 @@ use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
+use std::io;
 use std::ops::Deref;
 use std::slice;
 
@@ -237,7 +238,9 @@ impl<'a> Row<'a> {
         }
         let conn = self.stmt.conn().conn.borrow();
         let value = match self.data[idx] {
-            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&conn.parameters)),
+            Some(ref data) => {
+                FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&conn.parameters))
+            }
             None => FromSql::from_sql_null(ty, &SessionInfo::new(&conn.parameters)),
         };
         Some(value.map_err(Error::Conversion))
@@ -352,7 +355,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
         let mut conn = self.stmt.conn().conn.borrow_mut();
 
         try!(conn.stream.write_message2(|buf| frontend::execute(&self.name, self.row_limit, buf)));
-        try!(conn.stream.write_message(&frontend::Sync));
+        try!(conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(conn.stream.flush());
         conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
     }

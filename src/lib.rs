@@ -408,7 +408,7 @@ impl InnerConnection {
 
         try!(self.stream.write_message2(|buf| frontend::parse(stmt_name, query, None, buf)));
         try!(self.stream.write_message2(|buf| frontend::describe(b'S', stmt_name, buf)));
-        try!(self.stream.write_message(&frontend::Sync));
+        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -468,7 +468,8 @@ impl InnerConnection {
                     try!(self.stream.write_message2(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
-                    try!(self.stream.write_message(&frontend::Sync));
+                    try!(self.stream
+                        .write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::CopyOutResponse { .. } => {
@@ -531,7 +532,7 @@ impl InnerConnection {
         }
 
         try!(self.stream.write_message2(|buf| frontend::execute(portal_name, row_limit, buf)));
-        try!(self.stream.write_message(&frontend::Sync));
+        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -587,7 +588,7 @@ impl InnerConnection {
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
         try!(self.stream.write_message2(|buf| frontend::close(type_, name, buf)));
-        try!(self.stream.write_message(&frontend::Sync));
+        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             backend::Message::CloseComplete => Ok(()),
@@ -813,7 +814,8 @@ impl InnerConnection {
                     try!(self.stream.write_message2(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
-                    try!(self.stream.write_message(&frontend::Sync));
+                    try!(self.stream
+                        .write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::ErrorResponse { fields } => {
@@ -828,7 +830,7 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        try!(self.stream.write_message(&frontend::Terminate));
+        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::terminate(buf))));
         try!(self.stream.flush());
         Ok(())
     }

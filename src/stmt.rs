@@ -149,7 +149,8 @@ impl<'conn> Statement<'conn> {
                     try!(conn.stream.write_message2(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
-                    try!(conn.stream.write_message(&frontend::Sync));
+                    try!(conn.stream
+                        .write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(conn.stream.flush());
                 }
                 backend::Message::CopyOutResponse { .. } => {
@@ -300,10 +301,12 @@ impl<'conn> Statement<'conn> {
                 }
                 Err(err) => {
                     try!(info.conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
-                    try!(info.conn.stream.write_message2(|buf| {
-                        Ok::<(), io::Error>(frontend::copy_done(buf))
-                    }));
-                    try!(info.conn.stream.write_message(&frontend::Sync));
+                    try!(info.conn
+                        .stream
+                        .write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+                    try!(info.conn
+                        .stream
+                        .write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(info.conn.stream.flush());
                     match try!(info.conn.read_message()) {
                         backend::Message::ErrorResponse { .. } => {
@@ -320,10 +323,8 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.stream.write_message2(|buf| {
-            Ok::<(), io::Error>(frontend::copy_done(buf))
-        }));
-        try!(info.conn.stream.write_message(&frontend::Sync));
+        try!(info.conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+        try!(info.conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(info.conn.stream.flush());
 
         let num = match try!(info.conn.read_message()) {
@@ -374,10 +375,9 @@ impl<'conn> Statement<'conn> {
             }
             backend::Message::CopyInResponse { .. } => {
                 try!(conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
-                try!(conn.stream.write_message2(|buf| {
-                    Ok::<(), io::Error>(frontend::copy_done(buf))
-                }));
-                try!(conn.stream.write_message(&frontend::Sync));
+                try!(conn.stream
+                    .write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+                try!(conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                 try!(conn.stream.flush());
                 match try!(conn.read_message()) {
                     backend::Message::ErrorResponse { .. } => {
@@ -425,7 +425,7 @@ impl<'conn> Statement<'conn> {
                             Err(e) => {
                                 loop {
                                     if let backend::Message::ReadyForQuery { .. } =
-                                           try!(info.conn.read_message()) {
+                                            try!(info.conn.read_message()) {
                                         return Err(Error::Io(e));
                                     }
                                 }
@@ -441,7 +441,7 @@ impl<'conn> Statement<'conn> {
                 backend::Message::ErrorResponse { fields } => {
                     loop {
                         if let backend::Message::ReadyForQuery { .. } =
-                               try!(info.conn.read_message()) {
+                                try!(info.conn.read_message()) {
                             return DbError::new(fields);
                         }
                     }
@@ -449,7 +449,7 @@ impl<'conn> Statement<'conn> {
                 _ => {
                     loop {
                         if let backend::Message::ReadyForQuery { .. } =
-                               try!(info.conn.read_message()) {
+                                try!(info.conn.read_message()) {
                             return Err(Error::Io(bad_response()));
                         }
                     }
