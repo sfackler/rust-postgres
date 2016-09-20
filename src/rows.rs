@@ -351,10 +351,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().conn.borrow_mut();
 
-        try!(conn.stream.write_message(&frontend::Execute {
-            portal: &self.name,
-            max_rows: self.row_limit,
-        }));
+        try!(conn.stream.write_message2(|buf| frontend::execute(&self.name, self.row_limit, buf)));
         try!(conn.stream.write_message(&frontend::Sync));
         try!(conn.stream.flush());
         conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)

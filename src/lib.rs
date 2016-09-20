@@ -410,10 +410,7 @@ impl InnerConnection {
             query: query,
             param_types: &[],
         }));
-        try!(self.stream.write_message(&frontend::Describe {
-            variant: b'S',
-            name: stmt_name,
-        }));
+        try!(self.stream.write_message2(|buf| frontend::describe(b'S', stmt_name, buf)));
         try!(self.stream.write_message(&frontend::Sync));
         try!(self.stream.flush());
 
@@ -536,10 +533,7 @@ impl InnerConnection {
             }
         }
 
-        try!(self.stream.write_message(&frontend::Execute {
-            portal: portal_name,
-            max_rows: row_limit,
-        }));
+        try!(self.stream.write_message2(|buf| frontend::execute(portal_name, row_limit, buf)));
         try!(self.stream.write_message(&frontend::Sync));
         try!(self.stream.flush());
 
