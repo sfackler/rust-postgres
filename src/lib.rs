@@ -274,7 +274,7 @@ impl InnerConnection {
         }
 
         let options = options.iter().map(|&(ref a, ref b)| (&**a, &**b));
-        try!(conn.stream.write_message2(|buf| frontend::startup_message(options, buf)));
+        try!(conn.stream.write_message(|buf| frontend::startup_message(options, buf)));
         try!(conn.stream.flush());
 
         try!(conn.handle_auth(user));
@@ -370,7 +370,7 @@ impl InnerConnection {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                try!(self.stream.write_message2(|buf| frontend::password_message(&pass, buf)));
+                try!(self.stream.write_message(|buf| frontend::password_message(&pass, buf)));
                 try!(self.stream.flush());
             }
             backend::Message::AuthenticationMD5Password { salt } => {
@@ -378,7 +378,7 @@ impl InnerConnection {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
                 let output = authentication::md5_hash(user.user.as_bytes(), pass.as_bytes(), salt);
-                try!(self.stream.write_message2(|buf| frontend::password_message(&output, buf)));
+                try!(self.stream.write_message(|buf| frontend::password_message(&output, buf)));
                 try!(self.stream.flush());
             }
             backend::Message::AuthenticationKerberosV5 |
@@ -406,9 +406,9 @@ impl InnerConnection {
     fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        try!(self.stream.write_message2(|buf| frontend::parse(stmt_name, query, None, buf)));
-        try!(self.stream.write_message2(|buf| frontend::describe(b'S', stmt_name, buf)));
-        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| frontend::parse(stmt_name, query, None, buf)));
+        try!(self.stream.write_message(|buf| frontend::describe(b'S', stmt_name, buf)));
+        try!(self.stream.write_message(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -465,11 +465,11 @@ impl InnerConnection {
                     return DbError::new(fields);
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(self.stream.write_message2(|buf| {
+                    try!(self.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream
-                        .write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::CopyOutResponse { .. } => {
@@ -509,7 +509,7 @@ impl InnerConnection {
 
         {
             let info = SessionInfo::new(&self.parameters);
-            let r = self.stream.write_message2(|buf| {
+            let r = self.stream.write_message(|buf| {
                 frontend::bind(portal_name,
                                &stmt_name,
                                Some(1),
@@ -531,8 +531,8 @@ impl InnerConnection {
             }
         }
 
-        try!(self.stream.write_message2(|buf| frontend::execute(portal_name, row_limit, buf)));
-        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| frontend::execute(portal_name, row_limit, buf)));
+        try!(self.stream.write_message(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -587,8 +587,8 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
-        try!(self.stream.write_message2(|buf| frontend::close(type_, name, buf)));
-        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| frontend::close(type_, name, buf)));
+        try!(self.stream.write_message(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             backend::Message::CloseComplete => Ok(()),
@@ -798,7 +798,7 @@ impl InnerConnection {
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        try!(self.stream.write_message2(|buf| frontend::query(query, buf)));
+        try!(self.stream.write_message(|buf| frontend::query(query, buf)));
         try!(self.stream.flush());
 
         let mut result = vec![];
@@ -811,11 +811,11 @@ impl InnerConnection {
                         .collect());
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(self.stream.write_message2(|buf| {
+                    try!(self.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream
-                        .write_message2(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), std_io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::ErrorResponse { fields } => {
@@ -830,7 +830,7 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        try!(self.stream.write_message2(|buf| Ok::<(), std_io::Error>(frontend::terminate(buf))));
+        try!(self.stream.write_message(|buf| Ok::<(), std_io::Error>(frontend::terminate(buf))));
         try!(self.stream.flush());
         Ok(())
     }

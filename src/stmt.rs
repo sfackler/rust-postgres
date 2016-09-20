@@ -146,11 +146,11 @@ impl<'conn> Statement<'conn> {
                     break;
                 }
                 backend::Message::CopyInResponse { .. } => {
-                    try!(conn.stream.write_message2(|buf| {
+                    try!(conn.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(conn.stream
-                        .write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(conn.stream.flush());
                 }
                 backend::Message::CopyOutResponse { .. } => {
@@ -297,16 +297,18 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try!(info.conn.stream.write_message2(|out| frontend::copy_data(&buf[..len], out)));
+                    try!(info
+                        .conn
+                        .stream.write_message(|out| frontend::copy_data(&buf[..len], out)));
                 }
                 Err(err) => {
-                    try!(info.conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
+                    try!(info.conn.stream.write_message(|buf| frontend::copy_fail("", buf)));
                     try!(info.conn
                         .stream
-                        .write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
                     try!(info.conn
                         .stream
-                        .write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(info.conn.stream.flush());
                     match try!(info.conn.read_message()) {
                         backend::Message::ErrorResponse { .. } => {
@@ -323,8 +325,8 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
-        try!(info.conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+        try!(info.conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+        try!(info.conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(info.conn.stream.flush());
 
         let num = match try!(info.conn.read_message()) {
@@ -374,10 +376,10 @@ impl<'conn> Statement<'conn> {
                 (format, column_formats)
             }
             backend::Message::CopyInResponse { .. } => {
-                try!(conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));
+                try!(conn.stream.write_message(|buf| frontend::copy_fail("", buf)));
                 try!(conn.stream
-                    .write_message2(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
-                try!(conn.stream.write_message2(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+                    .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+                try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                 try!(conn.stream.flush());
                 match try!(conn.read_message()) {
                     backend::Message::ErrorResponse { .. } => {

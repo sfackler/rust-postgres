@@ -39,7 +39,7 @@ impl MessageStream {
         self.stream.get_ref()
     }
 
-    pub fn write_message2<F, E>(&mut self, f: F) -> Result<(), E>
+    pub fn write_message<F, E>(&mut self, f: F) -> Result<(), E>
         where F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
               E: From<io::Error>
     {
