@@ -297,7 +297,7 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try!(info.conn.stream.write_message(&frontend::CopyData { data: &buf[..len] }));
+                    try!(info.conn.stream.write_message2(|out| frontend::copy_data(&buf[..len], out)));
                 }
                 Err(err) => {
                     try!(info.conn.stream.write_message2(|buf| frontend::copy_fail("", buf)));

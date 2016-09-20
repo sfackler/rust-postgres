@@ -48,12 +48,6 @@ impl MessageStream {
         self.stream.write_all(&self.buf).map_err(From::from)
     }
 
-    pub fn write_message(&mut self, message: &frontend::Message) -> io::Result<()> {
-        self.buf.clear();
-        try!(frontend::Message::write(message, &mut self.buf));
-        self.stream.write_all(&self.buf)
-    }
-
     fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message> {
         self.buf.resize(MESSAGE_HEADER_SIZE, 0);
         self.buf[0] = b;
