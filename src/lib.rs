@@ -273,7 +273,8 @@ impl InnerConnection {
             options.push(("database".to_owned(), database));
         }
 
-        try!(conn.stream.write_message(&frontend::StartupMessage { parameters: &options }));
+        let options = options.iter().map(|&(ref a, ref b)| (&**a, &**b));
+        try!(conn.stream.write_message2(|buf| frontend::startup_message(options, buf)));
         try!(conn.stream.flush());
 
         try!(conn.handle_auth(user));
@@ -369,7 +370,7 @@ impl InnerConnection {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                try!(self.stream.write_message(&frontend::PasswordMessage { password: &pass }));
+                try!(self.stream.write_message2(|buf| frontend::password_message(&pass, buf)));
                 try!(self.stream.flush());
             }
             backend::Message::AuthenticationMD5Password { salt } => {
@@ -377,7 +378,7 @@ impl InnerConnection {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
                 let output = authentication::md5_hash(user.user.as_bytes(), pass.as_bytes(), salt);
-                try!(self.stream.write_message(&frontend::PasswordMessage { password: &output }));
+                try!(self.stream.write_message2(|buf| frontend::password_message(&output, buf)));
                 try!(self.stream.flush());
             }
             backend::Message::AuthenticationKerberosV5 |
@@ -405,11 +406,7 @@ impl InnerConnection {
     fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        try!(self.stream.write_message(&frontend::Parse {
-            name: stmt_name,
-            query: query,
-            param_types: &[],
-        }));
+        try!(self.stream.write_message2(|buf| frontend::parse(stmt_name, query, None, buf)));
         try!(self.stream.write_message2(|buf| frontend::describe(b'S', stmt_name, buf)));
         try!(self.stream.write_message(&frontend::Sync));
         try!(self.stream.flush());
@@ -800,7 +797,7 @@ impl InnerConnection {
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        try!(self.stream.write_message(&frontend::Query { query: query }));
+        try!(self.stream.write_message2(|buf| frontend::query(query, buf)));
         try!(self.stream.flush());
 
         let mut result = vec![];

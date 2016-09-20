@@ -255,7 +255,7 @@ pub fn initialize_stream(params: &ConnectParams,
     };
 
     let mut buf = vec![];
-    try!(frontend::Message::write(&frontend::SslRequest, &mut buf));
+    frontend::ssl_request(&mut buf);
     try!(socket.write_all(&buf));
     try!(socket.flush());
 
