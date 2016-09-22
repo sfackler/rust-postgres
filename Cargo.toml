@@ -34,11 +34,11 @@ with-uuid = ["uuid"]
 [dependencies]
 bufstream = "0.1"
 byteorder = "0.5"
-fallible-iterator = "0.1"
+fallible-iterator = "0.1.3"
 hex = "0.2"
 log = "0.3"
 phf = "=0.7.15"
-postgres-protocol = { git = "https://github.com/sfackler/rust-postgres-protocol" }
+postgres-protocol = "0.1"
 bit-vec = { version = "0.4", optional = true }
 chrono = { version = "0.2.14", optional = true }
 eui48 = { version = "0.1", optional = true }
@@ -52,6 +52,3 @@ uuid = { version = ">= 0.1, < 0.4", optional = true }
 
 [dev-dependencies]
 url = "1.0"
-
-[replace]
-"fallible-iterator:0.1.2" = { git = "https://github.com/sfackler/rust-fallible-iterator" }
