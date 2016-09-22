@@ -11,4 +11,4 @@ before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "with-uuid with-rustc-serialize with-time with-serde_json with-chrono with-openssl with-bit-vec with-eui48"
+- cargo test --features (cargo read-manifest | jq -r '.features|keys|map(select(. != "with-security-framework"))|join(" ")')
