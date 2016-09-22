@@ -3,10 +3,9 @@ use std::error;
 use std::f32;
 use std::f64;
 use std::fmt;
-use std::io::{Read, Write};
 use std::result;
 
-use postgres::{Connection, TlsMode, Result};
+use postgres::{Connection, TlsMode};
 use postgres::error::Error;
 use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, SessionInfo};
 
