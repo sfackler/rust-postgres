@@ -365,8 +365,8 @@ impl<T: FromSql> FromSql for Vec<T> {
         array.values()
             .and_then(|v| {
                 match v {
-                    Some(v) => T::from_sql(&member_type, v, info),
-                    None => T::from_sql_null(&member_type, info),
+                    Some(v) => T::from_sql(member_type, v, info),
+                    None => T::from_sql_null(member_type, info),
                 }
             })
             .collect()

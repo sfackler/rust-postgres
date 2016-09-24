@@ -40,7 +40,7 @@
 //! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.11")]
 #![warn(missing_docs)]
-#![allow(unknown_lints, needless_lifetimes)] // for clippy
+#![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
 extern crate bufstream;
 extern crate byteorder;
@@ -510,7 +510,7 @@ impl InnerConnection {
             let info = SessionInfo::new(&self.parameters);
             let r = self.stream.write_message(|buf| {
                 frontend::bind(portal_name,
-                               &stmt_name,
+                               stmt_name,
                                Some(1),
                                params.iter().zip(param_types),
                                |(param, ty), buf| {
@@ -654,27 +654,27 @@ impl InnerConnection {
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(&self.parameters);
-            let name = try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+            let name = try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
-            let type_ = try!(i8::from_sql(&Type::Char, &mut &**row[1].as_ref().unwrap(), &ctx)
+            let type_ = try!(i8::from_sql(&Type::Char, row[1].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
-            let elem_oid = try!(Oid::from_sql(&Type::Oid, &mut &**row[2].as_ref().unwrap(), &ctx)
+            let elem_oid = try!(Oid::from_sql(&Type::Oid, row[2].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
             let rngsubtype = match row[3] {
                 Some(ref data) => {
-                    try!(Option::<Oid>::from_sql(&Type::Oid, &mut &**data, &ctx)
+                    try!(Option::<Oid>::from_sql(&Type::Oid, data, &ctx)
                         .map_err(Error::Conversion))
                 }
                 None => {
                     try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx).map_err(Error::Conversion))
                 }
             };
-            let basetype = try!(Oid::from_sql(&Type::Oid, &mut &**row[4].as_ref().unwrap(), &ctx)
+            let basetype = try!(Oid::from_sql(&Type::Oid, row[4].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
             let schema =
-                try!(String::from_sql(&Type::Name, &mut &**row[5].as_ref().unwrap(), &ctx)
+                try!(String::from_sql(&Type::Name, row[5].as_ref().unwrap(), &ctx)
                     .map_err(Error::Conversion));
-            let relid = try!(Oid::from_sql(&Type::Oid, &mut &**row[6].as_ref().unwrap(), &ctx)
+            let relid = try!(Oid::from_sql(&Type::Oid, row[6].as_ref().unwrap(), &ctx)
                 .map_err(Error::Conversion));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
@@ -734,7 +734,7 @@ impl InnerConnection {
         let ctx = SessionInfo::new(&self.parameters);
         let mut variants = vec![];
         for row in rows {
-            variants.push(try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+            variants.push(try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
                     .map_err(Error::Conversion)));
         }
 
@@ -769,9 +769,9 @@ impl InnerConnection {
             let (name, type_) = {
                 let ctx = SessionInfo::new(&self.parameters);
                 let name =
-                    try!(String::from_sql(&Type::Name, &mut &**row[0].as_ref().unwrap(), &ctx)
+                    try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
                         .map_err(Error::Conversion));
-                let type_ = try!(Oid::from_sql(&Type::Oid, &mut &**row[1].as_ref().unwrap(), &ctx)
+                let type_ = try!(Oid::from_sql(&Type::Oid, row[1].as_ref().unwrap(), &ctx)
                     .map_err(Error::Conversion));
                 (name, type_)
             };

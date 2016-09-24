@@ -3,6 +3,7 @@ use phf;
 
 /// SQLSTATE error codes
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[allow(enum_variant_names)]
 pub enum SqlState {
     /// `00000`
     SuccessfulCompletion,

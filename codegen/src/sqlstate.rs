@@ -83,6 +83,7 @@ fn make_enum(codes: &[Code], file: &mut BufWriter<File>) {
     write!(file,
 r#"/// SQLSTATE error codes
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[allow(enum_variant_names)]
 pub enum SqlState {{
 "#
            ).unwrap();
