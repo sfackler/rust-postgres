@@ -1,4 +1,3 @@
-use byteorder::ReadBytesExt;
 use std::io;
 use std::io::prelude::*;
 use std::fmt;
@@ -70,19 +69,21 @@ impl MessageStream {
     }
 
     pub fn read_message(&mut self) -> io::Result<backend::Message> {
-        let b = try!(self.stream.read_u8());
-        self.inner_read_message(b)
+        let mut b = [0; 1];
+        try!(self.stream.read_exact(&mut b));
+        self.inner_read_message(b[0])
     }
 
     pub fn read_message_timeout(&mut self,
                                 timeout: Duration)
                                 -> io::Result<Option<backend::Message>> {
         try!(self.set_read_timeout(Some(timeout)));
-        let b = self.stream.read_u8();
+        let mut b = [0; 1];
+        let r = self.stream.read_exact(&mut b);
         try!(self.set_read_timeout(None));
 
-        match b {
-            Ok(b) => self.inner_read_message(b).map(Some),
+        match r {
+            Ok(()) => self.inner_read_message(b[0]).map(Some),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock ||
                           e.kind() == io::ErrorKind::TimedOut => Ok(None),
             Err(e) => Err(e),
@@ -91,11 +92,12 @@ impl MessageStream {
 
     pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message>> {
         try!(self.set_nonblocking(true));
-        let b = self.stream.read_u8();
+        let mut b = [0; 1];
+        let r = self.stream.read_exact(&mut b);
         try!(self.set_nonblocking(false));
 
-        match b {
-            Ok(b) => self.inner_read_message(b).map(Some),
+        match r {
+            Ok(()) => self.inner_read_message(b[0]).map(Some),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
             Err(e) => Err(e),
         }
@@ -253,7 +255,9 @@ pub fn initialize_stream(params: &ConnectParams,
     try!(socket.write_all(&buf));
     try!(socket.flush());
 
-    if try!(socket.read_u8()) == b'N' {
+    let mut b = [0; 1];
+    try!(socket.read_exact(&mut b));
+    if b[0] == b'N' {
         if tls_required {
             return Err(ConnectError::Tls("the server does not support TLS".into()));
         } else {

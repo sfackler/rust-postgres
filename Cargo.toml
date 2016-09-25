@@ -33,7 +33,6 @@ with-uuid = ["uuid"]
 
 [dependencies]
 bufstream = "0.1"
-byteorder = "0.5"
 fallible-iterator = "0.1.3"
 hex = "0.2"
 log = "0.3"

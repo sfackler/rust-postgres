@@ -43,7 +43,6 @@
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
 extern crate bufstream;
-extern crate byteorder;
 extern crate fallible_iterator;
 extern crate hex;
 #[macro_use]

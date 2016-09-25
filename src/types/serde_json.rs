@@ -1,6 +1,5 @@
 extern crate serde_json;
 
-use byteorder::ReadBytesExt;
 use self::serde_json::Value;
 use std::error::Error;
 use std::io::Write;
@@ -13,8 +12,10 @@ impl FromSql for Value {
                 _: &SessionInfo)
                 -> Result<Value, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
+            let mut b = [0; 1];
+            try!(raw.read_exact(&mut b));
             // We only support version 1 of the jsonb binary format
-            if try!(raw.read_u8()) != 1 {
+            if b[0] != 1 {
                 return Err("unsupported JSONB encoding version".into());
             }
         }
