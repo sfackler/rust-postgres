@@ -2,7 +2,7 @@ extern crate serde_json;
 
 use self::serde_json::Value;
 use std::error::Error;
-use std::io::Write;
+use std::io::{Read, Write};
 
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 

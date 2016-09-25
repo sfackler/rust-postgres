@@ -1,17 +1,16 @@
 extern crate rustc_serialize;
 
 use self::rustc_serialize::json;
-use std::io::{Cursor, Write};
+use std::io::{Read, Write};
 use std::error::Error;
 
 use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for json::Json {
     fn from_sql(ty: &Type,
-                raw: &[u8],
+                mut raw: &[u8],
                 _: &SessionInfo)
                 -> Result<json::Json, Box<Error + Sync + Send>> {
-        let mut raw = Cursor::new(raw);
         if let Type::Jsonb = *ty {
             let mut b = [0; 1];
             try!(raw.read_exact(&mut b));
