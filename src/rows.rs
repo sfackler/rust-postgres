@@ -236,7 +236,7 @@ impl<'a> Row<'a> {
         if !<T as FromSql>::accepts(ty) {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
-        let conn = self.stmt.conn().conn.borrow();
+        let conn = self.stmt.conn().0.borrow();
         let value = match self.data[idx] {
             Some(ref data) => {
                 FromSql::from_sql(ty, data, &SessionInfo::new(&conn.parameters))
@@ -346,13 +346,13 @@ impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn().conn.borrow_mut();
+        let mut conn = self.stmt.conn().0.borrow_mut();
         check_desync!(conn);
         conn.close_statement(&self.name, b'P')
     }
 
     fn execute(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn().conn.borrow_mut();
+        let mut conn = self.stmt.conn().0.borrow_mut();
 
         try!(conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf)));
         try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));

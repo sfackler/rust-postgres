@@ -69,7 +69,7 @@ impl<'conn> Statement<'conn> {
             Ok(())
         } else {
             self.finished = true;
-            let mut conn = self.conn.conn.borrow_mut();
+            let mut conn = self.conn.0.borrow_mut();
             check_desync!(conn);
             conn.close_statement(&self.info.name, b'S')
         }
@@ -81,7 +81,7 @@ impl<'conn> Statement<'conn> {
                        row_limit: i32,
                        params: &[&ToSql])
                        -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
 
         try!(conn.raw_execute(&self.info.name,
                               portal_name,
@@ -125,7 +125,7 @@ impl<'conn> Statement<'conn> {
     /// println!("{} rows updated", rows_updated);
     /// ```
     pub fn execute(&self, params: &[&ToSql]) -> Result<u64> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
@@ -228,7 +228,7 @@ impl<'conn> Statement<'conn> {
         assert!(self.conn as *const _ == trans.conn() as *const _,
                 "the `Transaction` passed to `lazy_query` must be associated with the same \
                  `Connection` as the `Statement`");
-        let conn = self.conn.conn.borrow();
+        let conn = self.conn.0.borrow();
         check_desync!(conn);
         assert!(conn.trans_depth == trans.depth(),
                 "`lazy_query` must be passed the active transaction");
@@ -265,7 +265,7 @@ impl<'conn> Statement<'conn> {
     /// stmt.copy_in(&[], &mut "1\tjohn\n2\tjane\n".as_bytes()).unwrap();
     /// ```
     pub fn copy_in<R: ReadWithInfo>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
@@ -368,7 +368,7 @@ impl<'conn> Statement<'conn> {
     /// assert_eq!(buf, b"1\tjohn\n2\tjane\n");
     /// ```
     pub fn copy_out<'a, W: WriteWithInfo>(&'a self, params: &[&ToSql], w: &mut W) -> Result<u64> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {

@@ -841,13 +841,11 @@ fn _ensure_send() {
 }
 
 /// A connection to a Postgres database.
-pub struct Connection {
-    conn: RefCell<InnerConnection>,
-}
+pub struct Connection(RefCell<InnerConnection>);
 
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let conn = self.conn.borrow();
+        let conn = self.0.borrow();
         fmt.debug_struct("Connection")
             .field("stream", &conn.stream.get_ref())
             .field("cancel_data", &conn.cancel_data)
@@ -919,7 +917,7 @@ impl Connection {
     pub fn connect<T>(params: T, tls: TlsMode) -> result::Result<Connection, ConnectError>
         where T: IntoConnectParams
     {
-        InnerConnection::connect(params, tls).map(|conn| Connection { conn: RefCell::new(conn) })
+        InnerConnection::connect(params, tls).map(|conn| Connection(RefCell::new(conn)))
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -950,7 +948,7 @@ impl Connection {
     /// println!("{} rows updated", rows_updated);
     /// ```
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let (param_types, columns) = try!(self.0.borrow_mut().raw_prepare("", query));
         let info = Arc::new(StatementInfo {
             name: String::new(),
             param_types: param_types,
@@ -986,7 +984,7 @@ impl Connection {
     /// }
     /// ```
     pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
-        let (param_types, columns) = try!(self.conn.borrow_mut().raw_prepare("", query));
+        let (param_types, columns) = try!(self.0.borrow_mut().raw_prepare("", query));
         let info = Arc::new(StatementInfo {
             name: String::new(),
             param_types: param_types,
@@ -1027,7 +1025,7 @@ impl Connection {
 
     /// Begins a new transaction with the specified configuration.
     pub fn transaction_with<'a>(&'a self, config: &transaction::Config) -> Result<Transaction<'a>> {
-        let mut conn = self.conn.borrow_mut();
+        let mut conn = self.0.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == 0,
                 "`transaction` must be called on the active transaction");
@@ -1060,7 +1058,7 @@ impl Connection {
     /// }
     /// ```
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.conn.borrow_mut().prepare(query, self)
+        self.0.borrow_mut().prepare(query, self)
     }
 
     /// Creates a cached prepared statement.
@@ -1084,14 +1082,14 @@ impl Connection {
     /// }
     /// ```
     pub fn prepare_cached<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.conn.borrow_mut().prepare_cached(query, self)
+        self.0.borrow_mut().prepare_cached(query, self)
     }
 
     /// Returns the isolation level which will be used for future transactions.
     ///
     /// This is a simple wrapper around `SHOW TRANSACTION ISOLATION LEVEL`.
     pub fn transaction_isolation(&self) -> Result<IsolationLevel> {
-        let mut conn = self.conn.borrow_mut();
+        let mut conn = self.0.borrow_mut();
         check_desync!(conn);
         let result = try!(conn.quick_query("SHOW TRANSACTION ISOLATION LEVEL"));
         IsolationLevel::new(result[0][0].as_ref().unwrap())
@@ -1139,7 +1137,7 @@ impl Connection {
     ///     ").unwrap();
     /// ```
     pub fn batch_execute(&self, query: &str) -> Result<()> {
-        self.conn.borrow_mut().quick_query(query).map(|_| ())
+        self.0.borrow_mut().quick_query(query).map(|_| ())
     }
 
     /// Returns a structure providing access to asynchronous notifications.
@@ -1154,18 +1152,18 @@ impl Connection {
     /// Used with the `cancel_query` function. The object returned can be used
     /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> CancelData {
-        self.conn.borrow().cancel_data
+        self.0.borrow().cancel_data
     }
 
     /// Returns the value of the specified Postgres backend parameter, such as
     /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<String> {
-        self.conn.borrow().parameters.get(param).cloned()
+        self.0.borrow().parameters.get(param).cloned()
     }
 
     /// Sets the notice handler for the connection, returning the old handler.
     pub fn set_notice_handler(&self, handler: Box<HandleNotice>) -> Box<HandleNotice> {
-        self.conn.borrow_mut().set_notice_handler(handler)
+        self.0.borrow_mut().set_notice_handler(handler)
     }
 
     /// Returns whether or not the stream has been desynchronized due to an
@@ -1174,7 +1172,7 @@ impl Connection {
     /// If this has occurred, all further queries will immediately return an
     /// error.
     pub fn is_desynchronized(&self) -> bool {
-        self.conn.borrow().is_desynchronized()
+        self.0.borrow().is_desynchronized()
     }
 
     /// Determines if the `Connection` is currently "active", that is, if there
@@ -1183,7 +1181,7 @@ impl Connection {
     /// The `transaction` method can only be called on the active `Connection`
     /// or `Transaction`.
     pub fn is_active(&self) -> bool {
-        self.conn.borrow().trans_depth == 0
+        self.0.borrow().trans_depth == 0
     }
 
     /// Consumes the connection, closing it.
@@ -1191,7 +1189,7 @@ impl Connection {
     /// Functionally equivalent to the `Drop` implementation for `Connection`
     /// except that it returns any error encountered to the caller.
     pub fn finish(self) -> Result<()> {
-        let mut conn = self.conn.borrow_mut();
+        let mut conn = self.0.borrow_mut();
         conn.finished = true;
         conn.finish_inner()
     }

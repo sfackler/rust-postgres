@@ -35,7 +35,7 @@ impl<'a> fmt::Debug for Notifications<'a> {
 impl<'conn> Notifications<'conn> {
     /// Returns the number of pending notifications.
     pub fn len(&self) -> usize {
-        self.conn.conn.borrow().notifications.len()
+        self.conn.0.borrow().notifications.len()
     }
 
     /// Determines if there are any pending notifications.
@@ -102,7 +102,7 @@ impl<'a> FallibleIterator for Iter<'a> {
     type Error = Error;
 
     fn next(&mut self) -> Result<Option<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
             return Ok(Some(notification));
@@ -127,7 +127,7 @@ impl<'a> FallibleIterator for Iter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.conn.conn.borrow().notifications.len(), None)
+        (self.conn.0.borrow().notifications.len(), None)
     }
 }
 
@@ -141,7 +141,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
     type Error = Error;
 
     fn next(&mut self) -> Result<Option<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
             return Ok(Some(notification));
@@ -177,7 +177,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
     type Error = Error;
 
     fn next(&mut self) -> Result<Option<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
             return Ok(Some(notification));
@@ -202,6 +202,6 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.conn.conn.borrow().notifications.len(), None)
+        (self.conn.0.borrow().notifications.len(), None)
     }
 }

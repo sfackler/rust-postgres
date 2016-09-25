@@ -194,7 +194,7 @@ impl<'conn> TransactionInternals<'conn> for Transaction<'conn> {
 
 impl<'conn> Transaction<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
         match (self.commit.get(), &self.savepoint_name) {
@@ -254,7 +254,7 @@ impl<'conn> Transaction<'conn> {
     ///
     /// Panics if there is an active nested transaction.
     pub fn savepoint<'a>(&'a self, name: &str) -> Result<Transaction<'a>> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == self.depth,
                 "`savepoint` may only be called on the active transaction");
@@ -276,7 +276,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::is_active`.
     pub fn is_active(&self) -> bool {
-        self.conn.conn.borrow().trans_depth == self.depth
+        self.conn.0.borrow().trans_depth == self.depth
     }
 
     /// Alters the configuration of the active transaction.
