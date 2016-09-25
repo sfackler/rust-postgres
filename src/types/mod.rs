@@ -590,12 +590,12 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
             _ => panic!("expected array type"),
         };
 
-        let dimensions = [ArrayDimension {
-                              len: try!(downcast(self.len())),
-                              lower_bound: 1,
-                          }];
+        let dimension = ArrayDimension {
+            len: try!(downcast(self.len())),
+            lower_bound: 1,
+        };
 
-        try!(types::array_to_sql(dimensions.iter().cloned(),
+        try!(types::array_to_sql(Some(dimension),
                                  true,
                                  member_type.oid(),
                                  self.iter(),
