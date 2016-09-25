@@ -181,7 +181,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>str/String</td>
-            <td>VARCHAR, CHAR(n), TEXT, CITEXT</td>
+            <td>VARCHAR, CHAR(n), TEXT, CITEXT, NAME</td>
         </tr>
         <tr>
             <td>[u8]/Vec&lt;u8&gt;</td>

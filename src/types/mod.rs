@@ -256,19 +256,19 @@ impl WrongTypeNew for WrongType {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                         | Postgres type(s)               |
-/// |-----------------------------------|--------------------------------|
-/// | `bool`                            | BOOL                           |
-/// | `i8`                              | "char"                         |
-/// | `i16`                             | SMALLINT, SMALLSERIAL          |
-/// | `i32`                             | INT, SERIAL                    |
-/// | `u32`                             | OID                            |
-/// | `i64`                             | BIGINT, BIGSERIAL              |
-/// | `f32`                             | REAL                           |
-/// | `f64`                             | DOUBLE PRECISION               |
-/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec<u8>`                         | BYTEA                          |
-/// | `HashMap<String, Option<String>>` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)                     |
+/// |-----------------------------------|--------------------------------------|
+/// | `bool`                            | BOOL                                 |
+/// | `i8`                              | "char"                               |
+/// | `i16`                             | SMALLINT, SMALLSERIAL                |
+/// | `i32`                             | INT, SERIAL                          |
+/// | `u32`                             | OID                                  |
+/// | `i64`                             | BIGINT, BIGSERIAL                    |
+/// | `f32`                             | REAL                                 |
+/// | `f64`                             | DOUBLE PRECISION                     |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
+/// | `Vec<u8>`                         | BYTEA                                |
+/// | `HashMap<String, Option<String>>` | HSTORE                               |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -462,21 +462,21 @@ pub enum IsNull {
 /// The following implementations are provided by this crate, along with the
 /// corresponding Postgres types:
 ///
-/// | Rust type                         | Postgres type(s)               |
-/// |-----------------------------------|--------------------------------|
-/// | `bool`                            | BOOL                           |
-/// | `i8`                              | "char"                         |
-/// | `i16`                             | SMALLINT, SMALLSERIAL          |
-/// | `i32`                             | INT, SERIAL                    |
-/// | `u32`                             | OID                            |
-/// | `i64`                             | BIGINT, BIGSERIAL              |
-/// | `f32`                             | REAL                           |
-/// | `f64`                             | DOUBLE PRECISION               |
-/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `&str`                            | VARCHAR, CHAR(n), TEXT, CITEXT |
-/// | `Vec<u8>`                         | BYTEA                          |
-/// | `&[u8]`                           | BYTEA                          |
-/// | `HashMap<String, Option<String>>` | HSTORE                         |
+/// | Rust type                         | Postgres type(s)                     |
+/// |-----------------------------------|--------------------------------------|
+/// | `bool`                            | BOOL                                 |
+/// | `i8`                              | "char"                               |
+/// | `i16`                             | SMALLINT, SMALLSERIAL                |
+/// | `i32`                             | INT, SERIAL                          |
+/// | `u32`                             | OID                                  |
+/// | `i64`                             | BIGINT, BIGSERIAL                    |
+/// | `f32`                             | REAL                                 |
+/// | `f64`                             | DOUBLE PRECISION                     |
+/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
+/// | `&str`                            | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
+/// | `Vec<u8>`                         | BYTEA                                |
+/// | `&[u8]`                           | BYTEA                                |
+/// | `HashMap<String, Option<String>>` | HSTORE                               |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
