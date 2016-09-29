@@ -38,6 +38,36 @@
 //!     }
 //! }
 //! ```
+//!
+//! # SSL/TLS
+//!
+//! This crate supports TLS secured connections. The `TlsMode` enum is passed to connection methods
+//! and indicates if the connection will not, may not, or must be secured by TLS. The TLS
+//! implementation is pluggable through the `TlsHandshake` trait. Implementations for OpenSSL and
+//! OSX's Secure Transport are provided behing the `with-openssl` and `with-security-framework`
+//! feature flags respectively.
+//!
+//! ## Examples
+//!
+//! Connecting using OpenSSL:
+//!
+//! ```no_run
+//! extern crate postgres;
+//!
+//! use postgres::{Connection, TlsMode};
+//! # #[cfg(feature = "with-openssl")]
+//! use postgres::io::openssl::OpenSsl;
+//!
+//! # #[cfg(not(feature = "with-openssl"))] fn main() {}
+//! # #[cfg(feature = "with-openssl")]
+//! fn main() {
+//!     let openssl = OpenSsl::new().unwrap();
+//!     // Configure the `SslContext` with the `.context()` and `.context_mut()` methods
+//!
+//!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&openssl))
+//!         .unwrap();
+//! }
+//! ```
 #![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.11")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
@@ -878,6 +908,7 @@ impl Connection {
     ///
     /// # Examples
     ///
+    /// To connect over TCP:
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -885,6 +916,7 @@ impl Connection {
     /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///
+    /// To connect over a Unix socket located in `/run/postgres`:
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -892,6 +924,7 @@ impl Connection {
     /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///
+    /// To connect building a `ConnectParams` struct manually:
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};
