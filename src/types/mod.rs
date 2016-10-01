@@ -325,6 +325,18 @@ pub trait FromSql: Sized {
         Err(Box::new(WasNull))
     }
 
+    /// A convenience function that delegates to `from_sql` and `from_sql_null` depending on the
+    /// value of `raw`.
+    fn from_sql_nullable(ty: &Type,
+                         raw: Option<&[u8]>,
+                         ctx: &SessionInfo)
+                         -> Result<Self, Box<Error + Sync + Send>> {
+        match raw {
+            Some(raw) => Self::from_sql(ty, raw, ctx),
+            None => Self::from_sql_null(ty, ctx),
+        }
+    }
+
     /// Determines if a value of this type can be created from the specified
     /// Postgres `Type`.
     fn accepts(ty: &Type) -> bool;
@@ -363,12 +375,7 @@ impl<T: FromSql> FromSql for Vec<T> {
         }
 
         array.values()
-            .and_then(|v| {
-                match v {
-                    Some(v) => T::from_sql(member_type, v, info),
-                    None => T::from_sql_null(member_type, info),
-                }
-            })
+            .and_then(|v| T::from_sql_nullable(member_type, v, info))
             .collect()
     }
 

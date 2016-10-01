@@ -124,7 +124,7 @@ const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 /// A type alias of the result returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
 
-/// Trait for types that can handle Postgres notice messages
+/// A trait implemented by types that can handle Postgres notice messages.
 ///
 /// It is implemented for all `Send + FnMut(DbError)` closures.
 pub trait HandleNotice: Send {
@@ -681,29 +681,23 @@ impl InnerConnection {
         try!(self.read_rows(&mut rows));
         let row = rows.pop_front().unwrap();
 
+        let get_raw = |i| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
+
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(&self.parameters);
-            let name = try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
+            let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0), &ctx)
                 .map_err(Error::Conversion));
-            let type_ = try!(i8::from_sql(&Type::Char, row[1].as_ref().unwrap(), &ctx)
+            let type_ = try!(i8::from_sql_nullable(&Type::Char, get_raw(1), &ctx)
                 .map_err(Error::Conversion));
-            let elem_oid = try!(Oid::from_sql(&Type::Oid, row[2].as_ref().unwrap(), &ctx)
+            let elem_oid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(2), &ctx)
                 .map_err(Error::Conversion));
-            let rngsubtype = match row[3] {
-                Some(ref data) => {
-                    try!(Option::<Oid>::from_sql(&Type::Oid, data, &ctx)
-                        .map_err(Error::Conversion))
-                }
-                None => {
-                    try!(Option::<Oid>::from_sql_null(&Type::Oid, &ctx).map_err(Error::Conversion))
-                }
-            };
-            let basetype = try!(Oid::from_sql(&Type::Oid, row[4].as_ref().unwrap(), &ctx)
+            let rngsubtype = try!(Option::<Oid>::from_sql_nullable(&Type::Oid, get_raw(3), &ctx)
                 .map_err(Error::Conversion));
-            let schema =
-                try!(String::from_sql(&Type::Name, row[5].as_ref().unwrap(), &ctx)
-                    .map_err(Error::Conversion));
-            let relid = try!(Oid::from_sql(&Type::Oid, row[6].as_ref().unwrap(), &ctx)
+            let basetype = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(4), &ctx)
+                .map_err(Error::Conversion));
+            let schema = try!(String::from_sql_nullable(&Type::Name, get_raw(5), &ctx)
+                .map_err(Error::Conversion));
+            let relid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(6), &ctx)
                 .map_err(Error::Conversion));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
@@ -763,7 +757,8 @@ impl InnerConnection {
         let ctx = SessionInfo::new(&self.parameters);
         let mut variants = vec![];
         for row in rows {
-            variants.push(try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
+            let raw = row.get(0).and_then(|r| r.as_ref().map(|r| &**r));
+            variants.push(try!(String::from_sql_nullable(&Type::Name, raw, &ctx)
                     .map_err(Error::Conversion)));
         }
 
@@ -796,11 +791,11 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
+                let get_raw = |i| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
                 let ctx = SessionInfo::new(&self.parameters);
-                let name =
-                    try!(String::from_sql(&Type::Name, row[0].as_ref().unwrap(), &ctx)
-                        .map_err(Error::Conversion));
-                let type_ = try!(Oid::from_sql(&Type::Oid, row[1].as_ref().unwrap(), &ctx)
+                let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0), &ctx)
+                    .map_err(Error::Conversion));
+                let type_ = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(1), &ctx)
                     .map_err(Error::Conversion));
                 (name, type_)
             };

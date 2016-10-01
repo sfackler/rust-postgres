@@ -237,12 +237,9 @@ impl<'a> Row<'a> {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
         let conn = self.stmt.conn().0.borrow();
-        let value = match self.data[idx] {
-            Some(ref data) => {
-                FromSql::from_sql(ty, data, &SessionInfo::new(&conn.parameters))
-            }
-            None => FromSql::from_sql_null(ty, &SessionInfo::new(&conn.parameters)),
-        };
+        let value = FromSql::from_sql_nullable(ty,
+                                               self.data[idx].as_ref().map(|r| &**r),
+                                               &SessionInfo::new(&conn.parameters));
         Some(value.map_err(Error::Conversion))
     }
 
