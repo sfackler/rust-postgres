@@ -15,7 +15,7 @@ use postgres_protocol::message::backend::{self, ParseResult};
 
 use TlsMode;
 use error::ConnectError;
-use io::TlsStream;
+use tls::TlsStream;
 use params::{ConnectParams, ConnectTarget};
 
 const DEFAULT_PORT: u16 = 5432;

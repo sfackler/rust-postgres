@@ -8,7 +8,7 @@ use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{IntoSsl, SslContext, SslStream, SslMethod, SSL_VERIFY_PEER,
                          SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
 use self::openssl_verify::verify_callback;
-use io::{TlsStream, Stream, TlsHandshake};
+use tls::{TlsStream, Stream, TlsHandshake};
 
 impl TlsStream for SslStream<Stream> {
     fn get_ref(&self) -> &Stream {

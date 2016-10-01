@@ -2,7 +2,7 @@
 extern crate security_framework;
 
 use self::security_framework::secure_transport::{SslStream, ClientBuilder};
-use io::{Stream, TlsStream, TlsHandshake};
+use tls::{Stream, TlsStream, TlsHandshake};
 use std::error::Error;
 
 impl TlsStream for SslStream<Stream> {

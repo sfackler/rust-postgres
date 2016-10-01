@@ -56,7 +56,7 @@
 //!
 //! use postgres::{Connection, TlsMode};
 //! # #[cfg(feature = "with-openssl")]
-//! use postgres::io::openssl::OpenSsl;
+//! use postgres::tls::openssl::OpenSsl;
 //!
 //! # #[cfg(not(feature = "with-openssl"))] fn main() {}
 //! # #[cfg(feature = "with-openssl")]
@@ -93,7 +93,7 @@ use postgres_protocol::message::backend::{self, RowDescriptionEntry};
 use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
-use io::TlsHandshake;
+use tls::TlsHandshake;
 use notification::{Notifications, Notification};
 use params::{ConnectParams, IntoConnectParams, UserInfo};
 use priv_io::MessageStream;
@@ -109,7 +109,7 @@ mod feature_check;
 mod priv_io;
 mod url;
 pub mod error;
-pub mod io;
+pub mod tls;
 pub mod notification;
 pub mod params;
 pub mod rows;
