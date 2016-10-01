@@ -83,7 +83,7 @@ extern crate postgres_protocol;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
-use std::io::prelude::*;
+use std::io;
 use std::mem;
 use std::result;
 use std::sync::Arc;
@@ -201,13 +201,13 @@ pub fn cancel_query<T>(params: T,
     Ok(())
 }
 
-fn bad_response() -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::InvalidInput,
+fn bad_response() -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput,
                        "the server returned an unexpected response")
 }
 
-fn desynchronized() -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other,
+fn desynchronized() -> io::Error {
+    io::Error::new(io::ErrorKind::Other,
                        "communication with the server has desynchronized due to an earlier IO \
                         error")
 }
@@ -322,7 +322,7 @@ impl InnerConnection {
         Ok(conn)
     }
 
-    fn read_message_with_notification(&mut self) -> std::io::Result<backend::Message> {
+    fn read_message_with_notification(&mut self) -> io::Result<backend::Message> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
@@ -341,7 +341,7 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> std::io::Result<Option<backend::Message>> {
+                                              -> io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
@@ -359,7 +359,7 @@ impl InnerConnection {
     }
 
     fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> std::io::Result<Option<backend::Message>> {
+                                                  -> io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
@@ -376,7 +376,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> std::io::Result<backend::Message> {
+    fn read_message(&mut self) -> io::Result<backend::Message> {
         loop {
             match try!(self.read_message_with_notification()) {
                 backend::Message::NotificationResponse { process_id, channel, payload } => {
@@ -413,7 +413,7 @@ impl InnerConnection {
             backend::Message::AuthenticationSCMCredential |
             backend::Message::AuthenticationGSS |
             backend::Message::AuthenticationSSPI => {
-                return Err(ConnectError::Io(std::io::Error::new(std::io::ErrorKind::Other,
+                return Err(ConnectError::Io(io::Error::new(io::ErrorKind::Other,
                                                                "unsupported authentication")))
             }
             backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
@@ -436,7 +436,7 @@ impl InnerConnection {
 
         try!(self.stream.write_message(|buf| frontend::parse(stmt_name, query, None, buf)));
         try!(self.stream.write_message(|buf| frontend::describe(b'S', stmt_name, buf)));
-        try!(self.stream.write_message(|buf| Ok::<(), std::io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -497,7 +497,7 @@ impl InnerConnection {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream
-                        .write_message(|buf| Ok::<(), std::io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::CopyOutResponse { .. } => {
@@ -506,7 +506,7 @@ impl InnerConnection {
                             break;
                         }
                     }
-                    return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput,
+                    return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                             "COPY queries cannot be directly \
                                                              executed")));
                 }
@@ -560,7 +560,7 @@ impl InnerConnection {
         }
 
         try!(self.stream.write_message(|buf| frontend::execute(portal_name, row_limit, buf)));
-        try!(self.stream.write_message(|buf| Ok::<(), std::io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
 
         match try!(self.read_message()) {
@@ -616,7 +616,7 @@ impl InnerConnection {
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
         try!(self.stream.write_message(|buf| frontend::close(type_, name, buf)));
-        try!(self.stream.write_message(|buf| Ok::<(), std::io::Error>(frontend::sync(buf))));
+        try!(self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             backend::Message::CloseComplete => Ok(()),
@@ -838,7 +838,7 @@ impl InnerConnection {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
                     try!(self.stream
-                        .write_message(|buf| Ok::<(), std::io::Error>(frontend::sync(buf))));
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
                 backend::Message::ErrorResponse { fields } => {
@@ -853,7 +853,7 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        try!(self.stream.write_message(|buf| Ok::<(), std::io::Error>(frontend::terminate(buf))));
+        try!(self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::terminate(buf))));
         try!(self.stream.flush());
         Ok(())
     }
