@@ -678,9 +678,11 @@ impl InnerConnection {
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
         let mut rows = VecDeque::new();
         try!(self.read_rows(&mut rows));
-        let row = rows.pop_front().unwrap();
+        let row = rows.pop_front();
 
-        let get_raw = |i| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
+        let get_raw = |i| {
+            row.as_ref().and_then(|r| r.get(i)).and_then(|r| r.as_ref().map(|r| &**r))
+        };
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let ctx = SessionInfo::new(&self.parameters);
