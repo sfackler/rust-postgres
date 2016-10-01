@@ -919,7 +919,7 @@ impl Connection {
     /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///
-    /// To connect building a `ConnectParams` struct manually:
+    /// To connect with a manually constructed `ConnectParams`:
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};

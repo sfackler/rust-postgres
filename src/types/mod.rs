@@ -442,7 +442,7 @@ impl FromSql for HashMap<String, Option<String>> {
                 _: &SessionInfo)
                 -> Result<HashMap<String, Option<String>>, Box<Error + Sync + Send>> {
         try!(types::hstore_from_sql(raw))
-            .map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned())))
+            .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
             .collect()
     }
 
