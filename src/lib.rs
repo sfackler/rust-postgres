@@ -42,10 +42,10 @@
 //! # SSL/TLS
 //!
 //! This crate supports TLS secured connections. The `TlsMode` enum is passed to connection methods
-//! and indicates if the connection will not, may not, or must be secured by TLS. The TLS
-//! implementation is pluggable through the `TlsHandshake` trait. Implementations for OpenSSL and
-//! OSX's Secure Transport are provided behind the `with-openssl` and `with-security-framework`
-//! feature flags respectively.
+//! and indicates if the connection will not, may, or must be secured by TLS. The TLS implementation
+//! is pluggable through the `TlsHandshake` trait. Implementations for OpenSSL and OSX's Secure
+//! Transport are provided behind the `with-openssl` and `with-security-framework` feature flags
+//! respectively.
 //!
 //! ## Examples
 //!
