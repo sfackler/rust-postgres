@@ -203,13 +203,12 @@ pub fn cancel_query<T>(params: T,
 
 fn bad_response() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput,
-                       "the server returned an unexpected response")
+                   "the server returned an unexpected response")
 }
 
 fn desynchronized() -> io::Error {
     io::Error::new(io::ErrorKind::Other,
-                       "communication with the server has desynchronized due to an earlier IO \
-                        error")
+                   "communication with the server has desynchronized due to an earlier IO error")
 }
 
 /// Specifies the TLS support requested for a new connection.
@@ -414,7 +413,7 @@ impl InnerConnection {
             backend::Message::AuthenticationGSS |
             backend::Message::AuthenticationSSPI => {
                 return Err(ConnectError::Io(io::Error::new(io::ErrorKind::Other,
-                                                               "unsupported authentication")))
+                                                           "unsupported authentication")))
             }
             backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
             _ => return Err(ConnectError::Io(bad_response())),
@@ -507,8 +506,8 @@ impl InnerConnection {
                         }
                     }
                     return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                            "COPY queries cannot be directly \
-                                                             executed")));
+                                                        "COPY queries cannot be directly \
+                                                         executed")));
                 }
                 _ => {
                     self.desynchronized = true;
@@ -759,7 +758,7 @@ impl InnerConnection {
         for row in rows {
             let raw = row.get(0).and_then(|r| r.as_ref().map(|r| &**r));
             variants.push(try!(String::from_sql_nullable(&Type::Name, raw, &ctx)
-                    .map_err(Error::Conversion)));
+                .map_err(Error::Conversion)));
         }
 
         Ok(variants)
