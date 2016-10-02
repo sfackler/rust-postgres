@@ -664,7 +664,7 @@ fn test_cancel_query() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
-    use postgres::io::openssl::OpenSsl;
+    use postgres::tls::openssl::OpenSsl;
 
     let mut negotiator = OpenSsl::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
@@ -676,7 +676,7 @@ fn test_require_ssl_conn() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
-    use postgres::io::openssl::OpenSsl;
+    use postgres::tls::openssl::OpenSsl;
 
     let mut negotiator = OpenSsl::new().unwrap();
     negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
@@ -688,7 +688,7 @@ fn test_prefer_ssl_conn() {
 #[test]
 #[cfg(feature = "with-security-framework")]
 fn security_framework_ssl() {
-    use postgres::io::security_framework::SecurityFramework;
+    use postgres::tls::security_framework::SecurityFramework;
     use security_framework::certificate::SecCertificate;
 
     let certificate = include_bytes!("../.travis/server.der");
