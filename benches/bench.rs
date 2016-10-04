@@ -1,13 +1,12 @@
+#![feature(test)]
 extern crate test;
 extern crate postgres;
 
-use test::Bencher;
-
-use postgres::{Connection, SslMode};
+use postgres::{Connection, TlsMode};
 
 #[bench]
 fn bench_naiive_execute(b: &mut test::Bencher) {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]).unwrap();
 
     b.iter(|| {
@@ -20,7 +19,7 @@ fn bench_naiive_execute(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_execute(b: &mut test::Bencher) {
-    let conn = Connection::connect("postgres://postgres@localhost", &SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]).unwrap();
 
     b.iter(|| {
