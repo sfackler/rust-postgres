@@ -68,7 +68,7 @@
 //!         .unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.11.11")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.12.0")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
