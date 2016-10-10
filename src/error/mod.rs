@@ -72,14 +72,14 @@ pub struct DbError {
     pub constraint: Option<String>,
 
     /// The file name of the source-code location where the error was reported.
-    pub file: String,
+    pub file: Option<String>,
 
     /// The line number of the source-code location where the error was
     /// reported.
-    pub line: u32,
+    pub line: Option<u32>,
 
     /// The name of the source-code routine reporting the error.
-    pub routine: String,
+    pub routine: Option<String>,
 
     _p: (),
 }
@@ -113,9 +113,9 @@ impl DbErrorNew for DbError {
             column: map.remove(&b'c'),
             datatype: map.remove(&b'd'),
             constraint: map.remove(&b'n'),
-            file: try!(map.remove(&b'F').ok_or(())),
-            line: try!(map.remove(&b'L').and_then(|l| l.parse().ok()).ok_or(())),
-            routine: try!(map.remove(&b'R').ok_or(())),
+            file: map.remove(&b'F'),
+            line: map.remove(&b'L').and_then(|l| l.parse().ok()),
+            routine: map.remove(&b'R'),
             _p: (),
         })
     }
@@ -139,22 +139,22 @@ impl DbErrorNew for DbError {
 impl fmt::Debug for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("DbError")
-           .field("severity", &self.severity)
-           .field("code", &self.code)
-           .field("message", &self.message)
-           .field("detail", &self.detail)
-           .field("hint", &self.hint)
-           .field("position", &self.position)
-           .field("where_", &self.where_)
-           .field("schema", &self.schema)
-           .field("table", &self.table)
-           .field("column", &self.column)
-           .field("datatype", &self.datatype)
-           .field("constraint", &self.constraint)
-           .field("file", &self.file)
-           .field("line", &self.line)
-           .field("routine", &self.routine)
-           .finish()
+            .field("severity", &self.severity)
+            .field("code", &self.code)
+            .field("message", &self.message)
+            .field("detail", &self.detail)
+            .field("hint", &self.hint)
+            .field("position", &self.position)
+            .field("where_", &self.where_)
+            .field("schema", &self.schema)
+            .field("table", &self.table)
+            .field("column", &self.column)
+            .field("datatype", &self.datatype)
+            .field("constraint", &self.constraint)
+            .field("file", &self.file)
+            .field("line", &self.line)
+            .field("routine", &self.routine)
+            .finish()
     }
 }
 
@@ -177,8 +177,8 @@ pub enum ConnectError {
     ConnectParams(Box<error::Error + Sync + Send>),
     /// An error from the Postgres server itself.
     Db(Box<DbError>),
-    /// An error initializing the SSL session.
-    Ssl(Box<error::Error + Sync + Send>),
+    /// An error initializing the TLS session.
+    Tls(Box<error::Error + Sync + Send>),
     /// An error communicating with the server.
     Io(io::Error),
 }
@@ -189,7 +189,7 @@ impl fmt::Display for ConnectError {
         match *self {
             ConnectError::ConnectParams(ref msg) => write!(fmt, ": {}", msg),
             ConnectError::Db(ref err) => write!(fmt, ": {}", err),
-            ConnectError::Ssl(ref err) => write!(fmt, ": {}", err),
+            ConnectError::Tls(ref err) => write!(fmt, ": {}", err),
             ConnectError::Io(ref err) => write!(fmt, ": {}", err),
         }
     }
@@ -200,14 +200,15 @@ impl error::Error for ConnectError {
         match *self {
             ConnectError::ConnectParams(_) => "Invalid connection parameters",
             ConnectError::Db(_) => "Error reported by Postgres",
-            ConnectError::Ssl(_) => "Error initiating SSL session",
+            ConnectError::Tls(_) => "Error initiating SSL session",
             ConnectError::Io(_) => "Error communicating with the server",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            ConnectError::ConnectParams(ref err) | ConnectError::Ssl(ref err) => Some(&**err),
+            ConnectError::ConnectParams(ref err) |
+            ConnectError::Tls(ref err) => Some(&**err),
             ConnectError::Db(ref err) => Some(&**err),
             ConnectError::Io(ref err) => Some(err),
         }

@@ -1,20 +1,16 @@
 extern crate bit_vec;
 
-use std::io::prelude::*;
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use postgres_protocol::types;
 use self::bit_vec::BitVec;
+use std::error::Error;
 
-use Result;
-use types::{FromSql, ToSql, IsNull, Type, SessionInfo, downcast};
+use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
 
 impl FromSql for BitVec {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<BitVec> {
-        let len = try!(raw.read_i32::<BigEndian>()) as usize;
-        let mut bytes = vec![];
-        try!(raw.take(((len + 7) / 8) as u64).read_to_end(&mut bytes));
-
-        let mut bitvec = BitVec::from_bytes(&bytes);
-        while bitvec.len() > len {
+    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<BitVec, Box<Error + Sync + Send>> {
+        let varbit = try!(types::varbit_from_sql(raw));
+        let mut bitvec = BitVec::from_bytes(varbit.bytes());
+        while bitvec.len() > varbit.len() {
             bitvec.pop();
         }
 
@@ -25,14 +21,12 @@ impl FromSql for BitVec {
 }
 
 impl ToSql for BitVec {
-    fn to_sql<W: Write + ?Sized>(&self,
-                                 _: &Type,
-                                 mut out: &mut W,
-                                 _: &SessionInfo)
-                                 -> Result<IsNull> {
-        try!(out.write_i32::<BigEndian>(try!(downcast(self.len()))));
-        try!(out.write_all(&self.to_bytes()));
-
+    fn to_sql(&self,
+              _: &Type,
+              mut out: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
+        try!(types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out));
         Ok(IsNull::No)
     }
 

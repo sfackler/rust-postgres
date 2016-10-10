@@ -38,14 +38,6 @@ pub enum Type {
     OidVector,
     /// PG_DDL_COMMAND - internal type for passing CollectedCommand
     PgDdlCommand,
-    /// PG_TYPE
-    PgType,
-    /// PG_ATTRIBUTE
-    PgAttribute,
-    /// PG_PROC
-    PgProc,
-    /// PG_CLASS
-    PgClass,
     /// JSON
     Json,
     /// XML - XML content
@@ -58,6 +50,8 @@ pub enum Type {
     JsonArray,
     /// SMGR - storage manager
     Smgr,
+    /// INDEX_AM_HANDLER
+    IndexAmHandler,
     /// POINT - geometric point &#39;&#40;x, y&#41;&#39;
     Point,
     /// LSEG - geometric line segment &#39;&#40;pt1,pt2&#41;&#39;
@@ -179,9 +173,9 @@ pub enum Type {
     /// TIME&#91;&#93;
     TimeArray,
     /// TIMESTAMPTZ - date and time with time zone
-    TimestampTZ,
+    Timestamptz,
     /// TIMESTAMPTZ&#91;&#93;
-    TimestampTZArray,
+    TimestamptzArray,
     /// INTERVAL - &#64; &lt;number&gt; &lt;units&gt;, time interval
     Interval,
     /// INTERVAL&#91;&#93;
@@ -271,15 +265,15 @@ pub enum Type {
     /// ANYENUM
     Anyenum,
     /// TSVECTOR - text representation for text search
-    Tsvector,
+    TsVector,
     /// TSQUERY - query representation for text search
     Tsquery,
     /// GTSVECTOR - GiST index internal text representation for text search
-    Gtsvector,
+    GtsVector,
     /// TSVECTOR&#91;&#93;
-    TsvectorArray,
+    TsVectorArray,
     /// GTSVECTOR&#91;&#93;
-    GtsvectorArray,
+    GtsVectorArray,
     /// TSQUERY&#91;&#93;
     TsqueryArray,
     /// REGCONFIG - registered text search configuration
@@ -295,7 +289,7 @@ pub enum Type {
     /// JSONB&#91;&#93;
     JsonbArray,
     /// ANYRANGE
-    Anyrange,
+    AnyRange,
     /// EVENT_TRIGGER
     EventTrigger,
     /// INT4RANGE - range of integers
@@ -365,16 +359,13 @@ impl Type {
             29 => Some(Type::Cid),
             30 => Some(Type::OidVector),
             32 => Some(Type::PgDdlCommand),
-            71 => Some(Type::PgType),
-            75 => Some(Type::PgAttribute),
-            81 => Some(Type::PgProc),
-            83 => Some(Type::PgClass),
             114 => Some(Type::Json),
             142 => Some(Type::Xml),
             143 => Some(Type::XmlArray),
             194 => Some(Type::PgNodeTree),
             199 => Some(Type::JsonArray),
             210 => Some(Type::Smgr),
+            325 => Some(Type::IndexAmHandler),
             600 => Some(Type::Point),
             601 => Some(Type::Lseg),
             602 => Some(Type::Path),
@@ -435,8 +426,8 @@ impl Type {
             1115 => Some(Type::TimestampArray),
             1182 => Some(Type::DateArray),
             1183 => Some(Type::TimeArray),
-            1184 => Some(Type::TimestampTZ),
-            1185 => Some(Type::TimestampTZArray),
+            1184 => Some(Type::Timestamptz),
+            1185 => Some(Type::TimestamptzArray),
             1186 => Some(Type::Interval),
             1187 => Some(Type::IntervalArray),
             1231 => Some(Type::NumericArray),
@@ -481,11 +472,11 @@ impl Type {
             3221 => Some(Type::PgLsnArray),
             3310 => Some(Type::TsmHandler),
             3500 => Some(Type::Anyenum),
-            3614 => Some(Type::Tsvector),
+            3614 => Some(Type::TsVector),
             3615 => Some(Type::Tsquery),
-            3642 => Some(Type::Gtsvector),
-            3643 => Some(Type::TsvectorArray),
-            3644 => Some(Type::GtsvectorArray),
+            3642 => Some(Type::GtsVector),
+            3643 => Some(Type::TsVectorArray),
+            3644 => Some(Type::GtsVectorArray),
             3645 => Some(Type::TsqueryArray),
             3734 => Some(Type::Regconfig),
             3735 => Some(Type::RegconfigArray),
@@ -493,7 +484,7 @@ impl Type {
             3770 => Some(Type::RegdictionaryArray),
             3802 => Some(Type::Jsonb),
             3807 => Some(Type::JsonbArray),
-            3831 => Some(Type::Anyrange),
+            3831 => Some(Type::AnyRange),
             3838 => Some(Type::EventTrigger),
             3904 => Some(Type::Int4Range),
             3905 => Some(Type::Int4RangeArray),
@@ -534,16 +525,13 @@ impl Type {
             Type::Cid => 29,
             Type::OidVector => 30,
             Type::PgDdlCommand => 32,
-            Type::PgType => 71,
-            Type::PgAttribute => 75,
-            Type::PgProc => 81,
-            Type::PgClass => 83,
             Type::Json => 114,
             Type::Xml => 142,
             Type::XmlArray => 143,
             Type::PgNodeTree => 194,
             Type::JsonArray => 199,
             Type::Smgr => 210,
+            Type::IndexAmHandler => 325,
             Type::Point => 600,
             Type::Lseg => 601,
             Type::Path => 602,
@@ -604,8 +592,8 @@ impl Type {
             Type::TimestampArray => 1115,
             Type::DateArray => 1182,
             Type::TimeArray => 1183,
-            Type::TimestampTZ => 1184,
-            Type::TimestampTZArray => 1185,
+            Type::Timestamptz => 1184,
+            Type::TimestamptzArray => 1185,
             Type::Interval => 1186,
             Type::IntervalArray => 1187,
             Type::NumericArray => 1231,
@@ -650,11 +638,11 @@ impl Type {
             Type::PgLsnArray => 3221,
             Type::TsmHandler => 3310,
             Type::Anyenum => 3500,
-            Type::Tsvector => 3614,
+            Type::TsVector => 3614,
             Type::Tsquery => 3615,
-            Type::Gtsvector => 3642,
-            Type::TsvectorArray => 3643,
-            Type::GtsvectorArray => 3644,
+            Type::GtsVector => 3642,
+            Type::TsVectorArray => 3643,
+            Type::GtsVectorArray => 3644,
             Type::TsqueryArray => 3645,
             Type::Regconfig => 3734,
             Type::RegconfigArray => 3735,
@@ -662,7 +650,7 @@ impl Type {
             Type::RegdictionaryArray => 3770,
             Type::Jsonb => 3802,
             Type::JsonbArray => 3807,
-            Type::Anyrange => 3831,
+            Type::AnyRange => 3831,
             Type::EventTrigger => 3838,
             Type::Int4Range => 3904,
             Type::Int4RangeArray => 3905,
@@ -751,22 +739,6 @@ impl Type {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
-            Type::PgType => {
-                const V: &'static Kind = &Kind::Simple;
-                V
-            }
-            Type::PgAttribute => {
-                const V: &'static Kind = &Kind::Simple;
-                V
-            }
-            Type::PgProc => {
-                const V: &'static Kind = &Kind::Simple;
-                V
-            }
-            Type::PgClass => {
-                const V: &'static Kind = &Kind::Simple;
-                V
-            }
             Type::Json => {
                 const V: &'static Kind = &Kind::Simple;
                 V
@@ -789,6 +761,10 @@ impl Type {
             }
             Type::Smgr => {
                 const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::IndexAmHandler => {
+                const V: &'static Kind = &Kind::Pseudo;
                 V
             }
             Type::Point => {
@@ -1031,12 +1007,12 @@ impl Type {
                 const V: &'static Kind = &Kind::Array(Type::Time);
                 V
             }
-            Type::TimestampTZ => {
+            Type::Timestamptz => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::TimestampTZArray => {
-                const V: &'static Kind = &Kind::Array(Type::TimestampTZ);
+            Type::TimestamptzArray => {
+                const V: &'static Kind = &Kind::Array(Type::Timestamptz);
                 V
             }
             Type::Interval => {
@@ -1215,7 +1191,7 @@ impl Type {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
-            Type::Tsvector => {
+            Type::TsVector => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
@@ -1223,16 +1199,16 @@ impl Type {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::Gtsvector => {
+            Type::GtsVector => {
                 const V: &'static Kind = &Kind::Simple;
                 V
             }
-            Type::TsvectorArray => {
-                const V: &'static Kind = &Kind::Array(Type::Tsvector);
+            Type::TsVectorArray => {
+                const V: &'static Kind = &Kind::Array(Type::TsVector);
                 V
             }
-            Type::GtsvectorArray => {
-                const V: &'static Kind = &Kind::Array(Type::Gtsvector);
+            Type::GtsVectorArray => {
+                const V: &'static Kind = &Kind::Array(Type::GtsVector);
                 V
             }
             Type::TsqueryArray => {
@@ -1263,7 +1239,7 @@ impl Type {
                 const V: &'static Kind = &Kind::Array(Type::Jsonb);
                 V
             }
-            Type::Anyrange => {
+            Type::AnyRange => {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
@@ -1296,7 +1272,7 @@ impl Type {
                 V
             }
             Type::TstzRange => {
-                const V: &'static Kind = &Kind::Range(Type::TimestampTZ);
+                const V: &'static Kind = &Kind::Range(Type::Timestamptz);
                 V
             }
             Type::TstzRangeArray => {
@@ -1366,16 +1342,13 @@ impl Type {
             Type::Cid => "cid",
             Type::OidVector => "oidvector",
             Type::PgDdlCommand => "pg_ddl_command",
-            Type::PgType => "pg_type",
-            Type::PgAttribute => "pg_attribute",
-            Type::PgProc => "pg_proc",
-            Type::PgClass => "pg_class",
             Type::Json => "json",
             Type::Xml => "xml",
             Type::XmlArray => "_xml",
             Type::PgNodeTree => "pg_node_tree",
             Type::JsonArray => "_json",
             Type::Smgr => "smgr",
+            Type::IndexAmHandler => "index_am_handler",
             Type::Point => "point",
             Type::Lseg => "lseg",
             Type::Path => "path",
@@ -1436,8 +1409,8 @@ impl Type {
             Type::TimestampArray => "_timestamp",
             Type::DateArray => "_date",
             Type::TimeArray => "_time",
-            Type::TimestampTZ => "timestamptz",
-            Type::TimestampTZArray => "_timestamptz",
+            Type::Timestamptz => "timestamptz",
+            Type::TimestamptzArray => "_timestamptz",
             Type::Interval => "interval",
             Type::IntervalArray => "_interval",
             Type::NumericArray => "_numeric",
@@ -1482,11 +1455,11 @@ impl Type {
             Type::PgLsnArray => "_pg_lsn",
             Type::TsmHandler => "tsm_handler",
             Type::Anyenum => "anyenum",
-            Type::Tsvector => "tsvector",
+            Type::TsVector => "tsvector",
             Type::Tsquery => "tsquery",
-            Type::Gtsvector => "gtsvector",
-            Type::TsvectorArray => "_tsvector",
-            Type::GtsvectorArray => "_gtsvector",
+            Type::GtsVector => "gtsvector",
+            Type::TsVectorArray => "_tsvector",
+            Type::GtsVectorArray => "_gtsvector",
             Type::TsqueryArray => "_tsquery",
             Type::Regconfig => "regconfig",
             Type::RegconfigArray => "_regconfig",
@@ -1494,7 +1467,7 @@ impl Type {
             Type::RegdictionaryArray => "_regdictionary",
             Type::Jsonb => "jsonb",
             Type::JsonbArray => "_jsonb",
-            Type::Anyrange => "anyrange",
+            Type::AnyRange => "anyrange",
             Type::EventTrigger => "event_trigger",
             Type::Int4Range => "int4range",
             Type::Int4RangeArray => "_int4range",

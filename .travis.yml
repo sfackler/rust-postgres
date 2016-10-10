@@ -3,13 +3,11 @@ cache: cargo
 sudo: required
 rust:
 - nightly
-- beta
-- 1.9.0
+- 1.10.0
 addons:
   postgresql: 9.4
 before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "uuid rustc-serialize time unix_socket serde_json chrono openssl bit-vec eui48"
-- (test $TRAVIS_RUST_VERSION != "nightly" || cargo test --features nightly)
+- cargo test --features "$(cargo read-manifest | jq -r '.features|keys|map(select(. != "with-security-framework"))|join(" ")')"

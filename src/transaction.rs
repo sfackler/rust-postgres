@@ -4,8 +4,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::ascii::AsciiExt;
 
-use {bad_response, Result, Connection, TransactionInternals, ConfigInternals,
-     IsolationLevelNew};
+use {bad_response, Result, Connection, TransactionInternals, ConfigInternals, IsolationLevelNew};
 use error::Error;
 use rows::Rows;
 use stmt::Statement;
@@ -159,9 +158,9 @@ pub struct Transaction<'conn> {
 impl<'a> fmt::Debug for Transaction<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Transaction")
-           .field("commit", &self.commit.get())
-           .field("depth", &self.depth)
-           .finish()
+            .field("commit", &self.commit.get())
+            .field("depth", &self.depth)
+            .finish()
     }
 }
 
@@ -195,19 +194,17 @@ impl<'conn> TransactionInternals<'conn> for Transaction<'conn> {
 
 impl<'conn> Transaction<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
         match (self.commit.get(), &self.savepoint_name) {
-            (false, &Some(ref savepoint_name)) => {
-                conn.quick_query(&format!("ROLLBACK TO {}", savepoint_name))
-            }
-            (false, &None) => conn.quick_query("ROLLBACK"),
-            (true, &Some(ref savepoint_name)) => {
-                conn.quick_query(&format!("RELEASE {}", savepoint_name))
-            }
-            (true, &None) => conn.quick_query("COMMIT"),
-        }.map(|_| ())
+            (false, &Some(ref sp)) => try!(conn.quick_query(&format!("ROLLBACK TO {}", sp))),
+            (false, &None) => try!(conn.quick_query("ROLLBACK")),
+            (true, &Some(ref sp)) => try!(conn.quick_query(&format!("RELEASE {}", sp))),
+            (true, &None) => try!(conn.quick_query("COMMIT")),
+        };
+
+        Ok(())
     }
 
     /// Like `Connection::prepare`.
@@ -217,7 +214,9 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::prepare_cached`.
     ///
-    /// Note that the statement will be cached for the duration of the
+    /// # Note
+    ///
+    /// The statement will be cached for the duration of the
     /// connection, not just the duration of this transaction.
     pub fn prepare_cached(&self, query: &str) -> Result<Statement<'conn>> {
         self.conn.prepare_cached(query)
@@ -255,7 +254,7 @@ impl<'conn> Transaction<'conn> {
     ///
     /// Panics if there is an active nested transaction.
     pub fn savepoint<'a>(&'a self, name: &str) -> Result<Transaction<'a>> {
-        let mut conn = self.conn.conn.borrow_mut();
+        let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
         assert!(conn.trans_depth == self.depth,
                 "`savepoint` may only be called on the active transaction");
@@ -277,7 +276,7 @@ impl<'conn> Transaction<'conn> {
 
     /// Like `Connection::is_active`.
     pub fn is_active(&self) -> bool {
-        self.conn.conn.borrow().trans_depth == self.depth
+        self.conn.0.borrow().trans_depth == self.depth
     }
 
     /// Alters the configuration of the active transaction.

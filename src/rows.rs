@@ -1,18 +1,20 @@
 //! Query result rows.
 
+use fallible_iterator::FallibleIterator;
+use postgres_protocol::message::frontend;
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
+use std::io;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, Transaction, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals,
-     WrongTypeNew};
+use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
+use transaction::Transaction;
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
-use message::Frontend;
 
 enum StatementContainer<'a> {
     Borrowed(&'a Statement<'a>),
@@ -55,9 +57,9 @@ impl<'a> RowsNew<'a> for Rows<'a> {
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Rows")
-           .field("columns", &self.columns())
-           .field("rows", &self.data.len())
-           .finish()
+            .field("columns", &self.columns())
+            .field("rows", &self.data.len())
+            .finish()
     }
 }
 
@@ -152,8 +154,8 @@ pub struct Row<'a> {
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Row")
-           .field("statement", self.stmt)
-           .finish()
+            .field("statement", self.stmt)
+            .finish()
     }
 }
 
@@ -186,8 +188,8 @@ impl<'a> Row<'a> {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use postgres::{Connection, SslMode};
-    /// # let conn = Connection::connect("", SslMode::None).unwrap();
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
     /// let stmt = conn.prepare("SELECT foo, bar from BAZ").unwrap();
     /// for row in &stmt.query(&[]).unwrap() {
     ///     let foo: i32 = row.get(0);
@@ -234,12 +236,11 @@ impl<'a> Row<'a> {
         if !<T as FromSql>::accepts(ty) {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
-        let conn = self.stmt.conn().conn.borrow();
-        let value = match self.data[idx] {
-            Some(ref data) => FromSql::from_sql(ty, &mut &**data, &SessionInfo::new(&*conn)),
-            None => FromSql::from_sql_null(ty, &SessionInfo::new(&*conn)),
-        };
-        Some(value)
+        let conn = self.stmt.conn().0.borrow();
+        let value = FromSql::from_sql_nullable(ty,
+                                               self.data[idx].as_ref().map(|r| &**r),
+                                               &SessionInfo::new(&conn.parameters));
+        Some(value.map_err(Error::Conversion))
     }
 
     /// Retrieves the specified field as a raw buffer of Postgres data.
@@ -332,29 +333,27 @@ impl<'a, 'b> Drop for LazyRows<'a, 'b> {
 impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LazyRows")
-           .field("name", &self.name)
-           .field("row_limit", &self.row_limit)
-           .field("remaining_rows", &self.data.len())
-           .field("more_rows", &self.more_rows)
-           .finish()
+            .field("name", &self.name)
+            .field("row_limit", &self.row_limit)
+            .field("remaining_rows", &self.data.len())
+            .field("more_rows", &self.more_rows)
+            .finish()
     }
 }
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn finish_inner(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn().conn.borrow_mut();
+        let mut conn = self.stmt.conn().0.borrow_mut();
         check_desync!(conn);
         conn.close_statement(&self.name, b'P')
     }
 
     fn execute(&mut self) -> Result<()> {
-        let mut conn = self.stmt.conn().conn.borrow_mut();
+        let mut conn = self.stmt.conn().0.borrow_mut();
 
-        try!(conn.write_messages(&[Frontend::Execute {
-                                       portal: &self.name,
-                                       max_rows: self.row_limit,
-                                   },
-                                   Frontend::Sync]));
+        try!(conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf)));
+        try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+        try!(conn.stream.flush());
         conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
     }
 
@@ -372,31 +371,30 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     }
 }
 
-impl<'trans, 'stmt> Iterator for LazyRows<'trans, 'stmt> {
-    type Item = Result<Row<'stmt>>;
+impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
+    type Item = Row<'stmt>;
+    type Error = Error;
 
-    fn next(&mut self) -> Option<Result<Row<'stmt>>> {
+    fn next(&mut self) -> Result<Option<Row<'stmt>>> {
         if self.data.is_empty() && self.more_rows {
-            if let Err(err) = self.execute() {
-                return Some(Err(err));
-            }
+            try!(self.execute());
         }
 
-        self.data.pop_front().map(|r| {
-            Ok(Row {
-                stmt: self.stmt,
-                data: Cow::Owned(r),
-            })
-        })
+        let row = self.data
+            .pop_front()
+            .map(|r| {
+                Row {
+                    stmt: self.stmt,
+                    data: Cow::Owned(r),
+                }
+            });
+
+        Ok(row)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let lower = self.data.len();
-        let upper = if self.more_rows {
-            None
-        } else {
-            Some(lower)
-        };
+        let upper = if self.more_rows { None } else { Some(lower) };
         (lower, upper)
     }
 }

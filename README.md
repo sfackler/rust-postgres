@@ -1,15 +1,14 @@
 # Rust-Postgres
 A native PostgreSQL driver for Rust.
 
-[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.11.11/postgres)
+[Documentation](https://sfackler.github.io/rust-postgres/doc/v0.12.0/postgres)
 
 [![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
 You can integrate Rust-Postgres into your project through the [releases on crates.io](https://crates.io/crates/postgres):
 ```toml
-# Cargo.toml
 [dependencies]
-postgres = "0.11"
+postgres = "0.12"
 ```
 
 ## Overview
@@ -17,7 +16,7 @@ Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database.
 ```rust
 extern crate postgres;
 
-use postgres::{Connection, SslMode};
+use postgres::{Connection, TlsMode};
 
 struct Person {
     id: i32,
@@ -26,7 +25,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", SslMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
@@ -51,7 +50,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.9 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.10 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 
@@ -65,19 +64,18 @@ fn main() {
 Connect to a Postgres server using the standard URI format:
 ```rust
 let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    SslMode::None));
+                                    TlsMode::None));
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
 `password`, and `md5` authentication.
 
-Unix domain sockets can be used as well by activating the `unix_socket` or
-`nightly` features.  The `host` portion of the URI should be set to the absolute
-path to the directory containing the socket file. Since `/` is a reserved
-character in URLs, the path should be URL encoded. If Postgres stored its socket
-files in `/run/postgres`, the connection would then look like:
+Unix domain sockets can be used as well. The `host` portion of the URI should
+be set to the absolute path to the directory containing the socket file. Since
+`/` is a reserved character in URLs, the path should be URL encoded. If Postgres
+stored its socket files in `/run/postgres`, the connection would then look like:
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", SslMode::None));
+let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", TlsMode::None));
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
@@ -182,7 +180,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>str/String</td>
-            <td>VARCHAR, CHAR(n), TEXT, CITEXT</td>
+            <td>VARCHAR, CHAR(n), TEXT, CITEXT, NAME</td>
         </tr>
         <tr>
             <td>[u8]/Vec&lt;u8&gt;</td>
@@ -285,42 +283,36 @@ crate.
 
 ## Optional features
 
-### Unix socket connections
-
-Support for connections through Unix domain sockets is provided optionally by
-either the `unix_socket` or `nightly` features. It is only available on "unixy"
-platforms such as OSX, BSD and Linux.
-
 ### UUID type
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
-provided optionally by the `uuid` feature, which adds `ToSql` and `FromSql`
+provided optionally by the `with-uuid` feature, which adds `ToSql` and `FromSql`
 implementations for `uuid`'s `Uuid` type.
 
 ### JSON/JSONB types
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
-support is provided optionally by the `rustc-serialize` feature, which adds
+support is provided optionally by the `with-rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
-the `serde_json` feature, which adds implementations for `serde_json`'s `Value`
-type.
+the `with-serde_json` feature, which adds implementations for `serde_json`'s
+`Value` type.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
 [Date and Time](http://www.postgresql.org/docs/9.1/static/datatype-datetime.html)
-support is provided optionally by the `time` feature, which adds `ToSql` and
-`FromSql` implementations for `time`'s `Timespec` type, or the `chrono`
+support is provided optionally by the `with-time` feature, which adds `ToSql`
+and `FromSql` implementations for `time`'s `Timespec` type, or the `with-chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
 `DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
 
 ### BIT/VARBIT types
 
 [BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
-support is provided optionally by the `bit-vec` feature, which adds `ToSql` and
-`FromSql` implementations for `bit-vec`'s `BitVec` type.
+support is provided optionally by the `with-bit-vec` feature, which adds `ToSql`
+and `FromSql` implementations for `bit-vec`'s `BitVec` type.
 
 ### MACADDR type
 
 [MACADDR](http://www.postgresql.org/docs/9.4/static/datatype-net-types.html#DATATYPE-MACADDR)
-support is provided optionally by the `eui48` feature, which adds `ToSql` and
-`FromSql` implementations for `eui48`'s `MacAddress` type.
+support is provided optionally by the `with-eui48` feature, which adds `ToSql`
+and `FromSql` implementations for `eui48`'s `MacAddress` type.

@@ -1,17 +1,18 @@
 //! Asynchronous notifications.
 
+use fallible_iterator::{FallibleIterator, IntoFallibleIterator};
 use std::fmt;
 use std::time::Duration;
+use postgres_protocol::message::backend;
 
 use {desynchronized, Result, Connection, NotificationsNew};
-use message::Backend;
 use error::Error;
 
 /// An asynchronous notification.
 #[derive(Clone, Debug)]
 pub struct Notification {
     /// The process ID of the notifying backend process.
-    pub pid: u32,
+    pub process_id: i32,
     /// The name of the channel that the notify has been raised on.
     pub channel: String,
     /// The "payload" string passed from the notifying process.
@@ -26,15 +27,15 @@ pub struct Notifications<'conn> {
 impl<'a> fmt::Debug for Notifications<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Notifications")
-           .field("pending", &self.len())
-           .finish()
+            .field("pending", &self.len())
+            .finish()
     }
 }
 
 impl<'conn> Notifications<'conn> {
     /// Returns the number of pending notifications.
     pub fn len(&self) -> usize {
-        self.conn.conn.borrow().notifications.len()
+        self.conn.0.borrow().notifications.len()
     }
 
     /// Determines if there are any pending notifications.
@@ -42,7 +43,7 @@ impl<'conn> Notifications<'conn> {
         self.len() == 0
     }
 
-    /// Returns an iterator over pending notifications.
+    /// Returns a fallible iterator over pending notifications.
     ///
     /// # Note
     ///
@@ -52,7 +53,7 @@ impl<'conn> Notifications<'conn> {
         Iter { conn: self.conn }
     }
 
-    /// Returns an iterator over notifications that blocks until one is
+    /// Returns a fallible iterator over notifications that blocks until one is
     /// received if none are pending.
     ///
     /// The iterator will never return `None`.
@@ -60,8 +61,8 @@ impl<'conn> Notifications<'conn> {
         BlockingIter { conn: self.conn }
     }
 
-    /// Returns an iterator over notifications that blocks for a limited time
-    /// waiting to receive one if none are pending.
+    /// Returns a fallible iterator over notifications that blocks for a limited
+    /// time waiting to receive one if none are pending.
     ///
     /// # Note
     ///
@@ -75,11 +76,12 @@ impl<'conn> Notifications<'conn> {
     }
 }
 
-impl<'a, 'conn> IntoIterator for &'a Notifications<'conn> {
-    type Item = Result<Notification>;
+impl<'a, 'conn> IntoFallibleIterator for &'a Notifications<'conn> {
+    type Item = Notification;
+    type Error = Error;
     type IntoIter = Iter<'a>;
 
-    fn into_iter(self) -> Iter<'a> {
+    fn into_fallible_iterator(self) -> Iter<'a> {
         self.iter()
     }
 }
@@ -90,41 +92,42 @@ impl<'conn> NotificationsNew<'conn> for Notifications<'conn> {
     }
 }
 
-/// An iterator over pending notifications.
+/// A fallible iterator over pending notifications.
 pub struct Iter<'a> {
     conn: &'a Connection,
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = Result<Notification>;
+impl<'a> FallibleIterator for Iter<'a> {
+    type Item = Notification;
+    type Error = Error;
 
-    fn next(&mut self) -> Option<Result<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+    fn next(&mut self) -> Result<Option<Notification>> {
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
-            return Some(Ok(notification));
+            return Ok(Some(notification));
         }
 
         if conn.is_desynchronized() {
-            return Some(Err(Error::Io(desynchronized())));
+            return Err(Error::Io(desynchronized()));
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
-                Some(Ok(Notification {
-                    pid: pid,
+            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
+                Ok(Some(Notification {
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
             }
-            Ok(None) => None,
-            Err(err) => Some(Err(Error::Io(err))),
+            Ok(None) => Ok(None),
+            Err(err) => Err(Error::Io(err)),
             _ => unreachable!(),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.conn.conn.borrow().notifications.len(), None)
+        (self.conn.0.borrow().notifications.len(), None)
     }
 }
 
@@ -133,35 +136,32 @@ pub struct BlockingIter<'a> {
     conn: &'a Connection,
 }
 
-impl<'a> Iterator for BlockingIter<'a> {
-    type Item = Result<Notification>;
+impl<'a> FallibleIterator for BlockingIter<'a> {
+    type Item = Notification;
+    type Error = Error;
 
-    fn next(&mut self) -> Option<Result<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+    fn next(&mut self) -> Result<Option<Notification>> {
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
-            return Some(Ok(notification));
+            return Ok(Some(notification));
         }
 
         if conn.is_desynchronized() {
-            return Some(Err(Error::Io(desynchronized())));
+            return Err(Error::Io(desynchronized()));
         }
 
         match conn.read_message_with_notification() {
-            Ok(Backend::NotificationResponse { pid, channel, payload }) => {
-                Some(Ok(Notification {
-                    pid: pid,
+            Ok(backend::Message::NotificationResponse { process_id, channel, payload }) => {
+                Ok(Some(Notification {
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
             }
-            Err(err) => Some(Err(Error::Io(err))),
+            Err(err) => Err(Error::Io(err)),
             _ => unreachable!(),
         }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (usize::max_value(), None)
     }
 }
 
@@ -172,35 +172,36 @@ pub struct TimeoutIter<'a> {
     timeout: Duration,
 }
 
-impl<'a> Iterator for TimeoutIter<'a> {
-    type Item = Result<Notification>;
+impl<'a> FallibleIterator for TimeoutIter<'a> {
+    type Item = Notification;
+    type Error = Error;
 
-    fn next(&mut self) -> Option<Result<Notification>> {
-        let mut conn = self.conn.conn.borrow_mut();
+    fn next(&mut self) -> Result<Option<Notification>> {
+        let mut conn = self.conn.0.borrow_mut();
 
         if let Some(notification) = conn.notifications.pop_front() {
-            return Some(Ok(notification));
+            return Ok(Some(notification));
         }
 
         if conn.is_desynchronized() {
-            return Some(Err(Error::Io(desynchronized())));
+            return Err(Error::Io(desynchronized()));
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(Backend::NotificationResponse { pid, channel, payload })) => {
-                Some(Ok(Notification {
-                    pid: pid,
+            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
+                Ok(Some(Notification {
+                    process_id: process_id,
                     channel: channel,
                     payload: payload,
                 }))
             }
-            Ok(None) => None,
-            Err(err) => Some(Err(Error::Io(err))),
+            Ok(None) => Ok(None),
+            Err(err) => Err(Error::Io(err)),
             _ => unreachable!(),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.conn.conn.borrow().notifications.len(), None)
+        (self.conn.0.borrow().notifications.len(), None)
     }
 }

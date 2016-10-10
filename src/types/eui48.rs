@@ -1,16 +1,17 @@
 extern crate eui48;
 
-use std::io::prelude::*;
-
 use self::eui48::MacAddress;
+use std::error::Error;
+use postgres_protocol::types;
 
 use types::{FromSql, ToSql, Type, IsNull, SessionInfo};
-use Result;
 
 impl FromSql for MacAddress {
-    fn from_sql<R: Read>(_: &Type, raw: &mut R, _: &SessionInfo) -> Result<MacAddress> {
-        let mut bytes = [0; 6];
-        try!(raw.read_exact(&mut bytes));
+    fn from_sql(_: &Type,
+                raw: &[u8],
+                _: &SessionInfo)
+                -> Result<MacAddress, Box<Error + Sync + Send>> {
+        let bytes = try!(types::macaddr_from_sql(raw));
         Ok(MacAddress::new(bytes))
     }
 
@@ -18,8 +19,14 @@ impl FromSql for MacAddress {
 }
 
 impl ToSql for MacAddress {
-    fn to_sql<W: Write + ?Sized>(&self, _: &Type, w: &mut W, _: &SessionInfo) -> Result<IsNull> {
-        try!(w.write_all(self.as_bytes()));
+    fn to_sql(&self,
+              _: &Type,
+              w: &mut Vec<u8>,
+              _: &SessionInfo)
+              -> Result<IsNull, Box<Error + Sync + Send>> {
+        let mut bytes = [0; 6];
+        bytes.copy_from_slice(self.as_bytes());
+        types::macaddr_to_sql(bytes, w);
         Ok(IsNull::No)
     }
 
