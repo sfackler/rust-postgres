@@ -66,6 +66,12 @@ impl<'a> IntoConnectParams for &'a str {
     }
 }
 
+impl IntoConnectParams for String {
+    fn into_connect_params(self) -> Result<ConnectParams, Box<Error + Sync + Send>> {
+        self.as_str().into_connect_params()
+    }
+}
+
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<ConnectParams, Box<Error + Sync + Send>> {
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
