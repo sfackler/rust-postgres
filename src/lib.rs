@@ -905,6 +905,7 @@ impl Connection {
     /// # Examples
     ///
     /// To connect over TCP:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -913,6 +914,7 @@ impl Connection {
     /// ```
     ///
     /// To connect over a Unix socket located in `/run/postgres`:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -921,6 +923,7 @@ impl Connection {
     /// ```
     ///
     /// To connect with a manually constructed `ConnectParams`:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};
