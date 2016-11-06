@@ -664,10 +664,12 @@ fn test_cancel_query() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
+    use openssl::ssl::{SslMethod, SslConnectorBuilder};
     use postgres::tls::openssl::OpenSsl;
 
-    let mut negotiator = OpenSsl::new().unwrap();
-    negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
+    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
+    builder.builder_mut().set_ca_file(".travis/server.crt").unwrap();
+    let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              TlsMode::Require(&negotiator)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
@@ -676,10 +678,12 @@ fn test_require_ssl_conn() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
+    use openssl::ssl::{SslMethod, SslConnectorBuilder};
     use postgres::tls::openssl::OpenSsl;
 
-    let mut negotiator = OpenSsl::new().unwrap();
-    negotiator.context_mut().set_CA_file(".travis/server.crt").unwrap();
+    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
+    builder.builder_mut().set_ca_file(".travis/server.crt").unwrap();
+    let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              TlsMode::Require(&negotiator)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));

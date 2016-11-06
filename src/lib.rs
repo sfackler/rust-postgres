@@ -62,13 +62,11 @@
 //! # #[cfg(feature = "with-openssl")]
 //! fn main() {
 //!     let openssl = OpenSsl::new().unwrap();
-//!     // Configure the `SslContext` with the `.context()` and `.context_mut()` methods
-//!
 //!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&openssl))
 //!         .unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.12.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.13.0")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
@@ -905,6 +903,7 @@ impl Connection {
     /// # Examples
     ///
     /// To connect over TCP:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -913,6 +912,7 @@ impl Connection {
     /// ```
     ///
     /// To connect over a Unix socket located in `/run/postgres`:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
@@ -921,6 +921,7 @@ impl Connection {
     /// ```
     ///
     /// To connect with a manually constructed `ConnectParams`:
+    ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};

@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.12.0/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.13.0/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
@@ -24,7 +24,7 @@ path = "tests/test.rs"
 with-bit-vec = ["bit-vec"]
 with-chrono = ["chrono"]
 with-eui48 = ["eui48"]
-with-openssl = ["openssl", "openssl-verify"]
+with-openssl = ["openssl"]
 with-rustc-serialize = ["rustc-serialize"]
 with-security-framework = ["security-framework"]
 with-serde_json = ["serde_json"]
@@ -36,13 +36,12 @@ bufstream = "0.1"
 fallible-iterator = "0.1.3"
 hex = "0.2"
 log = "0.3"
-phf = "=0.7.15"
+phf = "=0.7.19"
 postgres-protocol = "0.1"
 bit-vec = { version = "0.4", optional = true }
 chrono = { version = "0.2.14", optional = true }
 eui48 = { version = "0.1", optional = true }
-openssl-verify = { version = "0.2", optional = true }
-openssl = { version = "0.8", optional = true }
+openssl = { version = "0.9", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 serde_json = { version = ">= 0.6, < 0.9", optional = true }
