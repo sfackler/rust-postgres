@@ -62,13 +62,11 @@
 //! # #[cfg(feature = "with-openssl")]
 //! fn main() {
 //!     let openssl = OpenSsl::new().unwrap();
-//!     // Configure the `SslContext` with the `.context()` and `.context_mut()` methods
-//!
 //!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&openssl))
 //!         .unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.12.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.13.0")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
