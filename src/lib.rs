@@ -73,6 +73,7 @@
 extern crate bufstream;
 extern crate fallible_iterator;
 extern crate hex;
+#[cfg(not(feature = "no-logging"))]
 #[macro_use]
 extern crate log;
 extern crate phf;

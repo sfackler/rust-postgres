@@ -31,6 +31,8 @@ with-serde_json = ["serde_json"]
 with-time = ["time"]
 with-uuid = ["uuid"]
 
+no-logging = []
+
 [dependencies]
 bufstream = "0.1"
 fallible-iterator = "0.1.3"
