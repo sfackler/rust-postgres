@@ -707,6 +707,18 @@ fn security_framework_ssl() {
 }
 
 #[test]
+#[ignore] // need to ignore until native-tls supports extra root certs :(
+#[cfg(feature = "with-native-tls")]
+fn native_tls_ssl() {
+    use postgres::tls::native_tls::NativeTls;
+
+    let negotiator = NativeTls::new().unwrap();
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
+                                             TlsMode::Require(&negotiator)));
+    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
+}
+
+#[test]
 fn test_plaintext_pass() {
     or_panic!(Connection::connect("postgres://pass_user:password@localhost/postgres", TlsMode::None));
 }
