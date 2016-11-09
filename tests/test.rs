@@ -6,6 +6,8 @@ extern crate url;
 extern crate openssl;
 #[cfg(feature = "with-security-framework")]
 extern crate security_framework;
+#[cfg(feature = "native-tls")]
+extern crate native_tls;
 
 use fallible_iterator::FallibleIterator;
 use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
