@@ -9,6 +9,8 @@ use std::fmt;
 pub mod openssl;
 #[cfg(feature = "with-security-framework")]
 pub mod security_framework;
+#[cfg(feature = "with-native-tls")]
+pub mod native_tls;
 
 /// A trait implemented by TLS streams.
 pub trait TlsStream: fmt::Debug + Read + Write + Send {

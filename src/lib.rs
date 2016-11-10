@@ -44,25 +44,25 @@
 //! This crate supports TLS secured connections. The `TlsMode` enum is passed to connection methods
 //! and indicates if the connection will not, may, or must be secured by TLS. The TLS implementation
 //! is pluggable through the `TlsHandshake` trait. Implementations for OpenSSL and OSX's Secure
-//! Transport are provided behind the `with-openssl` and `with-security-framework` feature flags
-//! respectively.
+//! Transport are provided behind the `with-openssl`, `with-security-framework`, and
+//! `with-native-tls` feature flags respectively.
 //!
 //! ## Examples
 //!
-//! Connecting using OpenSSL:
+//! Connecting using native-tls:
 //!
 //! ```no_run
 //! extern crate postgres;
 //!
 //! use postgres::{Connection, TlsMode};
-//! # #[cfg(feature = "with-openssl")]
-//! use postgres::tls::openssl::OpenSsl;
+//! # #[cfg(feature = "with-native-tls")]
+//! use postgres::tls::native_tls::NativeTls;
 //!
-//! # #[cfg(not(feature = "with-openssl"))] fn main() {}
-//! # #[cfg(feature = "with-openssl")]
+//! # #[cfg(not(feature = "with-native-tls"))] fn main() {}
+//! # #[cfg(feature = "with-native-tls")]
 //! fn main() {
-//!     let openssl = OpenSsl::new().unwrap();
-//!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&openssl))
+//!     let negotiator = NativeTls::new().unwrap();
+//!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&negotiator))
 //!         .unwrap();
 //! }
 //! ```
@@ -73,6 +73,7 @@
 extern crate bufstream;
 extern crate fallible_iterator;
 extern crate hex;
+#[cfg(not(feature = "no-logging"))]
 #[macro_use]
 extern crate log;
 extern crate phf;

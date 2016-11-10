@@ -25,3 +25,13 @@ macro_rules! bad_response {
         return Err(::error::Error::Io(::bad_response()));
     })
 }
+
+#[cfg(feature = "no-logging")]
+macro_rules! debug {
+    ($($t:tt)*) => {}
+}
+
+#[cfg(feature = "no-logging")]
+macro_rules! info {
+    ($($t:tt)*) => {}
+}

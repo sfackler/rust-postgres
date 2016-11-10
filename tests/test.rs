@@ -6,6 +6,8 @@ extern crate url;
 extern crate openssl;
 #[cfg(feature = "with-security-framework")]
 extern crate security_framework;
+#[cfg(feature = "native-tls")]
+extern crate native_tls;
 
 use fallible_iterator::FallibleIterator;
 use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
@@ -699,6 +701,18 @@ fn security_framework_ssl() {
     let certificate = or_panic!(SecCertificate::from_der(certificate));
     let mut negotiator = SecurityFramework::new();
     negotiator.builder_mut().anchor_certificates(&[certificate]);
+    let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
+                                             TlsMode::Require(&negotiator)));
+    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
+}
+
+#[test]
+#[ignore] // need to ignore until native-tls supports extra root certs :(
+#[cfg(feature = "with-native-tls")]
+fn native_tls_ssl() {
+    use postgres::tls::native_tls::NativeTls;
+
+    let negotiator = NativeTls::new().unwrap();
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              TlsMode::Require(&negotiator)));
     or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
