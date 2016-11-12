@@ -49,7 +49,7 @@
 //!
 //! ## Examples
 //!
-//! Connecting using native-tls:
+//! Connecting using `native-tls`:
 //!
 //! ```no_run
 //! extern crate postgres;
@@ -66,7 +66,7 @@
 //!         .unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.13.0")]
+#![doc(html_root_url="https://sfackler.github.io/rust-postgres/doc/v0.13.1")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 

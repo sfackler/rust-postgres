@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://sfackler.github.io/rust-postgres/doc/v0.13.0/postgres"
+documentation = "https://sfackler.github.io/rust-postgres/doc/v0.13.1/postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
