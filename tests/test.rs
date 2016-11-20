@@ -403,7 +403,7 @@ fn test_lazy_query() {
     or_panic!(trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
     let stmt = or_panic!(trans.prepare("INSERT INTO foo (id) VALUES ($1)"));
     let values = vec!(0i32, 1, 2, 3, 4, 5);
-    for value in values.iter() {
+    for value in &values {
         or_panic!(stmt.execute(&[value]));
     }
     let stmt = or_panic!(trans.prepare("SELECT id FROM foo ORDER BY id"));
@@ -534,13 +534,13 @@ fn test_get_off_by_one() {
 
 #[test]
 fn test_custom_notice_handler() {
-    static mut count: usize = 0;
+    static mut COUNT: usize = 0;
     struct Handler;
 
     impl HandleNotice for Handler {
         fn handle_notice(&mut self, notice: DbError) {
             assert_eq!("note", notice.message);
-            unsafe { count += 1; }
+            unsafe { COUNT += 1; }
         }
     }
 
@@ -554,7 +554,7 @@ fn test_custom_notice_handler() {
                            END; $$ LANGUAGE plpgsql", &[]));
     or_panic!(conn.execute("SELECT pg_temp.note()", &[]));
 
-    assert_eq!(unsafe { count }, 1);
+    assert_eq!(unsafe { COUNT }, 1);
 }
 
 #[test]
@@ -1069,8 +1069,8 @@ fn transaction_config() {
 #[test]
 fn transaction_config_one_setting() {
     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
-    conn.set_transaction_config(&transaction::Config::new().read_only(true)).unwrap();
-    conn.set_transaction_config(&transaction::Config::new().deferrable(true)).unwrap();
+    conn.set_transaction_config(transaction::Config::new().read_only(true)).unwrap();
+    conn.set_transaction_config(transaction::Config::new().deferrable(true)).unwrap();
 }
 
 #[test]

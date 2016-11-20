@@ -302,8 +302,8 @@ fn composite() {
     let stmt = conn.prepare("SELECT $1::inventory_item").unwrap();
     let type_ = &stmt.param_types()[0];
     assert_eq!(type_.name(), "inventory_item");
-    match type_.kind() {
-        &Kind::Composite(ref fields) => {
+    match *type_.kind() {
+        Kind::Composite(ref fields) => {
             assert_eq!(fields[0].name(), "name");
             assert_eq!(fields[0].type_(), &Type::Text);
             assert_eq!(fields[1].name(), "supplier");
@@ -311,7 +311,7 @@ fn composite() {
             assert_eq!(fields[2].name(), "price");
             assert_eq!(fields[2].type_(), &Type::Numeric);
         }
-        t => panic!("bad type {:?}", t),
+        ref t => panic!("bad type {:?}", t),
     }
 }
 
@@ -323,8 +323,8 @@ fn enum_() {
     let stmt = conn.prepare("SELECT $1::mood").unwrap();
     let type_ = &stmt.param_types()[0];
     assert_eq!(type_.name(), "mood");
-    match type_.kind() {
-        &Kind::Enum(ref variants) => {
+    match *type_.kind() {
+        Kind::Enum(ref variants) => {
             assert_eq!(variants, &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
         }
         _ => panic!("bad type"),
