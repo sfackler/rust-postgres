@@ -679,7 +679,7 @@ impl InnerConnection {
         try!(self.read_rows(&mut rows));
         let row = rows.pop_front();
 
-        let get_raw = |i| {
+        let get_raw = |i: usize| {
             row.as_ref().and_then(|r| r.get(i)).and_then(|r| r.as_ref().map(|r| &**r))
         };
 
