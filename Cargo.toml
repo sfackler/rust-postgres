@@ -27,6 +27,7 @@ with-eui48 = ["eui48"]
 with-openssl = ["openssl"]
 with-native-tls = ["native-tls"]
 with-rustc-serialize = ["rustc-serialize"]
+with-schannel = ["schannel"]
 with-security-framework = ["security-framework"]
 with-serde_json = ["serde_json"]
 with-time = ["time"]
@@ -47,6 +48,7 @@ eui48 = { version = "0.1", optional = true }
 openssl = { version = "0.9", optional = true }
 native-tls = { version = "0.1", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
+schannel = { version = "0.1", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 serde_json = { version = ">= 0.6, < 0.9", optional = true }
 time = { version = "0.1.14", optional = true }

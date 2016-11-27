@@ -5,12 +5,14 @@ use std::error::Error;
 use std::io::prelude::*;
 use std::fmt;
 
-#[cfg(feature = "with-openssl")]
-pub mod openssl;
-#[cfg(feature = "with-security-framework")]
-pub mod security_framework;
 #[cfg(feature = "with-native-tls")]
 pub mod native_tls;
+#[cfg(feature = "with-openssl")]
+pub mod openssl;
+#[cfg(feature = "with-schannel")]
+pub mod schannel;
+#[cfg(feature = "with-security-framework")]
+pub mod security_framework;
 
 /// A trait implemented by TLS streams.
 pub trait TlsStream: fmt::Debug + Read + Write + Send {
