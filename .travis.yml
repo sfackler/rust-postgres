@@ -10,4 +10,4 @@ before_script:
 - "./.travis/setup.sh"
 script:
 - cargo test
-- cargo test --features "$(cargo read-manifest | jq -r '.features|keys|map(select(. != "with-security-framework"))|join(" ")')"
+- cargo test --features "$(cargo read-manifest | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
