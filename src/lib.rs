@@ -926,11 +926,11 @@ impl Connection {
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};
-    /// # use std::path::PathBuf;
+    /// use std::path::PathBuf;
     ///
-    /// # #[cfg(unix)]
-    /// # fn f() {
-    /// # let some_crazy_path = PathBuf::new();
+    /// #[cfg(unix)]
+    /// fn f() {
+    /// let some_crazy_path = PathBuf::new();
     /// let params = ConnectParams {
     ///     target: ConnectTarget::Unix(some_crazy_path),
     ///     port: None,
