@@ -791,7 +791,7 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let get_raw = |i| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
+                let get_raw = |i: usize| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
                 let ctx = SessionInfo::new(&self.parameters);
                 let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0), &ctx)
                     .map_err(Error::Conversion));
