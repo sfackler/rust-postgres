@@ -16,39 +16,39 @@ use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
 
-enum StatementContainer<'a> {
-    Borrowed(&'a Statement<'a>),
-    Owned(Statement<'a>),
+enum MaybeOwned<'a, T: 'a> {
+    Borrowed(&'a T),
+    Owned(T),
 }
 
-impl<'a> Deref for StatementContainer<'a> {
-    type Target = Statement<'a>;
+impl<'a, T> Deref for MaybeOwned<'a, T> {
+    type Target = T;
 
-    fn deref(&self) -> &Statement<'a> {
+    fn deref(&self) -> &T {
         match *self {
-            StatementContainer::Borrowed(s) => s,
-            StatementContainer::Owned(ref s) => s,
+            MaybeOwned::Borrowed(s) => s,
+            MaybeOwned::Owned(ref s) => s,
         }
     }
 }
 
 /// The resulting rows of a query.
 pub struct Rows<'stmt> {
-    stmt: StatementContainer<'stmt>,
+    stmt: MaybeOwned<'stmt, Statement<'stmt>>,
     data: Vec<Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> RowsNew<'a> for Rows<'a> {
     fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
         Rows {
-            stmt: StatementContainer::Borrowed(stmt),
+            stmt: MaybeOwned::Borrowed(stmt),
             data: data,
         }
     }
 
     fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
         Rows {
-            stmt: StatementContainer::Owned(stmt),
+            stmt: MaybeOwned::Owned(stmt),
             data: data,
         }
     }
@@ -87,7 +87,7 @@ impl<'stmt> Rows<'stmt> {
     pub fn get<'a>(&'a self, idx: usize) -> Row<'a> {
         Row {
             stmt: &*self.stmt,
-            data: Cow::Borrowed(&self.data[idx]),
+            data: MaybeOwned::Borrowed(&self.data[idx]),
         }
     }
 
@@ -122,7 +122,7 @@ impl<'a> Iterator for Iter<'a> {
         self.iter.next().map(|row| {
             Row {
                 stmt: &*self.stmt,
-                data: Cow::Borrowed(row),
+                data: MaybeOwned::Borrowed(row),
             }
         })
     }
@@ -137,7 +137,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
         self.iter.next_back().map(|row| {
             Row {
                 stmt: &*self.stmt,
-                data: Cow::Borrowed(row),
+                data: MaybeOwned::Borrowed(row),
             }
         })
     }
@@ -148,7 +148,7 @@ impl<'a> ExactSizeIterator for Iter<'a> {}
 /// A single result row of a query.
 pub struct Row<'a> {
     stmt: &'a Statement<'a>,
-    data: Cow<'a, [Option<Vec<u8>>]>,
+    data: MaybeOwned<'a, Vec<Option<Vec<u8>>>>,
 }
 
 impl<'a> fmt::Debug for Row<'a> {
@@ -385,7 +385,7 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
             .map(|r| {
                 Row {
                     stmt: self.stmt,
-                    data: Cow::Owned(r),
+                    data: MaybeOwned::Owned(r),
                 }
             });
 
