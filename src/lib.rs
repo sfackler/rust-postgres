@@ -79,7 +79,7 @@ extern crate log;
 extern crate phf;
 extern crate postgres_protocol;
 
-use fallible_iterator::FallibleIterator;
+use fallible_iterator::{FallibleIterator, FromFallibleIterator};
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
@@ -504,14 +504,7 @@ impl InnerConnection {
                     more_rows = true;
                     break;
                 }
-                backend::Message::DataRow(body) => {
-                    let mut row = RowData::new();
-                    let mut it = body.values();
-                    while let Some(value) = try!(it.next()) {
-                        row.push(value);
-                    }
-                    consumer(row);
-                }
+                backend::Message::DataRow(body) => consumer(try!(body.values().collect())),
                 backend::Message::ErrorResponse(body) => {
                     try!(self.wait_for_ready());
                     return DbError::new(&mut body.fields());
@@ -1338,26 +1331,32 @@ struct RowData {
     indices: Vec<Option<Range<usize>>>,
 }
 
-impl RowData {
-    fn new() -> RowData {
-        RowData {
+impl<'a> FromFallibleIterator<Option<&'a [u8]>> for RowData {
+    fn from_fallible_iterator<I>(mut it: I) -> result::Result<Self, I::Error>
+        where I: FallibleIterator<Item = Option<&'a [u8]>>
+    {
+        let mut row = RowData {
             buf: vec![],
-            indices: vec![],
-        }
-    }
-
-    fn push(&mut self, cell: Option<&[u8]>) {
-        let index = match cell {
-            Some(cell) => {
-                let base = self.buf.len();
-                self.buf.extend_from_slice(cell);
-                Some(base..self.buf.len())
-            }
-            None => None,
+            indices: Vec::with_capacity(it.size_hint().0),
         };
-        self.indices.push(index);
-    }
 
+        while let Some(cell) = try!(it.next()) {
+            let index = match cell {
+                Some(cell) =>  {
+                    let base = row.buf.len();
+                    row.buf.extend_from_slice(cell);
+                    Some(base..row.buf.len())
+                }
+                None => None,
+            };
+            row.indices.push(index);
+        }
+
+        Ok(row)
+    }
+}
+
+impl RowData {
     fn len(&self) -> usize {
         self.indices.len()
     }
