@@ -120,10 +120,10 @@ fn make_impl(codes: &[Code], file: &mut BufWriter<File>) {
     write!(file, r#"
 impl SqlState {{
     /// Creates a `SqlState` from its error code.
-    pub fn from_code(s: String) -> SqlState {{
-        match SQLSTATE_MAP.get(&*s) {{
+    pub fn from_code(s: &str) -> SqlState {{
+        match SQLSTATE_MAP.get(s) {{
             Some(state) => state.clone(),
-            None => SqlState::Other(s),
+            None => SqlState::Other(s.to_owned()),
         }}
     }}
 

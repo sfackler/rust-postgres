@@ -47,12 +47,12 @@ impl MessageStream {
         self.stream.write_all(&self.buf).map_err(From::from)
     }
 
-    fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message> {
+    fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message<Vec<u8>>> {
         self.buf.resize(MESSAGE_HEADER_SIZE, 0);
         self.buf[0] = b;
         try!(self.stream.read_exact(&mut self.buf[1..]));
 
-        let len = match try!(backend::Message::parse(&self.buf)) {
+        let len = match try!(backend::Message::parse_owned(&self.buf)) {
             ParseResult::Complete { message, .. } => return Ok(message),
             ParseResult::Incomplete { required_size } => Some(required_size.unwrap()),
         };
@@ -62,13 +62,13 @@ impl MessageStream {
             try!(self.stream.read_exact(&mut self.buf[MESSAGE_HEADER_SIZE..]));
         };
 
-        match try!(backend::Message::parse(&self.buf)) {
+        match try!(backend::Message::parse_owned(&self.buf)) {
             ParseResult::Complete { message, .. } => Ok(message),
             ParseResult::Incomplete { .. } => unreachable!(),
         }
     }
 
-    pub fn read_message(&mut self) -> io::Result<backend::Message> {
+    pub fn read_message(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
         let mut b = [0; 1];
         try!(self.stream.read_exact(&mut b));
         self.inner_read_message(b[0])
@@ -76,7 +76,7 @@ impl MessageStream {
 
     pub fn read_message_timeout(&mut self,
                                 timeout: Duration)
-                                -> io::Result<Option<backend::Message>> {
+                                -> io::Result<Option<backend::Message<Vec<u8>>>> {
         try!(self.set_read_timeout(Some(timeout)));
         let mut b = [0; 1];
         let r = self.stream.read_exact(&mut b);
@@ -90,7 +90,7 @@ impl MessageStream {
         }
     }
 
-    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message>> {
+    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message<Vec<u8>>>> {
         try!(self.set_nonblocking(true));
         let mut b = [0; 1];
         let r = self.stream.read_exact(&mut b);

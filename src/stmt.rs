@@ -1,5 +1,6 @@
 //! Prepared statements
 
+use fallible_iterator::FallibleIterator;
 use std::cell::{Cell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
@@ -132,20 +133,20 @@ impl<'conn> Statement<'conn> {
         let num;
         loop {
             match try!(conn.read_message()) {
-                backend::Message::DataRow { .. } => {}
-                backend::Message::ErrorResponse { fields } => {
+                backend::Message::DataRow(_) => {}
+                backend::Message::ErrorResponse(body) => {
                     try!(conn.wait_for_ready());
-                    return DbError::new(fields);
+                    return DbError::new(&mut body.fields());
                 }
-                backend::Message::CommandComplete { tag } => {
-                    num = parse_update_count(tag);
+                backend::Message::CommandComplete(body) => {
+                    num = parse_update_count(try!(body.tag()));
                     break;
                 }
                 backend::Message::EmptyQueryResponse => {
                     num = 0;
                     break;
                 }
-                backend::Message::CopyInResponse { .. } => {
+                backend::Message::CopyInResponse(_) => {
                     try!(conn.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
@@ -153,13 +154,13 @@ impl<'conn> Statement<'conn> {
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(conn.stream.flush());
                 }
-                backend::Message::CopyOutResponse { .. } => {
+                backend::Message::CopyOutResponse(_) => {
                     loop {
                         match try!(conn.read_message()) {
                             backend::Message::CopyDone => break,
-                            backend::Message::ErrorResponse { fields } => {
+                            backend::Message::ErrorResponse(body) => {
                                 try!(conn.wait_for_ready());
-                                return DbError::new(fields);
+                                return DbError::new(&mut body.fields());
                             }
                             _ => {}
                         }
@@ -269,14 +270,20 @@ impl<'conn> Statement<'conn> {
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
-            backend::Message::CopyInResponse { format, column_formats } => (format, column_formats),
-            backend::Message::ErrorResponse { fields } => {
+            backend::Message::CopyInResponse(body) => {
+                let format = body.format();
+                let column_formats = try!(body.column_formats()
+                    .map(|f| Format::from_u16(f))
+                    .collect());
+                (format, column_formats)
+            }
+            backend::Message::ErrorResponse(body) => {
                 try!(conn.wait_for_ready());
-                return DbError::new(fields);
+                return DbError::new(&mut body.fields());
             }
             _ => {
                 loop {
-                    if let backend::Message::ReadyForQuery { .. } = try!(conn.read_message()) {
+                    if let backend::Message::ReadyForQuery(_) = try!(conn.read_message()) {
                         return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                             "called `copy_in` on a \
                                                              non-`COPY FROM STDIN` \
@@ -289,7 +296,7 @@ impl<'conn> Statement<'conn> {
         let mut info = CopyInfo {
             conn: conn,
             format: Format::from_u16(format as u16),
-            column_formats: column_formats.iter().map(|&f| Format::from_u16(f)).collect(),
+            column_formats: column_formats,
         };
 
         let mut buf = [0; 16 * 1024];
@@ -311,7 +318,7 @@ impl<'conn> Statement<'conn> {
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(info.conn.stream.flush());
                     match try!(info.conn.read_message()) {
-                        backend::Message::ErrorResponse { .. } => {
+                        backend::Message::ErrorResponse(_) => {
                             // expected from the CopyFail
                         }
                         _ => {
@@ -330,10 +337,10 @@ impl<'conn> Statement<'conn> {
         try!(info.conn.stream.flush());
 
         let num = match try!(info.conn.read_message()) {
-            backend::Message::CommandComplete { tag } => parse_update_count(tag),
-            backend::Message::ErrorResponse { fields } => {
+            backend::Message::CommandComplete(body) => parse_update_count(try!(body.tag())),
+            backend::Message::ErrorResponse(body) => {
                 try!(info.conn.wait_for_ready());
-                return DbError::new(fields);
+                return DbError::new(&mut body.fields());
             }
             _ => {
                 info.conn.desynchronized = true;
@@ -372,17 +379,21 @@ impl<'conn> Statement<'conn> {
         try!(conn.raw_execute(&self.info.name, "", 0, self.param_types(), params));
 
         let (format, column_formats) = match try!(conn.read_message()) {
-            backend::Message::CopyOutResponse { format, column_formats } => {
+            backend::Message::CopyOutResponse(body) => {
+                let format = body.format();
+                let column_formats = try!(body.column_formats()
+                    .map(|f| Format::from_u16(f))
+                    .collect());
                 (format, column_formats)
             }
-            backend::Message::CopyInResponse { .. } => {
+            backend::Message::CopyInResponse(_) => {
                 try!(conn.stream.write_message(|buf| frontend::copy_fail("", buf)));
                 try!(conn.stream
                     .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
                 try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                 try!(conn.stream.flush());
                 match try!(conn.read_message()) {
-                    backend::Message::ErrorResponse { .. } => {
+                    backend::Message::ErrorResponse(_) => {
                         // expected from the CopyFail
                     }
                     _ => {
@@ -395,13 +406,13 @@ impl<'conn> Statement<'conn> {
                                                     "called `copy_out` on a non-`COPY TO \
                                                      STDOUT` statement")));
             }
-            backend::Message::ErrorResponse { fields } => {
+            backend::Message::ErrorResponse(body) => {
                 try!(conn.wait_for_ready());
-                return DbError::new(fields);
+                return DbError::new(&mut body.fields());
             }
             _ => {
                 loop {
-                    if let backend::Message::ReadyForQuery { .. } = try!(conn.read_message()) {
+                    if let backend::Message::ReadyForQuery(_) = try!(conn.read_message()) {
                         return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                             "called `copy_out` on a \
                                                              non-`COPY TO STDOUT` statement")));
@@ -413,20 +424,20 @@ impl<'conn> Statement<'conn> {
         let mut info = CopyInfo {
             conn: conn,
             format: Format::from_u16(format as u16),
-            column_formats: column_formats.iter().map(|&f| Format::from_u16(f)).collect(),
+            column_formats: column_formats,
         };
 
         let count;
         loop {
             match try!(info.conn.read_message()) {
-                backend::Message::CopyData { data } => {
-                    let mut data = &data[..];
+                backend::Message::CopyData(body) => {
+                    let mut data = body.data();
                     while !data.is_empty() {
                         match w.write_with_info(data, &info) {
                             Ok(n) => data = &data[n..],
                             Err(e) => {
                                 loop {
-                                    if let backend::Message::ReadyForQuery { .. } =
+                                    if let backend::Message::ReadyForQuery(_) =
                                             try!(info.conn.read_message()) {
                                         return Err(Error::Io(e));
                                     }
@@ -436,21 +447,21 @@ impl<'conn> Statement<'conn> {
                     }
                 }
                 backend::Message::CopyDone => {}
-                backend::Message::CommandComplete { tag } => {
-                    count = parse_update_count(tag);
+                backend::Message::CommandComplete(body) => {
+                    count = parse_update_count(try!(body.tag()));
                     break;
                 }
-                backend::Message::ErrorResponse { fields } => {
+                backend::Message::ErrorResponse(body) => {
                     loop {
-                        if let backend::Message::ReadyForQuery { .. } =
+                        if let backend::Message::ReadyForQuery(_) =
                                 try!(info.conn.read_message()) {
-                            return DbError::new(fields);
+                            return DbError::new(&mut body.fields());
                         }
                     }
                 }
                 _ => {
                     loop {
-                        if let backend::Message::ReadyForQuery { .. } =
+                        if let backend::Message::ReadyForQuery(_) =
                                 try!(info.conn.read_message()) {
                             return Err(Error::Io(bad_response()));
                         }
@@ -586,6 +597,6 @@ impl Format {
     }
 }
 
-fn parse_update_count(tag: String) -> u64 {
+fn parse_update_count(tag: &str) -> u64 {
     tag.split(' ').last().unwrap().parse().unwrap_or(0)
 }

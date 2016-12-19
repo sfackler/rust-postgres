@@ -1,11 +1,12 @@
 //! Error types.
 
+use fallible_iterator::FallibleIterator;
+use postgres_protocol::message::backend::ErrorFields;
 use std::error;
 use std::convert::From;
 use std::fmt;
 use std::io;
 use std::result;
-use std::collections::HashMap;
 
 pub use self::sqlstate::SqlState;
 use {Result, DbErrorNew};
@@ -85,52 +86,92 @@ pub struct DbError {
 }
 
 impl DbErrorNew for DbError {
-    fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()> {
-        let mut map: HashMap<_, _> = fields.into_iter().collect();
+    fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError> {
+        let mut severity = None;
+        let mut code = None;
+        let mut message = None;
+        let mut detail = None;
+        let mut hint = None;
+        let mut normal_position = None;
+        let mut internal_position = None;
+        let mut internal_query = None;
+        let mut where_ = None;
+        let mut schema = None;
+        let mut table = None;
+        let mut column = None;
+        let mut datatype = None;
+        let mut constraint = None;
+        let mut file = None;
+        let mut line = None;
+        let mut routine = None;
+
+        while let Some(field) = try!(fields.next()) {
+            match field.type_() {
+                b'S' => severity = Some(field.value().to_owned()),
+                b'C' => code = Some(SqlState::from_code(field.value())),
+                b'M' => message = Some(field.value().to_owned()),
+                b'D' => detail = Some(field.value().to_owned()),
+                b'H' => hint = Some(field.value().to_owned()),
+                b'P' => normal_position = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
+                b'p' => internal_position = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
+                b'q' => internal_query = Some(field.value().to_owned()),
+                b'W' => where_ = Some(field.value().to_owned()),
+                b's' => schema = Some(field.value().to_owned()),
+                b't' => table = Some(field.value().to_owned()),
+                b'c' => column = Some(field.value().to_owned()),
+                b'd' => datatype = Some(field.value().to_owned()),
+                b'n' => constraint = Some(field.value().to_owned()),
+                b'F' => file = Some(field.value().to_owned()),
+                b'L' => line = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
+                b'R' => routine = Some(field.value().to_owned()),
+                _ => {},
+            }
+        }
+
         Ok(DbError {
-            severity: try!(map.remove(&b'S').ok_or(())),
-            code: SqlState::from_code(try!(map.remove(&b'C').ok_or(()))),
-            message: try!(map.remove(&b'M').ok_or(())),
-            detail: map.remove(&b'D'),
-            hint: map.remove(&b'H'),
-            position: match map.remove(&b'P') {
-                Some(pos) => Some(ErrorPosition::Normal(try!(pos.parse().map_err(|_| ())))),
+            severity: try!(severity.ok_or_else(|| ::bad_response())),
+            code: try!(code.ok_or_else(|| ::bad_response())),
+            message: try!(message.ok_or_else(|| ::bad_response())),
+            detail: detail,
+            hint: hint,
+            position: match normal_position {
+                Some(position) => Some(ErrorPosition::Normal(position)),
                 None => {
-                    match map.remove(&b'p') {
-                        Some(pos) => {
+                    match internal_position {
+                        Some(position) => {
                             Some(ErrorPosition::Internal {
-                                position: try!(pos.parse().map_err(|_| ())),
-                                query: try!(map.remove(&b'q').ok_or(())),
+                                position: position,
+                                query: try!(internal_query.ok_or_else(|| ::bad_response())),
                             })
                         }
                         None => None,
                     }
                 }
             },
-            where_: map.remove(&b'W'),
-            schema: map.remove(&b's'),
-            table: map.remove(&b't'),
-            column: map.remove(&b'c'),
-            datatype: map.remove(&b'd'),
-            constraint: map.remove(&b'n'),
-            file: map.remove(&b'F'),
-            line: map.remove(&b'L').and_then(|l| l.parse().ok()),
-            routine: map.remove(&b'R'),
+            where_: where_,
+            schema: schema,
+            table: table,
+            column: column,
+            datatype: datatype,
+            constraint: constraint,
+            file: file,
+            line: line,
+            routine: routine,
             _p: (),
         })
     }
 
-    fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError> {
+    fn new_connect<T>(fields: &mut ErrorFields) -> result::Result<T, ConnectError> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(ConnectError::Db(Box::new(err))),
-            Err(()) => Err(ConnectError::Io(::bad_response())),
+            Err(e) => Err(ConnectError::Io(e)),
         }
     }
 
-    fn new<T>(fields: Vec<(u8, String)>) -> Result<T> {
+    fn new<T>(fields: &mut ErrorFields) -> Result<T> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(Error::Db(Box::new(err))),
-            Err(()) => Err(Error::Io(::bad_response())),
+            Err(e) => Err(Error::Io(e)),
         }
     }
 }

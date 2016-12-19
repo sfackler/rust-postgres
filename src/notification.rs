@@ -113,11 +113,11 @@ impl<'a> FallibleIterator for Iter<'a> {
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
+            Ok(Some(backend::Message::NotificationResponse(body))) => {
                 Ok(Some(Notification {
-                    process_id: process_id,
-                    channel: channel,
-                    payload: payload,
+                    process_id: body.process_id(),
+                    channel: try!(body.channel()).to_owned(),
+                    payload: try!(body.message()).to_owned(),
                 }))
             }
             Ok(None) => Ok(None),
@@ -152,11 +152,11 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
         }
 
         match conn.read_message_with_notification() {
-            Ok(backend::Message::NotificationResponse { process_id, channel, payload }) => {
+            Ok(backend::Message::NotificationResponse(body)) => {
                 Ok(Some(Notification {
-                    process_id: process_id,
-                    channel: channel,
-                    payload: payload,
+                    process_id: body.process_id(),
+                    channel: try!(body.channel()).to_owned(),
+                    payload: try!(body.message()).to_owned(),
                 }))
             }
             Err(err) => Err(Error::Io(err)),
@@ -188,11 +188,11 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(backend::Message::NotificationResponse { process_id, channel, payload })) => {
+            Ok(Some(backend::Message::NotificationResponse(body))) => {
                 Ok(Some(Notification {
-                    process_id: process_id,
-                    channel: channel,
-                    payload: payload,
+                    process_id: body.process_id(),
+                    channel: try!(body.channel()).to_owned(),
+                    payload: try!(body.message()).to_owned(),
                 }))
             }
             Ok(None) => Ok(None),

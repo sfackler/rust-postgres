@@ -79,6 +79,7 @@ extern crate log;
 extern crate phf;
 extern crate postgres_protocol;
 
+use fallible_iterator::FallibleIterator;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
@@ -88,7 +89,7 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 use postgres_protocol::authentication;
-use postgres_protocol::message::backend::{self, RowDescriptionEntry};
+use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
@@ -307,12 +308,14 @@ impl InnerConnection {
 
         loop {
             match try!(conn.read_message()) {
-                backend::Message::BackendKeyData { process_id, secret_key } => {
-                    conn.cancel_data.process_id = process_id;
-                    conn.cancel_data.secret_key = secret_key;
+                backend::Message::BackendKeyData(body) => {
+                    conn.cancel_data.process_id = body.process_id();
+                    conn.cancel_data.secret_key = body.secret_key();
                 }
-                backend::Message::ReadyForQuery { .. } => break,
-                backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
+                backend::Message::ReadyForQuery(_) => break,
+                backend::Message::ErrorResponse(body) => {
+                    return DbError::new_connect(&mut body.fields())
+                }
                 _ => return Err(ConnectError::Io(bad_response())),
             }
         }
@@ -320,17 +323,18 @@ impl InnerConnection {
         Ok(conn)
     }
 
-    fn read_message_with_notification(&mut self) -> io::Result<backend::Message> {
+    fn read_message_with_notification(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
-                backend::Message::NoticeResponse { fields } => {
-                    if let Ok(err) = DbError::new_raw(fields) {
+                backend::Message::NoticeResponse(body) => {
+                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                backend::Message::ParameterStatus { parameter, value } => {
-                    self.parameters.insert(parameter, value);
+                backend::Message::ParameterStatus(body) => {
+                    self.parameters.insert(try!(body.name()).to_owned(),
+                                           try!(body.value()).to_owned());
                 }
                 val => return Ok(val),
             }
@@ -339,17 +343,18 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> io::Result<Option<backend::Message>> {
+                                              -> io::Result<Option<backend::Message<Vec<u8>>>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
-                Some(backend::Message::NoticeResponse { fields }) => {
-                    if let Ok(err) = DbError::new_raw(fields) {
+                Some(backend::Message::NoticeResponse(body)) => {
+                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(backend::Message::ParameterStatus { parameter, value }) => {
-                    self.parameters.insert(parameter, value);
+                Some(backend::Message::ParameterStatus(body)) => {
+                    self.parameters.insert(try!(body.name()).to_owned(),
+                                           try!(body.value()).to_owned());
                 }
                 val => return Ok(val),
             }
@@ -357,31 +362,32 @@ impl InnerConnection {
     }
 
     fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> io::Result<Option<backend::Message>> {
+                                                  -> io::Result<Option<backend::Message<Vec<u8>>>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
-                Some(backend::Message::NoticeResponse { fields }) => {
-                    if let Ok(err) = DbError::new_raw(fields) {
+                Some(backend::Message::NoticeResponse(body)) => {
+                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
-                Some(backend::Message::ParameterStatus { parameter, value }) => {
-                    self.parameters.insert(parameter, value);
+                Some(backend::Message::ParameterStatus(body)) => {
+                    self.parameters.insert(try!(body.name()).to_owned(),
+                                           try!(body.value()).to_owned());
                 }
                 val => return Ok(val),
             }
         }
     }
 
-    fn read_message(&mut self) -> io::Result<backend::Message> {
+    fn read_message(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
         loop {
             match try!(self.read_message_with_notification()) {
-                backend::Message::NotificationResponse { process_id, channel, payload } => {
+                backend::Message::NotificationResponse(body) => {
                     self.notifications.push_back(Notification {
-                        process_id: process_id,
-                        channel: channel,
-                        payload: payload,
+                        process_id: body.process_id(),
+                        channel: try!(body.channel()).to_owned(),
+                        payload: try!(body.message()).to_owned(),
                     })
                 }
                 val => return Ok(val),
@@ -399,28 +405,30 @@ impl InnerConnection {
                 try!(self.stream.write_message(|buf| frontend::password_message(&pass, buf)));
                 try!(self.stream.flush());
             }
-            backend::Message::AuthenticationMD5Password { salt } => {
+            backend::Message::AuthenticationMd5Password(body) => {
                 let pass = try!(user.password.ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 }));
-                let output = authentication::md5_hash(user.user.as_bytes(), pass.as_bytes(), salt);
+                let output = authentication::md5_hash(user.user.as_bytes(),
+                                                      pass.as_bytes(),
+                                                      body.salt());
                 try!(self.stream.write_message(|buf| frontend::password_message(&output, buf)));
                 try!(self.stream.flush());
             }
             backend::Message::AuthenticationKerberosV5 |
-            backend::Message::AuthenticationSCMCredential |
-            backend::Message::AuthenticationGSS |
-            backend::Message::AuthenticationSSPI => {
+            backend::Message::AuthenticationScmCredential |
+            backend::Message::AuthenticationGss |
+            backend::Message::AuthenticationSspi => {
                 return Err(ConnectError::Io(io::Error::new(io::ErrorKind::Other,
                                                            "unsupported authentication")))
             }
-            backend::Message::ErrorResponse { fields } => return DbError::new_connect(fields),
+            backend::Message::ErrorResponse(body) => return DbError::new_connect(&mut body.fields()),
             _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
             backend::Message::AuthenticationOk => Ok(()),
-            backend::Message::ErrorResponse { fields } => DbError::new_connect(fields),
+            backend::Message::ErrorResponse(body) => DbError::new_connect(&mut body.fields()),
             _ => Err(ConnectError::Io(bad_response())),
         }
     }
@@ -439,35 +447,43 @@ impl InnerConnection {
 
         match try!(self.read_message()) {
             backend::Message::ParseComplete => {}
-            backend::Message::ErrorResponse { fields } => {
+            backend::Message::ErrorResponse(body) => {
                 try!(self.wait_for_ready());
-                return DbError::new(fields);
+                return DbError::new(&mut body.fields());
             }
             _ => bad_response!(self),
         }
 
         let raw_param_types = match try!(self.read_message()) {
-            backend::Message::ParameterDescription { types } => types,
+            backend::Message::ParameterDescription(body) => body,
             _ => bad_response!(self),
         };
 
         let raw_columns = match try!(self.read_message()) {
-            backend::Message::RowDescription { descriptions } => descriptions,
-            backend::Message::NoData => vec![],
+            backend::Message::RowDescription(body) => Some(body),
+            backend::Message::NoData => None,
             _ => bad_response!(self),
         };
 
         try!(self.wait_for_ready());
 
-        let mut param_types = vec![];
-        for oid in raw_param_types {
-            param_types.push(try!(self.get_type(oid)));
-        }
-
-        let mut columns = vec![];
-        for RowDescriptionEntry { name, type_oid, .. } in raw_columns {
-            columns.push(Column::new(name, try!(self.get_type(type_oid))));
-        }
+        let param_types = try!(raw_param_types
+            .parameters()
+            .map_err(Into::into)
+            .and_then(|oid| self.get_type(oid))
+            .collect());
+        
+        let columns = match raw_columns {
+            Some(body) => {
+                try!(body.fields()
+                    .and_then(|field| {
+                        Ok(Column::new(field.name().to_owned(),
+                                       try!(self.get_type(field.type_oid()))))
+                    })
+                    .collect())
+            }
+            None => vec![],
+        };
 
         Ok((param_types, columns))
     }
@@ -477,7 +493,7 @@ impl InnerConnection {
         loop {
             match try!(self.read_message()) {
                 backend::Message::EmptyQueryResponse |
-                backend::Message::CommandComplete { .. } => {
+                backend::Message::CommandComplete(_) => {
                     more_rows = false;
                     break;
                 }
@@ -485,12 +501,15 @@ impl InnerConnection {
                     more_rows = true;
                     break;
                 }
-                backend::Message::DataRow { row } => buf.push_back(row),
-                backend::Message::ErrorResponse { fields } => {
-                    try!(self.wait_for_ready());
-                    return DbError::new(fields);
+                backend::Message::DataRow(body) => {
+                    let row = try!(body.values().map(|v| v.map(ToOwned::to_owned)).collect());
+                    buf.push_back(row);
                 }
-                backend::Message::CopyInResponse { .. } => {
+                backend::Message::ErrorResponse(body) => {
+                    try!(self.wait_for_ready());
+                    return DbError::new(&mut body.fields());
+                }
+                backend::Message::CopyInResponse(_) => {
                     try!(self.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
@@ -498,9 +517,9 @@ impl InnerConnection {
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
-                backend::Message::CopyOutResponse { .. } => {
+                backend::Message::CopyOutResponse(_) => {
                     loop {
-                        if let backend::Message::ReadyForQuery { .. } = try!(self.read_message()) {
+                        if let backend::Message::ReadyForQuery(_) = try!(self.read_message()) {
                             break;
                         }
                     }
@@ -563,9 +582,9 @@ impl InnerConnection {
 
         match try!(self.read_message()) {
             backend::Message::BindComplete => Ok(()),
-            backend::Message::ErrorResponse { fields } => {
+            backend::Message::ErrorResponse(body) => {
                 try!(self.wait_for_ready());
-                DbError::new(fields)
+                DbError::new(&mut body.fields())
             }
             _ => {
                 self.desynchronized = true;
@@ -618,7 +637,7 @@ impl InnerConnection {
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             backend::Message::CloseComplete => Ok(()),
-            backend::Message::ErrorResponse { fields } => DbError::new(fields),
+            backend::Message::ErrorResponse(body) => DbError::new(&mut body.fields()),
             _ => bad_response!(self),
         };
         try!(self.wait_for_ready());
@@ -813,7 +832,7 @@ impl InnerConnection {
     #[allow(needless_return)]
     fn wait_for_ready(&mut self) -> Result<()> {
         match try!(self.read_message()) {
-            backend::Message::ReadyForQuery { .. } => Ok(()),
+            backend::Message::ReadyForQuery(_) => Ok(()),
             _ => bad_response!(self),
         }
     }
@@ -827,13 +846,14 @@ impl InnerConnection {
         let mut result = vec![];
         loop {
             match try!(self.read_message()) {
-                backend::Message::ReadyForQuery { .. } => break,
-                backend::Message::DataRow { row } => {
-                    result.push(row.into_iter()
-                        .map(|opt| opt.map(|b| String::from_utf8_lossy(&b).into_owned()))
+                backend::Message::ReadyForQuery(_) => break,
+                backend::Message::DataRow(body) => {
+                    let row = try!(body.values()
+                        .map(|v| v.map(|v| String::from_utf8_lossy(v).into_owned()))
                         .collect());
+                    result.push(row);
                 }
-                backend::Message::CopyInResponse { .. } => {
+                backend::Message::CopyInResponse(_) => {
                     try!(self.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     }));
@@ -841,9 +861,9 @@ impl InnerConnection {
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
                     try!(self.stream.flush());
                 }
-                backend::Message::ErrorResponse { fields } => {
+                backend::Message::ErrorResponse(body) => {
                     try!(self.wait_for_ready());
-                    return DbError::new(fields);
+                    return DbError::new(&mut body.fields());
                 }
                 _ => {}
             }
@@ -1314,9 +1334,9 @@ trait OtherNew {
 }
 
 trait DbErrorNew {
-    fn new_raw(fields: Vec<(u8, String)>) -> result::Result<DbError, ()>;
-    fn new_connect<T>(fields: Vec<(u8, String)>) -> result::Result<T, ConnectError>;
-    fn new<T>(fields: Vec<(u8, String)>) -> Result<T>;
+    fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError>;
+    fn new_connect<T>(fields: &mut ErrorFields) -> result::Result<T, ConnectError>;
+    fn new<T>(fields: &mut ErrorFields) -> Result<T>;
 }
 
 trait RowsNew<'a> {
