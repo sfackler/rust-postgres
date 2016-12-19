@@ -240,6 +240,7 @@ impl fmt::Debug for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("DbError")
             .field("severity", &self.severity)
+            .field("parsed_severity", &self.parsed_severity)
             .field("code", &self.code)
             .field("message", &self.message)
             .field("detail", &self.detail)
