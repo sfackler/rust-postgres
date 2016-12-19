@@ -13,6 +13,59 @@ use {Result, DbErrorNew};
 
 mod sqlstate;
 
+/// The severity of a Postgres error or notice.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Severity {
+    /// PANIC
+    Panic,
+    /// FATAL
+    Fatal,
+    /// ERROR
+    Error,
+    /// WARNING
+    Warning,
+    /// NOTICE
+    Notice,
+    /// DEBUG
+    Debug,
+    /// INFO
+    Info,
+    /// LOG
+    Log,
+}
+
+impl fmt::Display for Severity {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let s = match *self {
+            Severity::Panic => "PANIC",
+            Severity::Fatal => "FATAL",
+            Severity::Error => "ERROR",
+            Severity::Warning => "WARNING",
+            Severity::Notice => "NOTICE",
+            Severity::Debug => "DEBUG",
+            Severity::Info => "INFO",
+            Severity::Log => "LOG",
+        };
+        fmt.write_str(s)
+    }
+}
+
+impl Severity {
+    fn from_str(s: &str) -> Option<Severity> {
+        match s {
+            "PANIC" => Some(Severity::Panic),
+            "FATAL" => Some(Severity::Fatal),
+            "ERROR" => Some(Severity::Error),
+            "WARNING" => Some(Severity::Warning),
+            "NOTICE" => Some(Severity::Notice),
+            "DEBUG" => Some(Severity::Debug),
+            "INFO" => Some(Severity::Info),
+            "LOG" => Some(Severity::Log),
+            _ => None,
+        }
+    }
+}
+
 /// A Postgres error or notice.
 #[derive(Clone, PartialEq, Eq)]
 pub struct DbError {
@@ -20,6 +73,9 @@ pub struct DbError {
     /// or WARNING, NOTICE, DEBUG, INFO, or LOG (in a notice message), or a
     /// localized translation of one of these.
     pub severity: String,
+
+    /// A parsed, nonlocalized version of `severity`. (PostgreSQL 9.6+)
+    pub parsed_severity: Option<Severity>,
 
     /// The SQLSTATE code for the error.
     pub code: SqlState,
@@ -88,6 +144,7 @@ pub struct DbError {
 impl DbErrorNew for DbError {
     fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError> {
         let mut severity = None;
+        let mut parsed_severity = None;
         let mut code = None;
         let mut message = None;
         let mut detail = None;
@@ -124,12 +181,14 @@ impl DbErrorNew for DbError {
                 b'F' => file = Some(field.value().to_owned()),
                 b'L' => line = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
                 b'R' => routine = Some(field.value().to_owned()),
+                b'V' => parsed_severity = Some(try!(Severity::from_str(field.value()).ok_or_else(::bad_response))),
                 _ => {},
             }
         }
 
         Ok(DbError {
             severity: try!(severity.ok_or_else(|| ::bad_response())),
+            parsed_severity: parsed_severity,
             code: try!(code.ok_or_else(|| ::bad_response())),
             message: try!(message.ok_or_else(|| ::bad_response())),
             detail: detail,
