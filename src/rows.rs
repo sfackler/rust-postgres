@@ -3,14 +3,13 @@
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::frontend;
 use std::ascii::AsciiExt;
-use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
+use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew, RowData};
 use transaction::Transaction;
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
@@ -35,18 +34,18 @@ impl<'a, T> Deref for MaybeOwned<'a, T> {
 /// The resulting rows of a query.
 pub struct Rows<'stmt> {
     stmt: MaybeOwned<'stmt, Statement<'stmt>>,
-    data: Vec<Vec<Option<Vec<u8>>>>,
+    data: Vec<RowData>,
 }
 
 impl<'a> RowsNew<'a> for Rows<'a> {
-    fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
+    fn new(stmt: &'a Statement<'a>, data: Vec<RowData>) -> Rows<'a> {
         Rows {
             stmt: MaybeOwned::Borrowed(stmt),
             data: data,
         }
     }
 
-    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a> {
+    fn new_owned(stmt: Statement<'a>, data: Vec<RowData>) -> Rows<'a> {
         Rows {
             stmt: MaybeOwned::Owned(stmt),
             data: data,
@@ -112,7 +111,7 @@ impl<'a> IntoIterator for &'a Rows<'a> {
 /// An iterator over `Row`s.
 pub struct Iter<'a> {
     stmt: &'a Statement<'a>,
-    iter: slice::Iter<'a, Vec<Option<Vec<u8>>>>,
+    iter: slice::Iter<'a, RowData>,
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -148,7 +147,7 @@ impl<'a> ExactSizeIterator for Iter<'a> {}
 /// A single result row of a query.
 pub struct Row<'a> {
     stmt: &'a Statement<'a>,
-    data: MaybeOwned<'a, Vec<Option<Vec<u8>>>>,
+    data: MaybeOwned<'a, RowData>,
 }
 
 impl<'a> fmt::Debug for Row<'a> {
@@ -238,7 +237,7 @@ impl<'a> Row<'a> {
         }
         let conn = self.stmt.conn().0.borrow();
         let value = FromSql::from_sql_nullable(ty,
-                                               self.data[idx].as_ref().map(|r| &**r),
+                                               self.data.get(idx),
                                                &SessionInfo::new(&conn.parameters));
         Some(value.map_err(Error::Conversion))
     }
@@ -252,7 +251,7 @@ impl<'a> Row<'a> {
         where I: RowIndex + fmt::Debug
     {
         match idx.idx(self.stmt) {
-            Some(idx) => self.data[idx].as_ref().map(|e| &**e),
+            Some(idx) => self.data.get(idx),
             None => panic!("invalid index {:?}", idx),
         }
     }
@@ -293,7 +292,7 @@ impl<'a> RowIndex for &'a str {
 /// A lazily-loaded iterator over the resulting rows of a query.
 pub struct LazyRows<'trans, 'stmt> {
     stmt: &'stmt Statement<'stmt>,
-    data: VecDeque<Vec<Option<Vec<u8>>>>,
+    data: VecDeque<RowData>,
     name: String,
     row_limit: i32,
     more_rows: bool,
@@ -303,7 +302,7 @@ pub struct LazyRows<'trans, 'stmt> {
 
 impl<'trans, 'stmt> LazyRowsNew<'trans, 'stmt> for LazyRows<'trans, 'stmt> {
     fn new(stmt: &'stmt Statement<'stmt>,
-           data: VecDeque<Vec<Option<Vec<u8>>>>,
+           data: VecDeque<RowData>,
            name: String,
            row_limit: i32,
            more_rows: bool,
@@ -354,7 +353,7 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
         try!(conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf)));
         try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
         try!(conn.stream.flush());
-        conn.read_rows(&mut self.data).map(|more_rows| self.more_rows = more_rows)
+        conn.read_rows(|row| self.data.push_back(row)).map(|more_rows| self.more_rows = more_rows)
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.

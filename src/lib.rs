@@ -85,6 +85,7 @@ use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::io;
 use std::mem;
+use std::ops::Range;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -488,7 +489,9 @@ impl InnerConnection {
         Ok((param_types, columns))
     }
 
-    fn read_rows(&mut self, buf: &mut VecDeque<Vec<Option<Vec<u8>>>>) -> Result<bool> {
+    fn read_rows<F>(&mut self, mut consumer: F) -> Result<bool>
+        where F: FnMut(RowData)
+    {
         let more_rows;
         loop {
             match try!(self.read_message()) {
@@ -502,8 +505,12 @@ impl InnerConnection {
                     break;
                 }
                 backend::Message::DataRow(body) => {
-                    let row = try!(body.values().map(|v| v.map(ToOwned::to_owned)).collect());
-                    buf.push_back(row);
+                    let mut row = RowData::new();
+                    let mut it = body.values();
+                    while let Some(value) = try!(it.next()) {
+                        row.push(value);
+                    }
+                    consumer(row);
                 }
                 backend::Message::ErrorResponse(body) => {
                     try!(self.wait_for_ready());
@@ -694,12 +701,11 @@ impl InnerConnection {
     fn read_type(&mut self, oid: Oid) -> Result<Other> {
         try!(self.setup_typeinfo_query());
         try!(self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::Oid], &[&oid]));
-        let mut rows = VecDeque::new();
-        try!(self.read_rows(&mut rows));
-        let row = rows.pop_front();
+        let mut row = None;
+        try!(self.read_rows(|r| row = Some(r)));
 
         let get_raw = |i: usize| {
-            row.as_ref().and_then(|r| r.get(i)).and_then(|r| r.as_ref().map(|r| &**r))
+            row.as_ref().and_then(|r| r.get(i))
         };
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
@@ -770,14 +776,13 @@ impl InnerConnection {
     fn read_enum_variants(&mut self, oid: Oid) -> Result<Vec<String>> {
         try!(self.setup_typeinfo_enum_query());
         try!(self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::Oid], &[&oid]));
-        let mut rows = VecDeque::new();
-        try!(self.read_rows(&mut rows));
+        let mut rows = vec![];
+        try!(self.read_rows(|row| rows.push(row)));
 
         let ctx = SessionInfo::new(&self.parameters);
         let mut variants = vec![];
         for row in rows {
-            let raw = row.get(0).and_then(|r| r.as_ref().map(|r| &**r));
-            variants.push(try!(String::from_sql_nullable(&Type::Name, raw, &ctx)
+            variants.push(try!(String::from_sql_nullable(&Type::Name, row.get(0), &ctx)
                 .map_err(Error::Conversion)));
         }
 
@@ -804,17 +809,16 @@ impl InnerConnection {
     fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
         try!(self.setup_typeinfo_composite_query());
         try!(self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[Type::Oid], &[&relid]));
-        let mut rows = VecDeque::new();
-        try!(self.read_rows(&mut rows));
+        let mut rows = vec![];
+        try!(self.read_rows(|row| rows.push(row)));
 
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let get_raw = |i: usize| row.get(i).and_then(|r| r.as_ref().map(|r| &**r));
                 let ctx = SessionInfo::new(&self.parameters);
-                let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0), &ctx)
+                let name = try!(String::from_sql_nullable(&Type::Name, row.get(0), &ctx)
                     .map_err(Error::Conversion));
-                let type_ = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(1), &ctx)
+                let type_ = try!(Oid::from_sql_nullable(&Type::Oid, row.get(1), &ctx)
                     .map_err(Error::Conversion));
                 (name, type_)
             };
@@ -1329,6 +1333,43 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 }
 
+struct RowData {
+    buf: Vec<u8>,
+    indices: Vec<Option<Range<usize>>>,
+}
+
+impl RowData {
+    fn new() -> RowData {
+        RowData {
+            buf: vec![],
+            indices: vec![],
+        }
+    }
+
+    fn push(&mut self, cell: Option<&[u8]>) {
+        let index = match cell {
+            Some(cell) => {
+                let base = self.buf.len();
+                self.buf.extend_from_slice(cell);
+                Some(base..self.buf.len())
+            }
+            None => None,
+        };
+        self.indices.push(index);
+    }
+
+    fn len(&self) -> usize {
+        self.indices.len()
+    }
+
+    fn get(&self, index: usize) -> Option<&[u8]> {
+        match &self.indices[index] {
+            &Some(ref range) => Some(&self.buf[range.clone()]),
+            &None => None,
+        }
+    }
+}
+
 trait OtherNew {
     fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
 }
@@ -1340,13 +1381,13 @@ trait DbErrorNew {
 }
 
 trait RowsNew<'a> {
-    fn new(stmt: &'a Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
-    fn new_owned(stmt: Statement<'a>, data: Vec<Vec<Option<Vec<u8>>>>) -> Rows<'a>;
+    fn new(stmt: &'a Statement<'a>, data: Vec<RowData>) -> Rows<'a>;
+    fn new_owned(stmt: Statement<'a>, data: Vec<RowData>) -> Rows<'a>;
 }
 
 trait LazyRowsNew<'trans, 'stmt> {
     fn new(stmt: &'stmt Statement<'stmt>,
-           data: VecDeque<Vec<Option<Vec<u8>>>>,
+           data: VecDeque<RowData>,
            name: String,
            row_limit: i32,
            more_rows: bool,

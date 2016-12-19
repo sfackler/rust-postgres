@@ -12,7 +12,7 @@ use error::{Error, DbError};
 use types::{SessionInfo, Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
-use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection,
+use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, RowData,
      SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
@@ -59,8 +59,9 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
 
     fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>> {
         check_desync!(self.conn);
-        self.inner_query("", 0, params)
-            .map(|(buf, _)| Rows::new_owned(self, buf.into_iter().collect()))
+        let mut rows = vec![];
+        try!(self.inner_query("", 0, params, |row| rows.push(row)));
+        Ok(Rows::new_owned(self, rows))
     }
 }
 
@@ -77,11 +78,14 @@ impl<'conn> Statement<'conn> {
     }
 
     #[allow(type_complexity)]
-    fn inner_query<'a>(&'a self,
-                       portal_name: &str,
-                       row_limit: i32,
-                       params: &[&ToSql])
-                       -> Result<(VecDeque<Vec<Option<Vec<u8>>>>, bool)> {
+    fn inner_query<F>(&self,
+                      portal_name: &str,
+                      row_limit: i32,
+                      params: &[&ToSql],
+                      acceptor: F)
+                      -> Result<bool>
+        where F: FnMut(RowData)
+    {
         let mut conn = self.conn.0.borrow_mut();
 
         try!(conn.raw_execute(&self.info.name,
@@ -90,9 +94,7 @@ impl<'conn> Statement<'conn> {
                               self.param_types(),
                               params));
 
-        let mut buf = VecDeque::new();
-        let more_rows = try!(conn.read_rows(&mut buf));
-        Ok((buf, more_rows))
+        conn.read_rows(acceptor)
     }
 
     /// Returns a slice containing the expected parameter types.
@@ -200,7 +202,9 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
         check_desync!(self.conn);
-        self.inner_query("", 0, params).map(|(buf, _)| Rows::new(self, buf.into_iter().collect()))
+        let mut rows = vec![];
+        try!(self.inner_query("", 0, params, |row| rows.push(row)));
+        Ok(Rows::new(self, rows))
     }
 
     /// Executes the prepared statement, returning a lazily loaded iterator
@@ -239,9 +243,12 @@ impl<'conn> Statement<'conn> {
         self.next_portal_id.set(id + 1);
         let portal_name = format!("{}p{}", self.info.name, id);
 
-        self.inner_query(&portal_name, row_limit, params).map(move |(data, more_rows)| {
-            LazyRows::new(self, data, portal_name, row_limit, more_rows, false, trans)
-        })
+        let mut rows = VecDeque::new();
+        let more_rows = try!(self.inner_query(&portal_name,
+                                              row_limit,
+                                              params,
+                                              |row| rows.push_back(row)));
+        Ok(LazyRows::new(self, rows, portal_name, row_limit, more_rows, false, trans))
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows
