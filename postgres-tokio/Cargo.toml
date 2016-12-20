@@ -1,0 +1,12 @@
+[package]
+name = "postgres-tokio"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]
+futures = "0.1.7"
+postgres-shared = { path = "../postgres-shared" }
+postgres-protocol = "0.2"
+tokio-core = "0.1"
+tokio-dns-unofficial = "0.1"
+tokio-uds = "0.1"
