@@ -1,0 +1,7 @@
+[package]
+name = "postgres-shared"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]
+hex = "0.2"
