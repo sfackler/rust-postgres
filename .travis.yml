@@ -9,5 +9,5 @@ addons:
 before_script:
 - "./.travis/setup.sh"
 script:
-- cargo test
-- cargo test --features "$(cargo read-manifest | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
+- cargo test --manifest-path=postgres/Cargo.toml
+- cargo test --manifest-path=postgres/Cargo.toml --features "$(cargo read-manifest --manifest-path=postgres/Cargo.toml | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
