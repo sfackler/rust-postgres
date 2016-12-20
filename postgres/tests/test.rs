@@ -670,7 +670,7 @@ fn test_require_ssl_conn() {
     use postgres::tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file(".travis/server.crt").unwrap();
+    builder.builder_mut().set_ca_file("../.travis/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              TlsMode::Require(&negotiator)));
@@ -684,7 +684,7 @@ fn test_prefer_ssl_conn() {
     use postgres::tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file(".travis/server.crt").unwrap();
+    builder.builder_mut().set_ca_file("../.travis/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect("postgres://postgres@localhost",
                                              TlsMode::Require(&negotiator)));
@@ -697,7 +697,7 @@ fn security_framework_ssl() {
     use postgres::tls::security_framework::SecurityFramework;
     use security_framework::certificate::SecCertificate;
 
-    let certificate = include_bytes!("../.travis/server.der");
+    let certificate = include_bytes!("../../.travis/server.der");
     let certificate = or_panic!(SecCertificate::from_der(certificate));
     let mut negotiator = SecurityFramework::new();
     negotiator.builder_mut().anchor_certificates(&[certificate]);
