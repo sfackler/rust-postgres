@@ -4,7 +4,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::mem;
 
-use url::Url;
+use params::url::Url;
 
 mod url;
 
