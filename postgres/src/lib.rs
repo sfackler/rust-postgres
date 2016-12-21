@@ -329,7 +329,7 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 backend::Message::NoticeResponse(body) => {
-                    if let Ok(err) = Err(err(&mut body.fields())) {
+                    if let Ok(err) = DbError::new(&mut body.fields()){
                         self.notice_handler.handle_notice(err);
                     }
                 }
