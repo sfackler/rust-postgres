@@ -78,7 +78,7 @@ extern crate hex;
 extern crate log;
 extern crate postgres_protocol;
 #[macro_use]
-#[macro_export]
+#[macro_reexport]
 extern crate postgres_shared;
 
 use fallible_iterator::FallibleIterator;
