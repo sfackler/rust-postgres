@@ -79,19 +79,19 @@ extern crate log;
 extern crate postgres_protocol;
 extern crate postgres_shared;
 
-use fallible_iterator::{FallibleIterator, FromFallibleIterator};
+use fallible_iterator::FallibleIterator;
 use std::cell::{Cell, RefCell};
 use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::io;
 use std::mem;
-use std::ops::Range;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 use postgres_protocol::authentication;
-use postgres_protocol::message::backend;
+use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
+use postgres_shared::RowData;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use tls::TlsHandshake;
@@ -103,15 +103,13 @@ use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
 
-#[doc(inline)]
-pub use postgres_shared::error;
-
 #[macro_use]
 mod macros;
 
 mod feature_check;
 mod priv_io;
 mod url;
+pub mod error;
 pub mod tls;
 pub mod notification;
 pub mod params;
@@ -317,7 +315,7 @@ impl InnerConnection {
                 }
                 backend::Message::ReadyForQuery(_) => break,
                 backend::Message::ErrorResponse(body) => {
-                    return DbError::new_connect(&mut body.fields())
+                    return Err(connect_err(&mut body.fields()));
                 }
                 _ => return Err(ConnectError::Io(bad_response())),
             }
@@ -331,7 +329,7 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 backend::Message::NoticeResponse(body) => {
-                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
+                    if let Ok(err) = Err(err(&mut body.fields())) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
@@ -351,7 +349,7 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
                 Some(backend::Message::NoticeResponse(body)) => {
-                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
+                    if let Ok(err) = Err(err(&mut body.fields())) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
@@ -370,7 +368,7 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
                 Some(backend::Message::NoticeResponse(body)) => {
-                    if let Ok(err) = DbError::new_raw(&mut body.fields()) {
+                    if let Ok(err) = Err(err(&mut body.fields())) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
@@ -425,13 +423,13 @@ impl InnerConnection {
                 return Err(ConnectError::Io(io::Error::new(io::ErrorKind::Other,
                                                            "unsupported authentication")))
             }
-            backend::Message::ErrorResponse(body) => return DbError::new_connect(&mut body.fields()),
+            backend::Message::ErrorResponse(body) => return Err(connect_err(&mut body.fields())),
             _ => return Err(ConnectError::Io(bad_response())),
         }
 
         match try!(self.read_message()) {
             backend::Message::AuthenticationOk => Ok(()),
-            backend::Message::ErrorResponse(body) => DbError::new_connect(&mut body.fields()),
+            backend::Message::ErrorResponse(body) => Err(connect_err(&mut body.fields())),
             _ => Err(ConnectError::Io(bad_response())),
         }
     }
@@ -452,7 +450,7 @@ impl InnerConnection {
             backend::Message::ParseComplete => {}
             backend::Message::ErrorResponse(body) => {
                 try!(self.wait_for_ready());
-                return DbError::new(&mut body.fields());
+                return Err(err(&mut body.fields()));
             }
             _ => bad_response!(self),
         }
@@ -509,7 +507,7 @@ impl InnerConnection {
                 backend::Message::DataRow(body) => consumer(try!(body.values().collect())),
                 backend::Message::ErrorResponse(body) => {
                     try!(self.wait_for_ready());
-                    return DbError::new(&mut body.fields());
+                    return Err(err(&mut body.fields()));
                 }
                 backend::Message::CopyInResponse(_) => {
                     try!(self.stream.write_message(|buf| {
@@ -586,7 +584,7 @@ impl InnerConnection {
             backend::Message::BindComplete => Ok(()),
             backend::Message::ErrorResponse(body) => {
                 try!(self.wait_for_ready());
-                DbError::new(&mut body.fields())
+                Err(err(&mut body.fields()))
             }
             _ => {
                 self.desynchronized = true;
@@ -639,7 +637,7 @@ impl InnerConnection {
         try!(self.stream.flush());
         let resp = match try!(self.read_message()) {
             backend::Message::CloseComplete => Ok(()),
-            backend::Message::ErrorResponse(body) => DbError::new(&mut body.fields()),
+            backend::Message::ErrorResponse(body) => Err(err(&mut body.fields())),
             _ => bad_response!(self),
         };
         try!(self.wait_for_ready());
@@ -862,7 +860,7 @@ impl InnerConnection {
                 }
                 backend::Message::ErrorResponse(body) => {
                     try!(self.wait_for_ready());
-                    return DbError::new(&mut body.fields());
+                    return Err(err(&mut body.fields()));
                 }
                 _ => {}
             }
@@ -1328,46 +1326,17 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 }
 
-struct RowData {
-    buf: Vec<u8>,
-    indices: Vec<Option<Range<usize>>>,
-}
-
-impl<'a> FromFallibleIterator<Option<&'a [u8]>> for RowData {
-    fn from_fallible_iterator<I>(mut it: I) -> result::Result<Self, I::Error>
-        where I: FallibleIterator<Item = Option<&'a [u8]>>
-    {
-        let mut row = RowData {
-            buf: vec![],
-            indices: Vec::with_capacity(it.size_hint().0),
-        };
-
-        while let Some(cell) = try!(it.next()) {
-            let index = match cell {
-                Some(cell) =>  {
-                    let base = row.buf.len();
-                    row.buf.extend_from_slice(cell);
-                    Some(base..row.buf.len())
-                }
-                None => None,
-            };
-            row.indices.push(index);
-        }
-
-        Ok(row)
+fn connect_err(fields: &mut ErrorFields) -> ConnectError {
+    match DbError::new(fields) {
+        Ok(err) => ConnectError::Db(Box::new(err)),
+        Err(err) => ConnectError::Io(err),
     }
 }
 
-impl RowData {
-    fn len(&self) -> usize {
-        self.indices.len()
-    }
-
-    fn get(&self, index: usize) -> Option<&[u8]> {
-        match &self.indices[index] {
-            &Some(ref range) => Some(&self.buf[range.clone()]),
-            &None => None,
-        }
+fn err(fields: &mut ErrorFields) -> Error {
+    match DbError::new(fields) {
+        Ok(err) => Error::Db(Box::new(err)),
+        Err(err) => Error::Io(err),
     }
 }
 

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 
 [dependencies]
+fallible-iterator = "0.1.3"
 futures = "0.1.7"
 postgres-shared = { path = "../postgres-shared" }
 postgres-protocol = "0.2"

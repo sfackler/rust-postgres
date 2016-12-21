@@ -2,6 +2,7 @@
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::frontend;
+use postgres_shared::RowData;
 use std::ascii::AsciiExt;
 use std::collections::VecDeque;
 use std::fmt;
@@ -9,7 +10,7 @@ use std::io;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew, RowData};
+use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
 use transaction::Transaction;
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};

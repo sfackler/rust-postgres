@@ -1,29 +1,31 @@
+extern crate fallible_iterator;
+extern crate futures;
 extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
 extern crate tokio_dns;
 extern crate tokio_uds;
 
-#[macro_use]
-extern crate futures;
-
+use fallible_iterator::FallibleIterator;
 use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
 use futures::future::Either;
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
+use postgres_protocol::message::backend::ErrorFields;
+use postgres_shared::RowData;
 use std::collections::HashMap;
+use std::fmt;
 use std::io;
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::error;
-#[doc(inline)]
 pub use postgres_shared::params;
 
-use error::{ConnectError, DbError};
+use error::{ConnectError, Error, DbError};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
 
+pub mod error;
 mod stream;
 
 #[cfg(test)]
@@ -98,6 +100,14 @@ impl Sink for InnerConnection {
 }
 
 pub struct Connection(InnerConnection);
+
+// FIXME fill out
+impl fmt::Debug for Connection {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Connection")
+            .finish()
+    }
+}
 
 impl Connection {
     pub fn connect<T>(params: T, handle: &Handle) -> BoxFuture<Connection, ConnectError>
@@ -184,9 +194,7 @@ impl Connection {
                             }
                         }
                     }
-                    backend::Message::ErrorResponse(body) => {
-                        DbError::new_connect(&mut body.fields())
-                    }
+                    backend::Message::ErrorResponse(body) => Err(connect_err(&mut body.fields())),
                     _ => Err(bad_message()),
                 };
 
@@ -209,9 +217,7 @@ impl Connection {
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::AuthenticationOk => Ok(Connection(s)),
-                    backend::Message::ErrorResponse(body) => {
-                        DbError::new_connect(&mut body.fields())
-                    }
+                    backend::Message::ErrorResponse(body) => Err(connect_err(&mut body.fields())),
                     _ => Err(bad_message()),
                 }
             })
@@ -230,7 +236,7 @@ impl Connection {
                     }
                     backend::Message::ReadyForQuery(_) => Either::B(Ok(Connection(s)).into_future()),
                     backend::Message::ErrorResponse(body) => {
-                        Either::B(DbError::new_connect(&mut body.fields()).into_future())
+                        Either::B(Err(connect_err(&mut body.fields())).into_future())
                     }
                     _ => Either::B(Err(bad_message()).into_future()),
                 }
@@ -238,8 +244,110 @@ impl Connection {
             .boxed()
     }
 
+    fn simple_query(self, query: &str) -> BoxFuture<(Vec<RowData>, Connection), Error> {
+        let mut buf = vec![];
+        frontend::query(query, &mut buf)
+            .map(|()| buf)
+            .into_future()
+            .and_then(move |buf| self.0.send(buf))
+            .and_then(|s| s.flush())
+            .map_err(Error::Io)
+            .and_then(|s| Connection(s).simple_read_rows(vec![]))
+            .boxed()
+    }
+
+    // This has its own read_rows since it will need to handle multiple query completions
+    fn simple_read_rows(self, mut rows: Vec<RowData>) -> BoxFuture<(Vec<RowData>, Connection), Error> {
+        self.0.read()
+            .map_err(|e| Error::Io(e.0))
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::ReadyForQuery(_) => {
+                        Either::A(Ok((rows, Connection(s))).into_future())
+                    }
+                    backend::Message::DataRow(body) => {
+                        match body.values().collect() {
+                            Ok(row) => {
+                                rows.push(row);
+                                Either::B(Connection(s).simple_read_rows(rows))
+                            }
+                            Err(e) => Either::A(Err(Error::Io(e)).into_future()),
+                        }
+                    }
+                    backend::Message::EmptyQueryResponse |
+                    backend::Message::CommandComplete(_) => {
+                        Either::B(Connection(s).simple_read_rows(rows))
+                    }
+                    backend::Message::ErrorResponse(body) => {
+                        Either::A(Err(err(&mut body.fields(), Connection(s))).into_future())
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .boxed()
+    }
+
+    fn read_rows(self, mut rows: Vec<RowData>) -> BoxFuture<(Vec<RowData>, Connection), Error> {
+        self.0.read()
+            .map_err(|e| Error::Io(e.0))
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::EmptyQueryResponse |
+                    backend::Message::CommandComplete(_) => {
+                        Either::B(Connection(s).ready(rows))
+                    },
+                    backend::Message::DataRow(body) => {
+                        match body.values().collect() {
+                            Ok(row) => {
+                                rows.push(row);
+                                Either::B(Connection(s).read_rows(rows))
+                            }
+                            Err(e) => Either::A(Err(Error::Io(e)).into_future()),
+                        }
+                    }
+                    backend::Message::ErrorResponse(body) => {
+                        Either::A(Err(err(&mut body.fields(), Connection(s))).into_future())
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .boxed()
+    }
+
+    fn ready<T>(self, t: T) -> BoxFuture<(T, Connection), Error>
+        where T: 'static + Send
+    {
+        self.0.read()
+            .map_err(|e| Error::Io(e.0))
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::ReadyForQuery(_) => Ok((t, Connection(s))),
+                    _ => Err(bad_message())
+                }
+            })
+            .boxed()
+    }
+
+    pub fn batch_execute(self, query: &str) -> BoxFuture<Connection, Error> {
+        self.simple_query(query).map(|r| r.1).boxed()
+    }
+
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data
+    }
+}
+
+fn connect_err(fields: &mut ErrorFields) -> ConnectError {
+    match DbError::new(fields) {
+        Ok(err) => ConnectError::Db(Box::new(err)),
+        Err(err) => ConnectError::Io(err),
+    }
+}
+
+fn err(fields: &mut ErrorFields, conn: Connection) -> Error {
+    match DbError::new(fields) {
+        Ok(err) => Error::Db(Box::new(err), conn),
+        Err(err) => Error::Io(err),
     }
 }
 

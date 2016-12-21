@@ -7,12 +7,13 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::sync::Arc;
 use postgres_protocol::message::{backend, frontend};
+use postgres_shared::RowData;
 
-use error::{Error, DbError};
+use error::Error;
 use types::{SessionInfo, Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
-use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, RowData,
+use {bad_response, err, Connection, StatementInternals, Result, RowsNew, InnerConnection,
      SessionInfoNew, LazyRowsNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
@@ -138,7 +139,7 @@ impl<'conn> Statement<'conn> {
                 backend::Message::DataRow(_) => {}
                 backend::Message::ErrorResponse(body) => {
                     try!(conn.wait_for_ready());
-                    return DbError::new(&mut body.fields());
+                    return Err(err(&mut body.fields()));
                 }
                 backend::Message::CommandComplete(body) => {
                     num = parse_update_count(try!(body.tag()));
@@ -162,7 +163,7 @@ impl<'conn> Statement<'conn> {
                             backend::Message::CopyDone => break,
                             backend::Message::ErrorResponse(body) => {
                                 try!(conn.wait_for_ready());
-                                return DbError::new(&mut body.fields());
+                                return Err(err(&mut body.fields()));
                             }
                             _ => {}
                         }
@@ -286,7 +287,7 @@ impl<'conn> Statement<'conn> {
             }
             backend::Message::ErrorResponse(body) => {
                 try!(conn.wait_for_ready());
-                return DbError::new(&mut body.fields());
+                return Err(err(&mut body.fields()));
             }
             _ => {
                 loop {
@@ -347,7 +348,7 @@ impl<'conn> Statement<'conn> {
             backend::Message::CommandComplete(body) => parse_update_count(try!(body.tag())),
             backend::Message::ErrorResponse(body) => {
                 try!(info.conn.wait_for_ready());
-                return DbError::new(&mut body.fields());
+                return Err(err(&mut body.fields()));
             }
             _ => {
                 info.conn.desynchronized = true;
@@ -415,7 +416,7 @@ impl<'conn> Statement<'conn> {
             }
             backend::Message::ErrorResponse(body) => {
                 try!(conn.wait_for_ready());
-                return DbError::new(&mut body.fields());
+                return Err(err(&mut body.fields()));
             }
             _ => {
                 loop {
@@ -462,7 +463,7 @@ impl<'conn> Statement<'conn> {
                     loop {
                         if let backend::Message::ReadyForQuery(_) =
                                 try!(info.conn.read_message()) {
-                            return DbError::new(&mut body.fields());
+                            return Err(err(&mut body.fields()));
                         }
                     }
                 }
