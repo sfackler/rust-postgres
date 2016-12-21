@@ -77,6 +77,8 @@ extern crate hex;
 #[macro_use]
 extern crate log;
 extern crate postgres_protocol;
+#[macro_use]
+#[macro_export]
 extern crate postgres_shared;
 
 use fallible_iterator::FallibleIterator;
@@ -101,7 +103,7 @@ use priv_io::MessageStream;
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
+use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, ToSql, FromSql, Field};
 
 #[macro_use]
 mod macros;
@@ -1360,10 +1362,6 @@ trait LazyRowsNew<'trans, 'stmt> {
            -> LazyRows<'trans, 'stmt>;
 }
 
-trait SessionInfoNew<'a> {
-    fn new(params: &'a HashMap<String, String>) -> SessionInfo<'a>;
-}
-
 trait StatementInternals<'conn> {
     fn new(conn: &'conn Connection,
            info: Arc<StatementInfo>,
@@ -1382,14 +1380,6 @@ trait ColumnNew {
 
 trait NotificationsNew<'conn> {
     fn new(conn: &'conn Connection) -> Notifications<'conn>;
-}
-
-trait WrongTypeNew {
-    fn new(ty: Type) -> WrongType;
-}
-
-trait FieldNew {
-    fn new(name: String, type_: Type) -> Field;
 }
 
 trait TransactionInternals<'conn> {

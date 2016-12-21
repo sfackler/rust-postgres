@@ -14,7 +14,7 @@ use types::{SessionInfo, Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
 use {bad_response, err, Connection, StatementInternals, Result, RowsNew, InnerConnection,
-     SessionInfoNew, LazyRowsNew, ColumnNew, StatementInfo, TransactionInternals};
+     LazyRowsNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {

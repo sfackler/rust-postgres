@@ -21,17 +21,18 @@ name = "test"
 path = "tests/test.rs"
 
 [features]
-with-bit-vec = ["bit-vec"]
-with-chrono = ["chrono"]
-with-eui48 = ["eui48"]
+with-bit-vec = ["postgres-shared/with-bit-vec"]
+with-chrono = ["postgres-shared/with-chrono"]
+with-eui48 = ["postgres-shared/with-eui48"]
+with-serde_json = ["postgres-shared/with-serde_json"]
+with-time = ["postgres-shared/time"]
+with-uuid = ["postgres-shared/with-uuid"]
+
 with-openssl = ["openssl"]
 with-native-tls = ["native-tls"]
 with-rustc-serialize = ["rustc-serialize"]
 with-schannel = ["schannel"]
 with-security-framework = ["security-framework"]
-with-serde_json = ["serde_json"]
-with-time = ["time"]
-with-uuid = ["uuid"]
 
 no-logging = []
 
@@ -41,17 +42,12 @@ fallible-iterator = "0.1.3"
 hex = "0.2"
 log = "0.3"
 postgres-protocol = "0.2"
-bit-vec = { version = "0.4", optional = true }
-chrono = { version = "0.2.14", optional = true }
-eui48 = { version = "0.1", optional = true }
+
 openssl = { version = "0.9", optional = true }
 native-tls = { version = "0.1", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
 schannel = { version = "0.1", optional = true }
 security-framework = { version = "0.1.2", optional = true }
-serde_json = { version = ">= 0.6, < 0.9", optional = true }
-time = { version = "0.1.14", optional = true }
-uuid = { version = ">= 0.1, < 0.4", optional = true }
 
 postgres-shared = { path = "../postgres-shared" }
 

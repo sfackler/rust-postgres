@@ -1,5 +1,3 @@
-//! Traits dealing with Postgres data types
-
 use fallible_iterator::FallibleIterator;
 use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
@@ -13,7 +11,6 @@ pub use postgres_protocol::Oid;
 
 pub use self::type_gen::Type;
 pub use self::special::{Date, Timestamp};
-use {SessionInfoNew, OtherNew, WrongTypeNew, FieldNew};
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -88,8 +85,9 @@ pub struct SessionInfo<'a> {
     parameters: &'a HashMap<String, String>,
 }
 
-impl<'a> SessionInfoNew<'a> for SessionInfo<'a> {
-    fn new(parameters: &'a HashMap<String, String>) -> SessionInfo<'a> {
+impl<'a> SessionInfo<'a> {
+    #[doc(hidden)]
+    pub fn new(parameters: &'a HashMap<String, String>) -> SessionInfo<'a> {
         SessionInfo { parameters: parameters }
     }
 }
@@ -142,8 +140,9 @@ impl Field {
     }
 }
 
-impl FieldNew for Field {
-    fn new(name: String, type_: Type) -> Field {
+impl Field {
+    #[doc(hidden)]
+    pub fn new(name: String, type_: Type) -> Field {
         Field {
             name: name,
             type_: type_,
@@ -174,8 +173,9 @@ struct OtherInner {
     schema: String,
 }
 
-impl OtherNew for Other {
-    fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
+impl Other {
+    #[doc(hidden)]
+    pub fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
         Other(Arc::new(OtherInner {
             name: name,
             oid: oid,
@@ -243,8 +243,9 @@ impl Error for WrongType {
     }
 }
 
-impl WrongTypeNew for WrongType {
-    fn new(ty: Type) -> WrongType {
+impl WrongType {
+    #[doc(hidden)]
+    pub fn new(ty: Type) -> WrongType {
         WrongType(ty)
     }
 }

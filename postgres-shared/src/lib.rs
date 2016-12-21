@@ -10,6 +10,7 @@ use std::ops::Range;
 
 pub mod error;
 pub mod params;
+pub mod types;
 
 pub struct RowData {
     buf: Vec<u8>,

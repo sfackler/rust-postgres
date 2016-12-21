@@ -9,7 +9,7 @@ mod sqlstate;
 mod type_gen;
 
 fn main() {
-    let path = Path::new("..");
+    let path = Path::new("../postgres-shared/src");
     sqlstate::build(path);
     type_gen::build(path);
 }

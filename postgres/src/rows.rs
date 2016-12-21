@@ -10,7 +10,7 @@ use std::io;
 use std::ops::Deref;
 use std::slice;
 
-use {Result, SessionInfoNew, RowsNew, LazyRowsNew, StatementInternals, WrongTypeNew};
+use {Result, RowsNew, LazyRowsNew, StatementInternals};
 use transaction::Transaction;
 use types::{FromSql, SessionInfo, WrongType};
 use stmt::{Statement, Column};
