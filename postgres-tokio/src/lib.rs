@@ -324,13 +324,11 @@ impl Connection {
     fn ready_err<T>(self, body: ErrorResponseBody<Vec<u8>>) -> BoxFuture<T, Error>
         where T: 'static + Send
     {
-        self.ready(DbError::new(&mut body.fields()))
-            .and_then(|(e, s)| {
-                match e {
-                    Ok(e) => Err(Error::Db(Box::new(e), s)),
-                    Err(e) => Err(Error::Io(e)),
-                }
-            })
+        DbError::new(&mut body.fields())
+            .map_err(Error::Io)
+            .into_future()
+            .and_then(|e| self.ready(e))
+            .and_then(|(e, s)| Err(Error::Db(Box::new(e), s)))
             .boxed()
     }
 
