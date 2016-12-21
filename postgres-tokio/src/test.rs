@@ -104,3 +104,20 @@ fn batch_execute_err() {
         });
     l.run(done).unwrap();
 }
+
+#[test]
+fn prepare_execute() {
+    let mut l = Core::new().unwrap();
+    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+        .then(|c| {
+            c.unwrap().prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
+        })
+        .and_then(|(s, c)| s.execute(&[], c))
+        .and_then(|(n, _, c)| {
+            assert_eq!(0, n);
+            c.prepare("INSERT INTO foo (name) VALUES ($1), ($2)")
+        })
+        .and_then(|(s, c)| s.execute(&[&"steven", &"bob"], c))
+        .map(|(n, _, _)| assert_eq!(n, 2));
+    l.run(done).unwrap();
+}

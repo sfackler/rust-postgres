@@ -42,6 +42,7 @@ struct InnerConnection {
     stream: PostgresStream,
     parameters: HashMap<String, String>,
     cancel_data: CancelData,
+    next_stmt_id: u32,
 }
 
 impl InnerConnection {
@@ -127,7 +128,8 @@ impl Connection {
                     cancel_data: CancelData {
                         process_id: 0,
                         secret_key: 0,
-                    }
+                    },
+                    next_stmt_id: 0,
                 })
             })
             .and_then(|s| s.startup(params))
@@ -402,8 +404,6 @@ impl Connection {
                             |f, t| Column { name: f.0, type_: t })
                     .map(|(r, s)| (p, r, s))
             })
-            .and_then(|(p, r, s)| s.ready((p, r)))
-            .map(|((p, r), s)| (p, r, s))
             .boxed()
     }
 
@@ -454,8 +454,8 @@ impl Connection {
         let mut bind = vec![];
         let mut execute = vec![];
         let mut sync = vec![];
-        let r = frontend::bind(stmt,
-                               portal,
+        let r = frontend::bind(portal,
+                               stmt,
                                Some(1),
                                params.iter().zip(param_types),
                                |(param, ty), buf| {
@@ -533,6 +533,22 @@ impl Connection {
             .boxed()
     }
 
+    pub fn prepare(mut self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
+        let id = self.0.next_stmt_id;
+        self.0.next_stmt_id += 1;
+        let name = format!("s{}", id);
+        self.raw_prepare(&name, query)
+            .map(|(params, columns, conn)| {
+                let stmt = Statement {
+                    name: name,
+                    params: params,
+                    columns: columns,
+                };
+                (stmt, conn)
+            })
+            .boxed()
+    }
+
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data
     }
@@ -541,6 +557,24 @@ impl Connection {
 struct Column {
     name: String,
     type_: Type,
+}
+
+pub struct Statement {
+    name: String,
+    params: Vec<Type>,
+    columns: Vec<Column>,
+}
+
+impl Statement {
+    pub fn execute(self,
+                   params: &[&ToSql],
+                   conn: Connection)
+                   -> BoxFuture<(u64, Statement, Connection), Error> {
+        conn.raw_execute(&self.name, "", &self.params, params)
+            .and_then(|conn| conn.finish_execute())
+            .map(|(n, conn)| (n, self, conn))
+            .boxed()
+    }
 }
 
 fn connect_err(fields: &mut ErrorFields) -> ConnectError {
