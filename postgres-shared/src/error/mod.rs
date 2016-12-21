@@ -6,10 +6,8 @@ use std::error;
 use std::convert::From;
 use std::fmt;
 use std::io;
-use std::result;
 
 pub use self::sqlstate::SqlState;
-use {Result, DbErrorNew};
 
 mod sqlstate;
 
@@ -141,8 +139,9 @@ pub struct DbError {
     _p: (),
 }
 
-impl DbErrorNew for DbError {
-    fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError> {
+impl DbError {
+    #[doc(hidden)]
+    pub fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError> {
         let mut severity = None;
         let mut parsed_severity = None;
         let mut code = None;
@@ -169,8 +168,18 @@ impl DbErrorNew for DbError {
                 b'M' => message = Some(field.value().to_owned()),
                 b'D' => detail = Some(field.value().to_owned()),
                 b'H' => hint = Some(field.value().to_owned()),
-                b'P' => normal_position = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
-                b'p' => internal_position = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
+                b'P' => {
+                    normal_position = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput,
+                                       "`P` field did not contain an integer")
+                    })));
+                }
+                b'p' => {
+                    internal_position = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput,
+                                       "`p` field did not contain an integer")
+                    })));
+                }
                 b'q' => internal_query = Some(field.value().to_owned()),
                 b'W' => where_ = Some(field.value().to_owned()),
                 b's' => schema = Some(field.value().to_owned()),
@@ -179,18 +188,32 @@ impl DbErrorNew for DbError {
                 b'd' => datatype = Some(field.value().to_owned()),
                 b'n' => constraint = Some(field.value().to_owned()),
                 b'F' => file = Some(field.value().to_owned()),
-                b'L' => line = Some(try!(field.value().parse::<u32>().map_err(|_| ::bad_response()))),
+                b'L' => {
+                    line = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput,
+                                       "`L` field did not contain an integer")
+                    })));
+                }
                 b'R' => routine = Some(field.value().to_owned()),
-                b'V' => parsed_severity = Some(try!(Severity::from_str(field.value()).ok_or_else(::bad_response))),
+                b'V' => {
+                    parsed_severity = Some(try!(Severity::from_str(field.value()).ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput,
+                                       "`V` field contained an invalid value")
+                    })));
+                }
                 _ => {},
             }
         }
 
         Ok(DbError {
-            severity: try!(severity.ok_or_else(|| ::bad_response())),
+            severity: try!(severity.ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing")
+            })),
             parsed_severity: parsed_severity,
-            code: try!(code.ok_or_else(|| ::bad_response())),
-            message: try!(message.ok_or_else(|| ::bad_response())),
+            code: try!(code.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
+                                                         "`C` field missing"))),
+            message: try!(message.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
+                                                               "`M` field missing"))),
             detail: detail,
             hint: hint,
             position: match normal_position {
@@ -200,7 +223,10 @@ impl DbErrorNew for DbError {
                         Some(position) => {
                             Some(ErrorPosition::Internal {
                                 position: position,
-                                query: try!(internal_query.ok_or_else(|| ::bad_response())),
+                                query: try!(internal_query.ok_or_else(|| {
+                                    io::Error::new(io::ErrorKind::InvalidInput,
+                                                   "`q` field missing but `p` field present")
+                                })),
                             })
                         }
                         None => None,
@@ -220,14 +246,16 @@ impl DbErrorNew for DbError {
         })
     }
 
-    fn new_connect<T>(fields: &mut ErrorFields) -> result::Result<T, ConnectError> {
+    #[doc(hidden)]
+    pub fn new_connect<T>(fields: &mut ErrorFields) -> Result<T, ConnectError> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(ConnectError::Db(Box::new(err))),
             Err(e) => Err(ConnectError::Io(e)),
         }
     }
 
-    fn new<T>(fields: &mut ErrorFields) -> Result<T> {
+    #[doc(hidden)]
+    pub fn new<T>(fields: &mut ErrorFields) -> Result<T, Error> {
         match DbError::new_raw(fields) {
             Ok(err) => Err(Error::Db(Box::new(err))),
             Err(e) => Err(Error::Io(e)),

@@ -13,7 +13,7 @@ struct Code {
 }
 
 pub fn build(path: &Path) {
-    let mut file = BufWriter::new(File::create(path.join("error/sqlstate.rs")).unwrap());
+    let mut file = BufWriter::new(File::create(path.join("postgres-shared/src/error/sqlstate.rs")).unwrap());
 
     let codes = parse_codes();
 

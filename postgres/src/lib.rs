@@ -76,8 +76,8 @@ extern crate hex;
 #[cfg(not(feature = "no-logging"))]
 #[macro_use]
 extern crate log;
-extern crate phf;
 extern crate postgres_protocol;
+extern crate postgres_shared;
 
 use fallible_iterator::{FallibleIterator, FromFallibleIterator};
 use std::cell::{Cell, RefCell};
@@ -90,7 +90,7 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 use postgres_protocol::authentication;
-use postgres_protocol::message::backend::{self, ErrorFields};
+use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend;
 
 use error::{Error, ConnectError, SqlState, DbError};
@@ -103,13 +103,15 @@ use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, WrongType, ToSql, FromSql, Field};
 
+#[doc(inline)]
+pub use postgres_shared::error;
+
 #[macro_use]
 mod macros;
 
 mod feature_check;
 mod priv_io;
 mod url;
-pub mod error;
 pub mod tls;
 pub mod notification;
 pub mod params;
@@ -473,7 +475,7 @@ impl InnerConnection {
             .map_err(Into::into)
             .and_then(|oid| self.get_type(oid))
             .collect());
-        
+
         let columns = match raw_columns {
             Some(body) => {
                 try!(body.fields()
@@ -1371,12 +1373,6 @@ impl RowData {
 
 trait OtherNew {
     fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
-}
-
-trait DbErrorNew {
-    fn new_raw(fields: &mut ErrorFields) -> io::Result<DbError>;
-    fn new_connect<T>(fields: &mut ErrorFields) -> result::Result<T, ConnectError>;
-    fn new<T>(fields: &mut ErrorFields) -> Result<T>;
 }
 
 trait RowsNew<'a> {

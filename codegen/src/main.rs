@@ -9,7 +9,7 @@ mod sqlstate;
 mod type_gen;
 
 fn main() {
-    let path = Path::new("../src");
+    let path = Path::new("..");
     sqlstate::build(path);
     type_gen::build(path);
 }

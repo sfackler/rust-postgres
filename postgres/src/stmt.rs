@@ -13,7 +13,7 @@ use types::{SessionInfo, Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
 use {bad_response, Connection, StatementInternals, Result, RowsNew, InnerConnection, RowData,
-     SessionInfoNew, LazyRowsNew, DbErrorNew, ColumnNew, StatementInfo, TransactionInternals};
+     SessionInfoNew, LazyRowsNew, ColumnNew, StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
