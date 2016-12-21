@@ -16,7 +16,7 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(error::Error::description(self))?;
+        try!(fmt.write_str(error::Error::description(self)));
         match *self {
             Error::Db(ref err, _) => write!(fmt, ": {}", err),
             Error::Io(ref err) => write!(fmt, ": {}", err),
