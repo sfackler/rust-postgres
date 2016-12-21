@@ -20,7 +20,7 @@ pub use postgres_shared::error;
 #[doc(inline)]
 pub use postgres_shared::params;
 
-use error::ConnectError;
+use error::{ConnectError, DbError};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
 
@@ -190,6 +190,9 @@ impl Connection {
                             }
                         }
                     }
+                    backend::Message::ErrorResponse(body) => {
+                        DbError::new_connect(&mut body.fields())
+                    }
                     _ => Err(bad_message()),
                 };
 
@@ -212,6 +215,9 @@ impl Connection {
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::AuthenticationOk => Ok(Connection(s)),
+                    backend::Message::ErrorResponse(body) => {
+                        DbError::new_connect(&mut body.fields())
+                    }
                     _ => Err(bad_message()),
                 }
             })
@@ -229,6 +235,9 @@ impl Connection {
                         Either::A(Connection(s).finish_startup())
                     }
                     backend::Message::ReadyForQuery(_) => Either::B(Ok(Connection(s)).into_future()),
+                    backend::Message::ErrorResponse(body) => {
+                        Either::B(DbError::new_connect(&mut body.fields()).into_future())
+                    }
                     _ => Either::B(Err(bad_message()).into_future()),
                 }
             })
