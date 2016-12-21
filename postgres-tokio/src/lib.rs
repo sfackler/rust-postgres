@@ -11,7 +11,7 @@ use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
 use futures::future::Either;
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
-use postgres_protocol::message::backend::ErrorFields;
+use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
 use postgres_shared::RowData;
 use std::collections::HashMap;
 use std::fmt;
@@ -263,25 +263,22 @@ impl Connection {
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::ReadyForQuery(_) => {
-                        Either::A(Ok((rows, Connection(s))).into_future())
+                        Ok((rows, Connection(s))).into_future().boxed()
                     }
                     backend::Message::DataRow(body) => {
                         match body.values().collect() {
                             Ok(row) => {
                                 rows.push(row);
-                                Either::B(Connection(s).simple_read_rows(rows))
+                                Connection(s).simple_read_rows(rows)
                             }
-                            Err(e) => Either::A(Err(Error::Io(e)).into_future()),
+                            Err(e) => Err(Error::Io(e)).into_future().boxed(),
                         }
                     }
                     backend::Message::EmptyQueryResponse |
-                    backend::Message::CommandComplete(_) => {
-                        Either::B(Connection(s).simple_read_rows(rows))
-                    }
-                    backend::Message::ErrorResponse(body) => {
-                        Either::A(Err(err(&mut body.fields(), Connection(s))).into_future())
-                    }
-                    _ => Either::A(Err(bad_message()).into_future()),
+                    backend::Message::CommandComplete(_) |
+                    backend::Message::RowDescription(_) => Connection(s).simple_read_rows(rows),
+                    backend::Message::ErrorResponse(body) => Connection(s).ready_err(body),
+                    _ => Err(bad_message()).into_future().boxed(),
                 }
             })
             .boxed()
@@ -293,22 +290,18 @@ impl Connection {
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::EmptyQueryResponse |
-                    backend::Message::CommandComplete(_) => {
-                        Either::B(Connection(s).ready(rows))
-                    },
+                    backend::Message::CommandComplete(_) => Connection(s).ready(rows).boxed(),
                     backend::Message::DataRow(body) => {
                         match body.values().collect() {
                             Ok(row) => {
                                 rows.push(row);
-                                Either::B(Connection(s).read_rows(rows))
+                                Connection(s).read_rows(rows)
                             }
-                            Err(e) => Either::A(Err(Error::Io(e)).into_future()),
+                            Err(e) => Err(Error::Io(e)).into_future().boxed(),
                         }
                     }
-                    backend::Message::ErrorResponse(body) => {
-                        Either::A(Err(err(&mut body.fields(), Connection(s))).into_future())
-                    }
-                    _ => Either::A(Err(bad_message()).into_future()),
+                    backend::Message::ErrorResponse(body) => Connection(s).ready_err(body),
+                    _ => Err(bad_message()).into_future().boxed(),
                 }
             })
             .boxed()
@@ -323,6 +316,19 @@ impl Connection {
                 match m {
                     backend::Message::ReadyForQuery(_) => Ok((t, Connection(s))),
                     _ => Err(bad_message())
+                }
+            })
+            .boxed()
+    }
+
+    fn ready_err<T>(self, body: ErrorResponseBody<Vec<u8>>) -> BoxFuture<T, Error>
+        where T: 'static + Send
+    {
+        self.ready(DbError::new(&mut body.fields()))
+            .and_then(|(e, s)| {
+                match e {
+                    Ok(e) => Err(Error::Db(Box::new(e), s)),
+                    Err(e) => Err(Error::Io(e)),
                 }
             })
             .boxed()
