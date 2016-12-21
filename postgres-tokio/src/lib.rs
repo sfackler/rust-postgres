@@ -24,7 +24,7 @@ pub use postgres_shared::{params, types};
 use error::{ConnectError, Error, DbError};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
-use types::{Oid, Type};
+use types::{Oid, Type, ToSql, SessionInfo, IsNull};
 
 pub mod error;
 mod stream;
@@ -402,6 +402,8 @@ impl Connection {
                             |f, t| Column { name: f.0, type_: t })
                     .map(|(r, s)| (p, r, s))
             })
+            .and_then(|(p, r, s)| s.ready((p, r)))
+            .map(|((p, r), s)| (p, r, s))
             .boxed()
     }
 
@@ -436,6 +438,99 @@ impl Connection {
             return Ok((type_, self)).into_future().boxed();
         };
         unimplemented!()
+    }
+
+    fn raw_execute(self,
+                   stmt: &str,
+                   portal: &str,
+                   param_types: &[Type],
+                   params: &[&ToSql])
+                   -> BoxFuture<Connection, Error> {
+        assert!(param_types.len() == params.len(),
+                "expected {} parameters but got {}",
+                param_types.len(),
+                params.len());
+
+        let mut bind = vec![];
+        let mut execute = vec![];
+        let mut sync = vec![];
+        let r = frontend::bind(stmt,
+                               portal,
+                               Some(1),
+                               params.iter().zip(param_types),
+                               |(param, ty), buf| {
+                                   let info = SessionInfo::new(&self.0.parameters);
+                                   match param.to_sql_checked(ty, buf, &info) {
+                                       Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                                       Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                                       Err(e) => Err(e),
+                                   }
+                               },
+                               Some(1),
+                               &mut bind);
+        let r = match r {
+            Ok(()) => Ok(self),
+            Err(frontend::BindError::Conversion(e)) => Err(Error::Conversion(e, self)),
+            Err(frontend::BindError::Serialization(e)) => Err(Error::Io(e)),
+        };
+
+        r.and_then(|s| {
+                frontend::execute(portal, 0, &mut execute)
+                    .map(|()| s)
+                    .map_err(Error::Io)
+            })
+            .map(|s| {
+                frontend::sync(&mut sync);
+                s
+            })
+            .into_future()
+            .and_then(|s| s.0.send(bind).map_err(Error::Io))
+            .and_then(|s| s.send(execute).map_err(Error::Io))
+            .and_then(|s| s.send(sync).map_err(Error::Io))
+            .and_then(|s| s.flush().map_err(Error::Io))
+            .and_then(|s| s.read().map_err(Error::Io))
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::BindComplete => Either::A(Ok(Connection(s)).into_future()),
+                    backend::Message::ErrorResponse(body) => {
+                        Either::B(Connection(s).ready_err(body))
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .boxed()
+    }
+
+    fn finish_execute(self) -> BoxFuture<(u64, Connection), Error> {
+        self.0.read()
+            .map_err(Error::Io)
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::DataRow(_) => Either::B(Connection(s).finish_execute()),
+                    backend::Message::CommandComplete(body) => {
+                        Either::A(body.tag()
+                            .map(|tag| {
+                                let num = tag.split_whitespace()
+                                    .last()
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap_or(0);
+                                (num, Connection(s))
+                            })
+                            .map_err(Error::Io)
+                            .into_future())
+                    }
+                    backend::Message::EmptyQueryResponse => {
+                        Either::A(Ok((0, Connection(s))).into_future())
+                    }
+                    backend::Message::ErrorResponse(body) => {
+                        Either::B(Connection(s).ready_err(body))
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .and_then(|(n, s)| s.ready(n))
+            .boxed()
     }
 
     pub fn cancel_data(&self) -> CancelData {
