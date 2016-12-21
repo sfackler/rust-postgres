@@ -35,14 +35,10 @@ pub struct CancelData {
     pub secret_key: i32,
 }
 
-struct InnerConnectionState {
-    parameters: HashMap<String, String>,
-    cancel_data: CancelData,
-}
-
 struct InnerConnection {
     stream: PostgresStream,
-    state: InnerConnectionState,
+    parameters: HashMap<String, String>,
+    cancel_data: CancelData,
 }
 
 impl InnerConnection {
@@ -64,7 +60,7 @@ impl InnerConnection {
                             Ok(value) => value.to_owned(),
                             Err(e) => return Either::A(Err((e, s)).into_future()),
                         };
-                        s.state.parameters.insert(name, value);
+                        s.parameters.insert(name, value);
                         Either::B(s.read())
                     }
                     Some(backend::Message::NoticeResponse(_)) => {
@@ -117,12 +113,10 @@ impl Connection {
             .map(|s| {
                 Connection(InnerConnection {
                     stream: s,
-                    state: InnerConnectionState {
-                        parameters: HashMap::new(),
-                        cancel_data: CancelData {
-                            process_id: 0,
-                            secret_key: 0,
-                        }
+                    parameters: HashMap::new(),
+                    cancel_data: CancelData {
+                        process_id: 0,
+                        secret_key: 0,
                     }
                 })
             })
@@ -230,8 +224,8 @@ impl Connection {
             .and_then(|(m, mut s)| {
                 match m {
                     backend::Message::BackendKeyData(body) => {
-                        s.state.cancel_data.process_id = body.process_id();
-                        s.state.cancel_data.secret_key = body.secret_key();
+                        s.cancel_data.process_id = body.process_id();
+                        s.cancel_data.secret_key = body.secret_key();
                         Either::A(Connection(s).finish_startup())
                     }
                     backend::Message::ReadyForQuery(_) => Either::B(Ok(Connection(s)).into_future()),
@@ -245,7 +239,7 @@ impl Connection {
     }
 
     pub fn cancel_data(&self) -> CancelData {
-        self.0.state.cancel_data
+        self.0.cancel_data
     }
 }
 
