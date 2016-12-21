@@ -70,7 +70,10 @@ impl InnerConnection {
                         Either::B(s.read())
                     }
                     Some(m) => Either::A(Ok((m, s)).into_future()),
-                    None => Either::A(Err((eof(), s)).into_future()),
+                    None => {
+                        let err = io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF");
+                        Either::A(Err((err, s)).into_future())
+                    }
                 }
             })
             .boxed()
@@ -348,21 +351,8 @@ fn connect_err(fields: &mut ErrorFields) -> ConnectError {
     }
 }
 
-fn err(fields: &mut ErrorFields, conn: Connection) -> Error {
-    match DbError::new(fields) {
-        Ok(err) => Error::Db(Box::new(err), conn),
-        Err(err) => Error::Io(err),
-    }
-}
-
 fn bad_message<T>() -> T
     where T: From<io::Error>
 {
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
-}
-
-fn eof<T>() -> T
-    where T: From<io::Error>
-{
-    io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF").into()
 }
