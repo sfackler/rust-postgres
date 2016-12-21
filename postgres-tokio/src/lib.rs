@@ -9,14 +9,19 @@ extern crate futures;
 
 use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
 use futures::future::Either;
-use postgres_shared::params::{ConnectParams, IntoConnectParams};
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
 use std::collections::HashMap;
-use std::error::Error;
 use std::io;
 use tokio_core::reactor::Handle;
 
+#[doc(inline)]
+pub use postgres_shared::error;
+#[doc(inline)]
+pub use postgres_shared::params;
+
+use error::ConnectError;
+use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
 
 mod stream;
@@ -24,22 +29,10 @@ mod stream;
 #[cfg(test)]
 mod test;
 
-#[derive(Debug)]
-pub enum ConnectError {
-    Params(Box<Error + Sync + Send>),
-    Io(io::Error),
-}
-
 #[derive(Debug, Copy, Clone)]
 pub struct CancelData {
     pub process_id: i32,
     pub secret_key: i32,
-}
-
-impl From<io::Error> for ConnectError {
-    fn from(e: io::Error) -> ConnectError {
-        ConnectError::Io(e)
-    }
 }
 
 struct InnerConnectionState {
@@ -116,7 +109,7 @@ impl Connection {
     {
         let params = match params.into_connect_params() {
             Ok(params) => params,
-            Err(e) => return futures::failed(ConnectError::Params(e)).boxed(),
+            Err(e) => return futures::failed(ConnectError::ConnectParams(e)).boxed(),
         };
 
         stream::connect(params.host(), params.port(), handle)
@@ -175,7 +168,7 @@ impl Connection {
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::Params(
+                                Err(ConnectError::ConnectParams(
                                     "password was required but not provided".into()))
                             }
                         }
@@ -192,7 +185,7 @@ impl Connection {
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::Params(
+                                Err(ConnectError::ConnectParams(
                                     "password was required but not provided".into()))
                             }
                         }
