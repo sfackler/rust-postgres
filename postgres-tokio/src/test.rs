@@ -113,11 +113,8 @@ fn prepare_execute() {
             c.unwrap().prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
         })
         .and_then(|(s, c)| s.execute(&[], c))
-        .and_then(|(n, s, c)| {
+        .and_then(|(n, _, c)| {
             assert_eq!(0, n);
-            s.close(c)
-        })
-        .and_then(|c| {
             c.prepare("INSERT INTO foo (name) VALUES ($1), ($2)")
         })
         .and_then(|(s, c)| s.execute(&[&"steven", &"bob"], c))
