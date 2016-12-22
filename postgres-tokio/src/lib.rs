@@ -14,19 +14,21 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
 use postgres_shared::RowData;
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::sync::Arc;
 use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{params, types};
+pub use postgres_shared::{params, types, Column, RowIndex};
 
 use error::{ConnectError, Error, DbError};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
-use types::{Oid, Type, ToSql, SessionInfo, IsNull};
+use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType};
 
 pub mod error;
 mod stream;
@@ -293,30 +295,6 @@ impl Connection {
             .boxed()
     }
 
-    #[allow(dead_code)]
-    fn read_rows(self, mut rows: Vec<RowData>) -> BoxFuture<(Vec<RowData>, Connection), Error> {
-        self.0.read()
-            .map_err(Error::Io)
-            .and_then(|(m, s)| {
-                match m {
-                    backend::Message::EmptyQueryResponse |
-                    backend::Message::CommandComplete(_) => Connection(s).ready(rows).boxed(),
-                    backend::Message::DataRow(body) => {
-                        match body.values().collect() {
-                            Ok(row) => {
-                                rows.push(row);
-                                Connection(s).read_rows(rows)
-                            }
-                            Err(e) => Err(Error::Io(e)).into_future().boxed(),
-                        }
-                    }
-                    backend::Message::ErrorResponse(body) => Connection(s).ready_err(body),
-                    _ => Err(bad_message()).into_future().boxed(),
-                }
-            })
-            .boxed()
-    }
-
     fn ready<T>(self, t: T) -> BoxFuture<(T, Connection), Error>
         where T: 'static + Send
     {
@@ -452,7 +430,7 @@ impl Connection {
                 s.get_types(r.into_iter(),
                             vec![],
                             |f| f.1,
-                            |f, t| Column { name: f.0, type_: t })
+                            |f, t| Column::new(f.0, t))
                     .map(|(r, s)| (p, r, s))
             })
             .boxed()
@@ -594,7 +572,7 @@ impl Connection {
                     close_sender: conn.0.close_sender.clone(),
                     name: name,
                     params: params,
-                    columns: columns,
+                    columns: Arc::new(columns),
                 };
                 (stmt, conn)
             })
@@ -615,26 +593,11 @@ impl Connection {
     }
 }
 
-pub struct Column {
-    name: String,
-    type_: Type,
-}
-
-impl Column {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn type_(&self) -> &Type {
-        &self.type_
-    }
-}
-
 pub struct Statement {
     close_sender: Sender<(u8, String)>,
     name: String,
     params: Vec<Type>,
-    columns: Vec<Column>,
+    columns: Arc<Vec<Column>>,
 }
 
 impl Drop for Statement {
@@ -661,6 +624,42 @@ impl Statement {
             .and_then(|conn| conn.finish_execute())
             .map(|(n, conn)| (n, self, conn))
             .boxed()
+    }
+}
+
+pub struct Row {
+    columns: Arc<Vec<Column>>,
+    data: RowData,
+}
+
+impl Row {
+    pub fn get<T, I>(&self, idx: I) -> T
+        where T: FromSql,
+              I: RowIndex + fmt::Debug
+    {
+        match self.try_get(&idx) {
+            Ok(Some(v)) => v,
+            Ok(None) => panic!("no such column {:?}", idx),
+            Err(e) => panic!("error retrieving row {:?}: {}", idx, e),
+        }
+    }
+
+    pub fn try_get<T, I>(&self, idx: I) -> Result<Option<T>, Box<StdError + Sync + Send>>
+        where T: FromSql,
+              I: RowIndex
+    {
+        let idx = match idx.idx(&self.columns) {
+            Some(idx) => idx,
+            None => return Ok(None),
+        };
+
+        let ty = self.columns[idx].type_();
+        if !T::accepts(ty) {
+            return Err(Box::new(WrongType::new(ty.clone())));
+        }
+
+        // FIXME
+        T::from_sql_nullable(ty, self.data.get(idx), &SessionInfo::new(&HashMap::new())).map(Some)
     }
 }
 
