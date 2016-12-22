@@ -350,11 +350,14 @@ impl Connection {
             .and_then(|()| frontend::describe(b'S', name, &mut describe))
             .and_then(|()| Ok(frontend::sync(&mut sync)))
             .into_future()
-            .and_then(move |()| self.0.send(parse))
-            .and_then(|s| s.send(describe))
-            .and_then(|s| s.send(sync))
-            .and_then(|s| s.flush())
-            .and_then(|s| s.read())
+            .and_then(move |()| {
+                let it = Some(parse).into_iter()
+                    .chain(Some(describe))
+                    .chain(Some(sync))
+                    .map(Ok::<_, io::Error>);
+                self.0.send_all(futures::stream::iter(it))
+            })
+            .and_then(|s| s.0.read())
             .map_err(Error::Io)
             .boxed() // work around nonlinear trans blowup
             .and_then(|(m, s)| {
@@ -484,11 +487,14 @@ impl Connection {
                 s
             })
             .into_future()
-            .and_then(|s| s.0.send(bind).map_err(Error::Io))
-            .and_then(|s| s.send(execute).map_err(Error::Io))
-            .and_then(|s| s.send(sync).map_err(Error::Io))
-            .and_then(|s| s.flush().map_err(Error::Io))
-            .and_then(|s| s.read().map_err(Error::Io))
+            .and_then(|s| {
+                let it = Some(bind).into_iter()
+                    .chain(Some(execute))
+                    .chain(Some(sync))
+                    .map(Ok::<_, io::Error>);
+                s.0.send_all(futures::stream::iter(it)).map_err(Error::Io)
+            })
+            .and_then(|s| s.0.read().map_err(Error::Io))
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::BindComplete => Either::A(Ok(Connection(s)).into_future()),
