@@ -616,13 +616,12 @@ impl Statement {
         &self.columns
     }
 
-    pub fn execute(self,
+    pub fn execute(&self,
                    params: &[&ToSql],
                    conn: Connection)
-                   -> BoxFuture<(u64, Statement, Connection), Error> {
+                   -> BoxFuture<(u64, Connection), Error> {
         conn.raw_execute(&self.name, "", &self.params, params)
             .and_then(|conn| conn.finish_execute())
-            .map(|(n, conn)| (n, self, conn))
             .boxed()
     }
 }
