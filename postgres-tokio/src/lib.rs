@@ -555,6 +555,32 @@ impl Connection {
             .boxed()
     }
 
+    fn raw_close(self, type_: u8, name: &str) -> BoxFuture<Connection, Error> {
+        let mut close = vec![];
+        let mut sync = vec![];
+        frontend::close(type_, name, &mut close)
+            .map(|()| frontend::sync(&mut sync))
+            .into_future()
+            .and_then(move |()| {
+                let it = Some(close).into_iter().chain(Some(sync)).map(Ok::<_, io::Error>);
+                self.0.send_all(futures::stream::iter(it))
+            })
+            .and_then(|s| s.0.read())
+            .map_err(Error::Io)
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::CloseComplete => Either::A(Ok(Connection(s)).into_future()),
+                    backend::Message::ErrorResponse(body) => {
+                        Either::B(Connection(s).ready_err(body))
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .and_then(|s| s.ready(()))
+            .map(|((), s)| s)
+            .boxed()
+    }
+
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data
     }
@@ -580,6 +606,10 @@ impl Statement {
             .and_then(|conn| conn.finish_execute())
             .map(|(n, conn)| (n, self, conn))
             .boxed()
+    }
+
+    pub fn close(self, conn: Connection) -> BoxFuture<Connection, Error> {
+        conn.raw_close(b'S', &self.name)
     }
 }
 
