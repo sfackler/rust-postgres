@@ -8,9 +8,9 @@ use error::{Error, ConnectError, SqlState};
 fn basic() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://postgres@localhost", &handle);
-    let conn = l.run(done).unwrap();
-    assert!(conn.cancel_data().process_id != 0);
+    let done = Connection::connect("postgres://postgres@localhost", &handle)
+        .then(|c| c.unwrap().close());
+    l.run(done).unwrap();
 }
 
 #[test]

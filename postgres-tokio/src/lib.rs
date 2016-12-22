@@ -581,6 +581,15 @@ impl Connection {
             .boxed()
     }
 
+    pub fn close(self) -> BoxFuture<(), Error> {
+        let mut terminate = vec![];
+        frontend::terminate(&mut terminate);
+        self.0.send(terminate)
+            .map(|_| ())
+            .map_err(Error::Io)
+            .boxed()
+    }
+
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data
     }
