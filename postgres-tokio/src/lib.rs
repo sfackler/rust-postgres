@@ -615,9 +615,19 @@ impl Connection {
     }
 }
 
-struct Column {
+pub struct Column {
     name: String,
     type_: Type,
+}
+
+impl Column {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
 }
 
 pub struct Statement {
@@ -635,6 +645,14 @@ impl Drop for Statement {
 }
 
 impl Statement {
+    pub fn parameters(&self) -> &[Type] {
+        &self.params
+    }
+
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
+    }
+
     pub fn execute(self,
                    params: &[&ToSql],
                    conn: Connection)
