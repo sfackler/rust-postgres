@@ -112,12 +112,12 @@ fn prepare_execute() {
         .then(|c| {
             c.unwrap().prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
         })
-        .and_then(|(s, c)| s.execute(&[], c))
+        .and_then(|(s, c)| c.execute(&s, &[]))
         .and_then(|(n, c)| {
             assert_eq!(0, n);
             c.prepare("INSERT INTO foo (name) VALUES ($1), ($2)")
         })
-        .and_then(|(s, c)| s.execute(&[&"steven", &"bob"], c))
+        .and_then(|(s, c)| c.execute(&s, &[&"steven", &"bob"]))
         .map(|(n, _)| assert_eq!(n, 2));
     l.run(done).unwrap();
 }

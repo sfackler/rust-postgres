@@ -579,6 +579,12 @@ impl Connection {
             .boxed()
     }
 
+    pub fn execute(self, statement: &Statement, params: &[&ToSql]) -> BoxFuture<(u64, Connection), Error> {
+        self.raw_execute(&statement.name, "", &statement.params, params)
+            .and_then(|conn| conn.finish_execute())
+            .boxed()
+    }
+
     pub fn close(self) -> BoxFuture<(), Error> {
         let mut terminate = vec![];
         frontend::terminate(&mut terminate);
@@ -614,15 +620,6 @@ impl Statement {
 
     pub fn columns(&self) -> &[Column] {
         &self.columns
-    }
-
-    pub fn execute(&self,
-                   params: &[&ToSql],
-                   conn: Connection)
-                   -> BoxFuture<(u64, Connection), Error> {
-        conn.raw_execute(&self.name, "", &self.params, params)
-            .and_then(|conn| conn.finish_execute())
-            .boxed()
     }
 }
 
