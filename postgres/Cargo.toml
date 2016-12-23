@@ -24,13 +24,13 @@ path = "tests/test.rs"
 with-bit-vec = ["postgres-shared/with-bit-vec"]
 with-chrono = ["postgres-shared/with-chrono"]
 with-eui48 = ["postgres-shared/with-eui48"]
+with-rustc-serialize = ["postgres-shared/with-rustc-serialize"]
 with-serde_json = ["postgres-shared/with-serde_json"]
-with-time = ["postgres-shared/time"]
+with-time = ["postgres-shared/with-time"]
 with-uuid = ["postgres-shared/with-uuid"]
 
 with-openssl = ["openssl"]
 with-native-tls = ["native-tls"]
-with-rustc-serialize = ["rustc-serialize"]
 with-schannel = ["schannel"]
 with-security-framework = ["security-framework"]
 
@@ -53,3 +53,11 @@ postgres-shared = { path = "../postgres-shared" }
 
 [dev-dependencies]
 url = "1.0"
+
+bit-vec = "0.4"
+chrono = "0.2.14"
+eui48 = "0.1"
+rustc-serialize = "0.3"
+serde_json = ">= 0.6, < 0.9"
+time = "0.1.14"
+uuid = ">= 0.1, < 0.4"
