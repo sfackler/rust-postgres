@@ -682,6 +682,14 @@ pub struct Row {
 }
 
 impl Row {
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
+    }
+
+    pub fn len(&self) -> usize {
+        self.columns.len()
+    }
+
     pub fn get<T, I>(&self, idx: I) -> T
         where T: FromSql,
               I: RowIndex + fmt::Debug
