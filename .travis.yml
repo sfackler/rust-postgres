@@ -3,7 +3,7 @@ cache: cargo
 sudo: required
 rust:
 - nightly
-- 1.10.0
+- 1.13.0
 addons:
   postgresql: 9.4
 before_script:
