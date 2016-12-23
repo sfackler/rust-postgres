@@ -113,7 +113,7 @@ impl<'a> RowIndex for str {
     }
 }
 
-impl<'a, T> RowIndex for &'a T
+impl<'a, T: ?Sized> RowIndex for &'a T
     where T: RowIndex
 {
     #[inline]

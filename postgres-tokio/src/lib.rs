@@ -1,5 +1,6 @@
 extern crate fallible_iterator;
 extern crate futures;
+extern crate futures_state_stream;
 extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
@@ -9,6 +10,7 @@ extern crate tokio_uds;
 use fallible_iterator::FallibleIterator;
 use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
 use futures::future::Either;
+use futures_state_stream::{StreamEvent, StateStream, BoxStateStream, FutureExt};
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
@@ -562,6 +564,30 @@ impl Connection {
             .boxed()
     }
 
+    fn read_row(self) -> BoxFuture<(Option<RowData>, Connection), Error> {
+        self.0.read()
+            .map_err(Error::Io)
+            .and_then(|(m, s)| {
+                let c = Connection(s);
+                match m {
+                    backend::Message::DataRow(body) => {
+                        Either::A(body.values()
+                            .collect()
+                            .map(|r| (Some(r), c))
+                            .map_err(Error::Io)
+                            .into_future())
+                    }
+                    backend::Message::EmptyQueryResponse |
+                    backend::Message::CommandComplete(_) => Either::A(Ok((None, c)).into_future()),
+                    backend::Message::ErrorResponse(body) => {
+                        Either::B(c.ready_err(body))
+                    }
+                    _ => Either::A(Err(bad_message()).into_future()),
+                }
+            })
+            .boxed()
+    }
+
     pub fn prepare(mut self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
         let id = self.0.next_stmt_id;
         self.0.next_stmt_id += 1;
@@ -582,6 +608,34 @@ impl Connection {
     pub fn execute(self, statement: &Statement, params: &[&ToSql]) -> BoxFuture<(u64, Connection), Error> {
         self.raw_execute(&statement.name, "", &statement.params, params)
             .and_then(|conn| conn.finish_execute())
+            .boxed()
+    }
+
+    pub fn query(self,
+                 statement: &Statement,
+                 params: &[&ToSql])
+                 -> BoxStateStream<Row, Connection, Error> {
+        let columns = statement.columns.clone();
+        self.raw_execute(&statement.name, "", &statement.params, params)
+            .map(|c| {
+                futures_state_stream::unfold((c, columns), |(c, columns)| {
+                    c.read_row()
+                        .and_then(|(r, c)| {
+                            match r {
+                                Some(data) => {
+                                    let row = Row {
+                                        columns: columns.clone(),
+                                        data: data,
+                                    };
+                                    let event = StreamEvent::Next((row, (c, columns)));
+                                    Either::A(Ok(event).into_future())
+                                },
+                                None => Either::B(c.ready(()).map(|((), c)| StreamEvent::Done(c))),
+                            }
+                        })
+                })
+            })
+            .flatten_state_stream()
             .boxed()
     }
 

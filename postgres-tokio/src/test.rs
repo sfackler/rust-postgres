@@ -1,4 +1,5 @@
 use futures::Future;
+use futures_state_stream::StateStream;
 use tokio_core::reactor::Core;
 
 use super::*;
@@ -119,5 +120,22 @@ fn prepare_execute() {
         })
         .and_then(|(s, c)| c.execute(&s, &[&"steven", &"bob"]))
         .map(|(n, _)| assert_eq!(n, 2));
+    l.run(done).unwrap();
+}
+
+#[test]
+fn query() {
+    let mut l = Core::new().unwrap();
+    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+        .then(|c| {
+            c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);
+                                      INSERT INTO foo (name) VALUES ('joe'), ('bob')")
+        })
+        .and_then(|c| c.prepare("SELECT id, name FROM foo ORDER BY id"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| {
+            assert_eq!(r[0].get::<String, _>("name"), "joe");
+            assert_eq!(r[1].get::<String, _>("name"), "bob");
+        });
     l.run(done).unwrap();
 }
