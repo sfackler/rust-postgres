@@ -638,6 +638,12 @@ impl Connection {
             .boxed()
     }
 
+    pub fn transaction(self) -> BoxFuture<Transaction, Error> {
+        self.simple_query("BEGIN")
+            .map(|(_, c)| Transaction(c))
+            .boxed()
+    }
+
     pub fn close(self) -> BoxFuture<(), Error> {
         let mut terminate = vec![];
         frontend::terminate(&mut terminate);
@@ -717,6 +723,24 @@ impl Row {
 
         // FIXME
         T::from_sql_nullable(ty, self.data.get(idx), &SessionInfo::new(&HashMap::new())).map(Some)
+    }
+}
+
+pub struct Transaction(Connection);
+
+impl Transaction {
+    pub fn commit(self) -> BoxFuture<Connection, Error> {
+        self.finish("COMMIT")
+    }
+
+    pub fn rollback(self) -> BoxFuture<Connection, Error> {
+        self.finish("ROLLBACK")
+    }
+
+    fn finish(self, query: &str) -> BoxFuture<Connection, Error> {
+        self.0.simple_query(query)
+            .map(|(_, c)| c)
+            .boxed()
     }
 }
 
