@@ -133,9 +133,12 @@ fn query() {
         })
         .and_then(|c| c.prepare("SELECT id, name FROM foo ORDER BY id"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
-        .map(|(r, _)| {
+        .and_then(|(r, c)| {
             assert_eq!(r[0].get::<String, _>("name"), "joe");
             assert_eq!(r[1].get::<String, _>("name"), "bob");
-        });
+            c.prepare("")
+        })
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| assert!(r.is_empty()));
     l.run(done).unwrap();
 }
