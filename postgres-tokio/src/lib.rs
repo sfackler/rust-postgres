@@ -164,7 +164,6 @@ impl Connection {
         result
             .into_future()
             .and_then(move |()| self.0.send(buf))
-            .and_then(|s| s.flush())
             .map_err(ConnectError::Io)
             .map(move |s| (Connection(s), params))
             .boxed()
