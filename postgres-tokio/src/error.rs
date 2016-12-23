@@ -8,10 +8,10 @@ use Connection;
 pub use postgres_shared::error::*;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum Error<C = Connection> {
     Io(io::Error),
-    Db(Box<DbError>, Connection),
-    Conversion(Box<error::Error + Sync + Send>, Connection),
+    Db(Box<DbError>, C),
+    Conversion(Box<error::Error + Sync + Send>, C),
 }
 
 impl fmt::Display for Error {

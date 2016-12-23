@@ -134,11 +134,33 @@ fn query() {
         .and_then(|c| c.prepare("SELECT id, name FROM foo ORDER BY id"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .and_then(|(r, c)| {
+            assert_eq!(r[0].get::<i32, _>("id"), 1);
             assert_eq!(r[0].get::<String, _>("name"), "joe");
+            assert_eq!(r[1].get::<i32, _>("id"), 2);
             assert_eq!(r[1].get::<String, _>("name"), "bob");
             c.prepare("")
         })
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .map(|(r, _)| assert!(r.is_empty()));
+    l.run(done).unwrap();
+}
+
+#[test]
+fn transaction() {
+    let mut l = Core::new().unwrap();
+    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+        .then(|c| c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);"))
+        .then(|c| c.unwrap().transaction())
+        .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
+        .then(|t| t.unwrap().rollback())
+        .then(|c| c.unwrap().transaction())
+        .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('bob');"))
+        .then(|t| t.unwrap().commit())
+        .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| {
+            assert_eq!(r.len(), 1);
+            assert_eq!(r[0].get::<String, _>("name"), "bob");
+        });
     l.run(done).unwrap();
 }

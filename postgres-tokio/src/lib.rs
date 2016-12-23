@@ -726,9 +726,44 @@ impl Row {
     }
 }
 
+#[derive(Debug)]
 pub struct Transaction(Connection);
 
 impl Transaction {
+    pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
+        self.0.batch_execute(query)
+            .map(Transaction)
+            .map_err(transaction_err)
+            .boxed()
+    }
+
+    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), Error<Transaction>> {
+        self.0.prepare(query)
+            .map(|(s, c)| (s, Transaction(c)))
+            .map_err(transaction_err)
+            .boxed()
+    }
+
+    pub fn execute(self,
+                   statement: &Statement,
+                   params: &[&ToSql])
+                   -> BoxFuture<(u64, Transaction), Error<Transaction>> {
+        self.0.execute(statement, params)
+            .map(|(n, c)| (n, Transaction(c)))
+            .map_err(transaction_err)
+            .boxed()
+    }
+
+    pub fn query(self,
+                 statement: &Statement,
+                 params: &[&ToSql])
+                 -> BoxStateStream<Row, Transaction, Error<Transaction>> {
+        self.0.query(statement, params)
+            .map_state(Transaction)
+            .map_err(transaction_err)
+            .boxed()
+    }
+
     pub fn commit(self) -> BoxFuture<Connection, Error> {
         self.finish("COMMIT")
     }
@@ -755,4 +790,12 @@ fn bad_message<T>() -> T
     where T: From<io::Error>
 {
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
+}
+
+fn transaction_err(e: Error) -> Error<Transaction> {
+    match e {
+        Error::Io(e) => Error::Io(e),
+        Error::Db(e, c) => Error::Db(e, Transaction(c)),
+        Error::Conversion(e, c) => Error::Conversion(e, Transaction(c))
+    }
 }
