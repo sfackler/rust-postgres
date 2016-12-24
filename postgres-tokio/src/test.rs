@@ -4,6 +4,7 @@ use tokio_core::reactor::Core;
 
 use super::*;
 use error::{Error, ConnectError, SqlState};
+use params::ConnectParams;
 
 #[test]
 fn basic() {
@@ -162,5 +163,23 @@ fn transaction() {
             assert_eq!(r.len(), 1);
             assert_eq!(r[0].get::<String, _>("name"), "bob");
         });
+    l.run(done).unwrap();
+}
+
+#[test]
+fn unix_socket() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+    let done = Connection::connect("postgres://postgres@localhost", &handle)
+        .then(|c| c.unwrap().prepare("SHOW unix_socket_directories"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .then(|r| {
+            let r = r.unwrap().0;
+            let params = ConnectParams::builder()
+                .user("postgres", None)
+                .build_unix(r[0].get::<String, _>(0));
+            Connection::connect(params, &handle)
+        })
+        .then(|c| c.unwrap().batch_execute(""));
     l.run(done).unwrap();
 }
