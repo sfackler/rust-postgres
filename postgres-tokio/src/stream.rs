@@ -34,7 +34,7 @@ pub fn connect(host: Host,
         }
     };
 
-    let (required, mut handshaker) = match tls_mode {
+    let (required, handshaker) = match tls_mode {
         TlsMode::Require(h) => (true, h),
         TlsMode::Prefer(h) => (false, h),
         TlsMode::None => {

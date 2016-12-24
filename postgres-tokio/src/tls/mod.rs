@@ -26,7 +26,7 @@ impl TlsStream for Stream {
 }
 
 pub trait Handshake: 'static + Sync + Send {
-    fn handshake(&mut self,
+    fn handshake(self: Box<Self>,
                  host: &str,
                  stream: Stream)
                  -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>>;

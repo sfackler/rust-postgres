@@ -32,7 +32,7 @@ impl From<SslConnector> for OpenSsl {
 }
 
 impl Handshake for OpenSsl {
-    fn handshake(&mut self,
+    fn handshake(self: Box<Self>,
                  host: &str,
                  stream: Stream)
                  -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>> {

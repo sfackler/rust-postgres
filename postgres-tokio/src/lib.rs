@@ -238,7 +238,6 @@ impl Connection {
 
     fn handle_auth_response(self, message: Vec<u8>) -> BoxFuture<Connection, ConnectError> {
         self.0.send(message)
-            .and_then(|s| s.flush())
             .and_then(|s| s.read())
             .map_err(ConnectError::Io)
             .and_then(|(m, s)| {
@@ -277,7 +276,6 @@ impl Connection {
             .map(|()| buf)
             .into_future()
             .and_then(move |buf| self.0.send(buf))
-            .and_then(|s| s.flush())
             .map_err(Error::Io)
             .and_then(|s| Connection(s).simple_read_rows(vec![]))
             .boxed()
