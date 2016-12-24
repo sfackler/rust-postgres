@@ -57,6 +57,29 @@ pub struct CancelData {
     pub secret_key: i32,
 }
 
+pub fn cancel_query<T>(params: T,
+                       tls_mode: TlsMode,
+                       cancel_data: CancelData,
+                       handle: &Handle)
+                       -> BoxFuture<(), ConnectError>
+    where T: IntoConnectParams
+{
+    let params = match params.into_connect_params() {
+        Ok(params) => {
+            Either::A(stream::connect(params.host().clone(), params.port(), tls_mode, handle))
+        }
+        Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future())
+    };
+
+    params.and_then(move |c| {
+            let mut buf = vec![];
+            frontend::cancel_request(cancel_data.process_id, cancel_data.secret_key, &mut buf);
+            c.send(buf).map_err(ConnectError::Io)
+        })
+        .map(|_| ())
+        .boxed()
+}
+
 struct InnerConnection {
     stream: PostgresStream,
     close_receiver: Receiver<(u8, String)>,
