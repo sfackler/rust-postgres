@@ -7,6 +7,11 @@ extern crate tokio_core;
 extern crate tokio_dns;
 extern crate tokio_uds;
 
+#[cfg(feature = "tokio-openssl")]
+extern crate tokio_openssl;
+#[cfg(feature = "openssl")]
+extern crate openssl;
+
 use fallible_iterator::FallibleIterator;
 use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
 use futures::future::Either;
@@ -31,12 +36,20 @@ use error::{ConnectError, Error, DbError};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
 use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType};
+use tls::Handshake;
 
 pub mod error;
 mod stream;
+pub mod tls;
 
 #[cfg(test)]
 mod test;
+
+pub enum TlsMode {
+    Require(Box<Handshake>),
+    Prefer(Box<Handshake>),
+    None,
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct CancelData {
@@ -119,7 +132,10 @@ impl fmt::Debug for Connection {
 }
 
 impl Connection {
-    pub fn connect<T>(params: T, handle: &Handle) -> BoxFuture<Connection, ConnectError>
+    pub fn connect<T>(params: T,
+                      tls_mode: TlsMode,
+                      handle: &Handle)
+                      -> BoxFuture<Connection, ConnectError>
         where T: IntoConnectParams
     {
         let params = match params.into_connect_params() {
@@ -127,8 +143,7 @@ impl Connection {
             Err(e) => return futures::failed(ConnectError::ConnectParams(e)).boxed(),
         };
 
-        stream::connect(params.host(), params.port(), handle)
-            .map_err(ConnectError::Io)
+        stream::connect(params.host().clone(), params.port(), tls_mode, handle)
             .map(|s| {
                 let (sender, receiver) = mpsc::channel();
                 Connection(InnerConnection {

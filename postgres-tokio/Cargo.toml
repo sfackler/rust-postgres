@@ -3,6 +3,9 @@ name = "postgres-tokio"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 
+[features]
+with-openssl = ["tokio-openssl", "openssl"]
+
 [dependencies]
 fallible-iterator = "0.1.3"
 futures = "0.1.7"
@@ -12,3 +15,6 @@ postgres-protocol = "0.2"
 tokio-core = "0.1"
 tokio-dns-unofficial = "0.1"
 tokio-uds = "0.1"
+
+tokio-openssl = { version = "0.1", optional = true }
+openssl = { version = "0.9", optional = true }

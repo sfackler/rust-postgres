@@ -10,7 +10,7 @@ use params::ConnectParams;
 fn basic() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://postgres@localhost", &handle)
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| c.unwrap().close());
     l.run(done).unwrap();
 }
@@ -19,7 +19,9 @@ fn basic() {
 fn md5_user() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user:password@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://md5_user:password@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     l.run(done).unwrap();
 }
 
@@ -27,7 +29,9 @@ fn md5_user() {
 fn md5_user_no_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://md5_user@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     match l.run(done) {
         Err(ConnectError::ConnectParams(_)) => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -39,7 +43,9 @@ fn md5_user_no_pass() {
 fn md5_user_wrong_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user:foobar@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://md5_user:foobar@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     match l.run(done) {
         Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -51,7 +57,9 @@ fn md5_user_wrong_pass() {
 fn pass_user() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user:password@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://pass_user:password@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     l.run(done).unwrap();
 }
 
@@ -59,7 +67,9 @@ fn pass_user() {
 fn pass_user_no_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://pass_user@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     match l.run(done) {
         Err(ConnectError::ConnectParams(_)) => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -71,7 +81,9 @@ fn pass_user_no_pass() {
 fn pass_user_wrong_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user:foobar@localhost/postgres", &handle);
+    let done = Connection::connect("postgres://pass_user:foobar@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
     match l.run(done) {
         Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -82,7 +94,7 @@ fn pass_user_wrong_pass() {
 #[test]
 fn batch_execute_ok() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL);"));
     l.run(done).unwrap();
 }
@@ -90,7 +102,7 @@ fn batch_execute_ok() {
 #[test]
 fn batch_execute_err() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|r| r.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL); \
                                             INSERT INTO foo DEFAULT VALUES;"))
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
@@ -110,7 +122,7 @@ fn batch_execute_err() {
 #[test]
 fn prepare_execute() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| {
             c.unwrap().prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
         })
@@ -127,7 +139,7 @@ fn prepare_execute() {
 #[test]
 fn query() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| {
             c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);
                                       INSERT INTO foo (name) VALUES ('joe'), ('bob')")
@@ -149,7 +161,7 @@ fn query() {
 #[test]
 fn transaction() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", &l.handle())
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);"))
         .then(|c| c.unwrap().transaction())
         .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
@@ -170,7 +182,7 @@ fn transaction() {
 fn unix_socket() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://postgres@localhost", &handle)
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| c.unwrap().prepare("SHOW unix_socket_directories"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .then(|r| {
@@ -178,8 +190,28 @@ fn unix_socket() {
             let params = ConnectParams::builder()
                 .user("postgres", None)
                 .build_unix(r[0].get::<String, _>(0));
-            Connection::connect(params, &handle)
+            Connection::connect(params, TlsMode::None, &handle)
         })
         .then(|c| c.unwrap().batch_execute(""));
+    l.run(done).unwrap();
+}
+
+#[cfg(feature = "with-openssl")]
+#[test]
+fn openssl_required() {
+    use openssl::ssl::{SslMethod, SslConnectorBuilder};
+    use tls::openssl::OpenSsl;
+
+    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
+    builder.builder_mut().set_ca_file("../.travis/server.crt").unwrap();
+    let negotiator = OpenSsl::from(builder.build());
+
+    let mut l = Core::new().unwrap();
+    let done = Connection::connect("postgres://postgres@localhost",
+                                   TlsMode::Require(Box::new(negotiator)),
+                                   &l.handle())
+        .then(|c| c.unwrap().prepare("SELECT 1"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| assert_eq!(r[0].get::<i32, _>(0), 1));
     l.run(done).unwrap();
 }
