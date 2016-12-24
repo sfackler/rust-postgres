@@ -161,15 +161,17 @@ impl Connection {
                       -> BoxFuture<Connection, ConnectError>
         where T: IntoConnectParams
     {
-        let params = match params.into_connect_params() {
-            Ok(params) => params,
-            Err(e) => return futures::failed(ConnectError::ConnectParams(e)).boxed(),
+        let fut = match params.into_connect_params() {
+            Ok(params) => {
+                Either::A(stream::connect(params.host().clone(), params.port(), tls_mode, handle)
+                    .map(|s| (s, params)))
+            }
+            Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future())
         };
 
-        stream::connect(params.host().clone(), params.port(), tls_mode, handle)
-            .map(|s| {
+        fut.map(|(s, params)| {
                 let (sender, receiver) = mpsc::channel();
-                Connection(InnerConnection {
+                (Connection(InnerConnection {
                     stream: s,
                     close_sender: sender,
                     close_receiver: receiver,
@@ -179,9 +181,9 @@ impl Connection {
                         secret_key: 0,
                     },
                     next_stmt_id: 0,
-                })
+                }), params)
             })
-            .and_then(|s| s.startup(params))
+            .and_then(|(s, params)| s.startup(params))
             .and_then(|(s, params)| s.handle_auth(params))
             .and_then(|s| s.finish_startup())
             .boxed()
