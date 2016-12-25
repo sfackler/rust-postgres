@@ -30,20 +30,26 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{params, types, Column, RowIndex};
+pub use postgres_shared::{params, Column, RowIndex};
 
-use error::{ConnectError, Error, DbError};
+use error::{ConnectError, Error, DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
-use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType};
+use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType, Other, Kind, Field};
 use tls::Handshake;
 
 pub mod error;
 mod stream;
 pub mod tls;
+#[macro_use]
+pub mod types;
 
 #[cfg(test)]
 mod test;
+
+const TYPEINFO_QUERY: &'static str = "__typeinfo";
+const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
+const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 
 pub enum TlsMode {
     Require(Box<Handshake>),
@@ -85,8 +91,12 @@ struct InnerConnection {
     close_receiver: Receiver<(u8, String)>,
     close_sender: Sender<(u8, String)>,
     parameters: HashMap<String, String>,
+    types: HashMap<Oid, Other>,
     cancel_data: CancelData,
     next_stmt_id: u32,
+    has_typeinfo_query: bool,
+    has_typeinfo_enum_query: bool,
+    has_typeinfo_composite_query: bool,
 }
 
 impl InnerConnection {
@@ -176,11 +186,15 @@ impl Connection {
                     close_sender: sender,
                     close_receiver: receiver,
                     parameters: HashMap::new(),
+                    types: HashMap::new(),
                     cancel_data: CancelData {
                         process_id: 0,
                         secret_key: 0,
                     },
                     next_stmt_id: 0,
+                    has_typeinfo_query: false,
+                    has_typeinfo_enum_query: false,
+                    has_typeinfo_composite_query: false,
                 }), params)
             })
             .and_then(|(s, params)| s.startup(params))
@@ -505,7 +519,217 @@ impl Connection {
         if let Some(type_) = Type::from_oid(oid) {
             return Ok((type_, self)).into_future().boxed();
         };
-        unimplemented!()
+
+        let other = self.0.types.get(&oid).map(Clone::clone);
+        if let Some(other) = other {
+            return Ok((Type::Other(other), self)).into_future().boxed();
+        }
+
+        self.get_unknown_type(oid)
+            .map(move |(ty, mut c)| {
+                c.0.types.insert(oid, ty.clone());
+                (Type::Other(ty), c)
+            })
+            .boxed()
+    }
+
+    fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Other, Connection), Error> {
+        self.setup_typeinfo_query()
+            .and_then(move |c| c.raw_execute(TYPEINFO_QUERY, "", &[Type::Oid], &[&oid]))
+            .and_then(|c| c.read_rows().collect())
+            .and_then(move |(r, c)| {
+                let get = |idx| r.get(0).and_then(|r| r.get(idx));
+                let m = HashMap::new();
+                let info = SessionInfo::new(&m);
+
+                let name = match String::from_sql_nullable(&Type::Name, get(0), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let type_ = match i8::from_sql_nullable(&Type::Char, get(1), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let elem_oid = match Oid::from_sql_nullable(&Type::Oid, get(2), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let rngsubtype = match Option::<Oid>::from_sql_nullable(&Type::Oid, get(3), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let basetype = match Oid::from_sql_nullable(&Type::Oid, get(4), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let schema = match String::from_sql_nullable(&Type::Name, get(5), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+                let relid = match Oid::from_sql_nullable(&Type::Oid, get(6), &info) {
+                    Ok(v) => v,
+                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                };
+
+                let kind = if type_ == b'p' as i8 {
+                    Either::A(Ok((Kind::Pseudo, c)).into_future())
+                } else if type_ == b'e' as i8 {
+                    Either::B(c.get_enum_variants(oid).map(|(v, c)| (Kind::Enum(v), c)).boxed())
+                } else if basetype != 0 {
+                    Either::B(c.get_type(basetype).map(|(t, c)| (Kind::Domain(t), c)).boxed())
+                } else if elem_oid != 0 {
+                    Either::B(c.get_type(elem_oid).map(|(t, c)| (Kind::Array(t), c)).boxed())
+                } else if relid != 0 {
+                    Either::B(c.get_composite_fields(relid).map(|(f, c)| (Kind::Composite(f), c)).boxed())
+                } else if let Some(rngsubtype) = rngsubtype {
+                    Either::B(c.get_type(rngsubtype).map(|(t, c)| (Kind::Range(t), c)).boxed())
+                } else {
+                    Either::A(Ok((Kind::Simple, c)).into_future())
+                };
+
+                Either::B(kind.map(move |(k, c)| (Other::new(name, oid, k, schema), c)))
+            })
+            .boxed()
+    }
+
+    fn setup_typeinfo_query(self) -> BoxFuture<Connection, Error> {
+        if self.0.has_typeinfo_query {
+            return Ok(self).into_future().boxed();
+        }
+
+        self.raw_prepare(TYPEINFO_QUERY,
+                         "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
+                                 t.typbasetype, n.nspname, t.typrelid \
+                          FROM pg_catalog.pg_type t \
+                          LEFT OUTER JOIN pg_catalog.pg_range r ON \
+                              r.rngtypid = t.oid \
+                          INNER JOIN pg_catalog.pg_namespace n ON \
+                              t.typnamespace = n.oid \
+                          WHERE t.oid = $1")
+            .or_else(|e| {
+                match e {
+                    // Range types weren't added until Postgres 9.2, so pg_range may not exist
+                    Error::Db(e, c) => {
+                        if e.code != SqlState::UndefinedTable {
+                            return Either::B(Err(Error::Db(e, c)).into_future());
+                        }
+
+                        Either::A(c.raw_prepare(TYPEINFO_QUERY,
+                                                "SELECT t.typname, t.typtype, t.typelem, \
+                                                     NULL::OID, t.typbasetype, n.nspname, \
+                                                     t.typrelid \
+                                                 FROM pg_catalog.pg_type t \
+                                                 INNER JOIN pg_catalog.pg_namespace n \
+                                                     ON t.typnamespace = n.oid \
+                                                 WHERE t.oid = $1"))
+                    }
+                    e => Either::B(Err(e).into_future()),
+                }
+            })
+            .map(|(_, _, mut c)| {
+                c.0.has_typeinfo_query = true;
+                c
+            })
+            .boxed()
+    }
+
+    fn get_enum_variants(self, oid: Oid) -> BoxFuture<(Vec<String>, Connection), Error> {
+        self.setup_typeinfo_enum_query()
+            .and_then(move |c| c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[Type::Oid], &[&oid]))
+            .and_then(|c| c.read_rows().collect())
+            .and_then(|(r, c)| {
+                let mut variants = vec![];
+                let m = HashMap::new();
+                let info = SessionInfo::new(&m);
+                for row in r {
+                    let variant = match String::from_sql_nullable(&Type::Name, row.get(0), &info) {
+                        Ok(v) => v,
+                        Err(e) => return Err(Error::Conversion(e, c)),
+                    };
+                    variants.push(variant);
+                }
+                Ok((variants, c))
+            })
+            .boxed()
+    }
+
+    fn setup_typeinfo_enum_query(self) -> BoxFuture<Connection, Error> {
+        if self.0.has_typeinfo_enum_query {
+            return Ok(self).into_future().boxed();
+        }
+
+        self.raw_prepare(TYPEINFO_ENUM_QUERY,
+                         "SELECT enumlabel \
+                          FROM pg_catalog.pg_enum \
+                          WHERE enumtypid = $1 \
+                          ORDER BY enumsortorder")
+            .or_else(|e| {
+                match e {
+                    Error::Db(e, c) => {
+                        if e.code != SqlState::UndefinedColumn {
+                            return Either::B(Err(Error::Db(e, c)).into_future());
+                        }
+
+                        Either::A(c.raw_prepare(TYPEINFO_ENUM_QUERY,
+                                                "SELECT enumlabel \
+                                                 FROM pg_catalog.pg_enum \
+                                                 WHERE enumtypid = $1 \
+                                                 ORDER BY oid"))
+                    }
+                    e => Either::B(Err(e).into_future()),
+                }
+            })
+            .map(|(_, _, mut c)| {
+                c.0.has_typeinfo_enum_query = true;
+                c
+            })
+            .boxed()
+    }
+
+    fn get_composite_fields(self, oid: Oid) -> BoxFuture<(Vec<Field>, Connection), Error> {
+        self.setup_typeinfo_composite_query()
+            .and_then(move |c| c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[Type::Oid], &[&oid]))
+            .and_then(|c| c.read_rows().collect())
+            .and_then(|(r, c)| {
+                futures::stream::iter(r.into_iter().map(Ok))
+                    .fold((vec![], c), |(mut fields, c), row| {
+                        let m = HashMap::new();
+                        let info = SessionInfo::new(&m);
+                        let name = match String::from_sql_nullable(&Type::Name, row.get(0), &info) {
+                            Ok(name) => name,
+                            Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                        };
+                        let oid = match Oid::from_sql_nullable(&Type::Oid, row.get(1), &info) {
+                            Ok(oid) => oid,
+                            Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                        };
+                        Either::B(c.get_type(oid)
+                            .map(move |(ty, c)| {
+                                fields.push(Field::new(name, ty));
+                                (fields, c)
+                            }))
+                    })
+            })
+            .boxed()
+    }
+
+    fn setup_typeinfo_composite_query(self) -> BoxFuture<Connection, Error> {
+        if self.0.has_typeinfo_composite_query {
+            return Ok(self).into_future().boxed();
+        }
+
+        self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
+                         "SELECT attname, atttypid \
+                          FROM pg_catalog.pg_attribute \
+                          WHERE attrelid = $1 \
+                              AND NOT attisdropped \
+                              AND attnum > 0 \
+                          ORDER BY attnum")
+            .map(|(_, _, mut c)| {
+                c.0.has_typeinfo_composite_query = true;
+                c
+            })
+            .boxed()
     }
 
     fn raw_execute(self,
@@ -601,6 +825,21 @@ impl Connection {
             .boxed()
     }
 
+    fn read_rows(self) -> BoxStateStream<RowData, Connection, Error> {
+        futures_state_stream::unfold(self, |c| {
+            c.read_row()
+                .and_then(|(r, c)| {
+                    match r {
+                        Some(data) => {
+                            let event = StreamEvent::Next((data, c));
+                            Either::A(Ok(event).into_future())
+                        },
+                        None => Either::B(c.ready(()).map(|((), c)| StreamEvent::Done(c))),
+                    }
+                })
+        }).boxed()
+    }
+
     fn read_row(self) -> BoxFuture<(Option<RowData>, Connection), Error> {
         self.0.read()
             .map_err(Error::Io)
@@ -654,24 +893,7 @@ impl Connection {
                  -> BoxStateStream<Row, Connection, Error> {
         let columns = statement.columns.clone();
         self.raw_execute(&statement.name, "", &statement.params, params)
-            .map(|c| {
-                futures_state_stream::unfold((c, columns), |(c, columns)| {
-                    c.read_row()
-                        .and_then(|(r, c)| {
-                            match r {
-                                Some(data) => {
-                                    let row = Row {
-                                        columns: columns.clone(),
-                                        data: data,
-                                    };
-                                    let event = StreamEvent::Next((row, (c, columns)));
-                                    Either::A(Ok(event).into_future())
-                                },
-                                None => Either::B(c.ready(()).map(|((), c)| StreamEvent::Done(c))),
-                            }
-                        })
-                })
-            })
+            .map(|c| c.read_rows().map(move |r| Row { columns: columns.clone(), data: r }))
             .flatten_state_stream()
             .boxed()
     }

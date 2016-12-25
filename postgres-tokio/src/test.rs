@@ -1,10 +1,12 @@
 use futures::Future;
 use futures_state_stream::StateStream;
+use std::error::Error as StdError;
 use tokio_core::reactor::Core;
 
 use super::*;
 use error::{Error, ConnectError, SqlState};
 use params::ConnectParams;
+use types::{ToSql, FromSql, Type, SessionInfo, IsNull, Kind};
 
 #[test]
 fn basic() {
@@ -213,5 +215,119 @@ fn openssl_required() {
         .then(|c| c.unwrap().prepare("SELECT 1"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .map(|(r, _)| assert_eq!(r[0].get::<i32, _>(0), 1));
+    l.run(done).unwrap();
+}
+
+#[test]
+fn domain() {
+    #[derive(Debug, PartialEq)]
+    struct SessionId(Vec<u8>);
+
+    impl ToSql for SessionId {
+        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> Result<IsNull, Box<StdError + Sync + Send>> {
+            let inner = match *ty.kind() {
+                Kind::Domain(ref inner) => inner,
+                _ => unreachable!(),
+            };
+            self.0.to_sql(inner, out, ctx)
+        }
+
+        fn accepts(ty: &Type) -> bool {
+            match *ty.kind() {
+                Kind::Domain(Type::Bytea) => ty.name() == "session_id",
+                _ => false
+            }
+        }
+
+        to_sql_checked!();
+    }
+
+    impl FromSql for SessionId {
+        fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> Result<Self, Box<StdError + Sync + Send>> {
+            Vec::<u8>::from_sql(ty, raw, ctx).map(SessionId)
+        }
+
+        fn accepts(ty: &Type) -> bool {
+            // This is super weird!
+            <Vec<u8> as FromSql>::accepts(ty)
+        }
+    }
+
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+        .then(|c| {
+            c.unwrap().batch_execute(
+                "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
+                 CREATE TABLE pg_temp.foo (id pg_temp.session_id);")
+        })
+        .and_then(|c| c.prepare("INSERT INTO pg_temp.foo (id) VALUES ($1)"))
+        .and_then(|(s, c)| {
+            let id = SessionId(b"0123456789abcdef".to_vec());
+            c.execute(&s, &[&id])
+        })
+        .and_then(|(_, c)| c.prepare("SELECT id FROM pg_temp.foo"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| {
+            let id = SessionId(b"0123456789abcdef".to_vec());
+            assert_eq!(id, r[0].get(0));
+        });
+
+    l.run(done).unwrap();
+}
+
+#[test]
+fn composite() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+        .then(|c| {
+            c.unwrap().batch_execute("CREATE TYPE pg_temp.inventory_item AS (
+                                          name TEXT,
+                                          supplier INTEGER,
+                                          price NUMERIC
+                                      )")
+        })
+        .and_then(|c| c.prepare("SELECT $1::inventory_item"))
+        .map(|(s, _)| {
+            let type_ = &s.parameters()[0];
+            assert_eq!(type_.name(), "inventory_item");
+            match *type_.kind() {
+                Kind::Composite(ref fields) => {
+                    assert_eq!(fields[0].name(), "name");
+                    assert_eq!(fields[0].type_(), &Type::Text);
+                    assert_eq!(fields[1].name(), "supplier");
+                    assert_eq!(fields[1].type_(), &Type::Int4);
+                    assert_eq!(fields[2].name(), "price");
+                    assert_eq!(fields[2].type_(), &Type::Numeric);
+                }
+                ref t => panic!("bad type {:?}", t),
+            }
+        });
+    l.run(done).unwrap();
+}
+
+#[test]
+fn enum_() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+        .then(|c| {
+            c.unwrap().batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
+        })
+        .and_then(|c| c.prepare("SELECT $1::mood"))
+        .map(|(s, _)| {
+            let type_ = &s.parameters()[0];
+            assert_eq!(type_.name(), "mood");
+            match *type_.kind() {
+                Kind::Enum(ref variants) => {
+                    assert_eq!(variants, &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
+                }
+                _ => panic!("bad type"),
+            }
+        });
+
     l.run(done).unwrap();
 }
