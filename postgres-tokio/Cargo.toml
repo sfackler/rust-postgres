@@ -9,7 +9,7 @@ with-openssl = ["tokio-openssl", "openssl"]
 [dependencies]
 fallible-iterator = "0.1.3"
 futures = "0.1.7"
-futures-state-stream = { git = "https://github.com/sfackler/futures-state-stream" }
+futures-state-stream = "0.1"
 postgres-shared = { path = "../postgres-shared" }
 postgres-protocol = "0.2"
 tokio-core = "0.1"
