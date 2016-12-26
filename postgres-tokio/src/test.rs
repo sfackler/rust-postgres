@@ -1,12 +1,13 @@
 use futures::{Future, Stream};
 use futures_state_stream::StateStream;
 use std::error::Error as StdError;
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
 use error::{Error, ConnectError, SqlState};
-use params::ConnectParams;
+use params::{ConnectParams, ConnectTarget, UserInfo};
 use types::{ToSql, FromSql, Type, SessionInfo, IsNull, Kind};
 
 #[test]
@@ -190,9 +191,16 @@ fn unix_socket() {
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .then(|r| {
             let r = r.unwrap().0;
-            let params = ConnectParams::builder()
-                .user("postgres", None)
-                .build_unix(r[0].get::<String, _>(0));
+            let params = ConnectParams {
+                target: ConnectTarget::Unix(PathBuf::from(r[0].get::<String, _>(0))),
+                port: None,
+                user: Some(UserInfo {
+                    user: "postgres".to_owned(),
+                    password: None,
+                }),
+                database: None,
+                options: vec![],
+            };
             Connection::connect(params, TlsMode::None, &handle)
         })
         .then(|c| c.unwrap().batch_execute(""));

@@ -4,6 +4,14 @@ version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 
 [features]
+with-bit-vec = ["postgres-shared/with-bit-vec"]
+with-chrono = ["postgres-shared/with-chrono"]
+with-eui48 = ["postgres-shared/with-eui48"]
+with-rustc-serialize = ["postgres-shared/with-rustc-serialize"]
+with-serde_json = ["postgres-shared/with-serde_json"]
+with-time = ["postgres-shared/with-time"]
+with-uuid = ["postgres-shared/with-uuid"]
+
 with-openssl = ["tokio-openssl", "openssl"]
 
 [dependencies]
