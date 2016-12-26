@@ -1,3 +1,5 @@
+//! Postgres rows.
+
 use postgres_shared::{RowData, Column};
 use std::collections::HashMap;
 use std::error::Error;
@@ -10,6 +12,7 @@ pub use postgres_shared::RowIndex;
 use RowNew;
 use types::{WrongType, FromSql, SessionInfo};
 
+/// A row from Postgres.
 pub struct Row {
     columns: Arc<Vec<Column>>,
     data: RowData,
@@ -25,14 +28,25 @@ impl RowNew for Row {
 }
 
 impl Row {
+    /// Returns information about the columns in the row.
     pub fn columns(&self) -> &[Column] {
         &self.columns
     }
 
+    /// Returns the number of values in the row
     pub fn len(&self) -> usize {
         self.columns.len()
     }
 
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index does not reference a column or the return type is
+    /// not compatible with the Postgres type.
     pub fn get<T, I>(&self, idx: I) -> T
         where T: FromSql,
               I: RowIndex + fmt::Debug
@@ -44,6 +58,14 @@ impl Row {
         }
     }
 
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// Returns `None` if the index does not reference a column, `Some(Err(..))`
+    /// if there was an error converting the result value, and `Some(Ok(..))`
+    /// on success.
     pub fn try_get<T, I>(&self, idx: I) -> Result<Option<T>, Box<Error + Sync + Send>>
         where T: FromSql,
               I: RowIndex

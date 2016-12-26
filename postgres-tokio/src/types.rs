@@ -1,3 +1,5 @@
+//! Postgres types
+
 pub use postgres_shared::types::*;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the

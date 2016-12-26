@@ -1,3 +1,5 @@
+//! Error types.
+
 use std::error;
 use std::io;
 use std::fmt;
@@ -7,10 +9,16 @@ use Connection;
 #[doc(inline)]
 pub use postgres_shared::error::*;
 
+/// A runtime error.
 #[derive(Debug)]
 pub enum Error<C = Connection> {
+    /// An error communicating with the database.
+    ///
+    /// IO errors are fatal - the connection is not returned.
     Io(io::Error),
+    /// An error reported by the database.
     Db(Box<DbError>, C),
+    /// An error converting between Rust and Postgres types.
     Conversion(Box<error::Error + Sync + Send>, C),
 }
 

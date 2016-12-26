@@ -1,3 +1,6 @@
+//! An asynchronous Postgres driver.
+#![warn(missing_docs)]
+
 extern crate fallible_iterator;
 extern crate futures;
 extern crate futures_state_stream;
@@ -28,11 +31,11 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{params, Column, RowIndex};
+pub use postgres_shared::{params, CancelData};
 
 use error::{ConnectError, Error, DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
-use stmt::Statement;
+use stmt::{Statement, Column};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
@@ -55,18 +58,27 @@ const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
 
+/// Specifies the TLS support required for a new connection.
 pub enum TlsMode {
+    /// The connection must use TLS.
     Require(Box<Handshake>),
+    /// The connection will use TLS if available.
     Prefer(Box<Handshake>),
+    /// The connection will not use TLS.
     None,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct CancelData {
-    pub process_id: i32,
-    pub secret_key: i32,
-}
-
+/// Attempts to cancel an in-progress query.
+///
+/// The backend provides no information about whether a cancellation attempt
+/// was successful or not. An error will only be returned if the driver was
+/// unable to connect to the database.
+///
+/// A `CancelData` object can be created via `Connection::cancel_data`. The
+/// object can cancel any query made on that connection.
+///
+/// Only the host and port of the connection info are used. See
+/// `Connection::connect` for details of the `params` argument.
 pub fn cancel_query<T>(params: T,
                        tls_mode: TlsMode,
                        cancel_data: CancelData,
@@ -161,6 +173,7 @@ impl Sink for InnerConnection {
     }
 }
 
+/// A connection to a Postgres database.
 pub struct Connection(InnerConnection);
 
 // FIXME fill out
@@ -172,6 +185,24 @@ impl fmt::Debug for Connection {
 }
 
 impl Connection {
+    /// Creates a new connection to a Postgres database.
+    ///
+    /// Most applications can use a URL string in the normal format:
+    ///
+    /// ```notrust
+    /// postgresql://user[:password]@host[:port][/database][?param1=val1[[&param2=val2]...]]
+    /// ```
+    ///
+    /// The password may be omitted if not required. The default Postgres port
+    /// (5432) is used if none is specified. The database name defaults to the
+    /// username if not specified.
+    ///
+    /// To connect to the server via Unix sockets, `host` should be set to the
+    /// absolute path of the directory containing the socket file.  Since `/` is
+    /// a reserved character in URLs, the path should be URL encoded. If the
+    /// path contains non-UTF 8 characters, a `ConnectParams` struct should be
+    /// created manually and passed in. Note that Postgres does not support TLS
+    /// over Unix sockets.
     pub fn connect<T>(params: T,
                       tls_mode: TlsMode,
                       handle: &Handle)
@@ -421,6 +452,19 @@ impl Connection {
             .boxed()
     }
 
+    /// Execute a sequence of SQL statements.
+    ///
+    /// Statements should be separated by `;` characters. If an error occurs,
+    /// execution of the sequence will stop at that point. This is intended for
+    /// execution of batches of non-dynamic statements - for example, creation
+    /// of a schema for a fresh database.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be used for any SQL statement which contains
+    /// user-specified data, as it provides functionality to safely embed that
+    /// data in the statement. Do not form statements via string concatenation
+    /// and feed them into this method.
     pub fn batch_execute(self, query: &str) -> BoxFuture<Connection, Error> {
         self.simple_query(query)
             .map(|r| r.1)
@@ -873,6 +917,7 @@ impl Connection {
             .boxed()
     }
 
+    /// Creates a new prepared statement.
     pub fn prepare(mut self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
         let id = self.0.next_stmt_id;
         self.0.next_stmt_id += 1;
@@ -888,12 +933,24 @@ impl Connection {
             .boxed()
     }
 
+    /// Executes a statement, returning the number of rows modified.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
     pub fn execute(self, statement: &Statement, params: &[&ToSql]) -> BoxFuture<(u64, Connection), Error> {
         self.raw_execute(statement.name(), "", statement.parameters(), params)
             .and_then(|conn| conn.finish_execute())
             .boxed()
     }
 
+    /// Executes a statement, returning a stream over the resulting rows.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number
+    /// expected.
     pub fn query(self,
                  statement: &Statement,
                  params: &[&ToSql])
@@ -905,23 +962,25 @@ impl Connection {
             .boxed()
     }
 
+    /// Starts a new transaction.
     pub fn transaction(self) -> BoxFuture<Transaction, Error> {
         self.simple_query("BEGIN")
             .map(|(_, c)| Transaction::new(c))
             .boxed()
     }
 
-    pub fn close(self) -> BoxFuture<(), Error> {
-        let mut terminate = vec![];
-        frontend::terminate(&mut terminate);
-        self.0.send(terminate)
-            .map(|_| ())
-            .map_err(Error::Io)
-            .boxed()
-    }
-
+    /// Returns information used to cancel pending queries.
+    ///
+    /// Used with the `cancel_query` function. The object returned can be used
+    /// to cancel any query executed by the connection it was created from.
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data
+    }
+
+    /// Returns the value of the specified Postgres backend parameter, such as
+    /// `timezone` or `server_version`.
+    pub fn parameter(&self, param: &str) -> Option<&str> {
+        self.0.parameters.get(param).map(|s| &**s)
     }
 }
 

@@ -103,6 +103,9 @@ use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
 use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, ToSql, FromSql, Field};
 
+#[doc(inline)]
+pub use postgres_shared::CancelData;
+
 #[macro_use]
 mod macros;
 
@@ -149,15 +152,6 @@ impl HandleNotice for LoggingNoticeHandler {
     fn handle_notice(&mut self, notice: DbError) {
         info!("{}: {}", notice.severity, notice.message);
     }
-}
-
-/// Contains information necessary to cancel queries for a session.
-#[derive(Copy, Clone, Debug)]
-pub struct CancelData {
-    /// The process ID of the session.
-    pub process_id: i32,
-    /// The secret key for the session.
-    pub secret_key: i32,
 }
 
 /// Attempts to cancel an in-progress query.

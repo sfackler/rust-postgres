@@ -79,6 +79,7 @@ pub fn connect(host: ConnectTarget,
         .boxed()
 }
 
+/// A raw connection to the database.
 pub struct Stream(InnerStream);
 
 enum InnerStream {

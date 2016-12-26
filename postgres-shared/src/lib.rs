@@ -15,6 +15,15 @@ pub mod error;
 pub mod params;
 pub mod types;
 
+/// Contains information necessary to cancel queries for a session.
+#[derive(Copy, Clone, Debug)]
+pub struct CancelData {
+    /// The process ID of the session.
+    pub process_id: i32,
+    /// The secret key for the session.
+    pub secret_key: i32,
+}
+
 pub struct RowData {
     buf: Vec<u8>,
     indices: Vec<Option<Range<usize>>>,

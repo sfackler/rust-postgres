@@ -1,3 +1,5 @@
+//! Prepared statements.
+
 use std::mem;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
@@ -8,6 +10,7 @@ pub use postgres_shared::Column;
 use StatementNew;
 use types::Type;
 
+/// A prepared statement.
 pub struct Statement {
     close_sender: Sender<(u8, String)>,
     name: String,
@@ -46,10 +49,12 @@ impl Drop for Statement {
 }
 
 impl Statement {
+    /// Returns the types of query parameters for this statement.
     pub fn parameters(&self) -> &[Type] {
         &self.params
     }
 
+    /// Returns information about the resulting columns for this statement.
     pub fn columns(&self) -> &[Column] {
         &self.columns
     }

@@ -1,3 +1,5 @@
+//! Transactions.
+
 use futures::{Future, BoxFuture};
 use futures_state_stream::{StateStream, BoxStateStream};
 
@@ -7,6 +9,7 @@ use stmt::Statement;
 use types::ToSql;
 use rows::Row;
 
+/// An in progress Postgres transaction.
 #[derive(Debug)]
 pub struct Transaction(Connection);
 
@@ -17,6 +20,7 @@ impl TransactionNew for Transaction {
 }
 
 impl Transaction {
+    /// Like `Connection::batch_execute`.
     pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
         self.0.batch_execute(query)
             .map(Transaction)
@@ -24,6 +28,7 @@ impl Transaction {
             .boxed()
     }
 
+    /// Like `Connection::prepare`.
     pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), Error<Transaction>> {
         self.0.prepare(query)
             .map(|(s, c)| (s, Transaction(c)))
@@ -31,6 +36,7 @@ impl Transaction {
             .boxed()
     }
 
+    /// Like `Connection::execute`.
     pub fn execute(self,
                    statement: &Statement,
                    params: &[&ToSql])
@@ -41,6 +47,7 @@ impl Transaction {
             .boxed()
     }
 
+    /// Like `Connection::query`.
     pub fn query(self,
                  statement: &Statement,
                  params: &[&ToSql])
@@ -51,10 +58,12 @@ impl Transaction {
             .boxed()
     }
 
+    /// Commits the transaction.
     pub fn commit(self) -> BoxFuture<Connection, Error> {
         self.finish("COMMIT")
     }
 
+    /// Rolls back the transaction.
     pub fn rollback(self) -> BoxFuture<Connection, Error> {
         self.finish("ROLLBACK")
     }
