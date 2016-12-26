@@ -1,5 +1,5 @@
 [package]
-name = "postgres-tokio"
+name = "tokio-postgres"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"

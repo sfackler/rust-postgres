@@ -3,7 +3,7 @@ name = "postgres-shared"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
-description = "Internal crate used by postgres libraries"
+description = "Internal crate used by postgres and postgres-tokio"
 repository = "https://github.com/sfackler/rust-postgres"
 
 [features]
