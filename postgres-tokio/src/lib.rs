@@ -35,12 +35,14 @@ pub use postgres_shared::{params, Column, RowIndex};
 use error::{ConnectError, Error, DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
-use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType, Other, Kind, Field};
 use tls::Handshake;
+use transaction::Transaction;
+use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType, Other, Kind, Field};
 
 pub mod error;
 mod stream;
 pub mod tls;
+pub mod transaction;
 #[macro_use]
 pub mod types;
 
@@ -905,7 +907,7 @@ impl Connection {
 
     pub fn transaction(self) -> BoxFuture<Transaction, Error> {
         self.simple_query("BEGIN")
-            .map(|(_, c)| Transaction(c))
+            .map(|(_, c)| Transaction::new(c))
             .boxed()
     }
 
@@ -991,59 +993,6 @@ impl Row {
     }
 }
 
-#[derive(Debug)]
-pub struct Transaction(Connection);
-
-impl Transaction {
-    pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
-        self.0.batch_execute(query)
-            .map(Transaction)
-            .map_err(transaction_err)
-            .boxed()
-    }
-
-    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), Error<Transaction>> {
-        self.0.prepare(query)
-            .map(|(s, c)| (s, Transaction(c)))
-            .map_err(transaction_err)
-            .boxed()
-    }
-
-    pub fn execute(self,
-                   statement: &Statement,
-                   params: &[&ToSql])
-                   -> BoxFuture<(u64, Transaction), Error<Transaction>> {
-        self.0.execute(statement, params)
-            .map(|(n, c)| (n, Transaction(c)))
-            .map_err(transaction_err)
-            .boxed()
-    }
-
-    pub fn query(self,
-                 statement: &Statement,
-                 params: &[&ToSql])
-                 -> BoxStateStream<Row, Transaction, Error<Transaction>> {
-        self.0.query(statement, params)
-            .map_state(Transaction)
-            .map_err(transaction_err)
-            .boxed()
-    }
-
-    pub fn commit(self) -> BoxFuture<Connection, Error> {
-        self.finish("COMMIT")
-    }
-
-    pub fn rollback(self) -> BoxFuture<Connection, Error> {
-        self.finish("ROLLBACK")
-    }
-
-    fn finish(self, query: &str) -> BoxFuture<Connection, Error> {
-        self.0.simple_query(query)
-            .map(|(_, c)| c)
-            .boxed()
-    }
-}
-
 fn connect_err(fields: &mut ErrorFields) -> ConnectError {
     match DbError::new(fields) {
         Ok(err) => ConnectError::Db(Box::new(err)),
@@ -1057,10 +1006,6 @@ fn bad_message<T>() -> T
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
 }
 
-fn transaction_err(e: Error) -> Error<Transaction> {
-    match e {
-        Error::Io(e) => Error::Io(e),
-        Error::Db(e, c) => Error::Db(e, Transaction(c)),
-        Error::Conversion(e, c) => Error::Conversion(e, Transaction(c))
-    }
+trait TransactionNew {
+    fn new(c: Connection) -> Transaction;
 }
