@@ -11,15 +11,6 @@ use params::{ConnectParams, ConnectTarget, UserInfo};
 use types::{ToSql, FromSql, Type, SessionInfo, IsNull, Kind};
 
 #[test]
-fn basic() {
-    let mut l = Core::new().unwrap();
-    let handle = l.handle();
-    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
-        .then(|c| c.unwrap().close());
-    l.run(done).unwrap();
-}
-
-#[test]
 fn md5_user() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
