@@ -1,4 +1,4 @@
-use futures::{Future, IntoFuture};
+use futures::{Future, Stream};
 use futures_state_stream::StateStream;
 use std::error::Error as StdError;
 use std::time::Duration;
@@ -343,9 +343,10 @@ fn cancel() {
             let c = c.unwrap();
             let cancel_data = c.cancel_data();
             let cancel = Interval::new(Duration::from_secs(1), &handle)
+                .unwrap()
                 .into_future()
                 .then(move |r| {
-                    r.unwrap();
+                    assert!(r.is_ok());
                     cancel_query("postgres://postgres@localhost",
                                  TlsMode::None,
                                  cancel_data,
