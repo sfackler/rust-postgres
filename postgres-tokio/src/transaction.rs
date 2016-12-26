@@ -1,9 +1,10 @@
 use futures::{Future, BoxFuture};
 use futures_state_stream::{StateStream, BoxStateStream};
 
-use {Connection, Statement, Row, TransactionNew};
+use {Connection, Statement, TransactionNew};
 use error::Error;
 use types::ToSql;
+use rows::Row;
 
 #[derive(Debug)]
 pub struct Transaction(Connection);

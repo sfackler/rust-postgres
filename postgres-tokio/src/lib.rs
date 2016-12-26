@@ -21,7 +21,6 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
 use postgres_shared::RowData;
 use std::collections::HashMap;
-use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
@@ -37,9 +36,11 @@ use params::{ConnectParams, IntoConnectParams};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
-use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, WrongType, Other, Kind, Field};
+use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, Other, Kind, Field};
+use rows::Row;
 
 pub mod error;
+pub mod rows;
 mod stream;
 pub mod tls;
 pub mod transaction;
@@ -900,7 +901,7 @@ impl Connection {
                  -> BoxStateStream<Row, Connection, Error> {
         let columns = statement.columns.clone();
         self.raw_execute(&statement.name, "", &statement.params, params)
-            .map(|c| c.read_rows().map(move |r| Row { columns: columns.clone(), data: r }))
+            .map(|c| c.read_rows().map(move |r| Row::new(columns.clone(), r)))
             .flatten_state_stream()
             .boxed()
     }
@@ -949,50 +950,6 @@ impl Statement {
     }
 }
 
-pub struct Row {
-    columns: Arc<Vec<Column>>,
-    data: RowData,
-}
-
-impl Row {
-    pub fn columns(&self) -> &[Column] {
-        &self.columns
-    }
-
-    pub fn len(&self) -> usize {
-        self.columns.len()
-    }
-
-    pub fn get<T, I>(&self, idx: I) -> T
-        where T: FromSql,
-              I: RowIndex + fmt::Debug
-    {
-        match self.try_get(&idx) {
-            Ok(Some(v)) => v,
-            Ok(None) => panic!("no such column {:?}", idx),
-            Err(e) => panic!("error retrieving row {:?}: {}", idx, e),
-        }
-    }
-
-    pub fn try_get<T, I>(&self, idx: I) -> Result<Option<T>, Box<StdError + Sync + Send>>
-        where T: FromSql,
-              I: RowIndex
-    {
-        let idx = match idx.idx(&self.columns) {
-            Some(idx) => idx,
-            None => return Ok(None),
-        };
-
-        let ty = self.columns[idx].type_();
-        if !T::accepts(ty) {
-            return Err(Box::new(WrongType::new(ty.clone())));
-        }
-
-        // FIXME
-        T::from_sql_nullable(ty, self.data.get(idx), &SessionInfo::new(&HashMap::new())).map(Some)
-    }
-}
-
 fn connect_err(fields: &mut ErrorFields) -> ConnectError {
     match DbError::new(fields) {
         Ok(err) => ConnectError::Db(Box::new(err)),
@@ -1004,6 +961,10 @@ fn bad_message<T>() -> T
     where T: From<io::Error>
 {
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
+}
+
+trait RowNew {
+    fn new(columns: Arc<Vec<Column>>, data: RowData) -> Row;
 }
 
 trait TransactionNew {
