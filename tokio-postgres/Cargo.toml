@@ -5,7 +5,7 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver using Tokio"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://docs.rs/postgres-tokio/0.13.4/postgres_tokio"
+documentation = "https://docs.rs/tokio-postgres/0.13.4/tokio_postgres"
 readme = "../README.md"
 
 [features]
