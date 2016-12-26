@@ -1,13 +1,14 @@
 //! Postgres rows.
 
-use postgres_shared::{RowData, Column};
+use postgres_shared::rows::RowData;
+use postgres_shared::stmt::Column;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 
 #[doc(inline)]
-pub use postgres_shared::RowIndex;
+pub use postgres_shared::rows::RowIndex;
 
 use RowNew;
 use types::{WrongType, FromSql, SessionInfo};

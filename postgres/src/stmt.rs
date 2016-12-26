@@ -7,7 +7,7 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::sync::Arc;
 use postgres_protocol::message::{backend, frontend};
-use postgres_shared::RowData;
+use postgres_shared::rows::RowData;
 
 use error::Error;
 use types::{SessionInfo, Type, ToSql};

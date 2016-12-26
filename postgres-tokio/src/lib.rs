@@ -22,7 +22,7 @@ use futures_state_stream::{StreamEvent, StateStream, BoxStateStream, FutureExt};
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
-use postgres_shared::RowData;
+use postgres_shared::rows::RowData;
 use std::collections::HashMap;
 use std::fmt;
 use std::io;

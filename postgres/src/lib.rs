@@ -91,7 +91,7 @@ use std::time::Duration;
 use postgres_protocol::authentication;
 use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
-use postgres_shared::RowData;
+use postgres_shared::rows::RowData;
 
 use error::{Error, ConnectError, SqlState, DbError};
 use tls::TlsHandshake;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::mpsc::Sender;
 
 #[doc(inline)]
-pub use postgres_shared::Column;
+pub use postgres_shared::stmt::Column;
 
 use StatementNew;
 use types::Type;
