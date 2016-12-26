@@ -23,7 +23,6 @@ use postgres_shared::RowData;
 use std::collections::HashMap;
 use std::fmt;
 use std::io;
-use std::mem;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
@@ -33,6 +32,7 @@ pub use postgres_shared::{params, Column, RowIndex};
 
 use error::{ConnectError, Error, DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
+use stmt::Statement;
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
@@ -41,6 +41,7 @@ use rows::Row;
 
 pub mod error;
 pub mod rows;
+pub mod stmt;
 mod stream;
 pub mod tls;
 pub mod transaction;
@@ -878,19 +879,17 @@ impl Connection {
         let name = format!("s{}", id);
         self.raw_prepare(&name, query)
             .map(|(params, columns, conn)| {
-                let stmt = Statement {
-                    close_sender: conn.0.close_sender.clone(),
-                    name: name,
-                    params: params,
-                    columns: Arc::new(columns),
-                };
+                let stmt = Statement::new(conn.0.close_sender.clone(),
+                                          name,
+                                          params,
+                                          Arc::new(columns));
                 (stmt, conn)
             })
             .boxed()
     }
 
     pub fn execute(self, statement: &Statement, params: &[&ToSql]) -> BoxFuture<(u64, Connection), Error> {
-        self.raw_execute(&statement.name, "", &statement.params, params)
+        self.raw_execute(statement.name(), "", statement.parameters(), params)
             .and_then(|conn| conn.finish_execute())
             .boxed()
     }
@@ -899,8 +898,8 @@ impl Connection {
                  statement: &Statement,
                  params: &[&ToSql])
                  -> BoxStateStream<Row, Connection, Error> {
-        let columns = statement.columns.clone();
-        self.raw_execute(&statement.name, "", &statement.params, params)
+        let columns = statement.columns_arc().clone();
+        self.raw_execute(statement.name(), "", statement.parameters(), params)
             .map(|c| c.read_rows().map(move |r| Row::new(columns.clone(), r)))
             .flatten_state_stream()
             .boxed()
@@ -926,30 +925,6 @@ impl Connection {
     }
 }
 
-pub struct Statement {
-    close_sender: Sender<(u8, String)>,
-    name: String,
-    params: Vec<Type>,
-    columns: Arc<Vec<Column>>,
-}
-
-impl Drop for Statement {
-    fn drop(&mut self) {
-        let name = mem::replace(&mut self.name, String::new());
-        let _ = self.close_sender.send((b'S', name));
-    }
-}
-
-impl Statement {
-    pub fn parameters(&self) -> &[Type] {
-        &self.params
-    }
-
-    pub fn columns(&self) -> &[Column] {
-        &self.columns
-    }
-}
-
 fn connect_err(fields: &mut ErrorFields) -> ConnectError {
     match DbError::new(fields) {
         Ok(err) => ConnectError::Db(Box::new(err)),
@@ -965,6 +940,18 @@ fn bad_message<T>() -> T
 
 trait RowNew {
     fn new(columns: Arc<Vec<Column>>, data: RowData) -> Row;
+}
+
+trait StatementNew {
+    fn new(close_sender: Sender<(u8, String)>,
+           name: String,
+           params: Vec<Type>,
+           columns: Arc<Vec<Column>>)
+           -> Statement;
+
+    fn columns_arc(&self) -> &Arc<Vec<Column>>;
+
+    fn name(&self) -> &str;
 }
 
 trait TransactionNew {

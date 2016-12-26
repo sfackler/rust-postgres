@@ -1,8 +1,9 @@
 use futures::{Future, BoxFuture};
 use futures_state_stream::{StateStream, BoxStateStream};
 
-use {Connection, Statement, TransactionNew};
+use {Connection, TransactionNew};
 use error::Error;
+use stmt::Statement;
 use types::ToSql;
 use rows::Row;
 
