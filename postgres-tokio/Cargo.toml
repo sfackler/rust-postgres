@@ -2,6 +2,11 @@
 name = "postgres-tokio"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+license = "MIT"
+description = "A native PostgreSQL driver using Tokio"
+repository = "https://github.com/sfackler/rust-postgres"
+documentation = "https://docs.rs/postgres-tokio/0.13.4/postgres_tokio"
+readme = "../README.md"
 
 [features]
 with-bit-vec = ["postgres-shared/with-bit-vec"]

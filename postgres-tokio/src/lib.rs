@@ -1,4 +1,4 @@
-//! An asynchronous Postgres driver.
+//! An asynchronous Postgres driver using Tokio.
 #![warn(missing_docs)]
 
 extern crate fallible_iterator;

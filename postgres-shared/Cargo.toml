@@ -2,6 +2,9 @@
 name = "postgres-shared"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+license = "MIT"
+description = "Internal crate used by postgres libraries"
+repository = "https://github.com/sfackler/rust-postgres"
 
 [features]
 with-bit-vec = ["bit-vec"]
