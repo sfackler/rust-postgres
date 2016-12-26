@@ -199,6 +199,20 @@ fn unix_socket() {
     l.run(done).unwrap();
 }
 
+#[test]
+fn ssl_user_ssl_required() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+
+    let done = Connection::connect("postgres://ssl_user@localhost/postgres", TlsMode::None, &handle);
+
+    match l.run(done) {
+        Err(ConnectError::Db(e)) => assert!(e.code == SqlState::InvalidAuthorizationSpecification),
+        Err(e) => panic!("unexpected error {}", e),
+        Ok(_) => panic!("unexpected success"),
+    }
+}
+
 #[cfg(feature = "with-openssl")]
 #[test]
 fn openssl_required() {
@@ -210,7 +224,7 @@ fn openssl_required() {
     let negotiator = OpenSsl::from(builder.build());
 
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost",
+    let done = Connection::connect("postgres://ssl_user@localhost/postgres",
                                    TlsMode::Require(Box::new(negotiator)),
                                    &l.handle())
         .then(|c| c.unwrap().prepare("SELECT 1"))
