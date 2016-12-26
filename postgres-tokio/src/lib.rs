@@ -312,9 +312,8 @@ impl Connection {
     fn simple_query(self, query: &str) -> BoxFuture<(Vec<RowData>, Connection), Error> {
         let mut buf = vec![];
         frontend::query(query, &mut buf)
-            .map(|()| buf)
             .into_future()
-            .and_then(move |buf| self.0.send(buf))
+            .and_then(move |()| self.0.send(buf))
             .map_err(Error::Io)
             .and_then(|s| Connection(s).simple_read_rows(vec![]))
             .boxed()

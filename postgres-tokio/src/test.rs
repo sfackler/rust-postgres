@@ -1,7 +1,8 @@
-use futures::Future;
+use futures::{Future, IntoFuture};
 use futures_state_stream::StateStream;
 use std::error::Error as StdError;
-use tokio_core::reactor::Core;
+use std::time::Duration;
+use tokio_core::reactor::{Core, Interval};
 
 use super::*;
 use error::{Error, ConnectError, SqlState};
@@ -330,4 +331,37 @@ fn enum_() {
         });
 
     l.run(done).unwrap();
+}
+
+#[test]
+fn cancel() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+        .then(move |c| {
+            let c = c.unwrap();
+            let cancel_data = c.cancel_data();
+            let cancel = Interval::new(Duration::from_secs(1), &handle)
+                .into_future()
+                .then(move |r| {
+                    r.unwrap();
+                    cancel_query("postgres://postgres@localhost",
+                                 TlsMode::None,
+                                 cancel_data,
+                                 &handle)
+                })
+                .then(Ok::<_, ()>);
+            c.batch_execute("SELECT pg_sleep(10)")
+                .then(Ok::<_, ()>)
+                .join(cancel)
+        });
+
+    let (select, cancel) = l.run(done).unwrap();
+    cancel.unwrap();
+    match select {
+        Err(Error::Db(e, _)) => assert_eq!(e.code, SqlState::QueryCanceled),
+        Err(e) => panic!("unexpected error {}", e),
+        Ok(_) => panic!("unexpected success"),
+    }
 }
