@@ -1,4 +1,54 @@
 //! An asynchronous Postgres driver using Tokio.
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! extern crate futures;
+//! extern crate futures_state_stream;
+//! extern crate tokio_core;
+//! extern crate tokio_postgres;
+//!
+//! use futures::Future;
+//! use futures_state_stream::StateStream;
+//! use tokio_core::reactor::Core;
+//! use tokio_postgres::{Connection, TlsMode};
+//!
+//! struct Person {
+//!     id: i32,
+//!     name: String,
+//!     data: Option<Vec<u8>>
+//! }
+//!
+//! fn main() {
+//!     let mut l = Core::new().unwrap();
+//!     let done = Connection::connect("postgresql://postgres@localhost", TlsMode::None, &l.handle())
+//!         .then(|c| {
+//!             c.unwrap()
+//!                 .batch_execute("CREATE TABLE person (
+//!                                     id              SERIAL PRIMARY KEY,
+//!                                     name            VARCHAR NOT NULL,
+//!                                     data            BYTEA
+//!                                 )")
+//!         })
+//!         .and_then(|c| c.prepare("INSERT INTO person (name, data) VALUES ($1, $2)"))
+//!         .and_then(|(s, c)| c.execute(&s, &[&"Steven", &None::<Vec<u8>>]))
+//!         .and_then(|(_, c)| c.prepare("SELECT id, name, data FROM person"))
+//!         .and_then(|(s, c)| {
+//!             c.query(&s, &[])
+//!                 .for_each(|row| {
+//!                     let person = Person {
+//!                         id: row.get(0),
+//!                         name: row.get(1),
+//!                         data: row.get(2),
+//!                     };
+//!                     println!("Found person {}", person.name);
+//!                     Ok(())
+//!                 })
+//!         });
+//!
+//!     l.run(done).unwrap();
+//! }
+//! ```
 #![warn(missing_docs)]
 
 extern crate fallible_iterator;
