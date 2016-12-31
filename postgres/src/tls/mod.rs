@@ -36,3 +36,13 @@ pub trait TlsHandshake: fmt::Debug {
                      stream: Stream)
                      -> Result<Box<TlsStream>, Box<Error + Sync + Send>>;
 }
+
+impl<T: TlsHandshake + ?Sized> TlsHandshake for Box<T> {
+    fn tls_handshake(&self,
+                     host: &str,
+                     stream: Stream)
+                     -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
+        (**self).tls_handshake(host, stream)
+    }
+}
+
