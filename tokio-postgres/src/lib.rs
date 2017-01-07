@@ -78,6 +78,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
 
@@ -108,6 +109,8 @@ mod test;
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "__typeinfo_composite";
+
+static NEXT_STMT_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
 /// Specifies the TLS support required for a new connection.
 pub enum TlsMode {
@@ -163,7 +166,6 @@ struct InnerConnection {
     parameters: HashMap<String, String>,
     types: HashMap<Oid, Other>,
     cancel_data: CancelData,
-    next_stmt_id: u32,
     has_typeinfo_query: bool,
     has_typeinfo_enum_query: bool,
     has_typeinfo_composite_query: bool,
@@ -283,7 +285,6 @@ impl Connection {
                         process_id: 0,
                         secret_key: 0,
                     },
-                    next_stmt_id: 0,
                     has_typeinfo_query: false,
                     has_typeinfo_enum_query: false,
                     has_typeinfo_composite_query: false,
@@ -969,9 +970,8 @@ impl Connection {
     }
 
     /// Creates a new prepared statement.
-    pub fn prepare(mut self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
-        let id = self.0.next_stmt_id;
-        self.0.next_stmt_id += 1;
+    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
+        let id = NEXT_STMT_ID.fetch_add(1, Ordering::SeqCst);
         let name = format!("s{}", id);
         self.raw_prepare(&name, query)
             .map(|(params, columns, conn)| {
