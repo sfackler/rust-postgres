@@ -34,7 +34,7 @@ impl ToSql for Value {
         if let Type::Jsonb = *ty {
             out.push(1);
         }
-        try!(write!(out, "{:?}", self));
+        try!(write!(out, "{}", self));
         Ok(IsNull::No)
     }
 
