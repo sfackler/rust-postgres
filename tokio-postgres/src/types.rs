@@ -1,6 +1,11 @@
 //! Postgres types
 
-pub use postgres_shared::types::*;
+#[doc(inline)]
+pub use postgres_shared::types::{Oid, Type, Date, Timestamp, SessionInfo, Kind, Field, Other,
+                                 WasNull, WrongType, FromSql, IsNull, ToSql};
+
+#[doc(hidden)]
+pub use postgres_shared::types::__to_sql_checked;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
