@@ -1,6 +1,6 @@
 [package]
 name = "postgres-shared"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "Internal crate used by postgres and postgres-tokio"
