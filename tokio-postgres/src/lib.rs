@@ -49,7 +49,7 @@
 //!     l.run(done).unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/tokio-postgres/0.1.0")]
+#![doc(html_root_url="https://docs.rs/tokio-postgres/0.1.1")]
 #![warn(missing_docs)]
 
 extern crate fallible_iterator;
