@@ -29,7 +29,7 @@ impl ToSql for NaiveDateTime {
               w: &mut Vec<u8>,
               _: &SessionInfo)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        let time = match (*self - base()).num_microseconds() {
+        let time = match self.signed_duration_since(base()).num_microseconds() {
             Some(time) => time,
             None => return Err("value too large to transmit".into()),
         };
@@ -134,7 +134,7 @@ impl ToSql for NaiveDate {
               w: &mut Vec<u8>,
               _: &SessionInfo)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        let jd = (*self - base().date()).num_days();
+        let jd = self.signed_duration_since(base().date()).num_days();
         if jd > i32::max_value() as i64 || jd < i32::min_value() as i64 {
             return Err("value too large to transmit".into());
         }
@@ -165,7 +165,7 @@ impl ToSql for NaiveTime {
               w: &mut Vec<u8>,
               _: &SessionInfo)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        let delta = *self - NaiveTime::from_hms(0, 0, 0);
+        let delta = self.signed_duration_since(NaiveTime::from_hms(0, 0, 0));
         let time = match delta.num_microseconds() {
             Some(time) => time,
             None => return Err("value too large to transmit".into()),

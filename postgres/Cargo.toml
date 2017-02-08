@@ -55,7 +55,7 @@ postgres-shared = { version = "0.1", path = "../postgres-shared" }
 url = "1.0"
 
 bit-vec = "0.4"
-chrono = "0.2.14"
+chrono = "0.3"
 eui48 = "0.1"
 rustc-serialize = "0.3"
 serde_json = ">= 0.6, < 0.10"
