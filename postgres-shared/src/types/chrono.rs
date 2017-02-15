@@ -43,7 +43,7 @@ impl FromSql for DateTime<UTC> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<UTC>, Box<Error + Sync + Send>> {
-        let naive = try!(NaiveDateTime::from_sql(type_, raw, info));
+        let naive = try!(NaiveDateTime::from_sql(type_, raw));
         Ok(DateTime::from_utc(naive, UTC))
     }
 
@@ -55,7 +55,7 @@ impl ToSql for DateTime<UTC> {
               type_: &Type,
               w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        self.naive_utc().to_sql(type_, w, info)
+        self.naive_utc().to_sql(type_, w)
     }
 
     accepts!(Type::Timestamptz);
@@ -66,7 +66,7 @@ impl FromSql for DateTime<Local> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<Local>, Box<Error + Sync + Send>> {
-        let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
+        let utc = try!(DateTime::<UTC>::from_sql(type_, raw));
         Ok(utc.with_timezone(&Local))
     }
 
@@ -78,7 +78,7 @@ impl ToSql for DateTime<Local> {
               type_: &Type,
               mut w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        self.with_timezone(&UTC).to_sql(type_, w, info)
+        self.with_timezone(&UTC).to_sql(type_, w)
     }
 
     accepts!(Type::Timestamptz);
@@ -89,7 +89,7 @@ impl FromSql for DateTime<FixedOffset> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<FixedOffset>, Box<Error + Sync + Send>> {
-        let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
+        let utc = try!(DateTime::<UTC>::from_sql(type_, raw));
         Ok(utc.with_timezone(&FixedOffset::east(0)))
     }
 
@@ -101,7 +101,7 @@ impl ToSql for DateTime<FixedOffset> {
               type_: &Type,
               w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        self.with_timezone(&UTC).to_sql(type_, w, info)
+        self.with_timezone(&UTC).to_sql(type_, w)
     }
 
     accepts!(Type::Timestamptz);
