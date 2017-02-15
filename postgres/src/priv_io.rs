@@ -43,26 +43,26 @@ impl MessageStream {
               E: From<io::Error>
     {
         self.buf.clear();
-        try!(f(&mut self.buf));
+        f(&mut self.buf)?;
         self.stream.write_all(&self.buf).map_err(From::from)
     }
 
     fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message<Vec<u8>>> {
         self.buf.resize(MESSAGE_HEADER_SIZE, 0);
         self.buf[0] = b;
-        try!(self.stream.read_exact(&mut self.buf[1..]));
+        self.stream.read_exact(&mut self.buf[1..])?;
 
-        let len = match try!(backend::Message::parse_owned(&self.buf)) {
+        let len = match backend::Message::parse_owned(&self.buf)? {
             ParseResult::Complete { message, .. } => return Ok(message),
             ParseResult::Incomplete { required_size } => Some(required_size.unwrap()),
         };
 
         if let Some(len) = len {
             self.buf.resize(len, 0);
-            try!(self.stream.read_exact(&mut self.buf[MESSAGE_HEADER_SIZE..]));
+            self.stream.read_exact(&mut self.buf[MESSAGE_HEADER_SIZE..])?;
         };
 
-        match try!(backend::Message::parse_owned(&self.buf)) {
+        match backend::Message::parse_owned(&self.buf)? {
             ParseResult::Complete { message, .. } => Ok(message),
             ParseResult::Incomplete { .. } => unreachable!(),
         }
@@ -70,17 +70,17 @@ impl MessageStream {
 
     pub fn read_message(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
         let mut b = [0; 1];
-        try!(self.stream.read_exact(&mut b));
+        self.stream.read_exact(&mut b)?;
         self.inner_read_message(b[0])
     }
 
     pub fn read_message_timeout(&mut self,
                                 timeout: Duration)
                                 -> io::Result<Option<backend::Message<Vec<u8>>>> {
-        try!(self.set_read_timeout(Some(timeout)));
+        self.set_read_timeout(Some(timeout))?;
         let mut b = [0; 1];
         let r = self.stream.read_exact(&mut b);
-        try!(self.set_read_timeout(None));
+        self.set_read_timeout(None)?;
 
         match r {
             Ok(()) => self.inner_read_message(b[0]).map(Some),
@@ -91,10 +91,10 @@ impl MessageStream {
     }
 
     pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message<Vec<u8>>>> {
-        try!(self.set_nonblocking(true));
+        self.set_nonblocking(true)?;
         let mut b = [0; 1];
         let r = self.stream.read_exact(&mut b);
-        try!(self.set_nonblocking(false));
+        self.set_nonblocking(false)?;
 
         match r {
             Ok(()) => self.inner_read_message(b[0]).map(Some),
@@ -224,12 +224,12 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     let port = params.port.unwrap_or(DEFAULT_PORT);
     match params.target {
         ConnectTarget::Tcp(ref host) => {
-            Ok(try!(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)))
+            Ok(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)?)
         }
         #[cfg(unix)]
         ConnectTarget::Unix(ref path) => {
             let path = path.join(&format!(".s.PGSQL.{}", port));
-            Ok(try!(UnixStream::connect(&path).map(InternalStream::Unix)))
+            Ok(UnixStream::connect(&path).map(InternalStream::Unix)?)
         }
         #[cfg(not(unix))]
         ConnectTarget::Unix(..) => {
@@ -242,7 +242,7 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
 pub fn initialize_stream(params: &ConnectParams,
                          tls: TlsMode)
                          -> Result<Box<TlsStream>, ConnectError> {
-    let mut socket = Stream(try!(open_socket(params)));
+    let mut socket = Stream(open_socket(params)?);
 
     let (tls_required, handshaker) = match tls {
         TlsMode::None => return Ok(Box::new(socket)),
@@ -252,11 +252,11 @@ pub fn initialize_stream(params: &ConnectParams,
 
     let mut buf = vec![];
     frontend::ssl_request(&mut buf);
-    try!(socket.write_all(&buf));
-    try!(socket.flush());
+    socket.write_all(&buf)?;
+    socket.flush()?;
 
     let mut b = [0; 1];
-    try!(socket.read_exact(&mut b));
+    socket.read_exact(&mut b)?;
     if b[0] == b'N' {
         if tls_required {
             return Err(ConnectError::Tls("the server does not support TLS".into()));

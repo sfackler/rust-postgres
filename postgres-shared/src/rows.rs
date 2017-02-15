@@ -60,7 +60,7 @@ impl<'a> FromFallibleIterator<Option<&'a [u8]>> for RowData {
             indices: Vec::with_capacity(it.size_hint().0),
         };
 
-        while let Some(cell) = try!(it.next()) {
+        while let Some(cell) = it.next()? {
             let index = match cell {
                 Some(cell) =>  {
                     let base = row.buf.len();

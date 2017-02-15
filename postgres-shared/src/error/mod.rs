@@ -159,7 +159,7 @@ impl DbError {
         let mut line = None;
         let mut routine = None;
 
-        while let Some(field) = try!(fields.next()) {
+        while let Some(field) = fields.next()? {
             match field.type_() {
                 b'S' => severity = Some(field.value().to_owned()),
                 b'C' => code = Some(SqlState::from_code(field.value())),
@@ -167,16 +167,16 @@ impl DbError {
                 b'D' => detail = Some(field.value().to_owned()),
                 b'H' => hint = Some(field.value().to_owned()),
                 b'P' => {
-                    normal_position = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                    normal_position = Some(field.value().parse::<u32>().map_err(|_| {
                         io::Error::new(io::ErrorKind::InvalidInput,
                                        "`P` field did not contain an integer")
-                    })));
+                    })?);
                 }
                 b'p' => {
-                    internal_position = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                    internal_position = Some(field.value().parse::<u32>().map_err(|_| {
                         io::Error::new(io::ErrorKind::InvalidInput,
                                        "`p` field did not contain an integer")
-                    })));
+                    })?);
                 }
                 b'q' => internal_query = Some(field.value().to_owned()),
                 b'W' => where_ = Some(field.value().to_owned()),
@@ -187,31 +187,31 @@ impl DbError {
                 b'n' => constraint = Some(field.value().to_owned()),
                 b'F' => file = Some(field.value().to_owned()),
                 b'L' => {
-                    line = Some(try!(field.value().parse::<u32>().map_err(|_| {
+                    line = Some(field.value().parse::<u32>().map_err(|_| {
                         io::Error::new(io::ErrorKind::InvalidInput,
                                        "`L` field did not contain an integer")
-                    })));
+                    })?);
                 }
                 b'R' => routine = Some(field.value().to_owned()),
                 b'V' => {
-                    parsed_severity = Some(try!(Severity::from_str(field.value()).ok_or_else(|| {
+                    parsed_severity = Some(Severity::from_str(field.value()).ok_or_else(|| {
                         io::Error::new(io::ErrorKind::InvalidInput,
                                        "`V` field contained an invalid value")
-                    })));
+                    })?);
                 }
                 _ => {},
             }
         }
 
         Ok(DbError {
-            severity: try!(severity.ok_or_else(|| {
+            severity: severity.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing")
-            })),
+            })?,
             parsed_severity: parsed_severity,
-            code: try!(code.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
-                                                         "`C` field missing"))),
-            message: try!(message.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
-                                                               "`M` field missing"))),
+            code: code.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
+                                                         "`C` field missing"))?,
+            message: message.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
+                                                               "`M` field missing"))?,
             detail: detail,
             hint: hint,
             position: match normal_position {
@@ -221,10 +221,10 @@ impl DbError {
                         Some(position) => {
                             Some(ErrorPosition::Internal {
                                 position: position,
-                                query: try!(internal_query.ok_or_else(|| {
+                                query: internal_query.ok_or_else(|| {
                                     io::Error::new(io::ErrorKind::InvalidInput,
                                                    "`q` field missing but `p` field present")
-                                })),
+                                })?,
                             })
                         }
                         None => None,
@@ -310,7 +310,7 @@ pub enum ConnectError {
 
 impl fmt::Display for ConnectError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(fmt.write_str(error::Error::description(self)));
+        fmt.write_str(error::Error::description(self))?;
         match *self {
             ConnectError::ConnectParams(ref msg) => write!(fmt, ": {}", msg),
             ConnectError::Db(ref err) => write!(fmt, ": {}", err),

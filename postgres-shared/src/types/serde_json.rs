@@ -12,7 +12,7 @@ impl FromSql for Value {
                 -> Result<Value, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             let mut b = [0; 1];
-            try!(raw.read_exact(&mut b));
+            raw.read_exact(&mut b)?;
             // We only support version 1 of the jsonb binary format
             if b[0] != 1 {
                 return Err("unsupported JSONB encoding version".into());
@@ -32,7 +32,7 @@ impl ToSql for Value {
         if let Type::Jsonb = *ty {
             out.push(1);
         }
-        try!(write!(out, "{}", self));
+        write!(out, "{}", self)?;
         Ok(IsNull::No)
     }
 

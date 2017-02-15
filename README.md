@@ -63,8 +63,8 @@ fn main() {
 ### Connecting
 Connect to a Postgres server using the standard URI format:
 ```rust
-let conn = try!(Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
-                                    TlsMode::None));
+let conn = Connection::connect("postgres://user:pass@host:port/database?arg1=val1&arg2=val2",
+                               TlsMode::None)?;
 ```
 `pass` may be omitted if not needed. `port` defaults to `5432` and `database`
 defaults to the value of `user` if not specified. The driver supports `trust`,
@@ -75,7 +75,7 @@ be set to the absolute path to the directory containing the socket file. Since
 `/` is a reserved character in URLs, the path should be URL encoded. If Postgres
 stored its socket files in `/run/postgres`, the connection would then look like:
 ```rust
-let conn = try!(Connection::connect("postgres://postgres@%2Frun%2Fpostgres", TlsMode::None));
+let conn = Connection::connect("postgres://postgres@%2Frun%2Fpostgres", TlsMode::None)?;
 ```
 Paths which contain non-UTF8 characters can be handled in a different manner;
 see the documentation for details.
@@ -89,7 +89,7 @@ that query parameters are 1-indexed rather than the more common 0-indexing.
 `execute` returns the number of rows affected by the query (or 0 if not
 applicable):
 ```rust
-let updates = try!(conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&1i32, &"biz"]));
+let updates = conn.execute("UPDATE foo SET bar = $1 WHERE baz = $2", &[&1i32, &"biz"])?;
 println!("{} rows were updated", updates);
 ```
 
@@ -98,7 +98,7 @@ The fields in a row can be accessed either by their indices or their column
 names, though access by index is more efficient. Unlike statement parameters,
 result columns are zero-indexed.
 ```rust
-for row in &try!(conn.query("SELECT bar, baz FROM foo WHERE buz = $1", &[&1i32])) {
+for row in &conn.query("SELECT bar, baz FROM foo WHERE buz = $1", &[&1i32])? {
     let bar: i32 = row.get(0);
     let baz: String = row.get("baz");
     println!("bar: {}, baz: {}", bar, baz);
@@ -110,9 +110,9 @@ If the same statement will be executed repeatedly (possibly with different
 parameters), explicitly preparing it can improve performance:
 
 ```rust
-let stmt = try!(conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2"));
+let stmt = conn.prepare("UPDATE foo SET bar = $1 WHERE baz = $2")?;
 for (bar, baz) in updates {
-    try!(stmt.execute(&[bar, baz]));
+    stmt.execute(&[bar, baz])?;
 }
 ```
 
@@ -122,13 +122,13 @@ The `transaction` method will start a new transaction. It returns a
 `Connection` as well as methods to control the result of the
 transaction:
 ```rust
-let trans = try!(conn.transaction());
+let trans = conn.transaction()?;
 
-try!(trans.execute(...));
-let stmt = try!(trans.prepare(...));
+trans.execute(...)?;
+let stmt = trans.prepare(...)?;
 // ...
 
-try!(trans.commit());
+trans.commit()?;
 ```
 The transaction will be active until the `Transaction` object falls out of
 scope. A transaction will roll back by default. Nested transactions are

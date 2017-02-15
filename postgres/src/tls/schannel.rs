@@ -42,10 +42,10 @@ impl TlsHandshake for Schannel {
                      host: &str,
                      stream: Stream)
                      -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
-        let creds = try!(SchannelCred::builder().acquire(Direction::Outbound));
-        let stream = try!(tls_stream::Builder::new()
+        let creds = SchannelCred::builder().acquire(Direction::Outbound)?;
+        let stream = tls_stream::Builder::new()
             .domain(host)
-            .connect(creds, stream));
+            .connect(creds, stream)?;
         Ok(Box::new(stream))
     }
 }

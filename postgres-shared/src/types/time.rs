@@ -16,7 +16,7 @@ impl FromSql for Timespec {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<Timespec, Box<Error + Sync + Send>> {
-        let t = try!(types::timestamp_from_sql(raw));
+        let t = types::timestamp_from_sql(raw)?;
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;
         let mut usec = t % USEC_PER_SEC;
 

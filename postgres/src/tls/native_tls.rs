@@ -31,8 +31,8 @@ impl fmt::Debug for NativeTls {
 impl NativeTls {
     /// Creates a new `NativeTls` with its default configuration.
     pub fn new() -> Result<NativeTls, native_tls::Error> {
-        let connector = try!(TlsConnector::builder());
-        let connector = try!(connector.build());
+        let connector = TlsConnector::builder()?;
+        let connector = connector.build()?;
         Ok(NativeTls(connector))
     }
 
@@ -58,7 +58,7 @@ impl TlsHandshake for NativeTls {
                      domain: &str,
                      stream: Stream)
                      -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
-        let stream = try!(self.0.connect(domain, stream));
+        let stream = self.0.connect(domain, stream)?;
         Ok(Box::new(stream))
     }
 }

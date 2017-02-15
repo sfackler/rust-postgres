@@ -343,8 +343,8 @@ impl<T: FromSql> FromSql for Vec<T> {
             _ => panic!("expected array type"),
         };
 
-        let array = try!(types::array_from_sql(raw));
-        if try!(array.dimensions().count()) > 1 {
+        let array = types::array_from_sql(raw)?;
+        if array.dimensions().count()? > 1 {
             return Err("array contains too many dimensions".into());
         }
 
@@ -412,7 +412,7 @@ impl FromSql for HashMap<String, Option<String>> {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<HashMap<String, Option<String>>, Box<Error + Sync + Send>> {
-        try!(types::hstore_from_sql(raw))
+        types::hstore_from_sql(raw)?
             .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
             .collect()
     }
@@ -564,21 +564,21 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
         };
 
         let dimension = ArrayDimension {
-            len: try!(downcast(self.len())),
+            len: downcast(self.len())?,
             lower_bound: 1,
         };
 
-        try!(types::array_to_sql(Some(dimension),
+        types::array_to_sql(Some(dimension),
                                  true,
                                  member_type.oid(),
                                  self.iter(),
                                  |e, w| {
-                                     match try!(e.to_sql(member_type, w)) {
+                                     match e.to_sql(member_type, w)? {
                                          IsNull::No => Ok(postgres_protocol::IsNull::No),
                                          IsNull::Yes => Ok(postgres_protocol::IsNull::Yes),
                                      }
                                  },
-                                 w));
+                                 w)?;
         Ok(IsNull::No)
     }
 
@@ -703,8 +703,7 @@ impl ToSql for HashMap<String, Option<String>> {
               _: &Type,
               w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        try!(types::hstore_to_sql(self.iter().map(|(k, v)| (&**k, v.as_ref().map(|v| &**v))),
-                                  w));
+        types::hstore_to_sql(self.iter().map(|(k, v)| (&**k, v.as_ref().map(|v| &**v))), w)?;
         Ok(IsNull::No)
     }
 

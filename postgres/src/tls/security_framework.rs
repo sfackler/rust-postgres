@@ -49,7 +49,7 @@ impl TlsHandshake for SecurityFramework {
                      domain: &str,
                      stream: Stream)
                      -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
-        let stream = try!(self.0.handshake(domain, stream));
+        let stream = self.0.handshake(domain, stream)?;
         Ok(Box::new(stream))
     }
 }

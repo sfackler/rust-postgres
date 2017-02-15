@@ -24,7 +24,7 @@ pub enum Error<C = Connection> {
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(fmt.write_str(error::Error::description(self)));
+        fmt.write_str(error::Error::description(self))?;
         match *self {
             Error::Db(ref err, _) => write!(fmt, ": {}", err),
             Error::Io(ref err) => write!(fmt, ": {}", err),

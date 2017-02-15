@@ -8,7 +8,7 @@ use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for BitVec {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<BitVec, Box<Error + Sync + Send>> {
-        let varbit = try!(types::varbit_from_sql(raw));
+        let varbit = types::varbit_from_sql(raw)?;
         let mut bitvec = BitVec::from_bytes(varbit.bytes());
         while bitvec.len() > varbit.len() {
             bitvec.pop();
@@ -25,7 +25,7 @@ impl ToSql for BitVec {
               _: &Type,
               mut out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        try!(types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out));
+        types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out)?;
         Ok(IsNull::No)
     }
 

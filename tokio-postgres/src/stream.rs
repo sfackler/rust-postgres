@@ -136,7 +136,7 @@ impl Codec for PostgresCodec {
 
     // FIXME ideally we'd avoid re-copying the data
     fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        match try!(backend::Message::parse_owned(buf.as_ref())) {
+        match backend::Message::parse_owned(buf.as_ref())? {
             ParseResult::Complete { message, consumed } => {
                 buf.drain_to(consumed);
                 Ok(Some(message))

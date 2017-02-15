@@ -35,7 +35,7 @@ impl fmt::Debug for OpenSsl {
 impl OpenSsl {
     /// Creates a `OpenSsl` with `SslConnector`'s default configuration.
     pub fn new() -> Result<OpenSsl, ErrorStack> {
-        let connector = try!(SslConnectorBuilder::new(SslMethod::tls())).build();
+        let connector = SslConnectorBuilder::new(SslMethod::tls())?.build();
         Ok(OpenSsl::from(connector))
     }
 
@@ -75,9 +75,9 @@ impl TlsHandshake for OpenSsl {
                      stream: Stream)
                      -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let stream = if self.disable_verification {
-            try!(self.connector.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream))
+            self.connector.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream)?
         } else {
-            try!(self.connector.connect(domain, stream))
+            self.connector.connect(domain, stream)?
         };
         Ok(Box::new(stream))
     }

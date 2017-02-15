@@ -15,7 +15,7 @@ impl FromSql for NaiveDateTime {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<NaiveDateTime, Box<Error + Sync + Send>> {
-        let t = try!(types::timestamp_from_sql(raw));
+        let t = types::timestamp_from_sql(raw)?;
         Ok(base() + Duration::microseconds(t))
     }
 
@@ -43,7 +43,7 @@ impl FromSql for DateTime<UTC> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<UTC>, Box<Error + Sync + Send>> {
-        let naive = try!(NaiveDateTime::from_sql(type_, raw));
+        let naive = NaiveDateTime::from_sql(type_, raw)?;
         Ok(DateTime::from_utc(naive, UTC))
     }
 
@@ -66,7 +66,7 @@ impl FromSql for DateTime<Local> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<Local>, Box<Error + Sync + Send>> {
-        let utc = try!(DateTime::<UTC>::from_sql(type_, raw));
+        let utc = DateTime::<UTC>::from_sql(type_, raw)?;
         Ok(utc.with_timezone(&Local))
     }
 
@@ -89,7 +89,7 @@ impl FromSql for DateTime<FixedOffset> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<FixedOffset>, Box<Error + Sync + Send>> {
-        let utc = try!(DateTime::<UTC>::from_sql(type_, raw));
+        let utc = DateTime::<UTC>::from_sql(type_, raw)?;
         Ok(utc.with_timezone(&FixedOffset::east(0)))
     }
 
@@ -112,7 +112,7 @@ impl FromSql for NaiveDate {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<NaiveDate, Box<Error + Sync + Send>> {
-        let jd = try!(types::date_from_sql(raw));
+        let jd = types::date_from_sql(raw)?;
         Ok(base().date() + Duration::days(jd as i64))
     }
 
@@ -141,7 +141,7 @@ impl FromSql for NaiveTime {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<NaiveTime, Box<Error + Sync + Send>> {
-        let usec = try!(types::time_from_sql(raw));
+        let usec = types::time_from_sql(raw)?;
         Ok(NaiveTime::from_hms(0, 0, 0) + Duration::microseconds(usec))
     }
 

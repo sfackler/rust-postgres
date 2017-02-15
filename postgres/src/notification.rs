@@ -116,8 +116,8 @@ impl<'a> FallibleIterator for Iter<'a> {
             Ok(Some(backend::Message::NotificationResponse(body))) => {
                 Ok(Some(Notification {
                     process_id: body.process_id(),
-                    channel: try!(body.channel()).to_owned(),
-                    payload: try!(body.message()).to_owned(),
+                    channel: body.channel()?.to_owned(),
+                    payload: body.message()?.to_owned(),
                 }))
             }
             Ok(None) => Ok(None),
@@ -155,8 +155,8 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
             Ok(backend::Message::NotificationResponse(body)) => {
                 Ok(Some(Notification {
                     process_id: body.process_id(),
-                    channel: try!(body.channel()).to_owned(),
-                    payload: try!(body.message()).to_owned(),
+                    channel: body.channel()?.to_owned(),
+                    payload: body.message()?.to_owned(),
                 }))
             }
             Err(err) => Err(Error::Io(err)),
@@ -191,8 +191,8 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
             Ok(Some(backend::Message::NotificationResponse(body))) => {
                 Ok(Some(Notification {
                     process_id: body.process_id(),
-                    channel: try!(body.channel()).to_owned(),
-                    payload: try!(body.message()).to_owned(),
+                    channel: body.channel()?.to_owned(),
+                    payload: body.message()?.to_owned(),
                 }))
             }
             Ok(None) => Ok(None),

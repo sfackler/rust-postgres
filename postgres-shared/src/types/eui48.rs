@@ -10,7 +10,7 @@ impl FromSql for MacAddress {
     fn from_sql(_: &Type,
                 raw: &[u8])
                 -> Result<MacAddress, Box<Error + Sync + Send>> {
-        let bytes = try!(types::macaddr_from_sql(raw));
+        let bytes = types::macaddr_from_sql(raw)?;
         Ok(MacAddress::new(bytes))
     }
 

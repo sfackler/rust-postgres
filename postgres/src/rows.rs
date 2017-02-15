@@ -348,9 +348,9 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().0.borrow_mut();
 
-        try!(conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf)));
-        try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
-        try!(conn.stream.flush());
+        conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf))?;
+        conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        conn.stream.flush()?;
         conn.read_rows(|row| self.data.push_back(row)).map(|more_rows| self.more_rows = more_rows)
     }
 
@@ -374,7 +374,7 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
 
     fn next(&mut self) -> Result<Option<Row<'stmt>>> {
         if self.data.is_empty() && self.more_rows {
-            try!(self.execute());
+            self.execute()?;
         }
 
         let row = self.data

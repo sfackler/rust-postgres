@@ -51,17 +51,17 @@ impl Url {
 
     pub fn parse(rawurl: &str) -> DecodeResult<Url> {
         // scheme
-        let (scheme, rest) = try!(get_scheme(rawurl));
+        let (scheme, rest) = get_scheme(rawurl)?;
 
         // authority
-        let (userinfo, host, port, rest) = try!(get_authority(rest));
+        let (userinfo, host, port, rest) = get_authority(rest)?;
 
         // path
         let has_authority = !host.is_empty();
-        let (path, rest) = try!(get_path(rest, has_authority));
+        let (path, rest) = get_path(rest, has_authority)?;
 
         // query and fragment
-        let (query, fragment) = try!(get_query_fragment(rest));
+        let (query, fragment) = get_query_fragment(rest)?;
 
         let url = Url::new(scheme.to_owned(),
                            userinfo,
@@ -84,10 +84,10 @@ impl Path {
     }
 
     pub fn parse(rawpath: &str) -> DecodeResult<Path> {
-        let (path, rest) = try!(get_path(rawpath, false));
+        let (path, rest) = get_path(rawpath, false)?;
 
         // query and fragment
-        let (query, fragment) = try!(get_query_fragment(&rest));
+        let (query, fragment) = get_query_fragment(&rest)?;
 
         Ok(Path {
             path: path,
@@ -177,7 +177,7 @@ fn query_from_str(rawquery: &str) -> DecodeResult<Query> {
     if !rawquery.is_empty() {
         for p in rawquery.split('&') {
             let (k, v) = split_char_first(p, '=');
-            query.push((try!(decode_component(k)), try!(decode_component(v))));
+            query.push((decode_component(k)?, decode_component(v)?));
         }
     }
 
@@ -316,13 +316,13 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
                 colon_count = 0; // reset count
                 match st {
                     State::Start => {
-                        let user = try!(decode_component(&rawurl[begin..i]));
+                        let user = decode_component(&rawurl[begin..i])?;
                         userinfo = Some(UserInfo::new(user, None));
                         st = State::InHost;
                     }
                     State::PassHostPort => {
-                        let user = try!(decode_component(&rawurl[begin..pos]));
-                        let pass = try!(decode_component(&rawurl[pos + 1..i]));
+                        let user = decode_component(&rawurl[begin..pos])?;
+                        let pass = decode_component(&rawurl[pos + 1..i])?;
                         userinfo = Some(UserInfo::new(user, Some(pass)));
                         st = State::InHost;
                     }
@@ -392,7 +392,7 @@ fn get_path(rawurl: &str, is_authority: bool) -> DecodeResult<(String, &str)> {
     if is_authority && end != 0 && !rawurl.starts_with('/') {
         Err("Non-empty path must begin with '/' in presence of authority.".to_owned())
     } else {
-        Ok((try!(decode_component(&rawurl[0..end])), &rawurl[end..len]))
+        Ok((decode_component(&rawurl[0..end])?, &rawurl[end..len]))
     }
 }
 
@@ -403,11 +403,11 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
     // Parse the fragment if available
     let fragment = match raw_fragment {
         "" => None,
-        raw => Some(try!(decode_component(raw))),
+        raw => Some(decode_component(raw)?),
     };
 
     match before_fragment.chars().next() {
-        Some('?') => Ok((try!(query_from_str(&before_fragment[1..])), fragment)),
+        Some('?') => Ok((query_from_str(&before_fragment[1..])?, fragment)),
         None => Ok((vec![], fragment)),
         _ => Err(format!("Query didn't start with '?': '{}..'", before_fragment)),
     }

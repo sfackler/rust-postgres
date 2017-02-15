@@ -19,7 +19,7 @@ impl<T: FromSql> FromSql for Date<T> {
     fn from_sql(ty: &Type,
                 raw: &[u8])
                 -> Result<Self, Box<Error + Sync + Send>> {
-        match try!(types::date_from_sql(raw)) {
+        match types::date_from_sql(raw)? {
             i32::MAX => Ok(Date::PosInfinity),
             i32::MIN => Ok(Date::NegInfinity),
             _ => T::from_sql(ty, raw).map(Date::Value),
@@ -68,7 +68,7 @@ impl<T: FromSql> FromSql for Timestamp<T> {
     fn from_sql(ty: &Type,
                 raw: &[u8])
                 -> Result<Self, Box<Error + Sync + Send>> {
-        match try!(types::timestamp_from_sql(raw)) {
+        match types::timestamp_from_sql(raw)? {
             i64::MAX => Ok(Timestamp::PosInfinity),
             i64::MIN => Ok(Timestamp::NegInfinity),
             _ => T::from_sql(ty, raw).map(Timestamp::Value),

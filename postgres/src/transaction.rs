@@ -198,10 +198,10 @@ impl<'conn> Transaction<'conn> {
         debug_assert!(self.depth == conn.trans_depth);
         conn.trans_depth -= 1;
         match (self.commit.get(), &self.savepoint_name) {
-            (false, &Some(ref sp)) => try!(conn.quick_query(&format!("ROLLBACK TO {}", sp))),
-            (false, &None) => try!(conn.quick_query("ROLLBACK")),
-            (true, &Some(ref sp)) => try!(conn.quick_query(&format!("RELEASE {}", sp))),
-            (true, &None) => try!(conn.quick_query("COMMIT")),
+            (false, &Some(ref sp)) => conn.quick_query(&format!("ROLLBACK TO {}", sp))?,
+            (false, &None) => conn.quick_query("ROLLBACK")?,
+            (true, &Some(ref sp)) => conn.quick_query(&format!("RELEASE {}", sp))?,
+            (true, &None) => conn.quick_query("COMMIT")?,
         };
 
         Ok(())
@@ -258,7 +258,7 @@ impl<'conn> Transaction<'conn> {
         check_desync!(conn);
         assert!(conn.trans_depth == self.depth,
                 "`savepoint` may only be called on the active transaction");
-        try!(conn.quick_query(&format!("SAVEPOINT {}", name)));
+        conn.quick_query(&format!("SAVEPOINT {}", name))?;
         conn.trans_depth += 1;
         Ok(Transaction {
             conn: self.conn,

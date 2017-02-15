@@ -78,7 +78,7 @@ impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<ConnectParams, Box<Error + Sync + Send>> {
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
 
-        let maybe_path = try!(url::decode_component(&host));
+        let maybe_path = url::decode_component(&host)?;
         let target = if maybe_path.starts_with('/') {
             ConnectTarget::Unix(PathBuf::from(maybe_path))
         } else {

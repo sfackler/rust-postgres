@@ -8,7 +8,7 @@ use types::{FromSql, ToSql, Type, IsNull};
 
 impl FromSql for Uuid {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Uuid, Box<Error + Sync + Send>> {
-        let bytes = try!(types::uuid_from_sql(raw));
+        let bytes = types::uuid_from_sql(raw)?;
         Ok(Uuid::from_bytes(&bytes).unwrap())
     }
 
