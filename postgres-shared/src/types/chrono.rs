@@ -5,7 +5,7 @@ use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC,
                    FixedOffset};
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
+use types::{FromSql, ToSql, IsNull, Type};
 
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
@@ -13,8 +13,7 @@ fn base() -> NaiveDateTime {
 
 impl FromSql for NaiveDateTime {
     fn from_sql(_: &Type,
-                raw: &[u8],
-                _: &SessionInfo)
+                raw: &[u8])
                 -> Result<NaiveDateTime, Box<Error + Sync + Send>> {
         let t = try!(types::timestamp_from_sql(raw));
         Ok(base() + Duration::microseconds(t))
@@ -26,8 +25,7 @@ impl FromSql for NaiveDateTime {
 impl ToSql for NaiveDateTime {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         let time = match self.signed_duration_since(base()).num_microseconds() {
             Some(time) => time,
@@ -43,8 +41,7 @@ impl ToSql for NaiveDateTime {
 
 impl FromSql for DateTime<UTC> {
     fn from_sql(type_: &Type,
-                raw: &[u8],
-                info: &SessionInfo)
+                raw: &[u8])
                 -> Result<DateTime<UTC>, Box<Error + Sync + Send>> {
         let naive = try!(NaiveDateTime::from_sql(type_, raw, info));
         Ok(DateTime::from_utc(naive, UTC))
@@ -56,8 +53,7 @@ impl FromSql for DateTime<UTC> {
 impl ToSql for DateTime<UTC> {
     fn to_sql(&self,
               type_: &Type,
-              w: &mut Vec<u8>,
-              info: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         self.naive_utc().to_sql(type_, w, info)
     }
@@ -68,8 +64,7 @@ impl ToSql for DateTime<UTC> {
 
 impl FromSql for DateTime<Local> {
     fn from_sql(type_: &Type,
-                raw: &[u8],
-                info: &SessionInfo)
+                raw: &[u8])
                 -> Result<DateTime<Local>, Box<Error + Sync + Send>> {
         let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
         Ok(utc.with_timezone(&Local))
@@ -81,8 +76,7 @@ impl FromSql for DateTime<Local> {
 impl ToSql for DateTime<Local> {
     fn to_sql(&self,
               type_: &Type,
-              mut w: &mut Vec<u8>,
-              info: &SessionInfo)
+              mut w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         self.with_timezone(&UTC).to_sql(type_, w, info)
     }
@@ -93,8 +87,7 @@ impl ToSql for DateTime<Local> {
 
 impl FromSql for DateTime<FixedOffset> {
     fn from_sql(type_: &Type,
-                raw: &[u8],
-                info: &SessionInfo)
+                raw: &[u8])
                 -> Result<DateTime<FixedOffset>, Box<Error + Sync + Send>> {
         let utc = try!(DateTime::<UTC>::from_sql(type_, raw, info));
         Ok(utc.with_timezone(&FixedOffset::east(0)))
@@ -106,8 +99,7 @@ impl FromSql for DateTime<FixedOffset> {
 impl ToSql for DateTime<FixedOffset> {
     fn to_sql(&self,
               type_: &Type,
-              w: &mut Vec<u8>,
-              info: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         self.with_timezone(&UTC).to_sql(type_, w, info)
     }
@@ -118,8 +110,7 @@ impl ToSql for DateTime<FixedOffset> {
 
 impl FromSql for NaiveDate {
     fn from_sql(_: &Type,
-                raw: &[u8],
-                _: &SessionInfo)
+                raw: &[u8])
                 -> Result<NaiveDate, Box<Error + Sync + Send>> {
         let jd = try!(types::date_from_sql(raw));
         Ok(base().date() + Duration::days(jd as i64))
@@ -131,8 +122,7 @@ impl FromSql for NaiveDate {
 impl ToSql for NaiveDate {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         let jd = self.signed_duration_since(base().date()).num_days();
         if jd > i32::max_value() as i64 || jd < i32::min_value() as i64 {
@@ -149,8 +139,7 @@ impl ToSql for NaiveDate {
 
 impl FromSql for NaiveTime {
     fn from_sql(_: &Type,
-                raw: &[u8],
-                _: &SessionInfo)
+                raw: &[u8])
                 -> Result<NaiveTime, Box<Error + Sync + Send>> {
         let usec = try!(types::time_from_sql(raw));
         Ok(NaiveTime::from_hms(0, 0, 0) + Duration::microseconds(usec))
@@ -162,8 +151,7 @@ impl FromSql for NaiveTime {
 impl ToSql for NaiveTime {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         let delta = self.signed_duration_since(NaiveTime::from_hms(0, 0, 0));
         let time = match delta.num_microseconds() {

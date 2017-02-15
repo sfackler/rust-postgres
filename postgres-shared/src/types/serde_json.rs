@@ -4,12 +4,11 @@ use self::serde_json::Value;
 use std::error::Error;
 use std::io::{Read, Write};
 
-use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
+use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for Value {
     fn from_sql(ty: &Type,
-                mut raw: &[u8],
-                _: &SessionInfo)
+                mut raw: &[u8])
                 -> Result<Value, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             let mut b = [0; 1];
@@ -28,8 +27,7 @@ impl FromSql for Value {
 impl ToSql for Value {
     fn to_sql(&self,
               ty: &Type,
-              mut out: &mut Vec<u8>,
-              _: &SessionInfo)
+              mut out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             out.push(1);

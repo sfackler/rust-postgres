@@ -8,7 +8,7 @@ use tokio_core::reactor::{Core, Interval};
 use super::*;
 use error::{Error, ConnectError, SqlState};
 use params::{ConnectParams, ConnectTarget, UserInfo};
-use types::{ToSql, FromSql, Type, SessionInfo, IsNull, Kind};
+use types::{ToSql, FromSql, Type, IsNull, Kind};
 
 #[test]
 fn md5_user() {
@@ -238,12 +238,12 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> Result<IsNull, Box<StdError + Sync + Send>> {
+        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<StdError + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
             };
-            self.0.to_sql(inner, out, ctx)
+            self.0.to_sql(inner, out)
         }
 
         fn accepts(ty: &Type) -> bool {
@@ -257,8 +257,8 @@ fn domain() {
     }
 
     impl FromSql for SessionId {
-        fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> Result<Self, Box<StdError + Sync + Send>> {
-            Vec::<u8>::from_sql(ty, raw, ctx).map(SessionId)
+        fn from_sql(ty: &Type, raw: &[u8]) -> Result<Self, Box<StdError + Sync + Send>> {
+            Vec::<u8>::from_sql(ty, raw).map(SessionId)
         }
 
         fn accepts(ty: &Type) -> bool {

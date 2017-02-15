@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub use postgres_shared::rows::RowIndex;
 
 use RowNew;
-use types::{WrongType, FromSql, SessionInfo};
+use types::{WrongType, FromSql};
 
 /// A row from Postgres.
 pub struct Row {
@@ -81,7 +81,6 @@ impl Row {
             return Err(Box::new(WrongType::new(ty.clone())));
         }
 
-        // FIXME
-        T::from_sql_nullable(ty, self.data.get(idx), &SessionInfo::new(&HashMap::new())).map(Some)
+        T::from_sql_nullable(ty, self.data.get(idx)).map(Some)
     }
 }

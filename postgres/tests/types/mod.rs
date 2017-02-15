@@ -7,7 +7,7 @@ use std::result;
 
 use postgres::{Connection, TlsMode};
 use postgres::error::Error;
-use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, SessionInfo};
+use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind};
 
 #[cfg(feature = "with-bit-vec")]
 mod bit_vec;
@@ -252,12 +252,12 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>, ctx: &SessionInfo) -> result::Result<IsNull, Box<error::Error + Sync + Send>> {
+        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> result::Result<IsNull, Box<error::Error + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
             };
-            self.0.to_sql(inner, out, ctx)
+            self.0.to_sql(inner, out)
         }
 
         fn accepts(ty: &Type) -> bool {
@@ -268,8 +268,8 @@ fn domain() {
     }
 
     impl FromSql for SessionId {
-        fn from_sql(ty: &Type, raw: &[u8], ctx: &SessionInfo) -> result::Result<Self, Box<error::Error + Sync + Send>> {
-            Vec::<u8>::from_sql(ty, raw, ctx).map(SessionId)
+        fn from_sql(ty: &Type, raw: &[u8]) -> result::Result<Self, Box<error::Error + Sync + Send>> {
+            Vec::<u8>::from_sql(ty, raw).map(SessionId)
         }
 
         fn accepts(ty: &Type) -> bool {

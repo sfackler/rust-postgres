@@ -101,7 +101,7 @@ use priv_io::MessageStream;
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
-use types::{IsNull, Kind, Type, SessionInfo, Oid, Other, ToSql, FromSql, Field};
+use types::{IsNull, Kind, Type, Oid, Other, ToSql, FromSql, Field};
 
 #[doc(inline)]
 pub use postgres_shared::CancelData;
@@ -547,14 +547,13 @@ impl InnerConnection {
                params);
 
         {
-            let info = SessionInfo::new(&self.parameters);
             let r = self.stream.write_message(|buf| {
                 frontend::bind(portal_name,
                                stmt_name,
                                Some(1),
                                params.iter().zip(param_types),
                                |(param, ty), buf| {
-                                   match param.to_sql_checked(ty, buf, &info) {
+                                   match param.to_sql_checked(ty, buf) {
                                        Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
                                        Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                                        Err(e) => Err(e),
@@ -696,20 +695,19 @@ impl InnerConnection {
         };
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
-            let ctx = SessionInfo::new(&self.parameters);
-            let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0), &ctx)
+            let name = try!(String::from_sql_nullable(&Type::Name, get_raw(0))
                 .map_err(Error::Conversion));
-            let type_ = try!(i8::from_sql_nullable(&Type::Char, get_raw(1), &ctx)
+            let type_ = try!(i8::from_sql_nullable(&Type::Char, get_raw(1))
                 .map_err(Error::Conversion));
-            let elem_oid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(2), &ctx)
+            let elem_oid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(2))
                 .map_err(Error::Conversion));
-            let rngsubtype = try!(Option::<Oid>::from_sql_nullable(&Type::Oid, get_raw(3), &ctx)
+            let rngsubtype = try!(Option::<Oid>::from_sql_nullable(&Type::Oid, get_raw(3))
                 .map_err(Error::Conversion));
-            let basetype = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(4), &ctx)
+            let basetype = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(4))
                 .map_err(Error::Conversion));
-            let schema = try!(String::from_sql_nullable(&Type::Name, get_raw(5), &ctx)
+            let schema = try!(String::from_sql_nullable(&Type::Name, get_raw(5))
                 .map_err(Error::Conversion));
-            let relid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(6), &ctx)
+            let relid = try!(Oid::from_sql_nullable(&Type::Oid, get_raw(6))
                 .map_err(Error::Conversion));
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
@@ -766,10 +764,9 @@ impl InnerConnection {
         let mut rows = vec![];
         try!(self.read_rows(|row| rows.push(row)));
 
-        let ctx = SessionInfo::new(&self.parameters);
         let mut variants = vec![];
         for row in rows {
-            variants.push(try!(String::from_sql_nullable(&Type::Name, row.get(0), &ctx)
+            variants.push(try!(String::from_sql_nullable(&Type::Name, row.get(0))
                 .map_err(Error::Conversion)));
         }
 
@@ -802,10 +799,9 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let ctx = SessionInfo::new(&self.parameters);
-                let name = try!(String::from_sql_nullable(&Type::Name, row.get(0), &ctx)
+                let name = try!(String::from_sql_nullable(&Type::Name, row.get(0))
                     .map_err(Error::Conversion));
-                let type_ = try!(Oid::from_sql_nullable(&Type::Oid, row.get(1), &ctx)
+                let type_ = try!(Oid::from_sql_nullable(&Type::Oid, row.get(1))
                     .map_err(Error::Conversion));
                 (name, type_)
             };

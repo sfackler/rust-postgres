@@ -91,7 +91,7 @@ use stmt::{Statement, Column};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
-use types::{Oid, Type, ToSql, SessionInfo, IsNull, FromSql, Other, Kind, Field};
+use types::{Oid, Type, ToSql, IsNull, FromSql, Other, Kind, Field};
 use rows::Row;
 
 pub mod error;
@@ -644,34 +644,32 @@ impl Connection {
             .and_then(|c| c.read_rows().collect())
             .and_then(move |(r, c)| {
                 let get = |idx| r.get(0).and_then(|r| r.get(idx));
-                let m = HashMap::new();
-                let info = SessionInfo::new(&m);
 
-                let name = match String::from_sql_nullable(&Type::Name, get(0), &info) {
+                let name = match String::from_sql_nullable(&Type::Name, get(0)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let type_ = match i8::from_sql_nullable(&Type::Char, get(1), &info) {
+                let type_ = match i8::from_sql_nullable(&Type::Char, get(1)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let elem_oid = match Oid::from_sql_nullable(&Type::Oid, get(2), &info) {
+                let elem_oid = match Oid::from_sql_nullable(&Type::Oid, get(2)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let rngsubtype = match Option::<Oid>::from_sql_nullable(&Type::Oid, get(3), &info) {
+                let rngsubtype = match Option::<Oid>::from_sql_nullable(&Type::Oid, get(3)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let basetype = match Oid::from_sql_nullable(&Type::Oid, get(4), &info) {
+                let basetype = match Oid::from_sql_nullable(&Type::Oid, get(4)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let schema = match String::from_sql_nullable(&Type::Name, get(5), &info) {
+                let schema = match String::from_sql_nullable(&Type::Name, get(5)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let relid = match Oid::from_sql_nullable(&Type::Oid, get(6), &info) {
+                let relid = match Oid::from_sql_nullable(&Type::Oid, get(6)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
@@ -744,10 +742,8 @@ impl Connection {
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 let mut variants = vec![];
-                let m = HashMap::new();
-                let info = SessionInfo::new(&m);
                 for row in r {
-                    let variant = match String::from_sql_nullable(&Type::Name, row.get(0), &info) {
+                    let variant = match String::from_sql_nullable(&Type::Name, row.get(0)) {
                         Ok(v) => v,
                         Err(e) => return Err(Error::Conversion(e, c)),
                     };
@@ -798,13 +794,11 @@ impl Connection {
             .and_then(|(r, c)| {
                 futures::stream::iter(r.into_iter().map(Ok))
                     .fold((vec![], c), |(mut fields, c), row| {
-                        let m = HashMap::new();
-                        let info = SessionInfo::new(&m);
-                        let name = match String::from_sql_nullable(&Type::Name, row.get(0), &info) {
+                        let name = match String::from_sql_nullable(&Type::Name, row.get(0)) {
                             Ok(name) => name,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                         };
-                        let oid = match Oid::from_sql_nullable(&Type::Oid, row.get(1), &info) {
+                        let oid = match Oid::from_sql_nullable(&Type::Oid, row.get(1)) {
                             Ok(oid) => oid,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                         };
@@ -857,8 +851,7 @@ impl Connection {
                                Some(1),
                                params.iter().zip(param_types),
                                |(param, ty), buf| {
-                                   let info = SessionInfo::new(&self.0.parameters);
-                                   match param.to_sql_checked(ty, buf, &info) {
+                                   match param.to_sql_checked(ty, buf) {
                                        Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
                                        Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                                        Err(e) => Err(e),

@@ -10,7 +10,7 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_shared::rows::RowData;
 
 use error::Error;
-use types::{SessionInfo, Type, ToSql};
+use types::{Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
 use {bad_response, err, Connection, StatementInternals, Result, RowsNew, InnerConnection,
@@ -302,7 +302,6 @@ impl<'conn> Statement<'conn> {
         };
 
         let mut info = CopyInfo {
-            conn: conn,
             format: Format::from_u16(format as u16),
             column_formats: column_formats,
         };
@@ -312,51 +311,50 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    try!(info
-                        .conn
+                    try!(conn
                         .stream.write_message(|out| frontend::copy_data(&buf[..len], out)));
                 }
                 Err(err) => {
-                    try!(info.conn.stream.write_message(|buf| frontend::copy_fail("", buf)));
-                    try!(info.conn
+                    try!(conn.stream.write_message(|buf| frontend::copy_fail("", buf)));
+                    try!(conn
                         .stream
                         .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
-                    try!(info.conn
+                    try!(conn
                         .stream
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
-                    try!(info.conn.stream.flush());
-                    match try!(info.conn.read_message()) {
+                    try!(conn.stream.flush());
+                    match try!(conn.read_message()) {
                         backend::Message::ErrorResponse(_) => {
                             // expected from the CopyFail
                         }
                         _ => {
-                            info.conn.desynchronized = true;
+                            conn.desynchronized = true;
                             return Err(Error::Io(bad_response()));
                         }
                     }
-                    try!(info.conn.wait_for_ready());
+                    try!(conn.wait_for_ready());
                     return Err(Error::Io(err));
                 }
             }
         }
 
-        try!(info.conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
-        try!(info.conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
-        try!(info.conn.stream.flush());
+        try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf))));
+        try!(conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf))));
+        try!(conn.stream.flush());
 
-        let num = match try!(info.conn.read_message()) {
+        let num = match try!(conn.read_message()) {
             backend::Message::CommandComplete(body) => parse_update_count(try!(body.tag())),
             backend::Message::ErrorResponse(body) => {
-                try!(info.conn.wait_for_ready());
+                try!(conn.wait_for_ready());
                 return Err(err(&mut body.fields()));
             }
             _ => {
-                info.conn.desynchronized = true;
+                conn.desynchronized = true;
                 return Err(Error::Io(bad_response()));
             }
         };
 
-        try!(info.conn.wait_for_ready());
+        try!(conn.wait_for_ready());
         Ok(num)
     }
 
@@ -430,14 +428,13 @@ impl<'conn> Statement<'conn> {
         };
 
         let mut info = CopyInfo {
-            conn: conn,
             format: Format::from_u16(format as u16),
             column_formats: column_formats,
         };
 
         let count;
         loop {
-            match try!(info.conn.read_message()) {
+            match try!(conn.read_message()) {
                 backend::Message::CopyData(body) => {
                     let mut data = body.data();
                     while !data.is_empty() {
@@ -446,7 +443,7 @@ impl<'conn> Statement<'conn> {
                             Err(e) => {
                                 loop {
                                     if let backend::Message::ReadyForQuery(_) =
-                                            try!(info.conn.read_message()) {
+                                            try!(conn.read_message()) {
                                         return Err(Error::Io(e));
                                     }
                                 }
@@ -462,7 +459,7 @@ impl<'conn> Statement<'conn> {
                 backend::Message::ErrorResponse(body) => {
                     loop {
                         if let backend::Message::ReadyForQuery(_) =
-                                try!(info.conn.read_message()) {
+                                try!(conn.read_message()) {
                             return Err(err(&mut body.fields()));
                         }
                     }
@@ -470,7 +467,7 @@ impl<'conn> Statement<'conn> {
                 _ => {
                     loop {
                         if let backend::Message::ReadyForQuery(_) =
-                                try!(info.conn.read_message()) {
+                                try!(conn.read_message()) {
                             return Err(Error::Io(bad_response()));
                         }
                     }
@@ -478,7 +475,7 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        try!(info.conn.wait_for_ready());
+        try!(conn.wait_for_ready());
         Ok(count)
     }
 
@@ -536,13 +533,12 @@ impl Column {
 }
 
 /// A struct containing information relevant for a `COPY` operation.
-pub struct CopyInfo<'a> {
-    conn: RefMut<'a, InnerConnection>,
+pub struct CopyInfo {
     format: Format,
     column_formats: Vec<Format>,
 }
 
-impl<'a> CopyInfo<'a> {
+impl CopyInfo {
     /// Returns the format of the overall data.
     pub fn format(&self) -> Format {
         self.format
@@ -551,11 +547,6 @@ impl<'a> CopyInfo<'a> {
     /// Returns the format of the individual columns.
     pub fn column_formats(&self) -> &[Format] {
         &self.column_formats
-    }
-
-    /// Returns session info for the associated connection.
-    pub fn session_info<'b>(&'b self) -> SessionInfo<'b> {
-        SessionInfo::new(&self.conn.parameters)
     }
 }
 

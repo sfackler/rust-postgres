@@ -34,13 +34,12 @@ macro_rules! to_sql_checked {
     () => {
         fn to_sql_checked(&self,
                           ty: &$crate::types::Type,
-                          out: &mut ::std::vec::Vec<u8>,
-                          ctx: &$crate::types::SessionInfo)
+                          out: &mut ::std::vec::Vec<u8>)
                           -> ::std::result::Result<$crate::types::IsNull,
                                                    Box<::std::error::Error +
                                                        ::std::marker::Sync +
                                                        ::std::marker::Send>> {
-            $crate::types::__to_sql_checked(self, ty, out, ctx)
+            $crate::types::__to_sql_checked(self, ty, out)
         }
     }
 }
@@ -50,15 +49,14 @@ macro_rules! to_sql_checked {
 #[doc(hidden)]
 pub fn __to_sql_checked<T>(v: &T,
                            ty: &Type,
-                           out: &mut Vec<u8>,
-                           ctx: &SessionInfo)
+                           out: &mut Vec<u8>)
                            -> Result<IsNull, Box<Error + Sync + Send>>
     where T: ToSql
 {
     if !T::accepts(ty) {
         return Err(Box::new(WrongType(ty.clone())));
     }
-    v.to_sql(ty, out, ctx)
+    v.to_sql(ty, out)
 }
 
 #[cfg(feature = "with-bit-vec")]
@@ -78,27 +76,6 @@ mod eui48;
 
 mod special;
 mod type_gen;
-
-/// A structure providing information for conversion methods.
-#[derive(Debug)]
-pub struct SessionInfo<'a> {
-    parameters: &'a HashMap<String, String>,
-}
-
-impl<'a> SessionInfo<'a> {
-    #[doc(hidden)]
-    pub fn new(parameters: &'a HashMap<String, String>) -> SessionInfo<'a> {
-        SessionInfo { parameters: parameters }
-    }
-}
-
-impl<'a> SessionInfo<'a> {
-    /// Returns the value of the specified Postgres backend parameter, such
-    /// as `timezone` or `server_version`.
-    pub fn parameter(&self, param: &str) -> Option<&'a str> {
-        self.parameters.get(param).map(|s| &**s)
-    }
-}
 
 /// Represents the kind of a Postgres type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -310,8 +287,7 @@ pub trait FromSql: Sized {
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
     fn from_sql(ty: &Type,
-                raw: &[u8],
-                ctx: &SessionInfo)
+                raw: &[u8])
                 -> Result<Self, Box<Error + Sync + Send>>;
 
     /// Creates a new value of this type from a `NULL` SQL value.
@@ -322,19 +298,18 @@ pub trait FromSql: Sized {
     /// The default implementation returns
     /// `Err(Box::new(WasNull))`.
     #[allow(unused_variables)]
-    fn from_sql_null(ty: &Type, ctx: &SessionInfo) -> Result<Self, Box<Error + Sync + Send>> {
+    fn from_sql_null(ty: &Type) -> Result<Self, Box<Error + Sync + Send>> {
         Err(Box::new(WasNull))
     }
 
     /// A convenience function that delegates to `from_sql` and `from_sql_null` depending on the
     /// value of `raw`.
     fn from_sql_nullable(ty: &Type,
-                         raw: Option<&[u8]>,
-                         ctx: &SessionInfo)
+                         raw: Option<&[u8]>)
                          -> Result<Self, Box<Error + Sync + Send>> {
         match raw {
-            Some(raw) => Self::from_sql(ty, raw, ctx),
-            None => Self::from_sql_null(ty, ctx),
+            Some(raw) => Self::from_sql(ty, raw),
+            None => Self::from_sql_null(ty),
         }
     }
 
@@ -345,13 +320,12 @@ pub trait FromSql: Sized {
 
 impl<T: FromSql> FromSql for Option<T> {
     fn from_sql(ty: &Type,
-                raw: &[u8],
-                ctx: &SessionInfo)
+                raw: &[u8])
                 -> Result<Option<T>, Box<Error + Sync + Send>> {
-        <T as FromSql>::from_sql(ty, raw, ctx).map(Some)
+        <T as FromSql>::from_sql(ty, raw).map(Some)
     }
 
-    fn from_sql_null(_: &Type, _: &SessionInfo) -> Result<Option<T>, Box<Error + Sync + Send>> {
+    fn from_sql_null(_: &Type) -> Result<Option<T>, Box<Error + Sync + Send>> {
         Ok(None)
     }
 
@@ -362,8 +336,7 @@ impl<T: FromSql> FromSql for Option<T> {
 
 impl<T: FromSql> FromSql for Vec<T> {
     fn from_sql(ty: &Type,
-                raw: &[u8],
-                info: &SessionInfo)
+                raw: &[u8])
                 -> Result<Vec<T>, Box<Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
@@ -376,7 +349,7 @@ impl<T: FromSql> FromSql for Vec<T> {
         }
 
         array.values()
-            .and_then(|v| T::from_sql_nullable(member_type, v, info))
+            .and_then(|v| T::from_sql_nullable(member_type, v))
             .collect()
     }
 
@@ -390,8 +363,7 @@ impl<T: FromSql> FromSql for Vec<T> {
 
 impl FromSql for Vec<u8> {
     fn from_sql(_: &Type,
-                raw: &[u8],
-                _: &SessionInfo)
+                raw: &[u8])
                 -> Result<Vec<u8>, Box<Error + Sync + Send>> {
         Ok(types::bytea_from_sql(raw).to_owned())
     }
@@ -400,7 +372,7 @@ impl FromSql for Vec<u8> {
 }
 
 impl FromSql for String {
-    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<String, Box<Error + Sync + Send>> {
+    fn from_sql(_: &Type, raw: &[u8]) -> Result<String, Box<Error + Sync + Send>> {
         types::text_from_sql(raw).map(|b| b.to_owned())
     }
 
@@ -417,8 +389,7 @@ macro_rules! simple_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
         impl FromSql for $t {
             fn from_sql(_: &Type,
-                        raw: &[u8],
-                        _: &SessionInfo)
+                        raw: &[u8])
                         -> Result<$t, Box<Error + Sync + Send>> {
                 types::$f(raw)
             }
@@ -439,8 +410,7 @@ simple_from!(f64, float8_from_sql, Type::Float8);
 
 impl FromSql for HashMap<String, Option<String>> {
     fn from_sql(_: &Type,
-                raw: &[u8],
-                _: &SessionInfo)
+                raw: &[u8])
                 -> Result<HashMap<String, Option<String>>, Box<Error + Sync + Send>> {
         try!(types::hstore_from_sql(raw))
             .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
@@ -530,8 +500,7 @@ pub trait ToSql: fmt::Debug {
     /// anything to `out`.
     fn to_sql(&self,
               ty: &Type,
-              out: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>>
         where Self: Sized;
 
@@ -545,8 +514,7 @@ pub trait ToSql: fmt::Debug {
     /// `to_sql_checked!()` macro.
     fn to_sql_checked(&self,
                       ty: &Type,
-                      out: &mut Vec<u8>,
-                      ctx: &SessionInfo)
+                      out: &mut Vec<u8>)
                       -> Result<IsNull, Box<Error + Sync + Send>>;
 }
 
@@ -555,10 +523,9 @@ impl<'a, T> ToSql for &'a T
 {
     fn to_sql(&self,
               ty: &Type,
-              out: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        (*self).to_sql(ty, out, ctx)
+        (*self).to_sql(ty, out)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -571,11 +538,10 @@ impl<'a, T> ToSql for &'a T
 impl<T: ToSql> ToSql for Option<T> {
     fn to_sql(&self,
               ty: &Type,
-              out: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         match *self {
-            Some(ref val) => val.to_sql(ty, out, ctx),
+            Some(ref val) => val.to_sql(ty, out),
             None => Ok(IsNull::Yes),
         }
     }
@@ -590,8 +556,7 @@ impl<T: ToSql> ToSql for Option<T> {
 impl<'a, T: ToSql> ToSql for &'a [T] {
     fn to_sql(&self,
               ty: &Type,
-              w: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
@@ -608,7 +573,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
                                  member_type.oid(),
                                  self.iter(),
                                  |e, w| {
-                                     match try!(e.to_sql(member_type, w, ctx)) {
+                                     match try!(e.to_sql(member_type, w)) {
                                          IsNull::No => Ok(postgres_protocol::IsNull::No),
                                          IsNull::Yes => Ok(postgres_protocol::IsNull::Yes),
                                      }
@@ -630,8 +595,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         types::bytea_to_sql(*self, w);
         Ok(IsNull::No)
@@ -645,10 +609,9 @@ impl<'a> ToSql for &'a [u8] {
 impl<T: ToSql> ToSql for Vec<T> {
     fn to_sql(&self,
               ty: &Type,
-              w: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        <&[T] as ToSql>::to_sql(&&**self, ty, w, ctx)
+        <&[T] as ToSql>::to_sql(&&**self, ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -661,10 +624,9 @@ impl<T: ToSql> ToSql for Vec<T> {
 impl ToSql for Vec<u8> {
     fn to_sql(&self,
               ty: &Type,
-              w: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        <&[u8] as ToSql>::to_sql(&&**self, ty, w, ctx)
+        <&[u8] as ToSql>::to_sql(&&**self, ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -677,8 +639,7 @@ impl ToSql for Vec<u8> {
 impl<'a> ToSql for &'a str {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         types::text_to_sql(*self, w);
         Ok(IsNull::No)
@@ -698,10 +659,9 @@ impl<'a> ToSql for &'a str {
 impl ToSql for String {
     fn to_sql(&self,
               ty: &Type,
-              w: &mut Vec<u8>,
-              ctx: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        <&str as ToSql>::to_sql(&&**self, ty, w, ctx)
+        <&str as ToSql>::to_sql(&&**self, ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -716,8 +676,7 @@ macro_rules! simple_to {
         impl ToSql for $t {
             fn to_sql(&self,
                       _: &Type,
-                      w: &mut Vec<u8>,
-                      _: &SessionInfo)
+                      w: &mut Vec<u8>)
                       -> Result<IsNull, Box<Error + Sync + Send>> {
                 types::$f(*self, w);
                 Ok(IsNull::No)
@@ -742,8 +701,7 @@ simple_to!(f64, float8_to_sql, Type::Float8);
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         try!(types::hstore_to_sql(self.iter().map(|(k, v)| (&**k, v.as_ref().map(|v| &**v))),
                                   w));

@@ -4,10 +4,10 @@ use postgres_protocol::types;
 use self::uuid::Uuid;
 use std::error::Error;
 
-use types::{FromSql, ToSql, Type, IsNull, SessionInfo};
+use types::{FromSql, ToSql, Type, IsNull};
 
 impl FromSql for Uuid {
-    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<Uuid, Box<Error + Sync + Send>> {
+    fn from_sql(_: &Type, raw: &[u8]) -> Result<Uuid, Box<Error + Sync + Send>> {
         let bytes = try!(types::uuid_from_sql(raw));
         Ok(Uuid::from_bytes(&bytes).unwrap())
     }
@@ -18,8 +18,7 @@ impl FromSql for Uuid {
 impl ToSql for Uuid {
     fn to_sql(&self,
               _: &Type,
-              w: &mut Vec<u8>,
-              _: &SessionInfo)
+              w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         types::uuid_to_sql(*self.as_bytes(), w);
         Ok(IsNull::No)

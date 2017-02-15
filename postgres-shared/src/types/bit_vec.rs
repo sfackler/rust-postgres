@@ -4,10 +4,10 @@ use postgres_protocol::types;
 use self::bit_vec::BitVec;
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
+use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for BitVec {
-    fn from_sql(_: &Type, raw: &[u8], _: &SessionInfo) -> Result<BitVec, Box<Error + Sync + Send>> {
+    fn from_sql(_: &Type, raw: &[u8]) -> Result<BitVec, Box<Error + Sync + Send>> {
         let varbit = try!(types::varbit_from_sql(raw));
         let mut bitvec = BitVec::from_bytes(varbit.bytes());
         while bitvec.len() > varbit.len() {
@@ -23,8 +23,7 @@ impl FromSql for BitVec {
 impl ToSql for BitVec {
     fn to_sql(&self,
               _: &Type,
-              mut out: &mut Vec<u8>,
-              _: &SessionInfo)
+              mut out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         try!(types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out));
         Ok(IsNull::No)

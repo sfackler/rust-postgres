@@ -12,7 +12,7 @@ use std::slice;
 
 use {Result, RowsNew, LazyRowsNew, StatementInternals};
 use transaction::Transaction;
-use types::{FromSql, SessionInfo, WrongType};
+use types::{FromSql, WrongType};
 use stmt::{Statement, Column};
 use error::Error;
 
@@ -237,9 +237,7 @@ impl<'a> Row<'a> {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
         let conn = self.stmt.conn().0.borrow();
-        let value = FromSql::from_sql_nullable(ty,
-                                               self.data.get(idx),
-                                               &SessionInfo::new(&conn.parameters));
+        let value = FromSql::from_sql_nullable(ty, self.data.get(idx));
         Some(value.map_err(Error::Conversion))
     }
 

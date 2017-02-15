@@ -1,7 +1,7 @@
 //! Postgres types
 
 #[doc(inline)]
-pub use postgres_shared::types::{Oid, Type, Date, Timestamp, SessionInfo, Kind, Field, Other,
+pub use postgres_shared::types::{Oid, Type, Date, Timestamp, Kind, Field, Other,
                                  WasNull, WrongType, FromSql, IsNull, ToSql};
 
 #[doc(hidden)]
@@ -29,13 +29,12 @@ macro_rules! to_sql_checked {
     () => {
         fn to_sql_checked(&self,
                           ty: &$crate::types::Type,
-                          out: &mut ::std::vec::Vec<u8>,
-                          ctx: &$crate::types::SessionInfo)
+                          out: &mut ::std::vec::Vec<u8>)
                           -> ::std::result::Result<$crate::types::IsNull,
                                                    Box<::std::error::Error +
                                                        ::std::marker::Sync +
                                                        ::std::marker::Send>> {
-            $crate::types::__to_sql_checked(self, ty, out, ctx)
+            $crate::types::__to_sql_checked(self, ty, out)
         }
     }
 }

@@ -4,12 +4,11 @@ use self::rustc_serialize::json;
 use std::io::{Read, Write};
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type, SessionInfo};
+use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for json::Json {
     fn from_sql(ty: &Type,
-                mut raw: &[u8],
-                _: &SessionInfo)
+                mut raw: &[u8])
                 -> Result<json::Json, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             let mut b = [0; 1];
@@ -28,8 +27,7 @@ impl FromSql for json::Json {
 impl ToSql for json::Json {
     fn to_sql(&self,
               ty: &Type,
-              mut out: &mut Vec<u8>,
-              _: &SessionInfo)
+              mut out: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
         if let Type::Jsonb = *ty {
             out.push(1);
