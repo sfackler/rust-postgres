@@ -2,7 +2,6 @@
 
 use postgres_shared::rows::RowData;
 use postgres_shared::stmt::Column;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;

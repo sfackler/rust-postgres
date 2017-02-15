@@ -236,7 +236,6 @@ impl<'a> Row<'a> {
         if !<T as FromSql>::accepts(ty) {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
-        let conn = self.stmt.conn().0.borrow();
         let value = FromSql::from_sql_nullable(ty, self.data.get(idx));
         Some(value.map_err(Error::Conversion))
     }

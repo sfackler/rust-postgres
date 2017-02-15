@@ -1,7 +1,7 @@
 //! Prepared statements
 
 use fallible_iterator::FallibleIterator;
-use std::cell::{Cell, RefMut};
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -13,8 +13,8 @@ use error::Error;
 use types::{Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
-use {bad_response, err, Connection, StatementInternals, Result, RowsNew, InnerConnection,
-     LazyRowsNew, ColumnNew, StatementInfo, TransactionInternals};
+use {bad_response, err, Connection, StatementInternals, Result, RowsNew, LazyRowsNew, ColumnNew,
+     StatementInfo, TransactionInternals};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
@@ -301,7 +301,7 @@ impl<'conn> Statement<'conn> {
             }
         };
 
-        let mut info = CopyInfo {
+        let info = CopyInfo {
             format: Format::from_u16(format as u16),
             column_formats: column_formats,
         };
@@ -427,7 +427,7 @@ impl<'conn> Statement<'conn> {
             }
         };
 
-        let mut info = CopyInfo {
+        let info = CopyInfo {
             format: Format::from_u16(format as u16),
             column_formats: column_formats,
         };
