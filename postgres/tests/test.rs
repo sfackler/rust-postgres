@@ -978,8 +978,8 @@ fn url_unencoded_password() {
 #[test]
 fn url_encoded_password() {
     let params = "postgresql://username%7b%7c:password%7b%7c@localhost".into_connect_params().unwrap();
-    assert_eq!("username{|", &params.user.as_ref().unwrap().user[..]);
-    assert_eq!("password{|", &params.user.as_ref().unwrap().password.as_ref().unwrap()[..]);
+    assert_eq!("username{|", params.user().unwrap().name());
+    assert_eq!("password{|", params.user().unwrap().password().unwrap());
 }
 
 #[test]

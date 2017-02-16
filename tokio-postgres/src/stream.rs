@@ -1,6 +1,6 @@
 use futures::{BoxFuture, Future, IntoFuture, Async, Sink, Stream as FuturesStream};
 use futures::future::Either;
-use postgres_shared::params::ConnectTarget;
+use postgres_shared::params::Host;
 use postgres_protocol::message::backend::{self, ParseResult};
 use postgres_protocol::message::frontend;
 use std::io::{self, Read, Write};
@@ -16,17 +16,17 @@ use tls::TlsStream;
 
 pub type PostgresStream = Framed<Box<TlsStream>, PostgresCodec>;
 
-pub fn connect(host: ConnectTarget,
+pub fn connect(host: Host,
                port: u16,
                tls_mode: TlsMode,
                handle: &Handle)
                -> BoxFuture<PostgresStream, ConnectError> {
     let inner = match host {
-        ConnectTarget::Tcp(ref host) => {
+        Host::Tcp(ref host) => {
             Either::A(tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
                 .map(|s| Stream(InnerStream::Tcp(s))))
         }
-        ConnectTarget::Unix(ref host) => {
+        Host::Unix(ref host) => {
             let addr = host.join(format!(".s.PGSQL.{}", port));
             Either::B(UnixStream::connect(addr, handle)
                 .map(|s| Stream(InnerStream::Unix(s)))
@@ -68,8 +68,8 @@ pub fn connect(host: ConnectTarget,
                 (None, _) => Either::A(Err(ConnectError::Io(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF"))).into_future()),
                 _ => {
                     let host = match host {
-                        ConnectTarget::Tcp(ref host) => host,
-                        ConnectTarget::Unix(_) => unreachable!(),
+                        Host::Tcp(ref host) => host,
+                        Host::Unix(_) => unreachable!(),
                     };
                     Either::B(handshaker.handshake(host, s).map_err(ConnectError::Tls))
                 }

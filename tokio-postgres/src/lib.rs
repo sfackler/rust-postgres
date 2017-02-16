@@ -142,8 +142,8 @@ pub fn cancel_query<T>(params: T,
 {
     let params = match params.into_connect_params() {
         Ok(params) => {
-            Either::A(stream::connect(params.target.clone(),
-                                      params.port.unwrap_or(5432),
+            Either::A(stream::connect(params.host().clone(),
+                                      params.port(),
                                       tls_mode,
                                       handle))
         }
@@ -264,8 +264,8 @@ impl Connection {
     {
         let fut = match params.into_connect_params() {
             Ok(params) => {
-                Either::A(stream::connect(params.target.clone(),
-                                          params.port.unwrap_or(5432),
+                Either::A(stream::connect(params.host().clone(),
+                                          params.port(),
                                           tls_mode,
                                           handle)
                     .map(|s| (s, params)))
@@ -301,9 +301,9 @@ impl Connection {
         let result = {
             let options = [("client_encoding", "UTF8"), ("timezone", "GMT")];
             let options = options.iter().cloned();
-            let options = options.chain(params.user.as_ref().map(|u| ("user", &*u.user)));
-            let options = options.chain(params.database.as_ref().map(|d| ("database", &**d)));
-            let options = options.chain(params.options.iter().map(|e| (&*e.0, &*e.1)));
+            let options = options.chain(params.user().map(|u| ("user", u.name())));
+            let options = options.chain(params.database().map(|d| ("database", d)));
+            let options = options.chain(params.options().iter().map(|e| (&*e.0, &*e.1)));
 
             frontend::startup_message(options, &mut buf)
         };
@@ -323,7 +323,7 @@ impl Connection {
                 let response = match m {
                     backend::Message::AuthenticationOk => Ok(None),
                     backend::Message::AuthenticationCleartextPassword => {
-                        match params.user.as_ref().and_then(|u| u.password.as_ref()) {
+                        match params.user().and_then(|u| u.password()) {
                             Some(pass) => {
                                 let mut buf = vec![];
                                 frontend::password_message(pass, &mut buf)
@@ -337,7 +337,7 @@ impl Connection {
                         }
                     }
                     backend::Message::AuthenticationMd5Password(body) => {
-                        match params.user.as_ref().and_then(|u| u.password.as_ref().map(|p| (&u.user, p))) {
+                        match params.user().and_then(|u| u.password().map(|p| (u.name(), p))) {
                             Some((user, pass)) => {
                                 let pass = authentication::md5_hash(user.as_bytes(),
                                                                     pass.as_bytes(),

@@ -16,7 +16,7 @@ use postgres_protocol::message::backend::{self, ParseResult};
 use TlsMode;
 use error::ConnectError;
 use tls::TlsStream;
-use params::{ConnectParams, ConnectTarget};
+use params::{ConnectParams, Host};
 
 const DEFAULT_PORT: u16 = 5432;
 const MESSAGE_HEADER_SIZE: usize = 5;
@@ -221,18 +221,18 @@ impl Write for InternalStream {
 }
 
 fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
-    let port = params.port.unwrap_or(DEFAULT_PORT);
-    match params.target {
-        ConnectTarget::Tcp(ref host) => {
+    let port = params.port();
+    match *params.host() {
+        Host::Tcp(ref host) => {
             Ok(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)?)
         }
         #[cfg(unix)]
-        ConnectTarget::Unix(ref path) => {
+        Host::Unix(ref path) => {
             let path = path.join(&format!(".s.PGSQL.{}", port));
             Ok(UnixStream::connect(&path).map(InternalStream::Unix)?)
         }
         #[cfg(not(unix))]
-        ConnectTarget::Unix(..) => {
+        Host::Unix(..) => {
             Err(ConnectError::Io(io::Error::new(io::ErrorKind::InvalidInput,
                                                 "unix sockets are not supported on this system")))
         }
@@ -265,10 +265,10 @@ pub fn initialize_stream(params: &ConnectParams,
         }
     }
 
-    let host = match params.target {
-        ConnectTarget::Tcp(ref host) => host,
+    let host = match *params.host() {
+        Host::Tcp(ref host) => host,
         // Postgres doesn't support TLS over unix sockets
-        ConnectTarget::Unix(_) => return Err(ConnectError::Io(::bad_response())),
+        Host::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
     handshaker.tls_handshake(host, socket).map_err(ConnectError::Tls)

@@ -1,50 +1,142 @@
 //! Connection parameters
 use std::error::Error;
 use std::path::PathBuf;
+use std::mem;
 
 use params::url::Url;
 
 mod url;
 
-/// Specifies the target server to connect to.
+/// The host.
 #[derive(Clone, Debug)]
-pub enum ConnectTarget {
-    /// Connect via TCP to the specified host.
+pub enum Host {
+    /// A TCP hostname.
     Tcp(String),
-    /// Connect via a Unix domain socket in the specified directory.
-    ///
-    /// Unix sockets are only supported on Unixy platforms (i.e. not Windows).
+    /// The path to a directory containing the server's Unix socket.
     Unix(PathBuf),
 }
 
 /// Authentication information.
 #[derive(Clone, Debug)]
-pub struct UserInfo {
+pub struct User {
+    name: String,
+    password: Option<String>,
+}
+
+impl User {
     /// The username.
-    pub user: String,
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// An optional password.
-    pub password: Option<String>,
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_ref().map(|p| &**p)
+    }
 }
 
 /// Information necessary to open a new connection to a Postgres server.
 #[derive(Clone, Debug)]
 pub struct ConnectParams {
-    /// The target server.
-    pub target: ConnectTarget,
+    host: Host,
+    port: u16,
+    user: Option<User>,
+    database: Option<String>,
+    options: Vec<(String, String)>,
+}
+
+impl ConnectParams {
+    /// Returns a new builder.
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+
+    /// The target host.
+    pub fn host(&self) -> &Host {
+        &self.host
+    }
+
     /// The target port.
     ///
-    /// Defaults to 5432 if not specified.
-    pub port: Option<u16>,
-    /// The user to login as.
+    /// Defaults to 5432.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// The user to log in as.
     ///
-    /// `Connection::connect` requires a user but `cancel_query` does not.
-    pub user: Option<UserInfo>,
+    /// A user is required to open a new connection but not to cancel a query.
+    pub fn user(&self) -> Option<&User> {
+        self.user.as_ref()
+    }
+
     /// The database to connect to.
-    ///
-    /// Defaults the value of `user`.
-    pub database: Option<String>,
+    pub fn database(&self) -> Option<&str> {
+        self.database.as_ref().map(|d| &**d)
+    }
+
     /// Runtime parameters to be passed to the Postgres backend.
-    pub options: Vec<(String, String)>,
+    pub fn options(&self) -> &[(String, String)] {
+        &self.options
+    }
+}
+
+/// A builder for `ConnectParams`.
+pub struct Builder {
+    port: u16,
+    user: Option<User>,
+    database: Option<String>,
+    options: Vec<(String, String)>,
+}
+
+impl Builder {
+    /// Creates a new builder.
+    pub fn new() -> Builder {
+        Builder {
+            port: 5432,
+            user: None,
+            database: None,
+            options: vec![],
+        }
+    }
+
+    /// Sets the port.
+    pub fn port(&mut self, port: u16) -> &mut Builder {
+        self.port = port;
+        self
+    }
+
+    /// Sets the user.
+    pub fn user(&mut self, name: &str, password: Option<&str>) -> &mut Builder {
+        self.user = Some(User {
+            name: name.to_string(),
+            password: password.map(ToString::to_string),
+        });
+        self
+    }
+
+    /// Sets the database.
+    pub fn database(&mut self, database: &str) -> &mut Builder {
+        self.database = Some(database.to_string());
+        self
+    }
+
+    /// Adds a runtime parameter.
+    pub fn option(&mut self, name: &str, value: &str) -> &mut Builder {
+        self.options.push((name.to_string(), value.to_string()));
+        self
+    }
+
+    /// Constructs a `ConnectParams` from the builder.
+    pub fn build(&mut self, host: Host) -> ConnectParams {
+        ConnectParams {
+            host: host,
+            port: self.port,
+            user: self.user.take(),
+            database: self.database.take(),
+            options: mem::replace(&mut self.options, vec![]),
+        }
+    }
 }
 
 /// A trait implemented by types that can be converted into a `ConnectParams`.
@@ -78,35 +170,33 @@ impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<ConnectParams, Box<Error + Sync + Send>> {
         let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
 
-        let maybe_path = url::decode_component(&host)?;
-        let target = if maybe_path.starts_with('/') {
-            ConnectTarget::Unix(PathBuf::from(maybe_path))
-        } else {
-            ConnectTarget::Tcp(host)
-        };
+        let mut builder = ConnectParams::builder();
 
-        let user = user.map(|url::UserInfo { user, pass }| {
-            UserInfo {
-                user: user,
-                password: pass,
-            }
-        });
+        if let Some(port) = port {
+            builder.port(port);
+        }
 
-        let database = if path.is_empty() {
-            None
-        } else {
+        if let Some(info) = user {
+            builder.user(&info.user, info.pass.as_ref().map(|p| &**p));
+        }
+
+        if !path.is_empty() {
             // path contains the leading /
-            path.remove(0);
-            Some(path)
+            builder.database(&path[1..]);
+        }
+
+        for (name, value) in options {
+            builder.option(&name, &value);
+        }
+
+        let maybe_path = url::decode_component(&host)?;
+        let host = if maybe_path.starts_with('/') {
+            Host::Unix(maybe_path.into())
+        } else {
+            Host::Tcp(maybe_path)
         };
 
-        Ok(ConnectParams {
-            target: target,
-            port: port,
-            user: user,
-            database: database,
-            options: options,
-        })
+        Ok(builder.build(host))
     }
 }
 

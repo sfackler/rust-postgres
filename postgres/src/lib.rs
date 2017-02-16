@@ -96,7 +96,7 @@ use postgres_shared::rows::RowData;
 use error::{Error, ConnectError, SqlState, DbError};
 use tls::TlsHandshake;
 use notification::{Notifications, Notification};
-use params::{ConnectParams, IntoConnectParams, UserInfo};
+use params::{ConnectParams, IntoConnectParams, User};
 use priv_io::MessageStream;
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
@@ -255,9 +255,7 @@ impl InnerConnection {
         let params = params.into_connect_params().map_err(ConnectError::ConnectParams)?;
         let stream = priv_io::initialize_stream(&params, tls)?;
 
-        let ConnectParams { user, database, mut options, .. } = params;
-
-        let user = match user {
+        let user = match params.user() {
             Some(user) => user,
             None => {
                 return Err(ConnectError::ConnectParams("User missing from connection parameters"
@@ -285,14 +283,15 @@ impl InnerConnection {
             has_typeinfo_composite_query: false,
         };
 
+        let mut options = params.options().to_owned();
         options.push(("client_encoding".to_owned(), "UTF8".to_owned()));
         // Postgres uses the value of TimeZone as the time zone for TIMESTAMP
         // WITH TIME ZONE values. Timespec converts to GMT internally.
         options.push(("timezone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_owned(), user.user.clone()));
-        if let Some(database) = database {
-            options.push(("database".to_owned(), database));
+        options.push(("user".to_owned(), user.name().to_owned()));
+        if let Some(database) = params.database() {
+            options.push(("database".to_owned(), database.to_owned()));
         }
 
         let options = options.iter().map(|&(ref a, ref b)| (&**a, &**b));
@@ -390,21 +389,21 @@ impl InnerConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: UserInfo) -> result::Result<(), ConnectError> {
+    fn handle_auth(&mut self, user: &User) -> result::Result<(), ConnectError> {
         match self.read_message()? {
             backend::Message::AuthenticationOk => return Ok(()),
             backend::Message::AuthenticationCleartextPassword => {
-                let pass = user.password.ok_or_else(|| {
+                let pass = user.password().ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 })?;
-                self.stream.write_message(|buf| frontend::password_message(&pass, buf))?;
+                self.stream.write_message(|buf| frontend::password_message(pass, buf))?;
                 self.stream.flush()?;
             }
             backend::Message::AuthenticationMd5Password(body) => {
-                let pass = user.password.ok_or_else(|| {
+                let pass = user.password().ok_or_else(|| {
                     ConnectError::ConnectParams("a password was requested but not provided".into())
                 })?;
-                let output = authentication::md5_hash(user.user.as_bytes(),
+                let output = authentication::md5_hash(user.name().as_bytes(),
                                                       pass.as_bytes(),
                                                       body.salt());
                 self.stream.write_message(|buf| frontend::password_message(&output, buf))?;
@@ -932,22 +931,15 @@ impl Connection {
     ///
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
-    /// use postgres::params::{UserInfo, ConnectParams, ConnectTarget};
+    /// use postgres::params::{ConnectParams, Host};
     /// # use std::path::PathBuf;
     ///
     /// # #[cfg(unix)]
     /// # fn f() {
     /// # let some_crazy_path = PathBuf::new();
-    /// let params = ConnectParams {
-    ///     target: ConnectTarget::Unix(some_crazy_path),
-    ///     port: None,
-    ///     user: Some(UserInfo {
-    ///         user: "postgres".to_owned(),
-    ///         password: None
-    ///     }),
-    ///     database: None,
-    ///     options: vec![],
-    /// };
+    /// let params = ConnectParams::builder()
+    ///     .user("postgres", None)
+    ///     .build(Host::Unix(some_crazy_path));
     /// let conn = Connection::connect(params, TlsMode::None).unwrap();
     /// # }
     /// ```

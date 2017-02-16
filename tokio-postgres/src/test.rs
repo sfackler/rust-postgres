@@ -7,7 +7,7 @@ use tokio_core::reactor::{Core, Interval};
 
 use super::*;
 use error::{Error, ConnectError, SqlState};
-use params::{ConnectParams, ConnectTarget, UserInfo};
+use params::{ConnectParams, Host};
 use types::{ToSql, FromSql, Type, IsNull, Kind};
 
 #[test]
@@ -182,16 +182,9 @@ fn unix_socket() {
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .then(|r| {
             let r = r.unwrap().0;
-            let params = ConnectParams {
-                target: ConnectTarget::Unix(PathBuf::from(r[0].get::<String, _>(0))),
-                port: None,
-                user: Some(UserInfo {
-                    user: "postgres".to_owned(),
-                    password: None,
-                }),
-                database: None,
-                options: vec![],
-            };
+            let params = ConnectParams::builder()
+                .user("postgres", None)
+                .build(Host::Unix(PathBuf::from(r[0].get::<String, _>(0))));
             Connection::connect(params, TlsMode::None, &handle)
         })
         .then(|c| c.unwrap().batch_execute(""));
