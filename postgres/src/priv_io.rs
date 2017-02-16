@@ -18,7 +18,6 @@ use error::ConnectError;
 use tls::TlsStream;
 use params::{ConnectParams, Host};
 
-const DEFAULT_PORT: u16 = 5432;
 const MESSAGE_HEADER_SIZE: usize = 5;
 
 pub struct MessageStream {

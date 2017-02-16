@@ -168,7 +168,7 @@ impl IntoConnectParams for String {
 
 impl IntoConnectParams for Url {
     fn into_connect_params(self) -> Result<ConnectParams, Box<Error + Sync + Send>> {
-        let Url { host, port, user, path: url::Path { mut path, query: options, .. }, .. } = self;
+        let Url { host, port, user, path: url::Path { path, query: options, .. }, .. } = self;
 
         let mut builder = ConnectParams::builder();
 

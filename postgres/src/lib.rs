@@ -96,7 +96,7 @@ use postgres_shared::rows::RowData;
 use error::{Error, ConnectError, SqlState, DbError};
 use tls::TlsHandshake;
 use notification::{Notifications, Notification};
-use params::{ConnectParams, IntoConnectParams, User};
+use params::{IntoConnectParams, User};
 use priv_io::MessageStream;
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
