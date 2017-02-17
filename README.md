@@ -3,7 +3,7 @@ A native PostgreSQL driver for Rust.
 
 [Documentation](https://docs.rs/postgres/0.13.4/postgres)
 
-[![Build Status](https://travis-ci.org/sfackler/rust-postgres.png?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
+[![Build Status](https://travis-ci.org/sfackler/rust-postgres.svg?branch=master)](https://travis-ci.org/sfackler/rust-postgres) [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
 
 You can integrate Rust-Postgres into your project through the [releases on crates.io](https://crates.io/crates/postgres):
 ```toml
