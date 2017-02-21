@@ -1,12 +1,13 @@
 [package]
 name = "tokio-postgres"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver using Tokio"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://docs.rs/tokio-postgres/0.1.1/tokio_postgres"
+documentation = "https://docs.rs/tokio-postgres/0.2.0/tokio_postgres"
 readme = "../README.md"
+keywords = ["database", "postgres", "postgresql", "sql", "async"]
 
 [features]
 with-bit-vec = ["postgres-shared/with-bit-vec"]
@@ -23,7 +24,7 @@ with-openssl = ["tokio-openssl", "openssl"]
 fallible-iterator = "0.1.3"
 futures = "0.1.7"
 futures-state-stream = "0.1"
-postgres-shared = { version = "0.1.0", path = "../postgres-shared" }
+postgres-shared = { version = "0.2", path = "../postgres-shared" }
 postgres-protocol = "0.2"
 tokio-core = "0.1"
 tokio-dns-unofficial = "0.1"
