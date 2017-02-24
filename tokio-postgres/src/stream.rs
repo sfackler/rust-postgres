@@ -26,18 +26,20 @@ pub fn connect(host: Host,
     let inner = match host {
         Host::Tcp(ref host) => {
             Either::A(tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
-                .map(|s| Stream(InnerStream::Tcp(s))))
+                .map(|s| Stream(InnerStream::Tcp(s)))
+                .map_err(ConnectError::Io))
         }
         #[cfg(unix)]
         Host::Unix(ref host) => {
             let addr = host.join(format!(".s.PGSQL.{}", port));
             Either::B(UnixStream::connect(addr, handle)
                 .map(|s| Stream(InnerStream::Unix(s)))
+                .map_err(ConnectError::Io)
                 .into_future())
         }
         #[cfg(not(unix))]
         Host::Unix(_) => {
-            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this platform")).into_future())
+            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this platform".into())).into_future())
         }
     };
 
@@ -49,7 +51,6 @@ pub fn connect(host: Host,
                     let s: Box<TlsStream> = Box::new(s);
                     s.framed(PostgresCodec)
                 })
-                .map_err(ConnectError::Io)
                 .boxed()
         },
     };
@@ -59,9 +60,9 @@ pub fn connect(host: Host,
             let mut buf = vec![];
             frontend::ssl_request(&mut buf);
             s.send(buf)
+                .map_err(ConnectError::Io)
         })
-        .and_then(|s| s.into_future().map_err(|e| e.0))
-        .map_err(ConnectError::Io)
+        .and_then(|s| s.into_future().map_err(|e| ConnectError::Io(e.0)))
         .and_then(move |(m, s)| {
             let s = s.into_inner();
             match (m, required) {
