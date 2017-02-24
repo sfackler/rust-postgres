@@ -98,18 +98,19 @@ fn batch_execute_ok() {
 fn batch_execute_err() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
-        .then(|r| r.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL); \
-                                            INSERT INTO foo DEFAULT VALUES;"))
-        .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
         .then(|r| {
-             match r {
-                 Err(Error::Db(e, s)) => {
-                     assert!(e.code == SqlState::UndefinedTable);
-                     s.batch_execute("SELECT * FROM foo")
-                 }
-                 Err(e) => panic!("unexpected error: {}", e),
-                 Ok(_) => panic!("unexpected success"),
-             }
+            r.unwrap()
+                .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL); INSERT INTO foo DEFAULT \
+                                VALUES;")
+        })
+        .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
+        .then(|r| match r {
+            Err(Error::Db(e, s)) => {
+                assert!(e.code == SqlState::UndefinedTable);
+                s.batch_execute("SELECT * FROM foo")
+            }
+            Err(e) => panic!("unexpected error: {}", e),
+            Ok(_) => panic!("unexpected success"),
         });
     l.run(done).unwrap();
 }
@@ -157,7 +158,9 @@ fn query() {
 fn transaction() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
-        .then(|c| c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);"))
+        .then(|c| {
+            c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);")
+        })
         .then(|c| c.unwrap().transaction())
         .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
         .then(|t| t.unwrap().rollback())
@@ -196,7 +199,9 @@ fn ssl_user_ssl_required() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
 
-    let done = Connection::connect("postgres://ssl_user@localhost/postgres", TlsMode::None, &handle);
+    let done = Connection::connect("postgres://ssl_user@localhost/postgres",
+                                   TlsMode::None,
+                                   &handle);
 
     match l.run(done) {
         Err(ConnectError::Db(e)) => assert!(e.code == SqlState::InvalidAuthorizationSpecification),
@@ -231,7 +236,10 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<StdError + Sync + Send>> {
+        fn to_sql(&self,
+                  ty: &Type,
+                  out: &mut Vec<u8>)
+                  -> Result<IsNull, Box<StdError + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
@@ -242,7 +250,7 @@ fn domain() {
         fn accepts(ty: &Type) -> bool {
             match *ty.kind() {
                 Kind::Domain(Type::Bytea) => ty.name() == "session_id",
-                _ => false
+                _ => false,
             }
         }
 
@@ -264,9 +272,10 @@ fn domain() {
     let handle = l.handle();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| {
-            c.unwrap().batch_execute(
-                "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
-                 CREATE TABLE pg_temp.foo (id pg_temp.session_id);")
+            c.unwrap().batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea \
+                                      CHECK(octet_length(VALUE) = 16);
+                 CREATE \
+                                      TABLE pg_temp.foo (id pg_temp.session_id);")
         })
         .and_then(|c| c.prepare("INSERT INTO pg_temp.foo (id) VALUES ($1)"))
         .and_then(|(s, c)| {
@@ -330,7 +339,8 @@ fn enum_() {
             assert_eq!(type_.name(), "mood");
             match *type_.kind() {
                 Kind::Enum(ref variants) => {
-                    assert_eq!(variants, &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
+                    assert_eq!(variants,
+                               &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
                 }
                 _ => panic!("bad type"),
             }

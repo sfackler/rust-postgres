@@ -22,7 +22,8 @@ impl TransactionNew for Transaction {
 impl Transaction {
     /// Like `Connection::batch_execute`.
     pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
-        self.0.batch_execute(query)
+        self.0
+            .batch_execute(query)
             .map(Transaction)
             .map_err(transaction_err)
             .boxed()
@@ -30,7 +31,8 @@ impl Transaction {
 
     /// Like `Connection::prepare`.
     pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), Error<Transaction>> {
-        self.0.prepare(query)
+        self.0
+            .prepare(query)
             .map(|(s, c)| (s, Transaction(c)))
             .map_err(transaction_err)
             .boxed()
@@ -41,7 +43,8 @@ impl Transaction {
                    statement: &Statement,
                    params: &[&ToSql])
                    -> BoxFuture<(u64, Transaction), Error<Transaction>> {
-        self.0.execute(statement, params)
+        self.0
+            .execute(statement, params)
             .map(|(n, c)| (n, Transaction(c)))
             .map_err(transaction_err)
             .boxed()
@@ -52,7 +55,8 @@ impl Transaction {
                  statement: &Statement,
                  params: &[&ToSql])
                  -> BoxStateStream<Row, Transaction, Error<Transaction>> {
-        self.0.query(statement, params)
+        self.0
+            .query(statement, params)
             .map_state(Transaction)
             .map_err(transaction_err)
             .boxed()
@@ -69,7 +73,8 @@ impl Transaction {
     }
 
     fn finish(self, query: &str) -> BoxFuture<Connection, Error> {
-        self.0.simple_query(query)
+        self.0
+            .simple_query(query)
             .map(|(_, c)| c)
             .boxed()
     }
@@ -79,6 +84,6 @@ fn transaction_err(e: Error) -> Error<Transaction> {
     match e {
         Error::Io(e) => Error::Io(e),
         Error::Db(e, c) => Error::Db(e, Transaction(c)),
-        Error::Conversion(e, c) => Error::Conversion(e, Transaction(c))
+        Error::Conversion(e, c) => Error::Conversion(e, Transaction(c)),
     }
 }

@@ -40,7 +40,8 @@ impl Handshake for OpenSsl {
                  host: &str,
                  stream: Stream)
                  -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>> {
-        self.0.connect_async(host, stream)
+        self.0
+            .connect_async(host, stream)
             .map(|s| {
                 let s: Box<TlsStream> = Box::new(s);
                 s

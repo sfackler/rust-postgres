@@ -39,7 +39,10 @@ pub fn connect(host: Host,
         }
         #[cfg(not(unix))]
         Host::Unix(_) => {
-            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this platform".into())).into_future())
+            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this \
+                                                       platform"
+                    .into()))
+                .into_future())
         }
     };
 
@@ -52,7 +55,7 @@ pub fn connect(host: Host,
                     s.framed(PostgresCodec)
                 })
                 .boxed()
-        },
+        }
     };
 
     inner.map(|s| s.framed(SslCodec))
@@ -67,13 +70,18 @@ pub fn connect(host: Host,
             let s = s.into_inner();
             match (m, required) {
                 (Some(b'N'), true) => {
-                    Either::A(Err(ConnectError::Tls("the server does not support TLS".into())).into_future())
+                    Either::A(Err(ConnectError::Tls("the server does not support TLS".into()))
+                        .into_future())
                 }
                 (Some(b'N'), false) => {
                     let s: Box<TlsStream> = Box::new(s);
                     Either::A(Ok(s).into_future())
-                },
-                (None, _) => Either::A(Err(ConnectError::Io(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF"))).into_future()),
+                }
+                (None, _) => {
+                    Either::A(Err(ConnectError::Io(io::Error::new(io::ErrorKind::UnexpectedEof,
+                                                                  "unexpected EOF")))
+                        .into_future())
+                }
                 _ => {
                     let host = match host {
                         Host::Tcp(ref host) => host,
@@ -155,7 +163,7 @@ impl Codec for PostgresCodec {
                 buf.drain_to(consumed);
                 Ok(Some(message))
             }
-            ParseResult::Incomplete { .. } => Ok(None)
+            ParseResult::Incomplete { .. } => Ok(None),
         }
     }
 
