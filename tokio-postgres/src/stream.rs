@@ -8,6 +8,8 @@ use tokio_core::io::{Io, Codec, EasyBuf, Framed};
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use tokio_dns;
+
+#[cfg(unix)]
 use tokio_uds::UnixStream;
 
 use TlsMode;
@@ -26,11 +28,16 @@ pub fn connect(host: Host,
             Either::A(tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
                 .map(|s| Stream(InnerStream::Tcp(s))))
         }
+        #[cfg(unix)]
         Host::Unix(ref host) => {
             let addr = host.join(format!(".s.PGSQL.{}", port));
             Either::B(UnixStream::connect(addr, handle)
                 .map(|s| Stream(InnerStream::Unix(s)))
                 .into_future())
+        }
+        #[cfg(not(unix))]
+        Host::Unix(_) => {
+            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this platform")).into_future())
         }
     };
 
@@ -84,6 +91,7 @@ pub struct Stream(InnerStream);
 
 enum InnerStream {
     Tcp(TcpStream),
+    #[cfg(unix)]
     Unix(UnixStream),
 }
 
@@ -91,6 +99,7 @@ impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.read(buf),
+            #[cfg(unix)]
             InnerStream::Unix(ref mut s) => s.read(buf),
         }
     }
@@ -100,6 +109,7 @@ impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.write(buf),
+            #[cfg(unix)]
             InnerStream::Unix(ref mut s) => s.write(buf),
         }
     }
@@ -107,6 +117,7 @@ impl Write for Stream {
     fn flush(&mut self) -> io::Result<()> {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.flush(),
+            #[cfg(unix)]
             InnerStream::Unix(ref mut s) => s.flush(),
         }
     }
@@ -116,6 +127,7 @@ impl Io for Stream {
     fn poll_read(&mut self) -> Async<()> {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.poll_read(),
+            #[cfg(unix)]
             InnerStream::Unix(ref mut s) => s.poll_read(),
         }
     }
@@ -123,6 +135,7 @@ impl Io for Stream {
     fn poll_write(&mut self) -> Async<()> {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.poll_write(),
+            #[cfg(unix)]
             InnerStream::Unix(ref mut s) => s.poll_write(),
         }
     }

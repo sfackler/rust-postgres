@@ -28,7 +28,9 @@ postgres-shared = { version = "0.2", path = "../postgres-shared" }
 postgres-protocol = "0.2"
 tokio-core = "0.1"
 tokio-dns-unofficial = "0.1"
-tokio-uds = "0.1"
 
 tokio-openssl = { version = "0.1", optional = true }
 openssl = { version = "0.9", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+tokio-uds = "0.1"

@@ -59,6 +59,8 @@ extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
 extern crate tokio_dns;
+
+#[cfg(unix)]
 extern crate tokio_uds;
 
 #[cfg(feature = "tokio-openssl")]
