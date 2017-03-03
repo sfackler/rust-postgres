@@ -157,22 +157,23 @@ fn query() {
 #[test]
 fn transaction() {
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
-        .then(|c| {
-            c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);")
-        })
-        .then(|c| c.unwrap().transaction())
-        .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
-        .then(|t| t.unwrap().rollback())
-        .then(|c| c.unwrap().transaction())
-        .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('bob');"))
-        .then(|t| t.unwrap().commit())
-        .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
-        .and_then(|(s, c)| c.query(&s, &[]).collect())
-        .map(|(r, _)| {
-            assert_eq!(r.len(), 1);
-            assert_eq!(r[0].get::<String, _>("name"), "bob");
-        });
+    let done =
+        Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
+            .then(|c| {
+                c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);")
+            })
+            .then(|c| c.unwrap().transaction())
+            .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
+            .then(|t| t.unwrap().rollback())
+            .then(|c| c.unwrap().transaction())
+            .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('bob');"))
+            .then(|t| t.unwrap().commit())
+            .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
+            .and_then(|(s, c)| c.query(&s, &[]).collect())
+            .map(|(r, _)| {
+                assert_eq!(r.len(), 1);
+                assert_eq!(r[0].get::<String, _>("name"), "bob");
+            });
     l.run(done).unwrap();
 }
 
@@ -381,4 +382,27 @@ fn cancel() {
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
+}
+
+#[test]
+fn notifications() {
+    let mut l = Core::new().unwrap();
+    let handle = l.handle();
+
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+        .then(|c| c.unwrap().batch_execute("LISTEN test_notifications"))
+        .and_then(|c1| {
+            Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
+                .then(|c2| {
+                    c2.unwrap().batch_execute("NOTIFY test_notifications, 'foo'").map(|_| c1)
+                })
+        })
+        .and_then(|c| c.notifications().into_future().map_err(|(e, _)| e))
+        .map(|(n, _)| {
+            let n = n.unwrap();
+            assert_eq!(n.channel, "test_notifications");
+            assert_eq!(n.payload, "foo");
+        });
+
+    l.run(done).unwrap();
 }

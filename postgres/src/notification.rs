@@ -5,19 +5,11 @@ use std::fmt;
 use std::time::Duration;
 use postgres_protocol::message::backend;
 
+#[doc(inline)]
+pub use postgres_shared::Notification;
+
 use {desynchronized, Result, Connection, NotificationsNew};
 use error::Error;
-
-/// An asynchronous notification.
-#[derive(Clone, Debug)]
-pub struct Notification {
-    /// The process ID of the notifying backend process.
-    pub process_id: i32,
-    /// The name of the channel that the notify has been raised on.
-    pub channel: String,
-    /// The "payload" string passed from the notifying process.
-    pub payload: String,
-}
 
 /// Notifications from the Postgres backend.
 pub struct Notifications<'conn> {

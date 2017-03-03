@@ -19,3 +19,14 @@ pub struct CancelData {
     /// The secret key for the session.
     pub secret_key: i32,
 }
+
+/// An asynchronous notification.
+#[derive(Clone, Debug)]
+pub struct Notification {
+    /// The process ID of the notifying backend process.
+    pub process_id: i32,
+    /// The name of the channel that the notify has been raised on.
+    pub channel: String,
+    /// The "payload" string passed from the notifying process.
+    pub payload: String,
+}
