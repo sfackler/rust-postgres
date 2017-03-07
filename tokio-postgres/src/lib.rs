@@ -55,12 +55,14 @@
 #![warn(missing_docs)]
 
 extern crate fallible_iterator;
-extern crate futures;
 extern crate futures_state_stream;
 extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
 extern crate tokio_dns;
+
+#[macro_use]
+extern crate futures;
 
 #[cfg(unix)]
 extern crate tokio_uds;
@@ -71,23 +73,24 @@ extern crate tokio_openssl;
 extern crate openssl;
 
 use fallible_iterator::FallibleIterator;
-use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend};
+use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend, Async};
 use futures::future::Either;
 use futures_state_stream::{StreamEvent, StateStream, BoxStateStream, FutureExt};
 use postgres_protocol::authentication;
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorResponseBody, ErrorFields};
 use postgres_shared::rows::RowData;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
+use tokio_core::io::IoFuture;
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{params, CancelData};
+pub use postgres_shared::{params, CancelData, Notification};
 
 use error::{ConnectError, Error, DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
@@ -166,6 +169,7 @@ struct InnerConnection {
     close_sender: Sender<(u8, String)>,
     parameters: HashMap<String, String>,
     types: HashMap<Oid, Other>,
+    notifications: VecDeque<Notification>,
     cancel_data: CancelData,
     has_typeinfo_query: bool,
     has_typeinfo_enum_query: bool,
@@ -173,25 +177,27 @@ struct InnerConnection {
 }
 
 impl InnerConnection {
-    fn read(self) -> BoxFuture<(backend::Message<Vec<u8>>, InnerConnection), io::Error> {
+    fn read(self) -> IoFuture<(backend::Message<Vec<u8>>, InnerConnection)> {
         self.into_future()
             .map_err(|e| e.0)
             .and_then(|(m, mut s)| {
                 match m {
-                    Some(backend::Message::ParameterStatus(body)) => {
-                        let name = match body.name() {
-                            Ok(name) => name.to_owned(),
+                    Some(backend::Message::NotificationResponse(body)) => {
+                        let process_id = body.process_id();
+                        let channel = match body.channel() {
+                            Ok(channel) => channel.to_owned(),
                             Err(e) => return Either::A(Err(e).into_future()),
                         };
-                        let value = match body.value() {
-                            Ok(value) => value.to_owned(),
+                        let message = match body.message() {
+                            Ok(channel) => channel.to_owned(),
                             Err(e) => return Either::A(Err(e).into_future()),
                         };
-                        s.parameters.insert(name, value);
-                        Either::B(s.read())
-                    }
-                    Some(backend::Message::NoticeResponse(_)) => {
-                        // TODO forward the error
+                        let notification = Notification {
+                            process_id: process_id,
+                            channel: channel,
+                            payload: message,
+                        };
+                        s.notifications.push_back(notification);
                         Either::B(s.read())
                     }
                     Some(m) => Either::A(Ok((m, s)).into_future()),
@@ -210,7 +216,18 @@ impl Stream for InnerConnection {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<backend::Message<Vec<u8>>>, io::Error> {
-        self.stream.poll()
+        loop {
+            match try_ready!(self.stream.poll()) {
+                Some(backend::Message::ParameterStatus(body)) => {
+                    let name = body.name()?.to_owned();
+                    let value = body.value()?.to_owned();
+                    self.parameters.insert(name, value);
+                }
+                // TODO forward to a handler
+                Some(backend::Message::NoticeResponse(_)) => {}
+                msg => return Ok(Async::Ready(msg)),
+            }
+        }
     }
 }
 
@@ -279,6 +296,7 @@ impl Connection {
                      close_receiver: receiver,
                      parameters: HashMap::new(),
                      types: HashMap::new(),
+                     notifications: VecDeque::new(),
                      cancel_data: CancelData {
                          process_id: 0,
                          secret_key: 0,
@@ -1000,6 +1018,11 @@ impl Connection {
             .boxed()
     }
 
+    /// Returns a stream of asynchronus notifications receieved from the server.
+    pub fn notifications(self) -> Notifications {
+        Notifications(self)
+    }
+
     /// Returns information used to cancel pending queries.
     ///
     /// Used with the `cancel_query` function. The object returned can be used
@@ -1012,6 +1035,41 @@ impl Connection {
     /// `timezone` or `server_version`.
     pub fn parameter(&self, param: &str) -> Option<&str> {
         self.0.parameters.get(param).map(|s| &**s)
+    }
+}
+
+/// A stream of asynchronous Postgres notifications.
+pub struct Notifications(Connection);
+
+impl Notifications {
+    /// Consumes the `Notifications`, returning the inner `Connection`.
+    pub fn into_inner(self) -> Connection {
+        self.0
+    }
+}
+
+impl Stream for Notifications {
+    type Item = Notification;
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Notification>, Error> {
+        if let Some(notification) = (self.0).0.notifications.pop_front() {
+            return Ok(Async::Ready(Some(notification)));
+        }
+
+        match try_ready!((self.0).0.poll()) {
+            Some(backend::Message::NotificationResponse(body)) => {
+                let notification = Notification {
+                    process_id: body.process_id(),
+                    channel: body.channel()?.to_owned(),
+                    payload: body.message()?.to_owned(),
+                };
+                Ok(Async::Ready(Some(notification)))
+            }
+            Some(_) => Err(bad_message()),
+            None => Ok(Async::Ready(None)),
+        }
     }
 }
 
