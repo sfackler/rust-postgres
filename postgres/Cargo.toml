@@ -24,6 +24,7 @@ path = "tests/test.rs"
 with-bit-vec = ["postgres-shared/with-bit-vec"]
 with-chrono = ["postgres-shared/with-chrono"]
 with-eui48 = ["postgres-shared/with-eui48"]
+with-geo = ["postgres-shared/with-geo"]
 with-rustc-serialize = ["postgres-shared/with-rustc-serialize"]
 with-serde_json = ["postgres-shared/with-serde_json"]
 with-time = ["postgres-shared/with-time"]

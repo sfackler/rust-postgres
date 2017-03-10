@@ -253,6 +253,20 @@ types. The driver currently supports the following conversions:
                 (<a href="#optional-features">optional</a>)
             </td>
             <td>MACADDR</td>
+        </tr
+        <tr>
+            <td>
+                <a href="https://github.com/georust/rust-geo">geo::Point&lt;f64&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>POINT</td>
+        </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/georust/rust-geo">geo::Bbox&lt;f64&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>BOX</td>
         </tr>
     </tbody>
 </table>
@@ -316,3 +330,13 @@ and `FromSql` implementations for `bit-vec`'s `BitVec` type.
 [MACADDR](http://www.postgresql.org/docs/9.4/static/datatype-net-types.html#DATATYPE-MACADDR)
 support is provided optionally by the `with-eui48` feature, which adds `ToSql`
 and `FromSql` implementations for `eui48`'s `MacAddress` type.
+
+### POINT type
+
+[POINT](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6799)
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Point` type.
+
+### BOX type
+
+[BOX](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6883)
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type.

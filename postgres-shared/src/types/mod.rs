@@ -73,6 +73,8 @@ mod serde_json;
 mod chrono;
 #[cfg(feature = "with-eui48")]
 mod eui48;
+#[cfg(feature = "with-geo")]
+mod geo;
 
 mod special;
 mod type_gen;
