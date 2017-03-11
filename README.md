@@ -268,6 +268,13 @@ types. The driver currently supports the following conversions:
             </td>
             <td>BOX</td>
         </tr>
+        <tr>
+            <td>
+                <a href="https://github.com/georust/rust-geo">geo::LineString&lt;f64&gt;</a>
+                (<a href="#optional-features">optional</a>)
+            </td>
+            <td>PATH</td>
+        </tr>
     </tbody>
 </table>
 
@@ -340,3 +347,11 @@ support is provided optionally by the `with-geo` feature, which adds `ToSql` and
 
 [BOX](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6883)
 support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type.
+
+### PATH type
+
+[PATH](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6912)
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `LineString` type.
+Paths converted from LineString are always treated as "open" paths. Use the
+[pclose](https://www.postgresql.org/docs/8.2/static/functions-geometry.html#FUNCTIONS-GEOMETRY-FUNC-TABLE)
+geometric function to insert a closed path.
