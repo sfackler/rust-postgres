@@ -68,16 +68,18 @@ impl FromSql for LineString<f64> {
 
         // let _ = types::bool_from_sql(&raw[0..1])?; // is path open or closed
         let n_points = types::int4_from_sql(&raw[1..5])? as usize;
-        let raw_points = &raw[5..raw.len()-1];
+        let raw_points = &raw[5..raw.len()];
         if raw_points.len() != 16 * n_points {
             return Err("invalid message length".into());
         }
 
+        let mut offset = 0;
         let mut points = Vec::with_capacity(n_points);
-        for n in 0..n_points {
-            let x = types::float8_from_sql(&raw[n..n+8])?;
-            let y = types::float8_from_sql(&raw[n+8..n+16])?;
+        for _ in 0..n_points {
+            let x = types::float8_from_sql(&raw_points[offset..offset+8])?;
+            let y = types::float8_from_sql(&raw_points[offset+8..offset+16])?;
             points.push(Point::new(x, y));
+            offset += 16;
         }
         Ok(LineString(points))
     }
