@@ -3,6 +3,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use fallible_iterator::FallibleIterator;
 use std::error::Error;
 use std::str;
+use std::boxed::Box as StdBox;
 
 use {Oid, IsNull, write_nullable, FromUsize};
 
@@ -20,7 +21,7 @@ pub fn bool_to_sql(v: bool, buf: &mut Vec<u8>) {
 
 /// Deserializes a `BOOL` value.
 #[inline]
-pub fn bool_from_sql(buf: &[u8]) -> Result<bool, Box<Error + Sync + Send>> {
+pub fn bool_from_sql(buf: &[u8]) -> Result<bool, StdBox<Error + Sync + Send>> {
     if buf.len() != 1 {
         return Err("invalid buffer size".into());
     }
@@ -48,7 +49,7 @@ pub fn text_to_sql(v: &str, buf: &mut Vec<u8>) {
 
 /// Deserializes a `TEXT`, `VARCHAR`, `CHAR(n)`, `NAME`, or `CITEXT` value.
 #[inline]
-pub fn text_from_sql(buf: &[u8]) -> Result<&str, Box<Error + Sync + Send>> {
+pub fn text_from_sql(buf: &[u8]) -> Result<&str, StdBox<Error + Sync + Send>> {
     Ok(try!(str::from_utf8(buf)))
 }
 
@@ -60,7 +61,7 @@ pub fn char_to_sql(v: i8, buf: &mut Vec<u8>) {
 
 /// Deserializes a `"char"` value.
 #[inline]
-pub fn char_from_sql(mut buf: &[u8]) -> Result<i8, Box<Error + Sync + Send>> {
+pub fn char_from_sql(mut buf: &[u8]) -> Result<i8, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i8());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -76,7 +77,7 @@ pub fn int2_to_sql(v: i16, buf: &mut Vec<u8>) {
 
 /// Deserializes an `INT2` value.
 #[inline]
-pub fn int2_from_sql(mut buf: &[u8]) -> Result<i16, Box<Error + Sync + Send>> {
+pub fn int2_from_sql(mut buf: &[u8]) -> Result<i16, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i16::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -92,7 +93,7 @@ pub fn int4_to_sql(v: i32, buf: &mut Vec<u8>) {
 
 /// Deserializes an `INT4` value.
 #[inline]
-pub fn int4_from_sql(mut buf: &[u8]) -> Result<i32, Box<Error + Sync + Send>> {
+pub fn int4_from_sql(mut buf: &[u8]) -> Result<i32, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i32::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -108,7 +109,7 @@ pub fn oid_to_sql(v: Oid, buf: &mut Vec<u8>) {
 
 /// Deserializes an `OID` value.
 #[inline]
-pub fn oid_from_sql(mut buf: &[u8]) -> Result<Oid, Box<Error + Sync + Send>> {
+pub fn oid_from_sql(mut buf: &[u8]) -> Result<Oid, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_u32::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -124,7 +125,7 @@ pub fn int8_to_sql(v: i64, buf: &mut Vec<u8>) {
 
 /// Deserializes an `INT8` value.
 #[inline]
-pub fn int8_from_sql(mut buf: &[u8]) -> Result<i64, Box<Error + Sync + Send>> {
+pub fn int8_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i64::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -140,7 +141,7 @@ pub fn float4_to_sql(v: f32, buf: &mut Vec<u8>) {
 
 /// Deserializes a `FLOAT4` value.
 #[inline]
-pub fn float4_from_sql(mut buf: &[u8]) -> Result<f32, Box<Error + Sync + Send>> {
+pub fn float4_from_sql(mut buf: &[u8]) -> Result<f32, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_f32::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -156,7 +157,7 @@ pub fn float8_to_sql(v: f64, buf: &mut Vec<u8>) {
 
 /// Deserializes a `FLOAT8` value.
 #[inline]
-pub fn float8_from_sql(mut buf: &[u8]) -> Result<f64, Box<Error + Sync + Send>> {
+pub fn float8_from_sql(mut buf: &[u8]) -> Result<f64, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_f64::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
@@ -166,7 +167,7 @@ pub fn float8_from_sql(mut buf: &[u8]) -> Result<f64, Box<Error + Sync + Send>> 
 
 /// Serializes an `HSTORE` value.
 #[inline]
-pub fn hstore_to_sql<'a, I>(values: I, buf: &mut Vec<u8>) -> Result<(), Box<Error + Sync + Send>>
+pub fn hstore_to_sql<'a, I>(values: I, buf: &mut Vec<u8>) -> Result<(), StdBox<Error + Sync + Send>>
     where I: IntoIterator<Item = (&'a str, Option<&'a str>)>
 {
     let base = buf.len();
@@ -192,7 +193,7 @@ pub fn hstore_to_sql<'a, I>(values: I, buf: &mut Vec<u8>) -> Result<(), Box<Erro
     Ok(())
 }
 
-fn write_pascal_string(s: &str, buf: &mut Vec<u8>) -> Result<(), Box<Error + Sync + Send>> {
+fn write_pascal_string(s: &str, buf: &mut Vec<u8>) -> Result<(), StdBox<Error + Sync + Send>> {
     let size = try!(i32::from_usize(s.len()));
     buf.write_i32::<BigEndian>(size).unwrap();
     buf.extend_from_slice(s.as_bytes());
@@ -202,7 +203,7 @@ fn write_pascal_string(s: &str, buf: &mut Vec<u8>) -> Result<(), Box<Error + Syn
 /// Deserializes an `HSTORE` value.
 #[inline]
 pub fn hstore_from_sql<'a>(mut buf: &'a [u8])
-                           -> Result<HstoreEntries<'a>, Box<Error + Sync + Send>> {
+                           -> Result<HstoreEntries<'a>, StdBox<Error + Sync + Send>> {
     let count = try!(buf.read_i32::<BigEndian>());
     if count < 0 {
         return Err("invalid entry count".into());
@@ -222,10 +223,10 @@ pub struct HstoreEntries<'a> {
 
 impl<'a> FallibleIterator for HstoreEntries<'a> {
     type Item = (&'a str, Option<&'a str>);
-    type Error = Box<Error + Sync + Send>;
+    type Error = StdBox<Error + Sync + Send>;
 
     #[inline]
-    fn next(&mut self) -> Result<Option<(&'a str, Option<&'a str>)>, Box<Error + Sync + Send>> {
+    fn next(&mut self) -> Result<Option<(&'a str, Option<&'a str>)>, StdBox<Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
                 return Err("invalid buffer size".into());
@@ -265,7 +266,10 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
 
 /// Serializes a `VARBIT` or `BIT` value.
 #[inline]
-pub fn varbit_to_sql<I>(len: usize, v: I, buf: &mut Vec<u8>) -> Result<(), Box<Error + Sync + Send>>
+pub fn varbit_to_sql<I>(len: usize,
+                        v: I,
+                        buf: &mut Vec<u8>)
+                        -> Result<(), StdBox<Error + Sync + Send>>
     where I: Iterator<Item = u8>
 {
     let len = try!(i32::from_usize(len));
@@ -280,7 +284,7 @@ pub fn varbit_to_sql<I>(len: usize, v: I, buf: &mut Vec<u8>) -> Result<(), Box<E
 
 /// Deserializes a `VARBIT` or `BIT` value.
 #[inline]
-pub fn varbit_from_sql<'a>(mut buf: &'a [u8]) -> Result<Varbit<'a>, Box<Error + Sync + Send>> {
+pub fn varbit_from_sql<'a>(mut buf: &'a [u8]) -> Result<Varbit<'a>, StdBox<Error + Sync + Send>> {
     let len = try!(buf.read_i32::<BigEndian>());
     if len < 0 {
         return Err("invalid varbit length".into());
@@ -328,7 +332,7 @@ pub fn timestamp_to_sql(v: i64, buf: &mut Vec<u8>) {
 ///
 /// The value represents the number of microseconds since midnight, January 1st, 2000.
 #[inline]
-pub fn timestamp_from_sql(mut buf: &[u8]) -> Result<i64, Box<Error + Sync + Send>> {
+pub fn timestamp_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i64::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid message length".into());
@@ -348,7 +352,7 @@ pub fn date_to_sql(v: i32, buf: &mut Vec<u8>) {
 ///
 /// The value represents the number of days since January 1st, 2000.
 #[inline]
-pub fn date_from_sql(mut buf: &[u8]) -> Result<i32, Box<Error + Sync + Send>> {
+pub fn date_from_sql(mut buf: &[u8]) -> Result<i32, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i32::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid message length".into());
@@ -368,7 +372,7 @@ pub fn time_to_sql(v: i64, buf: &mut Vec<u8>) {
 ///
 /// The value represents the number of microseconds since midnight.
 #[inline]
-pub fn time_from_sql(mut buf: &[u8]) -> Result<i64, Box<Error + Sync + Send>> {
+pub fn time_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<Error + Sync + Send>> {
     let v = try!(buf.read_i64::<BigEndian>());
     if !buf.is_empty() {
         return Err("invalid message length".into());
@@ -384,7 +388,7 @@ pub fn macaddr_to_sql(v: [u8; 6], buf: &mut Vec<u8>) {
 
 /// Deserializes a `MACADDR` value.
 #[inline]
-pub fn macaddr_from_sql(buf: &[u8]) -> Result<[u8; 6], Box<Error + Sync + Send>> {
+pub fn macaddr_from_sql(buf: &[u8]) -> Result<[u8; 6], StdBox<Error + Sync + Send>> {
     if buf.len() != 6 {
         return Err("invalid message length".into());
     }
@@ -401,7 +405,7 @@ pub fn uuid_to_sql(v: [u8; 16], buf: &mut Vec<u8>) {
 
 /// Deserializes a `UUID` value.
 #[inline]
-pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], Box<Error + Sync + Send>> {
+pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<Error + Sync + Send>> {
     if buf.len() != 16 {
         return Err("invalid message length".into());
     }
@@ -418,10 +422,10 @@ pub fn array_to_sql<T, I, J, F>(dimensions: I,
                                 elements: J,
                                 mut serializer: F,
                                 buf: &mut Vec<u8>)
-                                -> Result<(), Box<Error + Sync + Send>>
+                                -> Result<(), StdBox<Error + Sync + Send>>
     where I: IntoIterator<Item = ArrayDimension>,
           J: IntoIterator<Item = T>,
-          F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>>
+          F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, StdBox<Error + Sync + Send>>
 {
     let dimensions_idx = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -449,7 +453,7 @@ pub fn array_to_sql<T, I, J, F>(dimensions: I,
 
 /// Deserializes an array value.
 #[inline]
-pub fn array_from_sql<'a>(mut buf: &'a [u8]) -> Result<Array<'a>, Box<Error + Sync + Send>> {
+pub fn array_from_sql<'a>(mut buf: &'a [u8]) -> Result<Array<'a>, StdBox<Error + Sync + Send>> {
     let dimensions = try!(buf.read_i32::<BigEndian>());
     if dimensions < 0 {
         return Err("invalid dimension count".into());
@@ -527,10 +531,10 @@ pub struct ArrayDimensions<'a>(&'a [u8]);
 
 impl<'a> FallibleIterator for ArrayDimensions<'a> {
     type Item = ArrayDimension;
-    type Error = Box<Error + Sync + Send>;
+    type Error = StdBox<Error + Sync + Send>;
 
     #[inline]
-    fn next(&mut self) -> Result<Option<ArrayDimension>, Box<Error + Sync + Send>> {
+    fn next(&mut self) -> Result<Option<ArrayDimension>, StdBox<Error + Sync + Send>> {
         if self.0.is_empty() {
             return Ok(None);
         }
@@ -569,10 +573,10 @@ pub struct ArrayValues<'a> {
 
 impl<'a> FallibleIterator for ArrayValues<'a> {
     type Item = Option<&'a [u8]>;
-    type Error = Box<Error + Sync + Send>;
+    type Error = StdBox<Error + Sync + Send>;
 
     #[inline]
-    fn next(&mut self) -> Result<Option<Option<&'a [u8]>>, Box<Error + Sync + Send>> {
+    fn next(&mut self) -> Result<Option<Option<&'a [u8]>>, StdBox<Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
                 return Err("invalid message length".into());
@@ -613,9 +617,9 @@ pub fn empty_range_to_sql(buf: &mut Vec<u8>) {
 pub fn range_to_sql<F, G>(lower: F,
                           upper: G,
                           buf: &mut Vec<u8>)
-                          -> Result<(), Box<Error + Sync + Send>>
-    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, Box<Error + Sync + Send>>,
-          G: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, Box<Error + Sync + Send>>
+                          -> Result<(), StdBox<Error + Sync + Send>>
+    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>,
+          G: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>
 {
     let tag_idx = buf.len();
     buf.push(0);
@@ -638,8 +642,10 @@ pub fn range_to_sql<F, G>(lower: F,
     Ok(())
 }
 
-fn write_bound<F>(bound: F, buf: &mut Vec<u8>) -> Result<RangeBound<()>, Box<Error + Sync + Send>>
-    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, Box<Error + Sync + Send>>
+fn write_bound<F>(bound: F,
+                  buf: &mut Vec<u8>)
+                  -> Result<RangeBound<()>, StdBox<Error + Sync + Send>>
+    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -676,7 +682,7 @@ pub enum RangeBound<T> {
 
 /// Deserializes a range value.
 #[inline]
-pub fn range_from_sql<'a>(mut buf: &'a [u8]) -> Result<Range<'a>, Box<Error + Sync + Send>> {
+pub fn range_from_sql<'a>(mut buf: &'a [u8]) -> Result<Range<'a>, StdBox<Error + Sync + Send>> {
     let tag = try!(buf.read_u8());
 
     if tag == RANGE_EMPTY {
@@ -701,7 +707,7 @@ fn read_bound<'a>(buf: &mut &'a [u8],
                   tag: u8,
                   unbounded: u8,
                   inclusive: u8)
-                  -> Result<RangeBound<Option<&'a [u8]>>, Box<Error + Sync + Send>> {
+                  -> Result<RangeBound<Option<&'a [u8]>>, StdBox<Error + Sync + Send>> {
     if tag & unbounded != 0 {
         Ok(RangeBound::Unbounded)
     } else {
@@ -732,6 +738,191 @@ pub enum Range<'a> {
     Empty,
     /// A nonempty range.
     Nonempty(RangeBound<Option<&'a [u8]>>, RangeBound<Option<&'a [u8]>>),
+}
+
+/// Serializes a point value.
+#[inline]
+pub fn point_to_sql(x: f64, y: f64, buf: &mut Vec<u8>) {
+    buf.write_f64::<BigEndian>(x).unwrap();
+    buf.write_f64::<BigEndian>(y).unwrap();
+}
+
+/// Deserializes a point value.
+#[inline]
+pub fn point_from_sql(mut buf: &[u8]) -> Result<Point, StdBox<Error + Sync + Send>> {
+    let x = try!(buf.read_f64::<BigEndian>());
+    let y = try!(buf.read_f64::<BigEndian>());
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Point { x: x, y: y })
+}
+
+/// A Postgres point.
+#[derive(Copy, Clone)]
+pub struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl Point {
+    /// Returns the x coordinate of the point.
+    #[inline]
+    pub fn x(&self) -> f64 {
+        self.x
+    }
+
+    /// Returns the y coordinate of the point.
+    #[inline]
+    pub fn y(&self) -> f64 {
+        self.y
+    }
+}
+
+/// Serializes a box value.
+#[inline]
+pub fn box_to_sql(x1: f64, y1: f64, x2: f64, y2: f64, buf: &mut Vec<u8>) {
+    buf.write_f64::<BigEndian>(x1).unwrap();
+    buf.write_f64::<BigEndian>(y1).unwrap();
+    buf.write_f64::<BigEndian>(x2).unwrap();
+    buf.write_f64::<BigEndian>(y2).unwrap();
+}
+
+/// Deserializes a box value.
+#[inline]
+pub fn box_from_sql(mut buf: &[u8]) -> Result<Box, StdBox<Error + Sync + Send>> {
+    let x1 = try!(buf.read_f64::<BigEndian>());
+    let y1 = try!(buf.read_f64::<BigEndian>());
+    let x2 = try!(buf.read_f64::<BigEndian>());
+    let y2 = try!(buf.read_f64::<BigEndian>());
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Box {
+        upper_right: Point { x: x1, y: y1 },
+        lower_left: Point { x: x2, y: y2 },
+    })
+}
+
+/// A Postgres box.
+#[derive(Copy, Clone)]
+pub struct Box {
+    upper_right: Point,
+    lower_left: Point,
+}
+
+impl Box {
+    /// Returns the upper right corner of the box.
+    #[inline]
+    pub fn upper_right(&self) -> Point {
+        self.upper_right
+    }
+
+    /// Returns the lower left corner of the box.
+    #[inline]
+    pub fn lower_left(&self) -> Point {
+        self.lower_left
+    }
+}
+
+/// Serializes a Postgres path.
+#[inline]
+pub fn path_to_sql<I>(closed: bool,
+                      points: I,
+                      buf: &mut Vec<u8>)
+                      -> Result<(), StdBox<Error + Sync + Send>>
+    where I: IntoIterator<Item = (f64, f64)>
+{
+    buf.push(closed as u8);
+    let points_idx = buf.len();
+    buf.extend_from_slice(&[0; 4]);
+
+    let mut num_points = 0;
+    for (x, y) in points {
+        num_points += 1;
+        buf.write_f64::<BigEndian>(x).unwrap();
+        buf.write_f64::<BigEndian>(y).unwrap();
+    }
+
+    let num_points = try!(i32::from_usize(num_points));
+    (&mut buf[points_idx..])
+        .write_i32::<BigEndian>(num_points)
+        .unwrap();
+
+    Ok(())
+}
+
+/// Deserializes a Postgres path.
+#[inline]
+pub fn path_from_sql<'a>(mut buf: &'a [u8]) -> Result<Path<'a>, StdBox<Error + Sync + Send>> {
+    let closed = try!(buf.read_u8()) != 0;
+    let points = try!(buf.read_i32::<BigEndian>());
+
+    Ok(Path {
+        closed: closed,
+        points: points,
+        buf: buf,
+    })
+}
+
+/// A Postgres point.
+pub struct Path<'a> {
+    closed: bool,
+    points: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> Path<'a> {
+    /// Determines if the path is closed or open.
+    #[inline]
+    pub fn closed(&self) -> bool {
+        self.closed
+    }
+
+    /// Returns an iterator over the points in the path.
+    #[inline]
+    pub fn points(&self) -> PathPoints<'a> {
+        PathPoints {
+            remaining: self.points,
+            buf: self.buf,
+        }
+    }
+}
+
+/// An iterator over the points of a Postgres path.
+pub struct PathPoints<'a> {
+    remaining: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> FallibleIterator for PathPoints<'a> {
+    type Item = Point;
+    type Error = StdBox<Error + Sync + Send>;
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<Point>, StdBox<Error + Sync + Send>> {
+        if self.remaining == 0 {
+            if !self.buf.is_empty() {
+                return Err("invalid message length".into());
+            }
+            return Ok(None);
+        }
+        self.remaining -= 1;
+
+        let x = try!(self.buf.read_f64::<BigEndian>());
+        let y = try!(self.buf.read_f64::<BigEndian>());
+
+        Ok(Some(Point {
+            x: x,
+            y: y,
+        }))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.remaining as usize;
+        (len, Some(len))
+    }
 }
 
 #[cfg(test)]
@@ -829,15 +1020,13 @@ mod test {
                      true,
                      10,
                      values.iter().cloned(),
-                     |v, buf| {
-            match v {
-                Some(v) => {
-                    buf.extend_from_slice(v);
-                    Ok(IsNull::No)
-                }
-                None => Ok(IsNull::Yes),
-            }
-        },
+                     |v, buf| match v {
+                         Some(v) => {
+                             buf.extend_from_slice(v);
+                             Ok(IsNull::No)
+                         }
+                         None => Ok(IsNull::Yes),
+                     },
                      &mut buf)
             .unwrap();
 

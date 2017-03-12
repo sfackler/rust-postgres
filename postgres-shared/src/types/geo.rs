@@ -3,18 +3,14 @@ extern crate geo;
 use postgres_protocol::types;
 use self::geo::{Bbox, LineString, Point};
 use std::error::Error;
+use fallible_iterator::FallibleIterator;
 
 use types::{FromSql, ToSql, IsNull, Type};
 
 impl FromSql for Point<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
-        if raw.len() != 16 {
-            return Err("invalid message length".into());
-        }
-
-        let x = types::float8_from_sql(&raw[0..8])?;
-        let y = types::float8_from_sql(&raw[8..16])?;
-        Ok(Point::new(x, y))
+        let point = types::point_from_sql(raw)?;
+        Ok(Point::new(point.x(), point.y()))
     }
 
     accepts!(Type::Point);
@@ -22,8 +18,7 @@ impl FromSql for Point<f64> {
 
 impl ToSql for Point<f64> {
     fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
-        types::float8_to_sql(self.x(), out);
-        types::float8_to_sql(self.y(), out);
+        types::point_to_sql(self.x(), self.y(), out);
         Ok(IsNull::No)
     }
 
@@ -33,15 +28,13 @@ impl ToSql for Point<f64> {
 
 impl FromSql for Bbox<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
-        if raw.len() != 32 {
-            return Err("invalid message length".into());
-        }
-
-        let xmax = types::float8_from_sql(&raw[0..8])?;
-        let ymax = types::float8_from_sql(&raw[8..16])?;
-        let xmin = types::float8_from_sql(&raw[16..24])?;
-        let ymin = types::float8_from_sql(&raw[24..32])?;
-        Ok(Bbox{xmax: xmax, ymax: ymax, xmin: xmin, ymin: ymin})
+        let bbox = types::box_from_sql(raw)?;
+        Ok(Bbox {
+            xmin: bbox.lower_left().x(),
+            xmax: bbox.upper_right().x(),
+            ymin: bbox.lower_left().y(),
+            ymax: bbox.upper_right().y(),
+        })
     }
 
     accepts!(Type::Box);
@@ -49,10 +42,7 @@ impl FromSql for Bbox<f64> {
 
 impl ToSql for Bbox<f64> {
     fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
-        types::float8_to_sql(self.xmax, out);
-        types::float8_to_sql(self.ymax, out);
-        types::float8_to_sql(self.xmin, out);
-        types::float8_to_sql(self.ymin, out);
+        types::box_to_sql(self.xmin, self.ymin, self.xmax, self.ymax, out);
         Ok(IsNull::No)
     }
 
@@ -62,25 +52,8 @@ impl ToSql for Bbox<f64> {
 
 impl FromSql for LineString<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
-        if raw.len() < 5 {
-            return Err("invalid message length".into());
-        }
-
-        // let _ = types::bool_from_sql(&raw[0..1])?; // is path open or closed
-        let n_points = types::int4_from_sql(&raw[1..5])? as usize;
-        let raw_points = &raw[5..raw.len()];
-        if raw_points.len() != 16 * n_points {
-            return Err("invalid message length".into());
-        }
-
-        let mut offset = 0;
-        let mut points = Vec::with_capacity(n_points);
-        for _ in 0..n_points {
-            let x = types::float8_from_sql(&raw_points[offset..offset+8])?;
-            let y = types::float8_from_sql(&raw_points[offset+8..offset+16])?;
-            points.push(Point::new(x, y));
-            offset += 16;
-        }
+        let path = types::path_from_sql(raw)?;
+        let points = path.points().map(|p| Point::new(p.x(), p.y())).collect()?;
         Ok(LineString(points))
     }
 
@@ -90,12 +63,7 @@ impl FromSql for LineString<f64> {
 impl ToSql for LineString<f64> {
     fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
         let closed = false; // always encode an open path from LineString
-        types::bool_to_sql(closed, out);
-        types::int4_to_sql(self.0.len() as i32, out);
-        for point in &self.0 {
-            types::float8_to_sql(point.x(), out);
-            types::float8_to_sql(point.y(), out);
-        }
+        types::path_to_sql(closed, self.0.iter().map(|p| (p.x(), p.y())), out)?;
         Ok(IsNull::No)
     }
 
