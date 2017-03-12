@@ -1,7 +1,0 @@
-language: rust
-cache: cargo
-rust:
-- nightly
-- 1.10.0
-script:
-- cargo test
