@@ -1,2 +1,8 @@
 [workspace]
-members = ["codegen", "postgres", "postgres-shared", "tokio-postgres"]
+members = [
+    "codegen",
+    "postgres",
+    "postgres-protocol",
+    "postgres-shared",
+    "tokio-postgres"
+]
