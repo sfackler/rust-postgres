@@ -10,6 +10,7 @@ repository = "https://github.com/sfackler/rust-postgres"
 with-bit-vec = ["bit-vec"]
 with-chrono = ["chrono"]
 with-eui48 = ["eui48"]
+with-geo = ["geo"]
 with-rustc-serialize = ["rustc-serialize"]
 with-serde_json = ["serde_json"]
 with-time = ["time"]
@@ -24,6 +25,7 @@ postgres-protocol = "0.2"
 bit-vec = { version = "0.4", optional = true }
 chrono = { version = "0.3", optional = true }
 eui48 = { version = "0.1", optional = true }
+geo = { version = "0.4", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
 serde_json = { version = "0.9", optional = true }
 time = { version = "0.1.14", optional = true }
