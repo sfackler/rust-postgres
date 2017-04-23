@@ -1,10 +1,12 @@
-use futures::{BoxFuture, Future, IntoFuture, Async, Sink, Stream as FuturesStream};
+use bytes::{BytesMut, BufMut};
+use futures::{BoxFuture, Future, IntoFuture, Sink, Stream as FuturesStream, Poll};
 use futures::future::Either;
 use postgres_shared::params::Host;
 use postgres_protocol::message::backend::{self, ParseResult};
 use postgres_protocol::message::frontend;
 use std::io::{self, Read, Write};
-use tokio_core::io::{Io, Codec, EasyBuf, Framed};
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_io::codec::{Encoder, Decoder, Framed};
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use tokio_dns;
@@ -132,65 +134,85 @@ impl Write for Stream {
     }
 }
 
-impl Io for Stream {
-    fn poll_read(&mut self) -> Async<()> {
+impl AsyncRead for Stream {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         match self.0 {
-            InnerStream::Tcp(ref mut s) => s.poll_read(),
+            InnerStream::Tcp(ref s) => s.prepare_uninitialized_buffer(buf),
             #[cfg(unix)]
-            InnerStream::Unix(ref mut s) => s.poll_read(),
+            InnerStream::Unix(ref s) => s.prepare_uninitialized_buffer(buf),
         }
     }
 
-    fn poll_write(&mut self) -> Async<()> {
+    fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
+        where B: BufMut
+    {
         match self.0 {
-            InnerStream::Tcp(ref mut s) => s.poll_write(),
+            InnerStream::Tcp(ref mut s) => s.read_buf(buf),
             #[cfg(unix)]
-            InnerStream::Unix(ref mut s) => s.poll_write(),
+            InnerStream::Unix(ref mut s) => s.read_buf(buf),
+        }
+    }
+}
+
+impl AsyncWrite for Stream {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.0 {
+            InnerStream::Tcp(ref mut s) => s.shutdown(),
+            #[cfg(unix)]
+            InnerStream::Unix(ref mut s) => s.shutdown(),
         }
     }
 }
 
 pub struct PostgresCodec;
 
-impl Codec for PostgresCodec {
-    type In = backend::Message<Vec<u8>>;
-    type Out = Vec<u8>;
+impl Decoder for PostgresCodec {
+    type Item = backend::Message<Vec<u8>>;
+    type Error = io::Error;
 
     // FIXME ideally we'd avoid re-copying the data
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
+    fn decode(&mut self, buf: &mut BytesMut) -> io::Result<Option<Self::Item>> {
         match backend::Message::parse_owned(buf.as_ref())? {
             ParseResult::Complete { message, consumed } => {
-                buf.drain_to(consumed);
+                buf.split_to(consumed);
                 Ok(Some(message))
             }
             ParseResult::Incomplete { .. } => Ok(None),
         }
     }
+}
 
-    fn encode(&mut self, msg: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
-        buf.extend_from_slice(&msg);
+impl Encoder for PostgresCodec {
+    type Item = Vec<u8>;
+    type Error = io::Error;
+
+    fn encode(&mut self, msg: Vec<u8>, buf: &mut BytesMut) -> io::Result<()> {
+        buf.extend(&msg);
         Ok(())
     }
 }
 
 struct SslCodec;
 
-impl Codec for SslCodec {
-    type In = u8;
-    type Out = Vec<u8>;
+impl Decoder for SslCodec {
+    type Item = u8;
+    type Error = io::Error;
 
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<u8>> {
-        if buf.as_slice().is_empty() {
+    fn decode(&mut self, buf: &mut BytesMut) -> io::Result<Option<u8>> {
+        if buf.is_empty() {
             Ok(None)
         } else {
-            let byte = buf.as_slice()[0];
-            buf.drain_to(1);
-            Ok(Some(byte))
+            Ok(Some(buf.split_to(1)[0]))
         }
     }
+}
 
-    fn encode(&mut self, msg: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
-        buf.extend_from_slice(&msg);
+impl Encoder for SslCodec {
+    type Item = Vec<u8>;
+    type Error = io::Error;
+
+    fn encode(&mut self, msg: Vec<u8>, buf: &mut BytesMut) -> io::Result<()> {
+        buf.extend(&msg);
         Ok(())
     }
 }

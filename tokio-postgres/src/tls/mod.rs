@@ -2,7 +2,7 @@
 
 use futures::BoxFuture;
 use std::error::Error;
-use tokio_core::io::Io;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use stream::Stream;
 
@@ -10,15 +10,13 @@ pub use stream::Stream;
 pub mod openssl;
 
 /// A trait implemented by streams returned from `Handshake` implementations.
-pub trait TlsStream: Io + Send {
+pub trait TlsStream: AsyncRead + AsyncWrite + Send {
     /// Returns a shared reference to the inner stream.
     fn get_ref(&self) -> &Stream;
 
     /// Returns a mutable reference to the inner stream.
     fn get_mut(&mut self) -> &mut Stream;
 }
-
-impl Io for Box<TlsStream> {}
 
 impl TlsStream for Stream {
     fn get_ref(&self) -> &Stream {

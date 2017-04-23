@@ -54,12 +54,14 @@
 #![doc(html_root_url="https://docs.rs/tokio-postgres/0.2.1")]
 #![warn(missing_docs)]
 
+extern crate bytes;
 extern crate fallible_iterator;
 extern crate futures_state_stream;
 extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
 extern crate tokio_dns;
+extern crate tokio_io;
 
 #[macro_use]
 extern crate futures;
@@ -86,7 +88,7 @@ use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
-use tokio_core::io::IoFuture;
+use tokio_io::IoFuture;
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
