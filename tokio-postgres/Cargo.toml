@@ -8,6 +8,10 @@ repository = "https://github.com/sfackler/rust-postgres"
 documentation = "https://docs.rs/tokio-postgres/0.2.1/tokio_postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
+categories = ["database"]
+
+[badges]
+travis-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 with-bit-vec = ["postgres-shared/with-bit-vec"]

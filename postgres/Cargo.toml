@@ -9,6 +9,10 @@ documentation = "https://docs.rs/postgres/0.14.0/postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
+categories = ["database"]
+
+[badges]
+travis-ci = { repository = "sfackler/rust-postgres" }
 
 [lib]
 name = "postgres"
