@@ -1,138 +1,118 @@
 #![allow(missing_docs)]
 
 use byteorder::{ReadBytesExt, BigEndian};
-use memchr::memchr;
+use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
+use memchr::memchr;
+use std::cmp;
 use std::io::{self, Read};
-use std::marker::PhantomData;
-use std::ops::Deref;
+use std::ops::Range;
 use std::str;
 
 use Oid;
 
 /// An enum representing Postgres backend messages.
-pub enum Message<T> {
+pub enum Message {
     AuthenticationCleartextPassword,
     AuthenticationGss,
     AuthenticationKerberosV5,
-    AuthenticationMd5Password(AuthenticationMd5PasswordBody<T>),
+    AuthenticationMd5Password(AuthenticationMd5PasswordBody),
     AuthenticationOk,
     AuthenticationScmCredential,
     AuthenticationSspi,
-    BackendKeyData(BackendKeyDataBody<T>),
+    BackendKeyData(BackendKeyDataBody),
     BindComplete,
     CloseComplete,
-    CommandComplete(CommandCompleteBody<T>),
-    CopyData(CopyDataBody<T>),
+    CommandComplete(CommandCompleteBody),
+    CopyData(CopyDataBody),
     CopyDone,
-    CopyInResponse(CopyInResponseBody<T>),
-    CopyOutResponse(CopyOutResponseBody<T>),
-    DataRow(DataRowBody<T>),
+    CopyInResponse(CopyInResponseBody),
+    CopyOutResponse(CopyOutResponseBody),
+    DataRow(DataRowBody),
     EmptyQueryResponse,
-    ErrorResponse(ErrorResponseBody<T>),
+    ErrorResponse(ErrorResponseBody),
     NoData,
-    NoticeResponse(NoticeResponseBody<T>),
-    NotificationResponse(NotificationResponseBody<T>),
-    ParameterDescription(ParameterDescriptionBody<T>),
-    ParameterStatus(ParameterStatusBody<T>),
+    NoticeResponse(NoticeResponseBody),
+    NotificationResponse(NotificationResponseBody),
+    ParameterDescription(ParameterDescriptionBody),
+    ParameterStatus(ParameterStatusBody),
     ParseComplete,
     PortalSuspended,
-    ReadyForQuery(ReadyForQueryBody<T>),
-    RowDescription(RowDescriptionBody<T>),
+    ReadyForQuery(ReadyForQueryBody),
+    RowDescription(RowDescriptionBody),
     #[doc(hidden)]
     __ForExtensibility,
 }
 
-impl<'a> Message<&'a [u8]> {
-    /// Attempts to parse a backend message from the buffer.
-    ///
-    /// This method is unfortunately difficult to use due to deficiencies in the compiler's borrow
-    /// checker.
+impl Message {
     #[inline]
-    pub fn parse(buf: &'a [u8]) -> io::Result<ParseResult<&'a [u8]>> {
-        Message::parse_inner(buf)
-    }
-}
-
-impl Message<Vec<u8>> {
-    /// Attempts to parse a backend message from the buffer.
-    ///
-    /// In contrast to `parse`, this method produces messages that do not reference the input,
-    /// buffer by copying any necessary portions internally.
-    #[inline]
-    pub fn parse_owned(buf: &[u8]) -> io::Result<ParseResult<Vec<u8>>> {
-        Message::parse_inner(buf)
-    }
-}
-
-impl<'a, T> Message<T>
-    where T: From<&'a [u8]>
-{
-    #[inline]
-    fn parse_inner(buf: &'a [u8]) -> io::Result<ParseResult<T>> {
+    pub fn parse(buf: &mut BytesMut) -> io::Result<Option<Message>> {
         if buf.len() < 5 {
-            return Ok(ParseResult::Incomplete { required_size: None });
+            let to_read = 5 - buf.len();
+            buf.reserve(to_read);
+            return Ok(None);
         }
 
-        let mut r = buf;
-        let tag = r.read_u8().unwrap();
-        // add a byte for the tag
-        let len = r.read_u32::<BigEndian>().unwrap() as usize + 1;
+        let tag = buf[0];
+        let len = (&buf[1..5]).read_u32::<BigEndian>().unwrap();
 
-        if buf.len() < len {
-            return Ok(ParseResult::Incomplete { required_size: Some(len) });
+        if len < 4 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
         }
 
-        let mut buf = &buf[5..len];
+        let total_len = len as usize + 1;
+        if buf.len() < total_len {
+            let to_read = total_len - buf.len();
+            buf.reserve(to_read);
+            return Ok(None);
+        }
+
+        let mut buf = Buffer {
+            bytes: buf.split_to(total_len).freeze(),
+            idx: 5,
+        };
+
         let message = match tag {
             b'1' => Message::ParseComplete,
             b'2' => Message::BindComplete,
             b'3' => Message::CloseComplete,
             b'A' => {
                 let process_id = try!(buf.read_i32::<BigEndian>());
-                let channel_end = try!(find_null(buf, 0));
-                let message_end = try!(find_null(buf, channel_end + 1));
-                let storage = buf[..message_end].into();
-                buf = &buf[message_end + 1..];
+                let channel = try!(buf.read_cstr());
+                let message = try!(buf.read_cstr());
                 Message::NotificationResponse(NotificationResponseBody {
-                    storage: storage,
                     process_id: process_id,
-                    channel_end: channel_end,
+                    channel: channel,
+                    message: message,
                 })
             }
             b'c' => Message::CopyDone,
             b'C' => {
-                let tag_end = try!(find_null(buf, 0));
-                let storage = buf[..tag_end].into();
-                buf = &buf[tag_end + 1..];
+                let tag = try!(buf.read_cstr());
                 Message::CommandComplete(CommandCompleteBody {
-                    storage: storage,
+                    tag: tag,
                 })
             }
             b'd' => {
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::CopyData(CopyDataBody { storage: storage })
             }
             b'D' => {
                 let len = try!(buf.read_u16::<BigEndian>());
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::DataRow(DataRowBody {
                     storage: storage,
                     len: len,
                 })
             }
             b'E' => {
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::ErrorResponse(ErrorResponseBody { storage: storage })
             }
             b'G' => {
                 let format = try!(buf.read_u8());
                 let len = try!(buf.read_u16::<BigEndian>());
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::CopyInResponse(CopyInResponseBody {
                     format: format,
                     len: len,
@@ -142,8 +122,7 @@ impl<'a, T> Message<T>
             b'H' => {
                 let format = try!(buf.read_u8());
                 let len = try!(buf.read_u16::<BigEndian>());
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
                     format: format,
                     len: len,
@@ -157,13 +136,11 @@ impl<'a, T> Message<T>
                 Message::BackendKeyData(BackendKeyDataBody {
                     process_id: process_id,
                     secret_key: secret_key,
-                    _p: PhantomData,
                 })
             }
             b'n' => Message::NoData,
             b'N' => {
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::NoticeResponse(NoticeResponseBody {
                     storage: storage,
                 })
@@ -178,7 +155,6 @@ impl<'a, T> Message<T>
                         try!(buf.read_exact(&mut salt));
                         Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody {
                             salt: salt,
-                            _p: PhantomData,
                         })
                     }
                     6 => Message::AuthenticationScmCredential,
@@ -192,19 +168,16 @@ impl<'a, T> Message<T>
             }
             b's' => Message::PortalSuspended,
             b'S' => {
-                let name_end = try!(find_null(buf, 0));
-                let value_end = try!(find_null(buf, name_end + 1));
-                let storage = buf[0..value_end].into();
-                buf = &buf[value_end + 1..];
+                let name = try!(buf.read_cstr());
+                let value = try!(buf.read_cstr());
                 Message::ParameterStatus(ParameterStatusBody {
-                    storage: storage,
-                    name_end: name_end,
+                    name: name,
+                    value: value,
                 })
             }
             b't' => {
                 let len = try!(buf.read_u16::<BigEndian>());
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::ParameterDescription(ParameterDescriptionBody {
                     storage: storage,
                     len: len,
@@ -212,8 +185,7 @@ impl<'a, T> Message<T>
             }
             b'T' => {
                 let len = try!(buf.read_u16::<BigEndian>());
-                let storage = buf.into();
-                buf = &[];
+                let storage = buf.read_all();
                 Message::RowDescription(RowDescriptionBody {
                     storage: storage,
                     len: len,
@@ -223,7 +195,6 @@ impl<'a, T> Message<T>
                 let status = try!(buf.read_u8());
                 Message::ReadyForQuery(ReadyForQueryBody {
                     status: status,
-                    _p: PhantomData,
                 })
             }
             tag => {
@@ -236,54 +207,74 @@ impl<'a, T> Message<T>
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
         }
 
-        Ok(ParseResult::Complete {
-            message: message,
-            consumed: len,
-        })
+        Ok(Some(message))
     }
 }
 
-/// The result of an attempted parse.
-pub enum ParseResult<T> {
-    /// The message was successfully parsed.
-    Complete {
-        /// The message.
-        message: Message<T>,
-        /// The number of bytes of the input buffer consumed to parse this message.
-        consumed: usize,
-    },
-    /// The buffer did not contain a full message.
-    Incomplete {
-        /// The number of total bytes required to parse a message, if known.
-        ///
-        /// This value is present if the input buffer contains at least 5 bytes.
-        required_size: Option<usize>,
+struct Buffer {
+    bytes: Bytes,
+    idx: usize,
+}
+
+impl Buffer {
+    fn slice(&self) -> &[u8] {
+        &self.bytes[self.idx..]
+    }
+
+    fn is_empty(&self) -> bool {
+        self.slice().is_empty()
+    }
+
+    fn read_cstr(&mut self) -> io::Result<Bytes> {
+        match memchr(0, self.slice()) {
+            Some(pos) => {
+                let start = self.idx;
+                let end = start + pos;
+                let cstr = self.bytes.slice(start, end);
+                self.idx = end + 1;
+                Ok(cstr)
+            }
+            None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+        }
+    }
+
+    fn read_all(&mut self) -> Bytes {
+        let buf = self.bytes.slice_from(self.idx);
+        self.idx = self.bytes.len();
+        buf
     }
 }
 
-pub struct AuthenticationMd5PasswordBody<T> {
+impl Read for Buffer {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let len = {
+            let slice = self.slice();
+            let len = cmp::min(slice.len(), buf.len());
+            buf[..len].copy_from_slice(&slice[..len]);
+            len
+        };
+        self.idx += len;
+        Ok(len)
+    }
+}
+
+pub struct AuthenticationMd5PasswordBody {
     salt: [u8; 4],
-    _p: PhantomData<T>,
 }
 
-impl<T> AuthenticationMd5PasswordBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl AuthenticationMd5PasswordBody {
     #[inline]
     pub fn salt(&self) -> [u8; 4] {
         self.salt
     }
 }
 
-pub struct BackendKeyDataBody<T> {
+pub struct BackendKeyDataBody {
     process_id: i32,
     secret_key: i32,
-    _p: PhantomData<T>,
 }
 
-impl<T> BackendKeyDataBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl BackendKeyDataBody {
     #[inline]
     pub fn process_id(&self) -> i32 {
         self.process_id
@@ -295,41 +286,35 @@ impl<T> BackendKeyDataBody<T>
     }
 }
 
-pub struct CommandCompleteBody<T> {
-    storage: T,
+pub struct CommandCompleteBody {
+    tag: Bytes,
 }
 
-impl<T> CommandCompleteBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl CommandCompleteBody {
     #[inline]
     pub fn tag(&self) -> io::Result<&str> {
-        get_str(&self.storage)
+        get_str(&self.tag)
     }
 }
 
-pub struct CopyDataBody<T> {
-    storage: T,
+pub struct CopyDataBody {
+    storage: Bytes,
 }
 
-impl<T> CopyDataBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl CopyDataBody {
     #[inline]
     pub fn data(&self) -> &[u8] {
         &self.storage
     }
 }
 
-pub struct CopyInResponseBody<T> {
-    storage: T,
+pub struct CopyInResponseBody {
+    storage: Bytes,
     len: u16,
     format: u8,
 }
 
-impl<T> CopyInResponseBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl CopyInResponseBody {
     #[inline]
     pub fn format(&self) -> u8 {
         self.format
@@ -374,15 +359,13 @@ impl<'a> FallibleIterator for ColumnFormats<'a> {
     }
 }
 
-pub struct CopyOutResponseBody<T> {
-    storage: T,
+pub struct CopyOutResponseBody {
+    storage: Bytes,
     len: u16,
     format: u8,
 }
 
-impl<T> CopyOutResponseBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl CopyOutResponseBody {
     #[inline]
     pub fn format(&self) -> u8 {
         self.format
@@ -397,34 +380,39 @@ impl<T> CopyOutResponseBody<T>
     }
 }
 
-pub struct DataRowBody<T> {
-    storage: T,
+pub struct DataRowBody {
+    storage: Bytes,
     len: u16,
 }
 
-impl<T> DataRowBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl DataRowBody {
     #[inline]
-    pub fn values<'a>(&'a self) -> DataRowValues<'a> {
-        DataRowValues {
+    pub fn ranges<'a>(&'a self) -> DataRowRanges<'a> {
+        DataRowRanges {
             buf: &self.storage,
+            len: self.storage.len(),
             remaining: self.len,
         }
     }
+
+    #[inline]
+    pub fn buffer(&self) -> &[u8] {
+        &self.storage
+    }
 }
 
-pub struct DataRowValues<'a> {
+pub struct DataRowRanges<'a> {
     buf: &'a [u8],
+    len: usize,
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for DataRowValues<'a> {
-    type Item = Option<&'a [u8]>;
+impl<'a> FallibleIterator for DataRowRanges<'a> {
+    type Item = Option<Range<usize>>;
     type Error = io::Error;
 
     #[inline]
-    fn next(&mut self) -> io::Result<Option<Option<&'a [u8]>>> {
+    fn next(&mut self) -> io::Result<Option<Option<Range<usize>>>> {
         if self.remaining == 0 {
             if self.buf.is_empty() {
                 return Ok(None);
@@ -442,9 +430,9 @@ impl<'a> FallibleIterator for DataRowValues<'a> {
             if self.buf.len() < len {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF"));
             }
-            let (head, tail) = self.buf.split_at(len);
-            self.buf = tail;
-            Ok(Some(Some(head)))
+            let base = self.len - self.buf.len();
+            self.buf = &self.buf[len as usize..];
+            Ok(Some(Some(base..base + len)))
         }
     }
 
@@ -455,18 +443,14 @@ impl<'a> FallibleIterator for DataRowValues<'a> {
     }
 }
 
-pub struct ErrorResponseBody<T> {
-    storage: T,
+pub struct ErrorResponseBody {
+    storage: Bytes,
 }
 
-impl<T> ErrorResponseBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl ErrorResponseBody {
     #[inline]
     pub fn fields<'a>(&'a self) -> ErrorFields<'a> {
-        ErrorFields {
-            buf: &self.storage
-        }
+        ErrorFields { buf: &self.storage }
     }
 }
 
@@ -494,9 +478,9 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
         self.buf = &self.buf[value_end + 1..];
 
         Ok(Some(ErrorField {
-            type_: type_,
-            value: value,
-        }))
+                    type_: type_,
+                    value: value,
+                }))
     }
 }
 
@@ -517,30 +501,24 @@ impl<'a> ErrorField<'a> {
     }
 }
 
-pub struct NoticeResponseBody<T> {
-    storage: T,
+pub struct NoticeResponseBody {
+    storage: Bytes,
 }
 
-impl<T> NoticeResponseBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl NoticeResponseBody {
     #[inline]
     pub fn fields<'a>(&'a self) -> ErrorFields<'a> {
-        ErrorFields {
-            buf: &self.storage
-        }
+        ErrorFields { buf: &self.storage }
     }
 }
 
-pub struct NotificationResponseBody<T> {
-    storage: T,
+pub struct NotificationResponseBody {
     process_id: i32,
-    channel_end: usize,
+    channel: Bytes,
+    message: Bytes,
 }
 
-impl<T> NotificationResponseBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl NotificationResponseBody {
     #[inline]
     pub fn process_id(&self) -> i32 {
         self.process_id
@@ -548,23 +526,21 @@ impl<T> NotificationResponseBody<T>
 
     #[inline]
     pub fn channel(&self) -> io::Result<&str> {
-        get_str(&self.storage[..self.channel_end])
+        get_str(&self.channel)
     }
 
     #[inline]
     pub fn message(&self) -> io::Result<&str> {
-        get_str(&self.storage[self.channel_end + 1..])
+        get_str(&self.message)
     }
 }
 
-pub struct ParameterDescriptionBody<T> {
-    storage: T,
+pub struct ParameterDescriptionBody {
+    storage: Bytes,
     len: u16,
 }
 
-impl<T> ParameterDescriptionBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl ParameterDescriptionBody {
     #[inline]
     pub fn parameters<'a>(&'a self) -> Parameters<'a> {
         Parameters {
@@ -604,47 +580,40 @@ impl<'a> FallibleIterator for Parameters<'a> {
     }
 }
 
-pub struct ParameterStatusBody<T> {
-    storage: T,
-    name_end: usize,
+pub struct ParameterStatusBody {
+    name: Bytes,
+    value: Bytes,
 }
 
-impl<T> ParameterStatusBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl ParameterStatusBody {
     #[inline]
     pub fn name(&self) -> io::Result<&str> {
-        get_str(&self.storage[..self.name_end])
+        get_str(&self.name)
     }
 
     #[inline]
     pub fn value(&self) -> io::Result<&str> {
-        get_str(&self.storage[self.name_end + 1..])
+        get_str(&self.value)
     }
 }
 
-pub struct ReadyForQueryBody<T> {
+pub struct ReadyForQueryBody {
     status: u8,
-    _p: PhantomData<T>,
 }
 
-impl<T> ReadyForQueryBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl ReadyForQueryBody {
     #[inline]
     pub fn status(&self) -> u8 {
         self.status
     }
 }
 
-pub struct RowDescriptionBody<T> {
-    storage: T,
+pub struct RowDescriptionBody {
+    storage: Bytes,
     len: u16,
 }
 
-impl<T> RowDescriptionBody<T>
-    where T: Deref<Target = [u8]>
-{
+impl RowDescriptionBody {
     #[inline]
     pub fn fields<'a>(&'a self) -> Fields<'a> {
         Fields {
@@ -685,14 +654,14 @@ impl<'a> FallibleIterator for Fields<'a> {
         let format = try!(self.buf.read_i16::<BigEndian>());
 
         Ok(Some(Field {
-            name: name,
-            table_oid: table_oid,
-            column_id: column_id,
-            type_oid: type_oid,
-            type_size: type_size,
-            type_modifier: type_modifier,
-            format: format,
-        }))
+                    name: name,
+                    table_oid: table_oid,
+                    column_id: column_id,
+                    type_oid: type_oid,
+                    type_size: type_size,
+                    type_modifier: type_modifier,
+                    format: format,
+                }))
     }
 }
 
@@ -747,7 +716,7 @@ impl<'a> Field<'a> {
 fn find_null(buf: &[u8], start: usize) -> io::Result<usize> {
     match memchr(0, &buf[start..]) {
         Some(pos) => Ok(pos + start),
-        None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF"))
+        None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
     }
 }
 

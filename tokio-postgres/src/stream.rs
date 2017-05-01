@@ -2,7 +2,7 @@ use bytes::{BytesMut, BufMut};
 use futures::{BoxFuture, Future, IntoFuture, Sink, Stream as FuturesStream, Poll};
 use futures::future::Either;
 use postgres_shared::params::Host;
-use postgres_protocol::message::backend::{self, ParseResult};
+use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend;
 use std::io::{self, Read, Write};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -167,18 +167,11 @@ impl AsyncWrite for Stream {
 pub struct PostgresCodec;
 
 impl Decoder for PostgresCodec {
-    type Item = backend::Message<Vec<u8>>;
+    type Item = backend::Message;
     type Error = io::Error;
 
-    // FIXME ideally we'd avoid re-copying the data
-    fn decode(&mut self, buf: &mut BytesMut) -> io::Result<Option<Self::Item>> {
-        match backend::Message::parse_owned(buf.as_ref())? {
-            ParseResult::Complete { message, consumed } => {
-                buf.split_to(consumed);
-                Ok(Some(message))
-            }
-            ParseResult::Incomplete { .. } => Ok(None),
-        }
+    fn decode(&mut self, buf: &mut BytesMut) -> io::Result<Option<backend::Message>> {
+        backend::Message::parse(buf)
     }
 }
 

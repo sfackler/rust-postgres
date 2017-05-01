@@ -179,7 +179,7 @@ struct InnerConnection {
 }
 
 impl InnerConnection {
-    fn read(self) -> IoFuture<(backend::Message<Vec<u8>>, InnerConnection)> {
+    fn read(self) -> IoFuture<(backend::Message, InnerConnection)> {
         self.into_future()
             .map_err(|e| e.0)
             .and_then(|(m, mut s)| {
@@ -214,10 +214,10 @@ impl InnerConnection {
 }
 
 impl Stream for InnerConnection {
-    type Item = backend::Message<Vec<u8>>;
+    type Item = backend::Message;
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Option<backend::Message<Vec<u8>>>, io::Error> {
+    fn poll(&mut self) -> Poll<Option<backend::Message>, io::Error> {
         loop {
             match try_ready!(self.stream.poll()) {
                 Some(backend::Message::ParameterStatus(body)) => {
@@ -444,7 +444,7 @@ impl Connection {
                     Ok((rows, Connection(s))).into_future().boxed()
                 }
                 backend::Message::DataRow(body) => {
-                    match body.values().collect() {
+                    match RowData::new(body) {
                         Ok(row) => {
                             rows.push(row);
                             Connection(s).simple_read_rows(rows)
@@ -509,7 +509,7 @@ impl Connection {
             .boxed()
     }
 
-    fn ready_err<T>(self, body: ErrorResponseBody<Vec<u8>>) -> BoxFuture<T, Error>
+    fn ready_err<T>(self, body: ErrorResponseBody) -> BoxFuture<T, Error>
         where T: 'static + Send
     {
         DbError::new(&mut body.fields())
@@ -953,8 +953,7 @@ impl Connection {
                 let c = Connection(s);
                 match m {
                     backend::Message::DataRow(body) => {
-                        Either::A(body.values()
-                            .collect()
+                        Either::A(RowData::new(body)
                             .map(|r| (Some(r), c))
                             .map_err(Error::Io)
                             .into_future())

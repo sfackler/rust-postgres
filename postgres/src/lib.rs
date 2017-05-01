@@ -70,7 +70,7 @@
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
-extern crate bufstream;
+extern crate bytes;
 extern crate fallible_iterator;
 extern crate hex;
 #[cfg(not(feature = "no-logging"))]
@@ -317,7 +317,7 @@ impl InnerConnection {
         Ok(conn)
     }
 
-    fn read_message_with_notification(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
+    fn read_message_with_notification(&mut self) -> io::Result<backend::Message> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message()) {
@@ -337,7 +337,7 @@ impl InnerConnection {
 
     fn read_message_with_notification_timeout(&mut self,
                                               timeout: Duration)
-                                              -> io::Result<Option<backend::Message<Vec<u8>>>> {
+                                              -> io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_timeout(timeout)) {
@@ -356,7 +356,7 @@ impl InnerConnection {
     }
 
     fn read_message_with_notification_nonblocking(&mut self)
-                                                  -> io::Result<Option<backend::Message<Vec<u8>>>> {
+                                                  -> io::Result<Option<backend::Message>> {
         debug_assert!(!self.desynchronized);
         loop {
             match try_desync!(self, self.stream.read_message_nonblocking()) {
@@ -374,7 +374,7 @@ impl InnerConnection {
         }
     }
 
-    fn read_message(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
+    fn read_message(&mut self) -> io::Result<backend::Message> {
         loop {
             match self.read_message_with_notification()? {
                 backend::Message::NotificationResponse(body) => {
@@ -497,7 +497,7 @@ impl InnerConnection {
                     more_rows = true;
                     break;
                 }
-                backend::Message::DataRow(body) => consumer(body.values().collect()?),
+                backend::Message::DataRow(body) => consumer(RowData::new(body)?),
                 backend::Message::ErrorResponse(body) => {
                     self.wait_for_ready()?;
                     return Err(err(&mut body.fields()));
@@ -834,8 +834,8 @@ impl InnerConnection {
             match self.read_message()? {
                 backend::Message::ReadyForQuery(_) => break,
                 backend::Message::DataRow(body) => {
-                    let row = body.values()
-                        .map(|v| v.map(|v| String::from_utf8_lossy(v).into_owned()))
+                    let row = body.ranges()
+                        .map(|r| r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned()))
                         .collect()?;
                     result.push(row);
                 }

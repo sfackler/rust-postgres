@@ -1,9 +1,8 @@
-use std::io;
-use std::io::prelude::*;
+use std::io::{self, BufWriter, Read, Write};
 use std::fmt;
 use std::net::TcpStream;
 use std::time::Duration;
-use bufstream::BufStream;
+use bytes::{BufMut, BytesMut};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 #[cfg(unix)]
@@ -11,25 +10,27 @@ use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
 use postgres_protocol::message::frontend;
-use postgres_protocol::message::backend::{self, ParseResult};
+use postgres_protocol::message::backend;
 
 use TlsMode;
 use error::ConnectError;
 use tls::TlsStream;
 use params::{ConnectParams, Host};
 
-const MESSAGE_HEADER_SIZE: usize = 5;
+const INITIAL_CAPACITY: usize = 8 * 1024;
 
 pub struct MessageStream {
-    stream: BufStream<Box<TlsStream>>,
-    buf: Vec<u8>,
+    stream: BufWriter<Box<TlsStream>>,
+    in_buf: BytesMut,
+    out_buf: Vec<u8>,
 }
 
 impl MessageStream {
     pub fn new(stream: Box<TlsStream>) -> MessageStream {
         MessageStream {
-            stream: BufStream::new(stream),
-            buf: vec![],
+            stream: BufWriter::new(stream),
+            in_buf: BytesMut::with_capacity(INITIAL_CAPACITY),
+            out_buf: vec![],
         }
     }
 
@@ -41,65 +42,66 @@ impl MessageStream {
         where F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
               E: From<io::Error>
     {
-        self.buf.clear();
-        f(&mut self.buf)?;
-        self.stream.write_all(&self.buf).map_err(From::from)
+        self.out_buf.clear();
+        f(&mut self.out_buf)?;
+        self.stream.write_all(&self.out_buf).map_err(From::from)
     }
 
-    fn inner_read_message(&mut self, b: u8) -> io::Result<backend::Message<Vec<u8>>> {
-        self.buf.resize(MESSAGE_HEADER_SIZE, 0);
-        self.buf[0] = b;
-        self.stream.read_exact(&mut self.buf[1..])?;
-
-        let len = match backend::Message::parse_owned(&self.buf)? {
-            ParseResult::Complete { message, .. } => return Ok(message),
-            ParseResult::Incomplete { required_size } => Some(required_size.unwrap()),
-        };
-
-        if let Some(len) = len {
-            self.buf.resize(len, 0);
-            self.stream.read_exact(&mut self.buf[MESSAGE_HEADER_SIZE..])?;
-        };
-
-        match backend::Message::parse_owned(&self.buf)? {
-            ParseResult::Complete { message, .. } => Ok(message),
-            ParseResult::Incomplete { .. } => unreachable!(),
+    pub fn read_message(&mut self) -> io::Result<backend::Message> {
+        loop {
+            match backend::Message::parse(&mut self.in_buf) {
+                Ok(Some(message)) => return Ok(message),
+                Ok(None) => self.read_in()?,
+                Err(e) => return Err(e),
+            }
         }
     }
 
-    pub fn read_message(&mut self) -> io::Result<backend::Message<Vec<u8>>> {
-        let mut b = [0; 1];
-        self.stream.read_exact(&mut b)?;
-        self.inner_read_message(b[0])
+    fn read_in(&mut self) -> io::Result<()> {
+        self.in_buf.reserve(1);
+        match self.stream.get_mut().read(unsafe { self.in_buf.bytes_mut() }) {
+            Ok(0) => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+            Ok(n) => {
+                unsafe { self.in_buf.advance_mut(n) };
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
     }
 
     pub fn read_message_timeout(&mut self,
                                 timeout: Duration)
-                                -> io::Result<Option<backend::Message<Vec<u8>>>> {
-        self.set_read_timeout(Some(timeout))?;
-        let mut b = [0; 1];
-        let r = self.stream.read_exact(&mut b);
-        self.set_read_timeout(None)?;
+                                -> io::Result<Option<backend::Message>> {
+        if self.in_buf.is_empty() {
+            self.set_read_timeout(Some(timeout))?;
+            let r = self.read_in();
+            self.set_read_timeout(None)?;
 
-        match r {
-            Ok(()) => self.inner_read_message(b[0]).map(Some),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock ||
-                          e.kind() == io::ErrorKind::TimedOut => Ok(None),
-            Err(e) => Err(e),
+            match r {
+                Ok(()) => {},
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock ||
+                            e.kind() == io::ErrorKind::TimedOut => return Ok(None),
+                Err(e) => return Err(e),
+            }
         }
+
+        self.read_message().map(Some)  
     }
 
-    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message<Vec<u8>>>> {
-        self.set_nonblocking(true)?;
-        let mut b = [0; 1];
-        let r = self.stream.read_exact(&mut b);
-        self.set_nonblocking(false)?;
+    pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message>> {
+        if self.in_buf.is_empty() {
+            self.set_nonblocking(true)?;
+            let r = self.read_in();
+            self.set_nonblocking(false)?;
 
-        match r {
-            Ok(()) => self.inner_read_message(b[0]).map(Some),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
-            Err(e) => Err(e),
+            match r {
+                Ok(()) => {},
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+                Err(e) => return Err(e),
+            }
         }
+
+        self.read_message().map(Some)    
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
