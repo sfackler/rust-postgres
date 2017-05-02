@@ -1,5 +1,5 @@
 //! Security Framework support.
-extern crate security_framework;
+pub extern crate security_framework;
 
 use self::security_framework::secure_transport::{SslStream, ClientBuilder};
 use tls::{Stream, TlsStream, TlsHandshake};

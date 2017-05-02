@@ -1,5 +1,5 @@
 //! Native TLS support.
-extern crate native_tls;
+pub extern crate native_tls;
 
 use std::error::Error;
 use std::fmt;

@@ -1,6 +1,6 @@
 //! SChannel support.
 
-extern crate schannel;
+pub extern crate schannel;
 
 use std::error::Error;
 use std::fmt;

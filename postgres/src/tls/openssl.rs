@@ -1,5 +1,5 @@
 //! OpenSSL support.
-extern crate openssl;
+pub extern crate openssl;
 
 use std::error::Error;
 use std::fmt;
