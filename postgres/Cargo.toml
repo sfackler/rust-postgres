@@ -1,11 +1,11 @@
 [package]
 name = "postgres"
-version = "0.14.0"
+version = "0.14.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://docs.rs/postgres/0.14.0/postgres"
+documentation = "https://docs.rs/postgres/0.14.1/postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
@@ -52,8 +52,8 @@ rustc-serialize = { version = "0.3", optional = true }
 schannel = { version = "0.1", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 
-postgres-protocol = { version = "0.2", path = "../postgres-protocol" }
-postgres-shared = { version = "0.2", path = "../postgres-shared" }
+postgres-protocol = { version = "0.2.2", path = "../postgres-protocol" }
+postgres-shared = { version = "0.2.1", path = "../postgres-shared" }
 
 [dev-dependencies]
 hex = "0.2"
