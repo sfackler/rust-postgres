@@ -1,10 +1,12 @@
 //! OpenSSL support.
+extern crate tokio_openssl;
+pub extern crate openssl;
 
 use futures::{Future, BoxFuture};
-use openssl::ssl::{SslMethod, SslConnector, SslConnectorBuilder};
-use openssl::error::ErrorStack;
+use self::openssl::ssl::{SslMethod, SslConnector, SslConnectorBuilder};
+use self::openssl::error::ErrorStack;
 use std::error::Error;
-use tokio_openssl::{SslConnectorExt, SslStream};
+use self::tokio_openssl::{SslConnectorExt, SslStream};
 
 use tls::{Stream, TlsStream, Handshake};
 

@@ -69,11 +69,6 @@ extern crate futures;
 #[cfg(unix)]
 extern crate tokio_uds;
 
-#[cfg(feature = "tokio-openssl")]
-extern crate tokio_openssl;
-#[cfg(feature = "openssl")]
-extern crate openssl;
-
 use fallible_iterator::FallibleIterator;
 use futures::{Future, IntoFuture, BoxFuture, Stream, Sink, Poll, StartSend, Async};
 use futures::future::Either;

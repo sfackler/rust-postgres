@@ -214,7 +214,7 @@ fn ssl_user_ssl_required() {
 #[cfg(feature = "with-openssl")]
 #[test]
 fn openssl_required() {
-    use openssl::ssl::{SslMethod, SslConnectorBuilder};
+    use tls::openssl::openssl::ssl::{SslMethod, SslConnectorBuilder};
     use tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
