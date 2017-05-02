@@ -72,7 +72,6 @@
 
 extern crate bufstream;
 extern crate fallible_iterator;
-extern crate hex;
 #[cfg(not(feature = "no-logging"))]
 #[macro_use]
 extern crate log;
@@ -111,7 +110,6 @@ mod macros;
 
 mod feature_check;
 mod priv_io;
-mod url;
 pub mod error;
 pub mod tls;
 pub mod notification;
