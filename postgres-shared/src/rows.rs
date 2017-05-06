@@ -1,5 +1,7 @@
-use fallible_iterator::{FallibleIterator, FromFallibleIterator};
+use fallible_iterator::{FallibleIterator};
+use postgres_protocol::message::backend::DataRowBody;
 use std::ascii::AsciiExt;
+use std::io;
 use std::ops::Range;
 
 use stmt::Column;
@@ -32,12 +34,13 @@ impl<'a> RowIndex for str {
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        stmt.iter().position(|d| d.name().eq_ignore_ascii_case(self))
+        stmt.iter()
+            .position(|d| d.name().eq_ignore_ascii_case(self))
     }
 }
 
 impl<'a, T: ?Sized> RowIndex for &'a T
-where T: RowIndex
+    where T: RowIndex
 {
     #[inline]
     fn idx(&self, columns: &[Column]) -> Option<usize> {
@@ -47,43 +50,26 @@ where T: RowIndex
 
 #[doc(hidden)]
 pub struct RowData {
-    buf: Vec<u8>,
-    indices: Vec<Option<Range<usize>>>,
-}
-
-impl<'a> FromFallibleIterator<Option<&'a [u8]>> for RowData {
-    fn from_fallible_iterator<I>(mut it: I) -> Result<RowData, I::Error>
-        where I: FallibleIterator<Item = Option<&'a [u8]>>
-    {
-        let mut row = RowData {
-            buf: vec![],
-            indices: Vec::with_capacity(it.size_hint().0),
-        };
-
-        while let Some(cell) = it.next()? {
-            let index = match cell {
-                Some(cell) =>  {
-                    let base = row.buf.len();
-                    row.buf.extend_from_slice(cell);
-                    Some(base..row.buf.len())
-                }
-                None => None,
-            };
-            row.indices.push(index);
-        }
-
-        Ok(row)
-    }
+    body: DataRowBody,
+    ranges: Vec<Option<Range<usize>>>,
 }
 
 impl RowData {
+    pub fn new(body: DataRowBody) -> io::Result<RowData> {
+        let ranges = body.ranges().collect()?;
+        Ok(RowData {
+               body: body,
+               ranges: ranges,
+           })
+    }
+
     pub fn len(&self) -> usize {
-        self.indices.len()
+        self.ranges.len()
     }
 
     pub fn get(&self, index: usize) -> Option<&[u8]> {
-        match &self.indices[index] {
-            &Some(ref range) => Some(&self.buf[range.clone()]),
+        match &self.ranges[index] {
+            &Some(ref range) => Some(&self.body.buffer()[range.clone()]),
             &None => None,
         }
     }
