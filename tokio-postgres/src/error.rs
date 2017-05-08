@@ -7,7 +7,7 @@ use std::fmt;
 use Connection;
 
 #[doc(inline)]
-pub use postgres_shared::error::*;
+pub use postgres_shared::error::{DbError, ConnectError, ErrorPosition, Severity, SqlState};
 
 /// A runtime error.
 #[derive(Debug)]
