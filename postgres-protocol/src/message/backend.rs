@@ -20,6 +20,10 @@ pub enum Message {
     AuthenticationOk,
     AuthenticationScmCredential,
     AuthenticationSspi,
+    AuthenticationGssContinue(AuthenticationGssContinueBody),
+    AuthenticationSasl(AuthenticationSaslBody),
+    AuthenticationSaslContinue(AuthenticationSaslContinueBody),
+    AuthenticationSaslFinal(AuthenticationSaslFinalBody),
     BackendKeyData(BackendKeyDataBody),
     BindComplete,
     CloseComplete,
@@ -81,17 +85,15 @@ impl Message {
                 let channel = try!(buf.read_cstr());
                 let message = try!(buf.read_cstr());
                 Message::NotificationResponse(NotificationResponseBody {
-                    process_id: process_id,
-                    channel: channel,
-                    message: message,
-                })
+                                                  process_id: process_id,
+                                                  channel: channel,
+                                                  message: message,
+                                              })
             }
             b'c' => Message::CopyDone,
             b'C' => {
                 let tag = try!(buf.read_cstr());
-                Message::CommandComplete(CommandCompleteBody {
-                    tag: tag,
-                })
+                Message::CommandComplete(CommandCompleteBody { tag: tag })
             }
             b'd' => {
                 let storage = buf.read_all();
@@ -101,9 +103,9 @@ impl Message {
                 let len = try!(buf.read_u16::<BigEndian>());
                 let storage = buf.read_all();
                 Message::DataRow(DataRowBody {
-                    storage: storage,
-                    len: len,
-                })
+                                     storage: storage,
+                                     len: len,
+                                 })
             }
             b'E' => {
                 let storage = buf.read_all();
@@ -114,36 +116,34 @@ impl Message {
                 let len = try!(buf.read_u16::<BigEndian>());
                 let storage = buf.read_all();
                 Message::CopyInResponse(CopyInResponseBody {
-                    format: format,
-                    len: len,
-                    storage: storage,
-                })
+                                            format: format,
+                                            len: len,
+                                            storage: storage,
+                                        })
             }
             b'H' => {
                 let format = try!(buf.read_u8());
                 let len = try!(buf.read_u16::<BigEndian>());
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
-                    format: format,
-                    len: len,
-                    storage: storage,
-                })
+                                             format: format,
+                                             len: len,
+                                             storage: storage,
+                                         })
             }
             b'I' => Message::EmptyQueryResponse,
             b'K' => {
                 let process_id = try!(buf.read_i32::<BigEndian>());
                 let secret_key = try!(buf.read_i32::<BigEndian>());
                 Message::BackendKeyData(BackendKeyDataBody {
-                    process_id: process_id,
-                    secret_key: secret_key,
-                })
+                                            process_id: process_id,
+                                            secret_key: secret_key,
+                                        })
             }
             b'n' => Message::NoData,
             b'N' => {
                 let storage = buf.read_all();
-                Message::NoticeResponse(NoticeResponseBody {
-                    storage: storage,
-                })
+                Message::NoticeResponse(NoticeResponseBody { storage: storage })
             }
             b'R' => {
                 match try!(buf.read_i32::<BigEndian>()) {
@@ -154,12 +154,28 @@ impl Message {
                         let mut salt = [0; 4];
                         try!(buf.read_exact(&mut salt));
                         Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody {
-                            salt: salt,
-                        })
+                                                               salt: salt,
+                                                           })
                     }
                     6 => Message::AuthenticationScmCredential,
                     7 => Message::AuthenticationGss,
+                    8 => {
+                        let storage = buf.read_all();
+                        Message::AuthenticationGssContinue(AuthenticationGssContinueBody(storage))
+                    }
                     9 => Message::AuthenticationSspi,
+                    10 => {
+                        let storage = buf.read_all();
+                        Message::AuthenticationSasl(AuthenticationSaslBody(storage))
+                    }
+                    11 => {
+                        let storage = buf.read_all();
+                        Message::AuthenticationSaslContinue(AuthenticationSaslContinueBody(storage))
+                    }
+                    12 => {
+                        let storage = buf.read_all();
+                        Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
+                    }
                     tag => {
                         return Err(io::Error::new(io::ErrorKind::InvalidInput,
                                                   format!("unknown authentication tag `{}`", tag)));
@@ -171,31 +187,29 @@ impl Message {
                 let name = try!(buf.read_cstr());
                 let value = try!(buf.read_cstr());
                 Message::ParameterStatus(ParameterStatusBody {
-                    name: name,
-                    value: value,
-                })
+                                             name: name,
+                                             value: value,
+                                         })
             }
             b't' => {
                 let len = try!(buf.read_u16::<BigEndian>());
                 let storage = buf.read_all();
                 Message::ParameterDescription(ParameterDescriptionBody {
-                    storage: storage,
-                    len: len,
-                })
+                                                  storage: storage,
+                                                  len: len,
+                                              })
             }
             b'T' => {
                 let len = try!(buf.read_u16::<BigEndian>());
                 let storage = buf.read_all();
                 Message::RowDescription(RowDescriptionBody {
-                    storage: storage,
-                    len: len,
-                })
+                                            storage: storage,
+                                            len: len,
+                                        })
             }
             b'Z' => {
                 let status = try!(buf.read_u8());
-                Message::ReadyForQuery(ReadyForQueryBody {
-                    status: status,
-                })
+                Message::ReadyForQuery(ReadyForQueryBody { status: status })
             }
             tag => {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -266,6 +280,64 @@ impl AuthenticationMd5PasswordBody {
     #[inline]
     pub fn salt(&self) -> [u8; 4] {
         self.salt
+    }
+}
+
+pub struct AuthenticationGssContinueBody(Bytes);
+
+impl AuthenticationGssContinueBody {
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+pub struct AuthenticationSaslBody(Bytes);
+
+impl AuthenticationSaslBody {
+    #[inline]
+    pub fn mechanisms<'a>(&'a self) -> SaslMechanisms<'a> {
+        SaslMechanisms(&self.0)
+    }
+}
+
+pub struct SaslMechanisms<'a>(&'a [u8]);
+
+impl<'a> FallibleIterator for SaslMechanisms<'a> {
+    type Item = &'a str;
+    type Error = io::Error;
+
+    #[inline]
+    fn next(&mut self) -> io::Result<Option<&'a str>> {
+        let value_end = try!(find_null(self.0, 0));
+        if value_end == 0 {
+            if self.0.len() != 1 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid message length"));
+            }
+            Ok(None)
+        } else {
+            let value = try!(get_str(&self.0[..value_end]));
+            self.0 = &self.0[value_end + 1..];
+            Ok(Some(value))
+        }
+    }
+}
+
+pub struct AuthenticationSaslContinueBody(Bytes);
+
+impl AuthenticationSaslContinueBody {
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+pub struct AuthenticationSaslFinalBody(Bytes);
+
+impl AuthenticationSaslFinalBody {
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        &self.0
     }
 }
 

@@ -16,44 +16,24 @@ pub enum Message<'a> {
         values: &'a [Option<Vec<u8>>],
         result_formats: &'a [i16],
     },
-    CancelRequest {
-        process_id: i32,
-        secret_key: i32,
-    },
-    Close {
-        variant: u8,
-        name: &'a str,
-    },
-    CopyData {
-        data: &'a [u8],
-    },
+    CancelRequest { process_id: i32, secret_key: i32 },
+    Close { variant: u8, name: &'a str },
+    CopyData { data: &'a [u8] },
     CopyDone,
-    CopyFail {
-        message: &'a str,
-    },
-    Describe {
-        variant: u8,
-        name: &'a str,
-    },
-    Execute {
-        portal: &'a str,
-        max_rows: i32,
-    },
+    CopyFail { message: &'a str },
+    Describe { variant: u8, name: &'a str },
+    Execute { portal: &'a str, max_rows: i32 },
     Parse {
         name: &'a str,
         query: &'a str,
         param_types: &'a [Oid],
     },
-    PasswordMessage {
-        password: &'a str,
-    },
-    Query {
-        query: &'a str,
-    },
+    PasswordMessage { password: &'a str },
+    Query { query: &'a str },
+    SaslInitialResponse { mechanism: &'a str, data: &'a [u8] },
+    SaslResponse { data: &'a [u8] },
     SslRequest,
-    StartupMessage {
-        parameters: &'a [(String, String)],
-    },
+    StartupMessage { parameters: &'a [(String, String)] },
     Sync,
     Terminate,
     #[doc(hidden)]
@@ -64,19 +44,23 @@ impl<'a> Message<'a> {
     #[inline]
     pub fn serialize(&self, buf: &mut Vec<u8>) -> io::Result<()> {
         match *self {
-            Message::Bind { portal, statement, formats, values, result_formats } => {
+            Message::Bind {
+                portal,
+                statement,
+                formats,
+                values,
+                result_formats,
+            } => {
                 let r = bind(portal,
                              statement,
                              formats.iter().cloned(),
                              values,
-                             |v, buf| {
-                                 match *v {
-                                     Some(ref v) => {
-                                         buf.extend_from_slice(v);
-                                         Ok(IsNull::No)
-                                     }
-                                     None => Ok(IsNull::Yes),
-                                 }
+                             |v, buf| match *v {
+                                 Some(ref v) => {
+                    buf.extend_from_slice(v);
+                    Ok(IsNull::No)
+                }
+                                 None => Ok(IsNull::Yes),
                              },
                              result_formats.iter().cloned(),
                              buf);
@@ -86,20 +70,27 @@ impl<'a> Message<'a> {
                     Err(BindError::Serialization(e)) => Err(e),
                 }
             }
-            Message::CancelRequest { process_id, secret_key } => {
-                Ok(cancel_request(process_id, secret_key, buf))
-            }
+            Message::CancelRequest {
+                process_id,
+                secret_key,
+            } => Ok(cancel_request(process_id, secret_key, buf)),
             Message::Close { variant, name } => close(variant, name, buf),
             Message::CopyData { data } => copy_data(data, buf),
             Message::CopyDone => Ok(copy_done(buf)),
             Message::CopyFail { message } => copy_fail(message, buf),
             Message::Describe { variant, name } => describe(variant, name, buf),
             Message::Execute { portal, max_rows } => execute(portal, max_rows, buf),
-            Message::Parse { name, query, param_types } => {
-                parse(name, query, param_types.iter().cloned(), buf)
-            }
+            Message::Parse {
+                name,
+                query,
+                param_types,
+            } => parse(name, query, param_types.iter().cloned(), buf),
             Message::PasswordMessage { password } => password_message(password, buf),
             Message::Query { query: q } => query(q, buf),
+            Message::SaslInitialResponse { mechanism, data } => {
+                sasl_initial_response(mechanism, data, buf)
+            }
+            Message::SaslResponse { data } => sasl_response(data, buf),
             Message::SslRequest => Ok(ssl_request(buf)),
             Message::StartupMessage { parameters } => {
                 startup_message(parameters.iter().map(|&(ref k, ref v)| (&**k, &**v)), buf)
@@ -147,17 +138,17 @@ impl From<io::Error> for BindError {
 
 #[inline]
 pub fn bind<I, J, F, T, K>(portal: &str,
-                        statement: &str,
-                        formats: I,
-                        values: J,
-                        mut serializer: F,
-                        result_formats: K,
-                        buf: &mut Vec<u8>)
-                        -> Result<(), BindError>
+                           statement: &str,
+                           formats: I,
+                           values: J,
+                           mut serializer: F,
+                           result_formats: K,
+                           buf: &mut Vec<u8>)
+                           -> Result<(), BindError>
     where I: IntoIterator<Item = i16>,
           J: IntoIterator<Item = T>,
           F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<Error + marker::Sync + Send>>,
-          K: IntoIterator<Item = i16>,
+          K: IntoIterator<Item = i16>
 {
     buf.push(b'B');
 
@@ -199,7 +190,8 @@ pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut Vec<u8>) {
         buf.write_i32::<BigEndian>(80877102).unwrap();
         buf.write_i32::<BigEndian>(process_id).unwrap();
         buf.write_i32::<BigEndian>(secret_key)
-    }).unwrap();
+    })
+            .unwrap();
 }
 
 #[inline]
@@ -275,6 +267,22 @@ pub fn password_message(password: &str, buf: &mut Vec<u8>) -> io::Result<()> {
 pub fn query(query: &str, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'Q');
     write_body(buf, |buf| buf.write_cstr(query))
+}
+
+#[inline]
+pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
+    buf.push(b'p');
+    write_body(buf, |buf| {
+        try!(buf.write_cstr(mechanism));
+        buf.extend_from_slice(data);
+        Ok(())
+    })
+}
+
+#[inline]
+pub fn sasl_response(data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
+    buf.push(b'p');
+    write_body(buf, |buf| Ok(buf.extend_from_slice(data)))
 }
 
 #[inline]
