@@ -86,6 +86,10 @@ pub enum Type {
     Circle,
     /// CIRCLE&#91;&#93;
     CircleArray,
+    /// MACADDR8 - XX:XX:XX:XX:XX:XX:XX:XX, MAC address
+    Macaddr8,
+    /// MACADDR8&#91;&#93;
+    Macaddr8Array,
     /// MONEY - monetary amounts, &#36;d,ddd.cc
     Money,
     /// MONEY&#91;&#93;
@@ -262,6 +266,10 @@ pub enum Type {
     PgLsnArray,
     /// TSM_HANDLER
     TsmHandler,
+    /// PG_NDISTINCT - multivariate ndistinct coefficients
+    PgNdistinct,
+    /// PG_DEPENDENCIES - multivariate dependencies
+    PgDependencies,
     /// ANYENUM
     Anyenum,
     /// TSVECTOR - text representation for text search
@@ -383,6 +391,8 @@ impl Type {
             705 => Some(Type::Unknown),
             718 => Some(Type::Circle),
             719 => Some(Type::CircleArray),
+            774 => Some(Type::Macaddr8),
+            775 => Some(Type::Macaddr8Array),
             790 => Some(Type::Money),
             791 => Some(Type::MoneyArray),
             829 => Some(Type::Macaddr),
@@ -471,6 +481,8 @@ impl Type {
             3220 => Some(Type::PgLsn),
             3221 => Some(Type::PgLsnArray),
             3310 => Some(Type::TsmHandler),
+            3361 => Some(Type::PgNdistinct),
+            3402 => Some(Type::PgDependencies),
             3500 => Some(Type::Anyenum),
             3614 => Some(Type::TsVector),
             3615 => Some(Type::Tsquery),
@@ -549,6 +561,8 @@ impl Type {
             Type::Unknown => 705,
             Type::Circle => 718,
             Type::CircleArray => 719,
+            Type::Macaddr8 => 774,
+            Type::Macaddr8Array => 775,
             Type::Money => 790,
             Type::MoneyArray => 791,
             Type::Macaddr => 829,
@@ -637,6 +651,8 @@ impl Type {
             Type::PgLsn => 3220,
             Type::PgLsnArray => 3221,
             Type::TsmHandler => 3310,
+            Type::PgNdistinct => 3361,
+            Type::PgDependencies => 3402,
             Type::Anyenum => 3500,
             Type::TsVector => 3614,
             Type::Tsquery => 3615,
@@ -833,6 +849,14 @@ impl Type {
             }
             Type::CircleArray => {
                 const V: &'static Kind = &Kind::Array(Type::Circle);
+                V
+            }
+            Type::Macaddr8 => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::Macaddr8Array => {
+                const V: &'static Kind = &Kind::Array(Type::Macaddr8);
                 V
             }
             Type::Money => {
@@ -1187,6 +1211,14 @@ impl Type {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
             }
+            Type::PgNdistinct => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
+            Type::PgDependencies => {
+                const V: &'static Kind = &Kind::Simple;
+                V
+            }
             Type::Anyenum => {
                 const V: &'static Kind = &Kind::Pseudo;
                 V
@@ -1366,6 +1398,8 @@ impl Type {
             Type::Unknown => "unknown",
             Type::Circle => "circle",
             Type::CircleArray => "_circle",
+            Type::Macaddr8 => "macaddr8",
+            Type::Macaddr8Array => "_macaddr8",
             Type::Money => "money",
             Type::MoneyArray => "_money",
             Type::Macaddr => "macaddr",
@@ -1454,6 +1488,8 @@ impl Type {
             Type::PgLsn => "pg_lsn",
             Type::PgLsnArray => "_pg_lsn",
             Type::TsmHandler => "tsm_handler",
+            Type::PgNdistinct => "pg_ndistinct",
+            Type::PgDependencies => "pg_dependencies",
             Type::Anyenum => "anyenum",
             Type::TsVector => "tsvector",
             Type::Tsquery => "tsquery",
