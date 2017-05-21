@@ -11,11 +11,17 @@
 //! set to `UTF8`. It will most likely not behave properly if that is not the case.
 #![doc(html_root_url="https://docs.rs/postgres-protocol/0.2.2")]
 #![warn(missing_docs)]
-extern crate bytes;
+extern crate base64;
 extern crate byteorder;
+extern crate bytes;
 extern crate fallible_iterator;
+extern crate generic_array;
+extern crate hmac;
 extern crate md5;
 extern crate memchr;
+extern crate rand;
+extern crate sha2;
+extern crate stringprep;
 
 use byteorder::{BigEndian, ByteOrder};
 use std::io;

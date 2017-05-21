@@ -1,6 +1,8 @@
 //! Authentication protocol support.
 use md5::Context;
 
+pub mod sasl;
+
 /// Hashes authentication information in a way suitable for use in response
 /// to an `AuthenticationMd5Password` message.
 ///
