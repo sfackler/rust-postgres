@@ -88,6 +88,7 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 use postgres_protocol::authentication;
+use postgres_protocol::authentication::sasl::{self, ScramSha256};
 use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
 use postgres_shared::rows::RowData;
@@ -183,7 +184,9 @@ pub fn cancel_query<T>(params: T,
                        -> result::Result<(), ConnectError>
     where T: IntoConnectParams
 {
-    let params = params.into_connect_params().map_err(ConnectError::ConnectParams)?;
+    let params = params
+        .into_connect_params()
+        .map_err(ConnectError::ConnectParams)?;
     let mut socket = priv_io::initialize_stream(&params, tls)?;
 
     let mut buf = vec![];
@@ -250,14 +253,16 @@ impl InnerConnection {
     fn connect<T>(params: T, tls: TlsMode) -> result::Result<InnerConnection, ConnectError>
         where T: IntoConnectParams
     {
-        let params = params.into_connect_params().map_err(ConnectError::ConnectParams)?;
+        let params = params
+            .into_connect_params()
+            .map_err(ConnectError::ConnectParams)?;
         let stream = priv_io::initialize_stream(&params, tls)?;
 
         let user = match params.user() {
             Some(user) => user,
             None => {
                 return Err(ConnectError::ConnectParams("User missing from connection parameters"
-                    .into()));
+                                                           .into()));
             }
         };
 
@@ -293,7 +298,8 @@ impl InnerConnection {
         }
 
         let options = options.iter().map(|&(ref a, ref b)| (&**a, &**b));
-        conn.stream.write_message(|buf| frontend::startup_message(options, buf))?;
+        conn.stream
+            .write_message(|buf| frontend::startup_message(options, buf))?;
         conn.stream.flush()?;
 
         conn.handle_auth(user)?;
@@ -320,13 +326,13 @@ impl InnerConnection {
         loop {
             match try_desync!(self, self.stream.read_message()) {
                 backend::Message::NoticeResponse(body) => {
-                    if let Ok(err) = DbError::new(&mut body.fields()){
+                    if let Ok(err) = DbError::new(&mut body.fields()) {
                         self.notice_handler.handle_notice(err);
                     }
                 }
                 backend::Message::ParameterStatus(body) => {
-                    self.parameters.insert(body.name()?.to_owned(),
-                                           body.value()?.to_owned());
+                    self.parameters
+                        .insert(body.name()?.to_owned(), body.value()?.to_owned());
                 }
                 val => return Ok(val),
             }
@@ -345,8 +351,8 @@ impl InnerConnection {
                     }
                 }
                 Some(backend::Message::ParameterStatus(body)) => {
-                    self.parameters.insert(body.name()?.to_owned(),
-                                           body.value()?.to_owned());
+                    self.parameters
+                        .insert(body.name()?.to_owned(), body.value()?.to_owned());
                 }
                 val => return Ok(val),
             }
@@ -364,8 +370,8 @@ impl InnerConnection {
                     }
                 }
                 Some(backend::Message::ParameterStatus(body)) => {
-                    self.parameters.insert(body.name()?.to_owned(),
-                                           body.value()?.to_owned());
+                    self.parameters
+                        .insert(body.name()?.to_owned(), body.value()?.to_owned());
                 }
                 val => return Ok(val),
             }
@@ -376,11 +382,12 @@ impl InnerConnection {
         loop {
             match self.read_message_with_notification()? {
                 backend::Message::NotificationResponse(body) => {
-                    self.notifications.push_back(Notification {
-                        process_id: body.process_id(),
-                        channel: body.channel()?.to_owned(),
-                        payload: body.message()?.to_owned(),
-                    })
+                    self.notifications
+                        .push_back(Notification {
+                                       process_id: body.process_id(),
+                                       channel: body.channel()?.to_owned(),
+                                       payload: body.message()?.to_owned(),
+                                   })
                 }
                 val => return Ok(val),
             }
@@ -391,21 +398,75 @@ impl InnerConnection {
         match self.read_message()? {
             backend::Message::AuthenticationOk => return Ok(()),
             backend::Message::AuthenticationCleartextPassword => {
-                let pass = user.password().ok_or_else(|| {
-                    ConnectError::ConnectParams("a password was requested but not provided".into())
-                })?;
-                self.stream.write_message(|buf| frontend::password_message(pass, buf))?;
+                let pass = user.password()
+                    .ok_or_else(|| {
+                        ConnectError::ConnectParams("a password was requested but not provided"
+                                                        .into())
+                    })?;
+                self.stream
+                    .write_message(|buf| frontend::password_message(pass, buf))?;
                 self.stream.flush()?;
             }
             backend::Message::AuthenticationMd5Password(body) => {
-                let pass = user.password().ok_or_else(|| {
-                    ConnectError::ConnectParams("a password was requested but not provided".into())
-                })?;
-                let output = authentication::md5_hash(user.name().as_bytes(),
-                                                      pass.as_bytes(),
-                                                      body.salt());
-                self.stream.write_message(|buf| frontend::password_message(&output, buf))?;
+                let pass = user.password()
+                    .ok_or_else(|| {
+                        ConnectError::ConnectParams("a password was requested but not provided"
+                                                        .into())
+                    })?;
+                let output =
+                    authentication::md5_hash(user.name().as_bytes(), pass.as_bytes(), body.salt());
+                self.stream
+                    .write_message(|buf| frontend::password_message(&output, buf))?;
                 self.stream.flush()?;
+            }
+            backend::Message::AuthenticationSasl(body) => {
+                // count to validate the entire message body.
+                if body.mechanisms()
+                       .filter(|m| *m == sasl::SCRAM_SHA_256)
+                       .count()? == 0 {
+                    return Err(ConnectError::Io(io::Error::new(io::ErrorKind::Other,
+                                                               "unsupported authentication")));
+                }
+
+                let pass = user.password()
+                    .ok_or_else(|| {
+                        ConnectError::ConnectParams("a password was requested but not provided"
+                                                        .into())
+                    })?;
+
+                let mut scram = ScramSha256::new(pass.as_bytes())?;
+
+                self.stream
+                    .write_message(|buf| {
+                                       frontend::sasl_initial_response(sasl::SCRAM_SHA_256,
+                                                                       scram.message(),
+                                                                       buf)
+                                   })?;
+                self.stream.flush()?;
+
+                let body = match self.read_message()? {
+                    backend::Message::AuthenticationSaslContinue(body) => body,
+                    backend::Message::ErrorResponse(body) => {
+                        return Err(connect_err(&mut body.fields()))
+                    }
+                    _ => return Err(ConnectError::Io(bad_response())),
+                };
+
+                scram.update(body.data())?;
+
+                self.stream
+                    .write_message(|buf| frontend::sasl_response(scram.message(), buf))?;
+                self.stream.flush()?;
+
+                let body = match self.read_message()? {
+                    backend::Message::AuthenticationSaslFinal(body) => body,
+                    backend::Message::ErrorResponse(body) => {
+                        return Err(connect_err(&mut body.fields()))
+                    }
+                    _ => return Err(ConnectError::Io(bad_response())),
+                };
+
+                scram.finish(body.data())?;
             }
             backend::Message::AuthenticationKerberosV5 |
             backend::Message::AuthenticationScmCredential |
@@ -432,9 +493,12 @@ impl InnerConnection {
     fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        self.stream.write_message(|buf| frontend::parse(stmt_name, query, None, buf))?;
-        self.stream.write_message(|buf| frontend::describe(b'S', stmt_name, buf))?;
-        self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        self.stream
+            .write_message(|buf| frontend::parse(stmt_name, query, None, buf))?;
+        self.stream
+            .write_message(|buf| frontend::describe(b'S', stmt_name, buf))?;
+        self.stream
+            .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
         self.stream.flush()?;
 
         match self.read_message()? {
@@ -469,9 +533,9 @@ impl InnerConnection {
             Some(body) => {
                 body.fields()
                     .and_then(|field| {
-                        Ok(Column::new(field.name().to_owned(),
-                                       self.get_type(field.type_oid())?))
-                    })
+                                  Ok(Column::new(field.name().to_owned(),
+                                                 self.get_type(field.type_oid())?))
+                              })
                     .collect()?
             }
             None => vec![],
@@ -501,9 +565,10 @@ impl InnerConnection {
                     return Err(err(&mut body.fields()));
                 }
                 backend::Message::CopyInResponse(_) => {
-                    self.stream.write_message(|buf| {
-                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
-                    })?;
+                    self.stream
+                        .write_message(|buf| {
+                            frontend::copy_fail("COPY queries cannot be directly executed", buf)
+                        })?;
                     self.stream
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
                     self.stream.flush()?;
@@ -544,21 +609,20 @@ impl InnerConnection {
                params);
 
         {
-            let r = self.stream.write_message(|buf| {
-                frontend::bind(portal_name,
-                               stmt_name,
-                               Some(1),
-                               params.iter().zip(param_types),
-                               |(param, ty), buf| {
-                                   match param.to_sql_checked(ty, buf) {
+            let r = self.stream
+                .write_message(|buf| {
+                    frontend::bind(portal_name,
+                                   stmt_name,
+                                   Some(1),
+                                   params.iter().zip(param_types),
+                                   |(param, ty), buf| match param.to_sql_checked(ty, buf) {
                                        Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
                                        Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                                        Err(e) => Err(e),
-                                   }
-                               },
-                               Some(1),
-                               buf)
-            });
+                                   },
+                                   Some(1),
+                                   buf)
+                });
             match r {
                 Ok(()) => {}
                 Err(frontend::BindError::Conversion(e)) => return Err(Error::Conversion(e)),
@@ -566,8 +630,10 @@ impl InnerConnection {
             }
         }
 
-        self.stream.write_message(|buf| frontend::execute(portal_name, row_limit, buf))?;
-        self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        self.stream
+            .write_message(|buf| frontend::execute(portal_name, row_limit, buf))?;
+        self.stream
+            .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
         self.stream.flush()?;
 
         match self.read_message()? {
@@ -593,10 +659,10 @@ impl InnerConnection {
         let stmt_name = self.make_stmt_name();
         let (param_types, columns) = self.raw_prepare(&stmt_name, query)?;
         let info = Arc::new(StatementInfo {
-            name: stmt_name,
-            param_types: param_types,
-            columns: columns,
-        });
+                                name: stmt_name,
+                                param_types: param_types,
+                                columns: columns,
+                            });
         Ok(Statement::new(conn, info, Cell::new(0), false))
     }
 
@@ -609,11 +675,12 @@ impl InnerConnection {
                 let stmt_name = self.make_stmt_name();
                 let (param_types, columns) = self.raw_prepare(&stmt_name, query)?;
                 let info = Arc::new(StatementInfo {
-                    name: stmt_name,
-                    param_types: param_types,
-                    columns: columns,
-                });
-                self.cached_statements.insert(query.to_owned(), info.clone());
+                                        name: stmt_name,
+                                        param_types: param_types,
+                                        columns: columns,
+                                    });
+                self.cached_statements
+                    .insert(query.to_owned(), info.clone());
                 info
             }
         };
@@ -622,8 +689,10 @@ impl InnerConnection {
     }
 
     fn close_statement(&mut self, name: &str, type_: u8) -> Result<()> {
-        self.stream.write_message(|buf| frontend::close(type_, name, buf))?;
-        self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        self.stream
+            .write_message(|buf| frontend::close(type_, name, buf))?;
+        self.stream
+            .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
         self.stream.flush()?;
         let resp = match self.read_message()? {
             backend::Message::CloseComplete => Ok(()),
@@ -687,9 +756,7 @@ impl InnerConnection {
         let mut row = None;
         self.read_rows(|r| row = Some(r))?;
 
-        let get_raw = |i: usize| {
-            row.as_ref().and_then(|r| r.get(i))
-        };
+        let get_raw = |i: usize| row.as_ref().and_then(|r| r.get(i));
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let name = String::from_sql_nullable(&Type::Name, get_raw(0))
@@ -764,7 +831,7 @@ impl InnerConnection {
         let mut variants = vec![];
         for row in rows {
             variants.push(String::from_sql_nullable(&Type::Name, row.get(0))
-                .map_err(Error::Conversion)?);
+                              .map_err(Error::Conversion)?);
         }
 
         Ok(variants)
@@ -824,7 +891,8 @@ impl InnerConnection {
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        self.stream.write_message(|buf| frontend::query(query, buf))?;
+        self.stream
+            .write_message(|buf| frontend::query(query, buf))?;
         self.stream.flush()?;
 
         let mut result = vec![];
@@ -833,14 +901,17 @@ impl InnerConnection {
                 backend::Message::ReadyForQuery(_) => break,
                 backend::Message::DataRow(body) => {
                     let row = body.ranges()
-                        .map(|r| r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned()))
+                        .map(|r| {
+                                 r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned())
+                             })
                         .collect()?;
                     result.push(row);
                 }
                 backend::Message::CopyInResponse(_) => {
-                    self.stream.write_message(|buf| {
-                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
-                    })?;
+                    self.stream
+                        .write_message(|buf| {
+                            frontend::copy_fail("COPY queries cannot be directly executed", buf)
+                        })?;
                     self.stream
                         .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
                     self.stream.flush()?;
@@ -857,7 +928,8 @@ impl InnerConnection {
 
     fn finish_inner(&mut self) -> Result<()> {
         check_desync!(self);
-        self.stream.write_message(|buf| Ok::<(), io::Error>(frontend::terminate(buf)))?;
+        self.stream
+            .write_message(|buf| Ok::<(), io::Error>(frontend::terminate(buf)))?;
         self.stream.flush()?;
         Ok(())
     }
@@ -977,10 +1049,10 @@ impl Connection {
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
         let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
         let info = Arc::new(StatementInfo {
-            name: String::new(),
-            param_types: param_types,
-            columns: columns,
-        });
+                                name: String::new(),
+                                param_types: param_types,
+                                columns: columns,
+                            });
         let stmt = Statement::new(self, info, Cell::new(0), true);
         stmt.execute(params)
     }
@@ -1013,10 +1085,10 @@ impl Connection {
     pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
         let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
         let info = Arc::new(StatementInfo {
-            name: String::new(),
-            param_types: param_types,
-            columns: columns,
-        });
+                                name: String::new(),
+                                param_types: param_types,
+                                columns: columns,
+                            });
         let stmt = Statement::new(self, info, Cell::new(0), true);
         stmt.into_query(params)
     }

@@ -274,6 +274,8 @@ pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) ->
     buf.push(b'p');
     write_body(buf, |buf| {
         try!(buf.write_cstr(mechanism));
+        let len = try!(i32::from_usize(data.len()));
+        try!(buf.write_i32::<BigEndian>(len));
         buf.extend_from_slice(data);
         Ok(())
     })
