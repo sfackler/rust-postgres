@@ -81,9 +81,9 @@ impl Message {
             b'2' => Message::BindComplete,
             b'3' => Message::CloseComplete,
             b'A' => {
-                let process_id = try!(buf.read_i32::<BigEndian>());
-                let channel = try!(buf.read_cstr());
-                let message = try!(buf.read_cstr());
+                let process_id = buf.read_i32::<BigEndian>()?;
+                let channel = buf.read_cstr()?;
+                let message = buf.read_cstr()?;
                 Message::NotificationResponse(NotificationResponseBody {
                                                   process_id: process_id,
                                                   channel: channel,
@@ -92,7 +92,7 @@ impl Message {
             }
             b'c' => Message::CopyDone,
             b'C' => {
-                let tag = try!(buf.read_cstr());
+                let tag = buf.read_cstr()?;
                 Message::CommandComplete(CommandCompleteBody { tag: tag })
             }
             b'd' => {
@@ -100,7 +100,7 @@ impl Message {
                 Message::CopyData(CopyDataBody { storage: storage })
             }
             b'D' => {
-                let len = try!(buf.read_u16::<BigEndian>());
+                let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::DataRow(DataRowBody {
                                      storage: storage,
@@ -112,8 +112,8 @@ impl Message {
                 Message::ErrorResponse(ErrorResponseBody { storage: storage })
             }
             b'G' => {
-                let format = try!(buf.read_u8());
-                let len = try!(buf.read_u16::<BigEndian>());
+                let format = buf.read_u8()?;
+                let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyInResponse(CopyInResponseBody {
                                             format: format,
@@ -122,8 +122,8 @@ impl Message {
                                         })
             }
             b'H' => {
-                let format = try!(buf.read_u8());
-                let len = try!(buf.read_u16::<BigEndian>());
+                let format = buf.read_u8()?;
+                let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
                                              format: format,
@@ -133,8 +133,8 @@ impl Message {
             }
             b'I' => Message::EmptyQueryResponse,
             b'K' => {
-                let process_id = try!(buf.read_i32::<BigEndian>());
-                let secret_key = try!(buf.read_i32::<BigEndian>());
+                let process_id = buf.read_i32::<BigEndian>()?;
+                let secret_key = buf.read_i32::<BigEndian>()?;
                 Message::BackendKeyData(BackendKeyDataBody {
                                             process_id: process_id,
                                             secret_key: secret_key,
@@ -146,13 +146,13 @@ impl Message {
                 Message::NoticeResponse(NoticeResponseBody { storage: storage })
             }
             b'R' => {
-                match try!(buf.read_i32::<BigEndian>()) {
+                match buf.read_i32::<BigEndian>()? {
                     0 => Message::AuthenticationOk,
                     2 => Message::AuthenticationKerberosV5,
                     3 => Message::AuthenticationCleartextPassword,
                     5 => {
                         let mut salt = [0; 4];
-                        try!(buf.read_exact(&mut salt));
+                        buf.read_exact(&mut salt)?;
                         Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody {
                                                                salt: salt,
                                                            })
@@ -184,15 +184,15 @@ impl Message {
             }
             b's' => Message::PortalSuspended,
             b'S' => {
-                let name = try!(buf.read_cstr());
-                let value = try!(buf.read_cstr());
+                let name = buf.read_cstr()?;
+                let value = buf.read_cstr()?;
                 Message::ParameterStatus(ParameterStatusBody {
                                              name: name,
                                              value: value,
                                          })
             }
             b't' => {
-                let len = try!(buf.read_u16::<BigEndian>());
+                let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::ParameterDescription(ParameterDescriptionBody {
                                                   storage: storage,
@@ -200,7 +200,7 @@ impl Message {
                                               })
             }
             b'T' => {
-                let len = try!(buf.read_u16::<BigEndian>());
+                let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::RowDescription(RowDescriptionBody {
                                             storage: storage,
@@ -208,7 +208,7 @@ impl Message {
                                         })
             }
             b'Z' => {
-                let status = try!(buf.read_u8());
+                let status = buf.read_u8()?;
                 Message::ReadyForQuery(ReadyForQueryBody { status: status })
             }
             tag => {
@@ -309,14 +309,14 @@ impl<'a> FallibleIterator for SaslMechanisms<'a> {
 
     #[inline]
     fn next(&mut self) -> io::Result<Option<&'a str>> {
-        let value_end = try!(find_null(self.0, 0));
+        let value_end = find_null(self.0, 0)?;
         if value_end == 0 {
             if self.0.len() != 1 {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid message length"));
             }
             Ok(None)
         } else {
-            let value = try!(get_str(&self.0[..value_end]));
+            let value = get_str(&self.0[..value_end])?;
             self.0 = &self.0[value_end + 1..];
             Ok(Some(value))
         }
@@ -494,7 +494,7 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
         }
 
         self.remaining -= 1;
-        let len = try!(self.buf.read_i32::<BigEndian>());
+        let len = self.buf.read_i32::<BigEndian>()?;
         if len < 0 {
             Ok(Some(None))
         } else {
@@ -536,7 +536,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
 
     #[inline]
     fn next(&mut self) -> io::Result<Option<ErrorField<'a>>> {
-        let type_ = try!(self.buf.read_u8());
+        let type_ = self.buf.read_u8()?;
         if type_ == 0 {
             if self.buf.is_empty() {
                 return Ok(None);
@@ -545,8 +545,8 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
             }
         }
 
-        let value_end = try!(find_null(self.buf, 0));
-        let value = try!(get_str(&self.buf[..value_end]));
+        let value_end = find_null(self.buf, 0)?;
+        let value = get_str(&self.buf[..value_end])?;
         self.buf = &self.buf[value_end + 1..];
 
         Ok(Some(ErrorField {
@@ -715,15 +715,15 @@ impl<'a> FallibleIterator for Fields<'a> {
         }
 
         self.remaining -= 1;
-        let name_end = try!(find_null(self.buf, 0));
-        let name = try!(get_str(&self.buf[..name_end]));
+        let name_end = find_null(self.buf, 0)?;
+        let name = get_str(&self.buf[..name_end])?;
         self.buf = &self.buf[name_end + 1..];
-        let table_oid = try!(self.buf.read_u32::<BigEndian>());
-        let column_id = try!(self.buf.read_i16::<BigEndian>());
-        let type_oid = try!(self.buf.read_u32::<BigEndian>());
-        let type_size = try!(self.buf.read_i16::<BigEndian>());
-        let type_modifier = try!(self.buf.read_i32::<BigEndian>());
-        let format = try!(self.buf.read_i16::<BigEndian>());
+        let table_oid = self.buf.read_u32::<BigEndian>()?;
+        let column_id = self.buf.read_i16::<BigEndian>()?;
+        let type_oid = self.buf.read_u32::<BigEndian>()?;
+        let type_size = self.buf.read_i16::<BigEndian>()?;
+        let type_modifier = self.buf.read_i32::<BigEndian>()?;
+        let format = self.buf.read_i16::<BigEndian>()?;
 
         Ok(Some(Field {
                     name: name,

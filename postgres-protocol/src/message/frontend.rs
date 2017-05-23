@@ -57,9 +57,9 @@ impl<'a> Message<'a> {
                              values,
                              |v, buf| match *v {
                                  Some(ref v) => {
-                    buf.extend_from_slice(v);
-                    Ok(IsNull::No)
-                }
+                                     buf.extend_from_slice(v);
+                                     Ok(IsNull::No)
+                                 }
                                  None => Ok(IsNull::Yes),
                              },
                              result_formats.iter().cloned(),
@@ -110,9 +110,9 @@ fn write_body<F, E>(buf: &mut Vec<u8>, f: F) -> Result<(), E>
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
 
-    try!(f(buf));
+    f(buf)?;
 
-    let size = try!(i32::from_usize(buf.len() - base));
+    let size = i32::from_usize(buf.len() - base)?;
     BigEndian::write_i32(&mut buf[base..], size);
     Ok(())
 }
@@ -153,13 +153,13 @@ pub fn bind<I, J, F, T, K>(portal: &str,
     buf.push(b'B');
 
     write_body(buf, |buf| {
-        try!(buf.write_cstr(portal));
-        try!(buf.write_cstr(statement));
-        try!(write_counted(formats, |f, buf| buf.write_i16::<BigEndian>(f), buf));
-        try!(write_counted(values,
-                           |v, buf| write_nullable(|buf| serializer(v, buf), buf),
-                           buf));
-        try!(write_counted(result_formats, |f, buf| buf.write_i16::<BigEndian>(f), buf));
+        buf.write_cstr(portal)?;
+        buf.write_cstr(statement)?;
+        write_counted(formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
+        write_counted(values,
+                      |v, buf| write_nullable(|buf| serializer(v, buf), buf),
+                      buf)?;
+        write_counted(result_formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
 
         Ok(())
     })
@@ -175,10 +175,10 @@ fn write_counted<I, T, F, E>(items: I, mut serializer: F, buf: &mut Vec<u8>) -> 
     buf.extend_from_slice(&[0; 2]);
     let mut count = 0;
     for item in items {
-        try!(serializer(item, buf));
+        serializer(item, buf)?;
         count += 1;
     }
-    let count = try!(i16::from_usize(count));
+    let count = i16::from_usize(count)?;
     BigEndian::write_i16(&mut buf[base..], count);
 
     Ok(())
@@ -238,7 +238,7 @@ pub fn describe(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
 pub fn execute(portal: &str, max_rows: i32, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'E');
     write_body(buf, |buf| {
-        try!(buf.write_cstr(portal));
+        buf.write_cstr(portal)?;
         buf.write_i32::<BigEndian>(max_rows).unwrap();
         Ok(())
     })
@@ -250,9 +250,9 @@ pub fn parse<I>(name: &str, query: &str, param_types: I, buf: &mut Vec<u8>) -> i
 {
     buf.push(b'P');
     write_body(buf, |buf| {
-        try!(buf.write_cstr(name));
-        try!(buf.write_cstr(query));
-        try!(write_counted(param_types, |t, buf| buf.write_u32::<BigEndian>(t), buf));
+        buf.write_cstr(name)?;
+        buf.write_cstr(query)?;
+        write_counted(param_types, |t, buf| buf.write_u32::<BigEndian>(t), buf)?;
         Ok(())
     })
 }
@@ -273,9 +273,9 @@ pub fn query(query: &str, buf: &mut Vec<u8>) -> io::Result<()> {
 pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'p');
     write_body(buf, |buf| {
-        try!(buf.write_cstr(mechanism));
-        let len = try!(i32::from_usize(data.len()));
-        try!(buf.write_i32::<BigEndian>(len));
+        buf.write_cstr(mechanism)?;
+        let len = i32::from_usize(data.len())?;
+        buf.write_i32::<BigEndian>(len)?;
         buf.extend_from_slice(data);
         Ok(())
     })
@@ -299,8 +299,8 @@ pub fn startup_message<'a, I>(parameters: I, buf: &mut Vec<u8>) -> io::Result<()
     write_body(buf, |buf| {
         buf.write_i32::<BigEndian>(196608).unwrap();
         for (key, value) in parameters {
-            try!(buf.write_cstr(key.as_ref()));
-            try!(buf.write_cstr(value.as_ref()));
+            buf.write_cstr(key.as_ref())?;
+            buf.write_cstr(value.as_ref())?;
         }
         buf.push(0);
         Ok(())

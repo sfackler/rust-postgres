@@ -48,8 +48,8 @@ fn write_nullable<F, E>(serializer: F, buf: &mut Vec<u8>) -> Result<(), E>
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
-    let size = match try!(serializer(buf)) {
-        IsNull::No => try!(i32::from_usize(buf.len() - base - 4)),
+    let size = match serializer(buf)? {
+        IsNull::No => i32::from_usize(buf.len() - base - 4)?,
         IsNull::Yes => -1,
     };
     BigEndian::write_i32(&mut buf[base..], size);

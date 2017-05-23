@@ -76,7 +76,7 @@ enum State {
 /// should be sent to the backend in a `SASLResponse` message.
 ///
 /// The server will reply with an `AuthenticationSASLFinal` message. Its contents should be passed
-/// to the `finish()` method method, after which the authentication process is complete.
+/// to the `finish()` method, after which the authentication process is complete.
 pub struct ScramSha256 {
     message: String,
     state: State,
@@ -86,7 +86,7 @@ pub struct ScramSha256 {
 impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
     pub fn new(password: &[u8]) -> io::Result<ScramSha256> {
-        let mut rng = try!(OsRng::new());
+        let mut rng = OsRng::new()?;
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
                      let mut v = rng.gen_range(0x21u8, 0x7e);
