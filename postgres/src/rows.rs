@@ -35,6 +35,7 @@ impl<'a, T> Deref for MaybeOwned<'a, T> {
 }
 
 /// The resulting rows of a query.
+// FIXME remove lifetime
 pub struct Rows<'compat> {
     stmt_info: Arc<StatementInfo>,
     data: Vec<RowData>,
