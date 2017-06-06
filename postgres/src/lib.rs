@@ -224,16 +224,6 @@ struct StatementInfo {
     columns: Vec<Column>,
 }
 
-impl fmt::Debug for StatementInfo {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Statement")
-            .field("name", &self.name)
-            .field("parameter_types", &self.param_types)
-            .field("columns", &self.columns)
-            .finish()
-    }
-}
-
 struct InnerConnection {
     stream: MessageStream,
     notice_handler: Box<HandleNotice>,
