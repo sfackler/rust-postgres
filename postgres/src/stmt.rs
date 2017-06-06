@@ -30,18 +30,6 @@ impl<'a> fmt::Debug for Statement<'a> {
     }
 }
 
-impl<'a> AsRef<StatementInfo> for Statement<'a> {
-    fn as_ref(&self) -> &StatementInfo {
-        &*self.info
-    }
-}
-
-impl AsRef<StatementInfo> for StatementInfo {
-    fn as_ref(&self) -> &StatementInfo {
-        self
-    }
-}
-
 impl<'conn> Drop for Statement<'conn> {
     fn drop(&mut self) {
         let _ = self.finish_inner();

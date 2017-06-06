@@ -1088,11 +1088,11 @@ fn test_row_case_insensitive() {
     conn.batch_execute("CREATE TEMPORARY TABLE foo (foo INT, \"bAr\" INT, \"Bar\" INT);")
         .unwrap();
     let stmt = conn.prepare("SELECT * FROM foo").unwrap();
-    assert_eq!(Some(0), "foo".idx(&stmt));
-    assert_eq!(Some(0), "FOO".idx(&stmt));
-    assert_eq!(Some(1), "bar".idx(&stmt));
-    assert_eq!(Some(1), "bAr".idx(&stmt));
-    assert_eq!(Some(2), "Bar".idx(&stmt));
+    assert_eq!(Some(0), "foo".idx(&stmt.columns()));
+    assert_eq!(Some(0), "FOO".idx(&stmt.columns()));
+    assert_eq!(Some(1), "bar".idx(&stmt.columns()));
+    assert_eq!(Some(1), "bAr".idx(&stmt.columns()));
+    assert_eq!(Some(2), "Bar".idx(&stmt.columns()));
 }
 
 #[test]

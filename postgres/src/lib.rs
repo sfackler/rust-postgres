@@ -218,9 +218,7 @@ pub enum TlsMode<'a> {
     Require(&'a TlsHandshake),
 }
 
-// Needs to be pub since `RowIndex` is pub.
-#[doc(hidden)]
-pub struct StatementInfo {
+struct StatementInfo {
     name: String,
     param_types: Vec<Type>,
     columns: Vec<Column>,

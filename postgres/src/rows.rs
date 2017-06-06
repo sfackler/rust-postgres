@@ -224,7 +224,7 @@ impl<'a> Row<'a> {
         where I: RowIndex,
               T: FromSql
     {
-        let idx = match idx.idx(self.stmt_info) {
+        let idx = match idx.idx(&self.stmt_info.columns) {
             Some(idx) => idx,
             None => return None,
         };
@@ -245,7 +245,7 @@ impl<'a> Row<'a> {
     pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>
         where I: RowIndex + fmt::Debug
     {
-        match idx.idx(self.stmt_info) {
+        match idx.idx(&self.stmt_info.columns) {
             Some(idx) => self.data.get(idx),
             None => panic!("invalid index {:?}", idx),
         }
@@ -256,21 +256,13 @@ impl<'a> Row<'a> {
 pub trait RowIndex {
     /// Returns the index of the appropriate column, or `None` if no such
     /// column exists.
-    fn idx<I: AsRef<StatementInfo>>(&self, info: &I) -> Option<usize> {
-        self.row_idx(info.as_ref())
-    }
-
-    /// Non-generic version of `idx`.
-    ///
-    /// `idx` is provided generically for backward compatibility.
-    #[doc(hidden)]
-    fn row_idx(&self, info: &StatementInfo) -> Option<usize>;
+    fn idx(&self, _: &[Column]) -> Option<usize>;
 }
 
 impl RowIndex for usize {
     #[inline]
-    fn row_idx(&self, info: &StatementInfo) -> Option<usize> {
-        if *self >= info.columns.len() {
+    fn idx(&self, columns: &[Column]) -> Option<usize> {
+        if *self >= columns.len() {
             None
         } else {
             Some(*self)
@@ -280,15 +272,15 @@ impl RowIndex for usize {
 
 impl<'a> RowIndex for &'a str {
     #[inline]
-    fn row_idx(&self, info: &StatementInfo) -> Option<usize> {
-        if let Some(idx) = info.columns.iter().position(|d| d.name() == *self) {
+    fn idx(&self, columns: &[Column]) -> Option<usize> {
+        if let Some(idx) = columns.iter().position(|d| d.name() == *self) {
             return Some(idx);
         };
 
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        info.columns.iter().position(|d| d.name().eq_ignore_ascii_case(*self))
+        columns.iter().position(|d| d.name().eq_ignore_ascii_case(*self))
     }
 }
 
