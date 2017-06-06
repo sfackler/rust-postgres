@@ -26,11 +26,19 @@ pub struct Statement<'conn> {
 
 impl<'a> fmt::Debug for Statement<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Statement")
-            .field("name", &self.info.name)
-            .field("parameter_types", &self.info.param_types)
-            .field("columns", &self.info.columns)
-            .finish()
+        fmt::Debug::fmt(&*self.info, fmt)
+    }
+}
+
+impl<'a> AsRef<StatementInfo> for Statement<'a> {
+    fn as_ref(&self) -> &StatementInfo {
+        &*self.info
+    }
+}
+
+impl AsRef<StatementInfo> for StatementInfo {
+    fn as_ref(&self) -> &StatementInfo {
+        self
     }
 }
 
@@ -54,15 +62,19 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
         }
     }
 
+    fn info(&self) -> &Arc<StatementInfo> {
+        &self.info
+    }
+
     fn conn(&self) -> &'conn Connection {
         self.conn
     }
 
-    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>> {
+    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>> {
         check_desync!(self.conn);
         let mut rows = vec![];
         self.inner_query("", 0, params, |row| rows.push(row))?;
-        Ok(Rows::new_owned(self, rows))
+        Ok(Rows::new(&self, rows))
     }
 }
 
@@ -201,7 +213,7 @@ impl<'conn> Statement<'conn> {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn query<'a>(&'a self, params: &[&ToSql]) -> Result<Rows<'a>> {
+    pub fn query(&self, params: &[&ToSql]) -> Result<Rows<'static>> {
         check_desync!(self.conn);
         let mut rows = vec![];
         self.inner_query("", 0, params, |row| rows.push(row))?;

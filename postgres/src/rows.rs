@@ -9,8 +9,10 @@ use std::fmt;
 use std::io;
 use std::ops::Deref;
 use std::slice;
+use std::sync::Arc;
+use std::marker::PhantomData;
 
-use {Result, RowsNew, LazyRowsNew, StatementInternals};
+use {Result, RowsNew, LazyRowsNew, StatementInternals, StatementInfo};
 use transaction::Transaction;
 use types::{FromSql, WrongType};
 use stmt::{Statement, Column};
@@ -33,23 +35,18 @@ impl<'a, T> Deref for MaybeOwned<'a, T> {
 }
 
 /// The resulting rows of a query.
-pub struct Rows<'stmt> {
-    stmt: MaybeOwned<'stmt, Statement<'stmt>>,
+pub struct Rows<'compat> {
+    stmt_info: Arc<StatementInfo>,
     data: Vec<RowData>,
+    _marker: PhantomData<&'compat u8>
 }
 
-impl<'a> RowsNew<'a> for Rows<'a> {
-    fn new(stmt: &'a Statement<'a>, data: Vec<RowData>) -> Rows<'a> {
+impl RowsNew for Rows<'static> {
+    fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static> {
         Rows {
-            stmt: MaybeOwned::Borrowed(stmt),
+            stmt_info: stmt.info().clone(),
             data: data,
-        }
-    }
-
-    fn new_owned(stmt: Statement<'a>, data: Vec<RowData>) -> Rows<'a> {
-        Rows {
-            stmt: MaybeOwned::Owned(stmt),
-            data: data,
+            _marker: PhantomData,
         }
     }
 }
@@ -63,10 +60,10 @@ impl<'a> fmt::Debug for Rows<'a> {
     }
 }
 
-impl<'stmt> Rows<'stmt> {
+impl<'rows> Rows<'rows> {
     /// Returns a slice describing the columns of the `Rows`.
     pub fn columns(&self) -> &[Column] {
-        self.stmt.columns()
+        &self.stmt_info.columns[..]
     }
 
     /// Returns the number of rows present.
@@ -86,7 +83,7 @@ impl<'stmt> Rows<'stmt> {
     /// Panics if `idx` is out of bounds.
     pub fn get<'a>(&'a self, idx: usize) -> Row<'a> {
         Row {
-            stmt: &*self.stmt,
+            stmt_info: &self.stmt_info,
             data: MaybeOwned::Borrowed(&self.data[idx]),
         }
     }
@@ -94,7 +91,7 @@ impl<'stmt> Rows<'stmt> {
     /// Returns an iterator over the `Row`s.
     pub fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
-            stmt: &*self.stmt,
+            stmt_info: &self.stmt_info,
             iter: self.data.iter(),
         }
     }
@@ -111,7 +108,7 @@ impl<'a> IntoIterator for &'a Rows<'a> {
 
 /// An iterator over `Row`s.
 pub struct Iter<'a> {
-    stmt: &'a Statement<'a>,
+    stmt_info: &'a StatementInfo,
     iter: slice::Iter<'a, RowData>,
 }
 
@@ -121,7 +118,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Row<'a>> {
         self.iter.next().map(|row| {
             Row {
-                stmt: &*self.stmt,
+                stmt_info: self.stmt_info,
                 data: MaybeOwned::Borrowed(row),
             }
         })
@@ -136,7 +133,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
     fn next_back(&mut self) -> Option<Row<'a>> {
         self.iter.next_back().map(|row| {
             Row {
-                stmt: &*self.stmt,
+                stmt_info: self.stmt_info,
                 data: MaybeOwned::Borrowed(row),
             }
         })
@@ -147,14 +144,14 @@ impl<'a> ExactSizeIterator for Iter<'a> {}
 
 /// A single result row of a query.
 pub struct Row<'a> {
-    stmt: &'a Statement<'a>,
+    stmt_info: &'a StatementInfo,
     data: MaybeOwned<'a, RowData>,
 }
 
 impl<'a> fmt::Debug for Row<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Row")
-            .field("statement", self.stmt)
+            .field("statement", self.stmt_info)
             .finish()
     }
 }
@@ -172,7 +169,7 @@ impl<'a> Row<'a> {
 
     /// Returns a slice describing the columns of the `Row`.
     pub fn columns(&self) -> &[Column] {
-        self.stmt.columns()
+        &self.stmt_info.columns[..]
     }
 
     /// Retrieves the contents of a field of the row.
@@ -227,12 +224,12 @@ impl<'a> Row<'a> {
         where I: RowIndex,
               T: FromSql
     {
-        let idx = match idx.idx(self.stmt) {
+        let idx = match idx.idx(self.stmt_info) {
             Some(idx) => idx,
             None => return None,
         };
 
-        let ty = self.stmt.columns()[idx].type_();
+        let ty = self.stmt_info.columns[idx].type_();
         if !<T as FromSql>::accepts(ty) {
             return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
         }
@@ -248,7 +245,7 @@ impl<'a> Row<'a> {
     pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>
         where I: RowIndex + fmt::Debug
     {
-        match idx.idx(self.stmt) {
+        match idx.idx(self.stmt_info) {
             Some(idx) => self.data.get(idx),
             None => panic!("invalid index {:?}", idx),
         }
@@ -259,13 +256,21 @@ impl<'a> Row<'a> {
 pub trait RowIndex {
     /// Returns the index of the appropriate column, or `None` if no such
     /// column exists.
-    fn idx(&self, stmt: &Statement) -> Option<usize>;
+    fn idx<I: AsRef<StatementInfo>>(&self, info: &I) -> Option<usize> {
+        self.row_idx(info.as_ref())
+    }
+
+    /// Non-generic version of `idx`.
+    ///
+    /// `idx` is provided generically for backward compatibility.
+    #[doc(hidden)]
+    fn row_idx(&self, info: &StatementInfo) -> Option<usize>;
 }
 
 impl RowIndex for usize {
     #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if *self >= stmt.columns().len() {
+    fn row_idx(&self, info: &StatementInfo) -> Option<usize> {
+        if *self >= info.columns.len() {
             None
         } else {
             Some(*self)
@@ -275,15 +280,15 @@ impl RowIndex for usize {
 
 impl<'a> RowIndex for &'a str {
     #[inline]
-    fn idx(&self, stmt: &Statement) -> Option<usize> {
-        if let Some(idx) = stmt.columns().iter().position(|d| d.name() == *self) {
+    fn row_idx(&self, info: &StatementInfo) -> Option<usize> {
+        if let Some(idx) = info.columns.iter().position(|d| d.name() == *self) {
             return Some(idx);
         };
 
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        stmt.columns().iter().position(|d| d.name().eq_ignore_ascii_case(*self))
+        info.columns.iter().position(|d| d.name().eq_ignore_ascii_case(*self))
     }
 }
 
@@ -381,7 +386,7 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
             .pop_front()
             .map(|r| {
                 Row {
-                    stmt: self.stmt,
+                    stmt_info: &**self.stmt.info(),
                     data: MaybeOwned::Owned(r),
                 }
             });
