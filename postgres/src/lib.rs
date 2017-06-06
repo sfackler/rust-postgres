@@ -218,6 +218,7 @@ pub enum TlsMode<'a> {
     Require(&'a TlsHandshake),
 }
 
+#[derive(Debug)]
 struct StatementInfo {
     name: String,
     param_types: Vec<Type>,
