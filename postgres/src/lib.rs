@@ -218,6 +218,7 @@ pub enum TlsMode<'a> {
     Require(&'a TlsHandshake),
 }
 
+#[derive(Debug)]
 struct StatementInfo {
     name: String,
     param_types: Vec<Type>,
@@ -1082,7 +1083,7 @@ impl Connection {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+    pub fn query(&self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
         let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
         let info = Arc::new(StatementInfo {
                                 name: String::new(),
@@ -1300,7 +1301,7 @@ pub trait GenericConnection {
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
     /// Like `Connection::query`.
-    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>>;
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>>;
 
     /// Like `Connection::prepare`.
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
@@ -1323,7 +1324,7 @@ impl GenericConnection for Connection {
         self.execute(query, params)
     }
 
-    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'a>> {
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
         self.query(query, params)
     }
 
@@ -1353,7 +1354,7 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.execute(query, params)
     }
 
-    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'b>> {
+    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
         self.query(query, params)
     }
 
@@ -1396,9 +1397,8 @@ trait OtherNew {
     fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
 }
 
-trait RowsNew<'a> {
-    fn new(stmt: &'a Statement<'a>, data: Vec<RowData>) -> Rows<'a>;
-    fn new_owned(stmt: Statement<'a>, data: Vec<RowData>) -> Rows<'a>;
+trait RowsNew {
+    fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static>;
 }
 
 trait LazyRowsNew<'trans, 'stmt> {
@@ -1421,7 +1421,9 @@ trait StatementInternals<'conn> {
 
     fn conn(&self) -> &'conn Connection;
 
-    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'conn>>;
+    fn info(&self) -> &Arc<StatementInfo>;
+
+    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>>;
 }
 
 trait ColumnNew {
