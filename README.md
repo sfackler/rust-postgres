@@ -11,6 +11,13 @@ You can integrate Rust-Postgres into your project through the [releases on crate
 postgres = "0.14"
 ```
 
+If using SSL, integration needs to include the SSL feature in the Cargo.toml
+```toml
+# Cargo.toml
+[dependencies]
+postgres = { version="0.11", features=["openssl"] }
+```
+
 ## Overview
 Rust-Postgres is a pure-Rust frontend for the popular PostgreSQL database.
 ```rust
@@ -26,6 +33,52 @@ struct Person {
 
 fn main() {
     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    conn.execute("CREATE TABLE person (
+                    id              SERIAL PRIMARY KEY,
+                    name            VARCHAR NOT NULL,
+                    data            BYTEA
+                  )", &[]).unwrap();
+    let me = Person {
+        id: 0,
+        name: "Steven".to_string(),
+        data: None,
+    };
+    conn.execute("INSERT INTO person (name, data) VALUES ($1, $2)",
+                 &[&me.name, &me.data]).unwrap();
+    for row in &conn.query("SELECT id, name, data FROM person", &[]).unwrap() {
+        let person = Person {
+            id: row.get(0),
+            name: row.get(1),
+            data: row.get(2),
+        };
+        println!("Found person {}", person.name);
+    }
+}
+```
+
+Same example as above but with SSL
+```rust
+extern crate postgres;
+
+use postgres::{Connection, SslMode};
+use openssl::ssl::{SslContext, SslMethod};
+
+struct Person {
+    id: i32,
+    name: String,
+    data: Option<Vec<u8>>,
+}
+
+fn main() {
+    let context = SslContext::new(SslMethod::Sslv23).unwrap();
+    let uri = "postgres://postgres@localhost";
+    let conn = match Connection::connect(uri, SslMode::Require(&context)) {
+        Ok(conn) => conn,
+        Err(e) => {
+            println!("Connection error: {}", e);
+            return;
+        }
+    };
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,
