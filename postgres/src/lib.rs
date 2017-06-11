@@ -66,7 +66,7 @@
 //!         .unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/postgres/0.14.1")]
+#![doc(html_root_url="https://docs.rs/postgres/0.14.2")]
 #![warn(missing_docs)]
 #![allow(unknown_lints, needless_lifetimes, doc_markdown)] // for clippy
 
