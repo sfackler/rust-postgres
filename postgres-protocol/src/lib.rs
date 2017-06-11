@@ -9,7 +9,7 @@
 //!
 //! This library assumes that the `client_encoding` backend parameter has been
 //! set to `UTF8`. It will most likely not behave properly if that is not the case.
-#![doc(html_root_url="https://docs.rs/postgres-protocol/0.2.2")]
+#![doc(html_root_url="https://docs.rs/postgres-protocol/0.3.0")]
 #![warn(missing_docs)]
 extern crate base64;
 extern crate byteorder;
