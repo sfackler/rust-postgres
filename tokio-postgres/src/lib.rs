@@ -51,7 +51,7 @@
 //!     l.run(done).unwrap();
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/tokio-postgres/0.2.2")]
+#![doc(html_root_url="https://docs.rs/tokio-postgres/0.2.3")]
 #![warn(missing_docs)]
 
 extern crate bytes;
