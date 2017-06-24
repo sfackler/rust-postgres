@@ -23,7 +23,7 @@ phf = "=0.7.21"
 postgres-protocol = { version = "0.3", path = "../postgres-protocol" }
 
 bit-vec = { version = "0.4", optional = true }
-chrono = { version = "0.3", optional = true }
+chrono = { version = "0.4", optional = true }
 eui48 = { version = "0.1", optional = true }
 geo = { version = "0.4", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
