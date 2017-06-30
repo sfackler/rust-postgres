@@ -1,6 +1,6 @@
 extern crate chrono;
 
-use self::chrono::{TimeZone, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC};
+use self::chrono::{TimeZone, NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc};
 use types::test_type;
 
 use postgres::types::{Date, Timestamp};
@@ -33,8 +33,8 @@ fn test_with_special_naive_date_time_params() {
 
 #[test]
 fn test_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Option<DateTime<UTC>>, &'a str) {
-        (Some(UTC.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()), time)
+    fn make_check<'a>(time: &'a str) -> (Option<DateTime<Utc>>, &'a str) {
+        (Some(Utc.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()), time)
     }
     test_type("TIMESTAMP WITH TIME ZONE",
               &[make_check("'1970-01-01 00:00:00.010000000'"),
@@ -45,8 +45,8 @@ fn test_date_time_params() {
 
 #[test]
 fn test_with_special_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Timestamp<DateTime<UTC>>, &'a str) {
-        (Timestamp::Value(UTC.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()), time)
+    fn make_check<'a>(time: &'a str) -> (Timestamp<DateTime<Utc>>, &'a str) {
+        (Timestamp::Value(Utc.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()), time)
     }
     test_type("TIMESTAMP WITH TIME ZONE",
               &[make_check("'1970-01-01 00:00:00.010000000'"),

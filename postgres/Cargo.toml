@@ -60,7 +60,7 @@ hex = "0.2"
 url = "1.0"
 
 bit-vec = "0.4"
-chrono = "0.3"
+chrono = "0.4"
 eui48 = "0.1"
 geo = "0.4"
 rustc-serialize = "0.3"

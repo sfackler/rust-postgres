@@ -1,7 +1,7 @@
 extern crate chrono;
 
 use postgres_protocol::types;
-use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, UTC, Local,
+use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc, Local,
                    FixedOffset};
 use std::error::Error;
 
@@ -39,18 +39,18 @@ impl ToSql for NaiveDateTime {
     to_sql_checked!();
 }
 
-impl FromSql for DateTime<UTC> {
+impl FromSql for DateTime<Utc> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
-                -> Result<DateTime<UTC>, Box<Error + Sync + Send>> {
+                -> Result<DateTime<Utc>, Box<Error + Sync + Send>> {
         let naive = NaiveDateTime::from_sql(type_, raw)?;
-        Ok(DateTime::from_utc(naive, UTC))
+        Ok(DateTime::from_utc(naive, Utc))
     }
 
     accepts!(Type::Timestamptz);
 }
 
-impl ToSql for DateTime<UTC> {
+impl ToSql for DateTime<Utc> {
     fn to_sql(&self,
               type_: &Type,
               w: &mut Vec<u8>)
@@ -66,7 +66,7 @@ impl FromSql for DateTime<Local> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<Local>, Box<Error + Sync + Send>> {
-        let utc = DateTime::<UTC>::from_sql(type_, raw)?;
+        let utc = DateTime::<Utc>::from_sql(type_, raw)?;
         Ok(utc.with_timezone(&Local))
     }
 
@@ -78,7 +78,7 @@ impl ToSql for DateTime<Local> {
               type_: &Type,
               mut w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        self.with_timezone(&UTC).to_sql(type_, w)
+        self.with_timezone(&Utc).to_sql(type_, w)
     }
 
     accepts!(Type::Timestamptz);
@@ -89,7 +89,7 @@ impl FromSql for DateTime<FixedOffset> {
     fn from_sql(type_: &Type,
                 raw: &[u8])
                 -> Result<DateTime<FixedOffset>, Box<Error + Sync + Send>> {
-        let utc = DateTime::<UTC>::from_sql(type_, raw)?;
+        let utc = DateTime::<Utc>::from_sql(type_, raw)?;
         Ok(utc.with_timezone(&FixedOffset::east(0)))
     }
 
@@ -101,7 +101,7 @@ impl ToSql for DateTime<FixedOffset> {
               type_: &Type,
               w: &mut Vec<u8>)
               -> Result<IsNull, Box<Error + Sync + Send>> {
-        self.with_timezone(&UTC).to_sql(type_, w)
+        self.with_timezone(&Utc).to_sql(type_, w)
     }
 
     accepts!(Type::Timestamptz);
