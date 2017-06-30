@@ -207,7 +207,7 @@ types. The driver currently supports the following conversions:
         <tr>
             <td>
                 <a href="https://github.com/rust-lang-deprecated/time">time::Timespec</a>,
-                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;UTC&gt;</a>,
+                <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Utc&gt;</a>,
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;Local&gt;</a>,
                 and
                 <a href="https://github.com/lifthrasiir/rust-chrono">chrono::DateTime&lt;FixedOffset&gt;</a>

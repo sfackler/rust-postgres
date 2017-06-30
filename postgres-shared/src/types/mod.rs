@@ -262,7 +262,7 @@ impl WrongType {
 /// | `serde_json::Value`             | JSON, JSONB                         |
 /// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
-/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Utc>`         | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
@@ -461,7 +461,7 @@ pub enum IsNull {
 /// | `serde_json::Value`             | JSON, JSONB                         |
 /// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
-/// | `chrono::DateTime<UTC>`         | TIMESTAMP WITH TIME ZONE            |
+/// | `chrono::DateTime<Utc>`         | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
