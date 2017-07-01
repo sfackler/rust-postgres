@@ -901,28 +901,28 @@ impl Connection {
         self.0
             .read()
             .map_err(Error::Io)
-            .and_then(|(m, s)| match m {
-                backend::Message::DataRow(_) => Either::B(Connection(s).finish_execute()),
-                backend::Message::CommandComplete(body) => {
-                    Either::A(body.tag()
-                        .map(|tag| {
-                            let num = tag.split_whitespace()
-                                .last()
-                                .unwrap()
-                                .parse()
-                                .unwrap_or(0);
-                            (num, Connection(s))
-                        })
-                        .map_err(Error::Io)
-                        .into_future())
+            .and_then(|(m, s)| {
+                match m {
+                    backend::Message::DataRow(_) => Connection(s).finish_execute().boxed(),
+                    backend::Message::CommandComplete(body) => {
+                        body.tag()
+                            .map(|tag| {
+                                tag.split_whitespace()
+                                    .last()
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap_or(0)
+                            })
+                            .map_err(Error::Io)
+                            .into_future()
+                            .and_then(|n| Connection(s).ready(n))
+                            .boxed()
+                    }
+                    backend::Message::EmptyQueryResponse => Connection(s).ready(0).boxed(),
+                    backend::Message::ErrorResponse(body) => Connection(s).ready_err(body).boxed(),
+                    _ => Err(bad_message()).into_future().boxed(),
                 }
-                backend::Message::EmptyQueryResponse => {
-                    Either::A(Ok((0, Connection(s))).into_future())
-                }
-                backend::Message::ErrorResponse(body) => Either::B(Connection(s).ready_err(body)),
-                _ => Either::A(Err(bad_message()).into_future()),
             })
-            .and_then(|(n, s)| s.ready(n))
             .boxed()
     }
 

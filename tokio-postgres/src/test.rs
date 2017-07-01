@@ -133,6 +133,15 @@ fn prepare_execute() {
 }
 
 #[test]
+fn prepare_execute_rows() {
+    let mut l = Core::new().unwrap();
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
+        .then(|c| c.unwrap().prepare("SELECT 1"))
+        .and_then(|(s, c)| c.execute(&s, &[]));
+    l.run(done).unwrap();
+}
+
+#[test]
 fn query() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
