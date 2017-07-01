@@ -20,31 +20,39 @@ use tls::TlsStream;
 
 pub type PostgresStream = Framed<Box<TlsStream>, PostgresCodec>;
 
-pub fn connect(host: Host,
-               port: u16,
-               tls_mode: TlsMode,
-               handle: &Handle)
-               -> BoxFuture<PostgresStream, ConnectError> {
+pub fn connect(
+    host: Host,
+    port: u16,
+    tls_mode: TlsMode,
+    handle: &Handle,
+) -> BoxFuture<PostgresStream, ConnectError> {
     let inner = match host {
         Host::Tcp(ref host) => {
-            Either::A(tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
-                .map(|s| Stream(InnerStream::Tcp(s)))
-                .map_err(ConnectError::Io))
+            Either::A(
+                tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
+                    .map(|s| Stream(InnerStream::Tcp(s)))
+                    .map_err(ConnectError::Io),
+            )
         }
         #[cfg(unix)]
         Host::Unix(ref host) => {
             let addr = host.join(format!(".s.PGSQL.{}", port));
-            Either::B(UnixStream::connect(addr, handle)
-                .map(|s| Stream(InnerStream::Unix(s)))
-                .map_err(ConnectError::Io)
-                .into_future())
+            Either::B(
+                UnixStream::connect(addr, handle)
+                    .map(|s| Stream(InnerStream::Unix(s)))
+                    .map_err(ConnectError::Io)
+                    .into_future(),
+            )
         }
         #[cfg(not(unix))]
         Host::Unix(_) => {
-            Either::B(Err(ConnectError::ConnectParams("unix sockets are not supported on this \
+            Either::B(
+                Err(ConnectError::ConnectParams(
+                    "unix sockets are not supported on this \
                                                        platform"
-                    .into()))
-                .into_future())
+                        .into(),
+                )).into_future(),
+            )
         }
     };
 
@@ -52,7 +60,8 @@ pub fn connect(host: Host,
         TlsMode::Require(h) => (true, h),
         TlsMode::Prefer(h) => (false, h),
         TlsMode::None => {
-            return inner.map(|s| {
+            return inner
+                .map(|s| {
                     let s: Box<TlsStream> = Box::new(s);
                     s.framed(PostgresCodec)
                 })
@@ -60,29 +69,34 @@ pub fn connect(host: Host,
         }
     };
 
-    inner.map(|s| s.framed(SslCodec))
+    inner
+        .map(|s| s.framed(SslCodec))
         .and_then(|s| {
             let mut buf = vec![];
             frontend::ssl_request(&mut buf);
-            s.send(buf)
-                .map_err(ConnectError::Io)
+            s.send(buf).map_err(ConnectError::Io)
         })
         .and_then(|s| s.into_future().map_err(|e| ConnectError::Io(e.0)))
         .and_then(move |(m, s)| {
             let s = s.into_inner();
             match (m, required) {
                 (Some(b'N'), true) => {
-                    Either::A(Err(ConnectError::Tls("the server does not support TLS".into()))
-                        .into_future())
+                    Either::A(
+                        Err(ConnectError::Tls("the server does not support TLS".into()))
+                            .into_future(),
+                    )
                 }
                 (Some(b'N'), false) => {
                     let s: Box<TlsStream> = Box::new(s);
                     Either::A(Ok(s).into_future())
                 }
                 (None, _) => {
-                    Either::A(Err(ConnectError::Io(io::Error::new(io::ErrorKind::UnexpectedEof,
-                                                                  "unexpected EOF")))
-                        .into_future())
+                    Either::A(
+                        Err(ConnectError::Io(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            "unexpected EOF",
+                        ))).into_future(),
+                    )
                 }
                 _ => {
                     let host = match host {
@@ -144,7 +158,8 @@ impl AsyncRead for Stream {
     }
 
     fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
-        where B: BufMut
+    where
+        B: BufMut,
     {
         match self.0 {
             InnerStream::Tcp(ref mut s) => s.read_buf(buf),

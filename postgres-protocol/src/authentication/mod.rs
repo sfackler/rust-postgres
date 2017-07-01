@@ -30,7 +30,9 @@ mod test {
         let password = b"password";
         let salt = [0x2a, 0x3d, 0x8f, 0xe0];
 
-        assert_eq!(md5_hash(username, password, salt),
-                   "md562af4dd09bbb41884907a838a3233294");
+        assert_eq!(
+            md5_hash(username, password, salt),
+            "md562af4dd09bbb41884907a838a3233294"
+        );
     }
 }

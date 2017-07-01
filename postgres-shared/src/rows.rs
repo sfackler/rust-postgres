@@ -1,4 +1,4 @@
-use fallible_iterator::{FallibleIterator};
+use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::ascii::AsciiExt;
 use std::io;
@@ -34,13 +34,15 @@ impl<'a> RowIndex for str {
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        stmt.iter()
-            .position(|d| d.name().eq_ignore_ascii_case(self))
+        stmt.iter().position(
+            |d| d.name().eq_ignore_ascii_case(self),
+        )
     }
 }
 
 impl<'a, T: ?Sized> RowIndex for &'a T
-    where T: RowIndex
+where
+    T: RowIndex,
 {
     #[inline]
     fn idx(&self, columns: &[Column]) -> Option<usize> {
@@ -58,9 +60,9 @@ impl RowData {
     pub fn new(body: DataRowBody) -> io::Result<RowData> {
         let ranges = body.ranges().collect()?;
         Ok(RowData {
-               body: body,
-               ranges: ranges,
-           })
+            body: body,
+            ranges: ranges,
+        })
     }
 
     pub fn len(&self) -> usize {

@@ -14,9 +14,11 @@ use types::{ToSql, FromSql, Type, IsNull, Kind};
 fn md5_user() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user:password@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://md5_user:password@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     l.run(done).unwrap();
 }
 
@@ -24,9 +26,11 @@ fn md5_user() {
 fn md5_user_no_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://md5_user@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     match l.run(done) {
         Err(ConnectError::ConnectParams(_)) => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -38,9 +42,11 @@ fn md5_user_no_pass() {
 fn md5_user_wrong_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://md5_user:foobar@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://md5_user:foobar@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     match l.run(done) {
         Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -52,9 +58,11 @@ fn md5_user_wrong_pass() {
 fn pass_user() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user:password@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://pass_user:password@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     l.run(done).unwrap();
 }
 
@@ -62,9 +70,11 @@ fn pass_user() {
 fn pass_user_no_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://pass_user@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     match l.run(done) {
         Err(ConnectError::ConnectParams(_)) => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -76,9 +86,11 @@ fn pass_user_no_pass() {
 fn pass_user_wrong_pass() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
-    let done = Connection::connect("postgres://pass_user:foobar@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://pass_user:foobar@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
     match l.run(done) {
         Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
         Err(e) => panic!("unexpected error {}", e),
@@ -90,7 +102,11 @@ fn pass_user_wrong_pass() {
 fn batch_execute_ok() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
-        .then(|c| c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL);"));
+        .then(|c| {
+            c.unwrap().batch_execute(
+                "CREATE TEMPORARY TABLE foo (id SERIAL);",
+            )
+        });
     l.run(done).unwrap();
 }
 
@@ -99,9 +115,10 @@ fn batch_execute_err() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|r| {
-            r.unwrap()
-                .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL); INSERT INTO foo DEFAULT \
-                                VALUES;")
+            r.unwrap().batch_execute(
+                "CREATE TEMPORARY TABLE foo (id SERIAL); INSERT INTO foo DEFAULT \
+                                VALUES;",
+            )
         })
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
         .then(|r| match r {
@@ -120,7 +137,9 @@ fn prepare_execute() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| {
-            c.unwrap().prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
+            c.unwrap().prepare(
+                "CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)",
+            )
         })
         .and_then(|(s, c)| c.execute(&s, &[]))
         .and_then(|(n, c)| {
@@ -146,8 +165,10 @@ fn query() {
     let mut l = Core::new().unwrap();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
         .then(|c| {
-            c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);
-                                      INSERT INTO foo (name) VALUES ('joe'), ('bob')")
+            c.unwrap().batch_execute(
+                "CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);
+                                      INSERT INTO foo (name) VALUES ('joe'), ('bob')",
+            )
         })
         .and_then(|c| c.prepare("SELECT id, name FROM foo ORDER BY id"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
@@ -166,23 +187,32 @@ fn query() {
 #[test]
 fn transaction() {
     let mut l = Core::new().unwrap();
-    let done =
-        Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
-            .then(|c| {
-                c.unwrap().batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);")
-            })
-            .then(|c| c.unwrap().transaction())
-            .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('joe');"))
-            .then(|t| t.unwrap().rollback())
-            .then(|c| c.unwrap().transaction())
-            .then(|t| t.unwrap().batch_execute("INSERT INTO foo (name) VALUES ('bob');"))
-            .then(|t| t.unwrap().commit())
-            .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
-            .and_then(|(s, c)| c.query(&s, &[]).collect())
-            .map(|(r, _)| {
-                assert_eq!(r.len(), 1);
-                assert_eq!(r[0].get::<String, _>("name"), "bob");
-            });
+    let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &l.handle())
+        .then(|c| {
+            c.unwrap().batch_execute(
+                "CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);",
+            )
+        })
+        .then(|c| c.unwrap().transaction())
+        .then(|t| {
+            t.unwrap().batch_execute(
+                "INSERT INTO foo (name) VALUES ('joe');",
+            )
+        })
+        .then(|t| t.unwrap().rollback())
+        .then(|c| c.unwrap().transaction())
+        .then(|t| {
+            t.unwrap().batch_execute(
+                "INSERT INTO foo (name) VALUES ('bob');",
+            )
+        })
+        .then(|t| t.unwrap().commit())
+        .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
+        .and_then(|(s, c)| c.query(&s, &[]).collect())
+        .map(|(r, _)| {
+            assert_eq!(r.len(), 1);
+            assert_eq!(r[0].get::<String, _>("name"), "bob");
+        });
     l.run(done).unwrap();
 }
 
@@ -195,9 +225,11 @@ fn unix_socket() {
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .then(|r| {
             let r = r.unwrap().0;
-            let params = ConnectParams::builder()
-                .user("postgres", None)
-                .build(Host::Unix(PathBuf::from(r[0].get::<String, _>(0))));
+            let params = ConnectParams::builder().user("postgres", None).build(
+                Host::Unix(
+                    PathBuf::from(r[0].get::<String, _>(0)),
+                ),
+            );
             Connection::connect(params, TlsMode::None, &handle)
         })
         .then(|c| c.unwrap().batch_execute(""));
@@ -209,9 +241,11 @@ fn ssl_user_ssl_required() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
 
-    let done = Connection::connect("postgres://ssl_user@localhost/postgres",
-                                   TlsMode::None,
-                                   &handle);
+    let done = Connection::connect(
+        "postgres://ssl_user@localhost/postgres",
+        TlsMode::None,
+        &handle,
+    );
 
     match l.run(done) {
         Err(ConnectError::Db(e)) => assert!(e.code == SqlState::InvalidAuthorizationSpecification),
@@ -227,14 +261,18 @@ fn openssl_required() {
     use tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file("../.travis/server.crt").unwrap();
+    builder
+        .builder_mut()
+        .set_ca_file("../.travis/server.crt")
+        .unwrap();
     let negotiator = OpenSsl::from(builder.build());
 
     let mut l = Core::new().unwrap();
-    let done = Connection::connect("postgres://ssl_user@localhost/postgres",
-                                   TlsMode::Require(Box::new(negotiator)),
-                                   &l.handle())
-        .then(|c| c.unwrap().prepare("SELECT 1"))
+    let done = Connection::connect(
+        "postgres://ssl_user@localhost/postgres",
+        TlsMode::Require(Box::new(negotiator)),
+        &l.handle(),
+    ).then(|c| c.unwrap().prepare("SELECT 1"))
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .map(|(r, _)| assert_eq!(r[0].get::<i32, _>(0), 1));
     l.run(done).unwrap();
@@ -246,10 +284,11 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql(&self,
-                  ty: &Type,
-                  out: &mut Vec<u8>)
-                  -> Result<IsNull, Box<StdError + Sync + Send>> {
+        fn to_sql(
+            &self,
+            ty: &Type,
+            out: &mut Vec<u8>,
+        ) -> Result<IsNull, Box<StdError + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
@@ -282,10 +321,12 @@ fn domain() {
     let handle = l.handle();
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| {
-            c.unwrap().batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea \
+            c.unwrap().batch_execute(
+                "CREATE DOMAIN pg_temp.session_id AS bytea \
                                       CHECK(octet_length(VALUE) = 16);
                  CREATE \
-                                      TABLE pg_temp.foo (id pg_temp.session_id);")
+                                      TABLE pg_temp.foo (id pg_temp.session_id);",
+            )
         })
         .and_then(|c| c.prepare("INSERT INTO pg_temp.foo (id) VALUES ($1)"))
         .and_then(|(s, c)| {
@@ -309,11 +350,13 @@ fn composite() {
 
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| {
-            c.unwrap().batch_execute("CREATE TYPE pg_temp.inventory_item AS (
+            c.unwrap().batch_execute(
+                "CREATE TYPE pg_temp.inventory_item AS (
                                           name TEXT,
                                           supplier INTEGER,
                                           price NUMERIC
-                                      )")
+                                      )",
+            )
         })
         .and_then(|c| c.prepare("SELECT $1::inventory_item"))
         .map(|(s, _)| {
@@ -341,7 +384,9 @@ fn enum_() {
 
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| {
-            c.unwrap().batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
+            c.unwrap().batch_execute(
+                "CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');",
+            )
         })
         .and_then(|c| c.prepare("SELECT $1::mood"))
         .map(|(s, _)| {
@@ -349,8 +394,10 @@ fn enum_() {
             assert_eq!(type_.name(), "mood");
             match *type_.kind() {
                 Kind::Enum(ref variants) => {
-                    assert_eq!(variants,
-                               &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
+                    assert_eq!(
+                        variants,
+                        &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]
+                    );
                 }
                 _ => panic!("bad type"),
             }
@@ -373,10 +420,12 @@ fn cancel() {
                 .into_future()
                 .then(move |r| {
                     assert!(r.is_ok());
-                    cancel_query("postgres://postgres@localhost",
-                                 TlsMode::None,
-                                 cancel_data,
-                                 &handle)
+                    cancel_query(
+                        "postgres://postgres@localhost",
+                        TlsMode::None,
+                        cancel_data,
+                        &handle,
+                    )
                 })
                 .then(Ok::<_, ()>);
             c.batch_execute("SELECT pg_sleep(10)")
@@ -401,10 +450,13 @@ fn notifications() {
     let done = Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
         .then(|c| c.unwrap().batch_execute("LISTEN test_notifications"))
         .and_then(|c1| {
-            Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle)
-                .then(|c2| {
-                    c2.unwrap().batch_execute("NOTIFY test_notifications, 'foo'").map(|_| c1)
-                })
+            Connection::connect("postgres://postgres@localhost", TlsMode::None, &handle).then(
+                |c2| {
+                    c2.unwrap()
+                        .batch_execute("NOTIFY test_notifications, 'foo'")
+                        .map(|_| c1)
+                },
+            )
         })
         .and_then(|c| c.notifications().into_future().map_err(|(e, _)| e))
         .map(|(n, _)| {

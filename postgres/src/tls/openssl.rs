@@ -70,10 +70,11 @@ impl From<SslConnector> for OpenSsl {
 }
 
 impl TlsHandshake for OpenSsl {
-    fn tls_handshake(&self,
-                     domain: &str,
-                     stream: Stream)
-                     -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
+    fn tls_handshake(
+        &self,
+        domain: &str,
+        stream: Stream,
+    ) -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let stream = if self.disable_verification {
             self.connector.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream)?
         } else {

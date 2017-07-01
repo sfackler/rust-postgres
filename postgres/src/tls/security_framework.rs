@@ -45,10 +45,11 @@ impl From<ClientBuilder> for SecurityFramework {
 }
 
 impl TlsHandshake for SecurityFramework {
-    fn tls_handshake(&self,
-                     domain: &str,
-                     stream: Stream)
-                     -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
+    fn tls_handshake(
+        &self,
+        domain: &str,
+        stream: Stream,
+    ) -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let stream = self.0.handshake(domain, stream)?;
         Ok(Box::new(stream))
     }

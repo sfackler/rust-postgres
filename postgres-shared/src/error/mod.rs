@@ -168,14 +168,18 @@ impl DbError {
                 b'H' => hint = Some(field.value().to_owned()),
                 b'P' => {
                     normal_position = Some(field.value().parse::<u32>().map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidInput,
-                                       "`P` field did not contain an integer")
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "`P` field did not contain an integer",
+                        )
                     })?);
                 }
                 b'p' => {
                     internal_position = Some(field.value().parse::<u32>().map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidInput,
-                                       "`p` field did not contain an integer")
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "`p` field did not contain an integer",
+                        )
                     })?);
                 }
                 b'q' => internal_query = Some(field.value().to_owned()),
@@ -188,18 +192,22 @@ impl DbError {
                 b'F' => file = Some(field.value().to_owned()),
                 b'L' => {
                     line = Some(field.value().parse::<u32>().map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidInput,
-                                       "`L` field did not contain an integer")
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "`L` field did not contain an integer",
+                        )
                     })?);
                 }
                 b'R' => routine = Some(field.value().to_owned()),
                 b'V' => {
                     parsed_severity = Some(Severity::from_str(field.value()).ok_or_else(|| {
-                        io::Error::new(io::ErrorKind::InvalidInput,
-                                       "`V` field contained an invalid value")
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "`V` field contained an invalid value",
+                        )
                     })?);
                 }
-                _ => {},
+                _ => {}
             }
         }
 
@@ -208,10 +216,12 @@ impl DbError {
                 io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing")
             })?,
             parsed_severity: parsed_severity,
-            code: code.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
-                                                         "`C` field missing"))?,
-            message: message.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput,
-                                                               "`M` field missing"))?,
+            code: code.ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "`C` field missing")
+            })?,
+            message: message.ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "`M` field missing")
+            })?,
             detail: detail,
             hint: hint,
             position: match normal_position {
@@ -222,8 +232,10 @@ impl DbError {
                             Some(ErrorPosition::Internal {
                                 position: position,
                                 query: internal_query.ok_or_else(|| {
-                                    io::Error::new(io::ErrorKind::InvalidInput,
-                                                   "`q` field missing but `p` field present")
+                                    io::Error::new(
+                                        io::ErrorKind::InvalidInput,
+                                        "`q` field missing but `p` field present",
+                                    )
                                 })?,
                             })
                         }

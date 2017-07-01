@@ -39,10 +39,11 @@ impl Transaction {
     }
 
     /// Like `Connection::execute`.
-    pub fn execute(self,
-                   statement: &Statement,
-                   params: &[&ToSql])
-                   -> BoxFuture<(u64, Transaction), Error<Transaction>> {
+    pub fn execute(
+        self,
+        statement: &Statement,
+        params: &[&ToSql],
+    ) -> BoxFuture<(u64, Transaction), Error<Transaction>> {
         self.0
             .execute(statement, params)
             .map(|(n, c)| (n, Transaction(c)))
@@ -51,10 +52,11 @@ impl Transaction {
     }
 
     /// Like `Connection::query`.
-    pub fn query(self,
-                 statement: &Statement,
-                 params: &[&ToSql])
-                 -> BoxStateStream<Row, Transaction, Error<Transaction>> {
+    pub fn query(
+        self,
+        statement: &Statement,
+        params: &[&ToSql],
+    ) -> BoxStateStream<Row, Transaction, Error<Transaction>> {
         self.0
             .query(statement, params)
             .map_state(Transaction)
@@ -73,10 +75,7 @@ impl Transaction {
     }
 
     fn finish(self, query: &str) -> BoxFuture<Connection, Error> {
-        self.0
-            .simple_query(query)
-            .map(|(_, c)| c)
-            .boxed()
+        self.0.simple_query(query).map(|(_, c)| c).boxed()
     }
 }
 

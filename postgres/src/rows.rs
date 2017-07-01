@@ -39,7 +39,7 @@ impl<'a, T> Deref for MaybeOwned<'a, T> {
 pub struct Rows<'compat> {
     stmt_info: Arc<StatementInfo>,
     data: Vec<RowData>,
-    _marker: PhantomData<&'compat u8>
+    _marker: PhantomData<&'compat u8>,
 }
 
 impl RowsNew for Rows<'static> {
@@ -196,8 +196,9 @@ impl<'a> Row<'a> {
     /// }
     /// ```
     pub fn get<I, T>(&self, idx: I) -> T
-        where I: RowIndex + fmt::Debug,
-              T: FromSql
+    where
+        I: RowIndex + fmt::Debug,
+        T: FromSql,
     {
         match self.get_inner(&idx) {
             Some(Ok(ok)) => ok,
@@ -215,15 +216,17 @@ impl<'a> Row<'a> {
     /// if there was an error converting the result value, and `Some(Ok(..))`
     /// on success.
     pub fn get_opt<I, T>(&self, idx: I) -> Option<Result<T>>
-        where I: RowIndex,
-              T: FromSql
+    where
+        I: RowIndex,
+        T: FromSql,
     {
         self.get_inner(&idx)
     }
 
     fn get_inner<I, T>(&self, idx: &I) -> Option<Result<T>>
-        where I: RowIndex,
-              T: FromSql
+    where
+        I: RowIndex,
+        T: FromSql,
     {
         let idx = match idx.idx(&self.stmt_info.columns) {
             Some(idx) => idx,
@@ -244,7 +247,8 @@ impl<'a> Row<'a> {
     ///
     /// Panics if the index does not reference a column.
     pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>
-        where I: RowIndex + fmt::Debug
+    where
+        I: RowIndex + fmt::Debug,
     {
         match idx.idx(&self.stmt_info.columns) {
             Some(idx) => self.data.get(idx),
@@ -281,7 +285,9 @@ impl<'a> RowIndex for &'a str {
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        columns.iter().position(|d| d.name().eq_ignore_ascii_case(*self))
+        columns.iter().position(
+            |d| d.name().eq_ignore_ascii_case(*self),
+        )
     }
 }
 
@@ -297,14 +303,15 @@ pub struct LazyRows<'trans, 'stmt> {
 }
 
 impl<'trans, 'stmt> LazyRowsNew<'trans, 'stmt> for LazyRows<'trans, 'stmt> {
-    fn new(stmt: &'stmt Statement<'stmt>,
-           data: VecDeque<RowData>,
-           name: String,
-           row_limit: i32,
-           more_rows: bool,
-           finished: bool,
-           trans: &'trans Transaction<'trans>)
-           -> LazyRows<'trans, 'stmt> {
+    fn new(
+        stmt: &'stmt Statement<'stmt>,
+        data: VecDeque<RowData>,
+        name: String,
+        row_limit: i32,
+        more_rows: bool,
+        finished: bool,
+        trans: &'trans Transaction<'trans>,
+    ) -> LazyRows<'trans, 'stmt> {
         LazyRows {
             stmt: stmt,
             data: data,
@@ -346,10 +353,18 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().0.borrow_mut();
 
-        conn.stream.write_message(|buf| frontend::execute(&self.name, self.row_limit, buf))?;
-        conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        conn.stream.write_message(|buf| {
+            frontend::execute(&self.name, self.row_limit, buf)
+        })?;
+        conn.stream.write_message(
+            |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+        )?;
         conn.stream.flush()?;
-        conn.read_rows(|row| self.data.push_back(row)).map(|more_rows| self.more_rows = more_rows)
+        conn.read_rows(|row| self.data.push_back(row)).map(
+            |more_rows| {
+                self.more_rows = more_rows
+            },
+        )
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
@@ -375,14 +390,12 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
             self.execute()?;
         }
 
-        let row = self.data
-            .pop_front()
-            .map(|r| {
-                Row {
-                    stmt_info: &**self.stmt.info(),
-                    data: MaybeOwned::Owned(r),
-                }
-            });
+        let row = self.data.pop_front().map(|r| {
+            Row {
+                stmt_info: &**self.stmt.info(),
+                data: MaybeOwned::Owned(r),
+            }
+        });
 
         Ok(row)
     }

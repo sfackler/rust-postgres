@@ -31,8 +31,9 @@ impl TlsStream for Stream {
 /// A trait implemented by types that can manage TLS encryption for a stream.
 pub trait Handshake: 'static + Sync + Send {
     /// Performs a TLS handshake, returning a wrapped stream.
-    fn handshake(self: Box<Self>,
-                 host: &str,
-                 stream: Stream)
-                 -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>>;
+    fn handshake(
+        self: Box<Self>,
+        host: &str,
+        stream: Stream,
+    ) -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>>;
 }

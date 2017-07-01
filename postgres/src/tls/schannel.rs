@@ -38,14 +38,16 @@ impl Schannel {
 }
 
 impl TlsHandshake for Schannel {
-    fn tls_handshake(&self,
-                     host: &str,
-                     stream: Stream)
-                     -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
+    fn tls_handshake(
+        &self,
+        host: &str,
+        stream: Stream,
+    ) -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
         let creds = SchannelCred::builder().acquire(Direction::Outbound)?;
-        let stream = tls_stream::Builder::new()
-            .domain(host)
-            .connect(creds, stream)?;
+        let stream = tls_stream::Builder::new().domain(host).connect(
+            creds,
+            stream,
+        )?;
         Ok(Box::new(stream))
     }
 }

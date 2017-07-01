@@ -51,19 +51,21 @@ impl<'a> Message<'a> {
                 values,
                 result_formats,
             } => {
-                let r = bind(portal,
-                             statement,
-                             formats.iter().cloned(),
-                             values,
-                             |v, buf| match *v {
-                                 Some(ref v) => {
-                                     buf.extend_from_slice(v);
-                                     Ok(IsNull::No)
-                                 }
-                                 None => Ok(IsNull::Yes),
-                             },
-                             result_formats.iter().cloned(),
-                             buf);
+                let r = bind(
+                    portal,
+                    statement,
+                    formats.iter().cloned(),
+                    values,
+                    |v, buf| match *v {
+                        Some(ref v) => {
+                            buf.extend_from_slice(v);
+                            Ok(IsNull::No)
+                        }
+                        None => Ok(IsNull::Yes),
+                    },
+                    result_formats.iter().cloned(),
+                    buf,
+                );
                 match r {
                     Ok(()) => Ok(()),
                     Err(BindError::Conversion(_)) => unreachable!(),
@@ -104,8 +106,9 @@ impl<'a> Message<'a> {
 
 #[inline]
 fn write_body<F, E>(buf: &mut Vec<u8>, f: F) -> Result<(), E>
-    where F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
-          E: From<io::Error>
+where
+    F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
+    E: From<io::Error>,
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -137,18 +140,20 @@ impl From<io::Error> for BindError {
 }
 
 #[inline]
-pub fn bind<I, J, F, T, K>(portal: &str,
-                           statement: &str,
-                           formats: I,
-                           values: J,
-                           mut serializer: F,
-                           result_formats: K,
-                           buf: &mut Vec<u8>)
-                           -> Result<(), BindError>
-    where I: IntoIterator<Item = i16>,
-          J: IntoIterator<Item = T>,
-          F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<Error + marker::Sync + Send>>,
-          K: IntoIterator<Item = i16>
+pub fn bind<I, J, F, T, K>(
+    portal: &str,
+    statement: &str,
+    formats: I,
+    values: J,
+    mut serializer: F,
+    result_formats: K,
+    buf: &mut Vec<u8>,
+) -> Result<(), BindError>
+where
+    I: IntoIterator<Item = i16>,
+    J: IntoIterator<Item = T>,
+    F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<Error + marker::Sync + Send>>,
+    K: IntoIterator<Item = i16>,
 {
     buf.push(b'B');
 
@@ -156,9 +161,11 @@ pub fn bind<I, J, F, T, K>(portal: &str,
         buf.write_cstr(portal)?;
         buf.write_cstr(statement)?;
         write_counted(formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
-        write_counted(values,
-                      |v, buf| write_nullable(|buf| serializer(v, buf), buf),
-                      buf)?;
+        write_counted(
+            values,
+            |v, buf| write_nullable(|buf| serializer(v, buf), buf),
+            buf,
+        )?;
         write_counted(result_formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
 
         Ok(())
@@ -167,9 +174,10 @@ pub fn bind<I, J, F, T, K>(portal: &str,
 
 #[inline]
 fn write_counted<I, T, F, E>(items: I, mut serializer: F, buf: &mut Vec<u8>) -> Result<(), E>
-    where I: IntoIterator<Item = T>,
-          F: FnMut(T, &mut Vec<u8>) -> Result<(), E>,
-          E: From<io::Error>
+where
+    I: IntoIterator<Item = T>,
+    F: FnMut(T, &mut Vec<u8>) -> Result<(), E>,
+    E: From<io::Error>,
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 2]);
@@ -190,8 +198,7 @@ pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut Vec<u8>) {
         buf.write_i32::<BigEndian>(80877102).unwrap();
         buf.write_i32::<BigEndian>(process_id).unwrap();
         buf.write_i32::<BigEndian>(secret_key)
-    })
-            .unwrap();
+    }).unwrap();
 }
 
 #[inline]
@@ -246,7 +253,8 @@ pub fn execute(portal: &str, max_rows: i32, buf: &mut Vec<u8>) -> io::Result<()>
 
 #[inline]
 pub fn parse<I>(name: &str, query: &str, param_types: I, buf: &mut Vec<u8>) -> io::Result<()>
-    where I: IntoIterator<Item = Oid>
+where
+    I: IntoIterator<Item = Oid>,
 {
     buf.push(b'P');
     write_body(buf, |buf| {
@@ -294,7 +302,8 @@ pub fn ssl_request(buf: &mut Vec<u8>) {
 
 #[inline]
 pub fn startup_message<'a, I>(parameters: I, buf: &mut Vec<u8>) -> io::Result<()>
-    where I: IntoIterator<Item = (&'a str, &'a str)>
+where
+    I: IntoIterator<Item = (&'a str, &'a str)>,
 {
     write_body(buf, |buf| {
         buf.write_i32::<BigEndian>(196608).unwrap();
@@ -327,8 +336,10 @@ impl WriteCStr for Vec<u8> {
     #[inline]
     fn write_cstr(&mut self, s: &str) -> Result<(), io::Error> {
         if s.as_bytes().contains(&0) {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                      "string contains embedded null"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "string contains embedded null",
+            ));
         }
         self.extend_from_slice(s.as_bytes());
         self.push(0);

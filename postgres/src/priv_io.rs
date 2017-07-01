@@ -39,8 +39,9 @@ impl MessageStream {
     }
 
     pub fn write_message<F, E>(&mut self, f: F) -> Result<(), E>
-        where F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
-              E: From<io::Error>
+    where
+        F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
+        E: From<io::Error>,
     {
         self.out_buf.clear();
         f(&mut self.out_buf)?;
@@ -59,8 +60,13 @@ impl MessageStream {
 
     fn read_in(&mut self) -> io::Result<()> {
         self.in_buf.reserve(1);
-        match self.stream.get_mut().read(unsafe { self.in_buf.bytes_mut() }) {
-            Ok(0) => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+        match self.stream.get_mut().read(
+            unsafe { self.in_buf.bytes_mut() },
+        ) {
+            Ok(0) => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "unexpected EOF",
+            )),
             Ok(n) => {
                 unsafe { self.in_buf.advance_mut(n) };
                 Ok(())
@@ -69,23 +75,25 @@ impl MessageStream {
         }
     }
 
-    pub fn read_message_timeout(&mut self,
-                                timeout: Duration)
-                                -> io::Result<Option<backend::Message>> {
+    pub fn read_message_timeout(
+        &mut self,
+        timeout: Duration,
+    ) -> io::Result<Option<backend::Message>> {
         if self.in_buf.is_empty() {
             self.set_read_timeout(Some(timeout))?;
             let r = self.read_in();
             self.set_read_timeout(None)?;
 
             match r {
-                Ok(()) => {},
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock ||
-                            e.kind() == io::ErrorKind::TimedOut => return Ok(None),
+                Ok(()) => {}
+                Err(ref e)
+                    if e.kind() == io::ErrorKind::WouldBlock ||
+                           e.kind() == io::ErrorKind::TimedOut => return Ok(None),
                 Err(e) => return Err(e),
             }
         }
 
-        self.read_message().map(Some)  
+        self.read_message().map(Some)
     }
 
     pub fn read_message_nonblocking(&mut self) -> io::Result<Option<backend::Message>> {
@@ -95,13 +103,13 @@ impl MessageStream {
             self.set_nonblocking(false)?;
 
             match r {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(None),
                 Err(e) => return Err(e),
             }
         }
 
-        self.read_message().map(Some)    
+        self.read_message().map(Some)
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
@@ -225,7 +233,9 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
     let port = params.port();
     match *params.host() {
         Host::Tcp(ref host) => {
-            Ok(TcpStream::connect(&(&**host, port)).map(InternalStream::Tcp)?)
+            Ok(TcpStream::connect(&(&**host, port)).map(
+                InternalStream::Tcp,
+            )?)
         }
         #[cfg(unix)]
         Host::Unix(ref path) => {
@@ -234,15 +244,18 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
         }
         #[cfg(not(unix))]
         Host::Unix(..) => {
-            Err(ConnectError::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                "unix sockets are not supported on this system")))
+            Err(ConnectError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "unix sockets are not supported on this system",
+            )))
         }
     }
 }
 
-pub fn initialize_stream(params: &ConnectParams,
-                         tls: TlsMode)
-                         -> Result<Box<TlsStream>, ConnectError> {
+pub fn initialize_stream(
+    params: &ConnectParams,
+    tls: TlsMode,
+) -> Result<Box<TlsStream>, ConnectError> {
     let mut socket = Stream(open_socket(params)?);
 
     let (tls_required, handshaker) = match tls {
@@ -272,5 +285,7 @@ pub fn initialize_stream(params: &ConnectParams,
         Host::Unix(_) => return Err(ConnectError::Io(::bad_response())),
     };
 
-    handshaker.tls_handshake(host, socket).map_err(ConnectError::Tls)
+    handshaker.tls_handshake(host, socket).map_err(
+        ConnectError::Tls,
+    )
 }

@@ -1,8 +1,8 @@
 //! Postgres types
 
 #[doc(inline)]
-pub use postgres_shared::types::{Oid, Type, Date, Timestamp, Kind, Field, Other, WasNull, WrongType,
-                                 FromSql, IsNull, ToSql};
+pub use postgres_shared::types::{Oid, Type, Date, Timestamp, Kind, Field, Other, WasNull,
+                                 WrongType, FromSql, IsNull, ToSql};
 
 #[doc(hidden)]
 pub use postgres_shared::types::__to_sql_checked;

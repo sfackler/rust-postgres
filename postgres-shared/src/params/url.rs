@@ -32,14 +32,15 @@ pub struct UserInfo {
 pub type Query = Vec<(String, String)>;
 
 impl Url {
-    pub fn new(scheme: String,
-               user: Option<UserInfo>,
-               host: String,
-               port: Option<u16>,
-               path: String,
-               query: Query,
-               fragment: Option<String>)
-               -> Url {
+    pub fn new(
+        scheme: String,
+        user: Option<UserInfo>,
+        host: String,
+        port: Option<u16>,
+        path: String,
+        query: Query,
+        fragment: Option<String>,
+    ) -> Url {
         Url {
             scheme: scheme,
             user: user,
@@ -63,13 +64,15 @@ impl Url {
         // query and fragment
         let (query, fragment) = get_query_fragment(rest)?;
 
-        let url = Url::new(scheme.to_owned(),
-                           userinfo,
-                           host.to_owned(),
-                           port,
-                           path,
-                           query,
-                           fragment);
+        let url = Url::new(
+            scheme.to_owned(),
+            userinfo,
+            host.to_owned(),
+            port,
+            path,
+            query,
+            fragment,
+        );
         Ok(url)
     }
 }
@@ -125,19 +128,23 @@ fn decode_inner(c: &str, full_url: bool) -> DecodeResult<String> {
                         let bytes = match (iter.next(), iter.next()) {
                             (Some(one), Some(two)) => [one, two],
                             _ => {
-                                return Err("Malformed input: found '%' without two \
+                                return Err(
+                                    "Malformed input: found '%' without two \
                                                     trailing bytes"
-                                    .to_owned())
+                                        .to_owned(),
+                                )
                             }
                         };
 
                         let bytes_from_hex = match Vec::<u8>::from_hex(&bytes) {
                             Ok(b) => b,
                             _ => {
-                                return Err("Malformed input: found '%' followed by \
+                                return Err(
+                                    "Malformed input: found '%' followed by \
                                             invalid hex  values. Character '%' must \
                                             escaped."
-                                    .to_owned())
+                                        .to_owned(),
+                                )
                             }
                         };
 
@@ -247,9 +254,7 @@ fn get_authority(rawurl: &str) -> DecodeResult<(Option<UserInfo>, &str, Option<u
     let mut begin = 2;
     let mut end = len;
 
-    for (i, c) in rawurl.chars()
-        .enumerate()
-        .skip(2) {
+    for (i, c) in rawurl.chars().enumerate().skip(2) {
         // deal with input class first
         match c {
             '0'...'9' => (),
@@ -390,7 +395,9 @@ fn get_path(rawurl: &str, is_authority: bool) -> DecodeResult<(String, &str)> {
     }
 
     if is_authority && end != 0 && !rawurl.starts_with('/') {
-        Err("Non-empty path must begin with '/' in presence of authority.".to_owned())
+        Err(
+            "Non-empty path must begin with '/' in presence of authority.".to_owned(),
+        )
     } else {
         Ok((decode_component(&rawurl[0..end])?, &rawurl[end..len]))
     }
@@ -409,7 +416,10 @@ fn get_query_fragment(rawurl: &str) -> DecodeResult<(Query, Option<String>)> {
     match before_fragment.chars().next() {
         Some('?') => Ok((query_from_str(&before_fragment[1..])?, fragment)),
         None => Ok((vec![], fragment)),
-        _ => Err(format!("Query didn't start with '?': '{}..'", before_fragment)),
+        _ => Err(format!(
+            "Query didn't start with '?': '{}..'",
+            before_fragment
+        )),
     }
 }
 

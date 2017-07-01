@@ -43,8 +43,9 @@ pub enum IsNull {
 
 #[inline]
 fn write_nullable<F, E>(serializer: F, buf: &mut Vec<u8>) -> Result<(), E>
-    where F: FnOnce(&mut Vec<u8>) -> Result<IsNull, E>,
-          E: From<io::Error>
+where
+    F: FnOnce(&mut Vec<u8>) -> Result<IsNull, E>,
+    E: From<io::Error>,
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);

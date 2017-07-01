@@ -89,12 +89,12 @@ impl ScramSha256 {
         let mut rng = OsRng::new()?;
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
-                     let mut v = rng.gen_range(0x21u8, 0x7e);
-                     if v == 0x2c {
-                         v = 0x7e
-                     }
-                     v as char
-                 })
+                let mut v = rng.gen_range(0x21u8, 0x7e);
+                if v == 0x2c {
+                    v = 0x7e
+                }
+                v as char
+            })
             .collect::<String>();
 
         ScramSha256::new_inner(password, nonce)
@@ -108,12 +108,12 @@ impl ScramSha256 {
         let password = normalize(password);
 
         Ok(ScramSha256 {
-               message: message,
-               state: State::Update {
-                   nonce: nonce,
-                   password: password,
-               },
-           })
+            message: message,
+            state: State::Update {
+                nonce: nonce,
+                password: password,
+            },
+        })
     }
 
     /// Returns the message which should be sent to the backend in an `SASLResponse` message.
@@ -133,8 +133,9 @@ impl ScramSha256 {
             _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
         };
 
-        let message = str::from_utf8(message)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let message = str::from_utf8(message).map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidInput, e)
+        })?;
 
         let parsed = Parser::new(message).server_first_message()?;
 
@@ -193,14 +194,18 @@ impl ScramSha256 {
             _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
         };
 
-        let message = str::from_utf8(message)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let message = str::from_utf8(message).map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidInput, e)
+        })?;
 
         let parsed = Parser::new(message).server_final_message()?;
 
         let verifier = match parsed {
             ServerFinalMessage::Error(e) => {
-                return Err(io::Error::new(io::ErrorKind::Other, format!("SCRAM error: {}", e)))
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("SCRAM error: {}", e),
+                ))
             }
             ServerFinalMessage::Verifier(verifier) => verifier,
         };
@@ -219,7 +224,10 @@ impl ScramSha256 {
         if hmac.verify(&verifier) {
             Ok(())
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "SCRAM verification error",
+            ))
         }
     }
 }
@@ -241,18 +249,24 @@ impl<'a> Parser<'a> {
         match self.it.next() {
             Some((_, c)) if c == target => Ok(()),
             Some((i, c)) => {
-                let m = format!("unexpected character at byte {}: expected `{}` but got `{}",
-                                i,
-                                target,
-                                c);
+                let m = format!(
+                    "unexpected character at byte {}: expected `{}` but got `{}",
+                    i,
+                    target,
+                    c
+                );
                 Err(io::Error::new(io::ErrorKind::InvalidInput, m))
             }
-            None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+            None => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "unexpected EOF",
+            )),
         }
     }
 
     fn take_while<F>(&mut self, f: F) -> io::Result<&'a str>
-        where F: Fn(char) -> bool
+    where
+        F: Fn(char) -> bool,
     {
         let start = match self.it.peek() {
             Some(&(i, _)) => i,
@@ -272,9 +286,9 @@ impl<'a> Parser<'a> {
 
     fn printable(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-                            '\x21'...'\x2b' | '\x2d'...'\x7e' => true,
-                            _ => false,
-                        })
+            '\x21'...'\x2b' | '\x2d'...'\x7e' => true,
+            _ => false,
+        })
     }
 
     fn nonce(&mut self) -> io::Result<&'a str> {
@@ -285,9 +299,9 @@ impl<'a> Parser<'a> {
 
     fn base64(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-                            'a'...'z' | 'A'...'Z' | '0'...'9' | '/' | '+' | '=' => true,
-                            _ => false,
-                        })
+            'a'...'z' | 'A'...'Z' | '0'...'9' | '/' | '+' | '=' => true,
+            _ => false,
+        })
     }
 
     fn salt(&mut self) -> io::Result<&'a str> {
@@ -298,11 +312,12 @@ impl<'a> Parser<'a> {
 
     fn posit_number(&mut self) -> io::Result<u32> {
         let n = self.take_while(|c| match c {
-                                    '0'...'9' => true,
-                                    _ => false,
-                                })?;
-        n.parse()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
+            '0'...'9' => true,
+            _ => false,
+        })?;
+        n.parse().map_err(
+            |e| io::Error::new(io::ErrorKind::InvalidInput, e),
+        )
     }
 
     fn iteration_count(&mut self) -> io::Result<u32> {
@@ -314,8 +329,10 @@ impl<'a> Parser<'a> {
     fn eof(&mut self) -> io::Result<()> {
         match self.it.peek() {
             Some(&(i, _)) => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   format!("unexpected trailing data at byte {}", i)))
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("unexpected trailing data at byte {}", i),
+                ))
             }
             None => Ok(()),
         }
@@ -330,17 +347,17 @@ impl<'a> Parser<'a> {
         self.eof()?;
 
         Ok(ServerFirstMessage {
-               nonce: nonce,
-               salt: salt,
-               iteration_count: iteration_count,
-           })
+            nonce: nonce,
+            salt: salt,
+            iteration_count: iteration_count,
+        })
     }
 
     fn value(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-                            '\0' | '=' | ',' => false,
-                            _ => true,
-                        })
+            '\0' | '=' | ',' => false,
+            _ => true,
+        })
     }
 
     fn server_error(&mut self) -> io::Result<Option<&'a str>> {

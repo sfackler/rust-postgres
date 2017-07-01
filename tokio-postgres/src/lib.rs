@@ -137,21 +137,29 @@ pub enum TlsMode {
 ///
 /// Only the host and port of the connection info are used. See
 /// `Connection::connect` for details of the `params` argument.
-pub fn cancel_query<T>(params: T,
-                       tls_mode: TlsMode,
-                       cancel_data: CancelData,
-                       handle: &Handle)
-                       -> BoxFuture<(), ConnectError>
-    where T: IntoConnectParams
+pub fn cancel_query<T>(
+    params: T,
+    tls_mode: TlsMode,
+    cancel_data: CancelData,
+    handle: &Handle,
+) -> BoxFuture<(), ConnectError>
+where
+    T: IntoConnectParams,
 {
     let params = match params.into_connect_params() {
         Ok(params) => {
-            Either::A(stream::connect(params.host().clone(), params.port(), tls_mode, handle))
+            Either::A(stream::connect(
+                params.host().clone(),
+                params.port(),
+                tls_mode,
+                handle,
+            ))
         }
         Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future()),
     };
 
-    params.and_then(move |c| {
+    params
+        .and_then(move |c| {
             let mut buf = vec![];
             frontend::cancel_request(cancel_data.process_id, cancel_data.secret_key, &mut buf);
             c.send(buf).map_err(ConnectError::Io)
@@ -177,31 +185,29 @@ impl InnerConnection {
     fn read(self) -> IoFuture<(backend::Message, InnerConnection)> {
         self.into_future()
             .map_err(|e| e.0)
-            .and_then(|(m, mut s)| {
-                match m {
-                    Some(backend::Message::NotificationResponse(body)) => {
-                        let process_id = body.process_id();
-                        let channel = match body.channel() {
-                            Ok(channel) => channel.to_owned(),
-                            Err(e) => return Either::A(Err(e).into_future()),
-                        };
-                        let message = match body.message() {
-                            Ok(channel) => channel.to_owned(),
-                            Err(e) => return Either::A(Err(e).into_future()),
-                        };
-                        let notification = Notification {
-                            process_id: process_id,
-                            channel: channel,
-                            payload: message,
-                        };
-                        s.notifications.push_back(notification);
-                        Either::B(s.read())
-                    }
-                    Some(m) => Either::A(Ok((m, s)).into_future()),
-                    None => {
-                        let err = io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF");
-                        Either::A(Err(err).into_future())
-                    }
+            .and_then(|(m, mut s)| match m {
+                Some(backend::Message::NotificationResponse(body)) => {
+                    let process_id = body.process_id();
+                    let channel = match body.channel() {
+                        Ok(channel) => channel.to_owned(),
+                        Err(e) => return Either::A(Err(e).into_future()),
+                    };
+                    let message = match body.message() {
+                        Ok(channel) => channel.to_owned(),
+                        Err(e) => return Either::A(Err(e).into_future()),
+                    };
+                    let notification = Notification {
+                        process_id: process_id,
+                        channel: channel,
+                        payload: message,
+                    };
+                    s.notifications.push_back(notification);
+                    Either::B(s.read())
+                }
+                Some(m) => Either::A(Ok((m, s)).into_future()),
+                None => {
+                    let err = io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF");
+                    Either::A(Err(err).into_future())
                 }
             })
             .boxed()
@@ -247,8 +253,7 @@ pub struct Connection(InnerConnection);
 // FIXME fill out
 impl fmt::Debug for Connection {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Connection")
-            .finish()
+        fmt.debug_struct("Connection").finish()
     }
 }
 
@@ -271,48 +276,54 @@ impl Connection {
     /// path contains non-UTF 8 characters, a `ConnectParams` struct should be
     /// created manually and passed in. Note that Postgres does not support TLS
     /// over Unix sockets.
-    pub fn connect<T>(params: T,
-                      tls_mode: TlsMode,
-                      handle: &Handle)
-                      -> BoxFuture<Connection, ConnectError>
-        where T: IntoConnectParams
+    pub fn connect<T>(
+        params: T,
+        tls_mode: TlsMode,
+        handle: &Handle,
+    ) -> BoxFuture<Connection, ConnectError>
+    where
+        T: IntoConnectParams,
     {
         let fut = match params.into_connect_params() {
             Ok(params) => {
-                Either::A(stream::connect(params.host().clone(), params.port(), tls_mode, handle)
-                    .map(|s| (s, params)))
+                Either::A(
+                    stream::connect(params.host().clone(), params.port(), tls_mode, handle)
+                        .map(|s| (s, params)),
+                )
             }
             Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future()),
         };
 
         fut.map(|(s, params)| {
-                let (sender, receiver) = mpsc::channel();
-                (Connection(InnerConnection {
-                     stream: s,
-                     close_sender: sender,
-                     close_receiver: receiver,
-                     parameters: HashMap::new(),
-                     types: HashMap::new(),
-                     notifications: VecDeque::new(),
-                     cancel_data: CancelData {
-                         process_id: 0,
-                         secret_key: 0,
-                     },
-                     has_typeinfo_query: false,
-                     has_typeinfo_enum_query: false,
-                     has_typeinfo_composite_query: false,
-                 }),
-                 params)
-            })
-            .and_then(|(s, params)| s.startup(params))
+            let (sender, receiver) = mpsc::channel();
+            (
+                Connection(InnerConnection {
+                    stream: s,
+                    close_sender: sender,
+                    close_receiver: receiver,
+                    parameters: HashMap::new(),
+                    types: HashMap::new(),
+                    notifications: VecDeque::new(),
+                    cancel_data: CancelData {
+                        process_id: 0,
+                        secret_key: 0,
+                    },
+                    has_typeinfo_query: false,
+                    has_typeinfo_enum_query: false,
+                    has_typeinfo_composite_query: false,
+                }),
+                params,
+            )
+        }).and_then(|(s, params)| s.startup(params))
             .and_then(|(s, params)| s.handle_auth(params))
             .and_then(|s| s.finish_startup())
             .boxed()
     }
 
-    fn startup(self,
-               params: ConnectParams)
-               -> BoxFuture<(Connection, ConnectParams), ConnectError> {
+    fn startup(
+        self,
+        params: ConnectParams,
+    ) -> BoxFuture<(Connection, ConnectParams), ConnectError> {
         let mut buf = vec![];
         let result = {
             let options = [("client_encoding", "UTF8"), ("timezone", "GMT")];
@@ -348,27 +359,35 @@ impl Connection {
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::ConnectParams("password was required but not \
+                                Err(ConnectError::ConnectParams(
+                                    "password was required but not \
                                                                  provided"
-                                    .into()))
+                                        .into(),
+                                ))
                             }
                         }
                     }
                     backend::Message::AuthenticationMd5Password(body) => {
-                        match params.user().and_then(|u| u.password().map(|p| (u.name(), p))) {
+                        match params.user().and_then(
+                            |u| u.password().map(|p| (u.name(), p)),
+                        ) {
                             Some((user, pass)) => {
-                                let pass = authentication::md5_hash(user.as_bytes(),
-                                                                    pass.as_bytes(),
-                                                                    body.salt());
+                                let pass = authentication::md5_hash(
+                                    user.as_bytes(),
+                                    pass.as_bytes(),
+                                    body.salt(),
+                                );
                                 let mut buf = vec![];
                                 frontend::password_message(&pass, &mut buf)
                                     .map(|()| Some(buf))
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::ConnectParams("password was required but not \
+                                Err(ConnectError::ConnectParams(
+                                    "password was required but not \
                                                                  provided"
-                                    .into()))
+                                        .into(),
+                                ))
                             }
                         }
                     }
@@ -428,9 +447,10 @@ impl Connection {
     }
 
     // This has its own read_rows since it will need to handle multiple query completions
-    fn simple_read_rows(self,
-                        mut rows: Vec<RowData>)
-                        -> BoxFuture<(Vec<RowData>, Connection), Error> {
+    fn simple_read_rows(
+        self,
+        mut rows: Vec<RowData>,
+    ) -> BoxFuture<(Vec<RowData>, Connection), Error> {
         self.0
             .read()
             .map_err(Error::Io)
@@ -457,7 +477,8 @@ impl Connection {
     }
 
     fn ready<T>(self, t: T) -> BoxFuture<(T, Connection), Error>
-        where T: 'static + Send
+    where
+        T: 'static + Send,
     {
         self.0
             .read()
@@ -485,7 +506,9 @@ impl Connection {
         frontend::sync(&mut buf);
         messages.push(buf);
         self.0
-            .send_all(futures::stream::iter(messages.into_iter().map(Ok::<_, io::Error>)))
+            .send_all(futures::stream::iter(
+                messages.into_iter().map(Ok::<_, io::Error>),
+            ))
             .map_err(Error::Io)
             .and_then(|s| Connection(s.0).finish_close_gc())
             .boxed()
@@ -505,7 +528,8 @@ impl Connection {
     }
 
     fn ready_err<T>(self, body: ErrorResponseBody) -> BoxFuture<T, Error>
-        where T: 'static + Send
+    where
+        T: 'static + Send,
     {
         DbError::new(&mut body.fields())
             .map_err(Error::Io)
@@ -529,15 +553,14 @@ impl Connection {
     /// data in the statement. Do not form statements via string concatenation
     /// and feed them into this method.
     pub fn batch_execute(self, query: &str) -> BoxFuture<Connection, Error> {
-        self.simple_query(query)
-            .map(|r| r.1)
-            .boxed()
+        self.simple_query(query).map(|r| r.1).boxed()
     }
 
-    fn raw_prepare(self,
-                   name: &str,
-                   query: &str)
-                   -> BoxFuture<(Vec<Type>, Vec<Column>, Connection), Error> {
+    fn raw_prepare(
+        self,
+        name: &str,
+        query: &str,
+    ) -> BoxFuture<(Vec<Type>, Vec<Column>, Connection), Error> {
         let mut parse = vec![];
         let mut describe = vec![];
         let mut sync = vec![];
@@ -605,17 +628,19 @@ impl Connection {
             .boxed()
     }
 
-    fn get_types<T, U, I, F, G>(self,
-                                mut raw: I,
-                                mut out: Vec<U>,
-                                mut get_oid: F,
-                                mut build: G)
-                                -> BoxFuture<(Vec<U>, Connection), Error>
-        where T: 'static + Send,
-              U: 'static + Send,
-              I: 'static + Send + Iterator<Item = T>,
-              F: 'static + Send + FnMut(&T) -> Oid,
-              G: 'static + Send + FnMut(T, Type) -> U
+    fn get_types<T, U, I, F, G>(
+        self,
+        mut raw: I,
+        mut out: Vec<U>,
+        mut get_oid: F,
+        mut build: G,
+    ) -> BoxFuture<(Vec<U>, Connection), Error>
+    where
+        T: 'static + Send,
+        U: 'static + Send,
+        I: 'static + Send + Iterator<Item = T>,
+        F: 'static + Send + FnMut(&T) -> Oid,
+        G: 'static + Send + FnMut(T, Type) -> U,
     {
         match raw.next() {
             Some(v) => {
@@ -651,7 +676,9 @@ impl Connection {
 
     fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Other, Connection), Error> {
         self.setup_typeinfo_query()
-            .and_then(move |c| c.raw_execute(TYPEINFO_QUERY, "", &[Type::Oid], &[&oid]))
+            .and_then(move |c| {
+                c.raw_execute(TYPEINFO_QUERY, "", &[Type::Oid], &[&oid])
+            })
             .and_then(|c| c.read_rows().collect())
             .and_then(move |(r, c)| {
                 let get = |idx| r.get(0).and_then(|r| r.get(idx));
@@ -688,22 +715,42 @@ impl Connection {
                 let kind = if type_ == b'p' as i8 {
                     Either::A(Ok((Kind::Pseudo, c)).into_future())
                 } else if type_ == b'e' as i8 {
-                    Either::B(c.get_enum_variants(oid).map(|(v, c)| (Kind::Enum(v), c)).boxed())
+                    Either::B(
+                        c.get_enum_variants(oid)
+                            .map(|(v, c)| (Kind::Enum(v), c))
+                            .boxed(),
+                    )
                 } else if basetype != 0 {
-                    Either::B(c.get_type(basetype).map(|(t, c)| (Kind::Domain(t), c)).boxed())
+                    Either::B(
+                        c.get_type(basetype)
+                            .map(|(t, c)| (Kind::Domain(t), c))
+                            .boxed(),
+                    )
                 } else if elem_oid != 0 {
-                    Either::B(c.get_type(elem_oid).map(|(t, c)| (Kind::Array(t), c)).boxed())
+                    Either::B(
+                        c.get_type(elem_oid)
+                            .map(|(t, c)| (Kind::Array(t), c))
+                            .boxed(),
+                    )
                 } else if relid != 0 {
-                    Either::B(c.get_composite_fields(relid)
-                        .map(|(f, c)| (Kind::Composite(f), c))
-                        .boxed())
+                    Either::B(
+                        c.get_composite_fields(relid)
+                            .map(|(f, c)| (Kind::Composite(f), c))
+                            .boxed(),
+                    )
                 } else if let Some(rngsubtype) = rngsubtype {
-                    Either::B(c.get_type(rngsubtype).map(|(t, c)| (Kind::Range(t), c)).boxed())
+                    Either::B(
+                        c.get_type(rngsubtype)
+                            .map(|(t, c)| (Kind::Range(t), c))
+                            .boxed(),
+                    )
                 } else {
                     Either::A(Ok((Kind::Simple, c)).into_future())
                 };
 
-                Either::B(kind.map(move |(k, c)| (Other::new(name, oid, k, schema), c)))
+                Either::B(kind.map(
+                    move |(k, c)| (Other::new(name, oid, k, schema), c),
+                ))
             })
             .boxed()
     }
@@ -713,16 +760,17 @@ impl Connection {
             return Ok(self).into_future().boxed();
         }
 
-        self.raw_prepare(TYPEINFO_QUERY,
-                         "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
+        self.raw_prepare(
+            TYPEINFO_QUERY,
+            "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, \
                                  t.typbasetype, n.nspname, t.typrelid \
                           FROM pg_catalog.pg_type t \
                           LEFT OUTER JOIN pg_catalog.pg_range r ON \
                               r.rngtypid = t.oid \
                           INNER JOIN pg_catalog.pg_namespace n ON \
                               t.typnamespace = n.oid \
-                          WHERE t.oid = $1")
-            .or_else(|e| {
+                          WHERE t.oid = $1",
+        ).or_else(|e| {
                 match e {
                     // Range types weren't added until Postgres 9.2, so pg_range may not exist
                     Error::Db(e, c) => {
@@ -730,14 +778,16 @@ impl Connection {
                             return Either::B(Err(Error::Db(e, c)).into_future());
                         }
 
-                        Either::A(c.raw_prepare(TYPEINFO_QUERY,
-                                                "SELECT t.typname, t.typtype, t.typelem, \
+                        Either::A(c.raw_prepare(
+                            TYPEINFO_QUERY,
+                            "SELECT t.typname, t.typtype, t.typelem, \
                                                      NULL::OID, t.typbasetype, n.nspname, \
                                                      t.typrelid \
                                                  FROM pg_catalog.pg_type t \
                                                  INNER JOIN pg_catalog.pg_namespace n \
                                                      ON t.typnamespace = n.oid \
-                                                 WHERE t.oid = $1"))
+                                                 WHERE t.oid = $1",
+                        ))
                     }
                     e => Either::B(Err(e).into_future()),
                 }
@@ -751,7 +801,9 @@ impl Connection {
 
     fn get_enum_variants(self, oid: Oid) -> BoxFuture<(Vec<String>, Connection), Error> {
         self.setup_typeinfo_enum_query()
-            .and_then(move |c| c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[Type::Oid], &[&oid]))
+            .and_then(move |c| {
+                c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[Type::Oid], &[&oid])
+            })
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 let mut variants = vec![];
@@ -772,20 +824,23 @@ impl Connection {
             return Ok(self).into_future().boxed();
         }
 
-        self.raw_prepare(TYPEINFO_ENUM_QUERY,
-                         "SELECT enumlabel \
+        self.raw_prepare(
+            TYPEINFO_ENUM_QUERY,
+            "SELECT enumlabel \
                           FROM pg_catalog.pg_enum \
                           WHERE enumtypid = $1 \
-                          ORDER BY enumsortorder")
-            .or_else(|e| match e {
+                          ORDER BY enumsortorder",
+        ).or_else(|e| match e {
                 Error::Db(e, c) => {
                     if e.code != SqlState::UndefinedColumn {
                         return Either::B(Err(Error::Db(e, c)).into_future());
                     }
 
-                    Either::A(c.raw_prepare(TYPEINFO_ENUM_QUERY,
-                                            "SELECT enumlabel FROM pg_catalog.pg_enum WHERE \
-                                             enumtypid = $1 ORDER BY oid"))
+                    Either::A(c.raw_prepare(
+                        TYPEINFO_ENUM_QUERY,
+                        "SELECT enumlabel FROM pg_catalog.pg_enum WHERE \
+                                             enumtypid = $1 ORDER BY oid",
+                    ))
                 }
                 e => Either::B(Err(e).into_future()),
             })
@@ -803,8 +858,9 @@ impl Connection {
             })
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
-                futures::stream::iter(r.into_iter().map(Ok))
-                    .fold((vec![], c), |(mut fields, c), row| {
+                futures::stream::iter(r.into_iter().map(Ok)).fold(
+                    (vec![], c),
+                    |(mut fields, c), row| {
                         let name = match String::from_sql_nullable(&Type::Name, row.get(0)) {
                             Ok(name) => name,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
@@ -813,12 +869,12 @@ impl Connection {
                             Ok(oid) => oid,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                         };
-                        Either::B(c.get_type(oid)
-                            .map(move |(ty, c)| {
-                                fields.push(Field::new(name, ty));
-                                (fields, c)
-                            }))
-                    })
+                        Either::B(c.get_type(oid).map(move |(ty, c)| {
+                            fields.push(Field::new(name, ty));
+                            (fields, c)
+                        }))
+                    },
+                )
             })
             .boxed()
     }
@@ -828,46 +884,52 @@ impl Connection {
             return Ok(self).into_future().boxed();
         }
 
-        self.raw_prepare(TYPEINFO_COMPOSITE_QUERY,
-                         "SELECT attname, atttypid \
+        self.raw_prepare(
+            TYPEINFO_COMPOSITE_QUERY,
+            "SELECT attname, atttypid \
                           FROM pg_catalog.pg_attribute \
                           WHERE attrelid = $1 \
                               AND NOT attisdropped \
                               AND attnum > 0 \
-                          ORDER BY attnum")
-            .map(|(_, _, mut c)| {
+                          ORDER BY attnum",
+        ).map(|(_, _, mut c)| {
                 c.0.has_typeinfo_composite_query = true;
                 c
             })
             .boxed()
     }
 
-    fn raw_execute(self,
-                   stmt: &str,
-                   portal: &str,
-                   param_types: &[Type],
-                   params: &[&ToSql])
-                   -> BoxFuture<Connection, Error> {
-        assert!(param_types.len() == params.len(),
-                "expected {} parameters but got {}",
-                param_types.len(),
-                params.len());
+    fn raw_execute(
+        self,
+        stmt: &str,
+        portal: &str,
+        param_types: &[Type],
+        params: &[&ToSql],
+    ) -> BoxFuture<Connection, Error> {
+        assert!(
+            param_types.len() == params.len(),
+            "expected {} parameters but got {}",
+            param_types.len(),
+            params.len()
+        );
 
         let mut bind = vec![];
         let mut execute = vec![];
         let mut sync = vec![];
         frontend::sync(&mut sync);
-        let r = frontend::bind(portal,
-                               stmt,
-                               Some(1),
-                               params.iter().zip(param_types),
-                               |(param, ty), buf| match param.to_sql_checked(ty, buf) {
-                                   Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
-                                   Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
-                                   Err(e) => Err(e),
-                               },
-                               Some(1),
-                               &mut bind);
+        let r = frontend::bind(
+            portal,
+            stmt,
+            Some(1),
+            params.iter().zip(param_types),
+            |(param, ty), buf| match param.to_sql_checked(ty, buf) {
+                Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                Err(e) => Err(e),
+            },
+            Some(1),
+            &mut bind,
+        );
         let r = match r {
             Ok(()) => Ok(self),
             Err(frontend::BindError::Conversion(e)) => Err(Error::Conversion(e, self)),
@@ -875,11 +937,10 @@ impl Connection {
         };
 
         r.and_then(|s| {
-                frontend::execute(portal, 0, &mut execute)
+            frontend::execute(portal, 0, &mut execute)
                     .map(|()| s)
                     .map_err(Error::Io)
-            })
-            .into_future()
+        }).into_future()
             .and_then(|s| {
                 let it = Some(bind)
                     .into_iter()
@@ -901,43 +962,35 @@ impl Connection {
         self.0
             .read()
             .map_err(Error::Io)
-            .and_then(|(m, s)| {
-                match m {
-                    backend::Message::DataRow(_) => Connection(s).finish_execute().boxed(),
-                    backend::Message::CommandComplete(body) => {
-                        body.tag()
-                            .map(|tag| {
-                                tag.split_whitespace()
-                                    .last()
-                                    .unwrap()
-                                    .parse()
-                                    .unwrap_or(0)
-                            })
-                            .map_err(Error::Io)
-                            .into_future()
-                            .and_then(|n| Connection(s).ready(n))
-                            .boxed()
-                    }
-                    backend::Message::EmptyQueryResponse => Connection(s).ready(0).boxed(),
-                    backend::Message::ErrorResponse(body) => Connection(s).ready_err(body).boxed(),
-                    _ => Err(bad_message()).into_future().boxed(),
+            .and_then(|(m, s)| match m {
+                backend::Message::DataRow(_) => Connection(s).finish_execute().boxed(),
+                backend::Message::CommandComplete(body) => {
+                    body.tag()
+                        .map(|tag| {
+                            tag.split_whitespace().last().unwrap().parse().unwrap_or(0)
+                        })
+                        .map_err(Error::Io)
+                        .into_future()
+                        .and_then(|n| Connection(s).ready(n))
+                        .boxed()
                 }
+                backend::Message::EmptyQueryResponse => Connection(s).ready(0).boxed(),
+                backend::Message::ErrorResponse(body) => Connection(s).ready_err(body).boxed(),
+                _ => Err(bad_message()).into_future().boxed(),
             })
             .boxed()
     }
 
     fn read_rows(self) -> BoxStateStream<RowData, Connection, Error> {
         futures_state_stream::unfold(self, |c| {
-                c.read_row()
-                    .and_then(|(r, c)| match r {
-                        Some(data) => {
-                            let event = StreamEvent::Next((data, c));
-                            Either::A(Ok(event).into_future())
-                        }
-                        None => Either::B(c.ready(()).map(|((), c)| StreamEvent::Done(c))),
-                    })
+            c.read_row().and_then(|(r, c)| match r {
+                Some(data) => {
+                    let event = StreamEvent::Next((data, c));
+                    Either::A(Ok(event).into_future())
+                }
+                None => Either::B(c.ready(()).map(|((), c)| StreamEvent::Done(c))),
             })
-            .boxed()
+        }).boxed()
     }
 
     fn read_row(self) -> BoxFuture<(Option<RowData>, Connection), Error> {
@@ -948,10 +1001,12 @@ impl Connection {
                 let c = Connection(s);
                 match m {
                     backend::Message::DataRow(body) => {
-                        Either::A(RowData::new(body)
-                            .map(|r| (Some(r), c))
-                            .map_err(Error::Io)
-                            .into_future())
+                        Either::A(
+                            RowData::new(body)
+                                .map(|r| (Some(r), c))
+                                .map_err(Error::Io)
+                                .into_future(),
+                        )
                     }
                     backend::Message::EmptyQueryResponse |
                     backend::Message::CommandComplete(_) => Either::A(Ok((None, c)).into_future()),
@@ -981,10 +1036,11 @@ impl Connection {
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
-    pub fn execute(self,
-                   statement: &Statement,
-                   params: &[&ToSql])
-                   -> BoxFuture<(u64, Connection), Error> {
+    pub fn execute(
+        self,
+        statement: &Statement,
+        params: &[&ToSql],
+    ) -> BoxFuture<(u64, Connection), Error> {
         self.raw_execute(statement.name(), "", statement.parameters(), params)
             .and_then(|conn| conn.finish_execute())
             .boxed()
@@ -996,10 +1052,11 @@ impl Connection {
     ///
     /// Panics if the number of parameters provided does not match the number
     /// expected.
-    pub fn query(self,
-                 statement: &Statement,
-                 params: &[&ToSql])
-                 -> BoxStateStream<Row, Connection, Error> {
+    pub fn query(
+        self,
+        statement: &Statement,
+        params: &[&ToSql],
+    ) -> BoxStateStream<Row, Connection, Error> {
         let columns = statement.columns_arc().clone();
         self.raw_execute(statement.name(), "", statement.parameters(), params)
             .map(|c| c.read_rows().map(move |r| Row::new(columns.clone(), r)))
@@ -1077,7 +1134,8 @@ fn connect_err(fields: &mut ErrorFields) -> ConnectError {
 }
 
 fn bad_message<T>() -> T
-    where T: From<io::Error>
+where
+    T: From<io::Error>,
 {
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
 }
@@ -1087,11 +1145,12 @@ trait RowNew {
 }
 
 trait StatementNew {
-    fn new(close_sender: Sender<(u8, String)>,
-           name: String,
-           params: Vec<Type>,
-           columns: Arc<Vec<Column>>)
-           -> Statement;
+    fn new(
+        close_sender: Sender<(u8, String)>,
+        name: String,
+        params: Vec<Type>,
+        columns: Arc<Vec<Column>>,
+    ) -> Statement;
 
     fn columns_arc(&self) -> &Arc<Vec<Column>>;
 

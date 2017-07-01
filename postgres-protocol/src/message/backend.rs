@@ -61,7 +61,10 @@ impl Message {
         let len = (&buf[1..5]).read_u32::<BigEndian>().unwrap();
 
         if len < 4 {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid message length",
+            ));
         }
 
         let total_len = len as usize + 1;
@@ -85,10 +88,10 @@ impl Message {
                 let channel = buf.read_cstr()?;
                 let message = buf.read_cstr()?;
                 Message::NotificationResponse(NotificationResponseBody {
-                                                  process_id: process_id,
-                                                  channel: channel,
-                                                  message: message,
-                                              })
+                    process_id: process_id,
+                    channel: channel,
+                    message: message,
+                })
             }
             b'c' => Message::CopyDone,
             b'C' => {
@@ -103,9 +106,9 @@ impl Message {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::DataRow(DataRowBody {
-                                     storage: storage,
-                                     len: len,
-                                 })
+                    storage: storage,
+                    len: len,
+                })
             }
             b'E' => {
                 let storage = buf.read_all();
@@ -116,29 +119,29 @@ impl Message {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyInResponse(CopyInResponseBody {
-                                            format: format,
-                                            len: len,
-                                            storage: storage,
-                                        })
+                    format: format,
+                    len: len,
+                    storage: storage,
+                })
             }
             b'H' => {
                 let format = buf.read_u8()?;
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
-                                             format: format,
-                                             len: len,
-                                             storage: storage,
-                                         })
+                    format: format,
+                    len: len,
+                    storage: storage,
+                })
             }
             b'I' => Message::EmptyQueryResponse,
             b'K' => {
                 let process_id = buf.read_i32::<BigEndian>()?;
                 let secret_key = buf.read_i32::<BigEndian>()?;
                 Message::BackendKeyData(BackendKeyDataBody {
-                                            process_id: process_id,
-                                            secret_key: secret_key,
-                                        })
+                    process_id: process_id,
+                    secret_key: secret_key,
+                })
             }
             b'n' => Message::NoData,
             b'N' => {
@@ -153,9 +156,9 @@ impl Message {
                     5 => {
                         let mut salt = [0; 4];
                         buf.read_exact(&mut salt)?;
-                        Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody {
-                                                               salt: salt,
-                                                           })
+                        Message::AuthenticationMd5Password(
+                            AuthenticationMd5PasswordBody { salt: salt },
+                        )
                     }
                     6 => Message::AuthenticationScmCredential,
                     7 => Message::AuthenticationGss,
@@ -177,8 +180,10 @@ impl Message {
                         Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
                     }
                     tag => {
-                        return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                                  format!("unknown authentication tag `{}`", tag)));
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("unknown authentication tag `{}`", tag),
+                        ));
                     }
                 }
             }
@@ -187,38 +192,43 @@ impl Message {
                 let name = buf.read_cstr()?;
                 let value = buf.read_cstr()?;
                 Message::ParameterStatus(ParameterStatusBody {
-                                             name: name,
-                                             value: value,
-                                         })
+                    name: name,
+                    value: value,
+                })
             }
             b't' => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::ParameterDescription(ParameterDescriptionBody {
-                                                  storage: storage,
-                                                  len: len,
-                                              })
+                    storage: storage,
+                    len: len,
+                })
             }
             b'T' => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::RowDescription(RowDescriptionBody {
-                                            storage: storage,
-                                            len: len,
-                                        })
+                    storage: storage,
+                    len: len,
+                })
             }
             b'Z' => {
                 let status = buf.read_u8()?;
                 Message::ReadyForQuery(ReadyForQueryBody { status: status })
             }
             tag => {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          format!("unknown message tag `{}`", tag)));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("unknown message tag `{}`", tag),
+                ));
             }
         };
 
         if !buf.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid message length",
+            ));
         }
 
         Ok(Some(message))
@@ -248,7 +258,10 @@ impl Buffer {
                 self.idx = end + 1;
                 Ok(cstr)
             }
-            None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+            None => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "unexpected EOF",
+            )),
         }
     }
 
@@ -312,7 +325,10 @@ impl<'a> FallibleIterator for SaslMechanisms<'a> {
         let value_end = find_null(self.0, 0)?;
         if value_end == 0 {
             if self.0.len() != 1 {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid message length",
+                ));
             }
             Ok(None)
         } else {
@@ -416,7 +432,10 @@ impl<'a> FallibleIterator for ColumnFormats<'a> {
             if self.buf.is_empty() {
                 return Ok(None);
             } else {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid message length",
+                ));
             }
         }
 
@@ -489,7 +508,10 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
             if self.buf.is_empty() {
                 return Ok(None);
             } else {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid message length",
+                ));
             }
         }
 
@@ -500,7 +522,10 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
         } else {
             let len = len as usize;
             if self.buf.len() < len {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF"));
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "unexpected EOF",
+                ));
             }
             let base = self.len - self.buf.len();
             self.buf = &self.buf[len as usize..];
@@ -541,7 +566,10 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
             if self.buf.is_empty() {
                 return Ok(None);
             } else {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid message length",
+                ));
             }
         }
 
@@ -550,9 +578,9 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
         self.buf = &self.buf[value_end + 1..];
 
         Ok(Some(ErrorField {
-                    type_: type_,
-                    value: value,
-                }))
+            type_: type_,
+            value: value,
+        }))
     }
 }
 
@@ -637,7 +665,10 @@ impl<'a> FallibleIterator for Parameters<'a> {
             if self.buf.is_empty() {
                 return Ok(None);
             } else {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid message length",
+                ));
             }
         }
 
@@ -710,7 +741,10 @@ impl<'a> FallibleIterator for Fields<'a> {
             if self.buf.is_empty() {
                 return Ok(None);
             } else {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid message length"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid message length",
+                ));
             }
         }
 
@@ -726,14 +760,14 @@ impl<'a> FallibleIterator for Fields<'a> {
         let format = self.buf.read_i16::<BigEndian>()?;
 
         Ok(Some(Field {
-                    name: name,
-                    table_oid: table_oid,
-                    column_id: column_id,
-                    type_oid: type_oid,
-                    type_size: type_size,
-                    type_modifier: type_modifier,
-                    format: format,
-                }))
+            name: name,
+            table_oid: table_oid,
+            column_id: column_id,
+            type_oid: type_oid,
+            type_size: type_size,
+            type_modifier: type_modifier,
+            format: format,
+        }))
     }
 }
 
@@ -788,7 +822,10 @@ impl<'a> Field<'a> {
 fn find_null(buf: &[u8], start: usize) -> io::Result<usize> {
     match memchr(0, &buf[start..]) {
         Some(pos) => Ok(pos + start),
-        None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF")),
+        None => Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "unexpected EOF",
+        )),
     }
 }
 

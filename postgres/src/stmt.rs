@@ -37,11 +37,12 @@ impl<'conn> Drop for Statement<'conn> {
 }
 
 impl<'conn> StatementInternals<'conn> for Statement<'conn> {
-    fn new(conn: &'conn Connection,
-           info: Arc<StatementInfo>,
-           next_portal_id: Cell<u32>,
-           finished: bool)
-           -> Statement<'conn> {
+    fn new(
+        conn: &'conn Connection,
+        info: Arc<StatementInfo>,
+        next_portal_id: Cell<u32>,
+        finished: bool,
+    ) -> Statement<'conn> {
         Statement {
             conn: conn,
             info: info,
@@ -79,21 +80,25 @@ impl<'conn> Statement<'conn> {
     }
 
     #[allow(type_complexity)]
-    fn inner_query<F>(&self,
-                      portal_name: &str,
-                      row_limit: i32,
-                      params: &[&ToSql],
-                      acceptor: F)
-                      -> Result<bool>
-        where F: FnMut(RowData)
+    fn inner_query<F>(
+        &self,
+        portal_name: &str,
+        row_limit: i32,
+        params: &[&ToSql],
+        acceptor: F,
+    ) -> Result<bool>
+    where
+        F: FnMut(RowData),
     {
         let mut conn = self.conn.0.borrow_mut();
 
-        conn.raw_execute(&self.info.name,
-                         portal_name,
-                         row_limit,
-                         self.param_types(),
-                         params)?;
+        conn.raw_execute(
+            &self.info.name,
+            portal_name,
+            row_limit,
+            self.param_types(),
+            params,
+        )?;
 
         conn.read_rows(acceptor)
     }
@@ -131,7 +136,13 @@ impl<'conn> Statement<'conn> {
     pub fn execute(&self, params: &[&ToSql]) -> Result<u64> {
         let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
-        conn.raw_execute(&self.info.name, "", 0, self.param_types(), params)?;
+        conn.raw_execute(
+            &self.info.name,
+            "",
+            0,
+            self.param_types(),
+            params,
+        )?;
 
         let num;
         loop {
@@ -153,8 +164,9 @@ impl<'conn> Statement<'conn> {
                     conn.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     })?;
-                    conn.stream
-                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+                    conn.stream.write_message(
+                        |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+                    )?;
                     conn.stream.flush()?;
                 }
                 backend::Message::CopyOutResponse(_) => {
@@ -226,18 +238,23 @@ impl<'conn> Statement<'conn> {
     /// `Connection` as this `Statement`, if the `Transaction` is not
     /// active, or if the number of parameters provided does not match the
     /// number of parameters expected.
-    pub fn lazy_query<'trans, 'stmt>(&'stmt self,
-                                     trans: &'trans Transaction,
-                                     params: &[&ToSql],
-                                     row_limit: i32)
-                                     -> Result<LazyRows<'trans, 'stmt>> {
-        assert!(self.conn as *const _ == trans.conn() as *const _,
-                "the `Transaction` passed to `lazy_query` must be associated with the same \
-                 `Connection` as the `Statement`");
+    pub fn lazy_query<'trans, 'stmt>(
+        &'stmt self,
+        trans: &'trans Transaction,
+        params: &[&ToSql],
+        row_limit: i32,
+    ) -> Result<LazyRows<'trans, 'stmt>> {
+        assert!(
+            self.conn as *const _ == trans.conn() as *const _,
+            "the `Transaction` passed to `lazy_query` must be associated with the same \
+                 `Connection` as the `Statement`"
+        );
         let conn = self.conn.0.borrow();
         check_desync!(conn);
-        assert!(conn.trans_depth == trans.depth(),
-                "`lazy_query` must be passed the active transaction");
+        assert!(
+            conn.trans_depth == trans.depth(),
+            "`lazy_query` must be passed the active transaction"
+        );
         drop(conn);
 
         let id = self.next_portal_id.get();
@@ -245,11 +262,21 @@ impl<'conn> Statement<'conn> {
         let portal_name = format!("{}p{}", self.info.name, id);
 
         let mut rows = VecDeque::new();
-        let more_rows = self.inner_query(&portal_name,
-                                         row_limit,
-                                         params,
-                                         |row| rows.push_back(row))?;
-        Ok(LazyRows::new(self, rows, portal_name, row_limit, more_rows, false, trans))
+        let more_rows = self.inner_query(
+            &portal_name,
+            row_limit,
+            params,
+            |row| rows.push_back(row),
+        )?;
+        Ok(LazyRows::new(
+            self,
+            rows,
+            portal_name,
+            row_limit,
+            more_rows,
+            false,
+            trans,
+        ))
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows
@@ -275,14 +302,18 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn copy_in<R: ReadWithInfo>(&self, params: &[&ToSql], r: &mut R) -> Result<u64> {
         let mut conn = self.conn.0.borrow_mut();
-        conn.raw_execute(&self.info.name, "", 0, self.param_types(), params)?;
+        conn.raw_execute(
+            &self.info.name,
+            "",
+            0,
+            self.param_types(),
+            params,
+        )?;
 
         let (format, column_formats) = match conn.read_message()? {
             backend::Message::CopyInResponse(body) => {
                 let format = body.format();
-                let column_formats = body.column_formats()
-                    .map(|f| Format::from_u16(f))
-                    .collect()?;
+                let column_formats = body.column_formats().map(|f| Format::from_u16(f)).collect()?;
                 (format, column_formats)
             }
             backend::Message::ErrorResponse(body) => {
@@ -292,10 +323,12 @@ impl<'conn> Statement<'conn> {
             _ => {
                 loop {
                     if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
-                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                            "called `copy_in` on a \
+                        return Err(Error::Io(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "called `copy_in` on a \
                                                              non-`COPY FROM STDIN` \
-                                                             statement")));
+                                                             statement",
+                        )));
                     }
                 }
             }
@@ -311,14 +344,20 @@ impl<'conn> Statement<'conn> {
             match fill_copy_buf(&mut buf, r, &info) {
                 Ok(0) => break,
                 Ok(len) => {
-                    conn.stream.write_message(|out| frontend::copy_data(&buf[..len], out))?;
+                    conn.stream.write_message(
+                        |out| frontend::copy_data(&buf[..len], out),
+                    )?;
                 }
                 Err(err) => {
-                    conn.stream.write_message(|buf| frontend::copy_fail("", buf))?;
-                    conn.stream
-                        .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf)))?;
-                    conn.stream
-                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+                    conn.stream.write_message(
+                        |buf| frontend::copy_fail("", buf),
+                    )?;
+                    conn.stream.write_message(|buf| {
+                        Ok::<(), io::Error>(frontend::copy_done(buf))
+                    })?;
+                    conn.stream.write_message(
+                        |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+                    )?;
                     conn.stream.flush()?;
                     match conn.read_message()? {
                         backend::Message::ErrorResponse(_) => {
@@ -335,8 +374,12 @@ impl<'conn> Statement<'conn> {
             }
         }
 
-        conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf)))?;
-        conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+        conn.stream.write_message(|buf| {
+            Ok::<(), io::Error>(frontend::copy_done(buf))
+        })?;
+        conn.stream.write_message(
+            |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+        )?;
         conn.stream.flush()?;
 
         let num = match conn.read_message()? {
@@ -379,21 +422,30 @@ impl<'conn> Statement<'conn> {
     /// ```
     pub fn copy_out<'a, W: WriteWithInfo>(&'a self, params: &[&ToSql], w: &mut W) -> Result<u64> {
         let mut conn = self.conn.0.borrow_mut();
-        conn.raw_execute(&self.info.name, "", 0, self.param_types(), params)?;
+        conn.raw_execute(
+            &self.info.name,
+            "",
+            0,
+            self.param_types(),
+            params,
+        )?;
 
         let (format, column_formats) = match conn.read_message()? {
             backend::Message::CopyOutResponse(body) => {
                 let format = body.format();
-                let column_formats = body.column_formats()
-                    .map(|f| Format::from_u16(f))
-                    .collect()?;
+                let column_formats = body.column_formats().map(|f| Format::from_u16(f)).collect()?;
                 (format, column_formats)
             }
             backend::Message::CopyInResponse(_) => {
-                conn.stream.write_message(|buf| frontend::copy_fail("", buf))?;
-                conn.stream
-                    .write_message(|buf| Ok::<(), io::Error>(frontend::copy_done(buf)))?;
-                conn.stream.write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
+                conn.stream.write_message(
+                    |buf| frontend::copy_fail("", buf),
+                )?;
+                conn.stream.write_message(|buf| {
+                    Ok::<(), io::Error>(frontend::copy_done(buf))
+                })?;
+                conn.stream.write_message(
+                    |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+                )?;
                 conn.stream.flush()?;
                 match conn.read_message()? {
                     backend::Message::ErrorResponse(_) => {
@@ -405,9 +457,11 @@ impl<'conn> Statement<'conn> {
                     }
                 }
                 conn.wait_for_ready()?;
-                return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                    "called `copy_out` on a non-`COPY TO \
-                                                     STDOUT` statement")));
+                return Err(Error::Io(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "called `copy_out` on a non-`COPY TO \
+                                                     STDOUT` statement",
+                )));
             }
             backend::Message::ErrorResponse(body) => {
                 conn.wait_for_ready()?;
@@ -416,9 +470,11 @@ impl<'conn> Statement<'conn> {
             _ => {
                 loop {
                     if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
-                        return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidInput,
-                                                            "called `copy_out` on a \
-                                                             non-`COPY TO STDOUT` statement")));
+                        return Err(Error::Io(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "called `copy_out` on a \
+                                                             non-`COPY TO STDOUT` statement",
+                        )));
                     }
                 }
             }
@@ -440,7 +496,8 @@ impl<'conn> Statement<'conn> {
                             Err(e) => {
                                 loop {
                                     if let backend::Message::ReadyForQuery(_) =
-                                            conn.read_message()? {
+                                        conn.read_message()?
+                                    {
                                         return Err(Error::Io(e));
                                     }
                                 }
@@ -455,16 +512,14 @@ impl<'conn> Statement<'conn> {
                 }
                 backend::Message::ErrorResponse(body) => {
                     loop {
-                        if let backend::Message::ReadyForQuery(_) =
-                                conn.read_message()? {
+                        if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
                             return Err(err(&mut body.fields()));
                         }
                     }
                 }
                 _ => {
                     loop {
-                        if let backend::Message::ReadyForQuery(_) =
-                                conn.read_message()? {
+                        if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
                             return Err(Error::Io(bad_response()));
                         }
                     }

@@ -19,11 +19,12 @@ pub struct Statement {
 }
 
 impl StatementNew for Statement {
-    fn new(close_sender: Sender<(u8, String)>,
-           name: String,
-           params: Vec<Type>,
-           columns: Arc<Vec<Column>>)
-           -> Statement {
+    fn new(
+        close_sender: Sender<(u8, String)>,
+        name: String,
+        params: Vec<Type>,
+        columns: Arc<Vec<Column>>,
+    ) -> Statement {
         Statement {
             close_sender: close_sender,
             name: name,

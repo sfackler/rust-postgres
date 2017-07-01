@@ -54,10 +54,11 @@ impl From<TlsConnector> for NativeTls {
 }
 
 impl TlsHandshake for NativeTls {
-    fn tls_handshake(&self,
-                     domain: &str,
-                     stream: Stream)
-                     -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
+    fn tls_handshake(
+        &self,
+        domain: &str,
+        stream: Stream,
+    ) -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let stream = self.0.connect(domain, stream)?;
         Ok(Box::new(stream))
     }

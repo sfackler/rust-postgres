@@ -27,7 +27,10 @@ mod chrono;
 mod geo;
 
 fn test_type<T: PartialEq + FromSql + ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
         let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
@@ -41,7 +44,10 @@ fn test_type<T: PartialEq + FromSql + ToSql, S: fmt::Display>(sql_type: &str, ch
 
 #[test]
 fn test_ref_tosql() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
     let stmt = conn.prepare("SELECT $1::Int").unwrap();
     let num: &ToSql = &&7;
     stmt.query(&[num]).unwrap();
@@ -49,8 +55,10 @@ fn test_ref_tosql() {
 
 #[test]
 fn test_bool_params() {
-    test_type("BOOL",
-              &[(Some(true), "'t'"), (Some(false), "'f'"), (None, "NULL")]);
+    test_type(
+        "BOOL",
+        &[(Some(true), "'t'"), (Some(false), "'f'"), (None, "NULL")],
+    );
 }
 
 #[test]
@@ -60,120 +68,190 @@ fn test_i8_params() {
 
 #[test]
 fn test_name_params() {
-    test_type("NAME",
-              &[(Some("hello world".to_owned()), "'hello world'"),
-                (Some("イロハニホヘト チリヌルヲ".to_owned()),
-                 "'イロハニホヘト チリヌルヲ'"),
-                (None, "NULL")]);
+    test_type(
+        "NAME",
+        &[
+            (Some("hello world".to_owned()), "'hello world'"),
+            (
+                Some("イロハニホヘト チリヌルヲ".to_owned()),
+                "'イロハニホヘト チリヌルヲ'",
+            ),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_i16_params() {
-    test_type("SMALLINT",
-              &[(Some(15001i16), "15001"),
-                (Some(-15001i16), "-15001"),
-                (None, "NULL")]);
+    test_type(
+        "SMALLINT",
+        &[
+            (Some(15001i16), "15001"),
+            (Some(-15001i16), "-15001"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_i32_params() {
-    test_type("INT",
-              &[(Some(2147483548i32), "2147483548"),
-                (Some(-2147483548i32), "-2147483548"),
-                (None, "NULL")]);
+    test_type(
+        "INT",
+        &[
+            (Some(2147483548i32), "2147483548"),
+            (Some(-2147483548i32), "-2147483548"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_oid_params() {
-    test_type("OID",
-              &[(Some(2147483548u32), "2147483548"),
-                (Some(4000000000), "4000000000"),
-                (None, "NULL")]);
+    test_type(
+        "OID",
+        &[
+            (Some(2147483548u32), "2147483548"),
+            (Some(4000000000), "4000000000"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_i64_params() {
-    test_type("BIGINT",
-              &[(Some(9223372036854775708i64), "9223372036854775708"),
-                (Some(-9223372036854775708i64), "-9223372036854775708"),
-                (None, "NULL")]);
+    test_type(
+        "BIGINT",
+        &[
+            (Some(9223372036854775708i64), "9223372036854775708"),
+            (Some(-9223372036854775708i64), "-9223372036854775708"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_f32_params() {
-    test_type("REAL",
-              &[(Some(f32::INFINITY), "'infinity'"),
-                (Some(f32::NEG_INFINITY), "'-infinity'"),
-                (Some(1000.55), "1000.55"),
-                (None, "NULL")]);
+    test_type(
+        "REAL",
+        &[
+            (Some(f32::INFINITY), "'infinity'"),
+            (Some(f32::NEG_INFINITY), "'-infinity'"),
+            (Some(1000.55), "1000.55"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_f64_params() {
-    test_type("DOUBLE PRECISION",
-              &[(Some(f64::INFINITY), "'infinity'"),
-                (Some(f64::NEG_INFINITY), "'-infinity'"),
-                (Some(10000.55), "10000.55"),
-                (None, "NULL")]);
+    test_type(
+        "DOUBLE PRECISION",
+        &[
+            (Some(f64::INFINITY), "'infinity'"),
+            (Some(f64::NEG_INFINITY), "'-infinity'"),
+            (Some(10000.55), "10000.55"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_varchar_params() {
-    test_type("VARCHAR",
-              &[(Some("hello world".to_owned()), "'hello world'"),
-                (Some("イロハニホヘト チリヌルヲ".to_owned()),
-                 "'イロハニホヘト チリヌルヲ'"),
-                (None, "NULL")]);
+    test_type(
+        "VARCHAR",
+        &[
+            (Some("hello world".to_owned()), "'hello world'"),
+            (
+                Some("イロハニホヘト チリヌルヲ".to_owned()),
+                "'イロハニホヘト チリヌルヲ'",
+            ),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_text_params() {
-    test_type("TEXT",
-              &[(Some("hello world".to_owned()), "'hello world'"),
-                (Some("イロハニホヘト チリヌルヲ".to_owned()),
-                 "'イロハニホヘト チリヌルヲ'"),
-                (None, "NULL")]);
+    test_type(
+        "TEXT",
+        &[
+            (Some("hello world".to_owned()), "'hello world'"),
+            (
+                Some("イロハニホヘト チリヌルヲ".to_owned()),
+                "'イロハニホヘト チリヌルヲ'",
+            ),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_bpchar_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
+    or_panic!(conn.execute(
+        "CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CHAR(5)
                            )",
-                           &[]));
-    or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                           &[&Some("12345"), &Some("123"), &None::<&'static str>]));
+        &[],
+    ));
+    or_panic!(conn.execute(
+        "INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+        &[&Some("12345"), &Some("123"), &None::<&'static str>],
+    ));
     let stmt = or_panic!(conn.prepare("SELECT b FROM foo ORDER BY id"));
     let res = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![Some("12345".to_owned()), Some("123  ".to_owned()), None],
-               res.iter().map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(
+        vec![Some("12345".to_owned()), Some("123  ".to_owned()), None],
+        res.iter().map(|row| row.get(0)).collect::<Vec<_>>()
+    );
 }
 
 #[test]
 fn test_citext_params() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
-    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
+    or_panic!(conn.execute(
+        "CREATE TEMPORARY TABLE foo (
                             id SERIAL PRIMARY KEY,
                             b CITEXT
                            )",
-                           &[]));
-    or_panic!(conn.execute("INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-                           &[&Some("foobar"), &Some("FooBar"), &None::<&'static str>]));
-    let stmt = or_panic!(conn.prepare("SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id"));
+        &[],
+    ));
+    or_panic!(conn.execute(
+        "INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
+        &[
+            &Some("foobar"),
+            &Some("FooBar"),
+            &None::<&'static str>,
+        ],
+    ));
+    let stmt = or_panic!(conn.prepare(
+        "SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id",
+    ));
     let res = or_panic!(stmt.query(&[]));
 
-    assert_eq!(vec![Some(1i32), Some(2i32)],
-               res.iter().map(|row| row.get(0)).collect::<Vec<_>>());
+    assert_eq!(
+        vec![Some(1i32), Some(2i32)],
+        res.iter().map(|row| row.get(0)).collect::<Vec<_>>()
+    );
 }
 
 #[test]
 fn test_bytea_params() {
-    test_type("BYTEA",
-              &[(Some(vec![0u8, 1, 2, 3, 254, 255]), "'\\x00010203feff'"),
-                (None, "NULL")]);
+    test_type(
+        "BYTEA",
+        &[
+            (Some(vec![0u8, 1, 2, 3, 254, 255]), "'\\x00010203feff'"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
@@ -185,26 +263,42 @@ fn test_hstore_params() {
             map
         })
     }
-    test_type("hstore",
-              &[(Some(make_map!("a".to_owned() => Some("1".to_owned()))), "'a=>1'"),
-                (Some(make_map!("hello".to_owned() => Some("world!".to_owned()),
+    test_type(
+        "hstore",
+        &[
+            (
+                Some(make_map!("a".to_owned() => Some("1".to_owned()))),
+                "'a=>1'",
+            ),
+            (
+                Some(make_map!("hello".to_owned() => Some("world!".to_owned()),
                                "hola".to_owned() => Some("mundo!".to_owned()),
                                "what".to_owned() => None)),
-                 "'hello=>world!,hola=>mundo!,what=>NULL'"),
-                (None, "NULL")]);
+                "'hello=>world!,hola=>mundo!,what=>NULL'",
+            ),
+            (None, "NULL"),
+        ],
+    );
 }
 
 #[test]
 fn test_array_params() {
-    test_type("integer[]",
-              &[(Some(vec![1i32, 2i32]), "ARRAY[1,2]"),
-                (Some(vec![1i32]), "ARRAY[1]"),
-                (Some(vec![]), "ARRAY[]"),
-                (None, "NULL")]);
+    test_type(
+        "integer[]",
+        &[
+            (Some(vec![1i32, 2i32]), "ARRAY[1,2]"),
+            (Some(vec![1i32]), "ARRAY[1]"),
+            (Some(vec![]), "ARRAY[]"),
+            (None, "NULL"),
+        ],
+    );
 }
 
 fn test_nan_param<T: PartialEq + ToSql + FromSql>(sql_type: &str) {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
     let result = or_panic!(stmt.query(&[]));
     let val: T = result.iter().next().unwrap().get(0);
@@ -223,7 +317,10 @@ fn test_f64_nan_param() {
 
 #[test]
 fn test_pg_database_datname() {
-    let conn = or_panic!(Connection::connect("postgres://postgres@localhost", TlsMode::None));
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost",
+        TlsMode::None,
+    ));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
     let result = or_panic!(stmt.query(&[]));
 
@@ -235,18 +332,21 @@ fn test_pg_database_datname() {
 #[test]
 fn test_slice() {
     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
-    conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
-                        INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');")
-        .unwrap();
+    conn.batch_execute(
+        "CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
+                        INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
+    ).unwrap();
 
     let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)")
         .unwrap();
     let result = stmt.query(&[&&[1i32, 3, 4][..]]).unwrap();
-    assert_eq!(vec!["a".to_owned(), "c".to_owned(), "d".to_owned()],
-               result
-                   .iter()
-                   .map(|r| r.get::<_, String>(0))
-                   .collect::<Vec<_>>());
+    assert_eq!(
+        vec!["a".to_owned(), "c".to_owned(), "d".to_owned()],
+        result
+            .iter()
+            .map(|r| r.get::<_, String>(0))
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -282,10 +382,11 @@ fn domain() {
     struct SessionId(Vec<u8>);
 
     impl ToSql for SessionId {
-        fn to_sql(&self,
-                  ty: &Type,
-                  out: &mut Vec<u8>)
-                  -> result::Result<IsNull, Box<error::Error + Sync + Send>> {
+        fn to_sql(
+            &self,
+            ty: &Type,
+            out: &mut Vec<u8>,
+        ) -> result::Result<IsNull, Box<error::Error + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,
                 _ => unreachable!(),
@@ -295,19 +396,20 @@ fn domain() {
 
         fn accepts(ty: &Type) -> bool {
             ty.name() == "session_id" &&
-            match *ty.kind() {
-                Kind::Domain(_) => true,
-                _ => false,
-            }
+                match *ty.kind() {
+                    Kind::Domain(_) => true,
+                    _ => false,
+                }
         }
 
         to_sql_checked!();
     }
 
     impl FromSql for SessionId {
-        fn from_sql(ty: &Type,
-                    raw: &[u8])
-                    -> result::Result<Self, Box<error::Error + Sync + Send>> {
+        fn from_sql(
+            ty: &Type,
+            raw: &[u8],
+        ) -> result::Result<Self, Box<error::Error + Sync + Send>> {
             Vec::<u8>::from_sql(ty, raw).map(SessionId)
         }
 
@@ -318,9 +420,10 @@ fn domain() {
     }
 
     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
-    conn.batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
-                        CREATE TABLE pg_temp.foo (id pg_temp.session_id);")
-        .unwrap();
+    conn.batch_execute(
+        "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
+                        CREATE TABLE pg_temp.foo (id pg_temp.session_id);",
+    ).unwrap();
 
     let id = SessionId(b"0123456789abcdef".to_vec());
     conn.execute("INSERT INTO pg_temp.foo (id) VALUES ($1)", &[&id])
@@ -332,12 +435,13 @@ fn domain() {
 #[test]
 fn composite() {
     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
-    conn.batch_execute("CREATE TYPE pg_temp.inventory_item AS (
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.inventory_item AS (
                             name TEXT,
                             supplier INTEGER,
                             price NUMERIC
-                        )")
-        .unwrap();
+                        )",
+    ).unwrap();
 
     let stmt = conn.prepare("SELECT $1::inventory_item").unwrap();
     let type_ = &stmt.param_types()[0];
@@ -366,8 +470,10 @@ fn enum_() {
     assert_eq!(type_.name(), "mood");
     match *type_.kind() {
         Kind::Enum(ref variants) => {
-            assert_eq!(variants,
-                       &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]);
+            assert_eq!(
+                variants,
+                &["sad".to_owned(), "ok".to_owned(), "happy".to_owned()]
+            );
         }
         _ => panic!("bad type"),
     }

@@ -38,10 +38,11 @@ impl From<SslConnector> for OpenSsl {
 }
 
 impl Handshake for OpenSsl {
-    fn handshake(self: Box<Self>,
-                 host: &str,
-                 stream: Stream)
-                 -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>> {
+    fn handshake(
+        self: Box<Self>,
+        host: &str,
+        stream: Stream,
+    ) -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>> {
         self.0
             .connect_async(host, stream)
             .map(|s| {

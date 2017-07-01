@@ -48,8 +48,9 @@ impl Row {
     /// Panics if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
     pub fn get<T, I>(&self, idx: I) -> T
-        where T: FromSql,
-              I: RowIndex + fmt::Debug
+    where
+        T: FromSql,
+        I: RowIndex + fmt::Debug,
     {
         match self.try_get(&idx) {
             Ok(Some(v)) => v,
@@ -67,8 +68,9 @@ impl Row {
     /// if there was an error converting the result value, and `Some(Ok(..))`
     /// on success.
     pub fn try_get<T, I>(&self, idx: I) -> Result<Option<T>, Box<Error + Sync + Send>>
-        where T: FromSql,
-              I: RowIndex
+    where
+        T: FromSql,
+        I: RowIndex,
     {
         let idx = match idx.idx(&self.columns) {
             Some(idx) => idx,

@@ -256,8 +256,10 @@ impl<'conn> Transaction<'conn> {
     pub fn savepoint<'a>(&'a self, name: &str) -> Result<Transaction<'a>> {
         let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
-        assert!(conn.trans_depth == self.depth,
-                "`savepoint` may only be called on the active transaction");
+        assert!(
+            conn.trans_depth == self.depth,
+            "`savepoint` may only be called on the active transaction"
+        );
         conn.quick_query(&format!("SAVEPOINT {}", name))?;
         conn.trans_depth += 1;
         Ok(Transaction {

@@ -168,7 +168,8 @@ pub fn float8_from_sql(mut buf: &[u8]) -> Result<f64, StdBox<Error + Sync + Send
 /// Serializes an `HSTORE` value.
 #[inline]
 pub fn hstore_to_sql<'a, I>(values: I, buf: &mut Vec<u8>) -> Result<(), StdBox<Error + Sync + Send>>
-    where I: IntoIterator<Item = (&'a str, Option<&'a str>)>
+where
+    I: IntoIterator<Item = (&'a str, Option<&'a str>)>,
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -204,17 +205,18 @@ fn write_pascal_string(s: &str, buf: &mut Vec<u8>) -> Result<(), StdBox<Error + 
 
 /// Deserializes an `HSTORE` value.
 #[inline]
-pub fn hstore_from_sql<'a>(mut buf: &'a [u8])
-                           -> Result<HstoreEntries<'a>, StdBox<Error + Sync + Send>> {
+pub fn hstore_from_sql<'a>(
+    mut buf: &'a [u8],
+) -> Result<HstoreEntries<'a>, StdBox<Error + Sync + Send>> {
     let count = buf.read_i32::<BigEndian>()?;
     if count < 0 {
         return Err("invalid entry count".into());
     }
 
     Ok(HstoreEntries {
-           remaining: count,
-           buf: buf,
-       })
+        remaining: count,
+        buf: buf,
+    })
 }
 
 /// A fallible iterator over `HSTORE` entries.
@@ -268,11 +270,13 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
 
 /// Serializes a `VARBIT` or `BIT` value.
 #[inline]
-pub fn varbit_to_sql<I>(len: usize,
-                        v: I,
-                        buf: &mut Vec<u8>)
-                        -> Result<(), StdBox<Error + Sync + Send>>
-    where I: Iterator<Item = u8>
+pub fn varbit_to_sql<I>(
+    len: usize,
+    v: I,
+    buf: &mut Vec<u8>,
+) -> Result<(), StdBox<Error + Sync + Send>>
+where
+    I: Iterator<Item = u8>,
 {
     let len = i32::from_usize(len)?;
     buf.write_i32::<BigEndian>(len).unwrap();
@@ -297,9 +301,9 @@ pub fn varbit_from_sql<'a>(mut buf: &'a [u8]) -> Result<Varbit<'a>, StdBox<Error
     }
 
     Ok(Varbit {
-           len: len as usize,
-           bytes: buf,
-       })
+        len: len as usize,
+        bytes: buf,
+    })
 }
 
 /// A `VARBIT` value.
@@ -418,16 +422,18 @@ pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<Error + Sync + Send>
 
 /// Serializes an array value.
 #[inline]
-pub fn array_to_sql<T, I, J, F>(dimensions: I,
-                                has_nulls: bool,
-                                element_type: Oid,
-                                elements: J,
-                                mut serializer: F,
-                                buf: &mut Vec<u8>)
-                                -> Result<(), StdBox<Error + Sync + Send>>
-    where I: IntoIterator<Item = ArrayDimension>,
-          J: IntoIterator<Item = T>,
-          F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, StdBox<Error + Sync + Send>>
+pub fn array_to_sql<T, I, J, F>(
+    dimensions: I,
+    has_nulls: bool,
+    element_type: Oid,
+    elements: J,
+    mut serializer: F,
+    buf: &mut Vec<u8>,
+) -> Result<(), StdBox<Error + Sync + Send>>
+where
+    I: IntoIterator<Item = ArrayDimension>,
+    J: IntoIterator<Item = T>,
+    F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, StdBox<Error + Sync + Send>>,
 {
     let dimensions_idx = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -482,12 +488,12 @@ pub fn array_from_sql<'a>(mut buf: &'a [u8]) -> Result<Array<'a>, StdBox<Error +
     }
 
     Ok(Array {
-           dimensions: dimensions,
-           has_nulls: has_nulls,
-           element_type: element_type,
-           elements: elements,
-           buf: buf,
-       })
+        dimensions: dimensions,
+        has_nulls: has_nulls,
+        element_type: element_type,
+        elements: elements,
+        buf: buf,
+    })
 }
 
 /// A Postgres array.
@@ -545,9 +551,9 @@ impl<'a> FallibleIterator for ArrayDimensions<'a> {
         let lower_bound = self.0.read_i32::<BigEndian>()?;
 
         Ok(Some(ArrayDimension {
-                    len: len,
-                    lower_bound: lower_bound,
-                }))
+            len: len,
+            lower_bound: lower_bound,
+        }))
     }
 
     #[inline]
@@ -616,12 +622,14 @@ pub fn empty_range_to_sql(buf: &mut Vec<u8>) {
 }
 
 /// Serializes a range value.
-pub fn range_to_sql<F, G>(lower: F,
-                          upper: G,
-                          buf: &mut Vec<u8>)
-                          -> Result<(), StdBox<Error + Sync + Send>>
-    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>,
-          G: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>
+pub fn range_to_sql<F, G>(
+    lower: F,
+    upper: G,
+    buf: &mut Vec<u8>,
+) -> Result<(), StdBox<Error + Sync + Send>>
+where
+    F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>,
+    G: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>,
 {
     let tag_idx = buf.len();
     buf.push(0);
@@ -644,10 +652,12 @@ pub fn range_to_sql<F, G>(lower: F,
     Ok(())
 }
 
-fn write_bound<F>(bound: F,
-                  buf: &mut Vec<u8>)
-                  -> Result<RangeBound<()>, StdBox<Error + Sync + Send>>
-    where F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>
+fn write_bound<F>(
+    bound: F,
+    buf: &mut Vec<u8>,
+) -> Result<RangeBound<()>, StdBox<Error + Sync + Send>>
+where
+    F: FnOnce(&mut Vec<u8>) -> Result<RangeBound<IsNull>, StdBox<Error + Sync + Send>>,
 {
     let base = buf.len();
     buf.extend_from_slice(&[0; 4]);
@@ -707,11 +717,12 @@ pub fn range_from_sql<'a>(mut buf: &'a [u8]) -> Result<Range<'a>, StdBox<Error +
 }
 
 #[inline]
-fn read_bound<'a>(buf: &mut &'a [u8],
-                  tag: u8,
-                  unbounded: u8,
-                  inclusive: u8)
-                  -> Result<RangeBound<Option<&'a [u8]>>, StdBox<Error + Sync + Send>> {
+fn read_bound<'a>(
+    buf: &mut &'a [u8],
+    tag: u8,
+    unbounded: u8,
+    inclusive: u8,
+) -> Result<RangeBound<Option<&'a [u8]>>, StdBox<Error + Sync + Send>> {
     if tag & unbounded != 0 {
         Ok(RangeBound::Unbounded)
     } else {
@@ -803,9 +814,9 @@ pub fn box_from_sql(mut buf: &[u8]) -> Result<Box, StdBox<Error + Sync + Send>> 
         return Err("invalid buffer size".into());
     }
     Ok(Box {
-           upper_right: Point { x: x1, y: y1 },
-           lower_left: Point { x: x2, y: y2 },
-       })
+        upper_right: Point { x: x1, y: y1 },
+        lower_left: Point { x: x2, y: y2 },
+    })
 }
 
 /// A Postgres box.
@@ -831,11 +842,13 @@ impl Box {
 
 /// Serializes a Postgres path.
 #[inline]
-pub fn path_to_sql<I>(closed: bool,
-                      points: I,
-                      buf: &mut Vec<u8>)
-                      -> Result<(), StdBox<Error + Sync + Send>>
-    where I: IntoIterator<Item = (f64, f64)>
+pub fn path_to_sql<I>(
+    closed: bool,
+    points: I,
+    buf: &mut Vec<u8>,
+) -> Result<(), StdBox<Error + Sync + Send>>
+where
+    I: IntoIterator<Item = (f64, f64)>,
 {
     buf.push(closed as u8);
     let points_idx = buf.len();
@@ -863,10 +876,10 @@ pub fn path_from_sql<'a>(mut buf: &'a [u8]) -> Result<Path<'a>, StdBox<Error + S
     let points = buf.read_i32::<BigEndian>()?;
 
     Ok(Path {
-           closed: closed,
-           points: points,
-           buf: buf,
-       })
+        closed: closed,
+        points: points,
+        buf: buf,
+    })
 }
 
 /// A Postgres point.
@@ -988,11 +1001,13 @@ mod test {
 
         let mut buf = vec![];
         hstore_to_sql(map.iter().map(|(&k, &v)| (k, v)), &mut buf).unwrap();
-        assert_eq!(hstore_from_sql(&buf)
-                       .unwrap()
-                       .collect::<HashMap<_, _>>()
-                       .unwrap(),
-                   map);
+        assert_eq!(
+            hstore_from_sql(&buf)
+                .unwrap()
+                .collect::<HashMap<_, _>>()
+                .unwrap(),
+            map
+        );
     }
 
     #[test]
@@ -1009,30 +1024,33 @@ mod test {
 
     #[test]
     fn array() {
-        let dimensions = [ArrayDimension {
-                              len: 1,
-                              lower_bound: 10,
-                          },
-                          ArrayDimension {
-                              len: 2,
-                              lower_bound: 0,
-                          }];
+        let dimensions = [
+            ArrayDimension {
+                len: 1,
+                lower_bound: 10,
+            },
+            ArrayDimension {
+                len: 2,
+                lower_bound: 0,
+            },
+        ];
         let values = [None, Some(&b"hello"[..])];
 
         let mut buf = vec![];
-        array_to_sql(dimensions.iter().cloned(),
-                     true,
-                     10,
-                     values.iter().cloned(),
-                     |v, buf| match v {
-                         Some(v) => {
-                             buf.extend_from_slice(v);
-                             Ok(IsNull::No)
-                         }
-                         None => Ok(IsNull::Yes),
-                     },
-                     &mut buf)
-                .unwrap();
+        array_to_sql(
+            dimensions.iter().cloned(),
+            true,
+            10,
+            values.iter().cloned(),
+            |v, buf| match v {
+                Some(v) => {
+                    buf.extend_from_slice(v);
+                    Ok(IsNull::No)
+                }
+                None => Ok(IsNull::Yes),
+            },
+            &mut buf,
+        ).unwrap();
 
         let array = array_from_sql(&buf).unwrap();
         assert_eq!(array.has_nulls(), true);
