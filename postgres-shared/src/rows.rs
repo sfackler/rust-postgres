@@ -5,15 +5,22 @@ use std::io;
 use std::ops::Range;
 
 use stmt::Column;
+use rows::sealed::Sealed;
 
-/// A trait implemented by types that can index into columns of a row.
-pub trait RowIndex {
-    /// Returns the index of the appropriate column, or `None` if no such
-    /// column exists.
-    fn idx(&self, stmt: &[Column]) -> Option<usize>;
+mod sealed {
+    use stmt::Column;
+
+    pub trait Sealed {
+        fn idx(&self, stmt: &[Column]) -> Option<usize>;
+    }
 }
 
-impl RowIndex for usize {
+/// A trait implemented by types that can index into columns of a row.
+///
+/// This cannot be implemented outside of this crate.
+pub trait RowIndex: Sealed {}
+
+impl Sealed for usize {
     #[inline]
     fn idx(&self, stmt: &[Column]) -> Option<usize> {
         if *self >= stmt.len() {
@@ -24,7 +31,9 @@ impl RowIndex for usize {
     }
 }
 
-impl<'a> RowIndex for str {
+impl RowIndex for usize {}
+
+impl Sealed for str {
     #[inline]
     fn idx(&self, stmt: &[Column]) -> Option<usize> {
         if let Some(idx) = stmt.iter().position(|d| d.name() == self) {
@@ -40,14 +49,22 @@ impl<'a> RowIndex for str {
     }
 }
 
-impl<'a, T: ?Sized> RowIndex for &'a T
+impl RowIndex for str {}
+
+impl<'a, T> Sealed for &'a T
 where
-    T: RowIndex,
+    T: ?Sized + Sealed,
 {
     #[inline]
     fn idx(&self, columns: &[Column]) -> Option<usize> {
         T::idx(*self, columns)
     }
+}
+
+impl<'a, T> RowIndex for &'a T
+where
+    T: ?Sized + Sealed,
+{
 }
 
 #[doc(hidden)]
