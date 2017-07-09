@@ -792,13 +792,7 @@ impl InnerConnection {
     #[allow(if_not_else)]
     fn read_type(&mut self, oid: Oid) -> Result<Type> {
         self.setup_typeinfo_query()?;
-        self.raw_execute(
-            TYPEINFO_QUERY,
-            "",
-            0,
-            &[OID],
-            &[&oid],
-        )?;
+        self.raw_execute(TYPEINFO_QUERY, "", 0, &[OID], &[&oid])?;
         let mut row = None;
         self.read_rows(|r| row = Some(r))?;
 
@@ -814,8 +808,9 @@ impl InnerConnection {
             let elem_oid = Oid::from_sql_nullable(&OID, get_raw(2)).map_err(
                 Error::Conversion,
             )?;
-            let rngsubtype = Option::<Oid>::from_sql_nullable(&OID, get_raw(3))
-                .map_err(Error::Conversion)?;
+            let rngsubtype = Option::<Oid>::from_sql_nullable(&OID, get_raw(3)).map_err(
+                Error::Conversion,
+            )?;
             let basetype = Oid::from_sql_nullable(&OID, get_raw(4)).map_err(
                 Error::Conversion,
             )?;
