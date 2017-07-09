@@ -6,11 +6,13 @@ use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 
+use types::type_gen::{Inner, Other};
+
 #[doc(inline)]
 pub use postgres_protocol::Oid;
 
-pub use self::type_gen::Type;
-pub use self::special::{Date, Timestamp};
+pub use types::type_gen::consts::*;
+pub use types::special::{Date, Timestamp};
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -81,6 +83,62 @@ mod geo;
 mod special;
 mod type_gen;
 
+/// A Postgres type.
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Type(Inner);
+
+impl fmt::Display for Type {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self.schema() {
+            "public" | "pg_catalog" => {}
+            schema => write!(fmt, "{}.", schema)?,
+        }
+        fmt.write_str(self.name())
+    }
+}
+
+impl Type {
+    // WARNING: this is not considered public API
+    #[doc(hidden)]
+    pub fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
+        Type(Inner::Other(Arc::new(Other {
+            name: name,
+            oid: oid,
+            kind: kind,
+            schema: schema,
+        })))
+    }
+
+    /// Returns the `Type` corresponding to the provided `Oid` if it
+    /// corresponds to a built-in type.
+    pub fn from_oid(oid: Oid) -> Option<Type> {
+        Inner::from_oid(oid).map(Type)
+    }
+
+    /// Returns the OID of the `Type`.
+    pub fn oid(&self) -> Oid {
+        self.0.oid()
+    }
+
+    /// Returns the kind of this type.
+    pub fn kind(&self) -> &Kind {
+        self.0.kind()
+    }
+
+    /// Returns the schema of this type.
+    pub fn schema(&self) -> &str {
+        match self.0 {
+            Inner::Other(ref u) => &u.schema,
+            _ => "pg_catalog",
+        }
+    }
+
+    /// Returns the name of this type.
+    pub fn name(&self) -> &str {
+        self.0.name()
+    }
+}
+
 /// Represents the kind of a Postgres type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Kind {
@@ -128,63 +186,6 @@ impl Field {
             name: name,
             type_: type_,
         }
-    }
-}
-
-/// Information about an unknown type.
-#[derive(PartialEq, Eq, Clone)]
-pub struct Other(Arc<OtherInner>);
-
-impl fmt::Debug for Other {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Other")
-            .field("name", &self.0.name)
-            .field("oid", &self.0.oid)
-            .field("kind", &self.0.kind)
-            .field("schema", &self.0.schema)
-            .finish()
-    }
-}
-
-#[derive(PartialEq, Eq)]
-struct OtherInner {
-    name: String,
-    oid: Oid,
-    kind: Kind,
-    schema: String,
-}
-
-impl Other {
-    #[doc(hidden)]
-    pub fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other {
-        Other(Arc::new(OtherInner {
-            name: name,
-            oid: oid,
-            kind: kind,
-            schema: schema,
-        }))
-    }
-}
-
-impl Other {
-    /// The name of the type.
-    pub fn name(&self) -> &str {
-        &self.0.name
-    }
-
-    /// The OID of this type.
-    pub fn oid(&self) -> Oid {
-        self.0.oid
-    }
-
-    /// The kind of this type.
-    pub fn kind(&self) -> &Kind {
-        &self.0.kind
-    }
-
-    /// The schema of this type.
-    pub fn schema(&self) -> &str {
-        &self.0.schema
     }
 }
 
@@ -365,7 +366,7 @@ impl FromSql for Vec<u8> {
         Ok(types::bytea_from_sql(raw).to_owned())
     }
 
-    accepts!(Type::Bytea);
+    accepts!(BYTEA);
 }
 
 impl FromSql for String {
@@ -375,8 +376,8 @@ impl FromSql for String {
 
     fn accepts(ty: &Type) -> bool {
         match *ty {
-            Type::Varchar | Type::Text | Type::Bpchar | Type::Name | Type::Unknown => true,
-            Type::Other(ref u) if u.name() == "citext" => true,
+            VARCHAR | TEXT | BPCHAR | NAME | UNKNOWN => true,
+            ref ty if ty.name() == "citext" => true,
             _ => false,
         }
     }
@@ -396,14 +397,14 @@ macro_rules! simple_from {
     }
 }
 
-simple_from!(bool, bool_from_sql, Type::Bool);
-simple_from!(i8, char_from_sql, Type::Char);
-simple_from!(i16, int2_from_sql, Type::Int2);
-simple_from!(i32, int4_from_sql, Type::Int4);
-simple_from!(u32, oid_from_sql, Type::Oid);
-simple_from!(i64, int8_from_sql, Type::Int8);
-simple_from!(f32, float4_from_sql, Type::Float4);
-simple_from!(f64, float8_from_sql, Type::Float8);
+simple_from!(bool, bool_from_sql, BOOL);
+simple_from!(i8, char_from_sql, CHAR);
+simple_from!(i16, int2_from_sql, INT2);
+simple_from!(i32, int4_from_sql, INT4);
+simple_from!(u32, oid_from_sql, OID);
+simple_from!(i64, int8_from_sql, INT8);
+simple_from!(f32, float4_from_sql, FLOAT4);
+simple_from!(f64, float8_from_sql, FLOAT8);
 
 impl FromSql for HashMap<String, Option<String>> {
     fn from_sql(
@@ -416,10 +417,7 @@ impl FromSql for HashMap<String, Option<String>> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::Other(ref u) if u.name() == "hstore" => true,
-            _ => false,
-        }
+        ty.name() == "hstore"
     }
 }
 
@@ -589,7 +587,7 @@ impl<'a> ToSql for &'a [u8] {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Bytea);
+    accepts!(BYTEA);
 
     to_sql_checked!();
 }
@@ -626,8 +624,8 @@ impl<'a> ToSql for &'a str {
 
     fn accepts(ty: &Type) -> bool {
         match *ty {
-            Type::Varchar | Type::Text | Type::Bpchar | Type::Name => true,
-            Type::Other(ref u) if u.name() == "citext" => true,
+            VARCHAR | TEXT | BPCHAR | NAME | UNKNOWN => true,
+            ref ty if ty.name() == "citext" => true,
             _ => false,
         }
     }
@@ -665,14 +663,14 @@ macro_rules! simple_to {
     }
 }
 
-simple_to!(bool, bool_to_sql, Type::Bool);
-simple_to!(i8, char_to_sql, Type::Char);
-simple_to!(i16, int2_to_sql, Type::Int2);
-simple_to!(i32, int4_to_sql, Type::Int4);
-simple_to!(u32, oid_to_sql, Type::Oid);
-simple_to!(i64, int8_to_sql, Type::Int8);
-simple_to!(f32, float4_to_sql, Type::Float4);
-simple_to!(f64, float8_to_sql, Type::Float8);
+simple_to!(bool, bool_to_sql, BOOL);
+simple_to!(i8, char_to_sql, CHAR);
+simple_to!(i16, int2_to_sql, INT2);
+simple_to!(i32, int4_to_sql, INT4);
+simple_to!(u32, oid_to_sql, OID);
+simple_to!(i64, int8_to_sql, INT8);
+simple_to!(f32, float4_to_sql, FLOAT4);
+simple_to!(f64, float8_to_sql, FLOAT8);
 
 impl ToSql for HashMap<String, Option<String>> {
     fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
@@ -684,10 +682,7 @@ impl ToSql for HashMap<String, Option<String>> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::Other(ref u) if u.name() == "hstore" => true,
-            _ => false,
-        }
+        ty.name() == "hstore"
     }
 
     to_sql_checked!();

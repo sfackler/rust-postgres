@@ -95,7 +95,7 @@ use stmt::{Statement, Column};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
-use types::{Oid, Type, ToSql, IsNull, FromSql, Other, Kind, Field};
+use types::{Oid, Type, ToSql, IsNull, FromSql, Kind, Field, NAME, CHAR, OID};
 use rows::Row;
 
 pub mod error;
@@ -173,7 +173,7 @@ struct InnerConnection {
     close_receiver: Receiver<(u8, String)>,
     close_sender: Sender<(u8, String)>,
     parameters: HashMap<String, String>,
-    types: HashMap<Oid, Other>,
+    types: HashMap<Oid, Type>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
     has_typeinfo_query: bool,
@@ -661,53 +661,53 @@ impl Connection {
             return Ok((type_, self)).into_future().boxed();
         };
 
-        let other = self.0.types.get(&oid).map(Clone::clone);
-        if let Some(other) = other {
-            return Ok((Type::Other(other), self)).into_future().boxed();
+        let ty = self.0.types.get(&oid).map(Clone::clone);
+        if let Some(ty) = ty {
+            return Ok((ty, self)).into_future().boxed();
         }
 
         self.get_unknown_type(oid)
             .map(move |(ty, mut c)| {
                 c.0.types.insert(oid, ty.clone());
-                (Type::Other(ty), c)
+                (ty, c)
             })
             .boxed()
     }
 
-    fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Other, Connection), Error> {
+    fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Type, Connection), Error> {
         self.setup_typeinfo_query()
             .and_then(move |c| {
-                c.raw_execute(TYPEINFO_QUERY, "", &[Type::Oid], &[&oid])
+                c.raw_execute(TYPEINFO_QUERY, "", &[OID], &[&oid])
             })
             .and_then(|c| c.read_rows().collect())
             .and_then(move |(r, c)| {
                 let get = |idx| r.get(0).and_then(|r| r.get(idx));
 
-                let name = match String::from_sql_nullable(&Type::Name, get(0)) {
+                let name = match String::from_sql_nullable(&NAME, get(0)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let type_ = match i8::from_sql_nullable(&Type::Char, get(1)) {
+                let type_ = match i8::from_sql_nullable(&CHAR, get(1)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let elem_oid = match Oid::from_sql_nullable(&Type::Oid, get(2)) {
+                let elem_oid = match Oid::from_sql_nullable(&OID, get(2)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let rngsubtype = match Option::<Oid>::from_sql_nullable(&Type::Oid, get(3)) {
+                let rngsubtype = match Option::<Oid>::from_sql_nullable(&OID, get(3)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let basetype = match Oid::from_sql_nullable(&Type::Oid, get(4)) {
+                let basetype = match Oid::from_sql_nullable(&OID, get(4)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let schema = match String::from_sql_nullable(&Type::Name, get(5)) {
+                let schema = match String::from_sql_nullable(&NAME, get(5)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
-                let relid = match Oid::from_sql_nullable(&Type::Oid, get(6)) {
+                let relid = match Oid::from_sql_nullable(&OID, get(6)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                 };
@@ -749,7 +749,7 @@ impl Connection {
                 };
 
                 Either::B(kind.map(
-                    move |(k, c)| (Other::new(name, oid, k, schema), c),
+                    move |(k, c)| (Type::_new(name, oid, k, schema), c),
                 ))
             })
             .boxed()
@@ -802,13 +802,13 @@ impl Connection {
     fn get_enum_variants(self, oid: Oid) -> BoxFuture<(Vec<String>, Connection), Error> {
         self.setup_typeinfo_enum_query()
             .and_then(move |c| {
-                c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[Type::Oid], &[&oid])
+                c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[OID], &[&oid])
             })
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 let mut variants = vec![];
                 for row in r {
-                    let variant = match String::from_sql_nullable(&Type::Name, row.get(0)) {
+                    let variant = match String::from_sql_nullable(&NAME, row.get(0)) {
                         Ok(v) => v,
                         Err(e) => return Err(Error::Conversion(e, c)),
                     };
@@ -854,18 +854,18 @@ impl Connection {
     fn get_composite_fields(self, oid: Oid) -> BoxFuture<(Vec<Field>, Connection), Error> {
         self.setup_typeinfo_composite_query()
             .and_then(move |c| {
-                c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[Type::Oid], &[&oid])
+                c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[OID], &[&oid])
             })
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 futures::stream::iter(r.into_iter().map(Ok)).fold(
                     (vec![], c),
                     |(mut fields, c), row| {
-                        let name = match String::from_sql_nullable(&Type::Name, row.get(0)) {
+                        let name = match String::from_sql_nullable(&NAME, row.get(0)) {
                             Ok(name) => name,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                         };
-                        let oid = match Oid::from_sql_nullable(&Type::Oid, row.get(1)) {
+                        let oid = match Oid::from_sql_nullable(&OID, row.get(1)) {
                             Ok(oid) => oid,
                             Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
                         };

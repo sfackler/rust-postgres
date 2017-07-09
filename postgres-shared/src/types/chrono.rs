@@ -5,7 +5,7 @@ use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc,
                    FixedOffset};
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type};
+use types::{FromSql, ToSql, IsNull, Type, TIMESTAMP, TIMESTAMPTZ, DATE, TIME};
 
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
@@ -17,7 +17,7 @@ impl FromSql for NaiveDateTime {
         Ok(base() + Duration::microseconds(t))
     }
 
-    accepts!(Type::Timestamp);
+    accepts!(TIMESTAMP);
 }
 
 impl ToSql for NaiveDateTime {
@@ -30,7 +30,7 @@ impl ToSql for NaiveDateTime {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Timestamp);
+    accepts!(TIMESTAMP);
     to_sql_checked!();
 }
 
@@ -40,7 +40,7 @@ impl FromSql for DateTime<Utc> {
         Ok(DateTime::from_utc(naive, Utc))
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
 }
 
 impl ToSql for DateTime<Utc> {
@@ -48,7 +48,7 @@ impl ToSql for DateTime<Utc> {
         self.naive_utc().to_sql(type_, w)
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
     to_sql_checked!();
 }
 
@@ -58,7 +58,7 @@ impl FromSql for DateTime<Local> {
         Ok(utc.with_timezone(&Local))
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
 }
 
 impl ToSql for DateTime<Local> {
@@ -70,7 +70,7 @@ impl ToSql for DateTime<Local> {
         self.with_timezone(&Utc).to_sql(type_, w)
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
     to_sql_checked!();
 }
 
@@ -83,7 +83,7 @@ impl FromSql for DateTime<FixedOffset> {
         Ok(utc.with_timezone(&FixedOffset::east(0)))
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
 }
 
 impl ToSql for DateTime<FixedOffset> {
@@ -91,7 +91,7 @@ impl ToSql for DateTime<FixedOffset> {
         self.with_timezone(&Utc).to_sql(type_, w)
     }
 
-    accepts!(Type::Timestamptz);
+    accepts!(TIMESTAMPTZ);
     to_sql_checked!();
 }
 
@@ -101,7 +101,7 @@ impl FromSql for NaiveDate {
         Ok(base().date() + Duration::days(jd as i64))
     }
 
-    accepts!(Type::Date);
+    accepts!(DATE);
 }
 
 impl ToSql for NaiveDate {
@@ -115,7 +115,7 @@ impl ToSql for NaiveDate {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Date);
+    accepts!(DATE);
     to_sql_checked!();
 }
 
@@ -125,7 +125,7 @@ impl FromSql for NaiveTime {
         Ok(NaiveTime::from_hms(0, 0, 0) + Duration::microseconds(usec))
     }
 
-    accepts!(Type::Time);
+    accepts!(TIME);
 }
 
 impl ToSql for NaiveTime {
@@ -139,6 +139,6 @@ impl ToSql for NaiveTime {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Time);
+    accepts!(TIME);
     to_sql_checked!();
 }

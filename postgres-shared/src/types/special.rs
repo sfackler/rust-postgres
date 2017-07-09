@@ -2,7 +2,7 @@ use postgres_protocol::types;
 use std::{i32, i64};
 use std::error::Error;
 
-use types::{Type, FromSql, ToSql, IsNull};
+use types::{Type, FromSql, ToSql, IsNull, DATE, TIMESTAMP, TIMESTAMPTZ};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,7 +25,7 @@ impl<T: FromSql> FromSql for Date<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        *ty == Type::Date && T::accepts(ty)
+        *ty == DATE && T::accepts(ty)
     }
 }
 impl<T: ToSql> ToSql for Date<T> {
@@ -41,7 +41,7 @@ impl<T: ToSql> ToSql for Date<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        *ty == Type::Date && T::accepts(ty)
+        *ty == DATE && T::accepts(ty)
     }
 
     to_sql_checked!();
@@ -69,7 +69,10 @@ impl<T: FromSql> FromSql for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        (*ty == Type::Timestamp || *ty == Type::Timestamptz) && T::accepts(ty)
+        match *ty {
+            TIMESTAMP | TIMESTAMPTZ if T::accepts(ty) => true,
+            _ => false
+        }
     }
 }
 
@@ -86,7 +89,10 @@ impl<T: ToSql> ToSql for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        (*ty == Type::Timestamp || *ty == Type::Timestamptz) && T::accepts(ty)
+        match *ty {
+            TIMESTAMP | TIMESTAMPTZ if T::accepts(ty) => true,
+            _ => false
+        }
     }
 
     to_sql_checked!();

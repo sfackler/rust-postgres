@@ -101,7 +101,7 @@ use priv_io::MessageStream;
 use rows::{Rows, LazyRows};
 use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
-use types::{IsNull, Kind, Type, Oid, Other, ToSql, FromSql, Field};
+use types::{IsNull, Kind, Type, Oid, ToSql, FromSql, Field, OID, NAME, CHAR};
 
 #[doc(inline)]
 pub use postgres_shared::CancelData;
@@ -236,7 +236,7 @@ struct InnerConnection {
     notice_handler: Box<HandleNotice>,
     notifications: VecDeque<Notification>,
     cancel_data: CancelData,
-    unknown_types: HashMap<Oid, Other>,
+    unknown_types: HashMap<Oid, Type>,
     cached_statements: HashMap<String, Arc<StatementInfo>>,
     parameters: HashMap<String, String>,
     next_stmt_id: u32,
@@ -745,12 +745,12 @@ impl InnerConnection {
         }
 
         if let Some(ty) = self.unknown_types.get(&oid) {
-            return Ok(Type::Other(ty.clone()));
+            return Ok(ty.clone());
         }
 
         let ty = self.read_type(oid)?;
         self.unknown_types.insert(oid, ty.clone());
-        Ok(Type::Other(ty))
+        Ok(ty)
     }
 
     fn setup_typeinfo_query(&mut self) -> Result<()> {
@@ -790,13 +790,13 @@ impl InnerConnection {
     }
 
     #[allow(if_not_else)]
-    fn read_type(&mut self, oid: Oid) -> Result<Other> {
+    fn read_type(&mut self, oid: Oid) -> Result<Type> {
         self.setup_typeinfo_query()?;
         self.raw_execute(
             TYPEINFO_QUERY,
             "",
             0,
-            &[Type::Oid],
+            &[OID],
             &[&oid],
         )?;
         let mut row = None;
@@ -805,24 +805,24 @@ impl InnerConnection {
         let get_raw = |i: usize| row.as_ref().and_then(|r| r.get(i));
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
-            let name = String::from_sql_nullable(&Type::Name, get_raw(0)).map_err(
+            let name = String::from_sql_nullable(&NAME, get_raw(0)).map_err(
                 Error::Conversion,
             )?;
-            let type_ = i8::from_sql_nullable(&Type::Char, get_raw(1)).map_err(
+            let type_ = i8::from_sql_nullable(&CHAR, get_raw(1)).map_err(
                 Error::Conversion,
             )?;
-            let elem_oid = Oid::from_sql_nullable(&Type::Oid, get_raw(2)).map_err(
+            let elem_oid = Oid::from_sql_nullable(&OID, get_raw(2)).map_err(
                 Error::Conversion,
             )?;
-            let rngsubtype = Option::<Oid>::from_sql_nullable(&Type::Oid, get_raw(3))
+            let rngsubtype = Option::<Oid>::from_sql_nullable(&OID, get_raw(3))
                 .map_err(Error::Conversion)?;
-            let basetype = Oid::from_sql_nullable(&Type::Oid, get_raw(4)).map_err(
+            let basetype = Oid::from_sql_nullable(&OID, get_raw(4)).map_err(
                 Error::Conversion,
             )?;
-            let schema = String::from_sql_nullable(&Type::Name, get_raw(5)).map_err(
+            let schema = String::from_sql_nullable(&NAME, get_raw(5)).map_err(
                 Error::Conversion,
             )?;
-            let relid = Oid::from_sql_nullable(&Type::Oid, get_raw(6)).map_err(
+            let relid = Oid::from_sql_nullable(&OID, get_raw(6)).map_err(
                 Error::Conversion,
             )?;
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
@@ -845,7 +845,7 @@ impl InnerConnection {
             }
         };
 
-        Ok(Other::new(name, oid, kind, schema))
+        Ok(Type::_new(name, oid, kind, schema))
     }
 
     fn setup_typeinfo_enum_query(&mut self) -> Result<()> {
@@ -884,7 +884,7 @@ impl InnerConnection {
             TYPEINFO_ENUM_QUERY,
             "",
             0,
-            &[Type::Oid],
+            &[OID],
             &[&oid],
         )?;
         let mut rows = vec![];
@@ -892,7 +892,7 @@ impl InnerConnection {
 
         let mut variants = vec![];
         for row in rows {
-            variants.push(String::from_sql_nullable(&Type::Name, row.get(0)).map_err(
+            variants.push(String::from_sql_nullable(&NAME, row.get(0)).map_err(
                 Error::Conversion,
             )?);
         }
@@ -925,7 +925,7 @@ impl InnerConnection {
             TYPEINFO_COMPOSITE_QUERY,
             "",
             0,
-            &[Type::Oid],
+            &[OID],
             &[&relid],
         )?;
         let mut rows = vec![];
@@ -934,10 +934,10 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let name = String::from_sql_nullable(&Type::Name, row.get(0)).map_err(
+                let name = String::from_sql_nullable(&NAME, row.get(0)).map_err(
                     Error::Conversion,
                 )?;
-                let type_ = Oid::from_sql_nullable(&Type::Oid, row.get(1)).map_err(
+                let type_ = Oid::from_sql_nullable(&OID, row.get(1)).map_err(
                     Error::Conversion,
                 )?;
                 (name, type_)
@@ -1466,10 +1466,6 @@ fn err(fields: &mut ErrorFields) -> Error {
         Ok(err) => Error::Db(Box::new(err)),
         Err(err) => Error::Io(err),
     }
-}
-
-trait OtherNew {
-    fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Other;
 }
 
 trait RowsNew {

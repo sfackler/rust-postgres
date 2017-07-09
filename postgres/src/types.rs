@@ -1,8 +1,8 @@
 //! Traits dealing with Postgres data types
 
 #[doc(inline)]
-pub use postgres_shared::types::{Oid, Type, Date, Timestamp, Kind, Field, Other, WasNull,
-                                 WrongType, FromSql, IsNull, ToSql};
+// FIXME
+pub use postgres_shared::types::*;
 
 #[doc(hidden)]
 pub use postgres_shared::types::__to_sql_checked;

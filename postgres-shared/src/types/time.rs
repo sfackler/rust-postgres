@@ -4,7 +4,7 @@ use self::time::Timespec;
 use std::error::Error;
 use postgres_protocol::types;
 
-use types::{Type, FromSql, ToSql, IsNull};
+use types::{Type, FromSql, ToSql, IsNull, TIMESTAMP, TIMESTAMPTZ};
 
 const USEC_PER_SEC: i64 = 1_000_000;
 const NSEC_PER_USEC: i64 = 1_000;
@@ -26,7 +26,7 @@ impl FromSql for Timespec {
         Ok(Timespec::new(sec, (usec * NSEC_PER_USEC) as i32))
     }
 
-    accepts!(Type::Timestamp, Type::Timestamptz);
+    accepts!(TIMESTAMP, TIMESTAMPTZ);
 }
 
 impl ToSql for Timespec {
@@ -36,6 +36,6 @@ impl ToSql for Timespec {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Timestamp, Type::Timestamptz);
+    accepts!(TIMESTAMP, TIMESTAMPTZ);
     to_sql_checked!();
 }

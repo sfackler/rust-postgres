@@ -4,7 +4,7 @@ use postgres_protocol::types;
 use self::bit_vec::BitVec;
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type};
+use types::{FromSql, ToSql, IsNull, Type, BIT, VARBIT};
 
 impl FromSql for BitVec {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<BitVec, Box<Error + Sync + Send>> {
@@ -17,7 +17,7 @@ impl FromSql for BitVec {
         Ok(bitvec)
     }
 
-    accepts!(Type::Bit, Type::Varbit);
+    accepts!(BIT, VARBIT);
 }
 
 impl ToSql for BitVec {
@@ -26,6 +26,6 @@ impl ToSql for BitVec {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Bit, Type::Varbit);
+    accepts!(BIT, VARBIT);
     to_sql_checked!();
 }

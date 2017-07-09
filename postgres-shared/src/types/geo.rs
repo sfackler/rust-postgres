@@ -5,7 +5,7 @@ use self::geo::{Bbox, LineString, Point};
 use std::error::Error;
 use fallible_iterator::FallibleIterator;
 
-use types::{FromSql, ToSql, IsNull, Type};
+use types::{FromSql, ToSql, IsNull, Type, POINT, BOX, PATH};
 
 impl FromSql for Point<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
@@ -13,7 +13,7 @@ impl FromSql for Point<f64> {
         Ok(Point::new(point.x(), point.y()))
     }
 
-    accepts!(Type::Point);
+    accepts!(POINT);
 }
 
 impl ToSql for Point<f64> {
@@ -22,7 +22,7 @@ impl ToSql for Point<f64> {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Point);
+    accepts!(POINT);
     to_sql_checked!();
 }
 
@@ -37,7 +37,7 @@ impl FromSql for Bbox<f64> {
         })
     }
 
-    accepts!(Type::Box);
+    accepts!(BOX);
 }
 
 impl ToSql for Bbox<f64> {
@@ -46,7 +46,7 @@ impl ToSql for Bbox<f64> {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Box);
+    accepts!(BOX);
     to_sql_checked!();
 }
 
@@ -57,7 +57,7 @@ impl FromSql for LineString<f64> {
         Ok(LineString(points))
     }
 
-    accepts!(Type::Path);
+    accepts!(PATH);
 }
 
 impl ToSql for LineString<f64> {
@@ -67,6 +67,6 @@ impl ToSql for LineString<f64> {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Path);
+    accepts!(PATH);
     to_sql_checked!();
 }

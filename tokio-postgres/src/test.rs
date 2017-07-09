@@ -9,7 +9,7 @@ use super::*;
 use error::{Error, ConnectError, INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION,
             QUERY_CANCELED};
 use params::{ConnectParams, Host};
-use types::{ToSql, FromSql, Type, IsNull, Kind};
+use types::{ToSql, FromSql, Type, IsNull, Kind, BYTEA, TEXT, INT4, NUMERIC};
 
 #[test]
 fn md5_user() {
@@ -318,7 +318,7 @@ fn domain() {
 
         fn accepts(ty: &Type) -> bool {
             match *ty.kind() {
-                Kind::Domain(Type::Bytea) => ty.name() == "session_id",
+                Kind::Domain(BYTEA) => ty.name() == "session_id",
                 _ => false,
             }
         }
@@ -385,11 +385,11 @@ fn composite() {
             match *type_.kind() {
                 Kind::Composite(ref fields) => {
                     assert_eq!(fields[0].name(), "name");
-                    assert_eq!(fields[0].type_(), &Type::Text);
+                    assert_eq!(fields[0].type_(), &TEXT);
                     assert_eq!(fields[1].name(), "supplier");
-                    assert_eq!(fields[1].type_(), &Type::Int4);
+                    assert_eq!(fields[1].type_(), &INT4);
                     assert_eq!(fields[2].name(), "price");
-                    assert_eq!(fields[2].type_(), &Type::Numeric);
+                    assert_eq!(fields[2].type_(), &NUMERIC);
                 }
                 ref t => panic!("bad type {:?}", t),
             }

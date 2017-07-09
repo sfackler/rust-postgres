@@ -4,7 +4,7 @@ use self::eui48::MacAddress;
 use std::error::Error;
 use postgres_protocol::types;
 
-use types::{FromSql, ToSql, Type, IsNull};
+use types::{FromSql, ToSql, Type, IsNull, MACADDR};
 
 impl FromSql for MacAddress {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<MacAddress, Box<Error + Sync + Send>> {
@@ -12,7 +12,7 @@ impl FromSql for MacAddress {
         Ok(MacAddress::new(bytes))
     }
 
-    accepts!(Type::Macaddr);
+    accepts!(MACADDR);
 }
 
 impl ToSql for MacAddress {
@@ -23,6 +23,6 @@ impl ToSql for MacAddress {
         Ok(IsNull::No)
     }
 
-    accepts!(Type::Macaddr);
+    accepts!(MACADDR);
     to_sql_checked!();
 }

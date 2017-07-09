@@ -14,7 +14,7 @@ use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
 use postgres::error::{Error, ConnectError, DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
                       INVALID_CATALOG_NAME, INVALID_PASSWORD, CARDINALITY_VIOLATION};
-use postgres::types::{Oid, Type, Kind, WrongType};
+use postgres::types::{Oid, Type, Kind, WrongType, INT4, VARCHAR, FLOAT8};
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
 use postgres::notification::Notification;
@@ -574,7 +574,7 @@ fn test_param_types() {
         TlsMode::None,
     ));
     let stmt = or_panic!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
-    assert_eq!(stmt.param_types(), &[Type::Int4, Type::Varchar][..]);
+    assert_eq!(stmt.param_types(), &[INT4, VARCHAR][..]);
 }
 
 #[test]
@@ -587,9 +587,9 @@ fn test_columns() {
     let cols = stmt.columns();
     assert_eq!(2, cols.len());
     assert_eq!(cols[0].name(), "a");
-    assert_eq!(cols[0].type_(), &Type::Int4);
+    assert_eq!(cols[0].type_(), &INT4);
     assert_eq!(cols[1].name(), "b");
-    assert_eq!(cols[1].type_(), &Type::Varchar);
+    assert_eq!(cols[1].type_(), &VARCHAR);
 }
 
 #[test]
@@ -1277,13 +1277,9 @@ fn test_custom_range_element_type() {
         &[],
     ));
     let stmt = or_panic!(conn.prepare("SELECT $1::floatrange"));
-    match &stmt.param_types()[0] {
-        &Type::Other(ref u) => {
-            assert_eq!("floatrange", u.name());
-            assert_eq!(&Kind::Range(Type::Float8), u.kind());
-        }
-        t => panic!("Unexpected type {:?}", t),
-    }
+    let ty = &stmt.param_types()[0];
+    assert_eq!("floatrange", ty.name());
+    assert_eq!(&Kind::Range(FLOAT8), ty.kind());
 }
 
 #[test]
