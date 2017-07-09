@@ -6,7 +6,7 @@ use postgres::{Connection, TlsMode};
 
 #[bench]
 fn bench_naiive_execute(b: &mut test::Bencher) {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[])
         .unwrap();
 
@@ -20,7 +20,7 @@ fn bench_naiive_execute(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_execute(b: &mut test::Bencher) {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[])
         .unwrap();
 

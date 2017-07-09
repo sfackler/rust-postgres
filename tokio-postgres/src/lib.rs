@@ -21,7 +21,7 @@
 //!
 //! fn main() {
 //!     let mut l = Core::new().unwrap();
-//!     let done = Connection::connect("postgresql://postgres@localhost",
+//!     let done = Connection::connect("postgresql://postgres@localhost:5433",
 //!                                    TlsMode::None,
 //!                                    &l.handle())
 //!         .then(|c| {

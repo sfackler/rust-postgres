@@ -12,7 +12,7 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = Connection::connect("postgresql://postgres@localhost", TlsMode::None)
+//!     let conn = Connection::connect("postgresql://postgres@localhost:5433", TlsMode::None)
 //!             .unwrap();
 //!
 //!     conn.execute("CREATE TABLE person (
@@ -62,7 +62,7 @@
 //! # #[cfg(feature = "with-native-tls")]
 //! fn main() {
 //!     let negotiator = NativeTls::new().unwrap();
-//!     let conn = Connection::connect("postgres://postgres@localhost", TlsMode::Require(&negotiator))
+//!     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::Require(&negotiator))
 //!         .unwrap();
 //! }
 //! ```
@@ -1057,7 +1057,7 @@ impl Connection {
     /// ```rust,no_run
     /// use postgres::{Connection, TlsMode};
     ///
-    /// let url = "postgresql://postgres:hunter2@localhost:2994/foodb";
+    /// let url = "postgresql://postgres:hunter2@localhost:5433:2994/foodb";
     /// let conn = Connection::connect(url, TlsMode::None).unwrap();
     /// ```
     ///

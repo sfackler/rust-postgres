@@ -1,0 +1,28 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/build
+    docker:
+      - image: jimmycuadra/rust:1.17.0
+      - image: sfackler/rust-postgres-test:1
+    steps:
+      - checkout
+      - run: apt-get update
+      - run: DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
+      - restore_cache:
+          key: registry
+      - run: cargo generate-lockfile
+      - save_cache:
+          key: registry-{{ epoch }}
+          paths:
+            - ~/.cargo/registry/index
+      - restore_cache:
+          key: dependencies-{{ checksum "Cargo.lock" }}
+      - run: cargo test --all
+      - run: cargo test --manifest-path=postgres/Cargo.toml --features "$(cargo read-manifest --manifest-path=postgres/Cargo.toml | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
+      - run: cargo test --manifest-path=tokio-postgres/Cargo.toml --all-features
+      - save_cache:
+          key: dependencies-{{ checksum "Cargo.lock" }}
+          paths:
+            - target
+            - ~/.cargo/registry/cache

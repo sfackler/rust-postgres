@@ -25,7 +25,7 @@ struct Person {
 }
 
 fn main() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.execute("CREATE TABLE person (
                     id              SERIAL PRIMARY KEY,
                     name            VARCHAR NOT NULL,

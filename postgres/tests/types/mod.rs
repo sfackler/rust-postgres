@@ -28,7 +28,7 @@ mod geo;
 
 fn test_type<T: PartialEq + FromSql + ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     for &(ref val, ref repr) in checks.iter() {
@@ -45,7 +45,7 @@ fn test_type<T: PartialEq + FromSql + ToSql, S: fmt::Display>(sql_type: &str, ch
 #[test]
 fn test_ref_tosql() {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     let stmt = conn.prepare("SELECT $1::Int").unwrap();
@@ -188,7 +188,7 @@ fn test_text_params() {
 #[test]
 fn test_bpchar_params() {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     or_panic!(conn.execute(
@@ -214,7 +214,7 @@ fn test_bpchar_params() {
 #[test]
 fn test_citext_params() {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     or_panic!(conn.execute(
@@ -296,7 +296,7 @@ fn test_array_params() {
 
 fn test_nan_param<T: PartialEq + ToSql + FromSql>(sql_type: &str) {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     let stmt = or_panic!(conn.prepare(&*format!("SELECT 'NaN'::{}", sql_type)));
@@ -318,7 +318,7 @@ fn test_f64_nan_param() {
 #[test]
 fn test_pg_database_datname() {
     let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost",
+        "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     let stmt = or_panic!(conn.prepare("SELECT datname FROM pg_database"));
@@ -331,7 +331,7 @@ fn test_pg_database_datname() {
 
 #[test]
 fn test_slice() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.batch_execute(
         "CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
@@ -351,7 +351,7 @@ fn test_slice() {
 
 #[test]
 fn test_slice_wrong_type() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
@@ -366,7 +366,7 @@ fn test_slice_wrong_type() {
 
 #[test]
 fn test_slice_range() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
 
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
     match stmt.query(&[&&[1i64][..]]) {
@@ -419,7 +419,7 @@ fn domain() {
         }
     }
 
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.batch_execute(
         "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
                         CREATE TABLE pg_temp.foo (id pg_temp.session_id);",
@@ -434,7 +434,7 @@ fn domain() {
 
 #[test]
 fn composite() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.batch_execute(
         "CREATE TYPE pg_temp.inventory_item AS (
                             name TEXT,
@@ -461,7 +461,7 @@ fn composite() {
 
 #[test]
 fn enum_() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     conn.batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
         .unwrap();
 
@@ -477,15 +477,4 @@ fn enum_() {
         }
         _ => panic!("bad type"),
     }
-}
-
-#[test]
-fn unknown() {
-    let conn = Connection::connect("postgres://postgres@localhost", TlsMode::None).unwrap();
-    let rows = conn.query("SELECT 'hello world'", &[]).unwrap();
-    match *rows.columns()[0].type_() {
-        Type::Unknown => {}
-        _ => panic!("bad type"),
-    }
-    assert_eq!("hello world", rows.get(0).get::<_, String>(0));
 }
