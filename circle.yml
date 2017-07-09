@@ -3,7 +3,7 @@ jobs:
   build:
     working_directory: ~/build
     docker:
-      - image: jimmycuadra/rust:1.17.0
+      - image: jimmycuadra/rust:1.18.0
       - image: sfackler/rust-postgres-test:1
     steps:
       - checkout

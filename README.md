@@ -50,7 +50,7 @@ fn main() {
 ```
 
 ## Requirements
-* **Rust** - Rust-Postgres is developed against the 1.16 release of Rust
+* **Rust** - Rust-Postgres is developed against the 1.18 release of Rust
     available on http://www.rust-lang.org. It should also compile against more
     recent releases.
 
