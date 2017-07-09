@@ -1139,24 +1139,3 @@ where
 {
     io::Error::new(io::ErrorKind::InvalidInput, "unexpected message").into()
 }
-
-trait RowNew {
-    fn new(columns: Arc<Vec<Column>>, data: RowData) -> Row;
-}
-
-trait StatementNew {
-    fn new(
-        close_sender: Sender<(u8, String)>,
-        name: String,
-        params: Vec<Type>,
-        columns: Arc<Vec<Column>>,
-    ) -> Statement;
-
-    fn columns_arc(&self) -> &Arc<Vec<Column>>;
-
-    fn name(&self) -> &str;
-}
-
-trait TransactionNew {
-    fn new(c: Connection) -> Transaction;
-}

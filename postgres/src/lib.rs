@@ -98,7 +98,7 @@ use tls::TlsHandshake;
 use notification::{Notifications, Notification};
 use params::{IntoConnectParams, User};
 use priv_io::MessageStream;
-use rows::{Rows, LazyRows};
+use rows::Rows;
 use stmt::{Statement, Column};
 use transaction::{Transaction, IsolationLevel};
 use types::{IsNull, Kind, Type, Oid, ToSql, FromSql, Field, OID, NAME, CHAR};
@@ -1466,59 +1466,4 @@ fn err(fields: &mut ErrorFields) -> Error {
         Ok(err) => Error::Db(Box::new(err)),
         Err(err) => Error::Io(err),
     }
-}
-
-trait RowsNew {
-    fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static>;
-}
-
-trait LazyRowsNew<'trans, 'stmt> {
-    fn new(
-        stmt: &'stmt Statement<'stmt>,
-        data: VecDeque<RowData>,
-        name: String,
-        row_limit: i32,
-        more_rows: bool,
-        finished: bool,
-        trans: &'trans Transaction<'trans>,
-    ) -> LazyRows<'trans, 'stmt>;
-}
-
-trait StatementInternals<'conn> {
-    fn new(
-        conn: &'conn Connection,
-        info: Arc<StatementInfo>,
-        next_portal_id: Cell<u32>,
-        finished: bool,
-    ) -> Statement<'conn>;
-
-    fn conn(&self) -> &'conn Connection;
-
-    fn info(&self) -> &Arc<StatementInfo>;
-
-    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>>;
-}
-
-trait ColumnNew {
-    fn new(name: String, type_: Type) -> Column;
-}
-
-trait NotificationsNew<'conn> {
-    fn new(conn: &'conn Connection) -> Notifications<'conn>;
-}
-
-trait TransactionInternals<'conn> {
-    fn new(conn: &'conn Connection, depth: u32) -> Transaction<'conn>;
-
-    fn conn(&self) -> &'conn Connection;
-
-    fn depth(&self) -> u32;
-}
-
-trait ConfigInternals {
-    fn build_command(&self, s: &mut String);
-}
-
-trait IsolationLevelNew {
-    fn new(level: &str) -> Result<IsolationLevel>;
 }

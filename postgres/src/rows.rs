@@ -12,7 +12,7 @@ use std::slice;
 use std::sync::Arc;
 use std::marker::PhantomData;
 
-use {Result, RowsNew, LazyRowsNew, StatementInternals, StatementInfo};
+use {Result, StatementInfo};
 use transaction::Transaction;
 use types::{FromSql, WrongType};
 use stmt::{Statement, Column};
@@ -42,22 +42,22 @@ pub struct Rows<'compat> {
     _marker: PhantomData<&'compat u8>,
 }
 
-impl RowsNew for Rows<'static> {
-    fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static> {
-        Rows {
-            stmt_info: stmt.info().clone(),
-            data: data,
-            _marker: PhantomData,
-        }
-    }
-}
-
 impl<'a> fmt::Debug for Rows<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Rows")
             .field("columns", &self.columns())
             .field("rows", &self.data.len())
             .finish()
+    }
+}
+
+impl Rows<'static> {
+    pub(crate) fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static> {
+        Rows {
+            stmt_info: stmt.info().clone(),
+            data: data,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -302,28 +302,6 @@ pub struct LazyRows<'trans, 'stmt> {
     _trans: &'trans Transaction<'trans>,
 }
 
-impl<'trans, 'stmt> LazyRowsNew<'trans, 'stmt> for LazyRows<'trans, 'stmt> {
-    fn new(
-        stmt: &'stmt Statement<'stmt>,
-        data: VecDeque<RowData>,
-        name: String,
-        row_limit: i32,
-        more_rows: bool,
-        finished: bool,
-        trans: &'trans Transaction<'trans>,
-    ) -> LazyRows<'trans, 'stmt> {
-        LazyRows {
-            stmt: stmt,
-            data: data,
-            name: name,
-            row_limit: row_limit,
-            more_rows: more_rows,
-            finished: finished,
-            _trans: trans,
-        }
-    }
-}
-
 impl<'a, 'b> Drop for LazyRows<'a, 'b> {
     fn drop(&mut self) {
         if !self.finished {
@@ -344,6 +322,26 @@ impl<'a, 'b> fmt::Debug for LazyRows<'a, 'b> {
 }
 
 impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
+    pub(crate) fn new(
+        stmt: &'stmt Statement<'stmt>,
+        data: VecDeque<RowData>,
+        name: String,
+        row_limit: i32,
+        more_rows: bool,
+        finished: bool,
+        trans: &'trans Transaction<'trans>,
+    ) -> LazyRows<'trans, 'stmt> {
+        LazyRows {
+            stmt: stmt,
+            data: data,
+            name: name,
+            row_limit: row_limit,
+            more_rows: more_rows,
+            finished: finished,
+            _trans: trans,
+        }
+    }
+
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().0.borrow_mut();
         check_desync!(conn);

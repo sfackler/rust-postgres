@@ -8,7 +8,7 @@ use postgres_protocol::message::backend;
 #[doc(inline)]
 pub use postgres_shared::Notification;
 
-use {desynchronized, Result, Connection, NotificationsNew};
+use {desynchronized, Result, Connection};
 use error::Error;
 
 /// Notifications from the Postgres backend.
@@ -25,6 +25,10 @@ impl<'a> fmt::Debug for Notifications<'a> {
 }
 
 impl<'conn> Notifications<'conn> {
+    pub(crate) fn new(conn: &'conn Connection) -> Notifications<'conn> {
+        Notifications { conn: conn }
+    }
+
     /// Returns the number of pending notifications.
     pub fn len(&self) -> usize {
         self.conn.0.borrow().notifications.len()
@@ -75,12 +79,6 @@ impl<'a, 'conn> IntoFallibleIterator for &'a Notifications<'conn> {
 
     fn into_fallible_iterator(self) -> Iter<'a> {
         self.iter()
-    }
-}
-
-impl<'conn> NotificationsNew<'conn> for Notifications<'conn> {
-    fn new(conn: &'conn Connection) -> Notifications<'conn> {
-        Notifications { conn: conn }
     }
 }
 

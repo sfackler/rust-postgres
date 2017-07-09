@@ -9,7 +9,6 @@ use std::sync::Arc;
 #[doc(inline)]
 pub use postgres_shared::rows::RowIndex;
 
-use RowNew;
 use types::{WrongType, FromSql};
 
 /// A row from Postgres.
@@ -18,16 +17,14 @@ pub struct Row {
     data: RowData,
 }
 
-impl RowNew for Row {
-    fn new(columns: Arc<Vec<Column>>, data: RowData) -> Row {
+impl Row {
+    pub(crate) fn new(columns: Arc<Vec<Column>>, data: RowData) -> Row {
         Row {
             columns: columns,
             data: data,
         }
     }
-}
 
-impl Row {
     /// Returns information about the columns in the row.
     pub fn columns(&self) -> &[Column] {
         &self.columns

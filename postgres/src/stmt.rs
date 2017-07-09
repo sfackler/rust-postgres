@@ -13,8 +13,7 @@ use error::Error;
 use types::{Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
-use {bad_response, err, Connection, StatementInternals, Result, RowsNew, LazyRowsNew, ColumnNew,
-     StatementInfo, TransactionInternals};
+use {bad_response, err, Connection, Result, StatementInfo};
 
 /// A prepared statement.
 pub struct Statement<'conn> {
@@ -36,8 +35,8 @@ impl<'conn> Drop for Statement<'conn> {
     }
 }
 
-impl<'conn> StatementInternals<'conn> for Statement<'conn> {
-    fn new(
+impl<'conn> Statement<'conn> {
+    pub(crate) fn new(
         conn: &'conn Connection,
         info: Arc<StatementInfo>,
         next_portal_id: Cell<u32>,
@@ -51,23 +50,21 @@ impl<'conn> StatementInternals<'conn> for Statement<'conn> {
         }
     }
 
-    fn info(&self) -> &Arc<StatementInfo> {
+    pub(crate) fn info(&self) -> &Arc<StatementInfo> {
         &self.info
     }
 
-    fn conn(&self) -> &'conn Connection {
+    pub(crate) fn conn(&self) -> &'conn Connection {
         self.conn
     }
 
-    fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>> {
+    pub(crate) fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>> {
         check_desync!(self.conn);
         let mut rows = vec![];
         self.inner_query("", 0, params, |row| rows.push(row))?;
         Ok(Rows::new(&self, rows))
     }
-}
 
-impl<'conn> Statement<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         if self.finished {
             Ok(())
@@ -563,16 +560,14 @@ pub struct Column {
     type_: Type,
 }
 
-impl ColumnNew for Column {
-    fn new(name: String, type_: Type) -> Column {
+impl Column {
+    pub(crate) fn new(name: String, type_: Type) -> Column {
         Column {
             name: name,
             type_: type_,
         }
     }
-}
 
-impl Column {
     /// The name of the column.
     pub fn name(&self) -> &str {
         &self.name

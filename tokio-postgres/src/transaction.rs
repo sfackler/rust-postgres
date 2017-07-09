@@ -3,7 +3,7 @@
 use futures::{Future, BoxFuture};
 use futures_state_stream::{StateStream, BoxStateStream};
 
-use {Connection, TransactionNew};
+use Connection;
 use error::Error;
 use stmt::Statement;
 use types::ToSql;
@@ -13,13 +13,11 @@ use rows::Row;
 #[derive(Debug)]
 pub struct Transaction(Connection);
 
-impl TransactionNew for Transaction {
-    fn new(c: Connection) -> Transaction {
+impl Transaction {
+    pub(crate) fn new(c: Connection) -> Transaction {
         Transaction(c)
     }
-}
 
-impl Transaction {
     /// Like `Connection::batch_execute`.
     pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
         self.0

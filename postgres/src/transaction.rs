@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::ascii::AsciiExt;
 
-use {bad_response, Result, Connection, TransactionInternals, ConfigInternals, IsolationLevelNew};
+use {bad_response, Result, Connection};
 use error::Error;
 use rows::Rows;
 use stmt::Statement;
@@ -31,8 +31,8 @@ pub enum IsolationLevel {
     Serializable,
 }
 
-impl IsolationLevelNew for IsolationLevel {
-    fn new(raw: &str) -> Result<IsolationLevel> {
+impl IsolationLevel {
+    pub(crate) fn new(raw: &str) -> Result<IsolationLevel> {
         if raw.eq_ignore_ascii_case("READ UNCOMMITTED") {
             Ok(IsolationLevel::ReadUncommitted)
         } else if raw.eq_ignore_ascii_case("READ COMMITTED") {
@@ -45,9 +45,7 @@ impl IsolationLevelNew for IsolationLevel {
             Err(Error::Io(bad_response()))
         }
     }
-}
 
-impl IsolationLevel {
     fn to_sql(&self) -> &'static str {
         match *self {
             IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
@@ -76,8 +74,8 @@ impl Default for Config {
     }
 }
 
-impl ConfigInternals for Config {
-    fn build_command(&self, s: &mut String) {
+impl Config {
+    pub(crate) fn build_command(&self, s: &mut String) {
         let mut first = true;
 
         if let Some(isolation_level) = self.isolation_level {
@@ -109,9 +107,7 @@ impl ConfigInternals for Config {
             }
         }
     }
-}
 
-impl Config {
     /// Creates a new `Config` with no configuration overrides.
     pub fn new() -> Config {
         Config::default()
@@ -172,8 +168,8 @@ impl<'conn> Drop for Transaction<'conn> {
     }
 }
 
-impl<'conn> TransactionInternals<'conn> for Transaction<'conn> {
-    fn new(conn: &'conn Connection, depth: u32) -> Transaction<'conn> {
+impl<'conn> Transaction<'conn> {
+    pub(crate) fn new(conn: &'conn Connection, depth: u32) -> Transaction<'conn> {
         Transaction {
             conn: conn,
             depth: depth,
@@ -183,16 +179,14 @@ impl<'conn> TransactionInternals<'conn> for Transaction<'conn> {
         }
     }
 
-    fn conn(&self) -> &'conn Connection {
+    pub(crate) fn conn(&self) -> &'conn Connection {
         self.conn
     }
 
-    fn depth(&self) -> u32 {
+    pub(crate) fn depth(&self) -> u32 {
         self.depth
     }
-}
 
-impl<'conn> Transaction<'conn> {
     fn finish_inner(&mut self) -> Result<()> {
         let mut conn = self.conn.0.borrow_mut();
         debug_assert!(self.depth == conn.trans_depth);
