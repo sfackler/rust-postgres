@@ -93,7 +93,7 @@ use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
 use postgres_shared::rows::RowData;
 
-use error::{Error, ConnectError, SqlState, DbError};
+use error::{Error, ConnectError, DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
 use tls::TlsHandshake;
 use notification::{Notifications, Notification};
 use params::{IntoConnectParams, User};
@@ -771,7 +771,7 @@ impl InnerConnection {
         ) {
             Ok(..) => {}
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedTable => {
+            Err(Error::Db(ref e)) if e.code == UNDEFINED_TABLE => {
                 self.raw_prepare(
                     TYPEINFO_QUERY,
                     "SELECT t.typname, t.typtype, t.typelem, NULL::OID, \
@@ -862,7 +862,7 @@ impl InnerConnection {
         ) {
             Ok(..) => {}
             // Postgres 9.0 doesn't have enumsortorder
-            Err(Error::Db(ref e)) if e.code == SqlState::UndefinedColumn => {
+            Err(Error::Db(ref e)) if e.code == UNDEFINED_COLUMN => {
                 self.raw_prepare(
                     TYPEINFO_ENUM_QUERY,
                     "SELECT enumlabel \

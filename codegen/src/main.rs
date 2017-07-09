@@ -1,6 +1,7 @@
 extern crate phf_codegen;
 extern crate regex;
 extern crate marksman_escape;
+extern crate linked_hash_map;
 
 use std::ascii::AsciiExt;
 use std::path::Path;

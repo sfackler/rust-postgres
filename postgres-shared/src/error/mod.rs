@@ -5,7 +5,7 @@ use std::convert::From;
 use std::fmt;
 use std::io;
 
-pub use self::sqlstate::SqlState;
+pub use self::sqlstate::*;
 
 mod sqlstate;
 

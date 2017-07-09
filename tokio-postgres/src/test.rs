@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
-use error::{Error, ConnectError, SqlState};
+use error::{Error, ConnectError, INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION, QUERY_CANCELED};
 use params::{ConnectParams, Host};
 use types::{ToSql, FromSql, Type, IsNull, Kind};
 
@@ -48,7 +48,7 @@ fn md5_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -92,7 +92,7 @@ fn pass_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::Db(ref e)) if e.code == SqlState::InvalidPassword => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -123,7 +123,7 @@ fn batch_execute_err() {
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
         .then(|r| match r {
             Err(Error::Db(e, s)) => {
-                assert!(e.code == SqlState::UndefinedTable);
+                assert!(e.code == UNDEFINED_TABLE);
                 s.batch_execute("SELECT * FROM foo")
             }
             Err(e) => panic!("unexpected error: {}", e),
@@ -249,7 +249,7 @@ fn ssl_user_ssl_required() {
     );
 
     match l.run(done) {
-        Err(ConnectError::Db(e)) => assert!(e.code == SqlState::InvalidAuthorizationSpecification),
+        Err(ConnectError::Db(e)) => assert!(e.code == INVALID_AUTHORIZATION_SPECIFICATION),
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -437,7 +437,7 @@ fn cancel() {
     let (select, cancel) = l.run(done).unwrap();
     cancel.unwrap();
     match select {
-        Err(Error::Db(e, _)) => assert_eq!(e.code, SqlState::QueryCanceled),
+        Err(Error::Db(e, _)) => assert_eq!(e.code, QUERY_CANCELED),
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }

@@ -4,7 +4,8 @@ use std::io;
 use std::error;
 
 #[doc(inline)]
-pub use postgres_shared::error::{DbError, ConnectError, ErrorPosition, Severity, SqlState};
+// FIXME
+pub use postgres_shared::error::*;
 
 /// An error encountered when communicating with the Postgres server.
 #[derive(Debug)]

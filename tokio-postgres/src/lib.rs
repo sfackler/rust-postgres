@@ -89,7 +89,7 @@ use tokio_core::reactor::Handle;
 #[doc(inline)]
 pub use postgres_shared::{params, CancelData, Notification};
 
-use error::{ConnectError, Error, DbError, SqlState};
+use error::{ConnectError, Error, DbError, UNDEFINED_TABLE, UNDEFINED_COLUMN};
 use params::{ConnectParams, IntoConnectParams};
 use stmt::{Statement, Column};
 use stream::PostgresStream;
@@ -774,7 +774,7 @@ impl Connection {
                 match e {
                     // Range types weren't added until Postgres 9.2, so pg_range may not exist
                     Error::Db(e, c) => {
-                        if e.code != SqlState::UndefinedTable {
+                        if e.code != UNDEFINED_TABLE {
                             return Either::B(Err(Error::Db(e, c)).into_future());
                         }
 
@@ -832,7 +832,7 @@ impl Connection {
                           ORDER BY enumsortorder",
         ).or_else(|e| match e {
                 Error::Db(e, c) => {
-                    if e.code != SqlState::UndefinedColumn {
+                    if e.code != UNDEFINED_COLUMN {
                         return Either::B(Err(Error::Db(e, c)).into_future());
                     }
 

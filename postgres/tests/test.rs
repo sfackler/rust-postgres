@@ -12,10 +12,9 @@ extern crate native_tls;
 use fallible_iterator::FallibleIterator;
 use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
-use postgres::error::{Error, ConnectError, DbError};
+use postgres::error::{Error, ConnectError, DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
+                      INVALID_CATALOG_NAME, INVALID_PASSWORD, CARDINALITY_VIOLATION};
 use postgres::types::{Oid, Type, Kind, WrongType};
-use postgres::error::SqlState::{SyntaxError, QueryCanceled, UndefinedTable, InvalidCatalogName,
-                                InvalidPassword, CardinalityViolation};
 use postgres::error::ErrorPosition::Normal;
 use postgres::rows::RowIndex;
 use postgres::notification::Notification;
@@ -59,7 +58,7 @@ fn test_prepare_err() {
     ));
     let stmt = conn.prepare("invalid sql database");
     match stmt {
-        Err(Error::Db(ref e)) if e.code == SyntaxError && e.position == Some(Normal(1)) => {}
+        Err(Error::Db(ref e)) if e.code == SYNTAX_ERROR && e.position == Some(Normal(1)) => {}
         Err(e) => panic!("Unexpected result {:?}", e),
         _ => panic!("Unexpected result"),
     }
@@ -68,7 +67,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost:5433/asdf", TlsMode::None) {
-        Err(ConnectError::Db(ref e)) if e.code == InvalidCatalogName => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_CATALOG_NAME => {}
         Err(resp) => panic!("Unexpected result {:?}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -455,7 +454,7 @@ fn test_batch_execute_error() {
 
     let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
     match stmt {
-        Err(Error::Db(ref e)) if e.code == UndefinedTable => {}
+        Err(Error::Db(ref e)) if e.code == UNDEFINED_TABLE => {}
         Err(e) => panic!("unexpected error {:?}", e),
         _ => panic!("unexpected success"),
     }
@@ -520,7 +519,7 @@ FROM (SELECT gs.i
       LIMIT 2) ss",
     ));
     match stmt.query(&[]) {
-        Err(Error::Db(ref e)) if e.code == CardinalityViolation => {}
+        Err(Error::Db(ref e)) if e.code == CARDINALITY_VIOLATION => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure"),
     };
@@ -917,13 +916,16 @@ fn test_cancel_query() {
     let t = thread::spawn(move || {
         thread::sleep(Duration::from_millis(500));
         assert!(
-            postgres::cancel_query("postgres://postgres@localhost:5433", TlsMode::None, &cancel_data)
-                .is_ok()
+            postgres::cancel_query(
+                "postgres://postgres@localhost:5433",
+                TlsMode::None,
+                &cancel_data,
+            ).is_ok()
         );
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
-        Err(Error::Db(ref e)) if e.code == QueryCanceled => {}
+        Err(Error::Db(ref e)) if e.code == QUERY_CANCELED => {}
         Err(res) => panic!("Unexpected result {:?}", res),
         _ => panic!("Unexpected result"),
     }
@@ -1011,7 +1013,10 @@ fn test_plaintext_pass() {
 
 #[test]
 fn test_plaintext_pass_no_pass() {
-    let ret = Connection::connect("postgres://pass_user@localhost:5433/postgres", TlsMode::None);
+    let ret = Connection::connect(
+        "postgres://pass_user@localhost:5433/postgres",
+        TlsMode::None,
+    );
     match ret {
         Err(ConnectError::ConnectParams(..)) => (),
         Err(err) => panic!("Unexpected error {:?}", err),
@@ -1026,7 +1031,7 @@ fn test_plaintext_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == InvalidPassword => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1052,9 +1057,12 @@ fn test_md5_pass_no_pass() {
 
 #[test]
 fn test_md5_pass_wrong_pass() {
-    let ret = Connection::connect("postgres://md5_user:asdf@localhost:5433/postgres", TlsMode::None);
+    let ret = Connection::connect(
+        "postgres://md5_user:asdf@localhost:5433/postgres",
+        TlsMode::None,
+    );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == InvalidPassword => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1070,7 +1078,10 @@ fn test_scram_pass() {
 
 #[test]
 fn test_scram_pass_no_pass() {
-    let ret = Connection::connect("postgres://scram_user@localhost:5433/postgres", TlsMode::None);
+    let ret = Connection::connect(
+        "postgres://scram_user@localhost:5433/postgres",
+        TlsMode::None,
+    );
     match ret {
         Err(ConnectError::ConnectParams(..)) => (),
         Err(err) => panic!("Unexpected error {:?}", err),
@@ -1080,9 +1091,12 @@ fn test_scram_pass_no_pass() {
 
 #[test]
 fn test_scram_pass_wrong_pass() {
-    let ret = Connection::connect("postgres://scram_user:asdf@localhost:5433/postgres", TlsMode::None);
+    let ret = Connection::connect(
+        "postgres://scram_user:asdf@localhost:5433/postgres",
+        TlsMode::None,
+    );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == InvalidPassword => {}
+        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
