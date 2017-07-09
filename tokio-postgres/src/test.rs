@@ -217,6 +217,7 @@ fn transaction() {
 }
 
 #[test]
+#[ignore] // not supported on our CI setup :(
 fn unix_socket() {
     let mut l = Core::new().unwrap();
     let handle = l.handle();
