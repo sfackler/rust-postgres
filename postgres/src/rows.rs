@@ -10,7 +10,6 @@ use std::io;
 use std::ops::Deref;
 use std::slice;
 use std::sync::Arc;
-use std::marker::PhantomData;
 
 use {Result, StatementInfo};
 use transaction::Transaction;
@@ -35,14 +34,12 @@ impl<'a, T> Deref for MaybeOwned<'a, T> {
 }
 
 /// The resulting rows of a query.
-// FIXME remove lifetime
-pub struct Rows<'compat> {
+pub struct Rows {
     stmt_info: Arc<StatementInfo>,
     data: Vec<RowData>,
-    _marker: PhantomData<&'compat u8>,
 }
 
-impl<'a> fmt::Debug for Rows<'a> {
+impl fmt::Debug for Rows {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Rows")
             .field("columns", &self.columns())
@@ -51,17 +48,14 @@ impl<'a> fmt::Debug for Rows<'a> {
     }
 }
 
-impl Rows<'static> {
-    pub(crate) fn new(stmt: &Statement, data: Vec<RowData>) -> Rows<'static> {
+impl Rows {
+    pub(crate) fn new(stmt: &Statement, data: Vec<RowData>) -> Rows {
         Rows {
             stmt_info: stmt.info().clone(),
             data: data,
-            _marker: PhantomData,
         }
     }
-}
 
-impl<'rows> Rows<'rows> {
     /// Returns a slice describing the columns of the `Rows`.
     pub fn columns(&self) -> &[Column] {
         &self.stmt_info.columns[..]
@@ -98,7 +92,7 @@ impl<'rows> Rows<'rows> {
     }
 }
 
-impl<'a> IntoIterator for &'a Rows<'a> {
+impl<'a> IntoIterator for &'a Rows {
     type Item = Row<'a>;
     type IntoIter = Iter<'a>;
 

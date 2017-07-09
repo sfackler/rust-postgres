@@ -58,7 +58,7 @@ impl<'conn> Statement<'conn> {
         self.conn
     }
 
-    pub(crate) fn into_query(self, params: &[&ToSql]) -> Result<Rows<'static>> {
+    pub(crate) fn into_query(self, params: &[&ToSql]) -> Result<Rows> {
         check_desync!(self.conn);
         let mut rows = vec![];
         self.inner_query("", 0, params, |row| rows.push(row))?;
@@ -210,7 +210,7 @@ impl<'conn> Statement<'conn> {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn query(&self, params: &[&ToSql]) -> Result<Rows<'static>> {
+    pub fn query(&self, params: &[&ToSql]) -> Result<Rows> {
         check_desync!(self.conn);
         let mut rows = vec![];
         self.inner_query("", 0, params, |row| rows.push(row))?;

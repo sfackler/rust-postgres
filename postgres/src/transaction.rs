@@ -222,7 +222,7 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::query`.
-    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
+    pub fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows> {
         self.conn.query(query, params)
     }
 

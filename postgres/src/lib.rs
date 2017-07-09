@@ -1156,7 +1156,7 @@ impl Connection {
     ///     println!("foo: {}", foo);
     /// }
     /// ```
-    pub fn query(&self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
+    pub fn query(&self, query: &str, params: &[&ToSql]) -> Result<Rows> {
         let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
         let info = Arc::new(StatementInfo {
             name: String::new(),
@@ -1376,7 +1376,7 @@ pub trait GenericConnection {
     fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64>;
 
     /// Like `Connection::query`.
-    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>>;
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows>;
 
     /// Like `Connection::prepare`.
     fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>>;
@@ -1399,7 +1399,7 @@ impl GenericConnection for Connection {
         self.execute(query, params)
     }
 
-    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
+    fn query<'a>(&'a self, query: &str, params: &[&ToSql]) -> Result<Rows> {
         self.query(query, params)
     }
 
@@ -1429,7 +1429,7 @@ impl<'a> GenericConnection for Transaction<'a> {
         self.execute(query, params)
     }
 
-    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows<'static>> {
+    fn query<'b>(&'b self, query: &str, params: &[&ToSql]) -> Result<Rows> {
         self.query(query, params)
     }
 
