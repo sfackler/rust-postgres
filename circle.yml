@@ -4,7 +4,7 @@ jobs:
     working_directory: ~/build
     docker:
       - image: jimmycuadra/rust:1.18.0
-      - image: sfackler/rust-postgres-test:1
+      - image: sfackler/rust-postgres-test:2
     steps:
       - checkout
       - run: apt-get update

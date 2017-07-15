@@ -1,6 +1,6 @@
 version: '2'
 services:
   postgres:
-    image: "sfackler/rust-postgres-test:1"
+    image: "sfackler/rust-postgres-test:2"
     ports:
     - 5433:5433
