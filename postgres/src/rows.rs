@@ -11,11 +11,11 @@ use std::ops::Deref;
 use std::slice;
 use std::sync::Arc;
 
-use {Result, StatementInfo};
+use {Error, Result, StatementInfo};
 use transaction::Transaction;
 use types::{FromSql, WrongType};
 use stmt::{Statement, Column};
-use error::Error;
+use error::ErrorKind;
 
 enum MaybeOwned<'a, T: 'a> {
     Borrowed(&'a T),
@@ -229,10 +229,12 @@ impl<'a> Row<'a> {
 
         let ty = self.stmt_info.columns[idx].type_();
         if !<T as FromSql>::accepts(ty) {
-            return Some(Err(Error::Conversion(Box::new(WrongType::new(ty.clone())))));
+            return Some(Err(Error(Box::new(
+                ErrorKind::Conversion(Box::new(WrongType::new(ty.clone()))),
+            ))));
         }
         let value = FromSql::from_sql_nullable(ty, self.data.get(idx));
-        Some(value.map_err(Error::Conversion))
+        Some(value.map_err(|e| Error(Box::new(ErrorKind::Conversion(e)))))
     }
 
     /// Retrieves the specified field as a raw buffer of Postgres data.

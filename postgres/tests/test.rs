@@ -12,7 +12,7 @@ extern crate native_tls;
 use fallible_iterator::FallibleIterator;
 use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
-use postgres::error::{Error, ConnectError, DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
+use postgres::error::{DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
                       INVALID_CATALOG_NAME, INVALID_PASSWORD, CARDINALITY_VIOLATION};
 use postgres::types::{Oid, Type, Kind, WrongType, INT4, VARCHAR, FLOAT8};
 use postgres::error::ErrorPosition::Normal;
@@ -56,18 +56,17 @@ fn test_prepare_err() {
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
-    let stmt = conn.prepare("invalid sql database");
-    match stmt {
-        Err(Error::Db(ref e)) if e.code == SYNTAX_ERROR && e.position == Some(Normal(1)) => {}
-        Err(e) => panic!("Unexpected result {:?}", e),
-        _ => panic!("Unexpected result"),
+    let err = conn.prepare("invalid sql database").unwrap_err();
+    match err.as_db() {
+        Some(e) if e.code == SYNTAX_ERROR && e.position == Some(Normal(1)) => {}
+        _ => panic!("Unexpected result {:?}", err),
     }
 }
 
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost:5433/asdf", TlsMode::None) {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_CATALOG_NAME => {}
+        Err(ref e) if e.code() == Some(&INVALID_CATALOG_NAME) => {}
         Err(resp) => panic!("Unexpected result {:?}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -454,7 +453,7 @@ fn test_batch_execute_error() {
 
     let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
     match stmt {
-        Err(Error::Db(ref e)) if e.code == UNDEFINED_TABLE => {}
+        Err(ref e) if e.code() == Some(&UNDEFINED_TABLE) => {}
         Err(e) => panic!("unexpected error {:?}", e),
         _ => panic!("unexpected success"),
     }
@@ -519,7 +518,7 @@ FROM (SELECT gs.i
       LIMIT 2) ss",
     ));
     match stmt.query(&[]) {
-        Err(Error::Db(ref e)) if e.code == CARDINALITY_VIOLATION => {}
+        Err(ref e) if e.code() == Some(&CARDINALITY_VIOLATION) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure"),
     };
@@ -628,9 +627,10 @@ fn test_wrong_param_type() {
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
-    match conn.execute("SELECT $1::VARCHAR", &[&1i32]) {
-        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
-        res => panic!("unexpected result {:?}", res),
+    let err = conn.execute("SELECT $1::VARCHAR", &[&1i32]).unwrap_err();
+    match err.as_conversion() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("unexpected result {:?}", err),
     }
 }
 
@@ -710,7 +710,7 @@ fn test_get_was_null() {
     let result = or_panic!(stmt.query(&[]));
 
     match result.iter().next().unwrap().get_opt::<_, i32>(0) {
-        Some(Err(Error::Conversion(..))) => {}
+        Some(Err(ref e)) if e.as_conversion().is_some() => {}
         res => panic!("unexpected result {:?}", res),
     };
 }
@@ -925,7 +925,7 @@ fn test_cancel_query() {
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
-        Err(Error::Db(ref e)) if e.code == QUERY_CANCELED => {}
+        Err(ref e) if e.code() == Some(&QUERY_CANCELED) => {}
         Err(res) => panic!("Unexpected result {:?}", res),
         _ => panic!("Unexpected result"),
     }
@@ -1018,7 +1018,7 @@ fn test_plaintext_pass_no_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::ConnectParams(..)) => (),
+        Err(ref e) if e.as_connection().is_some() => (),
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1031,7 +1031,7 @@ fn test_plaintext_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
+        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1049,7 +1049,7 @@ fn test_md5_pass() {
 fn test_md5_pass_no_pass() {
     let ret = Connection::connect("postgres://md5_user@localhost:5433/postgres", TlsMode::None);
     match ret {
-        Err(ConnectError::ConnectParams(..)) => (),
+        Err(ref e) if e.as_connection().is_some() => (),
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1062,7 +1062,7 @@ fn test_md5_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
+        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1083,7 +1083,7 @@ fn test_scram_pass_no_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::ConnectParams(..)) => (),
+        Err(ref e) if e.as_connection().is_some() => (),
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1096,7 +1096,7 @@ fn test_scram_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
+        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1110,16 +1110,18 @@ fn test_execute_copy_from_err() {
     ));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
-    match stmt.execute(&[]) {
-        Err(Error::Db(ref err)) if err.message.contains("COPY") => {}
-        Err(err) => panic!("Unexpected error {:?}", err),
-        _ => panic!("Expected error"),
+
+    let err = stmt.execute(&[]).unwrap_err();
+    match err.as_db() {
+        Some(err) if err.message.contains("COPY") => {}
+        _ => panic!("Unexpected error {:?}", err),
     }
-    match stmt.query(&[]) {
-        Err(Error::Db(ref err)) if err.message.contains("COPY") => {}
-        Err(err) => panic!("Unexpected error {:?}", err),
-        _ => panic!("Expected error"),
-    };
+
+    let err = stmt.execute(&[]).unwrap_err();
+    match err.as_db() {
+        Some(err) if err.message.contains("COPY") => {}
+        _ => panic!("Unexpected error {:?}", err),
+    }
 }
 
 #[test]
@@ -1129,10 +1131,10 @@ fn test_batch_execute_copy_from_err() {
         TlsMode::None,
     ));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
-    match conn.batch_execute("COPY foo (id) FROM STDIN") {
-        Err(Error::Db(ref err)) if err.message.contains("COPY") => {}
-        Err(err) => panic!("Unexpected error {:?}", err),
-        _ => panic!("Expected error"),
+    let err = conn.batch_execute("COPY foo (id) FROM STDIN").unwrap_err();
+    match err.as_db() {
+        Some(err) if err.message.contains("COPY") => {}
+        _ => panic!("Unexpected error {:?}", err),
     }
 }
 
@@ -1152,10 +1154,10 @@ fn test_copy_io_error() {
     ));
     or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT)", &[]));
     let stmt = or_panic!(conn.prepare("COPY foo (id) FROM STDIN"));
-    match stmt.copy_in(&[], &mut ErrorReader) {
-        Err(Error::Io(ref e)) if e.kind() == io::ErrorKind::AddrNotAvailable => {}
-        Err(err) => panic!("Unexpected error {:?}", err),
-        _ => panic!("Expected error"),
+    let err = stmt.copy_in(&[], &mut ErrorReader).unwrap_err();
+    match err.as_io() {
+        Some(e) if e.kind() == io::ErrorKind::AddrNotAvailable => {}
+        _ => panic!("Unexpected error {:?}", err),
     }
 
     or_panic!(conn.execute("SELECT 1", &[]));
@@ -1194,10 +1196,10 @@ fn test_query_copy_out_err() {
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)",
     ));
     let stmt = or_panic!(conn.prepare("COPY foo (id) TO STDOUT"));
-    match stmt.query(&[]) {
-        Ok(_) => panic!("unexpected success"),
-        Err(Error::Io(ref e)) if e.to_string().contains("COPY") => {}
-        Err(e) => panic!("unexpected error {:?}", e),
+    let err = stmt.query(&[]).unwrap_err();
+    match err.as_io() {
+        Some(e) if e.to_string().contains("COPY") => {}
+        _ => panic!("unexpected error {:?}", err),
     };
 }
 
@@ -1237,10 +1239,10 @@ fn test_copy_out_error() {
         "COPY (SELECT id FROM foo ORDER BY id) TO STDOUT (OIDS)",
     ));
     let mut buf = vec![];
-    match stmt.copy_out(&[], &mut buf) {
-        Ok(_) => panic!("unexpected success"),
-        Err(Error::Db(..)) => {}
-        Err(e) => panic!("unexpected error {}", e),
+    let err = stmt.copy_out(&[], &mut buf).unwrap_err();
+    match err.as_db() {
+        Some(_) => {}
+        _ => panic!("unexpected error {}", err),
     }
 }
 
@@ -1367,19 +1369,6 @@ fn test_get_bytes() {
         b"\x00\x01\x02\x03",
         result.iter().next().unwrap().get_bytes(0).unwrap()
     );
-}
-
-#[test]
-fn test_get_opt_wrong_type() {
-    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    let stmt = conn.prepare("SELECT 1::INT").unwrap();
-    let res = stmt.query(&[]).unwrap();
-    match res.iter().next().unwrap().get_opt::<_, String>(0) {
-        Some(Ok(_)) => panic!("unexpected success"),
-        Some(Err(Error::Conversion(ref e))) if e.is::<WrongType>() => {}
-        Some(Err(e)) => panic!("unexpected error {}", e),
-        None => panic!("unexpected None"),
-    }
 }
 
 #[test]

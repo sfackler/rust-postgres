@@ -2,6 +2,7 @@ use std::io::{self, BufWriter, Read, Write};
 use std::fmt;
 use std::net::TcpStream;
 use std::time::Duration;
+use std::result;
 use bytes::{BufMut, BytesMut};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
@@ -12,8 +13,8 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::backend;
 
-use TlsMode;
-use error::ConnectError;
+use {Error, Result, TlsMode};
+use error::ErrorKind;
 use tls::TlsStream;
 use params::{ConnectParams, Host};
 
@@ -38,9 +39,9 @@ impl MessageStream {
         self.stream.get_ref()
     }
 
-    pub fn write_message<F, E>(&mut self, f: F) -> Result<(), E>
+    pub fn write_message<F, E>(&mut self, f: F) -> result::Result<(), E>
     where
-        F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
+        F: FnOnce(&mut Vec<u8>) -> result::Result<(), E>,
         E: From<io::Error>,
     {
         self.out_buf.clear();
@@ -229,7 +230,7 @@ impl Write for InternalStream {
     }
 }
 
-fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
+fn open_socket(params: &ConnectParams) -> Result<InternalStream> {
     let port = params.port();
     match *params.host() {
         Host::Tcp(ref host) => {
@@ -244,18 +245,17 @@ fn open_socket(params: &ConnectParams) -> Result<InternalStream, ConnectError> {
         }
         #[cfg(not(unix))]
         Host::Unix(..) => {
-            Err(ConnectError::Io(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "unix sockets are not supported on this system",
-            )))
+            Err(
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "unix sockets are not supported on this system",
+                ).into(),
+            )
         }
     }
 }
 
-pub fn initialize_stream(
-    params: &ConnectParams,
-    tls: TlsMode,
-) -> Result<Box<TlsStream>, ConnectError> {
+pub fn initialize_stream(params: &ConnectParams, tls: TlsMode) -> Result<Box<TlsStream>> {
     let mut socket = Stream(open_socket(params)?);
 
     let (tls_required, handshaker) = match tls {
@@ -273,7 +273,9 @@ pub fn initialize_stream(
     socket.read_exact(&mut b)?;
     if b[0] == b'N' {
         if tls_required {
-            return Err(ConnectError::Tls("the server does not support TLS".into()));
+            return Err(Error(Box::new(
+                ErrorKind::Tls("the server does not support TLS".into()),
+            )));
         } else {
             return Ok(Box::new(socket));
         }
@@ -282,10 +284,10 @@ pub fn initialize_stream(
     let host = match *params.host() {
         Host::Tcp(ref host) => host,
         // Postgres doesn't support TLS over unix sockets
-        Host::Unix(_) => return Err(ConnectError::Io(::bad_response())),
+        Host::Unix(_) => return Err(::bad_response().into()),
     };
 
-    handshaker.tls_handshake(host, socket).map_err(
-        ConnectError::Tls,
-    )
+    handshaker.tls_handshake(host, socket).map_err(|e| {
+        Error(Box::new(ErrorKind::Tls(e)))
+    })
 }

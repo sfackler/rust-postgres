@@ -5,7 +5,6 @@ use std::fmt;
 use std::ascii::AsciiExt;
 
 use {bad_response, Result, Connection};
-use error::Error;
 use rows::Rows;
 use stmt::Statement;
 use types::ToSql;
@@ -42,7 +41,7 @@ impl IsolationLevel {
         } else if raw.eq_ignore_ascii_case("SERIALIZABLE") {
             Ok(IsolationLevel::Serializable)
         } else {
-            Err(Error::Io(bad_response()))
+            Err(bad_response().into())
         }
     }
 

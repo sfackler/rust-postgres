@@ -357,10 +357,10 @@ fn test_slice_wrong_type() {
 
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)")
         .unwrap();
-    match stmt.query(&[&&["hi"][..]]) {
-        Ok(_) => panic!("Unexpected success"),
-        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
-        Err(e) => panic!("Unexpected error {:?}", e),
+    let err = stmt.query(&[&&["hi"][..]]).unwrap_err();
+    match err.as_conversion() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("Unexpected error {:?}", err),
     };
 }
 
@@ -369,10 +369,10 @@ fn test_slice_range() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
 
     let stmt = conn.prepare("SELECT $1::INT8RANGE").unwrap();
-    match stmt.query(&[&&[1i64][..]]) {
-        Ok(_) => panic!("Unexpected success"),
-        Err(Error::Conversion(ref e)) if e.is::<WrongType>() => {}
-        Err(e) => panic!("Unexpected error {:?}", e),
+    let err = stmt.query(&[&&[1i64][..]]).unwrap_err();
+    match err.as_conversion() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("Unexpected error {:?}", err),
     };
 }
 

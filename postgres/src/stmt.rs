@@ -9,7 +9,6 @@ use std::sync::Arc;
 use postgres_protocol::message::{backend, frontend};
 use postgres_shared::rows::RowData;
 
-use error::Error;
 use types::{Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
@@ -182,7 +181,7 @@ impl<'conn> Statement<'conn> {
                 }
                 _ => {
                     conn.desynchronized = true;
-                    return Err(Error::Io(bad_response()));
+                    return Err(bad_response().into());
                 }
             }
         }
@@ -320,12 +319,12 @@ impl<'conn> Statement<'conn> {
             _ => {
                 loop {
                     if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
-                        return Err(Error::Io(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "called `copy_in` on a \
-                                                             non-`COPY FROM STDIN` \
-                                                             statement",
-                        )));
+                        return Err(
+                            io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "called `copy_in` on a non-`COPY FROM STDIN` statement",
+                            ).into(),
+                        );
                     }
                 }
             }
@@ -362,11 +361,11 @@ impl<'conn> Statement<'conn> {
                         }
                         _ => {
                             conn.desynchronized = true;
-                            return Err(Error::Io(bad_response()));
+                            return Err(bad_response().into());
                         }
                     }
                     conn.wait_for_ready()?;
-                    return Err(Error::Io(err));
+                    return Err(err.into());
                 }
             }
         }
@@ -387,7 +386,7 @@ impl<'conn> Statement<'conn> {
             }
             _ => {
                 conn.desynchronized = true;
-                return Err(Error::Io(bad_response()));
+                return Err(bad_response().into());
             }
         };
 
@@ -450,15 +449,16 @@ impl<'conn> Statement<'conn> {
                     }
                     _ => {
                         conn.desynchronized = true;
-                        return Err(Error::Io(bad_response()));
+                        return Err(bad_response().into());
                     }
                 }
                 conn.wait_for_ready()?;
-                return Err(Error::Io(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "called `copy_out` on a non-`COPY TO \
-                                                     STDOUT` statement",
-                )));
+                return Err(
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "called `copy_out` on a non-`COPY TO STDOUT` statement",
+                    ).into(),
+                );
             }
             backend::Message::ErrorResponse(body) => {
                 conn.wait_for_ready()?;
@@ -467,11 +467,12 @@ impl<'conn> Statement<'conn> {
             _ => {
                 loop {
                     if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
-                        return Err(Error::Io(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "called `copy_out` on a \
-                                                             non-`COPY TO STDOUT` statement",
-                        )));
+                        return Err(
+                            io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "called `copy_out` on a  non-`COPY TO STDOUT` statement",
+                            ).into(),
+                        );
                     }
                 }
             }
@@ -495,7 +496,7 @@ impl<'conn> Statement<'conn> {
                                     if let backend::Message::ReadyForQuery(_) =
                                         conn.read_message()?
                                     {
-                                        return Err(Error::Io(e));
+                                        return Err(e.into());
                                     }
                                 }
                             }
@@ -517,7 +518,7 @@ impl<'conn> Statement<'conn> {
                 _ => {
                     loop {
                         if let backend::Message::ReadyForQuery(_) = conn.read_message()? {
-                            return Err(Error::Io(bad_response()));
+                            return Err(bad_response().into());
                         }
                     }
                 }

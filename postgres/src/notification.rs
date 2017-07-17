@@ -99,7 +99,7 @@ impl<'a> FallibleIterator for Iter<'a> {
         }
 
         if conn.is_desynchronized() {
-            return Err(Error::Io(desynchronized()));
+            return Err(desynchronized().into());
         }
 
         match conn.read_message_with_notification_nonblocking() {
@@ -111,7 +111,7 @@ impl<'a> FallibleIterator for Iter<'a> {
                 }))
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(Error::Io(err)),
+            Err(err) => Err(err.into()),
             _ => unreachable!(),
         }
     }
@@ -138,7 +138,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
         }
 
         if conn.is_desynchronized() {
-            return Err(Error::Io(desynchronized()));
+            return Err(desynchronized().into());
         }
 
         match conn.read_message_with_notification() {
@@ -149,7 +149,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
                     payload: body.message()?.to_owned(),
                 }))
             }
-            Err(err) => Err(Error::Io(err)),
+            Err(err) => Err(err.into()),
             _ => unreachable!(),
         }
     }
@@ -174,7 +174,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
         }
 
         if conn.is_desynchronized() {
-            return Err(Error::Io(desynchronized()));
+            return Err(desynchronized().into());
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
@@ -186,7 +186,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
                 }))
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(Error::Io(err)),
+            Err(err) => Err(err.into()),
             _ => unreachable!(),
         }
     }
