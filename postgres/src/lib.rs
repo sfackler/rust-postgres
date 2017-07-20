@@ -93,7 +93,7 @@ use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
 use postgres_shared::rows::RowData;
 
-use error::{ErrorKind, DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
+use error::{DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
 use tls::TlsHandshake;
 use notification::{Notifications, Notification};
 use params::{IntoConnectParams, User};
@@ -106,6 +106,8 @@ use types::{IsNull, Kind, Type, Oid, ToSql, FromSql, Field, OID, NAME, CHAR};
 #[doc(inline)]
 pub use postgres_shared::CancelData;
 #[doc(inline)]
+pub use postgres_shared::error;
+#[doc(inline)]
 pub use error::Error;
 
 #[macro_use]
@@ -113,7 +115,6 @@ mod macros;
 
 mod feature_check;
 mod priv_io;
-pub mod error;
 pub mod tls;
 pub mod notification;
 pub mod params;
@@ -184,9 +185,7 @@ pub fn cancel_query<T>(params: T, tls: TlsMode, data: &CancelData) -> Result<()>
 where
     T: IntoConnectParams,
 {
-    let params = params.into_connect_params().map_err(|e| {
-        Error(Box::new(ErrorKind::ConnectParams(e)))
-    })?;
+    let params = params.into_connect_params().map_err(error::connect)?;
     let mut socket = priv_io::initialize_stream(&params, tls)?;
 
     let mut buf = vec![];
@@ -259,17 +258,15 @@ impl InnerConnection {
     where
         T: IntoConnectParams,
     {
-        let params = params.into_connect_params().map_err(|e| {
-            Error(Box::new(ErrorKind::ConnectParams(e)))
-        })?;
+        let params = params.into_connect_params().map_err(error::connect)?;
         let stream = priv_io::initialize_stream(&params, tls)?;
 
         let user = match params.user() {
             Some(user) => user,
             None => {
-                return Err(Error(Box::new(ErrorKind::ConnectParams(
-                    "User missing from connection parameters".into(),
-                ))));
+                return Err(error::connect(
+                    "user missing from connection parameters".into(),
+                ));
             }
         };
 
@@ -414,9 +411,7 @@ impl InnerConnection {
             backend::Message::AuthenticationOk => return Ok(()),
             backend::Message::AuthenticationCleartextPassword => {
                 let pass = user.password().ok_or_else(|| {
-                    Error(Box::new(ErrorKind::ConnectParams(
-                        "a password was requested but not provided".into(),
-                    )))
+                    error::connect("a password was requested but not provided".into())
                 })?;
                 self.stream.write_message(
                     |buf| frontend::password_message(pass, buf),
@@ -425,9 +420,7 @@ impl InnerConnection {
             }
             backend::Message::AuthenticationMd5Password(body) => {
                 let pass = user.password().ok_or_else(|| {
-                    Error(Box::new(ErrorKind::ConnectParams(
-                        "a password was requested but not provided".into(),
-                    )))
+                    error::connect("a password was requested but not provided".into())
                 })?;
                 let output =
                     authentication::md5_hash(user.name().as_bytes(), pass.as_bytes(), body.salt());
@@ -442,16 +435,14 @@ impl InnerConnection {
                     .filter(|m| *m == sasl::SCRAM_SHA_256)
                     .count()? == 0
                 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "unsupported authentication",
-                    ).into());
+                    return Err(
+                        io::Error::new(io::ErrorKind::Other, "unsupported authentication")
+                            .into(),
+                    );
                 }
 
                 let pass = user.password().ok_or_else(|| {
-                    Error(Box::new(ErrorKind::ConnectParams(
-                        "a password was requested but not provided".into(),
-                    )))
+                    error::connect("a password was requested but not provided".into())
                 })?;
 
                 let mut scram = ScramSha256::new(pass.as_bytes())?;
@@ -463,9 +454,7 @@ impl InnerConnection {
 
                 let body = match self.read_message()? {
                     backend::Message::AuthenticationSaslContinue(body) => body,
-                    backend::Message::ErrorResponse(body) => {
-                        return Err(err(&mut body.fields()))
-                    }
+                    backend::Message::ErrorResponse(body) => return Err(err(&mut body.fields())),
                     _ => return Err(bad_response().into()),
                 };
 
@@ -478,9 +467,7 @@ impl InnerConnection {
 
                 let body = match self.read_message()? {
                     backend::Message::AuthenticationSaslFinal(body) => body,
-                    backend::Message::ErrorResponse(body) => {
-                        return Err(err(&mut body.fields()))
-                    }
+                    backend::Message::ErrorResponse(body) => return Err(err(&mut body.fields())),
                     _ => return Err(bad_response().into()),
                 };
 
@@ -490,10 +477,9 @@ impl InnerConnection {
             backend::Message::AuthenticationScmCredential |
             backend::Message::AuthenticationGss |
             backend::Message::AuthenticationSspi => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "unsupported authentication",
-                ).into())
+                return Err(
+                    io::Error::new(io::ErrorKind::Other, "unsupported authentication").into(),
+                )
             }
             backend::Message::ErrorResponse(body) => return Err(err(&mut body.fields())),
             _ => return Err(bad_response().into()),
@@ -662,7 +648,7 @@ impl InnerConnection {
             match r {
                 Ok(()) => {}
                 Err(frontend::BindError::Conversion(e)) => {
-                    return Err(Error(Box::new(ErrorKind::Conversion(e))))
+                    return Err(error::conversion(e));
                 }
                 Err(frontend::BindError::Serialization(e)) => return Err(e.into()),
             }
@@ -807,29 +793,27 @@ impl InnerConnection {
         let get_raw = |i: usize| row.as_ref().and_then(|r| r.get(i));
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
-            let name = String::from_sql_nullable(&NAME, get_raw(0)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
-            let type_ = i8::from_sql_nullable(&CHAR, get_raw(1)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
-            let elem_oid = Oid::from_sql_nullable(&OID, get_raw(2)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
-            let rngsubtype = Option::<Oid>::from_sql_nullable(&OID, get_raw(3)).map_err(
-                |e| {
-                    Error(Box::new(ErrorKind::Conversion(e)))
-                },
+            let name = String::from_sql_nullable(&NAME, get_raw(0)).map_err(
+                error::conversion,
             )?;
-            let basetype = Oid::from_sql_nullable(&OID, get_raw(4)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
-            let schema = String::from_sql_nullable(&NAME, get_raw(5)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
-            let relid = Oid::from_sql_nullable(&OID, get_raw(6)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?;
+            let type_ = i8::from_sql_nullable(&CHAR, get_raw(1)).map_err(
+                error::conversion,
+            )?;
+            let elem_oid = Oid::from_sql_nullable(&OID, get_raw(2)).map_err(
+                error::conversion,
+            )?;
+            let rngsubtype = Option::<Oid>::from_sql_nullable(&OID, get_raw(3)).map_err(
+                error::conversion,
+            )?;
+            let basetype = Oid::from_sql_nullable(&OID, get_raw(4)).map_err(
+                error::conversion,
+            )?;
+            let schema = String::from_sql_nullable(&NAME, get_raw(5)).map_err(
+                error::conversion,
+            )?;
+            let relid = Oid::from_sql_nullable(&OID, get_raw(6)).map_err(
+                error::conversion,
+            )?;
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
@@ -897,9 +881,9 @@ impl InnerConnection {
 
         let mut variants = vec![];
         for row in rows {
-            variants.push(String::from_sql_nullable(&NAME, row.get(0)).map_err(|e| {
-                Error(Box::new(ErrorKind::Conversion(e)))
-            })?);
+            variants.push(String::from_sql_nullable(&NAME, row.get(0)).map_err(
+                error::conversion,
+            )?);
         }
 
         Ok(variants)
@@ -939,12 +923,12 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let name = String::from_sql_nullable(&NAME, row.get(0)).map_err(|e| {
-                    Error(Box::new(ErrorKind::Conversion(e)))
-                })?;
-                let type_ = Oid::from_sql_nullable(&OID, row.get(1)).map_err(|e| {
-                    Error(Box::new(ErrorKind::Conversion(e)))
-                })?;
+                let name = String::from_sql_nullable(&NAME, row.get(0)).map_err(
+                    error::conversion,
+                )?;
+                let type_ = Oid::from_sql_nullable(&OID, row.get(1)).map_err(
+                    error::conversion,
+                )?;
                 (name, type_)
             };
             let type_ = self.get_type(type_)?;
@@ -1461,7 +1445,7 @@ impl<'a> GenericConnection for Transaction<'a> {
 
 fn err(fields: &mut ErrorFields) -> Error {
     match DbError::new(fields) {
-        Ok(err) => Error(Box::new(ErrorKind::Db(err))),
+        Ok(err) => error::db(err),
         Err(err) => err.into(),
     }
 }

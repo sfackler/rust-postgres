@@ -307,59 +307,131 @@ pub enum ErrorPosition {
     },
 }
 
-/// Reasons a new Postgres connection could fail.
-#[derive(Debug)]
-pub enum ConnectError {
-    /// An error relating to connection parameters.
-    ConnectParams(Box<error::Error + Sync + Send>),
-    /// An error from the Postgres server itself.
-    Db(Box<DbError>),
-    /// An error initializing the TLS session.
-    Tls(Box<error::Error + Sync + Send>),
-    /// An error communicating with the server.
-    Io(io::Error),
+#[doc(hidden)]
+pub fn connect(e: Box<error::Error + Sync + Send>) -> Error {
+    Error(Box::new(ErrorKind::ConnectParams(e)))
 }
 
-impl fmt::Display for ConnectError {
+#[doc(hidden)]
+pub fn tls(e: Box<error::Error + Sync + Send>) -> Error {
+    Error(Box::new(ErrorKind::Tls(e)))
+}
+
+#[doc(hidden)]
+pub fn db(e: DbError) -> Error {
+    Error(Box::new(ErrorKind::Db(e)))
+}
+
+#[doc(hidden)]
+pub fn io(e: io::Error) -> Error {
+    Error(Box::new(ErrorKind::Io(e)))
+}
+
+#[doc(hidden)]
+pub fn conversion(e: Box<error::Error + Sync + Send>) -> Error {
+    Error(Box::new(ErrorKind::Conversion(e)))
+}
+
+#[derive(Debug)]
+enum ErrorKind {
+    ConnectParams(Box<error::Error + Sync + Send>),
+    Tls(Box<error::Error + Sync + Send>),
+    Db(DbError),
+    Io(io::Error),
+    Conversion(Box<error::Error + Sync + Send>),
+}
+
+/// An error communicating with the Postgres server.
+#[derive(Debug)]
+pub struct Error(Box<ErrorKind>);
+
+impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.write_str(error::Error::description(self))?;
-        match *self {
-            ConnectError::ConnectParams(ref msg) => write!(fmt, ": {}", msg),
-            ConnectError::Db(ref err) => write!(fmt, ": {}", err),
-            ConnectError::Tls(ref err) => write!(fmt, ": {}", err),
-            ConnectError::Io(ref err) => write!(fmt, ": {}", err),
+        match *self.0 {
+            ErrorKind::ConnectParams(ref err) => write!(fmt, ": {}", err),
+            ErrorKind::Tls(ref err) => write!(fmt, ": {}", err),
+            ErrorKind::Db(ref err) => write!(fmt, ": {}", err),
+            ErrorKind::Io(ref err) => write!(fmt, ": {}", err),
+            ErrorKind::Conversion(ref err) => write!(fmt, ": {}", err),
         }
     }
 }
 
-impl error::Error for ConnectError {
+impl error::Error for Error {
     fn description(&self) -> &str {
-        match *self {
-            ConnectError::ConnectParams(_) => "Invalid connection parameters",
-            ConnectError::Db(_) => "Error reported by Postgres",
-            ConnectError::Tls(_) => "Error initiating SSL session",
-            ConnectError::Io(_) => "Error communicating with the server",
+        match *self.0 {
+            ErrorKind::ConnectParams(_) => "invalid connection parameters",
+            ErrorKind::Tls(_) => "TLS handshake error",
+            ErrorKind::Db(_) => "database error",
+            ErrorKind::Io(_) => "IO error",
+            ErrorKind::Conversion(_) => "type conversion error",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        match *self {
-            ConnectError::ConnectParams(ref err) |
-            ConnectError::Tls(ref err) => Some(&**err),
-            ConnectError::Db(ref err) => Some(&**err),
-            ConnectError::Io(ref err) => Some(err),
+        match *self.0 {
+            ErrorKind::ConnectParams(ref err) => Some(&**err),
+            ErrorKind::Tls(ref err) => Some(&**err),
+            ErrorKind::Db(ref err) => Some(err),
+            ErrorKind::Io(ref err) => Some(err),
+            ErrorKind::Conversion(ref err) => Some(&**err),
         }
     }
 }
 
-impl From<io::Error> for ConnectError {
-    fn from(err: io::Error) -> ConnectError {
-        ConnectError::Io(err)
+impl Error {
+    /// Returns the SQLSTATE error code associated with this error if it is a DB
+    /// error.
+    pub fn code(&self) -> Option<&SqlState> {
+        self.as_db().map(|e| &e.code)
+    }
+
+    /// Returns the inner error if this is a connection parameter error.
+    pub fn as_connection(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
+        match *self.0 {
+            ErrorKind::ConnectParams(ref err) => Some(&**err),
+            _ => None,
+        }
+    }
+
+    /// Returns the `DbError` associated with this error if it is a DB error.
+    pub fn as_db(&self) -> Option<&DbError> {
+        match *self.0 {
+            ErrorKind::Db(ref err) => Some(err),
+            _ => None
+        }
+    }
+
+    /// Returns the inner error if this is a conversion error.
+    pub fn as_conversion(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
+        match *self.0 {
+            ErrorKind::Conversion(ref err) => Some(&**err),
+            _ => None,
+        }
+    }
+
+    /// Returns the inner `io::Error` associated with this error if it is an IO
+    /// error.
+    pub fn as_io(&self) -> Option<&io::Error> {
+        match *self.0 {
+            ErrorKind::Io(ref err) => Some(err),
+            _ => None,
+        }
     }
 }
 
-impl From<DbError> for ConnectError {
-    fn from(err: DbError) -> ConnectError {
-        ConnectError::Db(Box::new(err))
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error(Box::new(ErrorKind::Io(err)))
+    }
+}
+
+impl From<Error> for io::Error {
+    fn from(err: Error) -> io::Error {
+        match *err.0 {
+            ErrorKind::Io(e) => e,
+            _ => io::Error::new(io::ErrorKind::Other, err),
+        }
     }
 }

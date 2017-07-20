@@ -83,14 +83,16 @@ use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
-use tokio_io::IoFuture;
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{params, CancelData, Notification};
+pub use postgres_shared::{error, params, CancelData, Notification};
+#[doc(inline)]
+pub use error::Error;
 
-use error::{ConnectError, Error, DbError, UNDEFINED_TABLE, UNDEFINED_COLUMN};
+use error::{DbError, UNDEFINED_TABLE, UNDEFINED_COLUMN};
 use params::{ConnectParams, IntoConnectParams};
+use sink::SinkExt;
 use stmt::{Statement, Column};
 use stream::PostgresStream;
 use tls::Handshake;
@@ -98,9 +100,9 @@ use transaction::Transaction;
 use types::{Oid, Type, ToSql, IsNull, FromSql, Kind, Field, NAME, CHAR, OID};
 use rows::Row;
 
-pub mod error;
 pub mod rows;
 pub mod stmt;
+mod sink;
 mod stream;
 pub mod tls;
 pub mod transaction;
@@ -142,7 +144,7 @@ pub fn cancel_query<T>(
     tls_mode: TlsMode,
     cancel_data: CancelData,
     handle: &Handle,
-) -> BoxFuture<(), ConnectError>
+) -> BoxFuture<(), Error>
 where
     T: IntoConnectParams,
 {
@@ -155,14 +157,14 @@ where
                 handle,
             ))
         }
-        Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future()),
+        Err(e) => Either::B(Err(error::connect(e)).into_future()),
     };
 
     params
         .and_then(move |c| {
             let mut buf = vec![];
             frontend::cancel_request(cancel_data.process_id, cancel_data.secret_key, &mut buf);
-            c.send(buf).map_err(ConnectError::Io)
+            c.send(buf).map_err(error::io)
         })
         .map(|_| ())
         .boxed()
@@ -179,22 +181,30 @@ struct InnerConnection {
     has_typeinfo_query: bool,
     has_typeinfo_enum_query: bool,
     has_typeinfo_composite_query: bool,
+    desynchronized: bool,
 }
 
 impl InnerConnection {
-    fn read(self) -> IoFuture<(backend::Message, InnerConnection)> {
+    fn read(self) -> BoxFuture<(backend::Message, InnerConnection), (io::Error, InnerConnection)> {
+        if self.desynchronized {
+            let e = io::Error::new(
+                io::ErrorKind::Other,
+                "connection desynchronized due to earlier IO error",
+            );
+            return Err((e, self)).into_future().boxed();
+        }
+
         self.into_future()
-            .map_err(|e| e.0)
             .and_then(|(m, mut s)| match m {
                 Some(backend::Message::NotificationResponse(body)) => {
                     let process_id = body.process_id();
                     let channel = match body.channel() {
                         Ok(channel) => channel.to_owned(),
-                        Err(e) => return Either::A(Err(e).into_future()),
+                        Err(e) => return Either::A(Err((e, s)).into_future()),
                     };
                     let message = match body.message() {
                         Ok(channel) => channel.to_owned(),
-                        Err(e) => return Either::A(Err(e).into_future()),
+                        Err(e) => return Either::A(Err((e, s)).into_future()),
                     };
                     let notification = Notification {
                         process_id: process_id,
@@ -207,8 +217,12 @@ impl InnerConnection {
                 Some(m) => Either::A(Ok((m, s)).into_future()),
                 None => {
                     let err = io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF");
-                    Either::A(Err(err).into_future())
+                    Either::A(Err((err, s)).into_future())
                 }
+            })
+            .map_err(|(e, mut s)| {
+                s.desynchronized = true;
+                (e, s)
             })
             .boxed()
     }
@@ -276,11 +290,7 @@ impl Connection {
     /// path contains non-UTF 8 characters, a `ConnectParams` struct should be
     /// created manually and passed in. Note that Postgres does not support TLS
     /// over Unix sockets.
-    pub fn connect<T>(
-        params: T,
-        tls_mode: TlsMode,
-        handle: &Handle,
-    ) -> BoxFuture<Connection, ConnectError>
+    pub fn connect<T>(params: T, tls_mode: TlsMode, handle: &Handle) -> BoxFuture<Connection, Error>
     where
         T: IntoConnectParams,
     {
@@ -291,7 +301,7 @@ impl Connection {
                         .map(|s| (s, params)),
                 )
             }
-            Err(e) => Either::B(Err(ConnectError::ConnectParams(e)).into_future()),
+            Err(e) => Either::B(Err(error::connect(e)).into_future()),
         };
 
         fut.map(|(s, params)| {
@@ -311,6 +321,7 @@ impl Connection {
                     has_typeinfo_query: false,
                     has_typeinfo_enum_query: false,
                     has_typeinfo_composite_query: false,
+                    desynchronized: false,
                 }),
                 params,
             )
@@ -320,10 +331,7 @@ impl Connection {
             .boxed()
     }
 
-    fn startup(
-        self,
-        params: ConnectParams,
-    ) -> BoxFuture<(Connection, ConnectParams), ConnectError> {
+    fn startup(self, params: ConnectParams) -> BoxFuture<(Connection, ConnectParams), Error> {
         let mut buf = vec![];
         let result = {
             let options = [("client_encoding", "UTF8"), ("timezone", "GMT")];
@@ -338,15 +346,15 @@ impl Connection {
         result
             .into_future()
             .and_then(move |()| self.0.send(buf))
-            .map_err(ConnectError::Io)
+            .map_err(error::io)
             .map(move |s| (Connection(s), params))
             .boxed()
     }
 
-    fn handle_auth(self, params: ConnectParams) -> BoxFuture<Connection, ConnectError> {
+    fn handle_auth(self, params: ConnectParams) -> BoxFuture<Connection, Error> {
         self.0
             .read()
-            .map_err(ConnectError::Io)
+            .map_err(|(e, _)| error::io(e))
             .and_then(move |(m, s)| {
                 let response = match m {
                     backend::Message::AuthenticationOk => Ok(None),
@@ -359,10 +367,8 @@ impl Connection {
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::ConnectParams(
-                                    "password was required but not \
-                                                                 provided"
-                                        .into(),
+                                Err(error::connect(
+                                    "password was required but not provided".into(),
                                 ))
                             }
                         }
@@ -383,15 +389,13 @@ impl Connection {
                                     .map_err(Into::into)
                             }
                             None => {
-                                Err(ConnectError::ConnectParams(
-                                    "password was required but not \
-                                                                 provided"
-                                        .into(),
+                                Err(error::connect(
+                                    "password was required but not provided".into(),
                                 ))
                             }
                         }
                     }
-                    backend::Message::ErrorResponse(body) => Err(connect_err(&mut body.fields())),
+                    backend::Message::ErrorResponse(body) => Err(err(&mut body.fields())),
                     _ => Err(bad_message()),
                 };
 
@@ -404,23 +408,23 @@ impl Connection {
             .boxed()
     }
 
-    fn handle_auth_response(self, message: Vec<u8>) -> BoxFuture<Connection, ConnectError> {
+    fn handle_auth_response(self, message: Vec<u8>) -> BoxFuture<Connection, Error> {
         self.0
             .send(message)
-            .and_then(|s| s.read())
-            .map_err(ConnectError::Io)
+            .and_then(|s| s.read().map_err(|(e, _)| e))
+            .map_err(error::io)
             .and_then(|(m, s)| match m {
                 backend::Message::AuthenticationOk => Ok(Connection(s)),
-                backend::Message::ErrorResponse(body) => Err(connect_err(&mut body.fields())),
+                backend::Message::ErrorResponse(body) => Err(err(&mut body.fields())),
                 _ => Err(bad_message()),
             })
             .boxed()
     }
 
-    fn finish_startup(self) -> BoxFuture<Connection, ConnectError> {
+    fn finish_startup(self) -> BoxFuture<Connection, Error> {
         self.0
             .read()
-            .map_err(ConnectError::Io)
+            .map_err(|(e, _)| error::io(e))
             .and_then(|(m, mut s)| match m {
                 backend::Message::BackendKeyData(body) => {
                     s.cancel_data.process_id = body.process_id();
@@ -429,19 +433,25 @@ impl Connection {
                 }
                 backend::Message::ReadyForQuery(_) => Either::B(Ok(Connection(s)).into_future()),
                 backend::Message::ErrorResponse(body) => {
-                    Either::B(Err(connect_err(&mut body.fields())).into_future())
+                    Either::B(Err(err(&mut body.fields())).into_future())
                 }
                 _ => Either::B(Err(bad_message()).into_future()),
             })
             .boxed()
     }
 
-    fn simple_query(self, query: &str) -> BoxFuture<(Vec<RowData>, Connection), Error> {
+    fn simple_query(
+        self,
+        query: &str,
+    ) -> BoxFuture<(Vec<RowData>, Connection), (Error, Connection)> {
         let mut buf = vec![];
-        frontend::query(query, &mut buf)
-            .into_future()
-            .and_then(move |()| self.0.send(buf))
-            .map_err(Error::Io)
+        if let Err(e) = frontend::query(query, &mut buf) {
+            return Err((error::io(e), self)).into_future().boxed();
+        }
+
+        self.0
+            .send2(buf)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|s| Connection(s).simple_read_rows(vec![]))
             .boxed()
     }
@@ -450,10 +460,10 @@ impl Connection {
     fn simple_read_rows(
         self,
         mut rows: Vec<RowData>,
-    ) -> BoxFuture<(Vec<RowData>, Connection), Error> {
+    ) -> BoxFuture<(Vec<RowData>, Connection), (Error, Connection)> {
         self.0
             .read()
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|(m, s)| match m {
                 backend::Message::ReadyForQuery(_) => {
                     Ok((rows, Connection(s))).into_future().boxed()
@@ -464,34 +474,34 @@ impl Connection {
                             rows.push(row);
                             Connection(s).simple_read_rows(rows)
                         }
-                        Err(e) => Err(Error::Io(e)).into_future().boxed(),
+                        Err(e) => Err((error::io(e), Connection(s))).into_future().boxed(),
                     }
                 }
                 backend::Message::EmptyQueryResponse |
                 backend::Message::CommandComplete(_) |
                 backend::Message::RowDescription(_) => Connection(s).simple_read_rows(rows),
                 backend::Message::ErrorResponse(body) => Connection(s).ready_err(body),
-                _ => Err(bad_message()).into_future().boxed(),
+                _ => Err((bad_message(), Connection(s))).into_future().boxed(),
             })
             .boxed()
     }
 
-    fn ready<T>(self, t: T) -> BoxFuture<(T, Connection), Error>
+    fn ready<T>(self, t: T) -> BoxFuture<(T, Connection), (Error, Connection)>
     where
         T: 'static + Send,
     {
         self.0
             .read()
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|(m, s)| match m {
-                backend::Message::ReadyForQuery(_) => Ok((t, Connection(s))),
-                _ => Err(bad_message()),
+                backend::Message::ReadyForQuery(_) => Ok(s),
+                _ => Err((bad_message(), Connection(s))),
             })
-            .and_then(|(t, s)| s.close_gc().map(|s| (t, s)))
+            .and_then(|s| Connection(s).close_gc().map(|s| (t, s)))
             .boxed()
     }
 
-    fn close_gc(self) -> BoxFuture<Connection, Error> {
+    fn close_gc(self) -> BoxFuture<Connection, (Error, Connection)> {
         let mut messages = vec![];
         while let Ok((type_, name)) = self.0.close_receiver.try_recv() {
             let mut buf = vec![];
@@ -506,36 +516,37 @@ impl Connection {
         frontend::sync(&mut buf);
         messages.push(buf);
         self.0
-            .send_all(futures::stream::iter(
+            .send_all2(futures::stream::iter(
                 messages.into_iter().map(Ok::<_, io::Error>),
             ))
-            .map_err(Error::Io)
+            .map_err(|(e, s, _)| (error::io(e), Connection(s)))
             .and_then(|s| Connection(s.0).finish_close_gc())
             .boxed()
     }
 
-    fn finish_close_gc(self) -> BoxFuture<Connection, Error> {
+    fn finish_close_gc(self) -> BoxFuture<Connection, (Error, Connection)> {
         self.0
             .read()
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|(m, s)| match m {
                 backend::Message::ReadyForQuery(_) => Either::A(Ok(Connection(s)).into_future()),
                 backend::Message::CloseComplete => Either::B(Connection(s).finish_close_gc()),
                 backend::Message::ErrorResponse(body) => Either::B(Connection(s).ready_err(body)),
-                _ => Either::A(Err(bad_message()).into_future()),
+                _ => Either::A(Err((bad_message(), Connection(s))).into_future()),
             })
             .boxed()
     }
 
-    fn ready_err<T>(self, body: ErrorResponseBody) -> BoxFuture<T, Error>
+    fn ready_err<T>(self, body: ErrorResponseBody) -> BoxFuture<T, (Error, Connection)>
     where
         T: 'static + Send,
     {
-        DbError::new(&mut body.fields())
-            .map_err(Error::Io)
-            .into_future()
-            .and_then(|e| self.ready(e))
-            .and_then(|(e, s)| Err(Error::Db(Box::new(e), s)))
+        let e = match DbError::new(&mut body.fields()) {
+            Ok(e) => e,
+            Err(e) => return Err((error::io(e), self)).into_future().boxed(),
+        };
+        self.ready(e)
+            .and_then(|(e, s)| Err((error::db(e), s)))
             .boxed()
     }
 
@@ -552,7 +563,7 @@ impl Connection {
     /// user-specified data, as it provides functionality to safely embed that
     /// data in the statement. Do not form statements via string concatenation
     /// and feed them into this method.
-    pub fn batch_execute(self, query: &str) -> BoxFuture<Connection, Error> {
+    pub fn batch_execute(self, query: &str) -> BoxFuture<Connection, (Error, Connection)> {
         self.simple_query(query).map(|r| r.1).boxed()
     }
 
@@ -560,23 +571,24 @@ impl Connection {
         self,
         name: &str,
         query: &str,
-    ) -> BoxFuture<(Vec<Type>, Vec<Column>, Connection), Error> {
+    ) -> BoxFuture<(Vec<Type>, Vec<Column>, Connection), (Error, Connection)> {
         let mut parse = vec![];
         let mut describe = vec![];
         let mut sync = vec![];
         frontend::sync(&mut sync);
-        frontend::parse(name, query, None, &mut parse)
-            .and_then(|()| frontend::describe(b'S', name, &mut describe))
-            .into_future()
-            .and_then(move |()| {
-                let it = Some(parse).into_iter()
-                    .chain(Some(describe))
-                    .chain(Some(sync))
-                    .map(Ok::<_, io::Error>);
-                self.0.send_all(futures::stream::iter(it))
-            })
+        if let Err(e) = frontend::parse(name, query, None, &mut parse).and_then(|()| frontend::describe(b'S', name, &mut describe)) {
+            return Err((error::io(e), self)).into_future().boxed();
+        }
+
+        let it = Some(parse)
+            .into_iter()
+            .chain(Some(describe))
+            .chain(Some(sync))
+            .map(Ok::<_, io::Error>);
+        self.0.send_all2(futures::stream::iter(it))
+            .map_err(|(e, s, _)| (e, s))
             .and_then(|s| s.0.read())
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .boxed() // work around nonlinear trans blowup
             .and_then(|(m, s)| {
                 match m {
@@ -584,33 +596,35 @@ impl Connection {
                     backend::Message::ErrorResponse(body) => {
                         Either::B(Connection(s).ready_err(body))
                     }
-                    _ => Either::A(Err(bad_message()).into_future()),
+                    _ => Either::A(Err((bad_message(), Connection(s))).into_future()),
                 }
             })
-            .and_then(|s| s.read().map_err(Error::Io))
+            .and_then(|s| s.read().map_err(|(e, s)| (error::io(e), Connection(s))))
             .and_then(|(m, s)| {
                 match m {
                     backend::Message::ParameterDescription(body) => {
-                        body.parameters().collect::<Vec<_>>()
-                            .map(|p| (p, s))
-                            .map_err(Error::Io)
+                        match body.parameters().collect::<Vec<_>>() {
+                            Ok(p) => Ok((p, s)),
+                            Err(e) => Err((error::io(e), Connection(s))),
+                        }
                     }
-                    _ => Err(bad_message()),
+                    _ => Err((bad_message(), Connection(s))),
                 }
             })
-            .and_then(|(p, s)| s.read().map(|(m, s)| (p, m, s)).map_err(Error::Io))
+            .and_then(|(p, s)| s.read().map(|(m, s)| (p, m, s)).map_err(|(e, s)| (error::io(e), Connection(s))))
             .boxed() // work around nonlinear trans blowup
             .and_then(|(p, m, s)| {
                 match m {
                     backend::Message::RowDescription(body) => {
-                        body.fields()
+                        match body.fields()
                             .map(|f| (f.name().to_owned(), f.type_oid()))
-                            .collect::<Vec<_>>()
-                            .map(|d| (p, d, s))
-                            .map_err(Error::Io)
+                            .collect::<Vec<_>>() {
+                                Ok(d) => Ok((p, d, s)),
+                                Err(e) => Err((error::io(e), Connection(s))),
+                            }
                     }
                     backend::Message::NoData => Ok((p, vec![], s)),
-                    _ => Err(bad_message()),
+                    _ => Err((bad_message(), Connection(s))),
                 }
             })
             .and_then(|(p, r, s)| Connection(s).ready((p, r)))
@@ -634,7 +648,7 @@ impl Connection {
         mut out: Vec<U>,
         mut get_oid: F,
         mut build: G,
-    ) -> BoxFuture<(Vec<U>, Connection), Error>
+    ) -> BoxFuture<(Vec<U>, Connection), (Error, Connection)>
     where
         T: 'static + Send,
         U: 'static + Send,
@@ -656,7 +670,7 @@ impl Connection {
         }
     }
 
-    fn get_type(self, oid: Oid) -> BoxFuture<(Type, Connection), Error> {
+    fn get_type(self, oid: Oid) -> BoxFuture<(Type, Connection), (Error, Connection)> {
         if let Some(type_) = Type::from_oid(oid) {
             return Ok((type_, self)).into_future().boxed();
         };
@@ -674,42 +688,40 @@ impl Connection {
             .boxed()
     }
 
-    fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Type, Connection), Error> {
+    fn get_unknown_type(self, oid: Oid) -> BoxFuture<(Type, Connection), (Error, Connection)> {
         self.setup_typeinfo_query()
-            .and_then(move |c| {
-                c.raw_execute(TYPEINFO_QUERY, "", &[OID], &[&oid])
-            })
+            .and_then(move |c| c.raw_execute(TYPEINFO_QUERY, "", &[OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(move |(r, c)| {
                 let get = |idx| r.get(0).and_then(|r| r.get(idx));
 
                 let name = match String::from_sql_nullable(&NAME, get(0)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let type_ = match i8::from_sql_nullable(&CHAR, get(1)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let elem_oid = match Oid::from_sql_nullable(&OID, get(2)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let rngsubtype = match Option::<Oid>::from_sql_nullable(&OID, get(3)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let basetype = match Oid::from_sql_nullable(&OID, get(4)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let schema = match String::from_sql_nullable(&NAME, get(5)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
                 let relid = match Oid::from_sql_nullable(&OID, get(6)) {
                     Ok(v) => v,
-                    Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                    Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
 
                 let kind = if type_ == b'p' as i8 {
@@ -755,7 +767,7 @@ impl Connection {
             .boxed()
     }
 
-    fn setup_typeinfo_query(self) -> BoxFuture<Connection, Error> {
+    fn setup_typeinfo_query(self) -> BoxFuture<Connection, (Error, Connection)> {
         if self.0.has_typeinfo_query {
             return Ok(self).into_future().boxed();
         }
@@ -770,26 +782,21 @@ impl Connection {
                           INNER JOIN pg_catalog.pg_namespace n ON \
                               t.typnamespace = n.oid \
                           WHERE t.oid = $1",
-        ).or_else(|e| {
-                match e {
-                    // Range types weren't added until Postgres 9.2, so pg_range may not exist
-                    Error::Db(e, c) => {
-                        if e.code != UNDEFINED_TABLE {
-                            return Either::B(Err(Error::Db(e, c)).into_future());
-                        }
-
-                        Either::A(c.raw_prepare(
-                            TYPEINFO_QUERY,
-                            "SELECT t.typname, t.typtype, t.typelem, \
-                                                     NULL::OID, t.typbasetype, n.nspname, \
-                                                     t.typrelid \
-                                                 FROM pg_catalog.pg_type t \
-                                                 INNER JOIN pg_catalog.pg_namespace n \
-                                                     ON t.typnamespace = n.oid \
-                                                 WHERE t.oid = $1",
-                        ))
-                    }
-                    e => Either::B(Err(e).into_future()),
+        ).or_else(|(e, c)| {
+                // Range types weren't added until Postgres 9.2, so pg_range may not exist
+                if e.code() == Some(&UNDEFINED_TABLE) {
+                    Either::A(c.raw_prepare(
+                        TYPEINFO_QUERY,
+                        "SELECT t.typname, t.typtype, t.typelem, \
+                                                    NULL::OID, t.typbasetype, n.nspname, \
+                                                    t.typrelid \
+                                                FROM pg_catalog.pg_type t \
+                                                INNER JOIN pg_catalog.pg_namespace n \
+                                                    ON t.typnamespace = n.oid \
+                                                WHERE t.oid = $1",
+                    ))
+                } else {
+                    Either::B(Err((e, c)).into_future())
                 }
             })
             .map(|(_, _, mut c)| {
@@ -799,7 +806,10 @@ impl Connection {
             .boxed()
     }
 
-    fn get_enum_variants(self, oid: Oid) -> BoxFuture<(Vec<String>, Connection), Error> {
+    fn get_enum_variants(
+        self,
+        oid: Oid,
+    ) -> BoxFuture<(Vec<String>, Connection), (Error, Connection)> {
         self.setup_typeinfo_enum_query()
             .and_then(move |c| {
                 c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[OID], &[&oid])
@@ -810,7 +820,7 @@ impl Connection {
                 for row in r {
                     let variant = match String::from_sql_nullable(&NAME, row.get(0)) {
                         Ok(v) => v,
-                        Err(e) => return Err(Error::Conversion(e, c)),
+                        Err(e) => return Err((error::conversion(e), c)),
                     };
                     variants.push(variant);
                 }
@@ -819,7 +829,7 @@ impl Connection {
             .boxed()
     }
 
-    fn setup_typeinfo_enum_query(self) -> BoxFuture<Connection, Error> {
+    fn setup_typeinfo_enum_query(self) -> BoxFuture<Connection, (Error, Connection)> {
         if self.0.has_typeinfo_enum_query {
             return Ok(self).into_future().boxed();
         }
@@ -830,19 +840,14 @@ impl Connection {
                           FROM pg_catalog.pg_enum \
                           WHERE enumtypid = $1 \
                           ORDER BY enumsortorder",
-        ).or_else(|e| match e {
-                Error::Db(e, c) => {
-                    if e.code != UNDEFINED_COLUMN {
-                        return Either::B(Err(Error::Db(e, c)).into_future());
-                    }
-
-                    Either::A(c.raw_prepare(
-                        TYPEINFO_ENUM_QUERY,
-                        "SELECT enumlabel FROM pg_catalog.pg_enum WHERE \
+        ).or_else(|(e, c)| if e.code() == Some(&UNDEFINED_COLUMN) {
+                Either::A(c.raw_prepare(
+                    TYPEINFO_ENUM_QUERY,
+                    "SELECT enumlabel FROM pg_catalog.pg_enum WHERE \
                                              enumtypid = $1 ORDER BY oid",
-                    ))
-                }
-                e => Either::B(Err(e).into_future()),
+                ))
+            } else {
+                Either::B(Err((e, c)).into_future())
             })
             .map(|(_, _, mut c)| {
                 c.0.has_typeinfo_enum_query = true;
@@ -851,7 +856,7 @@ impl Connection {
             .boxed()
     }
 
-    fn get_composite_fields(self, oid: Oid) -> BoxFuture<(Vec<Field>, Connection), Error> {
+    fn get_composite_fields(self, oid: Oid) -> BoxFuture<(Vec<Field>, Connection), (Error, Connection)> {
         self.setup_typeinfo_composite_query()
             .and_then(move |c| {
                 c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[OID], &[&oid])
@@ -863,11 +868,11 @@ impl Connection {
                     |(mut fields, c), row| {
                         let name = match String::from_sql_nullable(&NAME, row.get(0)) {
                             Ok(name) => name,
-                            Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                            Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                         };
                         let oid = match Oid::from_sql_nullable(&OID, row.get(1)) {
                             Ok(oid) => oid,
-                            Err(e) => return Either::A(Err(Error::Conversion(e, c)).into_future()),
+                            Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                         };
                         Either::B(c.get_type(oid).map(move |(ty, c)| {
                             fields.push(Field::new(name, ty));
@@ -879,7 +884,7 @@ impl Connection {
             .boxed()
     }
 
-    fn setup_typeinfo_composite_query(self) -> BoxFuture<Connection, Error> {
+    fn setup_typeinfo_composite_query(self) -> BoxFuture<Connection, (Error, Connection)> {
         if self.0.has_typeinfo_composite_query {
             return Ok(self).into_future().boxed();
         }
@@ -905,7 +910,7 @@ impl Connection {
         portal: &str,
         param_types: &[Type],
         params: &[&ToSql],
-    ) -> BoxFuture<Connection, Error> {
+    ) -> BoxFuture<Connection, (Error, Connection)> {
         assert!(
             param_types.len() == params.len(),
             "expected {} parameters but got {}",
@@ -932,14 +937,15 @@ impl Connection {
         );
         let r = match r {
             Ok(()) => Ok(self),
-            Err(frontend::BindError::Conversion(e)) => Err(Error::Conversion(e, self)),
-            Err(frontend::BindError::Serialization(e)) => Err(Error::Io(e)),
+            Err(frontend::BindError::Conversion(e)) => Err((error::conversion(e), self)),
+            Err(frontend::BindError::Serialization(e)) => Err((error::io(e), self)),
         };
 
         r.and_then(|s| {
-            frontend::execute(portal, 0, &mut execute)
-                    .map(|()| s)
-                    .map_err(Error::Io)
+            match frontend::execute(portal, 0, &mut execute) {
+                Ok(()) => Ok(s),
+                Err(e) => Err((error::io(e), s)),
+            }
         }).into_future()
             .and_then(|s| {
                 let it = Some(bind)
@@ -947,41 +953,42 @@ impl Connection {
                     .chain(Some(execute))
                     .chain(Some(sync))
                     .map(Ok::<_, io::Error>);
-                s.0.send_all(futures::stream::iter(it)).map_err(Error::Io)
+                s.0.send_all2(futures::stream::iter(it)).map_err(|(e, s, _)| (error::io(e), Connection(s)))
             })
-            .and_then(|s| s.0.read().map_err(Error::Io))
+            .and_then(|s| s.0.read().map_err(|(e, s)| (error::io(e), Connection(s))))
             .and_then(|(m, s)| match m {
                 backend::Message::BindComplete => Either::A(Ok(Connection(s)).into_future()),
                 backend::Message::ErrorResponse(body) => Either::B(Connection(s).ready_err(body)),
-                _ => Either::A(Err(bad_message()).into_future()),
+                _ => Either::A(Err((bad_message(), Connection(s))).into_future()),
             })
             .boxed()
     }
 
-    fn finish_execute(self) -> BoxFuture<(u64, Connection), Error> {
+    fn finish_execute(self) -> BoxFuture<(u64, Connection), (Error, Connection)> {
         self.0
             .read()
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|(m, s)| match m {
                 backend::Message::DataRow(_) => Connection(s).finish_execute().boxed(),
                 backend::Message::CommandComplete(body) => {
-                    body.tag()
+                    let r = body.tag()
                         .map(|tag| {
                             tag.split_whitespace().last().unwrap().parse().unwrap_or(0)
-                        })
-                        .map_err(Error::Io)
-                        .into_future()
-                        .and_then(|n| Connection(s).ready(n))
-                        .boxed()
+                        });
+
+                    match r {
+                        Ok(n) => Connection(s).ready(n).boxed(),
+                        Err(e) => Err((error::io(e), Connection(s))).into_future().boxed(),
+                    }
                 }
                 backend::Message::EmptyQueryResponse => Connection(s).ready(0).boxed(),
                 backend::Message::ErrorResponse(body) => Connection(s).ready_err(body).boxed(),
-                _ => Err(bad_message()).into_future().boxed(),
+                _ => Err((bad_message(), Connection(s))).into_future().boxed(),
             })
             .boxed()
     }
 
-    fn read_rows(self) -> BoxStateStream<RowData, Connection, Error> {
+    fn read_rows(self) -> BoxStateStream<RowData, Connection, (Error, Connection)> {
         futures_state_stream::unfold(self, |c| {
             c.read_row().and_then(|(r, c)| match r {
                 Some(data) => {
@@ -993,32 +1000,31 @@ impl Connection {
         }).boxed()
     }
 
-    fn read_row(self) -> BoxFuture<(Option<RowData>, Connection), Error> {
+    fn read_row(self) -> BoxFuture<(Option<RowData>, Connection), (Error, Connection)> {
         self.0
             .read()
-            .map_err(Error::Io)
+            .map_err(|(e, s)| (error::io(e), Connection(s)))
             .and_then(|(m, s)| {
                 let c = Connection(s);
                 match m {
                     backend::Message::DataRow(body) => {
-                        Either::A(
-                            RowData::new(body)
-                                .map(|r| (Some(r), c))
-                                .map_err(Error::Io)
-                                .into_future(),
-                        )
+                        let r = match RowData::new(body) {
+                            Ok(r) => Ok((Some(r), c)),
+                            Err(e) => Err((error::io(e), c))
+                        };
+                        Either::A(r.into_future())
                     }
                     backend::Message::EmptyQueryResponse |
                     backend::Message::CommandComplete(_) => Either::A(Ok((None, c)).into_future()),
                     backend::Message::ErrorResponse(body) => Either::B(c.ready_err(body)),
-                    _ => Either::A(Err(bad_message()).into_future()),
+                    _ => Either::A(Err((bad_message(), c)).into_future()),
                 }
             })
             .boxed()
     }
 
     /// Creates a new prepared statement.
-    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Connection), Error> {
+    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Connection), (Error, Connection)> {
         let id = NEXT_STMT_ID.fetch_add(1, Ordering::SeqCst);
         let name = format!("s{}", id);
         self.raw_prepare(&name, query)
@@ -1040,7 +1046,7 @@ impl Connection {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxFuture<(u64, Connection), Error> {
+    ) -> BoxFuture<(u64, Connection), (Error, Connection)> {
         self.raw_execute(statement.name(), "", statement.parameters(), params)
             .and_then(|conn| conn.finish_execute())
             .boxed()
@@ -1056,7 +1062,7 @@ impl Connection {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxStateStream<Row, Connection, Error> {
+    ) -> BoxStateStream<Row, Connection, (Error, Connection)> {
         let columns = statement.columns_arc().clone();
         self.raw_execute(statement.name(), "", statement.parameters(), params)
             .map(|c| c.read_rows().map(move |r| Row::new(columns.clone(), r)))
@@ -1065,7 +1071,7 @@ impl Connection {
     }
 
     /// Starts a new transaction.
-    pub fn transaction(self) -> BoxFuture<Transaction, Error> {
+    pub fn transaction(self) -> BoxFuture<Transaction, (Error, Connection)> {
         self.simple_query("BEGIN")
             .map(|(_, c)| Transaction::new(c))
             .boxed()
@@ -1126,10 +1132,10 @@ impl Stream for Notifications {
     }
 }
 
-fn connect_err(fields: &mut ErrorFields) -> ConnectError {
+fn err(fields: &mut ErrorFields) -> Error {
     match DbError::new(fields) {
-        Ok(err) => ConnectError::Db(Box::new(err)),
-        Err(err) => ConnectError::Io(err),
+        Ok(err) => error::db(err),
+        Err(err) => error::io(err),
     }
 }
 

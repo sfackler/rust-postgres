@@ -14,7 +14,7 @@ use postgres_protocol::message::frontend;
 use postgres_protocol::message::backend;
 
 use {Error, Result, TlsMode};
-use error::ErrorKind;
+use error;
 use tls::TlsStream;
 use params::{ConnectParams, Host};
 
@@ -273,9 +273,7 @@ pub fn initialize_stream(params: &ConnectParams, tls: TlsMode) -> Result<Box<Tls
     socket.read_exact(&mut b)?;
     if b[0] == b'N' {
         if tls_required {
-            return Err(Error(Box::new(
-                ErrorKind::Tls("the server does not support TLS".into()),
-            )));
+            return Err(error::tls("the server does not support TLS".into()));
         } else {
             return Ok(Box::new(socket));
         }
@@ -287,7 +285,5 @@ pub fn initialize_stream(params: &ConnectParams, tls: TlsMode) -> Result<Box<Tls
         Host::Unix(_) => return Err(::bad_response().into()),
     };
 
-    handshaker.tls_handshake(host, socket).map_err(|e| {
-        Error(Box::new(ErrorKind::Tls(e)))
-    })
+    handshaker.tls_handshake(host, socket).map_err(error::tls)
 }

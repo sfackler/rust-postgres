@@ -19,7 +19,7 @@ impl Transaction {
     }
 
     /// Like `Connection::batch_execute`.
-    pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, Error<Transaction>> {
+    pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, (Error, Transaction)> {
         self.0
             .batch_execute(query)
             .map(Transaction)
@@ -28,7 +28,7 @@ impl Transaction {
     }
 
     /// Like `Connection::prepare`.
-    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), Error<Transaction>> {
+    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), (Error, Transaction)> {
         self.0
             .prepare(query)
             .map(|(s, c)| (s, Transaction(c)))
@@ -41,7 +41,7 @@ impl Transaction {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxFuture<(u64, Transaction), Error<Transaction>> {
+    ) -> BoxFuture<(u64, Transaction), (Error, Transaction)> {
         self.0
             .execute(statement, params)
             .map(|(n, c)| (n, Transaction(c)))
@@ -54,7 +54,7 @@ impl Transaction {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxStateStream<Row, Transaction, Error<Transaction>> {
+    ) -> BoxStateStream<Row, Transaction, (Error, Transaction)> {
         self.0
             .query(statement, params)
             .map_state(Transaction)
@@ -63,24 +63,20 @@ impl Transaction {
     }
 
     /// Commits the transaction.
-    pub fn commit(self) -> BoxFuture<Connection, Error> {
+    pub fn commit(self) -> BoxFuture<Connection, (Error, Connection)> {
         self.finish("COMMIT")
     }
 
     /// Rolls back the transaction.
-    pub fn rollback(self) -> BoxFuture<Connection, Error> {
+    pub fn rollback(self) -> BoxFuture<Connection, (Error, Connection)> {
         self.finish("ROLLBACK")
     }
 
-    fn finish(self, query: &str) -> BoxFuture<Connection, Error> {
+    fn finish(self, query: &str) -> BoxFuture<Connection, (Error, Connection)> {
         self.0.simple_query(query).map(|(_, c)| c).boxed()
     }
 }
 
-fn transaction_err(e: Error) -> Error<Transaction> {
-    match e {
-        Error::Io(e) => Error::Io(e),
-        Error::Db(e, c) => Error::Db(e, Transaction(c)),
-        Error::Conversion(e, c) => Error::Conversion(e, Transaction(c)),
-    }
+fn transaction_err((e, c): (Error, Connection)) -> (Error, Transaction) {
+    (e, Transaction(c))
 }

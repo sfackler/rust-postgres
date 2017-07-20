@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
-use error::{Error, ConnectError, INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION,
+use error::{Error, INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION,
             QUERY_CANCELED};
 use params::{ConnectParams, Host};
 use types::{ToSql, FromSql, Type, IsNull, Kind, BYTEA, TEXT, INT4, NUMERIC};
@@ -33,7 +33,7 @@ fn md5_user_no_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::ConnectParams(_)) => {}
+        Err(ref e) if e.as_connection().is_some() => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -49,7 +49,7 @@ fn md5_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
+        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -77,7 +77,7 @@ fn pass_user_no_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::ConnectParams(_)) => {}
+        Err(ref e) if e.as_connection().is_some() => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -93,7 +93,7 @@ fn pass_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ConnectError::Db(ref e)) if e.code == INVALID_PASSWORD => {}
+        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -129,11 +129,10 @@ fn batch_execute_err() {
     })
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
         .then(|r| match r {
-            Err(Error::Db(e, s)) => {
-                assert!(e.code == UNDEFINED_TABLE);
+            Err((e, s)) => {
+                assert_eq!(e.code(), Some(&UNDEFINED_TABLE));
                 s.batch_execute("SELECT * FROM foo")
             }
-            Err(e) => panic!("unexpected error: {}", e),
             Ok(_) => panic!("unexpected success"),
         });
     l.run(done).unwrap();
@@ -268,8 +267,7 @@ fn ssl_user_ssl_required() {
     );
 
     match l.run(done) {
-        Err(ConnectError::Db(e)) => assert!(e.code == INVALID_AUTHORIZATION_SPECIFICATION),
-        Err(e) => panic!("unexpected error {}", e),
+        Err(ref e) => assert_eq!(e.code(), Some(&INVALID_AUTHORIZATION_SPECIFICATION)),
         Ok(_) => panic!("unexpected success"),
     }
 }
@@ -456,8 +454,7 @@ fn cancel() {
     let (select, cancel) = l.run(done).unwrap();
     cancel.unwrap();
     match select {
-        Err(Error::Db(e, _)) => assert_eq!(e.code, QUERY_CANCELED),
-        Err(e) => panic!("unexpected error {}", e),
+        Err((e, _)) => assert_eq!(e.code(), Some(&QUERY_CANCELED)),
         Ok(_) => panic!("unexpected success"),
     }
 }
@@ -477,7 +474,7 @@ fn notifications() {
                         .map(|_| c1)
                 })
         })
-        .and_then(|c| c.notifications().into_future().map_err(|(e, _)| e))
+        .and_then(|c| c.notifications().into_future().map_err(|(e, n)| (e, n.into_inner())))
         .map(|(n, _)| {
             let n = n.unwrap();
             assert_eq!(n.channel, "test_notifications");

@@ -14,8 +14,8 @@ use tokio_dns;
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
-use TlsMode;
-use error::ConnectError;
+use {TlsMode, Error};
+use error;
 use tls::TlsStream;
 
 pub type PostgresStream = Framed<Box<TlsStream>, PostgresCodec>;
@@ -25,13 +25,13 @@ pub fn connect(
     port: u16,
     tls_mode: TlsMode,
     handle: &Handle,
-) -> BoxFuture<PostgresStream, ConnectError> {
+) -> BoxFuture<PostgresStream, Error> {
     let inner = match host {
         Host::Tcp(ref host) => {
             Either::A(
                 tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
                     .map(|s| Stream(InnerStream::Tcp(s)))
-                    .map_err(ConnectError::Io),
+                    .map_err(error::io),
             )
         }
         #[cfg(unix)]
@@ -40,7 +40,7 @@ pub fn connect(
             Either::B(
                 UnixStream::connect(addr, handle)
                     .map(|s| Stream(InnerStream::Unix(s)))
-                    .map_err(ConnectError::Io)
+                    .map_err(error::io)
                     .into_future(),
             )
         }
@@ -74,15 +74,15 @@ pub fn connect(
         .and_then(|s| {
             let mut buf = vec![];
             frontend::ssl_request(&mut buf);
-            s.send(buf).map_err(ConnectError::Io)
+            s.send(buf).map_err(error::io)
         })
-        .and_then(|s| s.into_future().map_err(|e| ConnectError::Io(e.0)))
+        .and_then(|s| s.into_future().map_err(|e| error::io(e.0)))
         .and_then(move |(m, s)| {
             let s = s.into_inner();
             match (m, required) {
                 (Some(b'N'), true) => {
                     Either::A(
-                        Err(ConnectError::Tls("the server does not support TLS".into()))
+                        Err(error::tls("the server does not support TLS".into()))
                             .into_future(),
                     )
                 }
@@ -92,7 +92,7 @@ pub fn connect(
                 }
                 (None, _) => {
                     Either::A(
-                        Err(ConnectError::Io(io::Error::new(
+                        Err(error::io(io::Error::new(
                             io::ErrorKind::UnexpectedEof,
                             "unexpected EOF",
                         ))).into_future(),
@@ -103,7 +103,7 @@ pub fn connect(
                         Host::Tcp(ref host) => host,
                         Host::Unix(_) => unreachable!(),
                     };
-                    Either::B(handshaker.handshake(host, s).map_err(ConnectError::Tls))
+                    Either::B(handshaker.handshake(host, s).map_err(error::tls))
                 }
             }
         })
