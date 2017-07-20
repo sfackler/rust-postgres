@@ -147,15 +147,13 @@ where
                 }
                 Ok(Async::NotReady) => {
                     match sink.poll_complete() {
-                        Ok(Async::Ready(())) => return Ok(Async::Ready((sink, stream.into_inner()))),
-                        Ok(Async::NotReady) => {
+                        Ok(Async::Ready(())) | Ok(Async::NotReady) => {
                             self.sink = Some(sink);
                             self.stream = Some(stream);
                             return Ok(Async::NotReady);
                         }
                         Err(e) => return Err((e, sink, stream.into_inner())),
                     }
-                    return Ok(Async::NotReady);
                 }
                 Err(e) => return Err((e.into(), sink, stream.into_inner())),
             }

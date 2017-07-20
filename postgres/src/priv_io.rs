@@ -13,7 +13,7 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::backend;
 
-use {Error, Result, TlsMode};
+use {Result, TlsMode};
 use error;
 use tls::TlsStream;
 use params::{ConnectParams, Host};
