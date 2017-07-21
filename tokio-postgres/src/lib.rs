@@ -57,6 +57,7 @@
 extern crate bytes;
 extern crate fallible_iterator;
 extern crate futures_state_stream;
+#[cfg_attr(test, macro_use)]
 extern crate postgres_shared;
 extern crate postgres_protocol;
 extern crate tokio_core;
@@ -86,7 +87,7 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{error, params, CancelData, Notification};
+pub use postgres_shared::{error, params, types, CancelData, Notification};
 #[doc(inline)]
 pub use error::Error;
 
@@ -106,8 +107,6 @@ mod sink;
 mod stream;
 pub mod tls;
 pub mod transaction;
-#[macro_use]
-pub mod types;
 
 #[cfg(test)]
 mod test;

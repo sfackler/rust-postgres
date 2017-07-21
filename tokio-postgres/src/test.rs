@@ -6,8 +6,7 @@ use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
-use error::{Error, INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION,
-            QUERY_CANCELED};
+use error::{INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION, QUERY_CANCELED};
 use params::{ConnectParams, Host};
 use types::{ToSql, FromSql, Type, IsNull, Kind, BYTEA, TEXT, INT4, NUMERIC};
 

@@ -6,7 +6,6 @@ use std::fmt;
 use std::result;
 
 use postgres::{Connection, TlsMode};
-use postgres::error::Error;
 use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, TEXT, INT4, NUMERIC};
 
 #[cfg(feature = "with-bit-vec")]

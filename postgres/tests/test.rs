@@ -1,6 +1,7 @@
 extern crate fallible_iterator;
-#[macro_use]
 extern crate postgres;
+#[macro_use]
+extern crate postgres_shared;
 extern crate url;
 #[cfg(feature = "with-openssl")]
 extern crate openssl;

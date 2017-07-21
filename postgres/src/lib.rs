@@ -106,7 +106,7 @@ use types::{IsNull, Kind, Type, Oid, ToSql, FromSql, Field, OID, NAME, CHAR};
 #[doc(inline)]
 pub use postgres_shared::CancelData;
 #[doc(inline)]
-pub use postgres_shared::error;
+pub use postgres_shared::{error, types};
 #[doc(inline)]
 pub use error::Error;
 
@@ -121,7 +121,6 @@ pub mod params;
 pub mod rows;
 pub mod stmt;
 pub mod transaction;
-pub mod types;
 
 const TYPEINFO_QUERY: &'static str = "__typeinfo";
 const TYPEINFO_ENUM_QUERY: &'static str = "__typeinfo_enum";
