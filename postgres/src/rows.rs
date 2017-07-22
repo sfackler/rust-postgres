@@ -225,7 +225,7 @@ impl<'a> Row<'a> {
         I: RowIndex,
         T: FromSql,
     {
-        let idx = match idx.idx(&self.stmt_info.columns) {
+        let idx = match idx.__idx(&self.stmt_info.columns) {
             Some(idx) => idx,
             None => return None,
         };
@@ -247,7 +247,7 @@ impl<'a> Row<'a> {
     where
         I: RowIndex + fmt::Debug,
     {
-        match idx.idx(&self.stmt_info.columns) {
+        match idx.__idx(&self.stmt_info.columns) {
             Some(idx) => self.data.get(idx),
             None => panic!("invalid index {:?}", idx),
         }

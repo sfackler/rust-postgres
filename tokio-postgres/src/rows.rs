@@ -69,7 +69,7 @@ impl Row {
         T: FromSql,
         I: RowIndex,
     {
-        let idx = match idx.idx(&self.columns) {
+        let idx = match idx.__idx(&self.columns) {
             Some(idx) => idx,
             None => return Ok(None),
         };

@@ -11,7 +11,7 @@ mod sealed {
     use stmt::Column;
 
     pub trait Sealed {
-        fn idx(&self, stmt: &[Column]) -> Option<usize>;
+        fn __idx(&self, stmt: &[Column]) -> Option<usize>;
     }
 }
 
@@ -22,7 +22,7 @@ pub trait RowIndex: Sealed {}
 
 impl Sealed for usize {
     #[inline]
-    fn idx(&self, stmt: &[Column]) -> Option<usize> {
+    fn __idx(&self, stmt: &[Column]) -> Option<usize> {
         if *self >= stmt.len() {
             None
         } else {
@@ -35,7 +35,7 @@ impl RowIndex for usize {}
 
 impl Sealed for str {
     #[inline]
-    fn idx(&self, stmt: &[Column]) -> Option<usize> {
+    fn __idx(&self, stmt: &[Column]) -> Option<usize> {
         if let Some(idx) = stmt.iter().position(|d| d.name() == self) {
             return Some(idx);
         };
@@ -56,8 +56,8 @@ where
     T: ?Sized + Sealed,
 {
     #[inline]
-    fn idx(&self, columns: &[Column]) -> Option<usize> {
-        T::idx(*self, columns)
+    fn __idx(&self, columns: &[Column]) -> Option<usize> {
+        T::__idx(*self, columns)
     }
 }
 
