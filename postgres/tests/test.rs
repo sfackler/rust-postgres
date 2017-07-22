@@ -17,7 +17,6 @@ use postgres::error::{DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
                       INVALID_CATALOG_NAME, INVALID_PASSWORD, CARDINALITY_VIOLATION};
 use postgres::types::{Oid, Type, Kind, WrongType, INT4, VARCHAR, FLOAT8};
 use postgres::error::ErrorPosition::Normal;
-use postgres::rows::RowIndex;
 use postgres::notification::Notification;
 use postgres::params::IntoConnectParams;
 use std::thread;

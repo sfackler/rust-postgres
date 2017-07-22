@@ -3,7 +3,6 @@
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::frontend;
 use postgres_shared::rows::RowData;
-use std::ascii::AsciiExt;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io;
