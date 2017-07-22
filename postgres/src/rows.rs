@@ -11,6 +11,9 @@ use std::ops::Deref;
 use std::slice;
 use std::sync::Arc;
 
+#[doc(inline)]
+pub use postgres_shared::rows::RowIndex;
+
 use {Error, Result, StatementInfo};
 use error;
 use transaction::Transaction;
@@ -248,40 +251,6 @@ impl<'a> Row<'a> {
             Some(idx) => self.data.get(idx),
             None => panic!("invalid index {:?}", idx),
         }
-    }
-}
-
-/// A trait implemented by types that can index into columns of a row.
-pub trait RowIndex {
-    /// Returns the index of the appropriate column, or `None` if no such
-    /// column exists.
-    fn idx(&self, _: &[Column]) -> Option<usize>;
-}
-
-impl RowIndex for usize {
-    #[inline]
-    fn idx(&self, columns: &[Column]) -> Option<usize> {
-        if *self >= columns.len() {
-            None
-        } else {
-            Some(*self)
-        }
-    }
-}
-
-impl<'a> RowIndex for &'a str {
-    #[inline]
-    fn idx(&self, columns: &[Column]) -> Option<usize> {
-        if let Some(idx) = columns.iter().position(|d| d.name() == *self) {
-            return Some(idx);
-        };
-
-        // FIXME ASCII-only case insensitivity isn't really the right thing to
-        // do. Postgres itself uses a dubious wrapper around tolower and JDBC
-        // uses the US locale.
-        columns.iter().position(
-            |d| d.name().eq_ignore_ascii_case(*self),
-        )
     }
 }
 

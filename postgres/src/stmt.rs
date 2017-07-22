@@ -9,6 +9,9 @@ use std::sync::Arc;
 use postgres_protocol::message::{backend, frontend};
 use postgres_shared::rows::RowData;
 
+#[doc(inline)]
+pub use postgres_shared::stmt::Column;
+
 use types::{Type, ToSql};
 use rows::{Rows, LazyRows};
 use transaction::Transaction;
@@ -552,32 +555,6 @@ fn fill_copy_buf<R: ReadWithInfo>(buf: &mut [u8], r: &mut R, info: &CopyInfo) ->
         }
     }
     Ok(nread)
-}
-
-/// Information about a column of the result of a query.
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Column {
-    name: String,
-    type_: Type,
-}
-
-impl Column {
-    pub(crate) fn new(name: String, type_: Type) -> Column {
-        Column {
-            name: name,
-            type_: type_,
-        }
-    }
-
-    /// The name of the column.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// The type of the data in the column.
-    pub fn type_(&self) -> &Type {
-        &self.type_
-    }
 }
 
 /// A struct containing information relevant for a `COPY` operation.

@@ -1,3 +1,5 @@
+//! Types.
+
 use fallible_iterator::FallibleIterator;
 use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};

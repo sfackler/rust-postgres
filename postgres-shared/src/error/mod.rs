@@ -1,3 +1,5 @@
+//! Errors.
+
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::ErrorFields;
 use std::error;
