@@ -24,7 +24,7 @@ features = [
 ]
 
 [badges]
-travis-ci = { repository = "sfackler/rust-postgres" }
+circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 with-bit-vec = ["postgres-shared/with-bit-vec"]
