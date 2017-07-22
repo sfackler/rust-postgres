@@ -1454,20 +1454,6 @@ fn test_rows_index() {
 }
 
 #[test]
-fn test_row_case_insensitive() {
-    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
-        "CREATE TEMPORARY TABLE foo (foo INT, \"bAr\" INT, \"Bar\" INT);",
-    ).unwrap();
-    let stmt = conn.prepare("SELECT * FROM foo").unwrap();
-    assert_eq!(Some(0), "foo".idx(&stmt.columns()));
-    assert_eq!(Some(0), "FOO".idx(&stmt.columns()));
-    assert_eq!(Some(1), "bar".idx(&stmt.columns()));
-    assert_eq!(Some(1), "bAr".idx(&stmt.columns()));
-    assert_eq!(Some(2), "Bar".idx(&stmt.columns()));
-}
-
-#[test]
 fn test_type_names() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
     let stmt = conn.prepare(
