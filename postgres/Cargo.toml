@@ -11,6 +11,20 @@ keywords = ["database", "postgres", "postgresql", "sql"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md", "THIRD_PARTY"]
 categories = ["database"]
 
+[package.metadata.docs.rs]
+features = [
+    "with-bit-vec",
+    "with-chrono",
+    "with-eui48",
+    "with-geo",
+    "with-rustc-serialize",
+    "with-serde_json",
+    "with-time",
+    "with-uuid",
+    "with-openssl",
+    "with-native-tls",
+]
+
 [badges]
 travis-ci = { repository = "sfackler/rust-postgres" }
 

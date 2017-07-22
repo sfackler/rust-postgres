@@ -10,6 +10,19 @@ readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
 
+[package.metadata.docs.rs]
+features = [
+    "with-bit-vec",
+    "with-chrono",
+    "with-eui48",
+    "with-geo",
+    "with-rustc-serialize",
+    "with-serde_json",
+    "with-time",
+    "with-uuid",
+    "with-openssl",
+]
+
 [badges]
 travis-ci = { repository = "sfackler/rust-postgres" }
 
