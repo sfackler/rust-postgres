@@ -101,6 +101,8 @@ use transaction::Transaction;
 use types::{Oid, Type, ToSql, IsNull, FromSql, Kind, Field, NAME, CHAR, OID};
 use rows::Row;
 
+#[macro_use]
+mod macros;
 pub mod rows;
 pub mod stmt;
 mod sink;
