@@ -8,7 +8,7 @@ A native PostgreSQL driver for Rust.
 You can integrate Rust-Postgres into your project through the [releases on crates.io](https://crates.io/crates/postgres):
 ```toml
 [dependencies]
-postgres = "0.14"
+postgres = "0.15"
 ```
 
 ## Overview
