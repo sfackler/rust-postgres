@@ -8,7 +8,7 @@ use params::url::Url;
 mod url;
 
 /// The host.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Host {
     /// A TCP hostname.
     Tcp(String),
@@ -17,7 +17,7 @@ pub enum Host {
 }
 
 /// Authentication information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct User {
     name: String,
     password: Option<String>,
@@ -36,7 +36,7 @@ impl User {
 }
 
 /// Information necessary to open a new connection to a Postgres server.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConnectParams {
     host: Host,
     port: u16,
