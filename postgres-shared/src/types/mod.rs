@@ -3,6 +3,7 @@
 use fallible_iterator::FallibleIterator;
 use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -630,6 +631,18 @@ impl<'a> ToSql for &'a str {
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
+    }
+
+    to_sql_checked!();
+}
+
+impl<'a> ToSql for Cow<'a, str> {
+    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
+        <&str as ToSql>::to_sql(&&self.as_ref(), ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as ToSql>::accepts(ty)
     }
 
     to_sql_checked!();
