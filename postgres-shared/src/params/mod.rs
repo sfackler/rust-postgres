@@ -2,6 +2,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 use std::mem;
+use std::time::Duration;
 
 use params::url::Url;
 
@@ -43,6 +44,7 @@ pub struct ConnectParams {
     user: Option<User>,
     database: Option<String>,
     options: Vec<(String, String)>,
+    connect_timeout: Option<Duration>,
 }
 
 impl ConnectParams {
@@ -79,6 +81,11 @@ impl ConnectParams {
     pub fn options(&self) -> &[(String, String)] {
         &self.options
     }
+
+    /// A timeout to apply to each socket-level connection attempt.
+    pub fn connect_timeout(&self) -> Option<Duration> {
+        self.connect_timeout
+    }
 }
 
 /// A builder for `ConnectParams`.
@@ -87,6 +94,7 @@ pub struct Builder {
     user: Option<User>,
     database: Option<String>,
     options: Vec<(String, String)>,
+    connect_timeout: Option<Duration>,
 }
 
 impl Builder {
@@ -97,6 +105,7 @@ impl Builder {
             user: None,
             database: None,
             options: vec![],
+            connect_timeout: None,
         }
     }
 
@@ -127,6 +136,12 @@ impl Builder {
         self
     }
 
+    /// Sets the connection timeout.
+    pub fn connect_timeout(&mut self, connect_timeout: Option<Duration>) -> &mut Builder {
+        self.connect_timeout = connect_timeout;
+        self
+    }
+
     /// Constructs a `ConnectParams` from the builder.
     pub fn build(&mut self, host: Host) -> ConnectParams {
         ConnectParams {
@@ -135,6 +150,7 @@ impl Builder {
             user: self.user.take(),
             database: self.database.take(),
             options: mem::replace(&mut self.options, vec![]),
+            connect_timeout: self.connect_timeout,
         }
     }
 }
@@ -196,7 +212,16 @@ impl IntoConnectParams for Url {
         }
 
         for (name, value) in options {
-            builder.option(&name, &value);
+            match &*name {
+                "connect_timeout" => {
+                    let timeout = value.parse().map_err(|_| "invalid connect_timeout")?;
+                    let timeout = Duration::from_secs(timeout);
+                    builder.connect_timeout(Some(timeout));
+                }
+                _ => {
+                    builder.option(&name, &value);
+                }
+            }
         }
 
         let maybe_path = url::decode_component(&host)?;
@@ -207,5 +232,31 @@ impl IntoConnectParams for Url {
         };
 
         Ok(builder.build(host))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_url() {
+        let params = "postgres://user@host:44/dbname?connect_timeout=10&application_name=foo";
+        let params = params.into_connect_params().unwrap();
+        assert_eq!(
+            params.user(),
+            Some(&User {
+                name: "user".to_string(),
+                password: None,
+            })
+        );
+        assert_eq!(params.host(), &Host::Tcp("host".to_string()));
+        assert_eq!(params.port(), 44);
+        assert_eq!(params.database(), Some("dbname"));
+        assert_eq!(
+            params.options(),
+            &[("application_name".to_string(), "foo".to_string())][..]
+        );
+        assert_eq!(params.connect_timeout(), Some(Duration::from_secs(10)));
     }
 }

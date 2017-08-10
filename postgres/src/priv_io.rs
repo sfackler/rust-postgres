@@ -1,17 +1,17 @@
 use std::io::{self, BufWriter, Read, Write};
-use std::fmt;
-use std::net::TcpStream;
+use std::net::{ToSocketAddrs, SocketAddr};
 use std::time::Duration;
 use std::result;
 use bytes::{BufMut, BytesMut};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 #[cfg(unix)]
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::backend;
+use socket2::{Socket, SockAddr, Domain, Type};
 
 use {Result, TlsMode};
 use error;
@@ -118,19 +118,11 @@ impl MessageStream {
     }
 
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        match self.stream.get_ref().get_ref().0 {
-            InternalStream::Tcp(ref s) => s.set_read_timeout(timeout),
-            #[cfg(unix)]
-            InternalStream::Unix(ref s) => s.set_read_timeout(timeout),
-        }
+        self.stream.get_ref().get_ref().0.set_read_timeout(timeout)
     }
 
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()> {
-        match self.stream.get_ref().get_ref().0 {
-            InternalStream::Tcp(ref s) => s.set_nonblocking(nonblock),
-            #[cfg(unix)]
-            InternalStream::Unix(ref s) => s.set_nonblocking(nonblock),
-        }
+        self.stream.get_ref().get_ref().0.set_nonblocking(nonblock)
     }
 }
 
@@ -138,17 +130,8 @@ impl MessageStream {
 ///
 /// It implements `Read`, `Write` and `TlsStream`, as well as `AsRawFd` on
 /// Unix platforms and `AsRawSocket` on Windows platforms.
-pub struct Stream(InternalStream);
-
-impl fmt::Debug for Stream {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            InternalStream::Tcp(ref s) => fmt::Debug::fmt(s, fmt),
-            #[cfg(unix)]
-            InternalStream::Unix(ref s) => fmt::Debug::fmt(s, fmt),
-        }
-    }
-}
+#[derive(Debug)]
+pub struct Stream(Socket);
 
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -179,69 +162,56 @@ impl TlsStream for Stream {
 #[cfg(unix)]
 impl AsRawFd for Stream {
     fn as_raw_fd(&self) -> RawFd {
-        match self.0 {
-            InternalStream::Tcp(ref s) => s.as_raw_fd(),
-            InternalStream::Unix(ref s) => s.as_raw_fd(),
-        }
+        self.0.as_raw_fd()
     }
 }
 
 #[cfg(windows)]
 impl AsRawSocket for Stream {
     fn as_raw_socket(&self) -> RawSocket {
-        // Unix sockets aren't supported on windows, so no need to match
-        match self.0 {
-            InternalStream::Tcp(ref s) => s.as_raw_socket(),
-        }
+        self.0.as_raw_socket()
     }
 }
 
-enum InternalStream {
-    Tcp(TcpStream),
-    #[cfg(unix)]
-    Unix(UnixStream),
-}
-
-impl Read for InternalStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
-            InternalStream::Tcp(ref mut s) => s.read(buf),
-            #[cfg(unix)]
-            InternalStream::Unix(ref mut s) => s.read(buf),
-        }
-    }
-}
-
-impl Write for InternalStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match *self {
-            InternalStream::Tcp(ref mut s) => s.write(buf),
-            #[cfg(unix)]
-            InternalStream::Unix(ref mut s) => s.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        match *self {
-            InternalStream::Tcp(ref mut s) => s.flush(),
-            #[cfg(unix)]
-            InternalStream::Unix(ref mut s) => s.flush(),
-        }
-    }
-}
-
-fn open_socket(params: &ConnectParams) -> Result<InternalStream> {
+fn open_socket(params: &ConnectParams) -> Result<Socket> {
     let port = params.port();
     match *params.host() {
         Host::Tcp(ref host) => {
-            Ok(TcpStream::connect(&(&**host, port)).map(
-                InternalStream::Tcp,
-            )?)
+            let mut error = None;
+            for addr in (&**host, port).to_socket_addrs()? {
+                let domain = match addr {
+                    SocketAddr::V4(_) => Domain::ipv4(),
+                    SocketAddr::V6(_) => Domain::ipv6(),
+                };
+                let socket = Socket::new(domain, Type::stream(), None)?;
+                let addr = SockAddr::from(addr);
+                let r = match params.connect_timeout() {
+                    Some(timeout) => socket.connect_timeout(&addr, timeout),
+                    None => socket.connect(&addr),
+                };
+                match r {
+                    Ok(()) => return Ok(socket),
+                    Err(e) => error = Some(e),
+                }
+            }
+
+            Err(
+                error
+                    .unwrap_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "could not resolve any addresses",
+                        )
+                    })
+                    .into(),
+            )
         }
         #[cfg(unix)]
         Host::Unix(ref path) => {
             let path = path.join(&format!(".s.PGSQL.{}", port));
-            Ok(UnixStream::connect(&path).map(InternalStream::Unix)?)
+            Ok(UnixStream::connect(&path).map(|s| unsafe {
+                Socket::from_raw_fd(s.into_raw_fd())
+            })?)
         }
         #[cfg(not(unix))]
         Host::Unix(..) => {
