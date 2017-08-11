@@ -1,28 +1,43 @@
+restore_registry: &RESTORE_REGISTRY
+  restore_cache:
+    key: registry
+
+save_registry: &SAVE_REGISTRY
+  save_cache:
+    key: registry-{{ .BuildNum }}
+    paths:
+      - /usr/local/cargo/registry/index
+
+deps_key: &DEPS_KEY
+  key: deps-1.19.0-{{ checksum "Cargo.lock" }}
+
+restore_deps: &RESTORE_DEPS
+  restore_cache:
+    <<: *DEPS_KEY
+
+save_deps: &SAVE_DEPS
+  save_cache:
+    <<: *DEPS_KEY
+    paths:
+      - target
+      - /usr/local/cargo/registry/cache
+
 version: 2
 jobs:
   build:
     working_directory: ~/build
     docker:
-      - image: jimmycuadra/rust:1.18.0
+      - image: rust:1.19.0
       - image: sfackler/rust-postgres-test:2
     steps:
       - checkout
       - run: apt-get update
       - run: DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
-      - restore_cache:
-          key: registry
+      - <<: *RESTORE_REGISTRY
       - run: cargo generate-lockfile
-      - save_cache:
-          key: registry-{{ epoch }}
-          paths:
-            - ~/.cargo/registry/index
-      - restore_cache:
-          key: dependencies-1.18-{{ checksum "Cargo.lock" }}
+      - <<: *SAVE_REGISTRY
+      - <<: *RESTORE_DEPS
       - run: cargo test --all
       - run: cargo test --manifest-path=postgres/Cargo.toml --features "$(cargo read-manifest --manifest-path=postgres/Cargo.toml | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
       - run: cargo test --manifest-path=tokio-postgres/Cargo.toml --all-features
-      - save_cache:
-          key: dependencies-1.18-{{ checksum "Cargo.lock" }}
-          paths:
-            - target
-            - ~/.cargo/registry/cache
+      - <<: *SAVE_DEPS

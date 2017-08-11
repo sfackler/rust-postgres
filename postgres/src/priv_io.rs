@@ -118,7 +118,13 @@ impl MessageStream {
     }
 
     fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.stream.get_ref().get_ref().0.set_read_timeout(timeout)
+        // self.stream.get_ref().get_ref().0.set_read_timeout(timeout)
+        let s = unsafe {
+            ::std::net::TcpStream::from_raw_fd(self.stream.get_ref().get_ref().0.as_raw_fd())
+        };
+        let r = s.set_read_timeout(timeout);
+        ::std::mem::forget(s);
+        r
     }
 
     fn set_nonblocking(&self, nonblock: bool) -> io::Result<()> {
