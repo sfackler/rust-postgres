@@ -77,6 +77,7 @@ extern crate fallible_iterator;
 extern crate log;
 extern crate postgres_protocol;
 extern crate postgres_shared;
+extern crate socket2;
 
 use fallible_iterator::FallibleIterator;
 use std::cell::{Cell, RefCell};
