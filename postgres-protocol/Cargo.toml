@@ -9,7 +9,7 @@ documentation = "https://docs.rs/postgres-protocol/0.3.0/postgres_protocol"
 readme = "../README.md"
 
 [dependencies]
-base64 = "0.5"
+base64 = "0.6"
 byteorder = "1.0"
 bytes = "0.4"
 fallible-iterator = "0.1"
