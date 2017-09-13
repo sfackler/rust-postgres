@@ -1,11 +1,10 @@
 [package]
 name = "postgres-protocol"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 description = "Low level Postgres protocol APIs"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/sfackler/rust-postgres-protocol"
-documentation = "https://docs.rs/postgres-protocol/0.3.0/postgres_protocol"
 readme = "../README.md"
 
 [dependencies]
