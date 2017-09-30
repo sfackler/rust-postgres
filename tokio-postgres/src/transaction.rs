@@ -1,9 +1,9 @@
 //! Transactions.
 
 use futures::{Future, BoxFuture};
-use futures_state_stream::{StateStream, BoxStateStream};
+use futures_state_stream::StateStream;
 
-use Connection;
+use {Connection, BoxedFuture, BoxedStateStream};
 use error::Error;
 use stmt::Statement;
 use types::ToSql;
@@ -24,7 +24,7 @@ impl Transaction {
             .batch_execute(query)
             .map(Transaction)
             .map_err(transaction_err)
-            .boxed()
+            .boxed2()
     }
 
     /// Like `Connection::prepare`.
@@ -33,7 +33,7 @@ impl Transaction {
             .prepare(query)
             .map(|(s, c)| (s, Transaction(c)))
             .map_err(transaction_err)
-            .boxed()
+            .boxed2()
     }
 
     /// Like `Connection::execute`.
@@ -46,7 +46,7 @@ impl Transaction {
             .execute(statement, params)
             .map(|(n, c)| (n, Transaction(c)))
             .map_err(transaction_err)
-            .boxed()
+            .boxed2()
     }
 
     /// Like `Connection::query`.
@@ -54,12 +54,11 @@ impl Transaction {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxStateStream<Row, Transaction, (Error, Transaction)> {
+    ) -> Box<StateStream<Item = Row, State = Transaction, Error = Error> + Send> {
         self.0
             .query(statement, params)
             .map_state(Transaction)
-            .map_err(transaction_err)
-            .boxed()
+            .boxed2()
     }
 
     /// Commits the transaction.
@@ -73,7 +72,7 @@ impl Transaction {
     }
 
     fn finish(self, query: &str) -> BoxFuture<Connection, (Error, Connection)> {
-        self.0.simple_query(query).map(|(_, c)| c).boxed()
+        self.0.simple_query(query).map(|(_, c)| c).boxed2()
     }
 }
 
