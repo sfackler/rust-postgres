@@ -44,7 +44,6 @@
 //!                         data: row.get(2),
 //!                     };
 //!                     println!("Found person {}", person.name);
-//!                     Ok(())
 //!                 })
 //!         });
 //!
