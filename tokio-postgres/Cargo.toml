@@ -1,11 +1,10 @@
 [package]
 name = "tokio-postgres"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT"
 description = "A native PostgreSQL driver using Tokio"
 repository = "https://github.com/sfackler/rust-postgres"
-documentation = "https://docs.rs/tokio-postgres/0.2.2/tokio_postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
