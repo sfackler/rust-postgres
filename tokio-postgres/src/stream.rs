@@ -1,5 +1,5 @@
 use bytes::{BytesMut, BufMut};
-use futures::{BoxFuture, Future, IntoFuture, Sink, Stream as FuturesStream, Poll};
+use futures::{Future, IntoFuture, Sink, Stream as FuturesStream, Poll};
 use futures::future::Either;
 use postgres_shared::params::Host;
 use postgres_protocol::message::backend;
@@ -14,7 +14,7 @@ use tokio_dns;
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
-use {TlsMode, Error};
+use {TlsMode, Error, BoxedFuture};
 use error;
 use tls::TlsStream;
 
@@ -25,7 +25,7 @@ pub fn connect(
     port: u16,
     tls_mode: TlsMode,
     handle: &Handle,
-) -> BoxFuture<PostgresStream, Error> {
+) -> Box<Future<Item = PostgresStream, Error = Error> + Send> {
     let inner = match host {
         Host::Tcp(ref host) => {
             Either::A(
@@ -65,7 +65,7 @@ pub fn connect(
                     let s: Box<TlsStream> = Box::new(s);
                     s.framed(PostgresCodec)
                 })
-                .boxed()
+                .boxed2()
         }
     };
 
@@ -82,8 +82,7 @@ pub fn connect(
             match (m, required) {
                 (Some(b'N'), true) => {
                     Either::A(
-                        Err(error::tls("the server does not support TLS".into()))
-                            .into_future(),
+                        Err(error::tls("the server does not support TLS".into())).into_future(),
                     )
                 }
                 (Some(b'N'), false) => {
@@ -108,7 +107,7 @@ pub fn connect(
             }
         })
         .map(|s| s.framed(PostgresCodec))
-        .boxed()
+        .boxed2()
 }
 
 /// A raw connection to the database.

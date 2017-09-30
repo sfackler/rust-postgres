@@ -1,6 +1,6 @@
 //! TLS support.
 
-use futures::BoxFuture;
+use futures::Future;
 use std::error::Error;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -35,5 +35,5 @@ pub trait Handshake: 'static + Sync + Send {
         self: Box<Self>,
         host: &str,
         stream: Stream,
-    ) -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>>;
+    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Send>;
 }

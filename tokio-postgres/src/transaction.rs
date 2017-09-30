@@ -1,6 +1,6 @@
 //! Transactions.
 
-use futures::{Future, BoxFuture};
+use futures::Future;
 use futures_state_stream::StateStream;
 
 use {Connection, BoxedFuture, BoxedStateStream};
@@ -19,7 +19,10 @@ impl Transaction {
     }
 
     /// Like `Connection::batch_execute`.
-    pub fn batch_execute(self, query: &str) -> BoxFuture<Transaction, (Error, Transaction)> {
+    pub fn batch_execute(
+        self,
+        query: &str,
+    ) -> Box<Future<Item = Transaction, Error = (Error, Transaction)> + Send> {
         self.0
             .batch_execute(query)
             .map(Transaction)
@@ -28,7 +31,10 @@ impl Transaction {
     }
 
     /// Like `Connection::prepare`.
-    pub fn prepare(self, query: &str) -> BoxFuture<(Statement, Transaction), (Error, Transaction)> {
+    pub fn prepare(
+        self,
+        query: &str,
+    ) -> Box<Future<Item = (Statement, Transaction), Error = (Error, Transaction)> + Send> {
         self.0
             .prepare(query)
             .map(|(s, c)| (s, Transaction(c)))
@@ -41,7 +47,7 @@ impl Transaction {
         self,
         statement: &Statement,
         params: &[&ToSql],
-    ) -> BoxFuture<(u64, Transaction), (Error, Transaction)> {
+    ) -> Box<Future<Item = (u64, Transaction), Error = (Error, Transaction)> + Send> {
         self.0
             .execute(statement, params)
             .map(|(n, c)| (n, Transaction(c)))
@@ -62,16 +68,19 @@ impl Transaction {
     }
 
     /// Commits the transaction.
-    pub fn commit(self) -> BoxFuture<Connection, (Error, Connection)> {
+    pub fn commit(self) -> Box<Future<Item = Connection, Error = (Error, Connection)> + Send> {
         self.finish("COMMIT")
     }
 
     /// Rolls back the transaction.
-    pub fn rollback(self) -> BoxFuture<Connection, (Error, Connection)> {
+    pub fn rollback(self) -> Box<Future<Item = Connection, Error = (Error, Connection)> + Send> {
         self.finish("ROLLBACK")
     }
 
-    fn finish(self, query: &str) -> BoxFuture<Connection, (Error, Connection)> {
+    fn finish(
+        self,
+        query: &str,
+    ) -> Box<Future<Item = Connection, Error = (Error, Connection)> + Send> {
         self.0.simple_query(query).map(|(_, c)| c).boxed2()
     }
 }
