@@ -2,12 +2,13 @@
 extern crate tokio_openssl;
 pub extern crate openssl;
 
-use futures::{Future, BoxFuture};
+use futures::Future;
 use self::openssl::ssl::{SslMethod, SslConnector, SslConnectorBuilder};
 use self::openssl::error::ErrorStack;
 use std::error::Error;
 use self::tokio_openssl::{SslConnectorExt, SslStream};
 
+use BoxedFuture;
 use tls::{Stream, TlsStream, Handshake};
 
 impl TlsStream for SslStream<Stream> {
@@ -42,7 +43,7 @@ impl Handshake for OpenSsl {
         self: Box<Self>,
         host: &str,
         stream: Stream,
-    ) -> BoxFuture<Box<TlsStream>, Box<Error + Sync + Send>> {
+    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Send> {
         self.0
             .connect_async(host, stream)
             .map(|s| {
@@ -53,6 +54,6 @@ impl Handshake for OpenSsl {
                 let e: Box<Error + Sync + Send> = Box::new(e);
                 e
             })
-            .boxed()
+            .boxed2()
     }
 }
