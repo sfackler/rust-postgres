@@ -28,7 +28,7 @@ jobs:
     working_directory: ~/build
     docker:
       - image: rust:1.19.0
-      - image: sfackler/rust-postgres-test:2
+      - image: sfackler/rust-postgres-test:3
     steps:
       - checkout
       - run: apt-get update
