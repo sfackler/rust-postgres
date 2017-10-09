@@ -47,7 +47,7 @@ pub fn connect(
         #[cfg(not(unix))]
         Host::Unix(_) => {
             Either::B(
-                Err(ConnectError::ConnectParams(
+                Err(error::connect(
                     "unix sockets are not supported on this \
                                                        platform"
                         .into(),
