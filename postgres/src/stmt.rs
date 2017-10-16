@@ -237,6 +237,29 @@ impl<'conn> Statement<'conn> {
     /// `Connection` as this `Statement`, if the `Transaction` is not
     /// active, or if the number of parameters provided does not match the
     /// number of parameters expected.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// extern crate fallible_iterator;
+    /// extern crate postgres;
+    ///
+    /// use fallible_iterator::FallibleIterator;
+    /// # use postgres::{Connection, TlsMode};
+    ///
+    /// # fn main() {
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
+    /// let stmt = conn.prepare("SELECT foo FROM bar WHERE baz = $1").unwrap();
+    /// let trans = conn.transaction().unwrap();
+    /// # let baz = true;
+    /// let mut rows = stmt.lazy_query(&trans, &[&baz], 100).unwrap();
+    ///
+    /// while let Some(row) = rows.next().unwrap() {
+    ///     let foo: i32 = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// # }
+    /// ```
     pub fn lazy_query<'trans, 'stmt>(
         &'stmt self,
         trans: &'trans Transaction,
