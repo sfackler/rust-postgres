@@ -103,6 +103,7 @@ use stmt::{Column, Statement};
 use tls::TlsHandshake;
 use transaction::{IsolationLevel, Transaction};
 use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type};
+use text_rows::TextRows;
 
 #[doc(inline)]
 pub use error::Error;
@@ -118,6 +119,7 @@ pub mod notification;
 pub mod params;
 mod priv_io;
 pub mod rows;
+pub mod text_rows;
 pub mod stmt;
 pub mod tls;
 pub mod transaction;
@@ -534,18 +536,7 @@ impl InnerConnection {
             .and_then(|oid| self.get_type(oid))
             .collect()?;
 
-        let columns = match raw_columns {
-            Some(body) => body.fields()
-                .and_then(|field| {
-                    Ok(Column::new(
-                        field.name().to_owned(),
-                        self.get_type(field.type_oid())?,
-                    ))
-                })
-                .collect()?,
-            None => vec![],
-        };
-
+        let columns = self.parse_cols(raw_columns)?;
         Ok((param_types, columns))
     }
 
@@ -735,6 +726,22 @@ impl InnerConnection {
         Ok(ty)
     }
 
+
+    fn parse_cols(&mut self, raw: Option<backend::RowDescriptionBody>) -> Result<Vec<Column>> {
+        match raw {
+            Some(body) => body.fields()
+                .and_then(|field| {
+                    Ok(Column::new(
+                        field.name().to_owned(),
+                        self.get_type(field.type_oid())?,
+                    ))
+                })
+                .collect()
+                .map_err(From::from),
+            None => Ok(vec![]),
+        }
+    }
+
     fn setup_typeinfo_query(&mut self) -> Result<()> {
         if self.has_typeinfo_query {
             return Ok(());
@@ -917,6 +924,53 @@ impl InnerConnection {
             backend::Message::ReadyForQuery(_) => Ok(()),
             _ => bad_response!(self),
         }
+    }
+
+    fn simple_query_(&mut self, query: &str) -> Result<Vec<TextRows>> {
+        check_desync!(self);
+        debug!("executing query: {}", query);
+        self.stream.write_message(|buf| frontend::query(query, buf))?;
+        self.stream.flush()?;
+
+        let mut result = vec![];
+        let mut rows = vec![];
+        let mut columns = None;
+
+        loop {
+            match self.read_message()? {
+                backend::Message::ReadyForQuery(_) => break,
+                backend::Message::DataRow(body) => {
+                    rows.push(RowData::new(body)?);
+                }
+                backend::Message::CopyInResponse(_) => {
+                    self.stream.write_message(|buf| {
+                        frontend::copy_fail("COPY queries cannot be directly executed", buf)
+                    })?;
+                    self.stream.write_message(
+                        |buf| Ok::<(), io::Error>(frontend::sync(buf)),
+                    )?;
+                    self.stream.flush()?;
+                }
+                backend::Message::ErrorResponse(body) => {
+                    self.wait_for_ready()?;
+                    return Err(err(&mut body.fields()));
+                }
+                backend::Message::RowDescription(body) => {
+                    columns = Some(self.parse_cols(Some(body))?);
+                }
+                backend::Message::CommandComplete(_) => {
+                    result.push(
+                        TextRows::new(
+                            // TODO is it safe to unwrap here?
+                            columns.take().unwrap(),
+                            mem::replace(&mut rows, Vec::new())
+                        )
+                    );
+                }
+                _ => {}
+            }
+        }
+        Ok(result)
     }
 
     fn quick_query(&mut self, query: &str) -> Result<Vec<Vec<Option<String>>>> {
@@ -1295,6 +1349,14 @@ impl Connection {
         self.0.borrow_mut().quick_query(query).map(|_| ())
     }
 
+
+    /// Send a simple, non-prepared query
+    ///
+    /// TODO docs. Should this replace the batch_execute API?
+    pub fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
+        self.0.borrow_mut().simple_query_(query)
+    }
+
     /// Returns a structure providing access to asynchronous notifications.
     ///
     /// Use the `LISTEN` command to register this connection for notifications.
@@ -1372,6 +1434,9 @@ pub trait GenericConnection {
 
     /// Like `Connection::is_active`.
     fn is_active(&self) -> bool;
+
+    /// Like `Connection::simple_query`.
+    fn simple_query(&self, query: &str) -> Result<Vec<TextRows>>;
 }
 
 impl GenericConnection for Connection {
@@ -1396,11 +1461,15 @@ impl GenericConnection for Connection {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.batch_execute(query)
+        self.batch_execute(&query)
     }
 
     fn is_active(&self) -> bool {
         self.is_active()
+    }
+
+    fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
+        self.simple_query(query)
     }
 }
 
@@ -1426,7 +1495,11 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.batch_execute(query)
+        self.batch_execute(&query)
+    }
+
+    fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
+        self.simple_query(query)
     }
 
     fn is_active(&self) -> bool {
