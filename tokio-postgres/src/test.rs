@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
-use error::{INVALID_PASSWORD, INVALID_AUTHORIZATION_SPECIFICATION, QUERY_CANCELED};
+use error::{INVALID_AUTHORIZATION_SPECIFICATION, INVALID_PASSWORD, QUERY_CANCELED};
 use params::{ConnectParams, Host};
-use types::{ToSql, FromSql, Type, IsNull, Kind, BYTEA, TEXT, INT4, NUMERIC};
+use types::{FromSql, INT4, IsNull, Kind, ToSql, Type, BYTEA, NUMERIC, TEXT};
 
 #[test]
 fn md5_user() {
@@ -106,9 +106,8 @@ fn batch_execute_ok() {
         TlsMode::None,
         &l.handle(),
     ).then(|c| {
-        c.unwrap().batch_execute(
-            "CREATE TEMPORARY TABLE foo (id SERIAL);",
-        )
+        c.unwrap()
+            .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL);")
     });
     l.run(done).unwrap();
 }
@@ -123,7 +122,7 @@ fn batch_execute_err() {
     ).then(|r| {
         r.unwrap().batch_execute(
             "CREATE TEMPORARY TABLE foo (id SERIAL); INSERT INTO foo DEFAULT \
-                                VALUES;",
+             VALUES;",
         )
     })
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
@@ -145,9 +144,8 @@ fn prepare_execute() {
         TlsMode::None,
         &l.handle(),
     ).then(|c| {
-        c.unwrap().prepare(
-            "CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)",
-        )
+        c.unwrap()
+            .prepare("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR)")
     })
         .and_then(|(s, c)| c.execute(&s, &[]))
         .and_then(|(n, c)| {
@@ -206,22 +204,19 @@ fn transaction() {
         TlsMode::None,
         &l.handle(),
     ).then(|c| {
-        c.unwrap().batch_execute(
-            "CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);",
-        )
+        c.unwrap()
+            .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name VARCHAR);")
     })
         .then(|c| c.unwrap().transaction())
         .then(|t| {
-            t.unwrap().batch_execute(
-                "INSERT INTO foo (name) VALUES ('joe');",
-            )
+            t.unwrap()
+                .batch_execute("INSERT INTO foo (name) VALUES ('joe');")
         })
         .then(|t| t.unwrap().rollback())
         .then(|c| c.unwrap().transaction())
         .then(|t| {
-            t.unwrap().batch_execute(
-                "INSERT INTO foo (name) VALUES ('bob');",
-            )
+            t.unwrap()
+                .batch_execute("INSERT INTO foo (name) VALUES ('bob');")
         })
         .then(|t| t.unwrap().commit())
         .then(|c| c.unwrap().prepare("SELECT name FROM foo"))
@@ -243,11 +238,9 @@ fn unix_socket() {
         .and_then(|(s, c)| c.query(&s, &[]).collect())
         .then(|r| {
             let r = r.unwrap().0;
-            let params = ConnectParams::builder().user("postgres", None).build(
-                Host::Unix(
-                    PathBuf::from(r[0].get::<String, _>(0)),
-                ),
-            );
+            let params = ConnectParams::builder()
+                .user("postgres", None)
+                .build(Host::Unix(PathBuf::from(r[0].get::<String, _>(0))));
             Connection::connect(params, TlsMode::None, &handle)
         })
         .then(|c| c.unwrap().batch_execute(""));
@@ -274,14 +267,11 @@ fn ssl_user_ssl_required() {
 #[cfg(feature = "with-openssl")]
 #[test]
 fn openssl_required() {
-    use tls::openssl::openssl::ssl::{SslMethod, SslConnectorBuilder};
+    use tls::openssl::openssl::ssl::{SslConnectorBuilder, SslMethod};
     use tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder
-        .builder_mut()
-        .set_ca_file("../test/server.crt")
-        .unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
 
     let mut l = Core::new().unwrap();
@@ -401,9 +391,8 @@ fn enum_() {
 
     let done = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None, &handle)
         .then(|c| {
-            c.unwrap().batch_execute(
-                "CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');",
-            )
+            c.unwrap()
+                .batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
         })
         .and_then(|c| c.prepare("SELECT $1::mood"))
         .map(|(s, _)| {
@@ -466,14 +455,19 @@ fn notifications() {
     let done = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None, &handle)
         .then(|c| c.unwrap().batch_execute("LISTEN test_notifications"))
         .and_then(|c1| {
-            Connection::connect("postgres://postgres@localhost:5433", TlsMode::None, &handle)
-                .then(|c2| {
+            Connection::connect("postgres://postgres@localhost:5433", TlsMode::None, &handle).then(
+                |c2| {
                     c2.unwrap()
                         .batch_execute("NOTIFY test_notifications, 'foo'")
                         .map(|_| c1)
-                })
+                },
+            )
         })
-        .and_then(|c| c.notifications().into_future().map_err(|(e, n)| (e, n.into_inner())))
+        .and_then(|c| {
+            c.notifications()
+                .into_future()
+                .map_err(|(e, n)| (e, n.into_inner()))
+        })
         .map(|(n, _)| {
             let n = n.unwrap();
             assert_eq!(n.channel, "test_notifications");

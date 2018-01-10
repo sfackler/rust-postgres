@@ -1,11 +1,11 @@
 extern crate chrono;
 
 use postgres_protocol::types;
-use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc, Local,
-                   FixedOffset};
+use self::chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime,
+                   Utc};
 use std::error::Error;
 
-use types::{FromSql, ToSql, IsNull, Type, TIMESTAMP, TIMESTAMPTZ, DATE, TIME};
+use types::{FromSql, IsNull, ToSql, Type, DATE, TIME, TIMESTAMP, TIMESTAMPTZ};
 
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
@@ -62,11 +62,7 @@ impl FromSql for DateTime<Local> {
 }
 
 impl ToSql for DateTime<Local> {
-    fn to_sql(
-        &self,
-        type_: &Type,
-        mut w: &mut Vec<u8>,
-    ) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self, type_: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
         self.with_timezone(&Utc).to_sql(type_, w)
     }
 

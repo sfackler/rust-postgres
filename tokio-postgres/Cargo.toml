@@ -49,7 +49,7 @@ tokio-dns-unofficial = "0.1"
 tokio-io = "0.1"
 
 tokio-openssl = { version = "0.1", optional = true }
-openssl = { version = "0.9", optional = true }
+openssl = { version = "0.9.23", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 tokio-uds = "0.1"
