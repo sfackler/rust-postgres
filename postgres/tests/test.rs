@@ -1,21 +1,21 @@
 extern crate fallible_iterator;
+#[cfg(feature = "native-tls")]
+extern crate native_tls;
+#[cfg(feature = "with-openssl")]
+extern crate openssl;
 extern crate postgres;
 #[macro_use]
 extern crate postgres_shared;
-extern crate url;
-#[cfg(feature = "with-openssl")]
-extern crate openssl;
 #[cfg(feature = "with-security-framework")]
 extern crate security_framework;
-#[cfg(feature = "native-tls")]
-extern crate native_tls;
+extern crate url;
 
 use fallible_iterator::FallibleIterator;
-use postgres::{HandleNotice, Connection, GenericConnection, TlsMode};
+use postgres::{Connection, GenericConnection, HandleNotice, TlsMode};
 use postgres::transaction::{self, IsolationLevel};
-use postgres::error::{DbError, SYNTAX_ERROR, QUERY_CANCELED, UNDEFINED_TABLE,
-                      INVALID_CATALOG_NAME, INVALID_PASSWORD, CARDINALITY_VIOLATION};
-use postgres::types::{Oid, Type, Kind, WrongType, INT4, VARCHAR, FLOAT8};
+use postgres::error::{DbError, CARDINALITY_VIOLATION, INVALID_CATALOG_NAME, INVALID_PASSWORD,
+                      QUERY_CANCELED, SYNTAX_ERROR, UNDEFINED_TABLE};
+use postgres::types::{FLOAT8, INT4, Kind, Oid, Type, WrongType, VARCHAR};
 use postgres::error::ErrorPosition::Normal;
 use postgres::notification::Notification;
 use postgres::params::IntoConnectParams;
@@ -532,10 +532,7 @@ fn test_lazy_query() {
     ));
 
     let trans = or_panic!(conn.transaction());
-    or_panic!(trans.execute(
-        "CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)",
-        &[],
-    ));
+    or_panic!(trans.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[],));
     let stmt = or_panic!(trans.prepare("INSERT INTO foo (id) VALUES ($1)"));
     let values = vec![0i32, 1, 2, 3, 4, 5];
     for value in &values {
@@ -936,14 +933,11 @@ fn test_cancel_query() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_require_ssl_conn() {
-    use openssl::ssl::{SslMethod, SslConnectorBuilder};
+    use openssl::ssl::{SslConnectorBuilder, SslMethod};
     use postgres::tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder
-        .builder_mut()
-        .set_ca_file("../test/server.crt")
-        .unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -955,14 +949,11 @@ fn test_require_ssl_conn() {
 #[test]
 #[cfg(feature = "with-openssl")]
 fn test_prefer_ssl_conn() {
-    use openssl::ssl::{SslMethod, SslConnectorBuilder};
+    use openssl::ssl::{SslConnectorBuilder, SslMethod};
     use postgres::tls::openssl::OpenSsl;
 
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder
-        .builder_mut()
-        .set_ca_file("../test/server.crt")
-        .unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -1400,36 +1391,28 @@ fn test_transaction_isolation_level() {
         or_panic!(conn.transaction_isolation())
     );
     or_panic!(conn.set_transaction_config(
-        transaction::Config::new().isolation_level(
-            IsolationLevel::ReadUncommitted,
-        ),
+        transaction::Config::new().isolation_level(IsolationLevel::ReadUncommitted,),
     ));
     assert_eq!(
         IsolationLevel::ReadUncommitted,
         or_panic!(conn.transaction_isolation())
     );
     or_panic!(conn.set_transaction_config(
-        transaction::Config::new().isolation_level(
-            IsolationLevel::RepeatableRead,
-        ),
+        transaction::Config::new().isolation_level(IsolationLevel::RepeatableRead,),
     ));
     assert_eq!(
         IsolationLevel::RepeatableRead,
         or_panic!(conn.transaction_isolation())
     );
     or_panic!(conn.set_transaction_config(
-        transaction::Config::new().isolation_level(
-            IsolationLevel::Serializable,
-        ),
+        transaction::Config::new().isolation_level(IsolationLevel::Serializable,),
     ));
     assert_eq!(
         IsolationLevel::Serializable,
         or_panic!(conn.transaction_isolation())
     );
     or_panic!(conn.set_transaction_config(
-        transaction::Config::new().isolation_level(
-            IsolationLevel::ReadCommitted,
-        ),
+        transaction::Config::new().isolation_level(IsolationLevel::ReadCommitted,),
     ));
     assert_eq!(
         IsolationLevel::ReadCommitted,

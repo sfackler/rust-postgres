@@ -61,7 +61,7 @@ fallible-iterator = "0.1.3"
 log = "0.4"
 socket2 = "0.3"
 
-openssl = { version = "0.9.2", optional = true }
+openssl = { version = "0.9.23", optional = true }
 native-tls = { version = "0.1", optional = true }
 rustc-serialize = { version = "0.3", optional = true }
 schannel = { version = "0.1", optional = true }
