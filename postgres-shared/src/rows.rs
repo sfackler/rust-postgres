@@ -1,5 +1,6 @@
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 use std::io;
 use std::ops::Range;
@@ -43,9 +44,8 @@ impl Sealed for str {
         // FIXME ASCII-only case insensitivity isn't really the right thing to
         // do. Postgres itself uses a dubious wrapper around tolower and JDBC
         // uses the US locale.
-        stmt.iter().position(
-            |d| d.name().eq_ignore_ascii_case(self),
-        )
+        stmt.iter()
+            .position(|d| d.name().eq_ignore_ascii_case(self))
     }
 }
 

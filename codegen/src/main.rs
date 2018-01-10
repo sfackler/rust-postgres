@@ -1,8 +1,9 @@
+extern crate linked_hash_map;
+extern crate marksman_escape;
 extern crate phf_codegen;
 extern crate regex;
-extern crate marksman_escape;
-extern crate linked_hash_map;
 
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 use std::path::Path;
 

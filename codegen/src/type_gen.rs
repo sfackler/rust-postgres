@@ -1,8 +1,9 @@
 use regex::Regex;
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{Write, BufWriter};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use marksman_escape::Escape;
 
@@ -164,12 +165,13 @@ pub enum Inner {{"
 }
 
 fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
-    write!(w,
-"impl Inner {{
+    write!(
+        w,
+        "impl Inner {{
     pub fn from_oid(oid: Oid) -> Option<Inner> {{
         match oid {{
 ",
-           ).unwrap();
+    ).unwrap();
 
     for (oid, type_) in types {
         write!(
@@ -181,15 +183,16 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
         ).unwrap();
     }
 
-    write!(w,
-"            _ => None,
+    write!(
+        w,
+        "            _ => None,
         }}
     }}
 
     pub fn oid(&self) -> Oid {{
         match *self {{
 ",
-           ).unwrap();
+    ).unwrap();
 
 
     for (oid, type_) in types {
@@ -202,15 +205,16 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
         ).unwrap();
     }
 
-    write!(w,
-"            Inner::Other(ref u) => u.oid,
+    write!(
+        w,
+        "            Inner::Other(ref u) => u.oid,
         }}
     }}
 
     pub fn kind(&self) -> &Kind {{
         match *self {{
 ",
-           ).unwrap();
+    ).unwrap();
 
     for type_ in types.values() {
         let kind = match type_.kind {
@@ -232,15 +236,16 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
         ).unwrap();
     }
 
-    write!(w,
-r#"            Inner::Other(ref u) => &u.kind,
+    write!(
+        w,
+        r#"            Inner::Other(ref u) => &u.kind,
         }}
     }}
 
     pub fn name(&self) -> &str {{
         match *self {{
 "#,
-          ).unwrap();
+    ).unwrap();
 
     for type_ in types.values() {
         write!(
@@ -263,25 +268,26 @@ r#"            Inner::Other(ref u) => &u.kind,
 }
 
 fn make_consts(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
-    write!(w,
-"pub mod consts {{
+    write!(
+        w,
+        "pub mod consts {{
     use types::Type;
     use types::type_gen::Inner;
 ",
-           ).unwrap();
+    ).unwrap();
 
     for type_ in types.values() {
-        write!(w,
-"
+        write!(
+            w,
+            "
     /// {docs}
     pub const {ident}: Type = Type(Inner::{variant});
 ",
-        docs = type_.doc,
-        ident = type_.ident,
-        variant = type_.variant).unwrap();
+            docs = type_.doc,
+            ident = type_.ident,
+            variant = type_.variant
+        ).unwrap();
     }
 
-    write!(w,
-"}}"
-    ).unwrap();
+    write!(w, "}}").unwrap();
 }

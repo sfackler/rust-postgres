@@ -2,9 +2,10 @@
 
 use std::cell::Cell;
 use std::fmt;
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
-use {bad_response, Result, Connection};
+use {bad_response, Connection, Result};
 use rows::Rows;
 use stmt::Statement;
 use types::ToSql;
