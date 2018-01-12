@@ -632,7 +632,7 @@ impl Connection {
                 match m {
                     backend::Message::RowDescription(body) => {
                         match body.fields()
-                            .map(|f| (f.name().to_owned(), f.type_oid()))
+                            .map(|f| (f.name().to_owned(), f.type_oid(), f.table_oid()))
                             .collect::<Vec<_>>() {
                                 Ok(d) => Ok((p, d, s)),
                                 Err(e) => Err((error::io(e), Connection(s))),
@@ -651,7 +651,7 @@ impl Connection {
                 s.get_types(r.into_iter(),
                             vec![],
                             |f| f.1,
-                            |f, t| Column::new(f.0, t))
+                            |f, t| Column::new(f.0, f.2, t))
                     .map(|(r, s)| (p, r, s))
             })
             .boxed2()

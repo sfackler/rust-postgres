@@ -529,6 +529,7 @@ impl InnerConnection {
                 .and_then(|field| {
                     Ok(Column::new(
                         field.name().to_owned(),
+                        field.table_oid(),
                         self.get_type(field.type_oid())?,
                     ))
                 })
