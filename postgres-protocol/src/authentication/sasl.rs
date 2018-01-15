@@ -34,20 +34,21 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
 }
 
 fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
-    let mut hmac = Hmac::<Sha256>::new(str);
+    let mut hmac = Hmac::<Sha256>::new(str)
+        .expect("HMAC is able to accept all key sizes");
     hmac.input(salt);
     hmac.input(&[0, 0, 0, 1]);
-    let mut prev = hmac.result();
+    let mut prev = hmac.result().code();
 
-    let mut hi = GenericArray::<u8, U32>::clone_from_slice(prev.code());
+    let mut hi = GenericArray::<u8, U32>::clone_from_slice(&prev);
 
     for _ in 1..i {
-        let mut hmac = Hmac::<Sha256>::new(str);
-        hmac.input(prev.code());
-        prev = hmac.result();
+        let mut hmac = Hmac::<Sha256>::new(str).expect("already checked above");
+        hmac.input(prev.as_slice());
+        prev = hmac.result().code();
 
-        for (hi, prev) in hi.iter_mut().zip(prev.code()) {
-            *hi ^= *prev;
+        for (hi, prev) in hi.iter_mut().zip(prev) {
+            *hi ^= prev;
         }
     }
 
@@ -150,12 +151,13 @@ impl ScramSha256 {
 
         let salted_password = hi(&password, &salt, parsed.iteration_count);
 
-        let mut hmac = Hmac::<Sha256>::new(&salted_password);
+        let mut hmac = Hmac::<Sha256>::new(&salted_password)
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Client Key");
-        let client_key = hmac.result();
+        let client_key = hmac.result().code();
 
         let mut hash = Sha256::default();
-        hash.input(client_key.code());
+        hash.input(client_key.as_slice());
         let stored_key = hash.result();
 
         self.message.clear();
@@ -163,13 +165,14 @@ impl ScramSha256 {
 
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
-        let mut hmac = Hmac::<Sha256>::new(&stored_key);
+        let mut hmac = Hmac::<Sha256>::new(&stored_key)
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
         let client_signature = hmac.result();
 
-        let mut client_proof = GenericArray::<u8, U32>::clone_from_slice(client_key.code());
+        let mut client_proof = GenericArray::<u8, U32>::clone_from_slice(&client_key);
         for (proof, signature) in client_proof.iter_mut().zip(client_signature.code()) {
-            *proof ^= *signature;
+            *proof ^= signature;
         }
 
         write!(&mut self.message, ",p={}", base64::encode(&*client_proof)).unwrap();
@@ -215,20 +218,18 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let mut hmac = Hmac::<Sha256>::new(&salted_password);
+        let mut hmac = Hmac::<Sha256>::new(&salted_password)
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Server Key");
         let server_key = hmac.result();
 
-        let mut hmac = Hmac::<Sha256>::new(server_key.code());
+        let mut hmac = Hmac::<Sha256>::new(&server_key.code())
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
-        if hmac.verify(&verifier) {
-            Ok(())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "SCRAM verification error",
-            ))
-        }
+        hmac.verify(&verifier).map_err(|_| io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SCRAM verification error",
+        ))
     }
 }
 

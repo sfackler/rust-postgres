@@ -27,7 +27,7 @@ jobs:
   build:
     working_directory: ~/build
     docker:
-      - image: rust:1.19.0
+      - image: rust:1.20.0
         environment:
           RUSTFLAGS: -D warnings
       - image: sfackler/rust-postgres-test:3
