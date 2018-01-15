@@ -33,9 +33,9 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
     }
 }
 
-fn hi(str: &[u8], salt: &[u8], i: u32) -> io::Result<GenericArray<u8, U32>> {
+fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
     let mut hmac = Hmac::<Sha256>::new(str)
-        .map_err(|_| invalid_key_length_error())?;
+        .expect("HMAC is able to accept all key sizes");
     hmac.input(salt);
     hmac.input(&[0, 0, 0, 1]);
     let mut prev = hmac.result().code();
@@ -52,7 +52,7 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> io::Result<GenericArray<u8, U32>> {
         }
     }
 
-    Ok(hi)
+    hi
 }
 
 enum State {
@@ -149,10 +149,10 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let salted_password = hi(&password, &salt, parsed.iteration_count)?;
+        let salted_password = hi(&password, &salt, parsed.iteration_count);
 
         let mut hmac = Hmac::<Sha256>::new(&salted_password)
-            .map_err(|_| invalid_key_length_error())?;
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Client Key");
         let client_key = hmac.result().code();
 
@@ -166,7 +166,7 @@ impl ScramSha256 {
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
         let mut hmac = Hmac::<Sha256>::new(&stored_key)
-            .map_err(|_| invalid_key_length_error())?;
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
         let client_signature = hmac.result();
 
@@ -219,12 +219,12 @@ impl ScramSha256 {
         };
 
         let mut hmac = Hmac::<Sha256>::new(&salted_password)
-            .map_err(|_| invalid_key_length_error())?;
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Server Key");
         let server_key = hmac.result();
 
         let mut hmac = Hmac::<Sha256>::new(&server_key.code())
-            .map_err(|_| invalid_key_length_error())?;
+            .expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
         hmac.verify(&verifier).map_err(|_| io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -397,10 +397,6 @@ struct ServerFirstMessage<'a> {
 enum ServerFinalMessage<'a> {
     Error(&'a str),
     Verifier(&'a str),
-}
-
-fn invalid_key_length_error() -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidInput, "invalid key length")
 }
 
 #[cfg(test)]
