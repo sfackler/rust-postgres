@@ -341,17 +341,17 @@ and `FromSql` implementations for `eui48`'s `MacAddress` type.
 ### POINT type
 
 [POINT](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6799)
-support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Point` type.
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Point` type. Requires `geo` version 0.4.
 
 ### BOX type
 
 [BOX](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6883)
-support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type.
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type. Requires `geo` version 0.4.
 
 ### PATH type
 
 [PATH](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6912)
 support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `LineString` type.
-Paths converted from LineString are always treated as "open" paths. Use the
+Paths converted from LineString are always treated as "open" paths. Requires `geo` version 0.4. Use the
 [pclose](https://www.postgresql.org/docs/8.2/static/functions-geometry.html#FUNCTIONS-GEOMETRY-FUNC-TABLE)
 geometric function to insert a closed path.
