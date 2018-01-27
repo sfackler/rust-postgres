@@ -308,7 +308,7 @@ crate.
 
 [UUID](http://www.postgresql.org/docs/9.4/static/datatype-uuid.html) support is
 provided optionally by the `with-uuid` feature, which adds `ToSql` and `FromSql`
-implementations for `uuid`'s `Uuid` type.
+implementations for `uuid`'s `Uuid` type. Requires `uuid` version 0.5.
 
 ### JSON/JSONB types
 
@@ -316,7 +316,7 @@ implementations for `uuid`'s `Uuid` type.
 support is provided optionally by the `with-rustc-serialize` feature, which adds
 `ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
 the `with-serde_json` feature, which adds implementations for `serde_json`'s
-`Value` type.
+`Value` type. Requires `serde_json` version 1.0, `rustc-serialize` version 0.3.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
@@ -324,34 +324,34 @@ the `with-serde_json` feature, which adds implementations for `serde_json`'s
 support is provided optionally by the `with-time` feature, which adds `ToSql`
 and `FromSql` implementations for `time`'s `Timespec` type, or the `with-chrono`
 feature, which adds `ToSql` and `FromSql` implementations for `chrono`'s
-`DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types.
+`DateTime`, `NaiveDateTime`, `NaiveDate` and `NaiveTime` types. Requires `time` version 0.1.14.
 
 ### BIT/VARBIT types
 
 [BIT and VARBIT](http://www.postgresql.org/docs/9.4/static/datatype-bit.html)
 support is provided optionally by the `with-bit-vec` feature, which adds `ToSql`
-and `FromSql` implementations for `bit-vec`'s `BitVec` type.
+and `FromSql` implementations for `bit-vec`'s `BitVec` type. Requires `bit-vec` version 0.4.
 
 ### MACADDR type
 
 [MACADDR](http://www.postgresql.org/docs/9.4/static/datatype-net-types.html#DATATYPE-MACADDR)
 support is provided optionally by the `with-eui48` feature, which adds `ToSql`
-and `FromSql` implementations for `eui48`'s `MacAddress` type.
+and `FromSql` implementations for `eui48`'s `MacAddress` type. Requires `eui48` version 0.3.
 
 ### POINT type
 
 [POINT](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6799)
-support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Point` type.
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Point` type. Requires `geo` version 0.4.
 
 ### BOX type
 
 [BOX](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6883)
-support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type.
+support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `Bbox` type. Requires `geo` version 0.4.
 
 ### PATH type
 
 [PATH](https://www.postgresql.org/docs/9.4/static/datatype-geometric.html#AEN6912)
 support is provided optionally by the `with-geo` feature, which adds `ToSql` and `FromSql` implementations for `geo`'s `LineString` type.
-Paths converted from LineString are always treated as "open" paths. Use the
+Paths converted from LineString are always treated as "open" paths. Requires `geo` version 0.4. Use the
 [pclose](https://www.postgresql.org/docs/8.2/static/functions-geometry.html#FUNCTIONS-GEOMETRY-FUNC-TABLE)
 geometric function to insert a closed path.
