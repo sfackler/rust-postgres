@@ -355,3 +355,7 @@ support is provided optionally by the `with-geo` feature, which adds `ToSql` and
 Paths converted from LineString are always treated as "open" paths. Requires `geo` version 0.4. Use the
 [pclose](https://www.postgresql.org/docs/8.2/static/functions-geometry.html#FUNCTIONS-GEOMETRY-FUNC-TABLE)
 geometric function to insert a closed path.
+
+## See Also
+
+- [r2d2-postgres](https://github.com/sfackler/r2d2-postgres) for connection pool support.
