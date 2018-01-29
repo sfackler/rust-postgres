@@ -40,7 +40,7 @@ impl From<SslConnector> for OpenSsl {
 
 impl Handshake for OpenSsl {
     fn handshake(
-        self: Box<Self>,
+        &self,
         host: &str,
         stream: Stream,
     ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Send> {

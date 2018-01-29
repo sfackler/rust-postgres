@@ -32,7 +32,7 @@ impl TlsStream for Stream {
 pub trait Handshake: 'static + Sync + Send {
     /// Performs a TLS handshake, returning a wrapped stream.
     fn handshake(
-        self: Box<Self>,
+        &self,
         host: &str,
         stream: Stream,
     ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Send>;
