@@ -3,9 +3,11 @@
 use fallible_iterator::{FallibleIterator, IntoFallibleIterator};
 use std::fmt;
 use std::time::Duration;
-use postgres_protocol::message::backend;
+use postgres_protocol::message::backend::{self, ErrorFields};
+use error::DbError;
 
 #[doc(inline)]
+use postgres_shared;
 pub use postgres_shared::Notification;
 
 use {desynchronized, Result, Connection};
@@ -110,6 +112,7 @@ impl<'a> FallibleIterator for Iter<'a> {
                     payload: body.message()?.to_owned(),
                 }))
             }
+            Ok(Some(backend::Message::ErrorResponse(body))) => Err(err(&mut body.fields())),
             Ok(None) => Ok(None),
             Err(err) => Err(err.into()),
             _ => unreachable!(),
@@ -149,6 +152,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
                     payload: body.message()?.to_owned(),
                 }))
             }
+            Ok(backend::Message::ErrorResponse(body)) => Err(err(&mut body.fields())),
             Err(err) => Err(err.into()),
             _ => unreachable!(),
         }
@@ -185,6 +189,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
                     payload: body.message()?.to_owned(),
                 }))
             }
+            Ok(Some(backend::Message::ErrorResponse(body))) => Err(err(&mut body.fields())),
             Ok(None) => Ok(None),
             Err(err) => Err(err.into()),
             _ => unreachable!(),
@@ -193,5 +198,12 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.conn.0.borrow().notifications.len(), None)
+    }
+}
+
+fn err(fields: &mut ErrorFields) -> Error {
+    match DbError::new(fields) {
+        Ok(err) => postgres_shared::error::db(err),
+        Err(err) => err.into(),
     }
 }
