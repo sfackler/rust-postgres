@@ -902,6 +902,30 @@ fn test_notification_next_timeout() {
 }
 
 #[test]
+fn test_notification_disconnect() {
+        let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost:5433",
+        TlsMode::None,
+    ));
+    or_panic!(conn.execute("LISTEN test_notifications_disconnect", &[]));
+
+    let _t = thread::spawn(|| {
+        let conn = or_panic!(Connection::connect(
+            "postgres://postgres@localhost:5433",
+            TlsMode::None,
+        ));
+        thread::sleep(Duration::from_millis(500));
+        or_panic!(conn.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query = 'LISTEN test_notifications_disconnect'",
+            &[],
+        ));
+    });
+
+    let notifications = conn.notifications();
+    assert!(notifications.blocking_iter().next().is_err());
+}
+
+#[test]
 // This test is pretty sad, but I don't think there's a better way :(
 fn test_cancel_query() {
     let conn = or_panic!(Connection::connect(
