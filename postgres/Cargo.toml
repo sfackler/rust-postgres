@@ -68,7 +68,7 @@ schannel = { version = "0.1", optional = true }
 security-framework = { version = "0.1.2", optional = true }
 
 postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
-postgres-shared = { version = "0.4.0", path = "../postgres-shared" }
+postgres-shared = { version = "0.4.1", path = "../postgres-shared" }
 
 [dev-dependencies]
 hex = "0.2"
