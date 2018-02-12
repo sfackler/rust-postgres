@@ -114,7 +114,6 @@ pub use error::Error;
 #[macro_use]
 mod macros;
 
-mod feature_check;
 mod priv_io;
 pub mod tls;
 pub mod notification;
@@ -573,13 +572,11 @@ impl InnerConnection {
                             break;
                         }
                     }
-                    return Err(
-                        io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "COPY queries cannot be directly \
-                             executed",
-                        ).into(),
-                    );
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "COPY queries cannot be directly \
+                         executed",
+                    ).into());
                 }
                 _ => {
                     self.desynchronized = true;
@@ -607,8 +604,7 @@ impl InnerConnection {
         );
         debug!(
             "executing statement {} with parameters: {:?}",
-            stmt_name,
-            params
+            stmt_name, params
         );
 
         {
@@ -838,8 +834,7 @@ impl InnerConnection {
 
         let mut variants = vec![];
         for row in rows {
-            variants.push(String::from_sql_nullable(&NAME, row.get(0))
-                .map_err(error::conversion)?);
+            variants.push(String::from_sql_nullable(&NAME, row.get(0)).map_err(error::conversion)?);
         }
 
         Ok(variants)
@@ -909,9 +904,7 @@ impl InnerConnection {
                 backend::Message::ReadyForQuery(_) => break,
                 backend::Message::DataRow(body) => {
                     let row = body.ranges()
-                        .map(|r| {
-                            r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned())
-                        })
+                        .map(|r| r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned()))
                         .collect()?;
                     result.push(row);
                 }
