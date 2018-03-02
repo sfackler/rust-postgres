@@ -1136,6 +1136,15 @@ impl Connection {
     pub fn parameter(&self, param: &str) -> Option<&str> {
         self.0.parameters.get(param).map(|s| &**s)
     }
+
+    /// Returns whether or not the stream has been desynchronized due to an
+    /// error in the communication channel with the server.
+    ///
+    /// If this has occurred, all further queries will immediately return an
+    /// error.
+    pub fn is_desynchronized(&self) -> bool {
+        self.0.desynchronized
+    }
 }
 
 /// A stream of asynchronous Postgres notifications.
