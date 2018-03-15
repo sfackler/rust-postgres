@@ -1,11 +1,11 @@
 //! Conversions to and from Postgres's binary format for various types.
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use fallible_iterator::FallibleIterator;
 use std::error::Error;
 use std::str;
 use std::boxed::Box as StdBox;
 
-use {Oid, IsNull, write_nullable, FromUsize};
+use {write_nullable, FromUsize, IsNull, Oid};
 
 const RANGE_UPPER_UNBOUNDED: u8 = 0b0001_0000;
 const RANGE_LOWER_UNBOUNDED: u8 = 0b0000_1000;
@@ -189,9 +189,7 @@ where
     }
 
     let count = i32::from_usize(count)?;
-    (&mut buf[base..base + 4])
-        .write_i32::<BigEndian>(count)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[base..], count);
 
     Ok(())
 }
@@ -421,10 +419,11 @@ pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<Error + Sync + Send>
 }
 
 /// Serializes an array value.
+// FIXME get rid of has_nulls argument (or make an option?)
 #[inline]
 pub fn array_to_sql<T, I, J, F>(
     dimensions: I,
-    has_nulls: bool,
+    _has_nulls: bool,
     element_type: Oid,
     elements: J,
     mut serializer: F,
@@ -437,7 +436,8 @@ where
 {
     let dimensions_idx = buf.len();
     buf.extend_from_slice(&[0; 4]);
-    buf.write_i32::<BigEndian>(has_nulls as i32).unwrap();
+    let has_nulls_idx = buf.len();
+    buf.extend_from_slice(&[0; 4]);
     buf.write_u32::<BigEndian>(element_type).unwrap();
 
     let mut num_dimensions = 0;
@@ -448,13 +448,25 @@ where
     }
 
     let num_dimensions = i32::from_usize(num_dimensions)?;
-    (&mut buf[dimensions_idx..dimensions_idx + 4])
-        .write_i32::<BigEndian>(num_dimensions)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[dimensions_idx..], num_dimensions);
 
+    let mut has_nulls = false;
     for element in elements {
-        write_nullable(|buf| serializer(element, buf), buf)?;
+        write_nullable(
+            |buf| match serializer(element, buf) {
+                // this is kind of weird, but we want to only set has_nulls if we do actually have
+                // nulls to support arrays of non-null values on Postgres < 8.2
+                Ok(IsNull::Yes) => {
+                    has_nulls = true;
+                    Ok(IsNull::Yes)
+                }
+                r => r,
+            },
+            buf,
+        )?;
     }
+
+    BigEndian::write_i32(&mut buf[has_nulls_idx..], has_nulls as i32);
 
     Ok(())
 }
@@ -674,9 +686,7 @@ where
                 IsNull::No => i32::from_usize(buf.len() - base - 4)?,
                 IsNull::Yes => -1,
             };
-            (&mut buf[base..base + 4])
-                .write_i32::<BigEndian>(len)
-                .unwrap();
+            BigEndian::write_i32(&mut buf[base..], len);
         }
         None => buf.truncate(base),
     }
@@ -862,9 +872,7 @@ where
     }
 
     let num_points = i32::from_usize(num_points)?;
-    (&mut buf[points_idx..])
-        .write_i32::<BigEndian>(num_points)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[points_idx..], num_points);
 
     Ok(())
 }
