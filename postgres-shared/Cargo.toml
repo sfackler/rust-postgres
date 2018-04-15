@@ -17,7 +17,7 @@ with-time = ["time"]
 with-uuid = ["uuid"]
 
 [dependencies]
-hex = "0.2"
+hex = "0.3"
 fallible-iterator = "0.1.3"
 phf = "=0.7.21"
 postgres-protocol = { version = "0.3", path = "../postgres-protocol" }

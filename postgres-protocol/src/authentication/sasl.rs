@@ -1,16 +1,16 @@
 //! SASL-based authentication support.
 
 use base64;
-use generic_array::GenericArray;
 use generic_array::typenum::U32;
+use generic_array::GenericArray;
 use hmac::{Hmac, Mac};
-use sha2::{Sha256, Digest};
+use rand::{OsRng, Rng};
+use sha2::{Digest, Sha256};
 use std::fmt::Write;
 use std::io;
 use std::iter;
 use std::mem;
 use std::str;
-use rand::{OsRng, Rng};
 use stringprep;
 
 const NONCE_LENGTH: usize = 24;
@@ -34,8 +34,7 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
 }
 
 fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
-    let mut hmac = Hmac::<Sha256>::new(str)
-        .expect("HMAC is able to accept all key sizes");
+    let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("HMAC is able to accept all key sizes");
     hmac.input(salt);
     hmac.input(&[0, 0, 0, 1]);
     let mut prev = hmac.result().code();
@@ -43,7 +42,7 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
     let mut hi = GenericArray::<u8, U32>::clone_from_slice(&prev);
 
     for _ in 1..i {
-        let mut hmac = Hmac::<Sha256>::new(str).expect("already checked above");
+        let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("already checked above");
         hmac.input(prev.as_slice());
         prev = hmac.result().code();
 
@@ -56,7 +55,10 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
 }
 
 enum State {
-    Update { nonce: String, password: Vec<u8> },
+    Update {
+        nonce: String,
+        password: Vec<u8>,
+    },
     Finish {
         salted_password: GenericArray<u8, U32>,
         auth_message: String,
@@ -134,9 +136,8 @@ impl ScramSha256 {
             _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
         };
 
-        let message = str::from_utf8(message).map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidInput, e)
-        })?;
+        let message =
+            str::from_utf8(message).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let parsed = Parser::new(message).server_first_message()?;
 
@@ -151,7 +152,7 @@ impl ScramSha256 {
 
         let salted_password = hi(&password, &salt, parsed.iteration_count);
 
-        let mut hmac = Hmac::<Sha256>::new(&salted_password)
+        let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
             .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Client Key");
         let client_key = hmac.result().code();
@@ -165,8 +166,8 @@ impl ScramSha256 {
 
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
-        let mut hmac = Hmac::<Sha256>::new(&stored_key)
-            .expect("HMAC is able to accept all key sizes");
+        let mut hmac =
+            Hmac::<Sha256>::new_varkey(&stored_key).expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
         let client_signature = hmac.result();
 
@@ -197,9 +198,8 @@ impl ScramSha256 {
             _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
         };
 
-        let message = str::from_utf8(message).map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidInput, e)
-        })?;
+        let message =
+            str::from_utf8(message).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let parsed = Parser::new(message).server_final_message()?;
 
@@ -218,18 +218,16 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let mut hmac = Hmac::<Sha256>::new(&salted_password)
+        let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
             .expect("HMAC is able to accept all key sizes");
         hmac.input(b"Server Key");
         let server_key = hmac.result();
 
-        let mut hmac = Hmac::<Sha256>::new(&server_key.code())
+        let mut hmac = Hmac::<Sha256>::new_varkey(&server_key.code())
             .expect("HMAC is able to accept all key sizes");
         hmac.input(auth_message.as_bytes());
-        hmac.verify(&verifier).map_err(|_| io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "SCRAM verification error",
-        ))
+        hmac.verify(&verifier)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
     }
 }
 
@@ -252,9 +250,7 @@ impl<'a> Parser<'a> {
             Some((i, c)) => {
                 let m = format!(
                     "unexpected character at byte {}: expected `{}` but got `{}",
-                    i,
-                    target,
-                    c
+                    i, target, c
                 );
                 Err(io::Error::new(io::ErrorKind::InvalidInput, m))
             }
@@ -316,9 +312,8 @@ impl<'a> Parser<'a> {
             '0'...'9' => true,
             _ => false,
         })?;
-        n.parse().map_err(
-            |e| io::Error::new(io::ErrorKind::InvalidInput, e),
-        )
+        n.parse()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
     }
 
     fn iteration_count(&mut self) -> io::Result<u32> {
@@ -329,12 +324,10 @@ impl<'a> Parser<'a> {
 
     fn eof(&mut self) -> io::Result<()> {
         match self.it.peek() {
-            Some(&(i, _)) => {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("unexpected trailing data at byte {}", i),
-                ))
-            }
+            Some(&(i, _)) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("unexpected trailing data at byte {}", i),
+            )),
             None => Ok(()),
         }
     }
@@ -419,10 +412,12 @@ mod test {
         let nonce = "9IZ2O01zb9IgiIZ1WJ/zgpJB";
 
         let client_first = "n,,n=,r=9IZ2O01zb9IgiIZ1WJ/zgpJB";
-        let server_first = "r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,s=fs3IXBy7U7+IvVjZ,i\
-                            =4096";
-        let client_final = "c=biws,r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,p=AmNKosjJzS3\
-                            1NTlQYNs5BTeQjdHdk7lOflDo5re2an8=";
+        let server_first =
+            "r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,s=fs3IXBy7U7+IvVjZ,i\
+             =4096";
+        let client_final =
+            "c=biws,r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,p=AmNKosjJzS3\
+             1NTlQYNs5BTeQjdHdk7lOflDo5re2an8=";
         let server_final = "v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=";
 
         let mut scram = ScramSha256::new_inner(password.as_bytes(), nonce.to_string()).unwrap();
