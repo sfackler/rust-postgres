@@ -1,7 +1,7 @@
 //! Connection parameters
 use std::error::Error;
-use std::path::PathBuf;
 use std::mem;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use params::url::Url;
@@ -45,6 +45,7 @@ pub struct ConnectParams {
     database: Option<String>,
     options: Vec<(String, String)>,
     connect_timeout: Option<Duration>,
+    keepalive: Option<Duration>,
 }
 
 impl ConnectParams {
@@ -86,6 +87,13 @@ impl ConnectParams {
     pub fn connect_timeout(&self) -> Option<Duration> {
         self.connect_timeout
     }
+
+    /// The interval at which TCP keepalive messages are sent on the socket.
+    ///
+    /// This is ignored for Unix sockets.
+    pub fn keepalive(&self) -> Option<Duration> {
+        self.keepalive
+    }
 }
 
 /// A builder for `ConnectParams`.
@@ -95,6 +103,7 @@ pub struct Builder {
     database: Option<String>,
     options: Vec<(String, String)>,
     connect_timeout: Option<Duration>,
+    keepalive: Option<Duration>,
 }
 
 impl Builder {
@@ -106,6 +115,7 @@ impl Builder {
             database: None,
             options: vec![],
             connect_timeout: None,
+            keepalive: None,
         }
     }
 
@@ -142,6 +152,12 @@ impl Builder {
         self
     }
 
+    /// Sets the keepalive interval.
+    pub fn keepalive(&mut self, keepalive: Option<Duration>) -> &mut Builder {
+        self.keepalive = keepalive;
+        self
+    }
+
     /// Constructs a `ConnectParams` from the builder.
     pub fn build(&mut self, host: Host) -> ConnectParams {
         ConnectParams {
@@ -151,6 +167,7 @@ impl Builder {
             database: self.database.take(),
             options: mem::replace(&mut self.options, vec![]),
             connect_timeout: self.connect_timeout,
+            keepalive: self.keepalive,
         }
     }
 }
@@ -188,11 +205,12 @@ impl IntoConnectParams for Url {
             host,
             port,
             user,
-            path: url::Path {
-                path,
-                query: options,
-                ..
-            },
+            path:
+                url::Path {
+                    path,
+                    query: options,
+                    ..
+                },
             ..
         } = self;
 
@@ -217,6 +235,11 @@ impl IntoConnectParams for Url {
                     let timeout = value.parse().map_err(|_| "invalid connect_timeout")?;
                     let timeout = Duration::from_secs(timeout);
                     builder.connect_timeout(Some(timeout));
+                }
+                "keepalive" => {
+                    let keepalive = value.parse().map_err(|_| "invalid keepalive")?;
+                    let keepalive = Duration::from_secs(keepalive);
+                    builder.keepalive(Some(keepalive));
                 }
                 _ => {
                     builder.option(&name, &value);
