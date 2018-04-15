@@ -70,7 +70,7 @@ postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
 postgres-shared = { version = "0.4.1", path = "../postgres-shared" }
 
 [dev-dependencies]
-hex = "0.2"
+hex = "0.3"
 url = "1.0"
 
 bit-vec = "0.4"
