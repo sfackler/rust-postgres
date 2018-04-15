@@ -186,7 +186,9 @@ fn open_socket(params: &ConnectParams) -> Result<Socket> {
                     SocketAddr::V6(_) => Domain::ipv6(),
                 };
                 let socket = Socket::new(domain, Type::stream(), None)?;
-                socket.set_keepalive(params.keepalive())?;
+                if let Some(keepalive) = params.keepalive() {
+                    socket.set_keepalive(Some(keepalive))?;
+                }
                 let addr = SockAddr::from(addr);
                 let r = match params.connect_timeout() {
                     Some(timeout) => socket.connect_timeout(&addr, timeout),
