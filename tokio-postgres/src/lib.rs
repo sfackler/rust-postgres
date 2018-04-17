@@ -69,41 +69,41 @@ extern crate futures;
 extern crate tokio_uds;
 
 use fallible_iterator::FallibleIterator;
-use futures::{Async, Future, IntoFuture, Poll, Sink, StartSend, Stream};
 use futures::future::Either;
+use futures::{Async, Future, IntoFuture, Poll, Sink, StartSend, Stream};
 use futures_state_stream::{FutureExt, StateStream, StreamEvent};
 use postgres_protocol::authentication;
-use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
+use postgres_protocol::message::{backend, frontend};
 use postgres_shared::rows::RowData;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 use tokio_core::reactor::Handle;
 
 #[doc(inline)]
-pub use postgres_shared::{error, params, types, CancelData, Notification};
-#[doc(inline)]
 pub use error::Error;
+#[doc(inline)]
+pub use postgres_shared::{error, params, types, CancelData, Notification};
 
 use error::{DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
 use params::{ConnectParams, IntoConnectParams};
+use rows::Row;
 use sink::SinkExt;
 use stmt::{Column, Statement};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
 use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type, CHAR, NAME, OID};
-use rows::Row;
 
 #[macro_use]
 mod macros;
 pub mod rows;
-pub mod stmt;
 mod sink;
+pub mod stmt;
 mod stream;
 pub mod tls;
 pub mod transaction;
@@ -151,6 +151,7 @@ where
         Ok(params) => Either::A(stream::connect(
             params.host().clone(),
             params.port(),
+            params.keepalive(),
             tls_mode,
             handle,
         )),
@@ -302,8 +303,13 @@ impl Connection {
     {
         let fut = match params.into_connect_params() {
             Ok(params) => Either::A(
-                stream::connect(params.host().clone(), params.port(), tls_mode, handle)
-                    .map(|s| (s, params)),
+                stream::connect(
+                    params.host().clone(),
+                    params.port(),
+                    params.keepalive(),
+                    tls_mode,
+                    handle,
+                ).map(|s| (s, params)),
             ),
             Err(e) => Either::B(Err(error::connect(e)).into_future()),
         };
@@ -781,9 +787,7 @@ impl Connection {
                     Either::A(Ok((Kind::Simple, c)).into_future())
                 };
 
-                Either::B(kind.map(
-                    move |(k, c)| (Type::_new(name, oid, k, schema), c),
-                ))
+                Either::B(kind.map(move |(k, c)| (Type::_new(name, oid, k, schema), c)))
             })
             .boxed2()
     }
@@ -834,9 +838,7 @@ impl Connection {
         oid: Oid,
     ) -> Box<Future<Item = (Vec<String>, Connection), Error = (Error, Connection)> + Send> {
         self.setup_typeinfo_enum_query()
-            .and_then(move |c| {
-                c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[OID], &[&oid])
-            })
+            .and_then(move |c| c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 let mut variants = vec![];
@@ -888,9 +890,7 @@ impl Connection {
         oid: Oid,
     ) -> Box<Future<Item = (Vec<Field>, Connection), Error = (Error, Connection)> + Send> {
         self.setup_typeinfo_composite_query()
-            .and_then(move |c| {
-                c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[OID], &[&oid])
-            })
+            .and_then(move |c| c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 futures::stream::iter_ok(r).fold((vec![], c), |(mut fields, c), row| {
@@ -983,9 +983,7 @@ impl Connection {
                     .send_all2(futures::stream::iter_ok::<_, io::Error>(it))
                     .map_err(|(e, s, _)| (error::io(e), Connection(s)))
             })
-            .and_then(|s| {
-                s.0.read().map_err(|(e, s)| (error::io(e), Connection(s)))
-            })
+            .and_then(|s| s.0.read().map_err(|(e, s)| (error::io(e), Connection(s))))
             .and_then(|(m, s)| match m {
                 backend::Message::BindComplete => Either::A(Ok(Connection(s)).into_future()),
                 backend::Message::ErrorResponse(body) => Either::B(Connection(s).ready_err(body)),
@@ -1003,9 +1001,8 @@ impl Connection {
             .and_then(|(m, s)| match m {
                 backend::Message::DataRow(_) => Connection(s).finish_execute().boxed2(),
                 backend::Message::CommandComplete(body) => {
-                    let r = body.tag().map(|tag| {
-                        tag.split_whitespace().last().unwrap().parse().unwrap_or(0)
-                    });
+                    let r = body.tag()
+                        .map(|tag| tag.split_whitespace().last().unwrap().parse().unwrap_or(0));
 
                     match r {
                         Ok(n) => Connection(s).ready(n).boxed2(),

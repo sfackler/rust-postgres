@@ -44,7 +44,7 @@ futures = "0.1.7"
 futures-state-stream = "0.2"
 postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
 postgres-shared = { version = "0.4.0", path = "../postgres-shared" }
-tokio-core = "0.1"
+tokio-core = "0.1.8"
 tokio-dns-unofficial = "0.1"
 tokio-io = "0.1"
 

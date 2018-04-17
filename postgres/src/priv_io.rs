@@ -1,22 +1,20 @@
-use std::io::{self, BufWriter, Read, Write};
-use std::net::{ToSocketAddrs, SocketAddr};
-use std::time::Duration;
-use std::result;
 use bytes::{BufMut, BytesMut};
+use postgres_protocol::message::backend;
+use postgres_protocol::message::frontend;
+use socket2::{Domain, SockAddr, Socket, Type};
+use std::io::{self, BufWriter, Read, Write};
+use std::net::{SocketAddr, ToSocketAddrs};
 #[cfg(unix)]
-use std::os::unix::net::UnixStream;
-#[cfg(unix)]
-use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, RawSocket};
-use postgres_protocol::message::frontend;
-use postgres_protocol::message::backend;
-use socket2::{Socket, SockAddr, Domain, Type};
+use std::result;
+use std::time::Duration;
 
-use {Result, TlsMode};
 use error;
-use tls::TlsStream;
 use params::{ConnectParams, Host};
+use tls::TlsStream;
+use {Result, TlsMode};
 
 const INITIAL_CAPACITY: usize = 8 * 1024;
 
@@ -61,9 +59,10 @@ impl MessageStream {
 
     fn read_in(&mut self) -> io::Result<()> {
         self.in_buf.reserve(1);
-        match self.stream.get_mut().read(
-            unsafe { self.in_buf.bytes_mut() },
-        ) {
+        match self.stream
+            .get_mut()
+            .read(unsafe { self.in_buf.bytes_mut() })
+        {
             Ok(0) => Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 "unexpected EOF",
@@ -88,8 +87,11 @@ impl MessageStream {
             match r {
                 Ok(()) => {}
                 Err(ref e)
-                    if e.kind() == io::ErrorKind::WouldBlock ||
-                           e.kind() == io::ErrorKind::TimedOut => return Ok(None),
+                    if e.kind() == io::ErrorKind::WouldBlock
+                        || e.kind() == io::ErrorKind::TimedOut =>
+                {
+                    return Ok(None)
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -184,6 +186,9 @@ fn open_socket(params: &ConnectParams) -> Result<Socket> {
                     SocketAddr::V6(_) => Domain::ipv6(),
                 };
                 let socket = Socket::new(domain, Type::stream(), None)?;
+                if let Some(keepalive) = params.keepalive() {
+                    socket.set_keepalive(Some(keepalive))?;
+                }
                 let addr = SockAddr::from(addr);
                 let r = match params.connect_timeout() {
                     Some(timeout) => socket.connect_timeout(&addr, timeout),
@@ -195,33 +200,28 @@ fn open_socket(params: &ConnectParams) -> Result<Socket> {
                 }
             }
 
-            Err(
-                error
-                    .unwrap_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "could not resolve any addresses",
-                        )
-                    })
-                    .into(),
-            )
+            Err(error
+                .unwrap_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "could not resolve any addresses",
+                    )
+                })
+                .into())
         }
         #[cfg(unix)]
         Host::Unix(ref path) => {
             let path = path.join(&format!(".s.PGSQL.{}", port));
-            Ok(UnixStream::connect(&path).map(|s| unsafe {
-                Socket::from_raw_fd(s.into_raw_fd())
-            })?)
+            let socket = Socket::new(Domain::unix(), Type::stream(), None)?;
+            let addr = SockAddr::unix(path)?;
+            socket.connect(&addr)?;
+            Ok(socket)
         }
         #[cfg(not(unix))]
-        Host::Unix(..) => {
-            Err(
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "unix sockets are not supported on this system",
-                ).into(),
-            )
-        }
+        Host::Unix(..) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unix sockets are not supported on this system",
+        ).into()),
     }
 }
 

@@ -1,39 +1,43 @@
-use bytes::{BytesMut, BufMut};
-use futures::{Future, IntoFuture, Sink, Stream as FuturesStream, Poll};
+use bytes::{BufMut, BytesMut};
 use futures::future::Either;
-use postgres_shared::params::Host;
+use futures::{Future, IntoFuture, Poll, Sink, Stream as FuturesStream};
 use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend;
+use postgres_shared::params::Host;
 use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_io::codec::{Encoder, Decoder, Framed};
+use std::time::Duration;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use tokio_dns;
+use tokio_io::codec::{Decoder, Encoder, Framed};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
-use {TlsMode, Error, BoxedFuture};
 use error;
 use tls::TlsStream;
+use {BoxedFuture, Error, TlsMode};
 
 pub type PostgresStream = Framed<Box<TlsStream>, PostgresCodec>;
 
 pub fn connect(
     host: Host,
     port: u16,
+    keepalive: Option<Duration>,
     tls_mode: TlsMode,
     handle: &Handle,
 ) -> Box<Future<Item = PostgresStream, Error = Error> + Send> {
     let inner = match host {
-        Host::Tcp(ref host) => {
-            Either::A(
-                tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
-                    .map(|s| Stream(InnerStream::Tcp(s)))
-                    .map_err(error::io),
-            )
-        }
+        Host::Tcp(ref host) => Either::A(
+            tokio_dns::tcp_connect((&**host, port), handle.remote().clone())
+                .and_then(move |s| match keepalive {
+                    Some(keepalive) => s.set_keepalive(Some(keepalive)).map(|_| s),
+                    None => Ok(s),
+                })
+                .map(|s| Stream(InnerStream::Tcp(s)))
+                .map_err(error::io),
+        ),
         #[cfg(unix)]
         Host::Unix(ref host) => {
             let addr = host.join(format!(".s.PGSQL.{}", port));
@@ -45,15 +49,11 @@ pub fn connect(
             )
         }
         #[cfg(not(unix))]
-        Host::Unix(_) => {
-            Either::B(
-                Err(error::connect(
-                    "unix sockets are not supported on this \
-                                                       platform"
-                        .into(),
-                )).into_future(),
-            )
-        }
+        Host::Unix(_) => Either::B(
+            Err(error::connect(
+                "unix sockets are not supported on this platform".into(),
+            )).into_future(),
+        ),
     };
 
     let (required, handshaker) = match tls_mode {
@@ -80,23 +80,19 @@ pub fn connect(
         .and_then(move |(m, s)| {
             let s = s.into_inner();
             match (m, required) {
-                (Some(b'N'), true) => {
-                    Either::A(
-                        Err(error::tls("the server does not support TLS".into())).into_future(),
-                    )
-                }
+                (Some(b'N'), true) => Either::A(
+                    Err(error::tls("the server does not support TLS".into())).into_future(),
+                ),
                 (Some(b'N'), false) => {
                     let s: Box<TlsStream> = Box::new(s);
                     Either::A(Ok(s).into_future())
                 }
-                (None, _) => {
-                    Either::A(
-                        Err(error::io(io::Error::new(
-                            io::ErrorKind::UnexpectedEof,
-                            "unexpected EOF",
-                        ))).into_future(),
-                    )
-                }
+                (None, _) => Either::A(
+                    Err(error::io(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "unexpected EOF",
+                    ))).into_future(),
+                ),
                 _ => {
                     let host = match host {
                         Host::Tcp(ref host) => host,
