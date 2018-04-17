@@ -6,6 +6,3 @@ members = [
     "postgres-shared",
     "tokio-postgres"
 ]
-
-[patch.crates-io]
-socket2 = { git = "https://github.com/sfackler/socket2-rs", branch = "keepalive" }

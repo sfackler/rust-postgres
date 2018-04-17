@@ -58,7 +58,7 @@ no-logging = []
 bytes = "0.4"
 fallible-iterator = "0.1.3"
 log = "0.4"
-socket2 = { version = "0.3", features = ["unix"] }
+socket2 = { version = "0.3.5", features = ["unix"] }
 
 openssl = { version = "0.9.23", optional = true }
 native-tls = { version = "0.1", optional = true }
