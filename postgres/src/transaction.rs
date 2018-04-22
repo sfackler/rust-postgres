@@ -2,13 +2,11 @@
 
 use std::cell::Cell;
 use std::fmt;
-#[allow(unused_imports)]
-use std::ascii::AsciiExt;
 
-use {bad_response, Connection, Result};
 use rows::Rows;
 use stmt::Statement;
 use types::ToSql;
+use {bad_response, Connection, Result};
 
 /// An enumeration of transaction isolation levels.
 ///

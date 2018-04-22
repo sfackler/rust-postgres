@@ -80,6 +80,11 @@ extern crate postgres_shared;
 extern crate socket2;
 
 use fallible_iterator::FallibleIterator;
+use postgres_protocol::authentication;
+use postgres_protocol::authentication::sasl::{self, ScramSha256};
+use postgres_protocol::message::backend::{self, ErrorFields};
+use postgres_protocol::message::frontend;
+use postgres_shared::rows::RowData;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
@@ -88,38 +93,33 @@ use std::mem;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
-use postgres_protocol::authentication;
-use postgres_protocol::authentication::sasl::{self, ScramSha256};
-use postgres_protocol::message::backend::{self, ErrorFields};
-use postgres_protocol::message::frontend;
-use postgres_shared::rows::RowData;
 
 use error::{DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
-use tls::TlsHandshake;
 use notification::{Notification, Notifications};
 use params::{IntoConnectParams, User};
 use priv_io::MessageStream;
 use rows::Rows;
 use stmt::{Column, Statement};
+use tls::TlsHandshake;
 use transaction::{IsolationLevel, Transaction};
 use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type, CHAR, NAME, OID};
 
 #[doc(inline)]
+pub use error::Error;
+#[doc(inline)]
 pub use postgres_shared::CancelData;
 #[doc(inline)]
 pub use postgres_shared::{error, types};
-#[doc(inline)]
-pub use error::Error;
 
 #[macro_use]
 mod macros;
 
-mod priv_io;
-pub mod tls;
 pub mod notification;
 pub mod params;
+mod priv_io;
 pub mod rows;
 pub mod stmt;
+pub mod tls;
 pub mod transaction;
 
 const TYPEINFO_QUERY: &'static str = "__typeinfo";

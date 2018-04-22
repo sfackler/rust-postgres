@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 
 use types::{FromSql, IsNull, ToSql, Type, JSON, JSONB};
 
-impl FromSql for Value {
+impl<'a> FromSql<'a> for Value {
     fn from_sql(ty: &Type, mut raw: &[u8]) -> Result<Value, Box<Error + Sync + Send>> {
         if *ty == JSONB {
             let mut b = [0; 1];

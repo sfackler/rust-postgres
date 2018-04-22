@@ -1321,20 +1321,6 @@ fn test_parameter() {
 }
 
 #[test]
-fn test_get_bytes() {
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::None,
-    ));
-    let stmt = or_panic!(conn.prepare("SELECT '\\x00010203'::BYTEA"));
-    let result = or_panic!(stmt.query(&[]));
-    assert_eq!(
-        b"\x00\x01\x02\x03",
-        result.iter().next().unwrap().get_bytes(0).unwrap()
-    );
-}
-
-#[test]
 fn url_unencoded_password() {
     assert!(
         "postgresql://username:password%1*@localhost:5433"

@@ -1,12 +1,12 @@
 extern crate bit_vec;
 
-use postgres_protocol::types;
 use self::bit_vec::BitVec;
+use postgres_protocol::types;
 use std::error::Error;
 
 use types::{FromSql, IsNull, ToSql, Type, BIT, VARBIT};
 
-impl FromSql for BitVec {
+impl<'a> FromSql<'a> for BitVec {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<BitVec, Box<Error + Sync + Send>> {
         let varbit = types::varbit_from_sql(raw)?;
         let mut bitvec = BitVec::from_bytes(varbit.bytes());

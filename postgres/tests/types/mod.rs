@@ -5,38 +5,47 @@ use std::f64;
 use std::fmt;
 use std::result;
 
+use postgres::types::{FromSql, FromSqlOwned, INT4, IsNull, Kind, ToSql, Type, WrongType, NUMERIC,
+                      TEXT};
 use postgres::{Connection, TlsMode};
-use postgres::types::{ToSql, FromSql, WrongType, Type, IsNull, Kind, TEXT, INT4, NUMERIC};
 
 #[cfg(feature = "with-bit-vec")]
 mod bit_vec;
+#[cfg(feature = "with-chrono")]
+mod chrono;
 #[cfg(feature = "with-eui48")]
 mod eui48;
-#[cfg(feature = "with-uuid")]
-mod uuid;
-#[cfg(feature = "with-time")]
-mod time;
+#[cfg(feature = "with-geo")]
+mod geo;
 #[cfg(feature = "with-rustc-serialize")]
 mod rustc_serialize;
 #[cfg(feature = "with-serde_json")]
 mod serde_json;
-#[cfg(feature = "with-chrono")]
-mod chrono;
-#[cfg(feature = "with-geo")]
-mod geo;
+#[cfg(feature = "with-time")]
+mod time;
+#[cfg(feature = "with-uuid")]
+mod uuid;
 
-fn test_type<T: PartialEq + FromSql + ToSql, S: fmt::Display>(sql_type: &str, checks: &[(T, S)]) {
+fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
+where
+    T: PartialEq + for<'a> FromSqlOwned + ToSql,
+    S: fmt::Display,
+{
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
     for &(ref val, ref repr) in checks.iter() {
         let stmt = or_panic!(conn.prepare(&*format!("SELECT {}::{}", *repr, sql_type)));
-        let result = or_panic!(stmt.query(&[])).iter().next().unwrap().get(0);
+        let rows = or_panic!(stmt.query(&[]));
+        let row = rows.iter().next().unwrap();
+        let result = row.get(0);
         assert_eq!(val, &result);
 
         let stmt = or_panic!(conn.prepare(&*format!("SELECT $1::{}", sql_type)));
-        let result = or_panic!(stmt.query(&[val])).iter().next().unwrap().get(0);
+        let rows = or_panic!(stmt.query(&[val]));
+        let row = rows.iter().next().unwrap();
+        let result = row.get(0);
         assert_eq!(val, &result);
     }
 }
@@ -185,6 +194,19 @@ fn test_text_params() {
 }
 
 #[test]
+fn test_borrowed_text() {
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost:5433",
+        TlsMode::None,
+    ));
+
+    let rows = or_panic!(conn.query("SELECT 'foo'", &[]));
+    let row = rows.get(0);
+    let s: &str = row.get(0);
+    assert_eq!(s, "foo");
+}
+
+#[test]
 fn test_bpchar_params() {
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -225,15 +247,9 @@ fn test_citext_params() {
     ));
     or_panic!(conn.execute(
         "INSERT INTO foo (b) VALUES ($1), ($2), ($3)",
-        &[
-            &Some("foobar"),
-            &Some("FooBar"),
-            &None::<&'static str>,
-        ],
+        &[&Some("foobar"), &Some("FooBar"), &None::<&'static str>],
     ));
-    let stmt = or_panic!(conn.prepare(
-        "SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id",
-    ));
+    let stmt = or_panic!(conn.prepare("SELECT id FROM foo WHERE b = 'FOOBAR' ORDER BY id",));
     let res = or_panic!(stmt.query(&[]));
 
     assert_eq!(
@@ -251,6 +267,19 @@ fn test_bytea_params() {
             (None, "NULL"),
         ],
     );
+}
+
+#[test]
+fn test_borrowed_bytea() {
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost:5433",
+        TlsMode::None,
+    ));
+
+    let rows = or_panic!(conn.query("SELECT 'foo'::BYTEA", &[]));
+    let row = rows.get(0);
+    let s: &[u8] = row.get(0);
+    assert_eq!(s, b"foo");
 }
 
 #[test]
@@ -293,7 +322,10 @@ fn test_array_params() {
     );
 }
 
-fn test_nan_param<T: PartialEq + ToSql + FromSql>(sql_type: &str) {
+fn test_nan_param<T>(sql_type: &str)
+where
+    T: PartialEq + ToSql + FromSqlOwned,
+{
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
         TlsMode::None,
@@ -394,17 +426,16 @@ fn domain() {
         }
 
         fn accepts(ty: &Type) -> bool {
-            ty.name() == "session_id" &&
-                match *ty.kind() {
-                    Kind::Domain(_) => true,
-                    _ => false,
-                }
+            ty.name() == "session_id" && match *ty.kind() {
+                Kind::Domain(_) => true,
+                _ => false,
+            }
         }
 
         to_sql_checked!();
     }
 
-    impl FromSql for SessionId {
+    impl<'a> FromSql<'a> for SessionId {
         fn from_sql(
             ty: &Type,
             raw: &[u8],

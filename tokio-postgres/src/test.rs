@@ -313,7 +313,7 @@ fn domain() {
         to_sql_checked!();
     }
 
-    impl FromSql for SessionId {
+    impl<'a> FromSql<'a> for SessionId {
         fn from_sql(ty: &Type, raw: &[u8]) -> Result<Self, Box<StdError + Sync + Send>> {
             Vec::<u8>::from_sql(ty, raw).map(SessionId)
         }

@@ -14,8 +14,8 @@ use types::type_gen::{Inner, Other};
 #[doc(inline)]
 pub use postgres_protocol::Oid;
 
-pub use types::type_gen::consts::*;
 pub use types::special::{Date, Timestamp};
+pub use types::type_gen::consts::*;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -68,20 +68,20 @@ where
 
 #[cfg(feature = "with-bit-vec")]
 mod bit_vec;
-#[cfg(feature = "with-uuid")]
-mod uuid;
-#[cfg(feature = "with-time")]
-mod time;
-#[cfg(feature = "with-rustc-serialize")]
-mod rustc_serialize;
-#[cfg(feature = "with-serde_json")]
-mod serde_json;
 #[cfg(feature = "with-chrono")]
 mod chrono;
 #[cfg(feature = "with-eui48")]
 mod eui48;
 #[cfg(feature = "with-geo")]
 mod geo;
+#[cfg(feature = "with-rustc-serialize")]
+mod rustc_serialize;
+#[cfg(feature = "with-serde_json")]
+mod serde_json;
+#[cfg(feature = "with-time")]
+mod time;
+#[cfg(feature = "with-uuid")]
+mod uuid;
 
 mod special;
 mod type_gen;
@@ -254,8 +254,8 @@ impl WrongType {
 /// | `i64`                             | BIGINT, BIGSERIAL                             |
 /// | `f32`                             | REAL                                          |
 /// | `f64`                             | DOUBLE PRECISION                              |
-/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT, NAME, UNKNOWN |
-/// | `Vec<u8>`                         | BYTEA                                         |
+/// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME, UNKNOWN |
+/// | `&[u8]`/`Vec<u8>`                 | BYTEA                                         |
 /// | `HashMap<String, Option<String>>` | HSTORE                                        |
 ///
 /// In addition, some implementations are provided for types in third party
@@ -290,13 +290,13 @@ impl WrongType {
 ///
 /// `FromSql` is implemented for `Vec<T>` where `T` implements `FromSql`, and
 /// corresponds to one-dimensional Postgres arrays.
-pub trait FromSql: Sized {
+pub trait FromSql<'a>: Sized {
     /// Creates a new value of this type from a buffer of data of the specified
     /// Postgres `Type` in its binary format.
     ///
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
-    fn from_sql(ty: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>>;
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<Error + Sync + Send>>;
 
     /// Creates a new value of this type from a `NULL` SQL value.
     ///
@@ -312,7 +312,10 @@ pub trait FromSql: Sized {
 
     /// A convenience function that delegates to `from_sql` and `from_sql_null` depending on the
     /// value of `raw`.
-    fn from_sql_nullable(ty: &Type, raw: Option<&[u8]>) -> Result<Self, Box<Error + Sync + Send>> {
+    fn from_sql_nullable(
+        ty: &Type,
+        raw: Option<&'a [u8]>,
+    ) -> Result<Self, Box<Error + Sync + Send>> {
         match raw {
             Some(raw) => Self::from_sql(ty, raw),
             None => Self::from_sql_null(ty),
@@ -324,8 +327,19 @@ pub trait FromSql: Sized {
     fn accepts(ty: &Type) -> bool;
 }
 
-impl<T: FromSql> FromSql for Option<T> {
-    fn from_sql(ty: &Type, raw: &[u8]) -> Result<Option<T>, Box<Error + Sync + Send>> {
+/// A trait for types which can be created from a Postgres value without borrowing any data.
+///
+/// This is primarily useful for trait bounds on functions.
+pub trait FromSqlOwned: for<'a> FromSql<'a> {}
+
+impl<T> FromSqlOwned for T
+where
+    T: for<'a> FromSql<'a>,
+{
+}
+
+impl<'a, T: FromSql<'a>> FromSql<'a> for Option<T> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Option<T>, Box<Error + Sync + Send>> {
         <T as FromSql>::from_sql(ty, raw).map(Some)
     }
 
@@ -338,8 +352,8 @@ impl<T: FromSql> FromSql for Option<T> {
     }
 }
 
-impl<T: FromSql> FromSql for Vec<T> {
-    fn from_sql(ty: &Type, raw: &[u8]) -> Result<Vec<T>, Box<Error + Sync + Send>> {
+impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Vec<T>, Box<Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
             _ => panic!("expected array type"),
@@ -364,17 +378,35 @@ impl<T: FromSql> FromSql for Vec<T> {
     }
 }
 
-impl FromSql for Vec<u8> {
-    fn from_sql(_: &Type, raw: &[u8]) -> Result<Vec<u8>, Box<Error + Sync + Send>> {
+impl<'a> FromSql<'a> for Vec<u8> {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Vec<u8>, Box<Error + Sync + Send>> {
         Ok(types::bytea_from_sql(raw).to_owned())
     }
 
     accepts!(BYTEA);
 }
 
-impl FromSql for String {
-    fn from_sql(_: &Type, raw: &[u8]) -> Result<String, Box<Error + Sync + Send>> {
+impl<'a> FromSql<'a> for &'a [u8] {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<&'a [u8], Box<Error + Sync + Send>> {
+        Ok(types::bytea_from_sql(raw))
+    }
+
+    accepts!(BYTEA);
+}
+
+impl<'a> FromSql<'a> for String {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<String, Box<Error + Sync + Send>> {
         types::text_from_sql(raw).map(|b| b.to_owned())
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as FromSql>::accepts(ty)
+    }
+}
+
+impl<'a> FromSql<'a> for &'a str {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<&'a str, Box<Error + Sync + Send>> {
+        types::text_from_sql(raw)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -388,10 +420,8 @@ impl FromSql for String {
 
 macro_rules! simple_from {
     ($t:ty, $f:ident, $($expected:pat),+) => {
-        impl FromSql for $t {
-            fn from_sql(_: &Type,
-                        raw: &[u8])
-                        -> Result<$t, Box<Error + Sync + Send>> {
+        impl<'a> FromSql<'a> for $t {
+            fn from_sql(_: &Type, raw: &'a [u8]) -> Result<$t, Box<Error + Sync + Send>> {
                 types::$f(raw)
             }
 
@@ -409,10 +439,10 @@ simple_from!(i64, int8_from_sql, INT8);
 simple_from!(f32, float4_from_sql, FLOAT4);
 simple_from!(f64, float8_from_sql, FLOAT8);
 
-impl FromSql for HashMap<String, Option<String>> {
+impl<'a> FromSql<'a> for HashMap<String, Option<String>> {
     fn from_sql(
         _: &Type,
-        raw: &[u8],
+        raw: &'a [u8],
     ) -> Result<HashMap<String, Option<String>>, Box<Error + Sync + Send>> {
         types::hstore_from_sql(raw)?
             .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
@@ -449,10 +479,8 @@ pub enum IsNull {
 /// | `i64`                             | BIGINT, BIGSERIAL                    |
 /// | `f32`                             | REAL                                 |
 /// | `f64`                             | DOUBLE PRECISION                     |
-/// | `String`                          | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
-/// | `&str`                            | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
-/// | `Vec<u8>`                         | BYTEA                                |
-/// | `&[u8]`                           | BYTEA                                |
+/// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
+/// | `&[u8]`/Vec<u8>`                  | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 ///
 /// In addition, some implementations are provided for types in third party

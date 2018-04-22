@@ -1,8 +1,8 @@
 use postgres_protocol::types;
-use std::{i32, i64};
 use std::error::Error;
+use std::{i32, i64};
 
-use types::{Type, FromSql, ToSql, IsNull, DATE, TIMESTAMP, TIMESTAMPTZ};
+use types::{FromSql, IsNull, ToSql, Type, DATE, TIMESTAMP, TIMESTAMPTZ};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -15,8 +15,8 @@ pub enum Date<T> {
     Value(T),
 }
 
-impl<T: FromSql> FromSql for Date<T> {
-    fn from_sql(ty: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
+impl<'a, T: FromSql<'a>> FromSql<'a> for Date<T> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<Error + Sync + Send>> {
         match types::date_from_sql(raw)? {
             i32::MAX => Ok(Date::PosInfinity),
             i32::MIN => Ok(Date::NegInfinity),
@@ -28,6 +28,7 @@ impl<T: FromSql> FromSql for Date<T> {
         *ty == DATE && T::accepts(ty)
     }
 }
+
 impl<T: ToSql> ToSql for Date<T> {
     fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
         let value = match *self {
@@ -59,8 +60,8 @@ pub enum Timestamp<T> {
     Value(T),
 }
 
-impl<T: FromSql> FromSql for Timestamp<T> {
-    fn from_sql(ty: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
+impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<Error + Sync + Send>> {
         match types::timestamp_from_sql(raw)? {
             i64::MAX => Ok(Timestamp::PosInfinity),
             i64::MIN => Ok(Timestamp::NegInfinity),
@@ -71,7 +72,7 @@ impl<T: FromSql> FromSql for Timestamp<T> {
     fn accepts(ty: &Type) -> bool {
         match *ty {
             TIMESTAMP | TIMESTAMPTZ if T::accepts(ty) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -91,7 +92,7 @@ impl<T: ToSql> ToSql for Timestamp<T> {
     fn accepts(ty: &Type) -> bool {
         match *ty {
             TIMESTAMP | TIMESTAMPTZ if T::accepts(ty) => true,
-            _ => false
+            _ => false,
         }
     }
 

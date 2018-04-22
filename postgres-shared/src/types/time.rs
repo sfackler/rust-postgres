@@ -1,10 +1,10 @@
 extern crate time;
 
 use self::time::Timespec;
-use std::error::Error;
 use postgres_protocol::types;
+use std::error::Error;
 
-use types::{Type, FromSql, ToSql, IsNull, TIMESTAMP, TIMESTAMPTZ};
+use types::{FromSql, IsNull, ToSql, Type, TIMESTAMP, TIMESTAMPTZ};
 
 const USEC_PER_SEC: i64 = 1_000_000;
 const NSEC_PER_USEC: i64 = 1_000;
@@ -12,7 +12,7 @@ const NSEC_PER_USEC: i64 = 1_000;
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: i64 = 946684800;
 
-impl FromSql for Timespec {
+impl<'a> FromSql<'a> for Timespec {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Timespec, Box<Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
         let mut sec = t / USEC_PER_SEC + TIME_SEC_CONVERSION;

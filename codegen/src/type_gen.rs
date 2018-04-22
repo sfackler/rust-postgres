@@ -1,11 +1,9 @@
+use marksman_escape::Escape;
 use regex::Regex;
-#[allow(unused_imports)]
-use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use marksman_escape::Escape;
 
 use snake_to_camel;
 
@@ -178,8 +176,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             w,
             "            {} => Some(Inner::{}),
 ",
-            oid,
-            type_.variant
+            oid, type_.variant
         ).unwrap();
     }
 
@@ -194,14 +191,12 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
 ",
     ).unwrap();
 
-
     for (oid, type_) in types {
         write!(
             w,
             "            Inner::{} => {},
 ",
-            type_.variant,
-            oid
+            type_.variant, oid
         ).unwrap();
     }
 
@@ -231,8 +226,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
                 V
             }}
 ",
-            type_.variant,
-            kind
+            type_.variant, kind
         ).unwrap();
     }
 
@@ -252,8 +246,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             w,
             r#"            Inner::{} => "{}",
 "#,
-            type_.variant,
-            type_.name
+            type_.variant, type_.name
         ).unwrap();
     }
 
