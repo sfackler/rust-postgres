@@ -4,7 +4,7 @@ use self::uuid::Uuid;
 use postgres_protocol::types;
 use std::error::Error;
 
-use types::{FromSql, IsNull, ToSql, Type, UUID};
+use types::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Uuid {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Uuid, Box<Error + Sync + Send>> {

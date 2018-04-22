@@ -1,8 +1,8 @@
-use std::fs::File;
-use std::io::{Write, BufWriter};
-use std::path::Path;
-use phf_codegen;
 use linked_hash_map::LinkedHashMap;
+use phf_codegen;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 
 const ERRCODES_TXT: &'static str = include_str!("errcodes.txt");
 
@@ -59,7 +59,6 @@ impl SqlState {{
     pub fn code(&self) -> &str {{
         &self.0
     }}
-}}
 "
     ).unwrap();
 }
@@ -70,14 +69,16 @@ fn make_consts(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<
             write!(
                 file,
                 r#"
-/// {code}
-pub const {name}: SqlState = SqlState(Cow::Borrowed("{code}"));
+    /// {code}
+    pub const {name}: SqlState = SqlState(Cow::Borrowed("{code}"));
 "#,
                 name = name,
                 code = code,
             ).unwrap();
         }
     }
+
+    write!(file, "}}").unwrap();
 }
 
 fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<File>) {
@@ -89,7 +90,7 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = "
     ).unwrap();
     let mut builder = phf_codegen::Map::new();
     for (code, names) in codes {
-        builder.entry(&**code, &names[0]);
+        builder.entry(&**code, &format!("SqlState::{}", &names[0]));
     }
     builder.build(file).unwrap();
     write!(file, ";\n").unwrap();

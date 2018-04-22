@@ -5,7 +5,7 @@ use fallible_iterator::FallibleIterator;
 use postgres_protocol::types;
 use std::error::Error;
 
-use types::{FromSql, IsNull, ToSql, Type, BOX, PATH, POINT};
+use types::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Point<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {

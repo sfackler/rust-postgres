@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio_core::reactor::{Core, Interval};
 
 use super::*;
-use error::{INVALID_AUTHORIZATION_SPECIFICATION, INVALID_PASSWORD, QUERY_CANCELED};
+use error::SqlState;
 use params::{ConnectParams, Host};
-use types::{FromSql, INT4, IsNull, Kind, ToSql, Type, BYTEA, NUMERIC, TEXT};
+use types::{FromSql, IsNull, Kind, ToSql, Type};
 
 #[test]
 fn md5_user() {
@@ -48,7 +48,7 @@ fn md5_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -92,7 +92,7 @@ fn pass_user_wrong_pass() {
         &handle,
     );
     match l.run(done) {
-        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("unexpected error {}", e),
         Ok(_) => panic!("unexpected success"),
     }
@@ -128,7 +128,7 @@ fn batch_execute_err() {
         .and_then(|c| c.batch_execute("SELECT * FROM bogo"))
         .then(|r| match r {
             Err((e, s)) => {
-                assert_eq!(e.code(), Some(&UNDEFINED_TABLE));
+                assert_eq!(e.code(), Some(&SqlState::UNDEFINED_TABLE));
                 s.batch_execute("SELECT * FROM foo")
             }
             Ok(_) => panic!("unexpected success"),
@@ -259,7 +259,10 @@ fn ssl_user_ssl_required() {
     );
 
     match l.run(done) {
-        Err(ref e) => assert_eq!(e.code(), Some(&INVALID_AUTHORIZATION_SPECIFICATION)),
+        Err(ref e) => assert_eq!(
+            e.code(),
+            Some(&SqlState::INVALID_AUTHORIZATION_SPECIFICATION)
+        ),
         Ok(_) => panic!("unexpected success"),
     }
 }
@@ -305,7 +308,7 @@ fn domain() {
 
         fn accepts(ty: &Type) -> bool {
             match *ty.kind() {
-                Kind::Domain(BYTEA) => ty.name() == "session_id",
+                Kind::Domain(Type::BYTEA) => ty.name() == "session_id",
                 _ => false,
             }
         }
@@ -372,11 +375,11 @@ fn composite() {
             match *type_.kind() {
                 Kind::Composite(ref fields) => {
                     assert_eq!(fields[0].name(), "name");
-                    assert_eq!(fields[0].type_(), &TEXT);
+                    assert_eq!(fields[0].type_(), &Type::TEXT);
                     assert_eq!(fields[1].name(), "supplier");
-                    assert_eq!(fields[1].type_(), &INT4);
+                    assert_eq!(fields[1].type_(), &Type::INT4);
                     assert_eq!(fields[2].name(), "price");
-                    assert_eq!(fields[2].type_(), &NUMERIC);
+                    assert_eq!(fields[2].type_(), &Type::NUMERIC);
                 }
                 ref t => panic!("bad type {:?}", t),
             }
@@ -442,7 +445,7 @@ fn cancel() {
     let (select, cancel) = l.run(done).unwrap();
     cancel.unwrap();
     match select {
-        Err((e, _)) => assert_eq!(e.code(), Some(&QUERY_CANCELED)),
+        Err((e, _)) => assert_eq!(e.code(), Some(&SqlState::QUERY_CANCELED)),
         Ok(_) => panic!("unexpected success"),
     }
 }

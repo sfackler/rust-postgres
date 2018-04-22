@@ -5,8 +5,7 @@ use std::f64;
 use std::fmt;
 use std::result;
 
-use postgres::types::{FromSql, FromSqlOwned, INT4, IsNull, Kind, ToSql, Type, WrongType, NUMERIC,
-                      TEXT};
+use postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 use postgres::{Connection, TlsMode};
 
 #[cfg(feature = "with-bit-vec")]
@@ -479,11 +478,11 @@ fn composite() {
     match *type_.kind() {
         Kind::Composite(ref fields) => {
             assert_eq!(fields[0].name(), "name");
-            assert_eq!(fields[0].type_(), &TEXT);
+            assert_eq!(fields[0].type_(), &Type::TEXT);
             assert_eq!(fields[1].name(), "supplier");
-            assert_eq!(fields[1].type_(), &INT4);
+            assert_eq!(fields[1].type_(), &Type::INT4);
             assert_eq!(fields[2].name(), "price");
-            assert_eq!(fields[2].type_(), &NUMERIC);
+            assert_eq!(fields[2].type_(), &Type::NUMERIC);
         }
         ref t => panic!("bad type {:?}", t),
     }

@@ -4,7 +4,7 @@ use self::time::Timespec;
 use postgres_protocol::types;
 use std::error::Error;
 
-use types::{FromSql, IsNull, ToSql, Type, TIMESTAMP, TIMESTAMPTZ};
+use types::{FromSql, IsNull, ToSql, Type};
 
 const USEC_PER_SEC: i64 = 1_000_000;
 const NSEC_PER_USEC: i64 = 1_000;
