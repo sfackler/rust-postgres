@@ -1,12 +1,10 @@
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
-#[allow(unused_imports)]
-use std::ascii::AsciiExt;
 use std::io;
 use std::ops::Range;
 
-use stmt::Column;
 use rows::sealed::Sealed;
+use stmt::Column;
 
 mod sealed {
     use stmt::Column;

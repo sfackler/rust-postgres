@@ -1,12 +1,12 @@
 extern crate eui48;
 
 use self::eui48::MacAddress;
-use std::error::Error;
 use postgres_protocol::types;
+use std::error::Error;
 
-use types::{FromSql, ToSql, Type, IsNull, MACADDR};
+use types::{FromSql, IsNull, ToSql, Type, MACADDR};
 
-impl FromSql for MacAddress {
+impl<'a> FromSql<'a> for MacAddress {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<MacAddress, Box<Error + Sync + Send>> {
         let bytes = types::macaddr_from_sql(raw)?;
         Ok(MacAddress::new(bytes))

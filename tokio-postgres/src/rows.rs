@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[doc(inline)]
 pub use postgres_shared::rows::RowIndex;
 
-use types::{WrongType, FromSql};
+use types::{FromSql, WrongType};
 
 /// A row from Postgres.
 pub struct Row {
@@ -44,9 +44,9 @@ impl Row {
     ///
     /// Panics if the index does not reference a column or the return type is
     /// not compatible with the Postgres type.
-    pub fn get<T, I>(&self, idx: I) -> T
+    pub fn get<'a, T, I>(&'a self, idx: I) -> T
     where
-        T: FromSql,
+        T: FromSql<'a>,
         I: RowIndex + fmt::Debug,
     {
         match self.try_get(&idx) {
@@ -64,9 +64,9 @@ impl Row {
     /// Returns `None` if the index does not reference a column, `Some(Err(..))`
     /// if there was an error converting the result value, and `Some(Ok(..))`
     /// on success.
-    pub fn try_get<T, I>(&self, idx: I) -> Result<Option<T>, Box<Error + Sync + Send>>
+    pub fn try_get<'a, T, I>(&'a self, idx: I) -> Result<Option<T>, Box<Error + Sync + Send>>
     where
-        T: FromSql,
+        T: FromSql<'a>,
         I: RowIndex,
     {
         let idx = match idx.__idx(&self.columns) {

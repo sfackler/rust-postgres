@@ -3,8 +3,6 @@ extern crate marksman_escape;
 extern crate phf_codegen;
 extern crate regex;
 
-#[allow(unused_imports)]
-use std::ascii::AsciiExt;
 use std::path::Path;
 
 mod sqlstate;

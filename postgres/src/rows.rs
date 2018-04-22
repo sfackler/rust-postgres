@@ -13,11 +13,11 @@ use std::sync::Arc;
 #[doc(inline)]
 pub use postgres_shared::rows::RowIndex;
 
-use {Error, Result, StatementInfo};
 use error;
+use stmt::{Column, Statement};
 use transaction::Transaction;
 use types::{FromSql, WrongType};
-use stmt::{Statement, Column};
+use {Error, Result, StatementInfo};
 
 enum MaybeOwned<'a, T: 'a> {
     Borrowed(&'a T),
@@ -113,11 +113,9 @@ impl<'a> Iterator for Iter<'a> {
     type Item = Row<'a>;
 
     fn next(&mut self) -> Option<Row<'a>> {
-        self.iter.next().map(|row| {
-            Row {
-                stmt_info: self.stmt_info,
-                data: MaybeOwned::Borrowed(row),
-            }
+        self.iter.next().map(|row| Row {
+            stmt_info: self.stmt_info,
+            data: MaybeOwned::Borrowed(row),
         })
     }
 
@@ -128,11 +126,9 @@ impl<'a> Iterator for Iter<'a> {
 
 impl<'a> DoubleEndedIterator for Iter<'a> {
     fn next_back(&mut self) -> Option<Row<'a>> {
-        self.iter.next_back().map(|row| {
-            Row {
-                stmt_info: self.stmt_info,
-                data: MaybeOwned::Borrowed(row),
-            }
+        self.iter.next_back().map(|row| Row {
+            stmt_info: self.stmt_info,
+            data: MaybeOwned::Borrowed(row),
         })
     }
 }
@@ -191,10 +187,10 @@ impl<'a> Row<'a> {
     ///     println!("{}: {}", foo, bar);
     /// }
     /// ```
-    pub fn get<I, T>(&self, idx: I) -> T
+    pub fn get<'b, I, T>(&'b self, idx: I) -> T
     where
         I: RowIndex + fmt::Debug,
-        T: FromSql,
+        T: FromSql<'b>,
     {
         match self.get_inner(&idx) {
             Some(Ok(ok)) => ok,
@@ -211,18 +207,18 @@ impl<'a> Row<'a> {
     /// Returns `None` if the index does not reference a column, `Some(Err(..))`
     /// if there was an error converting the result value, and `Some(Ok(..))`
     /// on success.
-    pub fn get_opt<I, T>(&self, idx: I) -> Option<Result<T>>
+    pub fn get_opt<'b, I, T>(&'b self, idx: I) -> Option<Result<T>>
     where
         I: RowIndex,
-        T: FromSql,
+        T: FromSql<'b>,
     {
         self.get_inner(&idx)
     }
 
-    fn get_inner<I, T>(&self, idx: &I) -> Option<Result<T>>
+    fn get_inner<'b, I, T>(&'b self, idx: &I) -> Option<Result<T>>
     where
         I: RowIndex,
-        T: FromSql,
+        T: FromSql<'b>,
     {
         let idx = match idx.__idx(&self.stmt_info.columns) {
             Some(idx) => idx,
@@ -235,21 +231,6 @@ impl<'a> Row<'a> {
         }
         let value = FromSql::from_sql_nullable(ty, self.data.get(idx));
         Some(value.map_err(error::conversion))
-    }
-
-    /// Retrieves the specified field as a raw buffer of Postgres data.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the index does not reference a column.
-    pub fn get_bytes<I>(&self, idx: I) -> Option<&[u8]>
-    where
-        I: RowIndex + fmt::Debug,
-    {
-        match idx.__idx(&self.stmt_info.columns) {
-            Some(idx) => self.data.get(idx),
-            None => panic!("invalid index {:?}", idx),
-        }
     }
 }
 
@@ -313,18 +294,13 @@ impl<'trans, 'stmt> LazyRows<'trans, 'stmt> {
     fn execute(&mut self) -> Result<()> {
         let mut conn = self.stmt.conn().0.borrow_mut();
 
-        conn.stream.write_message(|buf| {
-            frontend::execute(&self.name, self.row_limit, buf)
-        })?;
-        conn.stream.write_message(
-            |buf| Ok::<(), io::Error>(frontend::sync(buf)),
-        )?;
+        conn.stream
+            .write_message(|buf| frontend::execute(&self.name, self.row_limit, buf))?;
+        conn.stream
+            .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
         conn.stream.flush()?;
-        conn.read_rows(|row| self.data.push_back(row)).map(
-            |more_rows| {
-                self.more_rows = more_rows
-            },
-        )
+        conn.read_rows(|row| self.data.push_back(row))
+            .map(|more_rows| self.more_rows = more_rows)
     }
 
     /// Returns a slice describing the columns of the `LazyRows`.
@@ -350,11 +326,9 @@ impl<'trans, 'stmt> FallibleIterator for LazyRows<'trans, 'stmt> {
             self.execute()?;
         }
 
-        let row = self.data.pop_front().map(|r| {
-            Row {
-                stmt_info: &**self.stmt.info(),
-                data: MaybeOwned::Owned(r),
-            }
+        let row = self.data.pop_front().map(|r| Row {
+            stmt_info: &**self.stmt.info(),
+            data: MaybeOwned::Owned(r),
         });
 
         Ok(row)

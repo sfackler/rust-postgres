@@ -1,8 +1,8 @@
 extern crate chrono;
 
-use postgres_protocol::types;
 use self::chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime,
                    Utc};
+use postgres_protocol::types;
 use std::error::Error;
 
 use types::{FromSql, IsNull, ToSql, Type, DATE, TIME, TIMESTAMP, TIMESTAMPTZ};
@@ -11,7 +11,7 @@ fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
 }
 
-impl FromSql for NaiveDateTime {
+impl<'a> FromSql<'a> for NaiveDateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDateTime, Box<Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
         Ok(base() + Duration::microseconds(t))
@@ -34,7 +34,7 @@ impl ToSql for NaiveDateTime {
     to_sql_checked!();
 }
 
-impl FromSql for DateTime<Utc> {
+impl<'a> FromSql<'a> for DateTime<Utc> {
     fn from_sql(type_: &Type, raw: &[u8]) -> Result<DateTime<Utc>, Box<Error + Sync + Send>> {
         let naive = NaiveDateTime::from_sql(type_, raw)?;
         Ok(DateTime::from_utc(naive, Utc))
@@ -52,7 +52,7 @@ impl ToSql for DateTime<Utc> {
     to_sql_checked!();
 }
 
-impl FromSql for DateTime<Local> {
+impl<'a> FromSql<'a> for DateTime<Local> {
     fn from_sql(type_: &Type, raw: &[u8]) -> Result<DateTime<Local>, Box<Error + Sync + Send>> {
         let utc = DateTime::<Utc>::from_sql(type_, raw)?;
         Ok(utc.with_timezone(&Local))
@@ -70,7 +70,7 @@ impl ToSql for DateTime<Local> {
     to_sql_checked!();
 }
 
-impl FromSql for DateTime<FixedOffset> {
+impl<'a> FromSql<'a> for DateTime<FixedOffset> {
     fn from_sql(
         type_: &Type,
         raw: &[u8],
@@ -91,7 +91,7 @@ impl ToSql for DateTime<FixedOffset> {
     to_sql_checked!();
 }
 
-impl FromSql for NaiveDate {
+impl<'a> FromSql<'a> for NaiveDate {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDate, Box<Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
         Ok(base().date() + Duration::days(jd as i64))
@@ -115,7 +115,7 @@ impl ToSql for NaiveDate {
     to_sql_checked!();
 }
 
-impl FromSql for NaiveTime {
+impl<'a> FromSql<'a> for NaiveTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveTime, Box<Error + Sync + Send>> {
         let usec = types::time_from_sql(raw)?;
         Ok(NaiveTime::from_hms(0, 0, 0) + Duration::microseconds(usec))
