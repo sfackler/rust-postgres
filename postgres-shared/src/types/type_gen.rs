@@ -1345,10 +1345,7 @@ impl Inner {
         }
     }
 }
-pub mod consts {
-    use types::Type;
-    use types::type_gen::Inner;
-
+impl Type {
     /// BOOL - boolean, &#39;true&#39;/&#39;false&#39;
     pub const BOOL: Type = Type(Inner::Bool);
 

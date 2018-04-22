@@ -15,16 +15,15 @@ use types::type_gen::{Inner, Other};
 pub use postgres_protocol::Oid;
 
 pub use types::special::{Date, Timestamp};
-pub use types::type_gen::consts::*;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
 #[macro_export]
 macro_rules! accepts {
-    ($($expected:pat),+) => (
+    ($($expected:ident),+) => (
         fn accepts(ty: &$crate::types::Type) -> bool {
             match *ty {
-                $($expected)|+ => true,
+                $($crate::types::Type::$expected)|+ => true,
                 _ => false
             }
         }
@@ -411,7 +410,7 @@ impl<'a> FromSql<'a> for &'a str {
 
     fn accepts(ty: &Type) -> bool {
         match *ty {
-            VARCHAR | TEXT | BPCHAR | NAME | UNKNOWN => true,
+            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
@@ -419,7 +418,7 @@ impl<'a> FromSql<'a> for &'a str {
 }
 
 macro_rules! simple_from {
-    ($t:ty, $f:ident, $($expected:pat),+) => {
+    ($t:ty, $f:ident, $($expected:ident),+) => {
         impl<'a> FromSql<'a> for $t {
             fn from_sql(_: &Type, raw: &'a [u8]) -> Result<$t, Box<Error + Sync + Send>> {
                 types::$f(raw)
@@ -513,8 +512,7 @@ pub enum IsNull {
 /// # Arrays
 ///
 /// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
-/// and corresponds to one-dimentional Postgres arrays with an index offset of
-/// 1.
+/// and corresponds to one-dimentional Postgres arrays with an index offset of 1.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
@@ -655,7 +653,7 @@ impl<'a> ToSql for &'a str {
 
     fn accepts(ty: &Type) -> bool {
         match *ty {
-            VARCHAR | TEXT | BPCHAR | NAME | UNKNOWN => true,
+            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
@@ -689,7 +687,7 @@ impl ToSql for String {
 }
 
 macro_rules! simple_to {
-    ($t:ty, $f:ident, $($expected:pat),+) => {
+    ($t:ty, $f:ident, $($expected:ident),+) => {
         impl ToSql for $t {
             fn to_sql(&self,
                       _: &Type,

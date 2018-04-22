@@ -4,11 +4,11 @@ use self::serde_json::Value;
 use std::error::Error;
 use std::io::{Read, Write};
 
-use types::{FromSql, IsNull, ToSql, Type, JSON, JSONB};
+use types::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Value {
     fn from_sql(ty: &Type, mut raw: &[u8]) -> Result<Value, Box<Error + Sync + Send>> {
-        if *ty == JSONB {
+        if *ty == Type::JSONB {
             let mut b = [0; 1];
             raw.read_exact(&mut b)?;
             // We only support version 1 of the jsonb binary format
@@ -24,7 +24,7 @@ impl<'a> FromSql<'a> for Value {
 
 impl ToSql for Value {
     fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
-        if *ty == JSONB {
+        if *ty == Type::JSONB {
             out.push(1);
         }
         write!(out, "{}", self)?;

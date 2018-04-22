@@ -12,12 +12,11 @@ extern crate url;
 
 use fallible_iterator::FallibleIterator;
 use postgres::error::ErrorPosition::Normal;
-use postgres::error::{DbError, CARDINALITY_VIOLATION, INVALID_CATALOG_NAME, INVALID_PASSWORD,
-                      QUERY_CANCELED, SYNTAX_ERROR, UNDEFINED_TABLE};
+use postgres::error::{DbError, SqlState};
 use postgres::notification::Notification;
 use postgres::params::IntoConnectParams;
 use postgres::transaction::{self, IsolationLevel};
-use postgres::types::{FLOAT8, INT4, Kind, Oid, Type, WrongType, VARCHAR};
+use postgres::types::{Kind, Oid, Type, WrongType};
 use postgres::{Connection, GenericConnection, HandleNotice, TlsMode};
 use std::io;
 use std::thread;
@@ -58,7 +57,7 @@ fn test_prepare_err() {
     ));
     let err = conn.prepare("invalid sql database").unwrap_err();
     match err.as_db() {
-        Some(e) if e.code == SYNTAX_ERROR && e.position == Some(Normal(1)) => {}
+        Some(e) if e.code == SqlState::SYNTAX_ERROR && e.position == Some(Normal(1)) => {}
         _ => panic!("Unexpected result {:?}", err),
     }
 }
@@ -66,7 +65,7 @@ fn test_prepare_err() {
 #[test]
 fn test_unknown_database() {
     match Connection::connect("postgres://postgres@localhost:5433/asdf", TlsMode::None) {
-        Err(ref e) if e.code() == Some(&INVALID_CATALOG_NAME) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_CATALOG_NAME) => {}
         Err(resp) => panic!("Unexpected result {:?}", resp),
         _ => panic!("Unexpected result"),
     }
@@ -429,7 +428,7 @@ fn test_batch_execute_error() {
 
     let stmt = conn.prepare("SELECT * FROM foo ORDER BY id");
     match stmt {
-        Err(ref e) if e.code() == Some(&UNDEFINED_TABLE) => {}
+        Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {}
         Err(e) => panic!("unexpected error {:?}", e),
         _ => panic!("unexpected success"),
     }
@@ -488,7 +487,7 @@ FROM (SELECT gs.i
       LIMIT 2) ss",
     ));
     match stmt.query(&[]) {
-        Err(ref e) if e.code() == Some(&CARDINALITY_VIOLATION) => {}
+        Err(ref e) if e.code() == Some(&SqlState::CARDINALITY_VIOLATION) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         Ok(_) => panic!("Expected failure"),
     };
@@ -540,7 +539,7 @@ fn test_param_types() {
         TlsMode::None,
     ));
     let stmt = or_panic!(conn.prepare("SELECT $1::INT, $2::VARCHAR"));
-    assert_eq!(stmt.param_types(), &[INT4, VARCHAR][..]);
+    assert_eq!(stmt.param_types(), &[Type::INT4, Type::VARCHAR][..]);
 }
 
 #[test]
@@ -553,9 +552,9 @@ fn test_columns() {
     let cols = stmt.columns();
     assert_eq!(2, cols.len());
     assert_eq!(cols[0].name(), "a");
-    assert_eq!(cols[0].type_(), &INT4);
+    assert_eq!(cols[0].type_(), &Type::INT4);
     assert_eq!(cols[1].name(), "b");
-    assert_eq!(cols[1].type_(), &VARCHAR);
+    assert_eq!(cols[1].type_(), &Type::VARCHAR);
 }
 
 #[test]
@@ -568,9 +567,9 @@ fn test_execute_counts() {
         0,
         or_panic!(conn.execute(
             "CREATE TEMPORARY TABLE foo (
-                                            id SERIAL PRIMARY KEY,
-                                            b INT
-                                         )",
+                id SERIAL PRIMARY KEY,
+                b INT
+            )",
             &[],
         ))
     );
@@ -898,7 +897,7 @@ fn test_cancel_query() {
     });
 
     match conn.execute("SELECT pg_sleep(10)", &[]) {
-        Err(ref e) if e.code() == Some(&QUERY_CANCELED) => {}
+        Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => {}
         Err(res) => panic!("Unexpected result {:?}", res),
         _ => panic!("Unexpected result"),
     }
@@ -998,7 +997,7 @@ fn test_plaintext_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1029,7 +1028,7 @@ fn test_md5_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1063,7 +1062,7 @@ fn test_scram_pass_wrong_pass() {
         TlsMode::None,
     );
     match ret {
-        Err(ref e) if e.code() == Some(&INVALID_PASSWORD) => {}
+        Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(err) => panic!("Unexpected error {:?}", err),
         _ => panic!("Expected error"),
     }
@@ -1244,7 +1243,7 @@ fn test_custom_range_element_type() {
     let stmt = or_panic!(conn.prepare("SELECT $1::floatrange"));
     let ty = &stmt.param_types()[0];
     assert_eq!("floatrange", ty.name());
-    assert_eq!(&Kind::Range(FLOAT8), ty.kind());
+    assert_eq!(&Kind::Range(Type::FLOAT8), ty.kind());
 }
 
 #[test]

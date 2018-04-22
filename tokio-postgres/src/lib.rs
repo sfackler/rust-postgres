@@ -89,7 +89,7 @@ pub use error::Error;
 #[doc(inline)]
 pub use postgres_shared::{error, params, types, CancelData, Notification};
 
-use error::{DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
+use error::{DbError, SqlState};
 use params::{ConnectParams, IntoConnectParams};
 use rows::Row;
 use sink::SinkExt;
@@ -97,7 +97,7 @@ use stmt::{Column, Statement};
 use stream::PostgresStream;
 use tls::Handshake;
 use transaction::Transaction;
-use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type, CHAR, NAME, OID};
+use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type};
 
 #[macro_use]
 mod macros;
@@ -717,36 +717,36 @@ impl Connection {
         oid: Oid,
     ) -> Box<Future<Item = (Type, Connection), Error = (Error, Connection)> + Send> {
         self.setup_typeinfo_query()
-            .and_then(move |c| c.raw_execute(TYPEINFO_QUERY, "", &[OID], &[&oid]))
+            .and_then(move |c| c.raw_execute(TYPEINFO_QUERY, "", &[Type::OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(move |(r, c)| {
                 let get = |idx| r.get(0).and_then(|r| r.get(idx));
 
-                let name = match String::from_sql_nullable(&NAME, get(0)) {
+                let name = match String::from_sql_nullable(&Type::NAME, get(0)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let type_ = match i8::from_sql_nullable(&CHAR, get(1)) {
+                let type_ = match i8::from_sql_nullable(&Type::CHAR, get(1)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let elem_oid = match Oid::from_sql_nullable(&OID, get(2)) {
+                let elem_oid = match Oid::from_sql_nullable(&Type::OID, get(2)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let rngsubtype = match Option::<Oid>::from_sql_nullable(&OID, get(3)) {
+                let rngsubtype = match Option::<Oid>::from_sql_nullable(&Type::OID, get(3)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let basetype = match Oid::from_sql_nullable(&OID, get(4)) {
+                let basetype = match Oid::from_sql_nullable(&Type::OID, get(4)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let schema = match String::from_sql_nullable(&NAME, get(5)) {
+                let schema = match String::from_sql_nullable(&Type::NAME, get(5)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
-                let relid = match Oid::from_sql_nullable(&OID, get(6)) {
+                let relid = match Oid::from_sql_nullable(&Type::OID, get(6)) {
                     Ok(v) => v,
                     Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                 };
@@ -811,7 +811,7 @@ impl Connection {
              WHERE t.oid = $1",
         ).or_else(|(e, c)| {
                 // Range types weren't added until Postgres 9.2, so pg_range may not exist
-                if e.code() == Some(&UNDEFINED_TABLE) {
+                if e.code() == Some(&SqlState::UNDEFINED_TABLE) {
                     Either::A(c.raw_prepare(
                         TYPEINFO_QUERY,
                         "SELECT t.typname, t.typtype, t.typelem, \
@@ -838,12 +838,12 @@ impl Connection {
         oid: Oid,
     ) -> Box<Future<Item = (Vec<String>, Connection), Error = (Error, Connection)> + Send> {
         self.setup_typeinfo_enum_query()
-            .and_then(move |c| c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[OID], &[&oid]))
+            .and_then(move |c| c.raw_execute(TYPEINFO_ENUM_QUERY, "", &[Type::OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 let mut variants = vec![];
                 for row in r {
-                    let variant = match String::from_sql_nullable(&NAME, row.get(0)) {
+                    let variant = match String::from_sql_nullable(&Type::NAME, row.get(0)) {
                         Ok(v) => v,
                         Err(e) => return Err((error::conversion(e), c)),
                     };
@@ -868,7 +868,7 @@ impl Connection {
              WHERE enumtypid = $1 \
              ORDER BY enumsortorder",
         ).or_else(|(e, c)| {
-                if e.code() == Some(&UNDEFINED_COLUMN) {
+                if e.code() == Some(&SqlState::UNDEFINED_COLUMN) {
                     Either::A(c.raw_prepare(
                         TYPEINFO_ENUM_QUERY,
                         "SELECT enumlabel FROM pg_catalog.pg_enum WHERE \
@@ -890,15 +890,15 @@ impl Connection {
         oid: Oid,
     ) -> Box<Future<Item = (Vec<Field>, Connection), Error = (Error, Connection)> + Send> {
         self.setup_typeinfo_composite_query()
-            .and_then(move |c| c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[OID], &[&oid]))
+            .and_then(move |c| c.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", &[Type::OID], &[&oid]))
             .and_then(|c| c.read_rows().collect())
             .and_then(|(r, c)| {
                 futures::stream::iter_ok(r).fold((vec![], c), |(mut fields, c), row| {
-                    let name = match String::from_sql_nullable(&NAME, row.get(0)) {
+                    let name = match String::from_sql_nullable(&Type::NAME, row.get(0)) {
                         Ok(name) => name,
                         Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                     };
-                    let oid = match Oid::from_sql_nullable(&OID, row.get(1)) {
+                    let oid = match Oid::from_sql_nullable(&Type::OID, row.get(1)) {
                         Ok(oid) => oid,
                         Err(e) => return Either::A(Err((error::conversion(e), c)).into_future()),
                     };

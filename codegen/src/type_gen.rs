@@ -261,14 +261,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
 }
 
 fn make_consts(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
-    write!(
-        w,
-        "pub mod consts {{
-    use types::Type;
-    use types::type_gen::Inner;
-",
-    ).unwrap();
-
+    write!(w, "impl Type {{").unwrap();
     for type_ in types.values() {
         write!(
             w,

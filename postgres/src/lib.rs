@@ -94,7 +94,7 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
-use error::{DbError, UNDEFINED_COLUMN, UNDEFINED_TABLE};
+use error::{DbError, SqlState};
 use notification::{Notification, Notifications};
 use params::{IntoConnectParams, User};
 use priv_io::MessageStream;
@@ -102,7 +102,7 @@ use rows::Rows;
 use stmt::{Column, Statement};
 use tls::TlsHandshake;
 use transaction::{IsolationLevel, Transaction};
-use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type, CHAR, NAME, OID};
+use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type};
 
 #[doc(inline)]
 pub use error::Error;
@@ -737,7 +737,7 @@ impl InnerConnection {
         ) {
             Ok(..) => {}
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
-            Err(ref e) if e.code() == Some(&UNDEFINED_TABLE) => {
+            Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
                 self.raw_prepare(
                     TYPEINFO_QUERY,
                     "SELECT t.typname, t.typtype, t.typelem, NULL::OID, \
@@ -758,21 +758,25 @@ impl InnerConnection {
     #[allow(if_not_else)]
     fn read_type(&mut self, oid: Oid) -> Result<Type> {
         self.setup_typeinfo_query()?;
-        self.raw_execute(TYPEINFO_QUERY, "", 0, &[OID], &[&oid])?;
+        self.raw_execute(TYPEINFO_QUERY, "", 0, &[Type::OID], &[&oid])?;
         let mut row = None;
         self.read_rows(|r| row = Some(r))?;
 
         let get_raw = |i: usize| row.as_ref().and_then(|r| r.get(i));
 
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
-            let name = String::from_sql_nullable(&NAME, get_raw(0)).map_err(error::conversion)?;
-            let type_ = i8::from_sql_nullable(&CHAR, get_raw(1)).map_err(error::conversion)?;
-            let elem_oid = Oid::from_sql_nullable(&OID, get_raw(2)).map_err(error::conversion)?;
-            let rngsubtype =
-                Option::<Oid>::from_sql_nullable(&OID, get_raw(3)).map_err(error::conversion)?;
-            let basetype = Oid::from_sql_nullable(&OID, get_raw(4)).map_err(error::conversion)?;
-            let schema = String::from_sql_nullable(&NAME, get_raw(5)).map_err(error::conversion)?;
-            let relid = Oid::from_sql_nullable(&OID, get_raw(6)).map_err(error::conversion)?;
+            let name =
+                String::from_sql_nullable(&Type::NAME, get_raw(0)).map_err(error::conversion)?;
+            let type_ = i8::from_sql_nullable(&Type::CHAR, get_raw(1)).map_err(error::conversion)?;
+            let elem_oid =
+                Oid::from_sql_nullable(&Type::OID, get_raw(2)).map_err(error::conversion)?;
+            let rngsubtype = Option::<Oid>::from_sql_nullable(&Type::OID, get_raw(3))
+                .map_err(error::conversion)?;
+            let basetype =
+                Oid::from_sql_nullable(&Type::OID, get_raw(4)).map_err(error::conversion)?;
+            let schema =
+                String::from_sql_nullable(&Type::NAME, get_raw(5)).map_err(error::conversion)?;
+            let relid = Oid::from_sql_nullable(&Type::OID, get_raw(6)).map_err(error::conversion)?;
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
@@ -810,7 +814,7 @@ impl InnerConnection {
         ) {
             Ok(..) => {}
             // Postgres 9.0 doesn't have enumsortorder
-            Err(ref e) if e.code() == Some(&UNDEFINED_COLUMN) => {
+            Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
                 self.raw_prepare(
                     TYPEINFO_ENUM_QUERY,
                     "SELECT enumlabel \
@@ -828,13 +832,14 @@ impl InnerConnection {
 
     fn read_enum_variants(&mut self, oid: Oid) -> Result<Vec<String>> {
         self.setup_typeinfo_enum_query()?;
-        self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[OID], &[&oid])?;
+        self.raw_execute(TYPEINFO_ENUM_QUERY, "", 0, &[Type::OID], &[&oid])?;
         let mut rows = vec![];
         self.read_rows(|row| rows.push(row))?;
 
         let mut variants = vec![];
         for row in rows {
-            variants.push(String::from_sql_nullable(&NAME, row.get(0)).map_err(error::conversion)?);
+            variants
+                .push(String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?);
         }
 
         Ok(variants)
@@ -861,15 +866,17 @@ impl InnerConnection {
 
     fn read_composite_fields(&mut self, relid: Oid) -> Result<Vec<Field>> {
         self.setup_typeinfo_composite_query()?;
-        self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[OID], &[&relid])?;
+        self.raw_execute(TYPEINFO_COMPOSITE_QUERY, "", 0, &[Type::OID], &[&relid])?;
         let mut rows = vec![];
         self.read_rows(|row| rows.push(row))?;
 
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let name = String::from_sql_nullable(&NAME, row.get(0)).map_err(error::conversion)?;
-                let type_ = Oid::from_sql_nullable(&OID, row.get(1)).map_err(error::conversion)?;
+                let name =
+                    String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?;
+                let type_ =
+                    Oid::from_sql_nullable(&Type::OID, row.get(1)).map_err(error::conversion)?;
                 (name, type_)
             };
             let type_ = self.get_type(type_)?;

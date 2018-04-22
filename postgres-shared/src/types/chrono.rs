@@ -5,7 +5,7 @@ use self::chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateT
 use postgres_protocol::types;
 use std::error::Error;
 
-use types::{FromSql, IsNull, ToSql, Type, DATE, TIME, TIMESTAMP, TIMESTAMPTZ};
+use types::{FromSql, IsNull, ToSql, Type};
 
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
