@@ -1,11 +1,11 @@
 //! Conversions to and from Postgres's binary format for various types.
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use fallible_iterator::FallibleIterator;
+use std::boxed::Box as StdBox;
 use std::error::Error;
 use std::str;
-use std::boxed::Box as StdBox;
 
-use {Oid, IsNull, write_nullable, FromUsize};
+use {write_nullable, FromUsize, IsNull, Oid};
 
 const RANGE_UPPER_UNBOUNDED: u8 = 0b0001_0000;
 const RANGE_LOWER_UNBOUNDED: u8 = 0b0000_1000;
@@ -189,9 +189,7 @@ where
     }
 
     let count = i32::from_usize(count)?;
-    (&mut buf[base..base + 4])
-        .write_i32::<BigEndian>(count)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[base..], count);
 
     Ok(())
 }
@@ -424,7 +422,6 @@ pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<Error + Sync + Send>
 #[inline]
 pub fn array_to_sql<T, I, J, F>(
     dimensions: I,
-    has_nulls: bool,
     element_type: Oid,
     elements: J,
     mut serializer: F,
@@ -437,7 +434,8 @@ where
 {
     let dimensions_idx = buf.len();
     buf.extend_from_slice(&[0; 4]);
-    buf.write_i32::<BigEndian>(has_nulls as i32).unwrap();
+    let flags_idx = buf.len();
+    buf.extend_from_slice(&[0; 4]);
     buf.write_u32::<BigEndian>(element_type).unwrap();
 
     let mut num_dimensions = 0;
@@ -448,13 +446,23 @@ where
     }
 
     let num_dimensions = i32::from_usize(num_dimensions)?;
-    (&mut buf[dimensions_idx..dimensions_idx + 4])
-        .write_i32::<BigEndian>(num_dimensions)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[dimensions_idx..], num_dimensions);
 
+    let mut has_nulls = false;
     for element in elements {
-        write_nullable(|buf| serializer(element, buf), buf)?;
+        write_nullable(
+            |buf| {
+                let r = serializer(element, buf);
+                if let Ok(IsNull::Yes) = r {
+                    has_nulls = true;
+                }
+                r
+            },
+            buf,
+        )?;
     }
+
+    BigEndian::write_i32(&mut buf[flags_idx..], has_nulls as i32);
 
     Ok(())
 }
@@ -674,9 +682,7 @@ where
                 IsNull::No => i32::from_usize(buf.len() - base - 4)?,
                 IsNull::Yes => -1,
             };
-            (&mut buf[base..base + 4])
-                .write_i32::<BigEndian>(len)
-                .unwrap();
+            BigEndian::write_i32(&mut buf[base..], len);
         }
         None => buf.truncate(base),
     }
@@ -862,9 +868,7 @@ where
     }
 
     let num_points = i32::from_usize(num_points)?;
-    (&mut buf[points_idx..])
-        .write_i32::<BigEndian>(num_points)
-        .unwrap();
+    BigEndian::write_i32(&mut buf[points_idx..], num_points);
 
     Ok(())
 }
@@ -941,8 +945,8 @@ impl<'a> FallibleIterator for PathPoints<'a> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use fallible_iterator::FallibleIterator;
+    use std::collections::HashMap;
 
     use super::*;
     use IsNull;
@@ -1039,7 +1043,6 @@ mod test {
         let mut buf = vec![];
         array_to_sql(
             dimensions.iter().cloned(),
-            true,
             10,
             values.iter().cloned(),
             |v, buf| match v {
@@ -1054,6 +1057,42 @@ mod test {
 
         let array = array_from_sql(&buf).unwrap();
         assert_eq!(array.has_nulls(), true);
+        assert_eq!(array.element_type(), 10);
+        assert_eq!(array.dimensions().collect::<Vec<_>>().unwrap(), dimensions);
+        assert_eq!(array.values().collect::<Vec<_>>().unwrap(), values);
+    }
+
+    #[test]
+    fn non_null_array() {
+        let dimensions = [
+            ArrayDimension {
+                len: 1,
+                lower_bound: 10,
+            },
+            ArrayDimension {
+                len: 2,
+                lower_bound: 0,
+            },
+        ];
+        let values = [Some(&b"hola"[..]), Some(&b"hello"[..])];
+
+        let mut buf = vec![];
+        array_to_sql(
+            dimensions.iter().cloned(),
+            10,
+            values.iter().cloned(),
+            |v, buf| match v {
+                Some(v) => {
+                    buf.extend_from_slice(v);
+                    Ok(IsNull::No)
+                }
+                None => Ok(IsNull::Yes),
+            },
+            &mut buf,
+        ).unwrap();
+
+        let array = array_from_sql(&buf).unwrap();
+        assert_eq!(array.has_nulls(), false);
         assert_eq!(array.element_type(), 10);
         assert_eq!(array.dimensions().collect::<Vec<_>>().unwrap(), dimensions);
         assert_eq!(array.values().collect::<Vec<_>>().unwrap(), values);
