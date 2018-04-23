@@ -484,11 +484,22 @@ impl InnerConnection {
         mem::replace(&mut self.notice_handler, handler)
     }
 
-    fn raw_prepare(&mut self, stmt_name: &str, query: &str) -> Result<(Vec<Type>, Vec<Column>)> {
+    fn raw_prepare(
+        &mut self,
+        stmt_name: &str,
+        query: &str,
+        types: &[Option<Type>],
+    ) -> Result<(Vec<Type>, Vec<Column>)> {
         debug!("preparing query with name `{}`: {}", stmt_name, query);
 
-        self.stream
-            .write_message(|buf| frontend::parse(stmt_name, query, None, buf))?;
+        self.stream.write_message(|buf| {
+            frontend::parse(
+                stmt_name,
+                query,
+                types.iter().map(|t| t.as_ref().map_or(0, |t| t.oid())),
+                buf,
+            )
+        })?;
         self.stream
             .write_message(|buf| frontend::describe(b'S', stmt_name, buf))?;
         self.stream
@@ -657,9 +668,14 @@ impl InnerConnection {
         stmt_name
     }
 
-    fn prepare<'a>(&mut self, query: &str, conn: &'a Connection) -> Result<Statement<'a>> {
+    fn prepare_typed<'a>(
+        &mut self,
+        query: &str,
+        types: &[Option<Type>],
+        conn: &'a Connection,
+    ) -> Result<Statement<'a>> {
         let stmt_name = self.make_stmt_name();
-        let (param_types, columns) = self.raw_prepare(&stmt_name, query)?;
+        let (param_types, columns) = self.raw_prepare(&stmt_name, query, types)?;
         let info = Arc::new(StatementInfo {
             name: stmt_name,
             param_types: param_types,
@@ -675,7 +691,7 @@ impl InnerConnection {
             Some(info) => info,
             None => {
                 let stmt_name = self.make_stmt_name();
-                let (param_types, columns) = self.raw_prepare(&stmt_name, query)?;
+                let (param_types, columns) = self.raw_prepare(&stmt_name, query, &[])?;
                 let info = Arc::new(StatementInfo {
                     name: stmt_name,
                     param_types: param_types,
@@ -734,6 +750,7 @@ impl InnerConnection {
              INNER JOIN pg_catalog.pg_namespace n ON \
              t.typnamespace = n.oid \
              WHERE t.oid = $1",
+            &[],
         ) {
             Ok(..) => {}
             // Range types weren't added until Postgres 9.2, so pg_range may not exist
@@ -746,6 +763,7 @@ impl InnerConnection {
                      INNER JOIN pg_catalog.pg_namespace n \
                      ON t.typnamespace = n.oid \
                      WHERE t.oid = $1",
+                    &[],
                 )?;
             }
             Err(e) => return Err(e),
@@ -811,6 +829,7 @@ impl InnerConnection {
              FROM pg_catalog.pg_enum \
              WHERE enumtypid = $1 \
              ORDER BY enumsortorder",
+            &[],
         ) {
             Ok(..) => {}
             // Postgres 9.0 doesn't have enumsortorder
@@ -821,6 +840,7 @@ impl InnerConnection {
                      FROM pg_catalog.pg_enum \
                      WHERE enumtypid = $1 \
                      ORDER BY oid",
+                    &[],
                 )?;
             }
             Err(e) => return Err(e),
@@ -858,6 +878,7 @@ impl InnerConnection {
              AND NOT attisdropped \
              AND attnum > 0 \
              ORDER BY attnum",
+            &[],
         )?;
 
         self.has_typeinfo_composite_query = true;
@@ -1055,7 +1076,7 @@ impl Connection {
     /// println!("{} rows updated", rows_updated);
     /// ```
     pub fn execute(&self, query: &str, params: &[&ToSql]) -> Result<u64> {
-        let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
+        let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query, &[])?;
         let info = Arc::new(StatementInfo {
             name: String::new(),
             param_types: param_types,
@@ -1091,7 +1112,7 @@ impl Connection {
     /// }
     /// ```
     pub fn query(&self, query: &str, params: &[&ToSql]) -> Result<Rows> {
-        let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query)?;
+        let (param_types, columns) = self.0.borrow_mut().raw_prepare("", query, &[])?;
         let info = Arc::new(StatementInfo {
             name: String::new(),
             param_types: param_types,
@@ -1167,7 +1188,32 @@ impl Connection {
     /// }
     /// ```
     pub fn prepare<'a>(&'a self, query: &str) -> Result<Statement<'a>> {
-        self.0.borrow_mut().prepare(query, self)
+        self.prepare_typed(query, &[])
+    }
+
+    /// Like `prepare`, but allows for the types of query parameters to be explicitly specified.
+    ///
+    /// Postgres will normally infer the types of paramters, but this function offers more control
+    /// of that behavior. `None` will cause Postgres to infer the type. The list of types can be
+    /// shorter than the number of parameters in the query; it will act as if padded out with `None`
+    /// values.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, TlsMode};
+    /// # use postgres::types::Type;
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
+    /// // $1 would normally be assigned the type INT4, but we can override that to INT8
+    /// let stmt = conn.prepare_typed("SELECT $1::INT4", &[Some(Type::INT8)]).unwrap();
+    /// assert_eq!(stmt.param_types()[0], Type::INT8);
+    /// ```
+    pub fn prepare_typed<'a>(
+        &'a self,
+        query: &str,
+        types: &[Option<Type>],
+    ) -> Result<Statement<'a>> {
+        self.0.borrow_mut().prepare_typed(query, types, self)
     }
 
     /// Creates a cached prepared statement.

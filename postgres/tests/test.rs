@@ -1480,3 +1480,11 @@ fn keepalive() {
 
     Connection::connect(params, TlsMode::None).unwrap();
 }
+
+#[test]
+fn explicit_types() {
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
+    let stmt = conn.prepare_typed("SELECT $1::INT4", &[Some(Type::INT8)])
+        .unwrap();
+    assert_eq!(stmt.param_types()[0], Type::INT8);
+}
