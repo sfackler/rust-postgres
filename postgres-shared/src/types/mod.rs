@@ -588,7 +588,6 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 
         types::array_to_sql(
             Some(dimension),
-            true,
             member_type.oid(),
             self.iter(),
             |e, w| match e.to_sql(member_type, w)? {
