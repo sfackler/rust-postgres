@@ -33,8 +33,8 @@ impl MessageStream {
         }
     }
 
-    pub fn get_ref(&self) -> &Box<TlsStream> {
-        self.stream.get_ref()
+    pub fn get_ref(&self) -> &TlsStream {
+        &**self.stream.get_ref()
     }
 
     pub fn write_message<F, E>(&mut self, f: F) -> result::Result<(), E>
