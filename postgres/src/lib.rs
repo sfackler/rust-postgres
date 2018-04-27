@@ -959,13 +959,9 @@ impl InnerConnection {
                     columns = Some(self.parse_cols(Some(body))?);
                 }
                 backend::Message::CommandComplete(_) => {
-                    result.push(
-                        TextRows::new(
-                            // TODO is it safe to unwrap here?
-                            columns.take().unwrap(),
-                            mem::replace(&mut rows, Vec::new())
-                        )
-                    );
+                    if let Some(cols) = columns.take() {
+                        result.push(TextRows::new(cols, mem::replace(&mut rows, Vec::new())));
+                    }
                 }
                 _ => {}
             }
