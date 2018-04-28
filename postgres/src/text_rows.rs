@@ -9,6 +9,7 @@ use std::str;
 pub use postgres_shared::rows::RowIndex;
 
 use stmt::{Column};
+use {Result, error};
 
 /// The resulting rows of a query.
 pub struct TextRows {
@@ -145,25 +146,26 @@ impl<'a> TextRow<'a> {
     }
 
     /// stub
-    pub fn get<I>(&self, idx: I) -> Option<&str>
+    pub fn get<I>(&self, idx: I) -> &str
     where
         I: RowIndex + fmt::Debug,
     {
         match self.get_inner(&idx) {
-            Some(value) => value,
+            Some(Ok(value)) => value,
+            Some(Err(err)) => panic!("error retrieving column {:?}: {:?}", idx, err),
             None => panic!("no such column {:?}", idx),
         }
     }
 
     /// stub
-    pub fn get_opt<I>(&self, idx: I) -> Option<Option<&str>>
+    pub fn get_opt<I>(&self, idx: I) -> Option<Result<&str>>
     where
         I: RowIndex,
     {
         self.get_inner(&idx)
     }
 
-    fn get_inner<I>(&self, idx: &I) -> Option<Option<&str>>
+    fn get_inner<I>(&self, idx: &I) -> Option<Result<&str>>
     where
         I: RowIndex,
     {
@@ -173,6 +175,6 @@ impl<'a> TextRow<'a> {
         };
 
         self.data.get(idx)
-            .map(|s| str::from_utf8(s).ok())
+            .map(|s| str::from_utf8(s).map_err(|e| error::conversion(Box::new(e))))
     }
 }

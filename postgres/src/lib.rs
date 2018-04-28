@@ -1365,9 +1365,11 @@ impl Connection {
     /// ```rust,no_run
     /// # use postgres::{Connection, TlsMode};
     /// # let conn = Connection::connect("", TlsMode::None).unwrap();
-    /// for row in &conn.simple_query("SELECT foo FROM bar WHERE baz = 'quux'").unwrap() {
-    ///     let foo: String = row.get("foo");
-    ///     println!("foo: {}", foo);
+    /// for response in &conn.simple_query("SELECT foo FROM bar WHERE baz = 'quux'").unwrap() {
+    ///     for row in response {
+    ///         let foo: &str = row.get("foo");
+    ///         println!("foo: {}", foo);
+    ///     }
     /// }
     /// ```
     pub fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
