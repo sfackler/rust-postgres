@@ -1348,7 +1348,28 @@ impl Connection {
 
     /// Send a simple, non-prepared query
     ///
-    /// TODO docs. Should this replace the batch_execute API?
+    /// Executes a query without making a prepared statement. All result columns
+    /// are returned in a UTF-8 text format rather than compact binary
+    /// representations. This can be useful when communicating with services
+    /// like _pgbouncer_ which speak "basic" postgres but don't support prepared
+    /// statements.
+    ///
+    /// Because rust-postgres' query parameter substitution relies on prepared
+    /// statements, it's not possible to pass a separate parameters list with
+    /// this API.
+    ///
+    /// In general, the `query` API should be prefered whenever possible.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use postgres::{Connection, TlsMode};
+    /// # let conn = Connection::connect("", TlsMode::None).unwrap();
+    /// for row in &conn.simple_query("SELECT foo FROM bar WHERE baz = 'quux'").unwrap() {
+    ///     let foo: String = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// ```
     pub fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
         self.0.borrow_mut().simple_query_(query)
     }
