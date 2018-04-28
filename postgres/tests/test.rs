@@ -1488,3 +1488,21 @@ fn explicit_types() {
         .unwrap();
     assert_eq!(stmt.param_types()[0], Type::INT8);
 }
+
+#[test]
+fn simple_query() {
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
+    conn.batch_execute(
+        "
+        CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
+        INSERT INTO foo (id) VALUES (1), (2), (3);
+        ",
+    ).unwrap();
+    let queries = "SELECT id FROM foo WHERE id = 1 ORDER BY id; \
+                   SELECT id FROM foo WHERE id != 1 ORDER BY id";
+
+    let results = conn.simple_query(queries).unwrap();
+    assert_eq!(results[0].get(0).get("id"), "1");
+    assert_eq!(results[1].get(0).get("id"), "2");
+    assert_eq!(results[1].get(1).get("id"), "3");
+}
