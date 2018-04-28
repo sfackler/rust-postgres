@@ -3,6 +3,7 @@
 use postgres_shared::rows::RowData;
 use std::fmt;
 use std::slice;
+use std::str;
 
 #[doc(inline)]
 pub use postgres_shared::rows::RowIndex;
@@ -171,7 +172,7 @@ impl<'a> TextRow<'a> {
             None => return None,
         };
 
-        // TODO can we assume these values will always be utf8?
-        Some(self.data.get(idx).map(|s| ::std::str::from_utf8(s).expect("utf8 encoded")))
+        self.data.get(idx)
+            .map(|s| str::from_utf8(s).ok())
     }
 }
