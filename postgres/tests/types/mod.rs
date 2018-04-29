@@ -8,21 +8,17 @@ use std::result;
 use postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 use postgres::{Connection, TlsMode};
 
-#[cfg(feature = "with-bit-vec")]
+#[cfg(feature = "with-bit-vec-0.5")]
 mod bit_vec;
-#[cfg(feature = "with-chrono")]
+#[cfg(feature = "with-chrono-0.4")]
 mod chrono;
-#[cfg(feature = "with-eui48")]
+#[cfg(feature = "with-eui48-0.3")]
 mod eui48;
-#[cfg(feature = "with-geo")]
+#[cfg(feature = "with-geo-0.8")]
 mod geo;
-#[cfg(feature = "with-rustc-serialize")]
-mod rustc_serialize;
-#[cfg(feature = "with-serde_json")]
+#[cfg(feature = "with-serde_json-1")]
 mod serde_json;
-#[cfg(feature = "with-time")]
-mod time;
-#[cfg(feature = "with-uuid")]
+#[cfg(feature = "with-uuid-0.6")]
 mod uuid;
 
 fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])

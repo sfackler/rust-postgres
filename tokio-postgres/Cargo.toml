@@ -11,14 +11,12 @@ categories = ["database"]
 
 [package.metadata.docs.rs]
 features = [
-    "with-bit-vec",
-    "with-chrono",
-    "with-eui48",
-    "with-geo",
-    "with-rustc-serialize",
-    "with-serde_json",
-    "with-time",
-    "with-uuid",
+    "with-bit-vec-0.5",
+    "with-chrono-0.4",
+    "with-eui48-0.3",
+    "with-geo-0.8",
+    "with-serde_json-1",
+    "with-uuid-0.6",
     "with-openssl",
 ]
 
@@ -26,14 +24,12 @@ features = [
 circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
-with-bit-vec = ["postgres-shared/with-bit-vec"]
-with-chrono = ["postgres-shared/with-chrono"]
-with-eui48 = ["postgres-shared/with-eui48"]
-with-geo = ["postgres-shared/with-geo"]
-with-rustc-serialize = ["postgres-shared/with-rustc-serialize"]
-with-serde_json = ["postgres-shared/with-serde_json"]
-with-time = ["postgres-shared/with-time"]
-with-uuid = ["postgres-shared/with-uuid"]
+"with-bit-vec-0.5" = ["postgres-shared/with-bit-vec-0.5"]
+"with-chrono-0.4" = ["postgres-shared/with-chrono-0.4"]
+"with-eui48-0.3" = ["postgres-shared/with-eui48-0.3"]
+"with-geo-0.8" = ["postgres-shared/with-geo-0.8"]
+"with-serde_json-1" = ["postgres-shared/with-serde_json-1"]
+"with-uuid-0.6" = ["postgres-shared/with-uuid-0.6"]
 
 with-openssl = ["tokio-openssl", "openssl"]
 
