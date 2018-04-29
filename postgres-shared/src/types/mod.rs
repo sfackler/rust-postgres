@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use types::type_gen::{Inner, Other};
 
@@ -15,6 +16,11 @@ use types::type_gen::{Inner, Other};
 pub use postgres_protocol::Oid;
 
 pub use types::special::{Date, Timestamp};
+
+// Number of seconds from 1970-01-01 to 2000-01-01
+const TIME_SEC_CONVERSION: u64 = 946684800;
+const USEC_PER_SEC: u64 = 1_000_000;
+const NSEC_PER_USEC: u64 = 1_000;
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the
 /// types passed to it.
@@ -252,6 +258,7 @@ impl WrongType {
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME, UNKNOWN |
 /// | `&[u8]`/`Vec<u8>`                 | BYTEA                                         |
 /// | `HashMap<String, Option<String>>` | HSTORE                                        |
+/// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE           |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -449,6 +456,30 @@ impl<'a> FromSql<'a> for HashMap<String, Option<String>> {
     }
 }
 
+impl<'a> FromSql<'a> for SystemTime {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<SystemTime, Box<Error + Sync + Send>> {
+        let time = types::timestamp_from_sql(raw)?;
+        let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
+
+        let negative = time < 0;
+        let time = time.abs() as u64;
+
+        let secs = time / USEC_PER_SEC;
+        let nsec = (time % USEC_PER_SEC) * NSEC_PER_USEC;
+        let offset = Duration::new(secs, nsec as u32);
+
+        let time = if negative {
+            epoch - offset
+        } else {
+            epoch + offset
+        };
+
+        Ok(time)
+    }
+
+    accepts!(TIMESTAMP, TIMESTAMPTZ);
+}
+
 /// An enum representing the nullability of a Postgres value.
 pub enum IsNull {
     /// The value is NULL.
@@ -477,6 +508,7 @@ pub enum IsNull {
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
 /// | `&[u8]`/Vec<u8>`                  | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
+/// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE           |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -720,6 +752,27 @@ impl ToSql for HashMap<String, Option<String>> {
     fn accepts(ty: &Type) -> bool {
         ty.name() == "hstore"
     }
+
+    to_sql_checked!();
+}
+
+impl ToSql for SystemTime {
+    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
+        let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
+
+        let to_usec =
+            |d: Duration| d.as_secs() * USEC_PER_SEC + (d.subsec_nanos() as u64) / NSEC_PER_USEC;
+
+        let time = match self.duration_since(epoch) {
+            Ok(duration) => to_usec(duration) as i64,
+            Err(e) => -(to_usec(e.duration()) as i64),
+        };
+
+        types::timestamp_to_sql(time, w);
+        Ok(IsNull::No)
+    }
+
+    accepts!(TIMESTAMP, TIMESTAMPTZ);
 
     to_sql_checked!();
 }
