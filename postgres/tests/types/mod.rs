@@ -4,6 +4,7 @@ use std::f32;
 use std::f64;
 use std::fmt;
 use std::result;
+use std::time::{Duration, UNIX_EPOCH};
 
 use postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 use postgres::{Connection, TlsMode};
@@ -502,4 +503,26 @@ fn enum_() {
         }
         _ => panic!("bad type"),
     }
+}
+
+#[test]
+fn system_time() {
+    test_type(
+        "TIMESTAMP",
+        &[
+            (
+                Some(UNIX_EPOCH + Duration::from_millis(1_010)),
+                "'1970-01-01 00:00:01.01'",
+            ),
+            (
+                Some(UNIX_EPOCH - Duration::from_millis(1_010)),
+                "'1969-12-31 23:59:58.99'",
+            ),
+            (
+                Some(UNIX_EPOCH + Duration::from_millis(946684800 * 1000 + 1_010)),
+                "'2000-01-01 00:00:01.01'",
+            ),
+            (None, "NULL"),
+        ],
+    );
 }
