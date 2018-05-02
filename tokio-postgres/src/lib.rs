@@ -1145,6 +1145,7 @@ impl Connection {
 }
 
 /// A stream of asynchronous Postgres notifications.
+#[derive(Debug)]
 pub struct Notifications(Connection);
 
 impl Notifications {
