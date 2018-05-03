@@ -145,7 +145,14 @@ impl<'a> TextRow<'a> {
         self.columns
     }
 
-    /// stub
+    /// Retrieve the contents of a field of a row
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index does not reference a column
     pub fn get<I>(&self, idx: I) -> &str
     where
         I: RowIndex + fmt::Debug,
@@ -157,7 +164,14 @@ impl<'a> TextRow<'a> {
         }
     }
 
-    /// stub
+    /// Retrieves the contents of a field of the row.
+    ///
+    /// A field can be accessed by the name or index of its column, though
+    /// access by index is more efficient. Rows are 0-indexed.
+    ///
+    /// Returns None if the index does not reference a column, Some(Err(..)) if
+    /// there was an error parsing the result as UTF-8, and Some(Ok(..)) on
+    /// success.
     pub fn get_opt<I>(&self, idx: I) -> Option<Result<&str>>
     where
         I: RowIndex,
