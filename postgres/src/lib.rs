@@ -963,7 +963,7 @@ impl InnerConnection {
                         result.push(TextRows::new(cols, mem::replace(&mut rows, Vec::new())));
                     }
                 }
-                _ => {}
+                _ => bad_response!(self),
             }
         }
         Ok(result)
