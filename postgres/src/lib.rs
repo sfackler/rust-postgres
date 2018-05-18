@@ -1304,7 +1304,8 @@ impl Connection {
     pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
         let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
         config.build_command(&mut command);
-        self.batch_execute(&command)
+        self.simple_query(&command)
+            .map(|_| ())
     }
 
     /// Execute a sequence of SQL statements.
@@ -1341,6 +1342,7 @@ impl Connection {
     ///     CREATE INDEX ON purchase (time);
     ///     ").unwrap();
     /// ```
+    #[deprecated(since="0.15.3", note="please use `simple_query` instead")]
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         self.0.borrow_mut().quick_query(query).map(|_| ())
     }
@@ -1449,6 +1451,7 @@ pub trait GenericConnection {
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
 
     /// Like `Connection::batch_execute`.
+    #[deprecated(since="0.15.3", note="please use `simple_query` instead")]
     fn batch_execute(&self, query: &str) -> Result<()>;
 
     /// Like `Connection::is_active`.
@@ -1480,7 +1483,8 @@ impl GenericConnection for Connection {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.batch_execute(&query)
+        self.simple_query(query)
+            .map(|_| ())
     }
 
     fn is_active(&self) -> bool {
@@ -1514,7 +1518,8 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.batch_execute(&query)
+        self.simple_query(query)
+            .map(|_| ())
     }
 
     fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
