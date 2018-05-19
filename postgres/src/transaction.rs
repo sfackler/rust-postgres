@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::fmt;
 
 use rows::Rows;
+use text_rows::TextRows;
 use stmt::Statement;
 use types::ToSql;
 use {bad_response, Connection, Result};
@@ -225,8 +226,15 @@ impl<'conn> Transaction<'conn> {
     }
 
     /// Like `Connection::batch_execute`.
+    #[deprecated(since="0.15.3", note="please use `simple_query` instead")]
     pub fn batch_execute(&self, query: &str) -> Result<()> {
-        self.conn.batch_execute(query)
+        self.simple_query(query)
+            .map(|_| ())
+    }
+
+    /// Like `Connection::simple_query`.
+    pub fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
+        self.conn.simple_query(query)
     }
 
     /// Like `Connection::transaction`, but creates a nested transaction via
@@ -277,7 +285,8 @@ impl<'conn> Transaction<'conn> {
     pub fn set_config(&self, config: &Config) -> Result<()> {
         let mut command = "SET TRANSACTION".to_owned();
         config.build_command(&mut command);
-        self.batch_execute(&command)
+        self.simple_query(&command)
+            .map(|_| ())
     }
 
     /// Determines if the transaction is currently set to commit or roll back.

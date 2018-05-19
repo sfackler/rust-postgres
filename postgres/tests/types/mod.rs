@@ -359,7 +359,7 @@ fn test_pg_database_datname() {
 #[test]
 fn test_slice() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
+    conn.simple_query(
         "CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY, f VARCHAR);
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
     ).unwrap();
@@ -379,7 +379,7 @@ fn test_slice() {
 #[test]
 fn test_slice_wrong_type() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
+    conn.simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
     let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)")
@@ -446,7 +446,7 @@ fn domain() {
     }
 
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
+    conn.simple_query(
         "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
                         CREATE TABLE pg_temp.foo (id pg_temp.session_id);",
     ).unwrap();
@@ -461,7 +461,7 @@ fn domain() {
 #[test]
 fn composite() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
+    conn.simple_query(
         "CREATE TYPE pg_temp.inventory_item AS (
                             name TEXT,
                             supplier INTEGER,
@@ -488,7 +488,7 @@ fn composite() {
 #[test]
 fn enum_() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
+    conn.simple_query("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
         .unwrap();
 
     let stmt = conn.prepare("SELECT $1::mood").unwrap();

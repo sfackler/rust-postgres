@@ -396,6 +396,7 @@ fn test_stmt_finish() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_batch_execute() {
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -415,6 +416,7 @@ fn test_batch_execute() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_batch_execute_error() {
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -435,6 +437,7 @@ fn test_batch_execute_error() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_transaction_batch_execute() {
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -1091,6 +1094,7 @@ fn test_execute_copy_from_err() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_batch_execute_copy_from_err() {
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
@@ -1156,7 +1160,7 @@ fn test_query_copy_out_err() {
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
-    or_panic!(conn.batch_execute(
+    or_panic!(conn.simple_query(
         "
          CREATE TEMPORARY TABLE foo (id INT);
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)",
@@ -1175,7 +1179,7 @@ fn test_copy_out() {
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
-    or_panic!(conn.batch_execute(
+    or_panic!(conn.simple_query(
         "
          CREATE TEMPORARY TABLE foo (id INT);
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)",
@@ -1185,7 +1189,7 @@ fn test_copy_out() {
     let count = or_panic!(stmt.copy_out(&[], &mut buf));
     assert_eq!(count, 4);
     assert_eq!(buf, b"0\n1\n2\n3\n");
-    or_panic!(conn.batch_execute("SELECT 1"));
+    or_panic!(conn.simple_query("SELECT 1"));
 }
 
 #[test]
@@ -1194,7 +1198,7 @@ fn test_copy_out_error() {
         "postgres://postgres@localhost:5433",
         TlsMode::None,
     ));
-    or_panic!(conn.batch_execute(
+    or_panic!(conn.simple_query(
         "
          CREATE TEMPORARY TABLE foo (id INT);
          INSERT INTO foo (id) VALUES (0), (1), (2), (3)",
@@ -1380,7 +1384,7 @@ fn test_transaction_isolation_level() {
 #[test]
 fn test_rows_index() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
+    conn.simple_query(
         "
         CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
         INSERT INTO foo (id) VALUES (1), (2), (3);
@@ -1413,7 +1417,7 @@ fn test_type_names() {
 #[test]
 fn test_conn_query() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    conn.batch_execute(
+    conn.simple_query(
         "
         CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
         INSERT INTO foo (id) VALUES (1), (2), (3);
@@ -1487,4 +1491,22 @@ fn explicit_types() {
     let stmt = conn.prepare_typed("SELECT $1::INT4", &[Some(Type::INT8)])
         .unwrap();
     assert_eq!(stmt.param_types()[0], Type::INT8);
+}
+
+#[test]
+fn simple_query() {
+    let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
+    conn.simple_query(
+        "
+        CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY);
+        INSERT INTO foo (id) VALUES (1), (2), (3);
+        ",
+    ).unwrap();
+    let queries = "SELECT id FROM foo WHERE id = 1 ORDER BY id; \
+                   SELECT id FROM foo WHERE id != 1 ORDER BY id";
+
+    let results = conn.simple_query(queries).unwrap();
+    assert_eq!(results[0].get(0).get("id"), "1");
+    assert_eq!(results[1].get(0).get("id"), "2");
+    assert_eq!(results[1].get(1).get("id"), "3");
 }
