@@ -34,6 +34,7 @@ jobs:
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - run: cargo update -p nalgebra --precise 0.14.3 # 0.14.4 requires 1.26 :(
+      - run: cargo update -p geo-types --precise 0.1.0
       - *SAVE_REGISTRY
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
