@@ -33,6 +33,7 @@ jobs:
       - run: DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
+      - run: cargo update -p nalgebra --precise 0.14.3 # 0.14.4 requires 1.26 :(
       - *SAVE_REGISTRY
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
