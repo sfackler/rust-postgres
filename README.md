@@ -44,7 +44,7 @@ fn main() {
             name: row.get(1),
             data: row.get(2),
         };
-        println!("Found person {}", person.name);
+        println!("Found person {}: {}", person.id, person.name);
     }
 }
 ```
