@@ -12,6 +12,26 @@ pub trait TlsStream: fmt::Debug + Read + Write + Send {
 
     /// Returns a mutable reference to the underlying `Stream`.
     fn get_mut(&mut self) -> &mut Stream;
+
+    /// Returns the data associated with the `tls-unique` channel binding type as described in
+    /// [RFC 5929], if supported.
+    ///
+    /// An implementation only needs to support one of this or `tls_server_end_point`.
+    ///
+    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
+    fn tls_unique(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Returns the data associated with the `tls-server-end-point` channel binding type as
+    /// described in [RFC 5929], if supported.
+    ///
+    /// An implementation only needs to support one of this or `tls_unique`.
+    ///
+    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
+    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
+        None
+    }
 }
 
 /// A trait implemented by types that can initiate a TLS session over a Postgres

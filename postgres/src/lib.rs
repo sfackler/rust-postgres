@@ -81,7 +81,7 @@ extern crate socket2;
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::authentication;
-use postgres_protocol::authentication::sasl::{self, ScramSha256};
+use postgres_protocol::authentication::sasl::{self, ChannelBinding, ScramSha256};
 use postgres_protocol::message::backend::{self, ErrorFields};
 use postgres_protocol::message::frontend;
 use postgres_shared::rows::RowData;
@@ -422,25 +422,52 @@ impl InnerConnection {
                 self.stream.flush()?;
             }
             backend::Message::AuthenticationSasl(body) => {
-                // count to validate the entire message body.
-                if body
-                    .mechanisms()
-                    .filter(|m| *m == sasl::SCRAM_SHA_256)
-                    .count()? == 0
-                {
+                let mut has_scram = false;
+                let mut has_scram_plus = false;
+                let mut mechanisms = body.mechanisms();
+                while let Some(mechanism) = mechanisms.next()? {
+                    match mechanism {
+                        sasl::SCRAM_SHA_256 => has_scram = true,
+                        sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
+                        _ => {}
+                    }
+                }
+                let channel_binding = self
+                    .stream
+                    .get_ref()
+                    .tls_unique()
+                    .map(ChannelBinding::tls_unique)
+                    .or_else(|| {
+                        self.stream
+                            .get_ref()
+                            .tls_server_end_point()
+                            .map(ChannelBinding::tls_server_end_point)
+                    });
+
+                let (channel_binding, mechanism) = if has_scram_plus {
+                    match channel_binding {
+                        Some(channel_binding) => (channel_binding, sasl::SCRAM_SHA_256_PLUS),
+                        None => (ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+                    }
+                } else if has_scram {
+                    match channel_binding {
+                        Some(_) => (ChannelBinding::unrequested(), sasl::SCRAM_SHA_256),
+                        None => (ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+                    }
+                } else {
                     return Err(
                         io::Error::new(io::ErrorKind::Other, "unsupported authentication").into(),
                     );
-                }
+                };
 
                 let pass = user.password().ok_or_else(|| {
                     error::connect("a password was requested but not provided".into())
                 })?;
 
-                let mut scram = ScramSha256::new(pass.as_bytes())?;
+                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding)?;
 
                 self.stream.write_message(|buf| {
-                    frontend::sasl_initial_response(sasl::SCRAM_SHA_256, scram.message(), buf)
+                    frontend::sasl_initial_response(mechanism, scram.message(), buf)
                 })?;
                 self.stream.flush()?;
 
