@@ -2,17 +2,8 @@
 pub use priv_io::Stream;
 
 use std::error::Error;
-use std::io::prelude::*;
 use std::fmt;
-
-#[cfg(feature = "with-native-tls")]
-pub mod native_tls;
-#[cfg(feature = "with-openssl")]
-pub mod openssl;
-#[cfg(feature = "with-schannel")]
-pub mod schannel;
-#[cfg(feature = "with-security-framework")]
-pub mod security_framework;
+use std::io::prelude::*;
 
 /// A trait implemented by TLS streams.
 pub trait TlsStream: fmt::Debug + Read + Write + Send {
