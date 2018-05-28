@@ -1,14 +1,9 @@
 extern crate fallible_iterator;
-#[cfg(feature = "native-tls")]
-extern crate native_tls;
-#[cfg(feature = "with-openssl")]
-extern crate openssl;
 extern crate postgres;
+extern crate url;
+
 #[macro_use]
 extern crate postgres_shared;
-#[cfg(feature = "with-security-framework")]
-extern crate security_framework;
-extern crate url;
 
 use fallible_iterator::FallibleIterator;
 use postgres::error::ErrorPosition::Normal;
@@ -909,70 +904,6 @@ fn test_cancel_query() {
 }
 
 #[test]
-#[cfg(feature = "with-openssl")]
-fn test_require_ssl_conn() {
-    use openssl::ssl::{SslConnectorBuilder, SslMethod};
-    use postgres::tls::openssl::OpenSsl;
-
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::from(builder.build());
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
-#[cfg(feature = "with-openssl")]
-fn test_prefer_ssl_conn() {
-    use openssl::ssl::{SslConnectorBuilder, SslMethod};
-    use postgres::tls::openssl::OpenSsl;
-
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::from(builder.build());
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
-#[cfg(feature = "with-security-framework")]
-fn security_framework_ssl() {
-    use postgres::tls::security_framework::SecurityFramework;
-    use security_framework::certificate::SecCertificate;
-
-    let certificate = include_bytes!("../../test/server.der");
-    let certificate = or_panic!(SecCertificate::from_der(certificate));
-    let mut negotiator = SecurityFramework::new();
-    negotiator.builder_mut().anchor_certificates(&[certificate]);
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
-#[ignore]
-// need to ignore until native-tls supports extra root certs :(
-#[cfg(feature = "with-native-tls")]
-fn native_tls_ssl() {
-    use postgres::tls::native_tls::NativeTls;
-
-    let negotiator = NativeTls::new().unwrap();
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
 fn test_plaintext_pass() {
     or_panic!(Connection::connect(
         "postgres://pass_user:password@localhost:5433/postgres",
@@ -1399,14 +1330,15 @@ fn test_rows_index() {
 #[test]
 fn test_type_names() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    let stmt = conn.prepare(
-        "SELECT t.oid, t.typname
+    let stmt =
+        conn.prepare(
+            "SELECT t.oid, t.typname
                                 FROM pg_catalog.pg_type t, pg_namespace n
                              WHERE n.oid = t.typnamespace
                                 AND n.nspname = 'pg_catalog'
                                 AND t.oid < 10000
                                 AND t.typtype != 'c'",
-    ).unwrap();
+        ).unwrap();
     for row in &stmt.query(&[]).unwrap() {
         let id: Oid = row.get(0);
         let name: String = row.get(1);
@@ -1423,7 +1355,8 @@ fn test_conn_query() {
         INSERT INTO foo (id) VALUES (1), (2), (3);
         ",
     ).unwrap();
-    let ids = conn.query("SELECT id FROM foo ORDER BY id", &[])
+    let ids = conn
+        .query("SELECT id FROM foo ORDER BY id", &[])
         .unwrap()
         .iter()
         .map(|r| r.get(0))
@@ -1488,7 +1421,8 @@ fn keepalive() {
 #[test]
 fn explicit_types() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    let stmt = conn.prepare_typed("SELECT $1::INT4", &[Some(Type::INT8)])
+    let stmt = conn
+        .prepare_typed("SELECT $1::INT4", &[Some(Type::INT8)])
         .unwrap();
     assert_eq!(stmt.param_types()[0], Type::INT8);
 }

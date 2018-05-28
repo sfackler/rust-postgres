@@ -29,8 +29,6 @@ jobs:
       - image: sfackler/rust-postgres-test:3
     steps:
       - checkout
-      - run: apt-get update
-      - run: DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - run: cargo update -p nalgebra --precise 0.14.3 # 0.14.4 requires 1.26 :(
@@ -39,6 +37,6 @@ jobs:
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
       - run: cargo test --all
-      - run: cargo test --manifest-path=postgres/Cargo.toml --features "$(cargo read-manifest --manifest-path=postgres/Cargo.toml | jq -r '.features|keys|map(select(. != "with-security-framework" and . != "with-schannel"))|join(" ")')"
-      - run: cargo test --manifest-path=tokio-postgres/Cargo.toml --all-features
+      - run: cargo test -p postgres --all-features
+      - run: cargo test -p tokio-postgres --all-features
       - *SAVE_DEPS

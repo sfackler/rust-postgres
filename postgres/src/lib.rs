@@ -100,10 +100,10 @@ use params::{IntoConnectParams, User};
 use priv_io::MessageStream;
 use rows::Rows;
 use stmt::{Column, Statement};
+use text_rows::TextRows;
 use tls::TlsHandshake;
 use transaction::{IsolationLevel, Transaction};
 use types::{Field, FromSql, IsNull, Kind, Oid, ToSql, Type};
-use text_rows::TextRows;
 
 #[doc(inline)]
 pub use error::Error;
@@ -119,8 +119,8 @@ pub mod notification;
 pub mod params;
 mod priv_io;
 pub mod rows;
-pub mod text_rows;
 pub mod stmt;
+pub mod text_rows;
 pub mod tls;
 pub mod transaction;
 
@@ -423,7 +423,8 @@ impl InnerConnection {
             }
             backend::Message::AuthenticationSasl(body) => {
                 // count to validate the entire message body.
-                if body.mechanisms()
+                if body
+                    .mechanisms()
                     .filter(|m| *m == sasl::SCRAM_SHA_256)
                     .count()? == 0
                 {
@@ -726,10 +727,10 @@ impl InnerConnection {
         Ok(ty)
     }
 
-
     fn parse_cols(&mut self, raw: Option<backend::RowDescriptionBody>) -> Result<Vec<Column>> {
         match raw {
-            Some(body) => body.fields()
+            Some(body) => body
+                .fields()
                 .and_then(|field| {
                     Ok(Column::new(
                         field.name().to_owned(),
@@ -865,8 +866,9 @@ impl InnerConnection {
 
         let mut variants = vec![];
         for row in rows {
-            variants
-                .push(String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?);
+            variants.push(
+                String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?
+            );
         }
 
         Ok(variants)
@@ -929,7 +931,8 @@ impl InnerConnection {
     fn simple_query_(&mut self, query: &str) -> Result<Vec<TextRows>> {
         check_desync!(self);
         debug!("executing query: {}", query);
-        self.stream.write_message(|buf| frontend::query(query, buf))?;
+        self.stream
+            .write_message(|buf| frontend::query(query, buf))?;
         self.stream.flush()?;
 
         let mut result = vec![];
@@ -946,9 +949,8 @@ impl InnerConnection {
                     self.stream.write_message(|buf| {
                         frontend::copy_fail("COPY queries cannot be directly executed", buf)
                     })?;
-                    self.stream.write_message(
-                        |buf| Ok::<(), io::Error>(frontend::sync(buf)),
-                    )?;
+                    self.stream
+                        .write_message(|buf| Ok::<(), io::Error>(frontend::sync(buf)))?;
                     self.stream.flush()?;
                 }
                 backend::Message::ErrorResponse(body) => {
@@ -981,7 +983,8 @@ impl InnerConnection {
             match self.read_message()? {
                 backend::Message::ReadyForQuery(_) => break,
                 backend::Message::DataRow(body) => {
-                    let row = body.ranges()
+                    let row = body
+                        .ranges()
                         .map(|r| r.map(|r| String::from_utf8_lossy(&body.buffer()[r]).into_owned()))
                         .collect()?;
                     result.push(row);
@@ -1304,8 +1307,7 @@ impl Connection {
     pub fn set_transaction_config(&self, config: &transaction::Config) -> Result<()> {
         let mut command = "SET SESSION CHARACTERISTICS AS TRANSACTION".to_owned();
         config.build_command(&mut command);
-        self.simple_query(&command)
-            .map(|_| ())
+        self.simple_query(&command).map(|_| ())
     }
 
     /// Execute a sequence of SQL statements.
@@ -1342,11 +1344,10 @@ impl Connection {
     ///     CREATE INDEX ON purchase (time);
     ///     ").unwrap();
     /// ```
-    #[deprecated(since="0.15.3", note="please use `simple_query` instead")]
+    #[deprecated(since = "0.15.3", note = "please use `simple_query` instead")]
     pub fn batch_execute(&self, query: &str) -> Result<()> {
         self.0.borrow_mut().quick_query(query).map(|_| ())
     }
-
 
     /// Send a simple, non-prepared query
     ///
@@ -1451,7 +1452,7 @@ pub trait GenericConnection {
     fn transaction<'a>(&'a self) -> Result<Transaction<'a>>;
 
     /// Like `Connection::batch_execute`.
-    #[deprecated(since="0.15.3", note="please use `simple_query` instead")]
+    #[deprecated(since = "0.15.3", note = "please use `simple_query` instead")]
     fn batch_execute(&self, query: &str) -> Result<()>;
 
     /// Like `Connection::is_active`.
@@ -1483,8 +1484,7 @@ impl GenericConnection for Connection {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.simple_query(query)
-            .map(|_| ())
+        self.simple_query(query).map(|_| ())
     }
 
     fn is_active(&self) -> bool {
@@ -1518,8 +1518,7 @@ impl<'a> GenericConnection for Transaction<'a> {
     }
 
     fn batch_execute(&self, query: &str) -> Result<()> {
-        self.simple_query(query)
-            .map(|_| ())
+        self.simple_query(query).map(|_| ())
     }
 
     fn simple_query(&self, query: &str) -> Result<Vec<TextRows>> {
