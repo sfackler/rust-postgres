@@ -4,7 +4,7 @@ use base64;
 use generic_array::typenum::U32;
 use generic_array::GenericArray;
 use hmac::{Hmac, Mac};
-use rand::{OsRng, Rng};
+use rand::{self, Rng};
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
 use std::io;
@@ -17,6 +17,8 @@ const NONCE_LENGTH: usize = 24;
 
 /// The identifier of the SCRAM-SHA-256 SASL authentication mechanism.
 pub const SCRAM_SHA_256: &'static str = "SCRAM-SHA-256";
+/// The identifier of the SCRAM-SHA-256-PLUS SASL authentication mechanism.
+pub const SCRAM_SHA_256_PLUS: &'static str = "SCRAM-SHA-256-PLUS";
 
 // since postgres passwords are not required to exclude saslprep-prohibited
 // characters or even be valid UTF8, we run saslprep if possible and otherwise
@@ -54,10 +56,61 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
     hi
 }
 
+enum ChannelBindingInner {
+    Unrequested,
+    Unsupported,
+    TlsUnique(Vec<u8>),
+    TlsServerEndPoint(Vec<u8>),
+}
+
+/// The channel binding configuration for a SCRAM authentication exchange.
+pub struct ChannelBinding(ChannelBindingInner);
+
+impl ChannelBinding {
+    /// The server did not request channel binding.
+    pub fn unrequested() -> ChannelBinding {
+        ChannelBinding(ChannelBindingInner::Unrequested)
+    }
+
+    /// The server requested channel binding but the client is unable to provide it.
+    pub fn unsupported() -> ChannelBinding {
+        ChannelBinding(ChannelBindingInner::Unsupported)
+    }
+
+    /// The server requested channel binding and the client will use the `tls-unique` method.
+    pub fn tls_unique(finished: Vec<u8>) -> ChannelBinding {
+        ChannelBinding(ChannelBindingInner::TlsUnique(finished))
+    }
+
+    /// The server requested channel binding and the client will use the `tls-server-end-point`
+    /// method.
+    pub fn tls_server_end_point(signature: Vec<u8>) -> ChannelBinding {
+        ChannelBinding(ChannelBindingInner::TlsServerEndPoint(signature))
+    }
+
+    fn gs2_header(&self) -> &'static str {
+        match self.0 {
+            ChannelBindingInner::Unrequested => "y,,",
+            ChannelBindingInner::Unsupported => "n,,",
+            ChannelBindingInner::TlsUnique(_) => "p=tls-unique,,",
+            ChannelBindingInner::TlsServerEndPoint(_) => "p=tls-server-end-point,,",
+        }
+    }
+
+    fn cbind_data(&self) -> &[u8] {
+        match self.0 {
+            ChannelBindingInner::Unrequested | ChannelBindingInner::Unsupported => &[],
+            ChannelBindingInner::TlsUnique(ref buf)
+            | ChannelBindingInner::TlsServerEndPoint(ref buf) => buf,
+        }
+    }
+}
+
 enum State {
     Update {
         nonce: String,
         password: Vec<u8>,
+        channel_binding: ChannelBinding,
     },
     Finish {
         salted_password: GenericArray<u8, U32>,
@@ -66,7 +119,8 @@ enum State {
     Done,
 }
 
-/// A type which handles the client side of the SCRAM-SHA-256 authentication process.
+/// A type which handles the client side of the SCRAM-SHA-256/SCRAM-SHA-256-PLUS authentication
+/// process.
 ///
 /// During the authentication process, if the backend sends an `AuthenticationSASL` message which
 /// includes `SCRAM-SHA-256` as an authentication mechanism, this type can be used.
@@ -85,11 +139,11 @@ pub struct ScramSha256 {
     state: State,
 }
 
-#[allow(missing_docs)]
 impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
-    pub fn new(password: &[u8]) -> io::Result<ScramSha256> {
-        let mut rng = OsRng::new()?;
+    pub fn new(password: &[u8], channel_binding: ChannelBinding) -> io::Result<ScramSha256> {
+        // rand 0.5's ThreadRng is cryptographically secure
+        let mut rng = rand::thread_rng();
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
                 let mut v = rng.gen_range(0x21u8, 0x7e);
@@ -100,21 +154,20 @@ impl ScramSha256 {
             })
             .collect::<String>();
 
-        ScramSha256::new_inner(password, nonce)
+        ScramSha256::new_inner(password, channel_binding, nonce)
     }
 
-    fn new_inner(password: &[u8], nonce: String) -> io::Result<ScramSha256> {
-        // the docs say to use pg_same_as_startup_message as the username, but
-        // psql uses an empty string, so we'll go with that.
-        let message = format!("n,,n=,r={}", nonce);
-
-        let password = normalize(password);
-
+    fn new_inner(
+        password: &[u8],
+        channel_binding: ChannelBinding,
+        nonce: String,
+    ) -> io::Result<ScramSha256> {
         Ok(ScramSha256 {
-            message: message,
+            message: format!("{}n=,r={}", channel_binding.gs2_header(), nonce),
             state: State::Update {
-                nonce: nonce,
-                password: password,
+                nonce,
+                password: normalize(password),
+                channel_binding: channel_binding,
             },
         })
     }
@@ -131,10 +184,15 @@ impl ScramSha256 {
     ///
     /// This should be called when an `AuthenticationSASLContinue` message is received.
     pub fn update(&mut self, message: &[u8]) -> io::Result<()> {
-        let (client_nonce, password) = match mem::replace(&mut self.state, State::Done) {
-            State::Update { nonce, password } => (nonce, password),
-            _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
-        };
+        let (client_nonce, password, channel_binding) =
+            match mem::replace(&mut self.state, State::Done) {
+                State::Update {
+                    nonce,
+                    password,
+                    channel_binding,
+                } => (nonce, password, channel_binding),
+                _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
+            };
 
         let message =
             str::from_utf8(message).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -161,8 +219,13 @@ impl ScramSha256 {
         hash.input(client_key.as_slice());
         let stored_key = hash.result();
 
+        let mut cbind_input = vec![];
+        cbind_input.extend(channel_binding.gs2_header().as_bytes());
+        cbind_input.extend(channel_binding.cbind_data());
+        let cbind_input = base64::encode(&cbind_input);
+
         self.message.clear();
-        write!(&mut self.message, "c=biws,r={}", parsed.nonce).unwrap();
+        write!(&mut self.message, "c={},r={}", cbind_input, parsed.nonce).unwrap();
 
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
@@ -420,7 +483,11 @@ mod test {
              1NTlQYNs5BTeQjdHdk7lOflDo5re2an8=";
         let server_final = "v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=";
 
-        let mut scram = ScramSha256::new_inner(password.as_bytes(), nonce.to_string()).unwrap();
+        let mut scram = ScramSha256::new_inner(
+            password.as_bytes(),
+            ChannelBinding::unsupported(),
+            nonce.to_string(),
+        ).unwrap();
         assert_eq!(str::from_utf8(scram.message()).unwrap(), client_first);
 
         scram.update(server_first.as_bytes()).unwrap();

@@ -270,10 +270,10 @@ fn ssl_user_ssl_required() {
 #[cfg(feature = "with-openssl")]
 #[test]
 fn openssl_required() {
-    use tls::openssl::openssl::ssl::{SslConnectorBuilder, SslMethod};
+    use tls::openssl::openssl::ssl::{SslConnector, SslMethod};
     use tls::openssl::OpenSsl;
 
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_ca_file("../test/server.crt").unwrap();
     let negotiator = OpenSsl::from(builder.build());
 

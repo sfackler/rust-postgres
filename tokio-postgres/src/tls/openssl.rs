@@ -3,7 +3,7 @@ extern crate tokio_openssl;
 pub extern crate openssl;
 
 use futures::Future;
-use self::openssl::ssl::{SslMethod, SslConnector, SslConnectorBuilder};
+use self::openssl::ssl::{SslMethod, SslConnector};
 use self::openssl::error::ErrorStack;
 use std::error::Error;
 use self::tokio_openssl::{SslConnectorExt, SslStream};
@@ -27,7 +27,7 @@ pub struct OpenSsl(SslConnector);
 impl OpenSsl {
     /// Creates a new `OpenSsl` with default settings.
     pub fn new() -> Result<OpenSsl, ErrorStack> {
-        let connector = SslConnectorBuilder::new(SslMethod::tls())?.build();
+        let connector = SslConnector::builder(SslMethod::tls())?.build();
         Ok(OpenSsl(connector))
     }
 }
