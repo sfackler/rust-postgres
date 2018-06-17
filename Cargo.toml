@@ -8,3 +8,9 @@ members = [
     "postgres-native-tls",
     "tokio-postgres",
 ]
+
+[patch.crates-io]
+tokio-uds = { git = "https://github.com/sfackler/tokio" }
+tokio-io = { git = "https://github.com/sfackler/tokio" }
+tokio-timer = { git = "https://github.com/sfackler/tokio" }
+tokio-codec = { git = "https://github.com/sfackler/tokio" }
