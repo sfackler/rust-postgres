@@ -7,6 +7,7 @@ extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+extern crate want;
 
 #[macro_use]
 extern crate futures;
@@ -18,12 +19,13 @@ extern crate state_machine_future;
 #[cfg(unix)]
 extern crate tokio_uds;
 
-use futures::sync::mpsc;
 use futures::{Async, Future, Poll};
 use std::io;
 
 #[doc(inline)]
-pub use postgres_shared::{error, params};
+pub use postgres_shared::stmt::Column;
+#[doc(inline)]
+pub use postgres_shared::{error, params, types};
 #[doc(inline)]
 pub use postgres_shared::{CancelData, Notification};
 
@@ -46,11 +48,21 @@ fn disconnected() -> Error {
     ))
 }
 
-pub struct Client(mpsc::Sender<proto::Request>);
+pub struct Client(proto::Client);
 
 impl Client {
     pub fn connect(params: ConnectParams) -> Handshake {
         Handshake(proto::HandshakeFuture::new(params))
+    }
+
+    /// Polls to to determine whether the connection is ready to send new requests to the backend.
+    ///
+    /// Requests are unboundedly buffered to enable pipelining, but this risks unbounded memory consumption if requests
+    /// are produced at a faster pace than the backend can process. This method can be used to cooperatively "throttle"
+    /// request creation. Specifically, it returns ready when the connection has sent any queued requests and is waiting
+    /// on new requests from the client.
+    pub fn poll_ready(&mut self) -> Poll<(), Error> {
+        self.0.poll_ready()
     }
 }
 
@@ -82,8 +94,8 @@ impl Future for Handshake {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(Client, Connection), Error> {
-        let (sender, connection) = try_ready!(self.0.poll());
+        let (client, connection) = try_ready!(self.0.poll());
 
-        Ok(Async::Ready((Client(sender), Connection(connection))))
+        Ok(Async::Ready((Client(client), Connection(connection))))
     }
 }

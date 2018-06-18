@@ -10,11 +10,13 @@ use state_machine_future::RentToOwn;
 use std::collections::HashMap;
 use std::io;
 use tokio_codec::Framed;
+use want;
 
 use error::{self, Error};
 use params::{ConnectParams, User};
+use proto::client::Client;
 use proto::codec::PostgresCodec;
-use proto::connection::{Connection, Request};
+use proto::connection::Connection;
 use proto::socket::{ConnectFuture, Socket};
 use {bad_response, disconnected, CancelData};
 
@@ -60,7 +62,7 @@ pub enum Handshake {
         parameters: HashMap<String, String>,
     },
     #[state_machine_future(ready)]
-    Finished((mpsc::Sender<Request>, Connection)),
+    Finished((Client, Connection)),
     #[state_machine_future(error)]
     Failed(Error),
 }
@@ -281,10 +283,17 @@ impl PollHandshake for Handshake {
                     let cancel_data = state.cancel_data.ok_or_else(|| {
                         io::Error::new(io::ErrorKind::InvalidData, "BackendKeyData message missing")
                     })?;
-                    let (sender, receiver) = mpsc::channel(0);
-                    let connection =
-                        Connection::new(state.stream, cancel_data, state.parameters, receiver);
-                    transition!(Finished((sender, connection)))
+                    let (sender, receiver) = mpsc::unbounded();
+                    let (giver, taker) = want::new();
+                    let client = Client::new(sender, giver);
+                    let connection = Connection::new(
+                        state.stream,
+                        cancel_data,
+                        state.parameters,
+                        receiver,
+                        taker,
+                    );
+                    transition!(Finished((client, connection)))
                 }
                 Some(Message::ErrorResponse(body)) => return Err(error::__db(body)),
                 Some(Message::NoticeResponse(_)) => {}

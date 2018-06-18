@@ -5,6 +5,7 @@ use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use tokio_codec::Framed;
+use want::Taker;
 
 use error::{self, Error};
 use proto::codec::PostgresCodec;
@@ -27,7 +28,8 @@ pub struct Connection {
     stream: Framed<Socket, PostgresCodec>,
     cancel_data: CancelData,
     parameters: HashMap<String, String>,
-    receiver: mpsc::Receiver<Request>,
+    receiver: mpsc::UnboundedReceiver<Request>,
+    taker: Taker,
     pending_request: Option<Vec<u8>>,
     pending_response: Option<Message>,
     responses: VecDeque<mpsc::Sender<Message>>,
@@ -39,13 +41,15 @@ impl Connection {
         stream: Framed<Socket, PostgresCodec>,
         cancel_data: CancelData,
         parameters: HashMap<String, String>,
-        receiver: mpsc::Receiver<Request>,
+        receiver: mpsc::UnboundedReceiver<Request>,
+        taker: Taker,
     ) -> Connection {
         Connection {
             stream,
             cancel_data,
             parameters,
             receiver,
+            taker,
             pending_request: None,
             pending_response: None,
             responses: VecDeque::new(),
@@ -76,7 +80,10 @@ impl Connection {
                 Async::Ready(None) => {
                     return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
                 }
-                Async::NotReady => return Ok(()),
+                Async::NotReady => {
+                    self.taker.want();
+                    return Ok(());
+                }
             };
 
             let message = match message {
@@ -100,7 +107,7 @@ impl Connection {
                 },
             };
 
-            let ready = match message {
+            let request_complete = match message {
                 Message::ReadyForQuery(_) => true,
                 _ => false,
             };
@@ -109,7 +116,7 @@ impl Connection {
                 // if the receiver's hung up we still need to page through the rest of the messages
                 // designated to it
                 Ok(AsyncSink::Ready) | Err(_) => {
-                    if !ready {
+                    if !request_complete {
                         self.responses.push_front(sender);
                     }
                 }
