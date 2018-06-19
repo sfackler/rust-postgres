@@ -70,6 +70,7 @@ impl Client {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct Connection(proto::Connection);
 
 impl Connection {
@@ -91,6 +92,7 @@ impl Future for Connection {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct Handshake(proto::HandshakeFuture);
 
 impl Future for Handshake {
@@ -104,6 +106,7 @@ impl Future for Handshake {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct Prepare(proto::PrepareFuture);
 
 impl Future for Prepare {
