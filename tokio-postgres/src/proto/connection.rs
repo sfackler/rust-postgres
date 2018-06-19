@@ -5,7 +5,6 @@ use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use tokio_codec::Framed;
-use want::Taker;
 
 use disconnected;
 use error::{self, Error};
@@ -30,7 +29,6 @@ pub struct Connection {
     cancel_data: CancelData,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
-    taker: Taker,
     pending_request: Option<Vec<u8>>,
     pending_response: Option<Message>,
     responses: VecDeque<mpsc::Sender<Message>>,
@@ -43,14 +41,12 @@ impl Connection {
         cancel_data: CancelData,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
-        taker: Taker,
     ) -> Connection {
         Connection {
             stream,
             cancel_data,
             parameters,
             receiver,
-            taker,
             pending_request: None,
             pending_response: None,
             responses: VecDeque::new(),
@@ -178,7 +174,6 @@ impl Connection {
                 }
                 Async::NotReady => {
                     trace!("poll_write: waiting on request");
-                    self.taker.want();
                     return Ok(true);
                 }
             };

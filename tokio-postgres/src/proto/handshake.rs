@@ -10,7 +10,6 @@ use state_machine_future::RentToOwn;
 use std::collections::HashMap;
 use std::io;
 use tokio_codec::Framed;
-use want;
 
 use error::{self, Error};
 use params::{ConnectParams, User};
@@ -284,15 +283,9 @@ impl PollHandshake for Handshake {
                         io::Error::new(io::ErrorKind::InvalidData, "BackendKeyData message missing")
                     })?;
                     let (sender, receiver) = mpsc::unbounded();
-                    let (giver, taker) = want::new();
-                    let client = Client::new(sender, giver);
-                    let connection = Connection::new(
-                        state.stream,
-                        cancel_data,
-                        state.parameters,
-                        receiver,
-                        taker,
-                    );
+                    let client = Client::new(sender);
+                    let connection =
+                        Connection::new(state.stream, cancel_data, state.parameters, receiver);
                     transition!(Finished((client, connection)))
                 }
                 Some(Message::ErrorResponse(body)) => return Err(error::__db(body)),

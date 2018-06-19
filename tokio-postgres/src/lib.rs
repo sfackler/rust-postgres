@@ -7,7 +7,6 @@ extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
-extern crate want;
 
 #[macro_use]
 extern crate futures;
@@ -61,16 +60,6 @@ pub fn connect(params: ConnectParams) -> Handshake {
 pub struct Client(proto::Client);
 
 impl Client {
-    /// Polls to to determine whether the connection is ready to send new requests to the backend.
-    ///
-    /// Requests are unboundedly buffered to enable pipelining, but this risks unbounded memory consumption if requests
-    /// are produced at a faster pace than the backend can process. This method can be used to cooperatively "throttle"
-    /// request creation. Specifically, it returns ready when the connection has sent any queued requests and is waiting
-    /// on new requests from the client.
-    pub fn poll_ready(&mut self) -> Poll<(), Error> {
-        self.0.poll_ready()
-    }
-
     pub fn prepare(&mut self, query: &str) -> Prepare {
         self.prepare_typed(query, &[])
     }
