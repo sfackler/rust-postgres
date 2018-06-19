@@ -75,10 +75,10 @@ impl Connection {
         self.stream.poll()
     }
 
-    fn poll_read(&mut self) -> Poll<(), Error> {
+    fn poll_read(&mut self) -> Result<(), Error> {
         if self.state != State::Active {
             trace!("poll_read: done");
-            return Ok(Async::Ready(()));
+            return Ok(());
         }
 
         loop {
@@ -89,7 +89,7 @@ impl Connection {
                 }
                 Async::NotReady => {
                     trace!("poll_read: waiting on response");
-                    return Ok(Async::NotReady);
+                    return Ok(());
                 }
             };
 
@@ -131,7 +131,7 @@ impl Connection {
                     self.responses.push_front(sender);
                     self.pending_response = Some(message);
                     trace!("poll_read: waiting on socket");
-                    return Ok(Async::NotReady);
+                    return Ok(());
                 }
             }
         }
@@ -153,11 +153,11 @@ impl Connection {
         }
     }
 
-    fn poll_write(&mut self) -> Poll<(), Error> {
+    fn poll_write(&mut self) -> Result<bool, Error> {
         loop {
             if self.state == State::Closing {
                 trace!("poll_write: done");
-                return Ok(Async::Ready(()));
+                return Ok(false);
             }
 
             let request = match self.poll_request()? {
@@ -174,12 +174,12 @@ impl Connection {
                         "poll_write: at eof, pending responses {}",
                         self.responses.len(),
                     );
-                    return Ok(Async::Ready(()));
+                    return Ok(true);
                 }
                 Async::NotReady => {
                     trace!("poll_write: waiting on request");
                     self.taker.want();
-                    return Ok(Async::NotReady);
+                    return Ok(true);
                 }
             };
 
@@ -193,15 +193,24 @@ impl Connection {
                 AsyncSink::NotReady(request) => {
                     trace!("poll_write: waiting on socket");
                     self.pending_request = Some(request);
-                    return Ok(Async::NotReady);
+                    return Ok(false);
                 }
             }
         }
     }
 
-    fn poll_flush(&mut self) -> Poll<(), Error> {
-        trace!("flushing");
-        self.stream.poll_complete().map_err(Into::into)
+    fn poll_flush(&mut self) -> Result<(), Error> {
+        match self.stream.poll_complete() {
+            Ok(Async::Ready(())) => {
+                trace!("poll_flush: flushed");
+                Ok(())
+            }
+            Ok(Async::NotReady) => {
+                trace!("poll_flush: waiting on socket");
+                Ok(())
+            }
+            Err(e) => Err(Error::from(e)),
+        }
     }
 
     fn poll_shutdown(&mut self) -> Poll<(), Error> {
@@ -229,8 +238,10 @@ impl Future for Connection {
 
     fn poll(&mut self) -> Poll<(), Error> {
         self.poll_read()?;
-        self.poll_write()?;
-        self.poll_flush()?;
+        let want_flush = self.poll_write()?;
+        if want_flush {
+            self.poll_flush()?;
+        }
         self.poll_shutdown()
     }
 }
