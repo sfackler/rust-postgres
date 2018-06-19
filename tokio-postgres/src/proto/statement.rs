@@ -16,8 +16,9 @@ impl Drop for Statement {
     fn drop(&mut self) {
         let mut buf = vec![];
         frontend::close(b'S', &self.name, &mut buf).expect("statement name not valid");
+        frontend::sync(&mut buf);
         let (sender, _) = mpsc::channel(0);
-        self.sender.unbounded_send(Request {
+        let _ = self.sender.unbounded_send(Request {
             messages: buf,
             sender,
         });
@@ -26,7 +27,7 @@ impl Drop for Statement {
 
 impl Statement {
     pub fn new(
-        sender: mpsc::UnboundedReceiver<Request>,
+        sender: mpsc::UnboundedSender<Request>,
         name: String,
         params: Vec<Type>,
         columns: Vec<Column>,

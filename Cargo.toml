@@ -14,3 +14,5 @@ tokio-uds = { git = "https://github.com/sfackler/tokio" }
 tokio-io = { git = "https://github.com/sfackler/tokio" }
 tokio-timer = { git = "https://github.com/sfackler/tokio" }
 tokio-codec = { git = "https://github.com/sfackler/tokio" }
+tokio-reactor = { git = "https://github.com/sfackler/tokio" }
+tokio-executor = { git = "https://github.com/sfackler/tokio" }

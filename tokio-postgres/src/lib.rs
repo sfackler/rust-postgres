@@ -14,6 +14,8 @@ extern crate futures;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate state_machine_future;
 
 #[cfg(unix)]
@@ -21,6 +23,7 @@ extern crate tokio_uds;
 
 use futures::{Async, Future, Poll};
 use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[doc(inline)]
 pub use postgres_shared::stmt::Column;
@@ -31,8 +34,11 @@ pub use postgres_shared::{CancelData, Notification};
 
 use error::Error;
 use params::ConnectParams;
+use types::Type;
 
 mod proto;
+
+static NEXT_STATEMENT_ID: AtomicUsize = AtomicUsize::new(0);
 
 fn bad_response() -> Error {
     Error::from(io::Error::new(
@@ -48,13 +54,13 @@ fn disconnected() -> Error {
     ))
 }
 
+pub fn connect(params: ConnectParams) -> Handshake {
+    Handshake(proto::HandshakeFuture::new(params))
+}
+
 pub struct Client(proto::Client);
 
 impl Client {
-    pub fn connect(params: ConnectParams) -> Handshake {
-        Handshake(proto::HandshakeFuture::new(params))
-    }
-
     /// Polls to to determine whether the connection is ready to send new requests to the backend.
     ///
     /// Requests are unboundedly buffered to enable pipelining, but this risks unbounded memory consumption if requests
@@ -63,6 +69,15 @@ impl Client {
     /// on new requests from the client.
     pub fn poll_ready(&mut self) -> Poll<(), Error> {
         self.0.poll_ready()
+    }
+
+    pub fn prepare(&mut self, query: &str) -> Prepare {
+        self.prepare_typed(query, &[])
+    }
+
+    pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> Prepare {
+        let name = format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst));
+        Prepare(self.0.prepare(name, query, param_types))
     }
 }
 
@@ -97,5 +112,30 @@ impl Future for Handshake {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))
+    }
+}
+
+pub struct Prepare(proto::PrepareFuture);
+
+impl Future for Prepare {
+    type Item = Statement;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Statement, Error> {
+        let statement = try_ready!(self.0.poll());
+
+        Ok(Async::Ready(Statement(statement)))
+    }
+}
+
+pub struct Statement(proto::Statement);
+
+impl Statement {
+    pub fn params(&self) -> &[Type] {
+        self.0.params()
+    }
+
+    pub fn columns(&self) -> &[Column] {
+        self.0.columns()
     }
 }
