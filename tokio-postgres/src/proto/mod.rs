@@ -11,6 +11,7 @@ macro_rules! try_receive {
 mod client;
 mod codec;
 mod connection;
+mod execute;
 mod handshake;
 mod prepare;
 mod socket;
@@ -19,6 +20,7 @@ mod statement;
 pub use proto::client::Client;
 pub use proto::codec::PostgresCodec;
 pub use proto::connection::Connection;
+pub use proto::execute::ExecuteFuture;
 pub use proto::handshake::HandshakeFuture;
 pub use proto::prepare::PrepareFuture;
 pub use proto::socket::Socket;

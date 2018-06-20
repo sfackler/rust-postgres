@@ -1,26 +1,27 @@
 use futures::sync::mpsc;
+use postgres_protocol;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 
 use disconnected;
-use error::Error;
+use error::{self, Error};
 use proto::connection::Request;
+use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
-use types::Type;
+use proto::statement::Statement;
+use types::{IsNull, ToSql, Type};
 
 pub struct PendingRequest {
     sender: mpsc::UnboundedSender<Request>,
-    messages: Vec<u8>,
+    messages: Result<Vec<u8>, Error>,
 }
 
 impl PendingRequest {
     pub fn send(self) -> Result<mpsc::Receiver<Message>, Error> {
+        let messages = self.messages?;
         let (sender, receiver) = mpsc::channel(0);
         self.sender
-            .unbounded_send(Request {
-                messages: self.messages,
-                sender,
-            })
+            .unbounded_send(Request { messages, sender })
             .map(|_| receiver)
             .map_err(|_| disconnected())
     }
@@ -36,16 +37,52 @@ impl Client {
     }
 
     pub fn prepare(&mut self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {
-        let mut buf = vec![];
-        let request = frontend::parse(&name, query, param_types.iter().map(|t| t.oid()), &mut buf)
-            .and_then(|()| frontend::describe(b'S', &name, &mut buf))
-            .and_then(|()| Ok(frontend::sync(&mut buf)))
-            .map(|()| PendingRequest {
-                sender: self.sender.clone(),
-                messages: buf,
-            })
-            .map_err(Into::into);
+        let pending = self.pending(|buf| {
+            frontend::parse(&name, query, param_types.iter().map(|t| t.oid()), buf)?;
+            frontend::describe(b'S', &name, buf)?;
+            frontend::sync(buf);
+            Ok(())
+        });
 
-        PrepareFuture::new(request, self.sender.clone(), name)
+        PrepareFuture::new(pending, self.sender.clone(), name)
+    }
+
+    pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> ExecuteFuture {
+        let pending = self.pending(|buf| {
+            let r = frontend::bind(
+                "",
+                statement.name(),
+                Some(1),
+                params.iter().zip(statement.params()),
+                |(param, ty), buf| match param.to_sql_checked(ty, buf) {
+                    Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                    Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                    Err(e) => Err(e),
+                },
+                Some(1),
+                buf,
+            );
+            match r {
+                Ok(()) => {}
+                Err(frontend::BindError::Conversion(e)) => return Err(error::conversion(e)),
+                Err(frontend::BindError::Serialization(e)) => return Err(Error::from(e)),
+            }
+            frontend::execute("", 0, buf)?;
+            frontend::sync(buf);
+            Ok(())
+        });
+
+        ExecuteFuture::new(pending, statement.clone())
+    }
+
+    fn pending<F>(&self, messages: F) -> PendingRequest
+    where
+        F: FnOnce(&mut Vec<u8>) -> Result<(), Error>,
+    {
+        let mut buf = vec![];
+        PendingRequest {
+            sender: self.sender.clone(),
+            messages: messages(&mut buf).map(|()| buf),
+        }
     }
 }

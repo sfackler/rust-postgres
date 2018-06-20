@@ -33,7 +33,7 @@ pub use postgres_shared::{CancelData, Notification};
 
 use error::Error;
 use params::ConnectParams;
-use types::Type;
+use types::{ToSql, Type};
 
 mod proto;
 
@@ -67,6 +67,10 @@ impl Client {
     pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> Prepare {
         let name = format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst));
         Prepare(self.0.prepare(name, query, param_types))
+    }
+
+    pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> Execute {
+        Execute(self.0.execute(&statement.0, params))
     }
 }
 
@@ -129,5 +133,17 @@ impl Statement {
 
     pub fn columns(&self) -> &[Column] {
         self.0.columns()
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+pub struct Execute(proto::ExecuteFuture);
+
+impl Future for Execute {
+    type Item = u64;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<u64, Error> {
+        self.0.poll()
     }
 }

@@ -16,7 +16,7 @@ use {bad_response, disconnected};
 pub enum Prepare {
     #[state_machine_future(start, transitions(ReadParseComplete))]
     Start {
-        request: Result<PendingRequest, Error>,
+        request: PendingRequest,
         sender: mpsc::UnboundedSender<Request>,
         name: String,
     },
@@ -56,7 +56,7 @@ pub enum Prepare {
 impl PollPrepare for Prepare {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
         let state = state.take();
-        let receiver = state.request?.send()?;
+        let receiver = state.request.send()?;
 
         transition!(ReadParseComplete {
             sender: state.sender,
@@ -160,7 +160,7 @@ impl PollPrepare for Prepare {
 
 impl PrepareFuture {
     pub fn new(
-        request: Result<PendingRequest, Error>,
+        request: PendingRequest,
         sender: mpsc::UnboundedSender<Request>,
         name: String,
     ) -> PrepareFuture {
