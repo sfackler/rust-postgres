@@ -8,6 +8,7 @@ use error::{self, Error};
 use proto::connection::Request;
 use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
+use proto::query::QueryStream;
 use proto::statement::Statement;
 use types::{IsNull, ToSql, Type};
 
@@ -48,7 +49,17 @@ impl Client {
     }
 
     pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> ExecuteFuture {
-        let pending = self.pending(|buf| {
+        let pending = self.pending_execute(statement, params);
+        ExecuteFuture::new(pending, statement.clone())
+    }
+
+    pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> QueryStream {
+        let pending = self.pending_execute(statement, params);
+        QueryStream::new(pending, statement.clone())
+    }
+
+    fn pending_execute(&self, statement: &Statement, params: &[&ToSql]) -> PendingRequest {
+        self.pending(|buf| {
             let r = frontend::bind(
                 "",
                 statement.name(),
@@ -70,9 +81,7 @@ impl Client {
             frontend::execute("", 0, buf)?;
             frontend::sync(buf);
             Ok(())
-        });
-
-        ExecuteFuture::new(pending, statement.clone())
+        })
     }
 
     fn pending<F>(&self, messages: F) -> PendingRequest

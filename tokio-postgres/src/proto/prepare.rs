@@ -45,7 +45,7 @@ pub enum Prepare {
         receiver: mpsc::Receiver<Message>,
         name: String,
         parameters: ParameterDescriptionBody,
-        columns: RowDescriptionBody,
+        columns: Option<RowDescriptionBody>,
     },
     #[state_machine_future(ready)]
     Finished(Statement),
@@ -96,7 +96,6 @@ impl PollPrepare for Prepare {
                 name: state.name,
                 parameters: body,
             }),
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
             Some(_) => Err(bad_response()),
             None => Err(disconnected()),
         }
@@ -108,18 +107,20 @@ impl PollPrepare for Prepare {
         let message = try_receive!(state.receiver.poll());
         let state = state.take();
 
-        match message {
-            Some(Message::RowDescription(body)) => transition!(ReadReadyForQuery {
-                sender: state.sender,
-                receiver: state.receiver,
-                name: state.name,
-                parameters: state.parameters,
-                columns: body,
-            }),
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
-        }
+        let body = match message {
+            Some(Message::RowDescription(body)) => Some(body),
+            Some(Message::NoData) => None,
+            Some(_) => return Err(bad_response()),
+            None => return Err(disconnected()),
+        };
+
+        transition!(ReadReadyForQuery {
+            sender: state.sender,
+            receiver: state.receiver,
+            name: state.name,
+            parameters: state.parameters,
+            columns: body,
+        })
     }
 
     fn poll_read_ready_for_query<'a>(
@@ -136,13 +137,15 @@ impl PollPrepare for Prepare {
                     .parameters()
                     .map(|oid| Type::from_oid(oid).unwrap())
                     .collect()?;
-                let columns = state
-                    .columns
-                    .fields()
-                    .map(|f| {
-                        Column::new(f.name().to_string(), Type::from_oid(f.type_oid()).unwrap())
-                    })
-                    .collect()?;
+                let columns = match state.columns {
+                    Some(body) => body
+                        .fields()
+                        .map(|f| {
+                            Column::new(f.name().to_string(), Type::from_oid(f.type_oid()).unwrap())
+                        })
+                        .collect()?,
+                    None => vec![],
+                };
 
                 transition!(Finished(Statement::new(
                     state.sender,
@@ -151,7 +154,6 @@ impl PollPrepare for Prepare {
                     columns
                 )))
             }
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
             Some(_) => Err(bad_response()),
             None => Err(disconnected()),
         }

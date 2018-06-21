@@ -14,6 +14,8 @@ mod connection;
 mod execute;
 mod handshake;
 mod prepare;
+mod query;
+mod row;
 mod socket;
 mod statement;
 
@@ -23,5 +25,7 @@ pub use proto::connection::Connection;
 pub use proto::execute::ExecuteFuture;
 pub use proto::handshake::HandshakeFuture;
 pub use proto::prepare::PrepareFuture;
+pub use proto::query::QueryStream;
+pub use proto::row::Row;
 pub use proto::socket::Socket;
 pub use proto::statement::Statement;

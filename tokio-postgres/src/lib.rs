@@ -20,7 +20,9 @@ extern crate state_machine_future;
 #[cfg(unix)]
 extern crate tokio_uds;
 
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, Stream};
+use postgres_shared::rows::RowIndex;
+use std::fmt;
 use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -33,7 +35,7 @@ pub use postgres_shared::{CancelData, Notification};
 
 use error::Error;
 use params::ConnectParams;
-use types::{ToSql, Type};
+use types::{FromSql, ToSql, Type};
 
 mod proto;
 
@@ -71,6 +73,10 @@ impl Client {
 
     pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> Execute {
         Execute(self.0.execute(&statement.0, params))
+    }
+
+    pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
+        Query(self.0.query(&statement.0, params))
     }
 }
 
@@ -145,5 +151,50 @@ impl Future for Execute {
 
     fn poll(&mut self) -> Poll<u64, Error> {
         self.0.poll()
+    }
+}
+
+#[must_use = "streams do nothing unless polled"]
+pub struct Query(proto::QueryStream);
+
+impl Stream for Query {
+    type Item = Row;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Row>, Error> {
+        match self.0.poll() {
+            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+pub struct Row(proto::Row);
+
+impl Row {
+    pub fn columns(&self) -> &[Column] {
+        self.0.columns()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn get<'a, I, T>(&'a self, idx: I) -> T
+    where
+        I: RowIndex + fmt::Debug,
+        T: FromSql<'a>,
+    {
+        self.0.get(idx)
+    }
+
+    pub fn try_get<'a, I, T>(&'a self, idx: I) -> Result<Option<T>, Error>
+    where
+        I: RowIndex,
+        T: FromSql<'a>,
+    {
+        self.0.try_get(idx)
     }
 }
