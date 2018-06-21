@@ -46,10 +46,14 @@ fn insert_select() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let create = client.prepare("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)");
-    let create = runtime.block_on(create).unwrap();
-    let create = client.execute(&create, &[]).map(|n| assert_eq!(n, 0));
-    runtime.block_on(create).unwrap();
+    runtime
+        .block_on(
+            client
+                .prepare("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
+                .and_then(|create| client.execute(&create, &[]))
+                .map(|n| assert_eq!(n, 0)),
+        )
+        .unwrap();
 
     let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
     let select = client.prepare("SELECT id, name FROM foo ORDER BY id");
