@@ -2,8 +2,10 @@
 use std::error::Error;
 use std::mem;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::time::Duration;
 
+use error;
 use params::url::Url;
 
 mod url;
@@ -93,6 +95,14 @@ impl ConnectParams {
     /// This is ignored for Unix sockets.
     pub fn keepalive(&self) -> Option<Duration> {
         self.keepalive
+    }
+}
+
+impl FromStr for ConnectParams {
+    type Err = error::Error;
+
+    fn from_str(s: &str) -> Result<ConnectParams, error::Error> {
+        s.into_connect_params().map_err(error::connect)
     }
 }
 

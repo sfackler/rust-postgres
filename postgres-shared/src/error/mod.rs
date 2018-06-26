@@ -1,9 +1,9 @@
 //! Errors.
 
 use fallible_iterator::FallibleIterator;
-use postgres_protocol::message::backend::ErrorFields;
-use std::error;
+use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::convert::From;
+use std::error;
 use std::fmt;
 use std::io;
 
@@ -214,36 +214,29 @@ impl DbError {
         }
 
         Ok(DbError {
-            severity: severity.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing")
-            })?,
+            severity: severity
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing"))?,
             parsed_severity: parsed_severity,
-            code: code.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "`C` field missing")
-            })?,
-            message: message.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "`M` field missing")
-            })?,
+            code: code
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`C` field missing"))?,
+            message: message
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`M` field missing"))?,
             detail: detail,
             hint: hint,
             position: match normal_position {
                 Some(position) => Some(ErrorPosition::Normal(position)),
-                None => {
-                    match internal_position {
-                        Some(position) => {
-                            Some(ErrorPosition::Internal {
-                                position: position,
-                                query: internal_query.ok_or_else(|| {
-                                    io::Error::new(
-                                        io::ErrorKind::InvalidInput,
-                                        "`q` field missing but `p` field present",
-                                    )
-                                })?,
-                            })
-                        }
-                        None => None,
-                    }
-                }
+                None => match internal_position {
+                    Some(position) => Some(ErrorPosition::Internal {
+                        position: position,
+                        query: internal_query.ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "`q` field missing but `p` field present",
+                            )
+                        })?,
+                    }),
+                    None => None,
+                },
             },
             where_: where_,
             schema: schema,
@@ -325,6 +318,14 @@ pub fn db(e: DbError) -> Error {
 }
 
 #[doc(hidden)]
+pub fn __db(e: ErrorResponseBody) -> Error {
+    match DbError::new(&mut e.fields()) {
+        Ok(e) => Error(Box::new(ErrorKind::Db(e))),
+        Err(e) => Error(Box::new(ErrorKind::Io(e))),
+    }
+}
+
+#[doc(hidden)]
 pub fn io(e: io::Error) -> Error {
     Error(Box::new(ErrorKind::Io(e)))
 }
@@ -401,7 +402,7 @@ impl Error {
     pub fn as_db(&self) -> Option<&DbError> {
         match *self.0 {
             ErrorKind::Db(ref err) => Some(err),
-            _ => None
+            _ => None,
         }
     }
 
