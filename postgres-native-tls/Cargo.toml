@@ -4,6 +4,6 @@ version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 
 [dependencies]
-native-tls = "0.1"
+native-tls = "0.2"
 
 postgres = { version = "0.15", path = "../postgres" }

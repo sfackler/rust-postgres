@@ -8,8 +8,8 @@ fn connect() {
     let cert = include_bytes!("../../test/server.crt");
     let cert = Certificate::from_pem(cert).unwrap();
 
-    let mut builder = TlsConnector::builder().unwrap();
-    builder.add_root_certificate(cert).unwrap();
+    let mut builder = TlsConnector::builder();
+    builder.add_root_certificate(cert);
     let connector = builder.build().unwrap();
 
     let handshake = NativeTls::with_connector(connector);

@@ -22,7 +22,7 @@ impl Debug for NativeTls {
 
 impl NativeTls {
     pub fn new() -> Result<NativeTls, native_tls::Error> {
-        let connector = TlsConnector::builder()?.build()?;
+        let connector = TlsConnector::builder().build()?;
         Ok(NativeTls::with_connector(connector))
     }
 
