@@ -35,9 +35,11 @@ pub use postgres_shared::{CancelData, Notification};
 
 use error::Error;
 use params::ConnectParams;
+use tls::TlsConnect;
 use types::{FromSql, ToSql, Type};
 
 mod proto;
+pub mod tls;
 
 static NEXT_STATEMENT_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -55,8 +57,14 @@ fn disconnected() -> Error {
     ))
 }
 
-pub fn connect(params: ConnectParams) -> Handshake {
-    Handshake(proto::HandshakeFuture::new(params))
+pub enum TlsMode {
+    None,
+    Prefer(Box<TlsConnect>),
+    Require(Box<TlsConnect>),
+}
+
+pub fn connect(params: ConnectParams, tls: TlsMode) -> Handshake {
+    Handshake(proto::HandshakeFuture::new(params, tls))
 }
 
 pub struct Client(proto::Client);

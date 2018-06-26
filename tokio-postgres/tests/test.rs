@@ -6,12 +6,13 @@ use tokio::prelude::*;
 use tokio::runtime::current_thread::Runtime;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::Type;
+use tokio_postgres::TlsMode;
 
 fn smoke_test(url: &str) {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = tokio_postgres::connect(url.parse().unwrap());
+    let handshake = tokio_postgres::connect(url.parse().unwrap(), TlsMode::None);
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
@@ -34,7 +35,10 @@ fn plain_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = tokio_postgres::connect("postgres://pass_user@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://pass_user@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.as_connection().is_some() => {}
@@ -47,8 +51,10 @@ fn plain_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake =
-        tokio_postgres::connect("postgres://pass_user:foo@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://pass_user:foo@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -66,7 +72,10 @@ fn md5_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = tokio_postgres::connect("postgres://md5_user@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://md5_user@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.as_connection().is_some() => {}
@@ -79,8 +88,10 @@ fn md5_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake =
-        tokio_postgres::connect("postgres://md5_user:foo@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://md5_user:foo@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -98,8 +109,10 @@ fn scram_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake =
-        tokio_postgres::connect("postgres://scram_user@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://scram_user@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.as_connection().is_some() => {}
@@ -112,8 +125,10 @@ fn scram_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake =
-        tokio_postgres::connect("postgres://scram_user:foo@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://scram_user:foo@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -131,7 +146,10 @@ fn pipelined_prepare() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = tokio_postgres::connect("postgres://postgres@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://postgres@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
@@ -161,7 +179,10 @@ fn insert_select() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = tokio_postgres::connect("postgres://postgres@localhost:5433".parse().unwrap());
+    let handshake = tokio_postgres::connect(
+        "postgres://postgres@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();

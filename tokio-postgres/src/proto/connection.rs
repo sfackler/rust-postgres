@@ -9,7 +9,7 @@ use tokio_codec::Framed;
 use disconnected;
 use error::{self, Error};
 use proto::codec::PostgresCodec;
-use proto::socket::Socket;
+use tls::TlsStream;
 use {bad_response, CancelData};
 
 pub struct Request {
@@ -25,7 +25,7 @@ enum State {
 }
 
 pub struct Connection {
-    stream: Framed<Socket, PostgresCodec>,
+    stream: Framed<Box<TlsStream>, PostgresCodec>,
     cancel_data: CancelData,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
@@ -37,7 +37,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn new(
-        stream: Framed<Socket, PostgresCodec>,
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
         cancel_data: CancelData,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,

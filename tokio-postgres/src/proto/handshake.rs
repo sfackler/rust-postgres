@@ -8,55 +8,84 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use state_machine_future::RentToOwn;
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::io;
 use tokio_codec::Framed;
+use tokio_io::io::{read_exact, write_all, ReadExact, WriteAll};
 
 use error::{self, Error};
-use params::{ConnectParams, User};
+use params::{ConnectParams, Host, User};
 use proto::client::Client;
 use proto::codec::PostgresCodec;
 use proto::connection::Connection;
 use proto::socket::{ConnectFuture, Socket};
-use {bad_response, disconnected, CancelData};
+use tls::{self, TlsConnect, TlsStream};
+use {bad_response, disconnected, CancelData, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Handshake {
-    #[state_machine_future(start, transitions(SendingStartup))]
+    #[state_machine_future(start, transitions(BuildingStartup, SendingSsl))]
     Start {
         future: ConnectFuture,
+        params: ConnectParams,
+        tls: TlsMode,
+    },
+    #[state_machine_future(transitions(ReadingSsl))]
+    SendingSsl {
+        future: WriteAll<Socket, Vec<u8>>,
+        params: ConnectParams,
+        connector: Box<TlsConnect>,
+        required: bool,
+    },
+    #[state_machine_future(transitions(ConnectingTls, BuildingStartup))]
+    ReadingSsl {
+        future: ReadExact<Socket, [u8; 1]>,
+        params: ConnectParams,
+        connector: Box<TlsConnect>,
+        required: bool,
+    },
+    #[state_machine_future(transitions(BuildingStartup))]
+    ConnectingTls {
+        future:
+            Box<Future<Item = Box<TlsStream>, Error = Box<StdError + Sync + Send>> + Sync + Send>,
+        params: ConnectParams,
+    },
+    #[state_machine_future(transitions(SendingStartup))]
+    BuildingStartup {
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
         params: ConnectParams,
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
-        future: sink::Send<Framed<Socket, PostgresCodec>>,
+        future: sink::Send<Framed<Box<TlsStream>, PostgresCodec>>,
         user: User,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
-        stream: Framed<Socket, PostgresCodec>,
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
         user: User,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
     SendingPassword {
-        future: sink::Send<Framed<Socket, PostgresCodec>>,
+        future: sink::Send<Framed<Box<TlsStream>, PostgresCodec>>,
     },
     #[state_machine_future(transitions(ReadingSasl))]
     SendingSasl {
-        future: sink::Send<Framed<Socket, PostgresCodec>>,
+        future: sink::Send<Framed<Box<TlsStream>, PostgresCodec>>,
         scram: ScramSha256,
     },
     #[state_machine_future(transitions(SendingSasl, ReadingAuthCompletion))]
     ReadingSasl {
-        stream: Framed<Socket, PostgresCodec>,
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
         scram: ScramSha256,
     },
     #[state_machine_future(transitions(ReadingInfo))]
     ReadingAuthCompletion {
-        stream: Framed<Socket, PostgresCodec>,
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
     },
     #[state_machine_future(transitions(Finished))]
     ReadingInfo {
-        stream: Framed<Socket, PostgresCodec>,
+        stream: Framed<Box<TlsStream>, PostgresCodec>,
         cancel_data: Option<CancelData>,
         parameters: HashMap<String, String>,
     },
@@ -69,6 +98,84 @@ pub enum Handshake {
 impl PollHandshake for Handshake {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
         let stream = try_ready!(state.future.poll());
+        let state = state.take();
+
+        let (connector, required) = match state.tls {
+            TlsMode::None => {
+                transition!(BuildingStartup {
+                    stream: Framed::new(Box::new(stream), PostgresCodec),
+                    params: state.params,
+                });
+            }
+            TlsMode::Prefer(connector) => (connector, false),
+            TlsMode::Require(connector) => (connector, true),
+        };
+
+        let mut buf = vec![];
+        frontend::ssl_request(&mut buf);
+        transition!(SendingSsl {
+            future: write_all(stream, buf),
+            params: state.params,
+            connector,
+            required,
+        })
+    }
+
+    fn poll_sending_ssl<'a>(
+        state: &'a mut RentToOwn<'a, SendingSsl>,
+    ) -> Poll<AfterSendingSsl, Error> {
+        let (stream, _) = try_ready!(state.future.poll());
+        let state = state.take();
+        transition!(ReadingSsl {
+            future: read_exact(stream, [0]),
+            params: state.params,
+            connector: state.connector,
+            required: state.required,
+        })
+    }
+
+    fn poll_reading_ssl<'a>(
+        state: &'a mut RentToOwn<'a, ReadingSsl>,
+    ) -> Poll<AfterReadingSsl, Error> {
+        let (stream, buf) = try_ready!(state.future.poll());
+        let state = state.take();
+
+        match buf[0] {
+            b'S' => {
+                let future = match state.params.host() {
+                    Host::Tcp(domain) => state.connector.connect(domain, tls::Socket(stream)),
+                    Host::Unix(_) => {
+                        return Err(error::tls("TLS over unix sockets not supported".into()))
+                    }
+                };
+                transition!(ConnectingTls {
+                    future,
+                    params: state.params,
+                })
+            }
+            b'N' if !state.required => transition!(BuildingStartup {
+                stream: Framed::new(Box::new(stream), PostgresCodec),
+                params: state.params,
+            }),
+            b'N' => Err(error::tls("TLS was required but not supported".into())),
+            _ => Err(bad_response()),
+        }
+    }
+
+    fn poll_connecting_tls<'a>(
+        state: &'a mut RentToOwn<'a, ConnectingTls>,
+    ) -> Poll<AfterConnectingTls, Error> {
+        let stream = try_ready!(state.future.poll().map_err(error::tls));
+        let state = state.take();
+        transition!(BuildingStartup {
+            stream: Framed::new(stream, PostgresCodec),
+            params: state.params,
+        })
+    }
+
+    fn poll_building_startup<'a>(
+        state: &'a mut RentToOwn<'a, BuildingStartup>,
+    ) -> Poll<AfterBuildingStartup, Error> {
         let state = state.take();
 
         let user = match state.params.user() {
@@ -102,10 +209,8 @@ impl PollHandshake for Handshake {
             )?;
         }
 
-        let stream = Framed::new(stream, PostgresCodec);
-
         transition!(SendingStartup {
-            future: stream.send(buf),
+            future: state.stream.send(buf),
             user,
         })
     }
@@ -298,8 +403,8 @@ impl PollHandshake for Handshake {
 }
 
 impl HandshakeFuture {
-    pub fn new(params: ConnectParams) -> HandshakeFuture {
-        Handshake::start(Socket::connect(&params), params)
+    pub fn new(params: ConnectParams, tls: TlsMode) -> HandshakeFuture {
+        Handshake::start(Socket::connect(&params), params, tls)
     }
 }
 
