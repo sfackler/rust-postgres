@@ -10,6 +10,7 @@ macro_rules! try_receive {
 
 mod client;
 mod codec;
+mod connect;
 mod connection;
 mod execute;
 mod handshake;
