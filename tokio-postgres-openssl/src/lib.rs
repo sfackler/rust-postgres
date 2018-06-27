@@ -11,7 +11,7 @@ extern crate tokio;
 use bytes::{Buf, BufMut};
 use futures::{Future, IntoFuture, Poll};
 use openssl::error::ErrorStack;
-use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod};
+use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslRef};
 use std::error::Error;
 use std::io::{self, Read, Write};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -124,4 +124,18 @@ impl AsyncWrite for SslStream {
     }
 }
 
-impl TlsStream for SslStream {}
+impl TlsStream for SslStream {
+    fn tls_unique(&self) -> Option<Vec<u8>> {
+        let f = if self.0.get_ref().ssl().session_reused() {
+            SslRef::peer_finished
+        } else {
+            SslRef::finished
+        };
+
+        let len = f(self.0.get_ref().ssl(), &mut []);
+        let mut buf = vec![0; len];
+        f(self.0.get_ref().ssl(), &mut buf);
+
+        Some(buf)
+    }
+}

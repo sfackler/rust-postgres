@@ -58,6 +58,26 @@ pub trait TlsConnect {
     ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send>;
 }
 
-pub trait TlsStream: 'static + Sync + Send + AsyncRead + AsyncWrite {}
+pub trait TlsStream: 'static + Sync + Send + AsyncRead + AsyncWrite {
+    /// Returns the data associated with the `tls-unique` channel binding type as described in
+    /// [RFC 5929], if supported.
+    ///
+    /// An implementation only needs to support one of this or `tls_server_end_point`.
+    ///
+    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
+    fn tls_unique(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Returns the data associated with the `tls-server-end-point` channel binding type as
+    /// described in [RFC 5929], if supported.
+    ///
+    /// An implementation only needs to support one of this or `tls_unique`.
+    ///
+    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
+    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
+        None
+    }
+}
 
 impl TlsStream for proto::Socket {}

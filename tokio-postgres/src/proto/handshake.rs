@@ -263,25 +263,49 @@ impl PollHandshake for Handshake {
                 let pass = state.user.password().ok_or_else(missing_password)?;
 
                 let mut has_scram = false;
+                let mut has_scram_plus = false;
                 let mut mechanisms = body.mechanisms();
                 while let Some(mechanism) = mechanisms.next()? {
                     match mechanism {
                         sasl::SCRAM_SHA_256 => has_scram = true,
+                        sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
                         _ => {}
                     }
                 }
+                let channel_binding = state
+                    .stream
+                    .get_ref()
+                    .tls_unique()
+                    .map(ChannelBinding::tls_unique)
+                    .or_else(|| {
+                        state
+                            .stream
+                            .get_ref()
+                            .tls_server_end_point()
+                            .map(ChannelBinding::tls_server_end_point)
+                    });
 
-                if !has_scram {
+                let (channel_binding, mechanism) = if has_scram_plus {
+                    match channel_binding {
+                        Some(channel_binding) => (channel_binding, sasl::SCRAM_SHA_256_PLUS),
+                        None => (ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+                    }
+                } else if has_scram {
+                    match channel_binding {
+                        Some(_) => (ChannelBinding::unrequested(), sasl::SCRAM_SHA_256),
+                        None => (ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+                    }
+                } else {
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
                         "unsupported SASL authentication",
                     ).into());
-                }
+                };
 
-                let mut scram = ScramSha256::new(pass.as_bytes(), ChannelBinding::unsupported())?;
+                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding)?;
 
                 let mut buf = vec![];
-                frontend::sasl_initial_response(sasl::SCRAM_SHA_256, scram.message(), &mut buf)?;
+                frontend::sasl_initial_response(mechanism, scram.message(), &mut buf)?;
 
                 transition!(SendingSasl {
                     future: state.stream.send(buf),
