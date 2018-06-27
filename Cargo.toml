@@ -7,6 +7,7 @@ members = [
     "postgres-openssl",
     "postgres-native-tls",
     "tokio-postgres",
+    "tokio-postgres-openssl",
 ]
 
 [patch.crates-io]
