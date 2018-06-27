@@ -2,9 +2,7 @@ pub extern crate openssl;
 extern crate postgres;
 
 use openssl::error::ErrorStack;
-use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
-use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslStream};
+use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslRef, SslStream};
 use postgres::tls::{Stream, TlsHandshake, TlsStream};
 use std::error::Error;
 use std::fmt;
@@ -87,18 +85,16 @@ impl TlsStream for OpenSslStream {
         self.0.get_mut()
     }
 
-    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
-        let cert = self.0.ssl().peer_certificate()?;
-        let algo_nid = cert.signature_algorithm().object().nid();
-        let signature_algorithms = algo_nid.signature_algorithms()?;
-
-        let md = match signature_algorithms.digest {
-            Nid::MD5 | Nid::SHA1 => MessageDigest::sha256(),
-            nid => MessageDigest::from_nid(nid)?,
+    fn tls_unique(&self) -> Option<Vec<u8>> {
+        let f = if self.0.ssl().session_reused() {
+            SslRef::peer_finished
+        } else {
+            SslRef::finished
         };
 
-        let digest = cert.digest(md).ok()?;
-
-        Some(digest.to_vec())
+        let len = f(self.0.ssl(), &mut []);
+        let mut buf = vec![0; len];
+        f(self.0.ssl(), &mut buf);
+        Some(buf)
     }
 }
