@@ -7,7 +7,7 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 use std::vec;
-use tokio_io::io::{read_exact, write_all, ReadExact, WriteAll};
+use tokio_io::io::{flush, read_exact, write_all, Flush, ReadExact, WriteAll};
 use tokio_tcp::{self, TcpStream};
 use tokio_timer::Delay;
 
@@ -59,9 +59,16 @@ pub enum Connect {
         params: ConnectParams,
         tls: TlsMode,
     },
-    #[state_machine_future(transitions(ReadingSsl))]
+    #[state_machine_future(transitions(FlushingSsl))]
     SendingSsl {
         future: WriteAll<Socket, Vec<u8>>,
+        params: ConnectParams,
+        connector: Box<TlsConnect>,
+        required: bool,
+    },
+    #[state_machine_future(transitions(ReadingSsl))]
+    FlushingSsl {
+        future: Flush<Socket>,
         params: ConnectParams,
         connector: Box<TlsConnect>,
         required: bool,
@@ -227,6 +234,19 @@ impl PollConnect for Connect {
         state: &'a mut RentToOwn<'a, SendingSsl>,
     ) -> Poll<AfterSendingSsl, Error> {
         let (stream, _) = try_ready!(state.future.poll());
+        let state = state.take();
+        transition!(FlushingSsl {
+            future: flush(stream),
+            params: state.params,
+            connector: state.connector,
+            required: state.required,
+        })
+    }
+
+    fn poll_flushing_ssl<'a>(
+        state: &'a mut RentToOwn<'a, FlushingSsl>,
+    ) -> Poll<AfterFlushingSsl, Error> {
+        let stream = try_ready!(state.future.poll());
         let state = state.take();
         transition!(ReadingSsl {
             future: read_exact(stream, [0]),

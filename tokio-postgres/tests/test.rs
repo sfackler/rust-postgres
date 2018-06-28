@@ -1,9 +1,12 @@
 extern crate env_logger;
+extern crate futures;
 extern crate tokio;
 extern crate tokio_postgres;
 
+use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::runtime::current_thread::Runtime;
+use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::Type;
 use tokio_postgres::TlsMode;
@@ -213,4 +216,43 @@ fn insert_select() {
     });
     let tests = insert.join(select);
     runtime.block_on(tests).unwrap();
+}
+
+#[test]
+fn cancel_query() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let handshake = tokio_postgres::connect(
+        "postgres://postgres@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
+    let (mut client, connection) = runtime.block_on(handshake).unwrap();
+    let cancel_data = connection.cancel_data();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    let sleep = client.prepare("SELECT pg_sleep(100)");
+    let sleep = runtime.block_on(sleep).unwrap();
+
+    let sleep = client.execute(&sleep, &[]).then(|r| match r {
+        Ok(_) => panic!("unexpected success"),
+        Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
+        Err(e) => panic!("unexpected error {}", e),
+    });
+    let cancel = Delay::new(Instant::now() + Duration::from_millis(100))
+        .then(|r| {
+            r.unwrap();
+            tokio_postgres::cancel_query(
+                "postgres://postgres@localhost:5433".parse().unwrap(),
+                TlsMode::None,
+                cancel_data,
+            )
+        })
+        .then(|r| {
+            r.unwrap();
+            Ok::<(), ()>(())
+        });
+
+    let ((), ()) = runtime.block_on(sleep.join(cancel)).unwrap();
 }

@@ -8,6 +8,7 @@ macro_rules! try_receive {
     };
 }
 
+mod cancel;
 mod client;
 mod codec;
 mod connect;
@@ -20,6 +21,7 @@ mod row;
 mod socket;
 mod statement;
 
+pub use proto::cancel::CancelFuture;
 pub use proto::client::Client;
 pub use proto::codec::PostgresCodec;
 pub use proto::connection::Connection;

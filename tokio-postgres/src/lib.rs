@@ -63,6 +63,10 @@ pub enum TlsMode {
     Require(Box<TlsConnect>),
 }
 
+pub fn cancel_query(params: ConnectParams, tls: TlsMode, cancel_data: CancelData) -> CancelQuery {
+    CancelQuery(proto::CancelFuture::new(params, tls, cancel_data))
+}
+
 pub fn connect(params: ConnectParams, tls: TlsMode) -> Handshake {
     Handshake(proto::HandshakeFuture::new(params, tls))
 }
@@ -102,6 +106,18 @@ impl Connection {
 }
 
 impl Future for Connection {
+    type Item = ();
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(), Error> {
+        self.0.poll()
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+pub struct CancelQuery(proto::CancelFuture);
+
+impl Future for CancelQuery {
     type Item = ();
     type Error = Error;
 
