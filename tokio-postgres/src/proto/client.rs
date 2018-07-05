@@ -1,7 +1,10 @@
+use antidote::Mutex;
 use futures::sync::mpsc;
 use postgres_protocol;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use disconnected;
 use error::{self, Error};
@@ -10,7 +13,7 @@ use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use proto::statement::Statement;
-use types::{IsNull, ToSql, Type};
+use types::{IsNull, Oid, ToSql, Type};
 
 pub struct PendingRequest {
     sender: mpsc::UnboundedSender<Request>,
@@ -28,13 +31,30 @@ impl PendingRequest {
     }
 }
 
+pub struct State {
+    pub types: HashMap<Oid, Type>,
+    pub typeinfo_query: Option<Statement>,
+    pub typeinfo_enum_query: Option<Statement>,
+    pub typeinfo_composite_query: Option<Statement>,
+}
+
+#[derive(Clone)]
 pub struct Client {
+    pub state: Arc<Mutex<State>>,
     sender: mpsc::UnboundedSender<Request>,
 }
 
 impl Client {
     pub fn new(sender: mpsc::UnboundedSender<Request>) -> Client {
-        Client { sender }
+        Client {
+            state: Arc::new(Mutex::new(State {
+                types: HashMap::new(),
+                typeinfo_query: None,
+                typeinfo_enum_query: None,
+                typeinfo_composite_query: None,
+            })),
+            sender,
+        }
     }
 
     pub fn prepare(&mut self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {
@@ -45,7 +65,7 @@ impl Client {
             Ok(())
         });
 
-        PrepareFuture::new(pending, self.sender.clone(), name)
+        PrepareFuture::new(pending, self.sender.clone(), name, self.clone())
     }
 
     pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> ExecuteFuture {

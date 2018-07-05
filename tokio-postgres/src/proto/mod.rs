@@ -20,6 +20,9 @@ mod query;
 mod row;
 mod socket;
 mod statement;
+mod typeinfo;
+mod typeinfo_composite;
+mod typeinfo_enum;
 
 pub use proto::cancel::CancelFuture;
 pub use proto::client::Client;

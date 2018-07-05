@@ -1,3 +1,4 @@
+extern crate antidote;
 extern crate bytes;
 extern crate fallible_iterator;
 extern crate futures_cpupool;
