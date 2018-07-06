@@ -144,16 +144,9 @@ impl PollConnect for Connect {
     fn poll_connecting_tcp<'a>(
         state: &'a mut RentToOwn<'a, ConnectingTcp>,
     ) -> Poll<AfterConnectingTcp, Error> {
-        loop {
+        let socket = loop {
             let error = match state.future.poll() {
-                Ok(Async::Ready(socket)) => {
-                    let state = state.take();
-                    transition!(PreparingSsl {
-                        socket: Socket::Tcp(socket),
-                        params: state.params,
-                        tls: state.tls,
-                    })
-                }
+                Ok(Async::Ready(socket)) => break socket,
                 Ok(Async::NotReady) => match state.timeout {
                     Some((_, ref mut delay)) => {
                         try_ready!(
@@ -177,7 +170,19 @@ impl PollConnect for Connect {
             if let Some((timeout, ref mut delay)) = state.timeout {
                 delay.reset(Instant::now() + timeout);
             }
-        }
+        };
+
+        // Our read/write patterns may trigger Nagle's algorithm since we're pipelining which
+        // we don't want. Each individual write should be a full command we want the backend to
+        // see immediately.
+        socket.set_nodelay(true)?;
+
+        let state = state.take();
+        transition!(PreparingSsl {
+            socket: Socket::Tcp(socket),
+            params: state.params,
+            tls: state.tls,
+        })
     }
 
     #[cfg(unix)]
