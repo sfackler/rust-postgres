@@ -1,13 +1,11 @@
-use futures::sync::mpsc;
-use postgres_protocol::message::frontend;
 use postgres_shared::stmt::Column;
 use std::sync::Arc;
 
-use proto::connection::Request;
+use proto::client::WeakClient;
 use types::Type;
 
 pub struct StatementInner {
-    sender: mpsc::UnboundedSender<Request>,
+    client: WeakClient,
     name: String,
     params: Vec<Type>,
     columns: Vec<Column>,
@@ -15,14 +13,9 @@ pub struct StatementInner {
 
 impl Drop for StatementInner {
     fn drop(&mut self) {
-        let mut buf = vec![];
-        frontend::close(b'S', &self.name, &mut buf).expect("statement name not valid");
-        frontend::sync(&mut buf);
-        let (sender, _) = mpsc::channel(0);
-        let _ = self.sender.unbounded_send(Request {
-            messages: buf,
-            sender,
-        });
+        if let Some(client) = self.client.upgrade() {
+            client.close_statement(&self.name);
+        }
     }
 }
 
@@ -31,13 +24,13 @@ pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
     pub fn new(
-        sender: mpsc::UnboundedSender<Request>,
+        client: WeakClient,
         name: String,
         params: Vec<Type>,
         columns: Vec<Column>,
     ) -> Statement {
         Statement(Arc::new(StatementInner {
-            sender,
+            client,
             name,
             params,
             columns,

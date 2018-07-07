@@ -4,13 +4,14 @@ use postgres_protocol::message::backend::Message;
 use std::mem;
 
 use error::{self, Error};
-use proto::client::PendingRequest;
+use proto::client::{Client, PendingRequest};
 use proto::row::Row;
 use proto::statement::Statement;
 use {bad_response, disconnected};
 
 enum State {
     Start {
+        client: Client,
         request: PendingRequest,
         statement: Statement,
     },
@@ -33,8 +34,12 @@ impl Stream for QueryStream {
     fn poll(&mut self) -> Poll<Option<Row>, Error> {
         loop {
             match mem::replace(&mut self.0, State::Done) {
-                State::Start { request, statement } => {
-                    let receiver = request.send()?;
+                State::Start {
+                    client,
+                    request,
+                    statement,
+                } => {
+                    let receiver = client.send(request)?;
                     self.0 = State::ReadingResponse {
                         receiver,
                         statement,
@@ -102,7 +107,11 @@ impl Stream for QueryStream {
 }
 
 impl QueryStream {
-    pub fn new(request: PendingRequest, statement: Statement) -> QueryStream {
-        QueryStream(State::Start { request, statement })
+    pub fn new(client: Client, request: PendingRequest, statement: Statement) -> QueryStream {
+        QueryStream(State::Start {
+            client,
+            request,
+            statement,
+        })
     }
 }

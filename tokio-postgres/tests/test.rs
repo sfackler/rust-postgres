@@ -482,17 +482,14 @@ fn notifications() {
     let listen = client.prepare("LISTEN test_notifications");
     let listen = runtime.block_on(listen).unwrap();
     runtime.block_on(client.execute(&listen, &[])).unwrap();
-    drop(listen); // FIXME
 
     let notify = client.prepare("NOTIFY test_notifications, 'hello'");
     let notify = runtime.block_on(notify).unwrap();
     runtime.block_on(client.execute(&notify, &[])).unwrap();
-    drop(notify); // FIXME
 
     let notify = client.prepare("NOTIFY test_notifications, 'world'");
     let notify = runtime.block_on(notify).unwrap();
     runtime.block_on(client.execute(&notify, &[])).unwrap();
-    drop(notify); // FIXME
 
     drop(client);
     runtime.run().unwrap();

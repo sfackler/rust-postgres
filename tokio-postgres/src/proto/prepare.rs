@@ -8,7 +8,6 @@ use std::vec;
 
 use error::{self, Error};
 use proto::client::{Client, PendingRequest};
-use proto::connection::Request;
 use proto::statement::Statement;
 use proto::typeinfo::TypeinfoFuture;
 use types::{Oid, Type};
@@ -19,47 +18,41 @@ use {bad_response, disconnected};
 pub enum Prepare {
     #[state_machine_future(start, transitions(ReadParseComplete))]
     Start {
-        request: PendingRequest,
-        sender: mpsc::UnboundedSender<Request>,
-        name: String,
         client: Client,
+        request: PendingRequest,
+        name: String,
     },
     #[state_machine_future(transitions(ReadParameterDescription))]
     ReadParseComplete {
-        sender: mpsc::UnboundedSender<Request>,
+        client: Client,
         receiver: mpsc::Receiver<Message>,
         name: String,
-        client: Client,
     },
     #[state_machine_future(transitions(ReadRowDescription))]
     ReadParameterDescription {
-        sender: mpsc::UnboundedSender<Request>,
+        client: Client,
         receiver: mpsc::Receiver<Message>,
         name: String,
-        client: Client,
     },
     #[state_machine_future(transitions(ReadReadyForQuery))]
     ReadRowDescription {
-        sender: mpsc::UnboundedSender<Request>,
+        client: Client,
         receiver: mpsc::Receiver<Message>,
         name: String,
         parameters: Vec<Oid>,
-        client: Client,
     },
     #[state_machine_future(transitions(GetParameterTypes, GetColumnTypes, Finished))]
     ReadReadyForQuery {
-        sender: mpsc::UnboundedSender<Request>,
+        client: Client,
         receiver: mpsc::Receiver<Message>,
         name: String,
         parameters: Vec<Oid>,
         columns: Vec<(String, Oid)>,
-        client: Client,
     },
     #[state_machine_future(transitions(GetColumnTypes, Finished))]
     GetParameterTypes {
         future: TypeinfoFuture,
         remaining_parameters: vec::IntoIter<Oid>,
-        sender: mpsc::UnboundedSender<Request>,
         name: String,
         parameters: Vec<Type>,
         columns: Vec<(String, Oid)>,
@@ -69,7 +62,6 @@ pub enum Prepare {
         future: TypeinfoFuture,
         cur_column_name: String,
         remaining_columns: vec::IntoIter<(String, Oid)>,
-        sender: mpsc::UnboundedSender<Request>,
         name: String,
         parameters: Vec<Type>,
         columns: Vec<Column>,
@@ -83,10 +75,9 @@ pub enum Prepare {
 impl PollPrepare for Prepare {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
         let state = state.take();
-        let receiver = state.request.send()?;
+        let receiver = state.client.send(state.request)?;
 
         transition!(ReadParseComplete {
-            sender: state.sender,
             receiver,
             name: state.name,
             client: state.client,
@@ -101,7 +92,6 @@ impl PollPrepare for Prepare {
 
         match message {
             Some(Message::ParseComplete) => transition!(ReadParameterDescription {
-                sender: state.sender,
                 receiver: state.receiver,
                 name: state.name,
                 client: state.client,
@@ -120,7 +110,6 @@ impl PollPrepare for Prepare {
 
         match message {
             Some(Message::ParameterDescription(body)) => transition!(ReadRowDescription {
-                sender: state.sender,
                 receiver: state.receiver,
                 name: state.name,
                 parameters: body.parameters().collect()?,
@@ -148,7 +137,6 @@ impl PollPrepare for Prepare {
         };
 
         transition!(ReadReadyForQuery {
-            sender: state.sender,
             receiver: state.receiver,
             name: state.name,
             parameters: state.parameters,
@@ -174,7 +162,6 @@ impl PollPrepare for Prepare {
             transition!(GetParameterTypes {
                 future: TypeinfoFuture::new(oid, state.client),
                 remaining_parameters: parameters,
-                sender: state.sender,
                 name: state.name,
                 parameters: vec![],
                 columns: state.columns,
@@ -187,7 +174,6 @@ impl PollPrepare for Prepare {
                 future: TypeinfoFuture::new(oid, state.client),
                 cur_column_name: name,
                 remaining_columns: columns,
-                sender: state.sender,
                 name: state.name,
                 parameters: vec![],
                 columns: vec![],
@@ -195,7 +181,7 @@ impl PollPrepare for Prepare {
         }
 
         transition!(Finished(Statement::new(
-            state.sender,
+            state.client.downgrade(),
             state.name,
             vec![],
             vec![]
@@ -222,7 +208,6 @@ impl PollPrepare for Prepare {
                 future: TypeinfoFuture::new(oid, client),
                 cur_column_name: name,
                 remaining_columns: columns,
-                sender: state.sender,
                 name: state.name,
                 parameters: state.parameters,
                 columns: vec![],
@@ -230,7 +215,7 @@ impl PollPrepare for Prepare {
         }
 
         transition!(Finished(Statement::new(
-            state.sender,
+            client.downgrade(),
             state.name,
             state.parameters,
             vec![],
@@ -240,7 +225,7 @@ impl PollPrepare for Prepare {
     fn poll_get_column_types<'a>(
         state: &'a mut RentToOwn<'a, GetColumnTypes>,
     ) -> Poll<AfterGetColumnTypes, Error> {
-        loop {
+        let client = loop {
             let (ty, client) = try_ready!(state.future.poll());
             let name = mem::replace(&mut state.cur_column_name, String::new());
             state.columns.push(Column::new(name, ty));
@@ -250,13 +235,13 @@ impl PollPrepare for Prepare {
                     state.cur_column_name = name;
                     state.future = TypeinfoFuture::new(oid, client);
                 }
-                None => break,
+                None => break client,
             }
-        }
+        };
         let state = state.take();
 
         transition!(Finished(Statement::new(
-            state.sender,
+            client.downgrade(),
             state.name,
             state.parameters,
             state.columns,
@@ -265,12 +250,7 @@ impl PollPrepare for Prepare {
 }
 
 impl PrepareFuture {
-    pub fn new(
-        request: PendingRequest,
-        sender: mpsc::UnboundedSender<Request>,
-        name: String,
-        client: Client,
-    ) -> PrepareFuture {
-        Prepare::start(request, sender, name, client)
+    pub fn new(client: Client, request: PendingRequest, name: String) -> PrepareFuture {
+        Prepare::start(client, request, name)
     }
 }

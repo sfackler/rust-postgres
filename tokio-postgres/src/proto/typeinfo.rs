@@ -31,7 +31,10 @@ WHERE t.oid = $1
 
 #[derive(StateMachineFuture)]
 pub enum Typeinfo {
-    #[state_machine_future(start, transitions(PreparingTypeinfo, QueryingTypeinfo, Finished))]
+    #[state_machine_future(
+        start,
+        transitions(PreparingTypeinfo, QueryingTypeinfo, Finished)
+    )]
     Start { oid: Oid, client: Client },
     #[state_machine_future(transitions(PreparingTypeinfoFallback, QueryingTypeinfo))]
     PreparingTypeinfo {
@@ -47,8 +50,12 @@ pub enum Typeinfo {
     },
     #[state_machine_future(
         transitions(
-            CachingType, QueryingEnumVariants, QueryingDomainBasetype, QueryingArrayElem,
-            QueryingCompositeFields, QueryingRangeSubtype
+            CachingType,
+            QueryingEnumVariants,
+            QueryingDomainBasetype,
+            QueryingArrayElem,
+            QueryingCompositeFields,
+            QueryingRangeSubtype
         )
     )]
     QueryingTypeinfo {
@@ -101,19 +108,17 @@ pub enum Typeinfo {
 
 impl PollTypeinfo for Typeinfo {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
-        let mut state = state.take();
+        let state = state.take();
 
         if let Some(ty) = Type::from_oid(state.oid) {
             transition!(Finished((ty, state.client)));
         }
 
-        let ty = state.client.state.lock().types.get(&state.oid).cloned();
-        if let Some(ty) = ty {
+        if let Some(ty) = state.client.cached_type(state.oid) {
             transition!(Finished((ty, state.client)));
         }
 
-        let statement = state.client.state.lock().typeinfo_query.clone();
-        match statement {
+        match state.client.typeinfo_query() {
             Some(statement) => transition!(QueryingTypeinfo {
                 future: state.client.query(&statement, &[&state.oid]).collect(),
                 oid: state.oid,
@@ -152,10 +157,10 @@ impl PollTypeinfo for Typeinfo {
             }
             Err(e) => return Err(e),
         };
-        let mut state = state.take();
+        let state = state.take();
 
         let future = state.client.query(&statement, &[&state.oid]).collect();
-        state.client.state.lock().typeinfo_query = Some(statement);
+        state.client.set_typeinfo_query(&statement);
         transition!(QueryingTypeinfo {
             future,
             oid: state.oid,
@@ -167,10 +172,10 @@ impl PollTypeinfo for Typeinfo {
         state: &'a mut RentToOwn<'a, PreparingTypeinfoFallback>,
     ) -> Poll<AfterPreparingTypeinfoFallback, Error> {
         let statement = try_ready!(state.future.poll());
-        let mut state = state.take();
+        let state = state.take();
 
         let future = state.client.query(&statement, &[&state.oid]).collect();
-        state.client.state.lock().typeinfo_query = Some(statement);
+        state.client.set_typeinfo_query(&statement);
         transition!(QueryingTypeinfo {
             future,
             oid: state.oid,
@@ -320,12 +325,7 @@ impl PollTypeinfo for Typeinfo {
         state: &'a mut RentToOwn<'a, CachingType>,
     ) -> Poll<AfterCachingType, Error> {
         let state = state.take();
-        state
-            .client
-            .state
-            .lock()
-            .types
-            .insert(state.oid, state.ty.clone());
+        state.client.cache_type(&state.ty);
         transition!(Finished((state.ty, state.client)))
     }
 }

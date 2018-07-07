@@ -4,7 +4,7 @@ use postgres_protocol::message::backend::Message;
 use state_machine_future::RentToOwn;
 
 use error::{self, Error};
-use proto::client::PendingRequest;
+use proto::client::{Client, PendingRequest};
 use proto::statement::Statement;
 use {bad_response, disconnected};
 
@@ -12,6 +12,7 @@ use {bad_response, disconnected};
 pub enum Execute {
     #[state_machine_future(start, transitions(ReadResponse))]
     Start {
+        client: Client,
         request: PendingRequest,
         statement: Statement,
     },
@@ -31,7 +32,7 @@ pub enum Execute {
 impl PollExecute for Execute {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
         let state = state.take();
-        let receiver = state.request.send()?;
+        let receiver = state.client.send(state.request)?;
 
         // the statement can drop after this point, since its close will queue up after the execution
         transition!(ReadResponse { receiver })
@@ -82,7 +83,7 @@ impl PollExecute for Execute {
 }
 
 impl ExecuteFuture {
-    pub fn new(request: PendingRequest, statement: Statement) -> ExecuteFuture {
-        Execute::start(request, statement)
+    pub fn new(client: Client, request: PendingRequest, statement: Statement) -> ExecuteFuture {
+        Execute::start(client, request, statement)
     }
 }

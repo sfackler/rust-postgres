@@ -26,7 +26,8 @@ ORDER BY attnum
 #[derive(StateMachineFuture)]
 pub enum TypeinfoComposite {
     #[state_machine_future(
-        start, transitions(PreparingTypeinfoComposite, QueryingCompositeFields)
+        start,
+        transitions(PreparingTypeinfoComposite, QueryingCompositeFields)
     )]
     Start { oid: Oid, client: Client },
     #[state_machine_future(transitions(QueryingCompositeFields))]
@@ -55,10 +56,9 @@ pub enum TypeinfoComposite {
 
 impl PollTypeinfoComposite for TypeinfoComposite {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
-        let mut state = state.take();
+        let state = state.take();
 
-        let statement = state.client.state.lock().typeinfo_composite_query.clone();
-        match statement {
+        match state.client.typeinfo_composite_query() {
             Some(statement) => transition!(QueryingCompositeFields {
                 future: state.client.query(&statement, &[&state.oid]).collect(),
                 client: state.client,
@@ -79,9 +79,9 @@ impl PollTypeinfoComposite for TypeinfoComposite {
         state: &'a mut RentToOwn<'a, PreparingTypeinfoComposite>,
     ) -> Poll<AfterPreparingTypeinfoComposite, Error> {
         let statement = try_ready!(state.future.poll());
-        let mut state = state.take();
+        let state = state.take();
 
-        state.client.state.lock().typeinfo_composite_query = Some(statement.clone());
+        state.client.set_typeinfo_composite_query(&statement);
         transition!(QueryingCompositeFields {
             future: state.client.query(&statement, &[&state.oid]).collect(),
             client: state.client,

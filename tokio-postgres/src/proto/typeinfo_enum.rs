@@ -28,7 +28,10 @@ ORDER BY oid
 
 #[derive(StateMachineFuture)]
 pub enum TypeinfoEnum {
-    #[state_machine_future(start, transitions(PreparingTypeinfoEnum, QueryingEnumVariants))]
+    #[state_machine_future(
+        start,
+        transitions(PreparingTypeinfoEnum, QueryingEnumVariants)
+    )]
     Start { oid: Oid, client: Client },
     #[state_machine_future(transitions(PreparingTypeinfoEnumFallback, QueryingEnumVariants))]
     PreparingTypeinfoEnum {
@@ -55,10 +58,9 @@ pub enum TypeinfoEnum {
 
 impl PollTypeinfoEnum for TypeinfoEnum {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
-        let mut state = state.take();
+        let state = state.take();
 
-        let statement = state.client.state.lock().typeinfo_enum_query.clone();
-        match statement {
+        match state.client.typeinfo_enum_query() {
             Some(statement) => transition!(QueryingEnumVariants {
                 future: state.client.query(&statement, &[&state.oid]).collect(),
                 client: state.client,
@@ -96,9 +98,9 @@ impl PollTypeinfoEnum for TypeinfoEnum {
             }
             Err(e) => return Err(e),
         };
-        let mut state = state.take();
+        let state = state.take();
 
-        state.client.state.lock().typeinfo_enum_query = Some(statement.clone());
+        state.client.set_typeinfo_enum_query(&statement);
         transition!(QueryingEnumVariants {
             future: state.client.query(&statement, &[&state.oid]).collect(),
             client: state.client,
@@ -109,9 +111,9 @@ impl PollTypeinfoEnum for TypeinfoEnum {
         state: &'a mut RentToOwn<'a, PreparingTypeinfoEnumFallback>,
     ) -> Poll<AfterPreparingTypeinfoEnumFallback, Error> {
         let statement = try_ready!(state.future.poll());
-        let mut state = state.take();
+        let state = state.take();
 
-        state.client.state.lock().typeinfo_enum_query = Some(statement.clone());
+        state.client.set_typeinfo_enum_query(&statement);
         transition!(QueryingEnumVariants {
             future: state.client.query(&statement, &[&state.oid]).collect(),
             client: state.client,
