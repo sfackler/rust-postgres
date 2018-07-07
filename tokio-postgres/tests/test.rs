@@ -1,15 +1,21 @@
 extern crate env_logger;
-extern crate futures;
 extern crate tokio;
 extern crate tokio_postgres;
 
+#[macro_use]
+extern crate futures;
+#[macro_use]
+extern crate log;
+
+use futures::future;
+use futures::sync::mpsc;
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::TlsMode;
+use tokio_postgres::{AsyncMessage, TlsMode};
 
 fn smoke_test(url: &str) {
     let _ = env_logger::try_init();
@@ -446,4 +452,55 @@ fn custom_simple() {
     let ty = &select.params()[0];
     assert_eq!("hstore", ty.name());
     assert_eq!(&Kind::Simple, ty.kind());
+}
+
+#[test]
+fn notifications() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let handshake = tokio_postgres::connect(
+        "postgres://postgres@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
+    let (mut client, mut connection) = runtime.block_on(handshake).unwrap();
+
+    let (tx, rx) = mpsc::unbounded();
+    let connection = future::poll_fn(move || {
+        while let Some(message) = try_ready!(connection.poll_message().map_err(|e| panic!("{}", e)))
+        {
+            if let AsyncMessage::Notification(notification) = message {
+                debug!("received {}", notification.payload);
+                tx.unbounded_send(notification).unwrap();
+            }
+        }
+
+        Ok(Async::Ready(()))
+    });
+    runtime.handle().spawn(connection).unwrap();
+
+    let listen = client.prepare("LISTEN test_notifications");
+    let listen = runtime.block_on(listen).unwrap();
+    runtime.block_on(client.execute(&listen, &[])).unwrap();
+    drop(listen); // FIXME
+
+    let notify = client.prepare("NOTIFY test_notifications, 'hello'");
+    let notify = runtime.block_on(notify).unwrap();
+    runtime.block_on(client.execute(&notify, &[])).unwrap();
+    drop(notify); // FIXME
+
+    let notify = client.prepare("NOTIFY test_notifications, 'world'");
+    let notify = runtime.block_on(notify).unwrap();
+    runtime.block_on(client.execute(&notify, &[])).unwrap();
+    drop(notify); // FIXME
+
+    drop(client);
+    runtime.run().unwrap();
+
+    let notifications = rx.collect().wait().unwrap();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].channel, "test_notifications");
+    assert_eq!(notifications[0].payload, "hello");
+    assert_eq!(notifications[1].channel, "test_notifications");
+    assert_eq!(notifications[1].payload, "world");
 }

@@ -6,11 +6,10 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use tokio_codec::Framed;
 
-use disconnected;
-use error::{self, Error};
+use error::{self, DbError, Error};
 use proto::codec::PostgresCodec;
 use tls::TlsStream;
-use {bad_response, CancelData};
+use {bad_response, disconnected, AsyncMessage, CancelData, Notification};
 
 pub struct Request {
     pub messages: Vec<u8>,
@@ -71,10 +70,10 @@ impl Connection {
         self.stream.poll()
     }
 
-    fn poll_read(&mut self) -> Result<(), Error> {
+    fn poll_read(&mut self) -> Result<Option<AsyncMessage>, Error> {
         if self.state != State::Active {
             trace!("poll_read: done");
-            return Ok(());
+            return Ok(None);
         }
 
         loop {
@@ -85,14 +84,22 @@ impl Connection {
                 }
                 Async::NotReady => {
                     trace!("poll_read: waiting on response");
-                    return Ok(());
+                    return Ok(None);
                 }
             };
 
             let message = match message {
-                Message::NoticeResponse(_) | Message::NotificationResponse(_) => {
-                    // FIXME handle these
-                    continue;
+                Message::NoticeResponse(body) => {
+                    let error = DbError::new(&mut body.fields())?;
+                    return Ok(Some(AsyncMessage::Notice(error)));
+                }
+                Message::NotificationResponse(body) => {
+                    let notification = Notification {
+                        process_id: body.process_id(),
+                        channel: body.channel()?.to_string(),
+                        payload: body.message()?.to_string(),
+                    };
+                    return Ok(Some(AsyncMessage::Notification(notification)));
                 }
                 Message::ParameterStatus(body) => {
                     self.parameters
@@ -127,7 +134,7 @@ impl Connection {
                     self.responses.push_front(sender);
                     self.pending_response = Some(message);
                     trace!("poll_read: waiting on socket");
-                    return Ok(());
+                    return Ok(None);
                 }
             }
         }
@@ -225,6 +232,18 @@ impl Connection {
             Err(e) => Err(Error::from(e)),
         }
     }
+
+    pub fn poll_message(&mut self) -> Poll<Option<AsyncMessage>, Error> {
+        let message = self.poll_read()?;
+        let want_flush = self.poll_write()?;
+        if want_flush {
+            self.poll_flush()?;
+        }
+        match message {
+            Some(message) => Ok(Async::Ready(Some(message))),
+            None => self.poll_shutdown().map(|r| r.map(|()| None)),
+        }
+    }
 }
 
 impl Future for Connection {
@@ -232,11 +251,7 @@ impl Future for Connection {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(), Error> {
-        self.poll_read()?;
-        let want_flush = self.poll_write()?;
-        if want_flush {
-            self.poll_flush()?;
-        }
-        self.poll_shutdown()
+        while let Some(_) = try_ready!(self.poll_message()) {}
+        Ok(Async::Ready(()))
     }
 }

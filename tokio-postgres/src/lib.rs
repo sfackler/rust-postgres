@@ -34,7 +34,7 @@ pub use postgres_shared::{error, params, types};
 #[doc(inline)]
 pub use postgres_shared::{CancelData, Notification};
 
-use error::Error;
+use error::{DbError, Error};
 use params::ConnectParams;
 use tls::TlsConnect;
 use types::{FromSql, ToSql, Type};
@@ -104,6 +104,10 @@ impl Connection {
     pub fn parameter(&self, name: &str) -> Option<&str> {
         self.0.parameter(name)
     }
+
+    pub fn poll_message(&mut self) -> Poll<Option<AsyncMessage>, Error> {
+        self.0.poll_message()
+    }
 }
 
 impl Future for Connection {
@@ -113,6 +117,13 @@ impl Future for Connection {
     fn poll(&mut self) -> Poll<(), Error> {
         self.0.poll()
     }
+}
+
+pub enum AsyncMessage {
+    Notice(DbError),
+    Notification(Notification),
+    #[doc(hidden)]
+    __NonExhaustive,
 }
 
 #[must_use = "futures do nothing unless polled"]
