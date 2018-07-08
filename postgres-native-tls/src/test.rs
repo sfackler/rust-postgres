@@ -19,3 +19,20 @@ fn connect() {
     ).unwrap();
     conn.execute("SELECT 1::VARCHAR", &[]).unwrap();
 }
+
+#[test]
+fn scram_user() {
+    let cert = include_bytes!("../../test/server.crt");
+    let cert = Certificate::from_pem(cert).unwrap();
+
+    let mut builder = TlsConnector::builder();
+    builder.add_root_certificate(cert);
+    let connector = builder.build().unwrap();
+
+    let handshake = NativeTls::with_connector(connector);
+    let conn = Connection::connect(
+        "postgres://scram_user:password@localhost:5433/postgres",
+        TlsMode::Require(&handshake),
+    ).unwrap();
+    conn.execute("SELECT 1::VARCHAR", &[]).unwrap();
+}

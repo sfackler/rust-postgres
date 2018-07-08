@@ -69,4 +69,8 @@ impl TlsStream for NativeTlsStream {
     fn get_mut(&mut self) -> &mut Stream {
         self.0.get_mut()
     }
+
+    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
+        self.0.tls_server_end_point().ok().and_then(|o| o)
+    }
 }
