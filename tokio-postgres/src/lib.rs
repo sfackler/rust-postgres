@@ -91,6 +91,10 @@ impl Client {
     pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
     }
+
+    pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
+        BatchExecute(self.0.batch_execute(query))
+    }
 }
 
 #[must_use = "futures do nothing unless polled"]
@@ -232,5 +236,17 @@ impl Row {
         T: FromSql<'a>,
     {
         self.0.try_get(idx)
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+pub struct BatchExecute(proto::SimpleQueryFuture);
+
+impl Future for BatchExecute {
+    type Item = ();
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(), Error> {
+        self.0.poll()
     }
 }

@@ -12,6 +12,7 @@ use proto::connection::Request;
 use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
+use proto::simple_query::SimpleQueryFuture;
 use proto::statement::Statement;
 use types::{IsNull, Oid, ToSql, Type};
 
@@ -97,6 +98,15 @@ impl Client {
             .unbounded_send(Request { messages, sender })
             .map(|_| receiver)
             .map_err(|_| disconnected())
+    }
+
+    pub fn batch_execute(&self, query: &str) -> SimpleQueryFuture {
+        let pending = self.pending(|buf| {
+            frontend::query(query, buf)?;
+            Ok(())
+        });
+
+        SimpleQueryFuture::new(self.clone(), pending)
     }
 
     pub fn prepare(&self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {

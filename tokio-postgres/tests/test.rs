@@ -197,12 +197,7 @@ fn insert_select() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(
-            client
-                .prepare("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
-                .and_then(|create| client.execute(&create, &[]))
-                .map(|n| assert_eq!(n, 0)),
-        )
+        .block_on(client.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)"))
         .unwrap();
 
     let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
@@ -238,14 +233,13 @@ fn cancel_query() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let sleep = client.prepare("SELECT pg_sleep(100)");
-    let sleep = runtime.block_on(sleep).unwrap();
-
-    let sleep = client.execute(&sleep, &[]).then(|r| match r {
-        Ok(_) => panic!("unexpected success"),
-        Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
-        Err(e) => panic!("unexpected error {}", e),
-    });
+    let sleep = client
+        .batch_execute("SELECT pg_sleep(100)")
+        .then(|r| match r {
+            Ok(_) => panic!("unexpected success"),
+            Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
+            Err(e) => panic!("unexpected error {}", e),
+        });
     let cancel = Delay::new(Instant::now() + Duration::from_millis(100))
         .then(|r| {
             r.unwrap();
@@ -276,17 +270,15 @@ fn custom_enum() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let create_type = client.prepare(
-        "CREATE TYPE pg_temp.mood AS ENUM (
-            'sad',
-            'ok',
-            'happy'
-         )",
-    );
-    let create_type = runtime.block_on(create_type).unwrap();
-
-    let create_type = client.execute(&create_type, &[]);
-    runtime.block_on(create_type).unwrap();
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TYPE pg_temp.mood AS ENUM (
+                'sad',
+                'ok',
+                'happy'
+            )",
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::mood");
     let select = runtime.block_on(select).unwrap();
@@ -316,12 +308,11 @@ fn custom_domain() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let create_type =
-        client.prepare("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)");
-    let create_type = runtime.block_on(create_type).unwrap();
-
-    let create_type = client.execute(&create_type, &[]);
-    runtime.block_on(create_type).unwrap();
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)",
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::session_id");
     let select = runtime.block_on(select).unwrap();
@@ -371,17 +362,15 @@ fn custom_composite() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let create_type = client.prepare(
-        "CREATE TYPE pg_temp.inventory_item AS (
-            name TEXT,
-            supplier INTEGER,
-            price NUMERIC
-         )",
-    );
-    let create_type = runtime.block_on(create_type).unwrap();
-
-    let create_type = client.execute(&create_type, &[]);
-    runtime.block_on(create_type).unwrap();
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TYPE pg_temp.inventory_item AS (
+                name TEXT,
+                supplier INTEGER,
+                price NUMERIC
+            )",
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::inventory_item");
     let select = runtime.block_on(select).unwrap();
@@ -414,16 +403,14 @@ fn custom_range() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let create_type = client.prepare(
-        "CREATE TYPE pg_temp.floatrange AS RANGE (
-            subtype = float8,
-            subtype_diff = float8mi
-         )",
-    );
-    let create_type = runtime.block_on(create_type).unwrap();
-
-    let create_type = client.execute(&create_type, &[]);
-    runtime.block_on(create_type).unwrap();
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TYPE pg_temp.floatrange AS RANGE (
+                subtype = float8,
+                subtype_diff = float8mi
+            )",
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::floatrange");
     let select = runtime.block_on(select).unwrap();
@@ -479,17 +466,17 @@ fn notifications() {
     });
     runtime.handle().spawn(connection).unwrap();
 
-    let listen = client.prepare("LISTEN test_notifications");
-    let listen = runtime.block_on(listen).unwrap();
-    runtime.block_on(client.execute(&listen, &[])).unwrap();
+    runtime
+        .block_on(client.batch_execute("LISTEN test_notifications"))
+        .unwrap();
 
-    let notify = client.prepare("NOTIFY test_notifications, 'hello'");
-    let notify = runtime.block_on(notify).unwrap();
-    runtime.block_on(client.execute(&notify, &[])).unwrap();
+    runtime
+        .block_on(client.batch_execute("NOTIFY test_notifications, 'hello'"))
+        .unwrap();
 
-    let notify = client.prepare("NOTIFY test_notifications, 'world'");
-    let notify = runtime.block_on(notify).unwrap();
-    runtime.block_on(client.execute(&notify, &[])).unwrap();
+    runtime
+        .block_on(client.batch_execute("NOTIFY test_notifications, 'world'"))
+        .unwrap();
 
     drop(client);
     runtime.run().unwrap();
