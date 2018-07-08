@@ -4,15 +4,13 @@ use state_machine_future::RentToOwn;
 use std::mem;
 use std::vec;
 
-use bad_response;
 use error::Error;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use proto::typeinfo::TypeinfoFuture;
 use types::{Field, Oid};
-
-const TYPEINFO_COMPOSITE_NAME: &'static str = "_rust_typeinfo_composite";
+use {bad_response, next_statement};
 
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "
 SELECT attname, atttypid
@@ -65,7 +63,7 @@ impl PollTypeinfoComposite for TypeinfoComposite {
             }),
             None => transition!(PreparingTypeinfoComposite {
                 future: Box::new(state.client.prepare(
-                    TYPEINFO_COMPOSITE_NAME.to_string(),
+                    next_statement(),
                     TYPEINFO_COMPOSITE_QUERY,
                     &[]
                 )),

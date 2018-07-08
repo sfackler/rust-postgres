@@ -44,6 +44,10 @@ pub mod tls;
 
 static NEXT_STATEMENT_ID: AtomicUsize = AtomicUsize::new(0);
 
+fn next_statement() -> String {
+    format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst))
+}
+
 fn bad_response() -> Error {
     Error::from(io::Error::new(
         io::ErrorKind::InvalidInput,
@@ -80,8 +84,7 @@ impl Client {
     }
 
     pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> Prepare {
-        let name = format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst));
-        Prepare(self.0.prepare(name, query, param_types))
+        Prepare(self.0.prepare(next_statement(), query, param_types))
     }
 
     pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> Execute {

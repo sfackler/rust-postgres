@@ -2,14 +2,12 @@ use futures::stream::{self, Stream};
 use futures::{Async, Future, Poll};
 use state_machine_future::RentToOwn;
 
-use bad_response;
 use error::{Error, SqlState};
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use types::Oid;
-
-const TYPEINFO_ENUM_NAME: &'static str = "_rust_typeinfo_enum";
+use {bad_response, next_statement};
 
 const TYPEINFO_ENUM_QUERY: &'static str = "
 SELECT enumlabel
@@ -66,11 +64,11 @@ impl PollTypeinfoEnum for TypeinfoEnum {
                 client: state.client,
             }),
             None => transition!(PreparingTypeinfoEnum {
-                future: Box::new(state.client.prepare(
-                    TYPEINFO_ENUM_NAME.to_string(),
-                    TYPEINFO_ENUM_QUERY,
-                    &[]
-                )),
+                future: Box::new(
+                    state
+                        .client
+                        .prepare(next_statement(), TYPEINFO_ENUM_QUERY, &[])
+                ),
                 oid: state.oid,
                 client: state.client,
             }),
@@ -88,7 +86,7 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
                 transition!(PreparingTypeinfoEnumFallback {
                     future: Box::new(state.client.prepare(
-                        TYPEINFO_ENUM_NAME.to_string(),
+                        next_statement(),
                         TYPEINFO_ENUM_FALLBACK_QUERY,
                         &[]
                     )),

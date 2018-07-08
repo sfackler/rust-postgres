@@ -2,7 +2,6 @@ use futures::stream::{self, Stream};
 use futures::{Async, Future, Poll};
 use state_machine_future::RentToOwn;
 
-use bad_response;
 use error::{Error, SqlState};
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
@@ -10,8 +9,7 @@ use proto::query::QueryStream;
 use proto::typeinfo_composite::TypeinfoCompositeFuture;
 use proto::typeinfo_enum::TypeinfoEnumFuture;
 use types::{Kind, Oid, Type};
-
-const TYPEINFO_NAME: &'static str = "_rust_typeinfo";
+use {bad_response, next_statement};
 
 const TYPEINFO_QUERY: &'static str = "
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -125,11 +123,7 @@ impl PollTypeinfo for Typeinfo {
                 client: state.client,
             }),
             None => transition!(PreparingTypeinfo {
-                future: Box::new(state.client.prepare(
-                    TYPEINFO_NAME.to_string(),
-                    TYPEINFO_QUERY,
-                    &[]
-                )),
+                future: Box::new(state.client.prepare(next_statement(), TYPEINFO_QUERY, &[])),
                 oid: state.oid,
                 client: state.client,
             }),
@@ -147,7 +141,7 @@ impl PollTypeinfo for Typeinfo {
 
                 transition!(PreparingTypeinfoFallback {
                     future: Box::new(state.client.prepare(
-                        TYPEINFO_NAME.to_string(),
+                        next_statement(),
                         TYPEINFO_FALLBACK_QUERY,
                         &[]
                     )),
