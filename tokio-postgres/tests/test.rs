@@ -9,6 +9,7 @@ extern crate log;
 
 use futures::future;
 use futures::sync::mpsc;
+use std::error::Error;
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::runtime::current_thread::Runtime;
@@ -476,4 +477,82 @@ fn notifications() {
     assert_eq!(notifications[0].payload, "hello");
     assert_eq!(notifications[1].channel, "test_notifications");
     assert_eq!(notifications[1].payload, "world");
+}
+
+#[test]
+fn test_transaction_commit() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime
+        .block_on(tokio_postgres::connect(
+            "postgres://postgres@localhost:5433".parse().unwrap(),
+            TlsMode::None,
+        ))
+        .unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            )",
+        ))
+        .unwrap();
+
+    let f = client.batch_execute("INSERT INTO foo (name) VALUES ('steven')");
+    runtime.block_on(client.transaction(f)).unwrap();
+
+    let rows = runtime
+        .block_on(
+            client
+                .prepare("SELECT name FROM foo")
+                .and_then(|s| client.query(&s, &[]).collect()),
+        )
+        .unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, &str>(0), "steven");
+}
+
+#[test]
+fn test_transaction_abort() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime
+        .block_on(tokio_postgres::connect(
+            "postgres://postgres@localhost:5433".parse().unwrap(),
+            TlsMode::None,
+        ))
+        .unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            )",
+        ))
+        .unwrap();
+
+    let f = client
+        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .map_err(|e| Box::new(e) as Box<Error>)
+        .and_then(|_| Err::<(), _>(Box::<Error>::from("")));
+    runtime.block_on(client.transaction(f)).unwrap_err();
+
+    let rows = runtime
+        .block_on(
+            client
+                .prepare("SELECT name FROM foo")
+                .and_then(|s| client.query(&s, &[]).collect()),
+        )
+        .unwrap();
+
+    assert_eq!(rows.len(), 0);
 }

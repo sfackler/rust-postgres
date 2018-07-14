@@ -95,6 +95,14 @@ impl Client {
         Query(self.0.query(&statement.0, params))
     }
 
+    pub fn transaction<T>(&mut self, future: T) -> Transaction<T>
+    where
+        T: Future,
+        T::Error: From<Error>,
+    {
+        Transaction(proto::TransactionFuture::new(self.0.clone(), future))
+    }
+
     pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
         BatchExecute(self.0.batch_execute(query))
     }
@@ -239,6 +247,25 @@ impl Row {
         T: FromSql<'a>,
     {
         self.0.try_get(idx)
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+pub struct Transaction<T>(proto::TransactionFuture<T, T::Item, T::Error>)
+where
+    T: Future,
+    T::Error: From<Error>;
+
+impl<T> Future for Transaction<T>
+where
+    T: Future,
+    T::Error: From<Error>,
+{
+    type Item = T::Item;
+    type Error = T::Error;
+
+    fn poll(&mut self) -> Poll<T::Item, T::Error> {
+        self.0.poll()
     }
 }
 
