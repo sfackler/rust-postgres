@@ -9,6 +9,7 @@ use std::sync::{Arc, Weak};
 use disconnected;
 use error::{self, Error};
 use proto::connection::Request;
+use proto::copy_out::CopyOutStream;
 use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
@@ -128,6 +129,11 @@ impl Client {
     pub fn query(&self, statement: &Statement, params: &[&ToSql]) -> QueryStream {
         let pending = self.pending_execute(statement, params);
         QueryStream::new(self.clone(), pending, statement.clone())
+    }
+
+    pub fn copy_out(&self, statement: &Statement, params: &[&ToSql]) -> CopyOutStream {
+        let pending = self.pending_execute(statement, params);
+        CopyOutStream::new(self.clone(), pending, statement.clone())
     }
 
     pub fn close_statement(&self, name: &str) {

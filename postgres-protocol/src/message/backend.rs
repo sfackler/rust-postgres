@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use memchr::memchr;
@@ -148,45 +148,41 @@ impl Message {
                 let storage = buf.read_all();
                 Message::NoticeResponse(NoticeResponseBody { storage: storage })
             }
-            b'R' => {
-                match buf.read_i32::<BigEndian>()? {
-                    0 => Message::AuthenticationOk,
-                    2 => Message::AuthenticationKerberosV5,
-                    3 => Message::AuthenticationCleartextPassword,
-                    5 => {
-                        let mut salt = [0; 4];
-                        buf.read_exact(&mut salt)?;
-                        Message::AuthenticationMd5Password(
-                            AuthenticationMd5PasswordBody { salt: salt },
-                        )
-                    }
-                    6 => Message::AuthenticationScmCredential,
-                    7 => Message::AuthenticationGss,
-                    8 => {
-                        let storage = buf.read_all();
-                        Message::AuthenticationGssContinue(AuthenticationGssContinueBody(storage))
-                    }
-                    9 => Message::AuthenticationSspi,
-                    10 => {
-                        let storage = buf.read_all();
-                        Message::AuthenticationSasl(AuthenticationSaslBody(storage))
-                    }
-                    11 => {
-                        let storage = buf.read_all();
-                        Message::AuthenticationSaslContinue(AuthenticationSaslContinueBody(storage))
-                    }
-                    12 => {
-                        let storage = buf.read_all();
-                        Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
-                    }
-                    tag => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!("unknown authentication tag `{}`", tag),
-                        ));
-                    }
+            b'R' => match buf.read_i32::<BigEndian>()? {
+                0 => Message::AuthenticationOk,
+                2 => Message::AuthenticationKerberosV5,
+                3 => Message::AuthenticationCleartextPassword,
+                5 => {
+                    let mut salt = [0; 4];
+                    buf.read_exact(&mut salt)?;
+                    Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody { salt: salt })
                 }
-            }
+                6 => Message::AuthenticationScmCredential,
+                7 => Message::AuthenticationGss,
+                8 => {
+                    let storage = buf.read_all();
+                    Message::AuthenticationGssContinue(AuthenticationGssContinueBody(storage))
+                }
+                9 => Message::AuthenticationSspi,
+                10 => {
+                    let storage = buf.read_all();
+                    Message::AuthenticationSasl(AuthenticationSaslBody(storage))
+                }
+                11 => {
+                    let storage = buf.read_all();
+                    Message::AuthenticationSaslContinue(AuthenticationSaslContinueBody(storage))
+                }
+                12 => {
+                    let storage = buf.read_all();
+                    Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
+                }
+                tag => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("unknown authentication tag `{}`", tag),
+                    ));
+                }
+            },
             b's' => Message::PortalSuspended,
             b'S' => {
                 let name = buf.read_cstr()?;
@@ -393,6 +389,11 @@ impl CopyDataBody {
     #[inline]
     pub fn data(&self) -> &[u8] {
         &self.storage
+    }
+
+    #[inline]
+    pub fn into_bytes(self) -> Bytes {
+        self.storage
     }
 }
 

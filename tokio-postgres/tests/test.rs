@@ -480,7 +480,7 @@ fn notifications() {
 }
 
 #[test]
-fn test_transaction_commit() {
+fn transaction_commit() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
@@ -518,7 +518,7 @@ fn test_transaction_commit() {
 }
 
 #[test]
-fn test_transaction_abort() {
+fn transaction_abort() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
@@ -555,4 +555,38 @@ fn test_transaction_abort() {
         .unwrap();
 
     assert_eq!(rows.len(), 0);
+}
+
+#[test]
+fn copy_out() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime
+        .block_on(tokio_postgres::connect(
+            "postgres://postgres@localhost:5433".parse().unwrap(),
+            TlsMode::None,
+        ))
+        .unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            );
+            INSERT INTO foo (name) VALUES ('jim'), ('joe');",
+        ))
+        .unwrap();
+
+    let data = runtime
+        .block_on(
+            client
+                .prepare("COPY foo TO STDOUT")
+                .and_then(|s| client.copy_out(&s, &[]).concat2()),
+        )
+        .unwrap();
+    assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 }

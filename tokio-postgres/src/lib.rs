@@ -21,6 +21,7 @@ extern crate state_machine_future;
 #[cfg(unix)]
 extern crate tokio_uds;
 
+use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use postgres_shared::rows::RowIndex;
 use std::fmt;
@@ -93,6 +94,10 @@ impl Client {
 
     pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
+    }
+
+    pub fn copy_out(&mut self, statement: &Statement, params: &[&ToSql]) -> CopyOut {
+        CopyOut(self.0.copy_out(&statement.0, params))
     }
 
     pub fn transaction<T>(&mut self, future: T) -> Transaction<T>
@@ -219,6 +224,18 @@ impl Stream for Query {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(e),
         }
+    }
+}
+
+#[must_use = "streams do nothing unless polled"]
+pub struct CopyOut(proto::CopyOutStream);
+
+impl Stream for CopyOut {
+    type Item = Bytes;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
+        self.0.poll()
     }
 }
 
