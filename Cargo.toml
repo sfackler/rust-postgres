@@ -11,9 +11,9 @@ members = [
 ]
 
 [patch.crates-io]
-tokio-uds = { git = "https://github.com/sfackler/tokio" }
-tokio-io = { git = "https://github.com/sfackler/tokio" }
-tokio-timer = { git = "https://github.com/sfackler/tokio" }
-tokio-codec = { git = "https://github.com/sfackler/tokio" }
-tokio-reactor = { git = "https://github.com/sfackler/tokio" }
-tokio-executor = { git = "https://github.com/sfackler/tokio" }
+tokio-uds = { git = "https://github.com/tokio-rs/tokio" }
+tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio-timer = { git = "https://github.com/tokio-rs/tokio" }
+tokio-codec = { git = "https://github.com/tokio-rs/tokio" }
+tokio-reactor = { git = "https://github.com/tokio-rs/tokio" }
+tokio-executor = { git = "https://github.com/tokio-rs/tokio" }

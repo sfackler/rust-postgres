@@ -133,7 +133,7 @@ impl Connection {
                 Ok(AsyncSink::NotReady(message)) => {
                     self.responses.push_front(sender);
                     self.pending_response = Some(message);
-                    trace!("poll_read: waiting on socket");
+                    trace!("poll_read: waiting on sender");
                     return Ok(None);
                 }
             }
