@@ -8,11 +8,20 @@ use tokio_codec::Framed;
 
 use error::{self, DbError, Error};
 use proto::codec::PostgresCodec;
+use proto::copy_in::CopyInReceiver;
 use tls::TlsStream;
 use {bad_response, disconnected, AsyncMessage, CancelData, Notification};
 
+pub enum RequestMessages {
+    Single(Vec<u8>),
+    CopyIn {
+        receiver: CopyInReceiver,
+        pending_message: Option<Vec<u8>>,
+    },
+}
+
 pub struct Request {
-    pub messages: Vec<u8>,
+    pub messages: RequestMessages,
     pub sender: mpsc::Sender<Message>,
 }
 
@@ -28,7 +37,7 @@ pub struct Connection {
     cancel_data: CancelData,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
-    pending_request: Option<Vec<u8>>,
+    pending_request: Option<RequestMessages>,
     pending_response: Option<Message>,
     responses: VecDeque<mpsc::Sender<Message>>,
     state: State,
@@ -140,7 +149,7 @@ impl Connection {
         }
     }
 
-    fn poll_request(&mut self) -> Poll<Option<Vec<u8>>, Error> {
+    fn poll_request(&mut self) -> Poll<Option<RequestMessages>, Error> {
         if let Some(message) = self.pending_request.take() {
             trace!("retrying pending request");
             return Ok(Async::Ready(Some(message)));
@@ -170,7 +179,7 @@ impl Connection {
                     self.state = State::Terminating;
                     let mut request = vec![];
                     frontend::terminate(&mut request);
-                    request
+                    RequestMessages::Single(request)
                 }
                 Async::Ready(None) => {
                     trace!(
@@ -185,17 +194,60 @@ impl Connection {
                 }
             };
 
-            match self.stream.start_send(request)? {
-                AsyncSink::Ready => {
-                    if self.state == State::Terminating {
-                        trace!("poll_write: sent eof, closing");
-                        self.state = State::Closing;
+            match request {
+                RequestMessages::Single(request) => match self.stream.start_send(request)? {
+                    AsyncSink::Ready => {
+                        if self.state == State::Terminating {
+                            trace!("poll_write: sent eof, closing");
+                            self.state = State::Closing;
+                        }
                     }
-                }
-                AsyncSink::NotReady(request) => {
-                    trace!("poll_write: waiting on socket");
-                    self.pending_request = Some(request);
-                    return Ok(false);
+                    AsyncSink::NotReady(request) => {
+                        trace!("poll_write: waiting on socket");
+                        self.pending_request = Some(RequestMessages::Single(request));
+                        return Ok(false);
+                    }
+                },
+                RequestMessages::CopyIn {
+                    mut receiver,
+                    mut pending_message,
+                } => {
+                    let message = match pending_message.take() {
+                        Some(message) => message,
+                        None => match receiver.poll() {
+                            Ok(Async::Ready(Some(message))) => message,
+                            Ok(Async::Ready(None)) => {
+                                trace!("poll_write: finished copy_in request");
+                                continue;
+                            }
+                            Ok(Async::NotReady) => {
+                                trace!("poll_write: waiting on copy_in stream");
+                                self.pending_request = Some(RequestMessages::CopyIn {
+                                    receiver,
+                                    pending_message,
+                                });
+                                return Ok(true);
+                            }
+                            Err(()) => unreachable!("mpsc::Receiver doesn't return errors"),
+                        },
+                    };
+
+                    match self.stream.start_send(message)? {
+                        AsyncSink::Ready => {
+                            self.pending_request = Some(RequestMessages::CopyIn {
+                                receiver,
+                                pending_message: None,
+                            });
+                        }
+                        AsyncSink::NotReady(message) => {
+                            trace!("poll_write: waiting on socket");
+                            self.pending_request = Some(RequestMessages::CopyIn {
+                                receiver,
+                                pending_message: Some(message),
+                            });
+                            return Ok(false);
+                        }
+                    };
                 }
             }
         }

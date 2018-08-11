@@ -326,6 +326,14 @@ pub fn __db(e: ErrorResponseBody) -> Error {
 }
 
 #[doc(hidden)]
+pub fn __user<T>(e: T) -> Error
+where
+    T: Into<Box<error::Error + Sync + Send>>,
+{
+    Error(Box::new(ErrorKind::Conversion(e.into())))
+}
+
+#[doc(hidden)]
 pub fn io(e: io::Error) -> Error {
     Error(Box::new(ErrorKind::Io(e)))
 }

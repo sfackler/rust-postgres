@@ -24,6 +24,7 @@ extern crate tokio_uds;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use postgres_shared::rows::RowIndex;
+use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -94,6 +95,14 @@ impl Client {
 
     pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
+    }
+
+    pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
+    where
+        S: Stream<Item = Vec<u8>>,
+        S::Error: Into<Box<StdError + Sync + Send>>,
+    {
+        CopyIn(self.0.copy_in(&statement.0, params, stream))
     }
 
     pub fn copy_out(&mut self, statement: &Statement, params: &[&ToSql]) -> CopyOut {
@@ -224,6 +233,25 @@ impl Stream for Query {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(e),
         }
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+pub struct CopyIn<S>(proto::CopyInFuture<S>)
+where
+    S: Stream<Item = Vec<u8>>,
+    S::Error: Into<Box<StdError + Sync + Send>>;
+
+impl<S> Future for CopyIn<S>
+where
+    S: Stream<Item = Vec<u8>>,
+    S::Error: Into<Box<StdError + Sync + Send>>,
+{
+    type Item = u64;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<u64, Error> {
+        self.0.poll()
     }
 }
 

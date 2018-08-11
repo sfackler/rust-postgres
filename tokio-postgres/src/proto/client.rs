@@ -1,14 +1,17 @@
 use antidote::Mutex;
 use futures::sync::mpsc;
+use futures::{AsyncSink, Sink, Stream};
 use postgres_protocol;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::sync::{Arc, Weak};
 
 use disconnected;
 use error::{self, Error};
-use proto::connection::Request;
+use proto::connection::{Request, RequestMessages};
+use proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use proto::copy_out::CopyOutStream;
 use proto::execute::ExecuteFuture;
 use proto::prepare::PrepareFuture;
@@ -17,7 +20,7 @@ use proto::simple_query::SimpleQueryFuture;
 use proto::statement::Statement;
 use types::{IsNull, Oid, ToSql, Type};
 
-pub struct PendingRequest(Result<Vec<u8>, Error>);
+pub struct PendingRequest(Result<RequestMessages, Error>);
 
 pub struct WeakClient(Weak<Inner>);
 
@@ -122,17 +125,45 @@ impl Client {
     }
 
     pub fn execute(&self, statement: &Statement, params: &[&ToSql]) -> ExecuteFuture {
-        let pending = self.pending_execute(statement, params);
+        let pending = PendingRequest(
+            self.excecute_message(statement, params)
+                .map(RequestMessages::Single),
+        );
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
 
     pub fn query(&self, statement: &Statement, params: &[&ToSql]) -> QueryStream {
-        let pending = self.pending_execute(statement, params);
+        let pending = PendingRequest(
+            self.excecute_message(statement, params)
+                .map(RequestMessages::Single),
+        );
         QueryStream::new(self.clone(), pending, statement.clone())
     }
 
+    pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>
+    where
+        S: Stream<Item = Vec<u8>>,
+        S::Error: Into<Box<StdError + Sync + Send>>,
+    {
+        let (mut sender, receiver) = mpsc::channel(0);
+        let pending = PendingRequest(self.excecute_message(statement, params).map(|buf| {
+            match sender.start_send(CopyMessage::Data(buf)) {
+                Ok(AsyncSink::Ready) => {}
+                _ => unreachable!("channel should have capacity"),
+            }
+            RequestMessages::CopyIn {
+                receiver: CopyInReceiver::new(receiver),
+                pending_message: None,
+            }
+        }));
+        CopyInFuture::new(self.clone(), pending, statement.clone(), stream, sender)
+    }
+
     pub fn copy_out(&self, statement: &Statement, params: &[&ToSql]) -> CopyOutStream {
-        let pending = self.pending_execute(statement, params);
+        let pending = PendingRequest(
+            self.excecute_message(statement, params)
+                .map(RequestMessages::Single),
+        );
         CopyOutStream::new(self.clone(), pending, statement.clone())
     }
 
@@ -142,35 +173,34 @@ impl Client {
         frontend::sync(&mut buf);
         let (sender, _) = mpsc::channel(0);
         let _ = self.0.sender.unbounded_send(Request {
-            messages: buf,
+            messages: RequestMessages::Single(buf),
             sender,
         });
     }
 
-    fn pending_execute(&self, statement: &Statement, params: &[&ToSql]) -> PendingRequest {
-        self.pending(|buf| {
-            let r = frontend::bind(
-                "",
-                statement.name(),
-                Some(1),
-                params.iter().zip(statement.params()),
-                |(param, ty), buf| match param.to_sql_checked(ty, buf) {
-                    Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
-                    Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
-                    Err(e) => Err(e),
-                },
-                Some(1),
-                buf,
-            );
-            match r {
-                Ok(()) => {}
-                Err(frontend::BindError::Conversion(e)) => return Err(error::conversion(e)),
-                Err(frontend::BindError::Serialization(e)) => return Err(Error::from(e)),
-            }
-            frontend::execute("", 0, buf)?;
-            frontend::sync(buf);
-            Ok(())
-        })
+    fn excecute_message(&self, statement: &Statement, params: &[&ToSql]) -> Result<Vec<u8>, Error> {
+        let mut buf = vec![];
+        let r = frontend::bind(
+            "",
+            statement.name(),
+            Some(1),
+            params.iter().zip(statement.params()),
+            |(param, ty), buf| match param.to_sql_checked(ty, buf) {
+                Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                Err(e) => Err(e),
+            },
+            Some(1),
+            &mut buf,
+        );
+        match r {
+            Ok(()) => {}
+            Err(frontend::BindError::Conversion(e)) => return Err(error::conversion(e)),
+            Err(frontend::BindError::Serialization(e)) => return Err(Error::from(e)),
+        }
+        frontend::execute("", 0, &mut buf)?;
+        frontend::sync(&mut buf);
+        Ok(buf)
     }
 
     fn pending<F>(&self, messages: F) -> PendingRequest
@@ -178,6 +208,6 @@ impl Client {
         F: FnOnce(&mut Vec<u8>) -> Result<(), Error>,
     {
         let mut buf = vec![];
-        PendingRequest(messages(&mut buf).map(|()| buf))
+        PendingRequest(messages(&mut buf).map(|()| RequestMessages::Single(buf)))
     }
 }
