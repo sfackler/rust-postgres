@@ -2,6 +2,7 @@ extern crate antidote;
 extern crate bytes;
 extern crate fallible_iterator;
 extern crate futures_cpupool;
+extern crate phf;
 extern crate postgres_protocol;
 extern crate postgres_shared;
 extern crate tokio_codec;
@@ -32,7 +33,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[doc(inline)]
 pub use postgres_shared::stmt::Column;
 #[doc(inline)]
-pub use postgres_shared::{error, params, types};
+pub use postgres_shared::{params, types};
 #[doc(inline)]
 pub use postgres_shared::{CancelData, Notification};
 
@@ -41,6 +42,7 @@ use params::ConnectParams;
 use tls::TlsConnect;
 use types::{FromSql, ToSql, Type};
 
+pub mod error;
 mod proto;
 pub mod tls;
 
@@ -101,6 +103,7 @@ impl Client {
     where
         S: Stream,
         S::Item: AsRef<[u8]>,
+        // FIXME error type?
         S::Error: Into<Box<StdError + Sync + Send>>,
     {
         CopyIn(self.0.copy_in(&statement.0, params, stream))
@@ -113,6 +116,7 @@ impl Client {
     pub fn transaction<T>(&mut self, future: T) -> Transaction<T>
     where
         T: Future,
+        // FIXME error type?
         T::Error: From<Error>,
     {
         Transaction(proto::TransactionFuture::new(self.0.clone(), future))
