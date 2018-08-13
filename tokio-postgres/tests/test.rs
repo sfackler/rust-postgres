@@ -619,7 +619,7 @@ fn copy_in_error() {
                 .prepare("COPY foo FROM STDIN")
                 .and_then(|s| client.copy_in(&s, &[], stream)),
         ).unwrap_err();
-    error.to_string().contains("asdf");
+    assert!(error.to_string().contains("asdf"));
 
     let rows = runtime
         .block_on(
