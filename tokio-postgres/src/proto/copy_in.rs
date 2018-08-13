@@ -63,7 +63,8 @@ impl Stream for CopyInReceiver {
 #[derive(StateMachineFuture)]
 pub enum CopyIn<S>
 where
-    S: Stream<Item = Vec<u8>>,
+    S: Stream,
+    S::Item: AsRef<[u8]>,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     #[state_machine_future(start, transitions(ReadCopyInResponse))]
@@ -102,7 +103,8 @@ where
 
 impl<S> PollCopyIn<S> for CopyIn<S>
 where
-    S: Stream<Item = Vec<u8>>,
+    S: Stream,
+    S::Item: AsRef<[u8]>,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S>>) -> Poll<AfterStart<S>, Error> {
@@ -150,7 +152,7 @@ where
                 None => match try_ready!(state.stream.poll().map_err(error::__user)) {
                     Some(data) => {
                         let mut buf = vec![];
-                        frontend::copy_data(&data, &mut buf).map_err(error::io)?;
+                        frontend::copy_data(data.as_ref(), &mut buf).map_err(error::io)?;
                         CopyMessage::Data(buf)
                     }
                     None => {
@@ -204,7 +206,8 @@ where
 
 impl<S> CopyInFuture<S>
 where
-    S: Stream<Item = Vec<u8>>,
+    S: Stream,
+    S::Item: AsRef<[u8]>,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     pub fn new(

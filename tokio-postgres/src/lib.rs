@@ -99,7 +99,8 @@ impl Client {
 
     pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
     where
-        S: Stream<Item = Vec<u8>>,
+        S: Stream,
+        S::Item: AsRef<[u8]>,
         S::Error: Into<Box<StdError + Sync + Send>>,
     {
         CopyIn(self.0.copy_in(&statement.0, params, stream))
@@ -239,7 +240,8 @@ impl Stream for Query {
 #[must_use = "futures do nothing unless polled"]
 pub struct CopyIn<S>(proto::CopyInFuture<S>)
 where
-    S: Stream<Item = Vec<u8>>,
+    S: Stream,
+    S::Item: AsRef<[u8]>,
     S::Error: Into<Box<StdError + Sync + Send>>;
 
 impl<S> Future for CopyIn<S>

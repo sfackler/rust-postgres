@@ -142,7 +142,8 @@ impl Client {
 
     pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>
     where
-        S: Stream<Item = Vec<u8>>,
+        S: Stream,
+        S::Item: AsRef<[u8]>,
         S::Error: Into<Box<StdError + Sync + Send>>,
     {
         let (mut sender, receiver) = mpsc::channel(0);
