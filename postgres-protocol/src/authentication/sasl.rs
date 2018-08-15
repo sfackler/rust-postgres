@@ -141,7 +141,7 @@ pub struct ScramSha256 {
 
 impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
-    pub fn new(password: &[u8], channel_binding: ChannelBinding) -> io::Result<ScramSha256> {
+    pub fn new(password: &[u8], channel_binding: ChannelBinding) -> ScramSha256 {
         // rand 0.5's ThreadRng is cryptographically secure
         let mut rng = rand::thread_rng();
         let nonce = (0..NONCE_LENGTH)
@@ -151,25 +151,20 @@ impl ScramSha256 {
                     v = 0x7e
                 }
                 v as char
-            })
-            .collect::<String>();
+            }).collect::<String>();
 
         ScramSha256::new_inner(password, channel_binding, nonce)
     }
 
-    fn new_inner(
-        password: &[u8],
-        channel_binding: ChannelBinding,
-        nonce: String,
-    ) -> io::Result<ScramSha256> {
-        Ok(ScramSha256 {
+    fn new_inner(password: &[u8], channel_binding: ChannelBinding, nonce: String) -> ScramSha256 {
+        ScramSha256 {
             message: format!("{}n=,r={}", channel_binding.gs2_header(), nonce),
             state: State::Update {
                 nonce,
                 password: normalize(password),
                 channel_binding: channel_binding,
             },
-        })
+        }
     }
 
     /// Returns the message which should be sent to the backend in an `SASLResponse` message.
@@ -487,7 +482,7 @@ mod test {
             password.as_bytes(),
             ChannelBinding::unsupported(),
             nonce.to_string(),
-        ).unwrap();
+        );
         assert_eq!(str::from_utf8(scram.message()).unwrap(), client_first);
 
         scram.update(server_first.as_bytes()).unwrap();

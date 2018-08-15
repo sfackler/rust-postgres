@@ -8,8 +8,6 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::sync::{Arc, Weak};
 
-use disconnected;
-use error::{self, Error};
 use proto::connection::{Request, RequestMessages};
 use proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use proto::copy_out::CopyOutStream;
@@ -19,6 +17,7 @@ use proto::query::QueryStream;
 use proto::simple_query::SimpleQueryFuture;
 use proto::statement::Statement;
 use types::{IsNull, Oid, ToSql, Type};
+use Error;
 
 pub struct PendingRequest(Result<RequestMessages, Error>);
 
@@ -101,12 +100,12 @@ impl Client {
             .sender
             .unbounded_send(Request { messages, sender })
             .map(|_| receiver)
-            .map_err(|_| disconnected())
+            .map_err(|_| Error::closed())
     }
 
     pub fn batch_execute(&self, query: &str) -> SimpleQueryFuture {
         let pending = self.pending(|buf| {
-            frontend::query(query, buf)?;
+            frontend::query(query, buf).map_err(Error::parse)?;
             Ok(())
         });
 
@@ -115,8 +114,9 @@ impl Client {
 
     pub fn prepare(&self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {
         let pending = self.pending(|buf| {
-            frontend::parse(&name, query, param_types.iter().map(|t| t.oid()), buf)?;
-            frontend::describe(b'S', &name, buf)?;
+            frontend::parse(&name, query, param_types.iter().map(|t| t.oid()), buf)
+                .map_err(Error::parse)?;
+            frontend::describe(b'S', &name, buf).map_err(Error::parse)?;
             frontend::sync(buf);
             Ok(())
         });
@@ -196,10 +196,10 @@ impl Client {
         );
         match r {
             Ok(()) => {}
-            Err(frontend::BindError::Conversion(e)) => return Err(error::conversion(e)),
-            Err(frontend::BindError::Serialization(e)) => return Err(Error::from(e)),
+            Err(frontend::BindError::Conversion(e)) => return Err(Error::to_sql(e)),
+            Err(frontend::BindError::Serialization(e)) => return Err(Error::encode(e)),
         }
-        frontend::execute("", 0, &mut buf)?;
+        frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);
         Ok(buf)
     }

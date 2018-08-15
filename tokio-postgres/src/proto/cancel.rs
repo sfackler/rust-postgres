@@ -47,7 +47,7 @@ impl PollCancel for Cancel {
     fn poll_sending_cancel<'a>(
         state: &'a mut RentToOwn<'a, SendingCancel>,
     ) -> Poll<AfterSendingCancel, Error> {
-        let (stream, _) = try_ready!(state.future.poll());
+        let (stream, _) = try_ready_closed!(state.future.poll());
 
         transition!(FlushingCancel {
             future: io::flush(stream),
@@ -57,7 +57,7 @@ impl PollCancel for Cancel {
     fn poll_flushing_cancel<'a>(
         state: &'a mut RentToOwn<'a, FlushingCancel>,
     ) -> Poll<AfterFlushingCancel, Error> {
-        try_ready!(state.future.poll());
+        try_ready_closed!(state.future.poll());
         transition!(Finished(()))
     }
 }

@@ -6,13 +6,11 @@ use state_machine_future::RentToOwn;
 use std::mem;
 use std::vec;
 
-use error::{self, Error};
 use proto::client::{Client, PendingRequest};
 use proto::statement::Statement;
 use proto::typeinfo::TypeinfoFuture;
 use types::{Oid, Type};
-use Column;
-use {bad_response, disconnected};
+use {Column, Error};
 
 #[derive(StateMachineFuture)]
 pub enum Prepare {
@@ -87,7 +85,7 @@ impl PollPrepare for Prepare {
     fn poll_read_parse_complete<'a>(
         state: &'a mut RentToOwn<'a, ReadParseComplete>,
     ) -> Poll<AfterReadParseComplete, Error> {
-        let message = try_receive!(state.receiver.poll());
+        let message = try_ready_receive!(state.receiver.poll());
         let state = state.take();
 
         match message {
@@ -96,44 +94,45 @@ impl PollPrepare for Prepare {
                 name: state.name,
                 client: state.client,
             }),
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 
     fn poll_read_parameter_description<'a>(
         state: &'a mut RentToOwn<'a, ReadParameterDescription>,
     ) -> Poll<AfterReadParameterDescription, Error> {
-        let message = try_receive!(state.receiver.poll());
+        let message = try_ready_receive!(state.receiver.poll());
         let state = state.take();
 
         match message {
             Some(Message::ParameterDescription(body)) => transition!(ReadRowDescription {
                 receiver: state.receiver,
                 name: state.name,
-                parameters: body.parameters().collect()?,
+                parameters: body.parameters().collect().map_err(Error::parse)?,
                 client: state.client,
             }),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 
     fn poll_read_row_description<'a>(
         state: &'a mut RentToOwn<'a, ReadRowDescription>,
     ) -> Poll<AfterReadRowDescription, Error> {
-        let message = try_receive!(state.receiver.poll());
+        let message = try_ready_receive!(state.receiver.poll());
         let state = state.take();
 
         let columns = match message {
             Some(Message::RowDescription(body)) => body
                 .fields()
                 .map(|f| (f.name().to_string(), f.type_oid()))
-                .collect()?,
+                .collect()
+                .map_err(Error::parse)?,
             Some(Message::NoData) => vec![],
-            Some(_) => return Err(bad_response()),
-            None => return Err(disconnected()),
+            Some(_) => return Err(Error::unexpected_message()),
+            None => return Err(Error::closed()),
         };
 
         transition!(ReadReadyForQuery {
@@ -148,13 +147,13 @@ impl PollPrepare for Prepare {
     fn poll_read_ready_for_query<'a>(
         state: &'a mut RentToOwn<'a, ReadReadyForQuery>,
     ) -> Poll<AfterReadReadyForQuery, Error> {
-        let message = try_receive!(state.receiver.poll());
+        let message = try_ready_receive!(state.receiver.poll());
         let state = state.take();
 
         match message {
             Some(Message::ReadyForQuery(_)) => {}
-            Some(_) => return Err(bad_response()),
-            None => return Err(disconnected()),
+            Some(_) => return Err(Error::unexpected_message()),
+            None => return Err(Error::closed()),
         }
 
         let mut parameters = state.parameters.into_iter();

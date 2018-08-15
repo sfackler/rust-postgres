@@ -464,7 +464,7 @@ impl InnerConnection {
                     error::connect("a password was requested but not provided".into())
                 })?;
 
-                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding)?;
+                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding);
 
                 self.stream.write_message(|buf| {
                     frontend::sasl_initial_response(mechanism, scram.message(), buf)
@@ -763,8 +763,7 @@ impl InnerConnection {
                         field.name().to_owned(),
                         self.get_type(field.type_oid())?,
                     ))
-                })
-                .collect()
+                }).collect()
                 .map_err(From::from),
             None => Ok(vec![]),
         }
@@ -820,7 +819,8 @@ impl InnerConnection {
         let (name, type_, elem_oid, rngsubtype, basetype, schema, relid) = {
             let name =
                 String::from_sql_nullable(&Type::NAME, get_raw(0)).map_err(error::conversion)?;
-            let type_ = i8::from_sql_nullable(&Type::CHAR, get_raw(1)).map_err(error::conversion)?;
+            let type_ =
+                i8::from_sql_nullable(&Type::CHAR, get_raw(1)).map_err(error::conversion)?;
             let elem_oid =
                 Oid::from_sql_nullable(&Type::OID, get_raw(2)).map_err(error::conversion)?;
             let rngsubtype = Option::<Oid>::from_sql_nullable(&Type::OID, get_raw(3))
@@ -829,7 +829,8 @@ impl InnerConnection {
                 Oid::from_sql_nullable(&Type::OID, get_raw(4)).map_err(error::conversion)?;
             let schema =
                 String::from_sql_nullable(&Type::NAME, get_raw(5)).map_err(error::conversion)?;
-            let relid = Oid::from_sql_nullable(&Type::OID, get_raw(6)).map_err(error::conversion)?;
+            let relid =
+                Oid::from_sql_nullable(&Type::OID, get_raw(6)).map_err(error::conversion)?;
             (name, type_, elem_oid, rngsubtype, basetype, schema, relid)
         };
 
@@ -894,7 +895,7 @@ impl InnerConnection {
         let mut variants = vec![];
         for row in rows {
             variants.push(
-                String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?
+                String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?,
             );
         }
 
@@ -930,8 +931,8 @@ impl InnerConnection {
         let mut fields = vec![];
         for row in rows {
             let (name, type_) = {
-                let name =
-                    String::from_sql_nullable(&Type::NAME, row.get(0)).map_err(error::conversion)?;
+                let name = String::from_sql_nullable(&Type::NAME, row.get(0))
+                    .map_err(error::conversion)?;
                 let type_ =
                     Oid::from_sql_nullable(&Type::OID, row.get(1)).map_err(error::conversion)?;
                 (name, type_)

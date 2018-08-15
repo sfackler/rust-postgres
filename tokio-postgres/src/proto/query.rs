@@ -3,11 +3,10 @@ use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
-use error::{self, Error};
 use proto::client::{Client, PendingRequest};
 use proto::row::Row;
 use proto::statement::Statement;
-use {bad_response, disconnected};
+use Error;
 
 enum State {
     Start {
@@ -68,7 +67,7 @@ impl Stream for QueryStream {
                                 statement,
                             };
                         }
-                        Some(Message::ErrorResponse(body)) => break Err(error::__db(body)),
+                        Some(Message::ErrorResponse(body)) => break Err(Error::db(body)),
                         Some(Message::DataRow(body)) => {
                             let row = Row::new(statement.clone(), body)?;
                             self.0 = State::ReadingResponse {
@@ -80,8 +79,8 @@ impl Stream for QueryStream {
                         Some(Message::EmptyQueryResponse) | Some(Message::CommandComplete(_)) => {
                             self.0 = State::ReadingReadyForQuery { receiver };
                         }
-                        Some(_) => break Err(bad_response()),
-                        None => break Err(disconnected()),
+                        Some(_) => break Err(Error::unexpected_message()),
+                        None => break Err(Error::closed()),
                     }
                 }
                 State::ReadingReadyForQuery { mut receiver } => {
@@ -96,8 +95,8 @@ impl Stream for QueryStream {
 
                     match message {
                         Some(Message::ReadyForQuery(_)) => break Ok(Async::Ready(None)),
-                        Some(_) => break Err(bad_response()),
-                        None => break Err(disconnected()),
+                        Some(_) => break Err(Error::unexpected_message()),
+                        None => break Err(Error::closed()),
                     }
                 }
                 State::Done => break Ok(Async::Ready(None)),

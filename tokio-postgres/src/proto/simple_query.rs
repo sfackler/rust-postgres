@@ -3,9 +3,8 @@ use futures::{Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use state_machine_future::RentToOwn;
 
-use error::{self, Error};
 use proto::client::{Client, PendingRequest};
-use {bad_response, disconnected};
+use Error;
 
 #[derive(StateMachineFuture)]
 pub enum SimpleQuery {
@@ -34,17 +33,17 @@ impl PollSimpleQuery for SimpleQuery {
         state: &'a mut RentToOwn<'a, ReadResponse>,
     ) -> Poll<AfterReadResponse, Error> {
         loop {
-            let message = try_receive!(state.receiver.poll());
+            let message = try_ready_receive!(state.receiver.poll());
 
             match message {
                 Some(Message::CommandComplete(_))
                 | Some(Message::RowDescription(_))
                 | Some(Message::DataRow(_))
                 | Some(Message::EmptyQueryResponse) => {}
-                Some(Message::ErrorResponse(body)) => return Err(error::__db(body)),
+                Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
                 Some(Message::ReadyForQuery(_)) => transition!(Finished(())),
-                Some(_) => return Err(bad_response()),
-                None => return Err(disconnected()),
+                Some(_) => return Err(Error::unexpected_message()),
+                None => return Err(Error::closed()),
             }
         }
     }

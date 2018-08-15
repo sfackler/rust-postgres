@@ -6,11 +6,11 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use tokio_codec::Framed;
 
-use error::{self, DbError, Error};
 use proto::codec::PostgresCodec;
 use proto::copy_in::CopyInReceiver;
 use tls::TlsStream;
-use {bad_response, disconnected, AsyncMessage, CancelData, Notification};
+use {AsyncMessage, CancelData, Notification};
+use {DbError, Error};
 
 pub enum RequestMessages {
     Single(Vec<u8>),
@@ -86,10 +86,10 @@ impl Connection {
         }
 
         loop {
-            let message = match self.poll_response()? {
+            let message = match self.poll_response().map_err(Error::io)? {
                 Async::Ready(Some(message)) => message,
                 Async::Ready(None) => {
-                    return Err(disconnected());
+                    return Err(Error::closed());
                 }
                 Async::NotReady => {
                     trace!("poll_read: waiting on response");
@@ -99,20 +99,22 @@ impl Connection {
 
             let message = match message {
                 Message::NoticeResponse(body) => {
-                    let error = DbError::new(&mut body.fields())?;
+                    let error = DbError::new(&mut body.fields()).map_err(Error::parse)?;
                     return Ok(Some(AsyncMessage::Notice(error)));
                 }
                 Message::NotificationResponse(body) => {
                     let notification = Notification {
                         process_id: body.process_id(),
-                        channel: body.channel()?.to_string(),
-                        payload: body.message()?.to_string(),
+                        channel: body.channel().map_err(Error::parse)?.to_string(),
+                        payload: body.message().map_err(Error::parse)?.to_string(),
                     };
                     return Ok(Some(AsyncMessage::Notification(notification)));
                 }
                 Message::ParameterStatus(body) => {
-                    self.parameters
-                        .insert(body.name()?.to_string(), body.value()?.to_string());
+                    self.parameters.insert(
+                        body.name().map_err(Error::parse)?.to_string(),
+                        body.value().map_err(Error::parse)?.to_string(),
+                    );
                     continue;
                 }
                 m => m,
@@ -121,8 +123,8 @@ impl Connection {
             let mut sender = match self.responses.pop_front() {
                 Some(sender) => sender,
                 None => match message {
-                    Message::ErrorResponse(error) => return Err(error::__db(error)),
-                    _ => return Err(bad_response()),
+                    Message::ErrorResponse(error) => return Err(Error::db(error)),
+                    _ => return Err(Error::unexpected_message()),
                 },
             };
 
@@ -155,7 +157,7 @@ impl Connection {
             return Ok(Async::Ready(Some(message)));
         }
 
-        match try_receive!(self.receiver.poll()) {
+        match try_ready_receive!(self.receiver.poll()) {
             Some(request) => {
                 trace!("polled new request");
                 self.responses.push_back(request.sender);
@@ -195,19 +197,21 @@ impl Connection {
             };
 
             match request {
-                RequestMessages::Single(request) => match self.stream.start_send(request)? {
-                    AsyncSink::Ready => {
-                        if self.state == State::Terminating {
-                            trace!("poll_write: sent eof, closing");
-                            self.state = State::Closing;
+                RequestMessages::Single(request) => {
+                    match self.stream.start_send(request).map_err(Error::io)? {
+                        AsyncSink::Ready => {
+                            if self.state == State::Terminating {
+                                trace!("poll_write: sent eof, closing");
+                                self.state = State::Closing;
+                            }
+                        }
+                        AsyncSink::NotReady(request) => {
+                            trace!("poll_write: waiting on socket");
+                            self.pending_request = Some(RequestMessages::Single(request));
+                            return Ok(false);
                         }
                     }
-                    AsyncSink::NotReady(request) => {
-                        trace!("poll_write: waiting on socket");
-                        self.pending_request = Some(RequestMessages::Single(request));
-                        return Ok(false);
-                    }
-                },
+                }
                 RequestMessages::CopyIn {
                     mut receiver,
                     mut pending_message,
@@ -232,7 +236,7 @@ impl Connection {
                         },
                     };
 
-                    match self.stream.start_send(message)? {
+                    match self.stream.start_send(message).map_err(Error::io)? {
                         AsyncSink::Ready => {
                             self.pending_request = Some(RequestMessages::CopyIn {
                                 receiver,
@@ -254,17 +258,11 @@ impl Connection {
     }
 
     fn poll_flush(&mut self) -> Result<(), Error> {
-        match self.stream.poll_complete() {
-            Ok(Async::Ready(())) => {
-                trace!("poll_flush: flushed");
-                Ok(())
-            }
-            Ok(Async::NotReady) => {
-                trace!("poll_flush: waiting on socket");
-                Ok(())
-            }
-            Err(e) => Err(Error::from(e)),
+        match self.stream.poll_complete().map_err(Error::io)? {
+            Async::Ready(()) => trace!("poll_flush: flushed"),
+            Async::NotReady => trace!("poll_flush: waiting on socket"),
         }
+        Ok(())
     }
 
     fn poll_shutdown(&mut self) -> Poll<(), Error> {
@@ -272,16 +270,15 @@ impl Connection {
             return Ok(Async::NotReady);
         }
 
-        match self.stream.close() {
-            Ok(Async::Ready(())) => {
+        match self.stream.close().map_err(Error::io)? {
+            Async::Ready(()) => {
                 trace!("poll_shutdown: complete");
                 Ok(Async::Ready(()))
             }
-            Ok(Async::NotReady) => {
+            Async::NotReady => {
                 trace!("poll_shutdown: waiting on socket");
                 Ok(Async::NotReady)
             }
-            Err(e) => Err(Error::from(e)),
         }
     }
 

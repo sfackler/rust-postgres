@@ -5,12 +5,12 @@ use std::mem;
 use std::vec;
 
 use error::Error;
+use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use proto::typeinfo::TypeinfoFuture;
 use types::{Field, Oid};
-use {bad_response, next_statement};
 
 const TYPEINFO_COMPOSITE_QUERY: &'static str = "
 SELECT attname, atttypid
@@ -95,11 +95,10 @@ impl PollTypeinfoComposite for TypeinfoComposite {
         let fields = rows
             .iter()
             .map(|row| {
-                let name = row.try_get(0)?.ok_or_else(bad_response)?;
-                let oid = row.try_get(1)?.ok_or_else(bad_response)?;
+                let name = row.try_get(0)?.ok_or_else(Error::unexpected_message)?;
+                let oid = row.try_get(1)?.ok_or_else(Error::unexpected_message)?;
                 Ok((name, oid))
-            })
-            .collect::<Result<Vec<(String, Oid)>, Error>>()?;
+            }).collect::<Result<Vec<(String, Oid)>, Error>>()?;
 
         let mut remaining_fields = fields.into_iter();
         match remaining_fields.next() {

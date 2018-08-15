@@ -50,11 +50,7 @@ fn plain_password_missing() {
         "postgres://pass_user@localhost:5433".parse().unwrap(),
         TlsMode::None,
     );
-    match runtime.block_on(handshake) {
-        Ok(_) => panic!("unexpected success"),
-        Err(ref e) if e.as_connection().is_some() => {}
-        Err(e) => panic!("{}", e),
-    }
+    runtime.block_on(handshake).err().unwrap();
 }
 
 #[test]
@@ -87,11 +83,7 @@ fn md5_password_missing() {
         "postgres://md5_user@localhost:5433".parse().unwrap(),
         TlsMode::None,
     );
-    match runtime.block_on(handshake) {
-        Ok(_) => panic!("unexpected success"),
-        Err(ref e) if e.as_connection().is_some() => {}
-        Err(e) => panic!("{}", e),
-    }
+    runtime.block_on(handshake).err().unwrap();
 }
 
 #[test]
@@ -124,11 +116,7 @@ fn scram_password_missing() {
         "postgres://scram_user@localhost:5433".parse().unwrap(),
         TlsMode::None,
     );
-    match runtime.block_on(handshake) {
-        Ok(_) => panic!("unexpected success"),
-        Err(ref e) if e.as_connection().is_some() => {}
-        Err(e) => panic!("{}", e),
-    }
+    runtime.block_on(handshake).err().unwrap();
 }
 
 #[test]

@@ -11,14 +11,13 @@ use std::collections::HashMap;
 use std::io;
 use tokio_codec::Framed;
 
-use error::{self, Error};
 use params::{ConnectParams, User};
 use proto::client::Client;
 use proto::codec::PostgresCodec;
 use proto::connect::ConnectFuture;
 use proto::connection::Connection;
 use tls::TlsStream;
-use {bad_response, disconnected, CancelData, TlsMode};
+use {CancelData, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Handshake {
@@ -74,11 +73,7 @@ impl PollHandshake for Handshake {
 
         let user = match state.params.user() {
             Some(user) => user.clone(),
-            None => {
-                return Err(error::connect(
-                    "user missing from connection parameters".into(),
-                ))
-            }
+            None => return Err(Error::missing_user()),
         };
 
         let mut buf = vec![];
@@ -100,7 +95,7 @@ impl PollHandshake for Handshake {
                     .chain(user)
                     .chain(database),
                 &mut buf,
-            )?;
+            ).map_err(Error::encode)?;
         }
 
         let stream = Framed::new(stream, PostgresCodec);
@@ -113,7 +108,7 @@ impl PollHandshake for Handshake {
     fn poll_sending_startup<'a>(
         state: &'a mut RentToOwn<'a, SendingStartup>,
     ) -> Poll<AfterSendingStartup, Error> {
-        let stream = try_ready!(state.future.poll());
+        let stream = try_ready!(state.future.poll().map_err(Error::io));
         let state = state.take();
         transition!(ReadingAuth {
             stream,
@@ -124,7 +119,7 @@ impl PollHandshake for Handshake {
     fn poll_reading_auth<'a>(
         state: &'a mut RentToOwn<'a, ReadingAuth>,
     ) -> Poll<AfterReadingAuth, Error> {
-        let message = try_ready!(state.stream.poll());
+        let message = try_ready!(state.stream.poll().map_err(Error::io));
         let state = state.take();
 
         match message {
@@ -134,33 +129,33 @@ impl PollHandshake for Handshake {
                 parameters: HashMap::new(),
             }),
             Some(Message::AuthenticationCleartextPassword) => {
-                let pass = state.user.password().ok_or_else(missing_password)?;
+                let pass = state.user.password().ok_or_else(Error::missing_password)?;
                 let mut buf = vec![];
-                frontend::password_message(pass, &mut buf)?;
+                frontend::password_message(pass, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
                     future: state.stream.send(buf)
                 })
             }
             Some(Message::AuthenticationMd5Password(body)) => {
-                let pass = state.user.password().ok_or_else(missing_password)?;
+                let pass = state.user.password().ok_or_else(Error::missing_password)?;
                 let output = authentication::md5_hash(
                     state.user.name().as_bytes(),
                     pass.as_bytes(),
                     body.salt(),
                 );
                 let mut buf = vec![];
-                frontend::password_message(&output, &mut buf)?;
+                frontend::password_message(&output, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
                     future: state.stream.send(buf)
                 })
             }
             Some(Message::AuthenticationSasl(body)) => {
-                let pass = state.user.password().ok_or_else(missing_password)?;
+                let pass = state.user.password().ok_or_else(Error::missing_password)?;
 
                 let mut has_scram = false;
                 let mut has_scram_plus = false;
                 let mut mechanisms = body.mechanisms();
-                while let Some(mechanism) = mechanisms.next()? {
+                while let Some(mechanism) = mechanisms.next().map_err(Error::parse)? {
                     match mechanism {
                         sasl::SCRAM_SHA_256 => has_scram = true,
                         sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
@@ -191,16 +186,14 @@ impl PollHandshake for Handshake {
                         None => (ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
                     }
                 } else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "unsupported SASL authentication",
-                    ).into());
+                    return Err(Error::unsupported_authentication());
                 };
 
-                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding)?;
+                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding);
 
                 let mut buf = vec![];
-                frontend::sasl_initial_response(mechanism, scram.message(), &mut buf)?;
+                frontend::sasl_initial_response(mechanism, scram.message(), &mut buf)
+                    .map_err(Error::encode)?;
 
                 transition!(SendingSasl {
                     future: state.stream.send(buf),
@@ -210,27 +203,24 @@ impl PollHandshake for Handshake {
             Some(Message::AuthenticationKerberosV5)
             | Some(Message::AuthenticationScmCredential)
             | Some(Message::AuthenticationGss)
-            | Some(Message::AuthenticationSspi) => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "unsupported authentication method",
-            ).into()),
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            | Some(Message::AuthenticationSspi) => Err(Error::unsupported_authentication()),
+            Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 
     fn poll_sending_password<'a>(
         state: &'a mut RentToOwn<'a, SendingPassword>,
     ) -> Poll<AfterSendingPassword, Error> {
-        let stream = try_ready!(state.future.poll());
+        let stream = try_ready!(state.future.poll().map_err(Error::io));
         transition!(ReadingAuthCompletion { stream })
     }
 
     fn poll_sending_sasl<'a>(
         state: &'a mut RentToOwn<'a, SendingSasl>,
     ) -> Poll<AfterSendingSasl, Error> {
-        let stream = try_ready!(state.future.poll());
+        let stream = try_ready!(state.future.poll().map_err(Error::io));
         let state = state.take();
         transition!(ReadingSasl {
             stream,
@@ -241,35 +231,41 @@ impl PollHandshake for Handshake {
     fn poll_reading_sasl<'a>(
         state: &'a mut RentToOwn<'a, ReadingSasl>,
     ) -> Poll<AfterReadingSasl, Error> {
-        let message = try_ready!(state.stream.poll());
+        let message = try_ready!(state.stream.poll().map_err(Error::io));
         let mut state = state.take();
 
         match message {
             Some(Message::AuthenticationSaslContinue(body)) => {
-                state.scram.update(body.data())?;
+                state
+                    .scram
+                    .update(body.data())
+                    .map_err(Error::authentication)?;
                 let mut buf = vec![];
-                frontend::sasl_response(state.scram.message(), &mut buf)?;
+                frontend::sasl_response(state.scram.message(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingSasl {
                     future: state.stream.send(buf),
                     scram: state.scram,
                 })
             }
             Some(Message::AuthenticationSaslFinal(body)) => {
-                state.scram.finish(body.data())?;
+                state
+                    .scram
+                    .finish(body.data())
+                    .map_err(Error::authentication)?;
                 transition!(ReadingAuthCompletion {
                     stream: state.stream,
                 })
             }
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 
     fn poll_reading_auth_completion<'a>(
         state: &'a mut RentToOwn<'a, ReadingAuthCompletion>,
     ) -> Poll<AfterReadingAuthCompletion, Error> {
-        let message = try_ready!(state.stream.poll());
+        let message = try_ready!(state.stream.poll().map_err(Error::io));
         let state = state.take();
 
         match message {
@@ -278,9 +274,9 @@ impl PollHandshake for Handshake {
                 cancel_data: None,
                 parameters: HashMap::new(),
             }),
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 
@@ -288,7 +284,7 @@ impl PollHandshake for Handshake {
         state: &'a mut RentToOwn<'a, ReadingInfo>,
     ) -> Poll<AfterReadingInfo, Error> {
         loop {
-            let message = try_ready!(state.stream.poll());
+            let message = try_ready!(state.stream.poll().map_err(Error::io));
             match message {
                 Some(Message::BackendKeyData(body)) => {
                     state.cancel_data = Some(CancelData {
@@ -297,14 +293,18 @@ impl PollHandshake for Handshake {
                     });
                 }
                 Some(Message::ParameterStatus(body)) => {
-                    state
-                        .parameters
-                        .insert(body.name()?.to_string(), body.value()?.to_string());
+                    state.parameters.insert(
+                        body.name().map_err(Error::parse)?.to_string(),
+                        body.value().map_err(Error::parse)?.to_string(),
+                    );
                 }
                 Some(Message::ReadyForQuery(_)) => {
                     let state = state.take();
                     let cancel_data = state.cancel_data.ok_or_else(|| {
-                        io::Error::new(io::ErrorKind::InvalidData, "BackendKeyData message missing")
+                        Error::parse(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "BackendKeyData message missing",
+                        ))
                     })?;
                     let (sender, receiver) = mpsc::unbounded();
                     let client = Client::new(sender);
@@ -312,10 +312,10 @@ impl PollHandshake for Handshake {
                         Connection::new(state.stream, cancel_data, state.parameters, receiver);
                     transition!(Finished((client, connection)))
                 }
-                Some(Message::ErrorResponse(body)) => return Err(error::__db(body)),
+                Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
                 Some(Message::NoticeResponse(_)) => {}
-                Some(_) => return Err(bad_response()),
-                None => return Err(disconnected()),
+                Some(_) => return Err(Error::unexpected_message()),
+                None => return Err(Error::closed()),
             }
         }
     }
@@ -325,8 +325,4 @@ impl HandshakeFuture {
     pub fn new(params: ConnectParams, tls: TlsMode) -> HandshakeFuture {
         Handshake::start(ConnectFuture::new(params.clone(), tls), params)
     }
-}
-
-fn missing_password() -> Error {
-    error::connect("a password was requested but not provided".into())
 }

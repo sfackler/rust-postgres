@@ -27,7 +27,6 @@ use futures::{Async, Future, Poll, Stream};
 use postgres_shared::rows::RowIndex;
 use std::error::Error as StdError;
 use std::fmt;
-use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[doc(inline)]
@@ -50,20 +49,6 @@ static NEXT_STATEMENT_ID: AtomicUsize = AtomicUsize::new(0);
 
 fn next_statement() -> String {
     format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst))
-}
-
-fn bad_response() -> Error {
-    Error::from(io::Error::new(
-        io::ErrorKind::InvalidInput,
-        "the server returned an unexpected response",
-    ))
-}
-
-fn disconnected() -> Error {
-    Error::from(io::Error::new(
-        io::ErrorKind::UnexpectedEof,
-        "server disconnected",
-    ))
 }
 
 pub enum TlsMode {

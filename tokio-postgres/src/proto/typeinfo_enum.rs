@@ -3,11 +3,11 @@ use futures::{Async, Future, Poll};
 use state_machine_future::RentToOwn;
 
 use error::{Error, SqlState};
+use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use types::Oid;
-use {bad_response, next_statement};
 
 const TYPEINFO_ENUM_QUERY: &'static str = "
 SELECT enumlabel
@@ -126,7 +126,7 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
         let variants = rows
             .iter()
-            .map(|row| row.try_get(0)?.ok_or_else(bad_response))
+            .map(|row| row.try_get(0)?.ok_or_else(Error::unexpected_message))
             .collect::<Result<Vec<_>, _>>()?;
 
         transition!(Finished((variants, state.client)))

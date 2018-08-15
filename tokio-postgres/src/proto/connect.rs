@@ -14,11 +14,10 @@ use tokio_timer::Delay;
 #[cfg(unix)]
 use tokio_uds::{self, UnixStream};
 
-use error::{self, Error};
 use params::{ConnectParams, Host};
 use proto::socket::Socket;
 use tls::{self, TlsConnect, TlsStream};
-use {bad_response, TlsMode};
+use {Error, TlsMode};
 
 lazy_static! {
     static ref DNS_POOL: CpuPool = CpuPool::new(2);
@@ -27,7 +26,10 @@ lazy_static! {
 #[derive(StateMachineFuture)]
 pub enum Connect {
     #[state_machine_future(start)]
-    #[cfg_attr(unix, state_machine_future(transitions(ResolvingDns, ConnectingUnix)))]
+    #[cfg_attr(
+        unix,
+        state_machine_future(transitions(ResolvingDns, ConnectingUnix))
+    )]
     #[cfg_attr(not(unix), state_machine_future(transitions(ResolvingDns)))]
     Start { params: ConnectParams, tls: TlsMode },
     #[state_machine_future(transitions(ConnectingTcp))]
@@ -122,13 +124,16 @@ impl PollConnect for Connect {
     fn poll_resolving_dns<'a>(
         state: &'a mut RentToOwn<'a, ResolvingDns>,
     ) -> Poll<AfterResolvingDns, Error> {
-        let mut addrs = try_ready!(state.future.poll());
+        let mut addrs = try_ready!(state.future.poll().map_err(Error::connect));
         let state = state.take();
 
         let addr = match addrs.next() {
             Some(addr) => addr,
             None => {
-                return Err(io::Error::new(io::ErrorKind::Other, "resolved to 0 addresses").into())
+                return Err(Error::connect(io::Error::new(
+                    io::ErrorKind::Other,
+                    "resolved to 0 addresses",
+                )))
             }
         };
 
@@ -149,11 +154,7 @@ impl PollConnect for Connect {
                 Ok(Async::Ready(socket)) => break socket,
                 Ok(Async::NotReady) => match state.timeout {
                     Some((_, ref mut delay)) => {
-                        try_ready!(
-                            delay
-                                .poll()
-                                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                        );
+                        try_ready!(delay.poll().map_err(Error::timer));
                         io::Error::new(io::ErrorKind::TimedOut, "connection timed out")
                     }
                     None => return Ok(Async::NotReady),
@@ -163,7 +164,7 @@ impl PollConnect for Connect {
 
             let addr = match state.addrs.next() {
                 Some(addr) => addr,
-                None => return Err(error.into()),
+                None => return Err(Error::connect(error)),
             };
 
             state.future = TcpStream::connect(&addr);
@@ -175,7 +176,7 @@ impl PollConnect for Connect {
         // Our read/write patterns may trigger Nagle's algorithm since we're pipelining which
         // we don't want. Each individual write should be a full command we want the backend to
         // see immediately.
-        socket.set_nodelay(true)?;
+        socket.set_nodelay(true).map_err(Error::connect)?;
 
         let state = state.take();
         transition!(PreparingSsl {
@@ -189,7 +190,7 @@ impl PollConnect for Connect {
     fn poll_connecting_unix<'a>(
         state: &'a mut RentToOwn<'a, ConnectingUnix>,
     ) -> Poll<AfterConnectingUnix, Error> {
-        match state.future.poll()? {
+        match state.future.poll().map_err(Error::connect)? {
             Async::Ready(socket) => {
                 let state = state.take();
                 transition!(PreparingSsl {
@@ -200,12 +201,11 @@ impl PollConnect for Connect {
             }
             Async::NotReady => match state.timeout {
                 Some(ref mut delay) => {
-                    try_ready!(
-                        delay
-                            .poll()
-                            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                    );
-                    Err(io::Error::new(io::ErrorKind::TimedOut, "connection timed out").into())
+                    try_ready!(delay.poll().map_err(Error::timer));
+                    Err(Error::connect(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "connection timed out",
+                    )))
                 }
                 None => Ok(Async::NotReady),
             },
@@ -238,7 +238,7 @@ impl PollConnect for Connect {
     fn poll_sending_ssl<'a>(
         state: &'a mut RentToOwn<'a, SendingSsl>,
     ) -> Poll<AfterSendingSsl, Error> {
-        let (stream, _) = try_ready!(state.future.poll());
+        let (stream, _) = try_ready_closed!(state.future.poll());
         let state = state.take();
         transition!(FlushingSsl {
             future: flush(stream),
@@ -251,7 +251,7 @@ impl PollConnect for Connect {
     fn poll_flushing_ssl<'a>(
         state: &'a mut RentToOwn<'a, FlushingSsl>,
     ) -> Poll<AfterFlushingSsl, Error> {
-        let stream = try_ready!(state.future.poll());
+        let stream = try_ready_closed!(state.future.poll());
         let state = state.take();
         transition!(ReadingSsl {
             future: read_exact(stream, [0]),
@@ -264,7 +264,7 @@ impl PollConnect for Connect {
     fn poll_reading_ssl<'a>(
         state: &'a mut RentToOwn<'a, ReadingSsl>,
     ) -> Poll<AfterReadingSsl, Error> {
-        let (stream, buf) = try_ready!(state.future.poll());
+        let (stream, buf) = try_ready_closed!(state.future.poll());
         let state = state.take();
 
         match buf[0] {
@@ -272,7 +272,7 @@ impl PollConnect for Connect {
                 let future = match state.params.host() {
                     Host::Tcp(domain) => state.connector.connect(domain, tls::Socket(stream)),
                     Host::Unix(_) => {
-                        return Err(error::tls("TLS over unix sockets not supported".into()))
+                        return Err(Error::tls("TLS over unix sockets not supported".into()))
                     }
                 };
                 transition!(ConnectingTls {
@@ -281,15 +281,15 @@ impl PollConnect for Connect {
                 })
             }
             b'N' if !state.required => transition!(Ready(Box::new(stream))),
-            b'N' => Err(error::tls("TLS was required but not supported".into())),
-            _ => Err(bad_response()),
+            b'N' => Err(Error::tls("TLS was required but not supported".into())),
+            _ => Err(Error::unexpected_message()),
         }
     }
 
     fn poll_connecting_tls<'a>(
         state: &'a mut RentToOwn<'a, ConnectingTls>,
     ) -> Poll<AfterConnectingTls, Error> {
-        let stream = try_ready!(state.future.poll().map_err(error::tls));
+        let stream = try_ready!(state.future.poll().map_err(Error::tls));
         transition!(Ready(stream))
     }
 }

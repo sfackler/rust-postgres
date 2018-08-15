@@ -2,10 +2,9 @@ use postgres_protocol::message::backend::DataRowBody;
 use postgres_shared::rows::{RowData, RowIndex};
 use std::fmt;
 
-use error::{self, Error};
 use proto::statement::Statement;
 use types::{FromSql, WrongType};
-use Column;
+use {Column, Error};
 
 pub struct Row {
     statement: Statement,
@@ -14,7 +13,7 @@ pub struct Row {
 
 impl Row {
     pub fn new(statement: Statement, data: DataRowBody) -> Result<Row, Error> {
-        let data = RowData::new(data)?;
+        let data = RowData::new(data).map_err(Error::parse)?;
         Ok(Row { statement, data })
     }
 
@@ -58,9 +57,9 @@ impl Row {
 
         let ty = self.statement.columns()[idx].type_();
         if !<T as FromSql>::accepts(ty) {
-            return Err(error::conversion(Box::new(WrongType::new(ty.clone()))));
+            return Err(Error::from_sql(Box::new(WrongType::new(ty.clone()))));
         }
         let value = FromSql::from_sql_nullable(ty, self.data.get(idx));
-        value.map(Some).map_err(error::conversion)
+        value.map(Some).map_err(Error::from_sql)
     }
 }

@@ -3,13 +3,13 @@ use futures::{Async, Future, Poll};
 use state_machine_future::RentToOwn;
 
 use error::{Error, SqlState};
+use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use proto::typeinfo_composite::TypeinfoCompositeFuture;
 use proto::typeinfo_enum::TypeinfoEnumFuture;
 use types::{Kind, Oid, Type};
-use {bad_response, next_statement};
 
 const TYPEINFO_QUERY: &'static str = "
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -46,16 +46,14 @@ pub enum Typeinfo {
         oid: Oid,
         client: Client,
     },
-    #[state_machine_future(
-        transitions(
-            CachingType,
-            QueryingEnumVariants,
-            QueryingDomainBasetype,
-            QueryingArrayElem,
-            QueryingCompositeFields,
-            QueryingRangeSubtype
-        )
-    )]
+    #[state_machine_future(transitions(
+        CachingType,
+        QueryingEnumVariants,
+        QueryingDomainBasetype,
+        QueryingArrayElem,
+        QueryingCompositeFields,
+        QueryingRangeSubtype
+    ))]
     QueryingTypeinfo {
         future: stream::Collect<QueryStream>,
         oid: Oid,
@@ -185,16 +183,30 @@ impl PollTypeinfo for Typeinfo {
 
         let row = match rows.get(0) {
             Some(row) => row,
-            None => return Err(bad_response()),
+            None => return Err(Error::unexpected_message()),
         };
 
-        let name = row.try_get::<_, String>(0)?.ok_or_else(bad_response)?;
-        let type_ = row.try_get::<_, i8>(1)?.ok_or_else(bad_response)?;
-        let elem_oid = row.try_get::<_, Oid>(2)?.ok_or_else(bad_response)?;
-        let rngsubtype = row.try_get::<_, Option<Oid>>(3)?.ok_or_else(bad_response)?;
-        let basetype = row.try_get::<_, Oid>(4)?.ok_or_else(bad_response)?;
-        let schema = row.try_get::<_, String>(5)?.ok_or_else(bad_response)?;
-        let relid = row.try_get::<_, Oid>(6)?.ok_or_else(bad_response)?;
+        let name = row
+            .try_get::<_, String>(0)?
+            .ok_or_else(Error::unexpected_message)?;
+        let type_ = row
+            .try_get::<_, i8>(1)?
+            .ok_or_else(Error::unexpected_message)?;
+        let elem_oid = row
+            .try_get::<_, Oid>(2)?
+            .ok_or_else(Error::unexpected_message)?;
+        let rngsubtype = row
+            .try_get::<_, Option<Oid>>(3)?
+            .ok_or_else(Error::unexpected_message)?;
+        let basetype = row
+            .try_get::<_, Oid>(4)?
+            .ok_or_else(Error::unexpected_message)?;
+        let schema = row
+            .try_get::<_, String>(5)?
+            .ok_or_else(Error::unexpected_message)?;
+        let relid = row
+            .try_get::<_, Oid>(6)?
+            .ok_or_else(Error::unexpected_message)?;
 
         let kind = if type_ == b'e' as i8 {
             transition!(QueryingEnumVariants {

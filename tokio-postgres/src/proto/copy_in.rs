@@ -6,10 +6,9 @@ use postgres_protocol::message::frontend;
 use state_machine_future::RentToOwn;
 use std::error::Error as StdError;
 
-use error::{self, Error};
 use proto::client::{Client, PendingRequest};
 use proto::statement::Statement;
-use {bad_response, disconnected};
+use Error;
 
 pub enum CopyMessage {
     Data(Vec<u8>),
@@ -123,7 +122,7 @@ where
         state: &'a mut RentToOwn<'a, ReadCopyInResponse<S>>,
     ) -> Poll<AfterReadCopyInResponse<S>, Error> {
         loop {
-            let message = try_receive!(state.receiver.poll());
+            let message = try_ready_receive!(state.receiver.poll());
 
             match message {
                 Some(Message::BindComplete) => {}
@@ -136,9 +135,9 @@ where
                         receiver: state.receiver
                     })
                 }
-                Some(Message::ErrorResponse(body)) => return Err(error::__db(body)),
-                Some(_) => return Err(bad_response()),
-                None => return Err(disconnected()),
+                Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
+                Some(_) => return Err(Error::unexpected_message()),
+                None => return Err(Error::closed()),
             }
         }
     }
@@ -149,10 +148,10 @@ where
         loop {
             let message = match state.pending_message.take() {
                 Some(message) => message,
-                None => match try_ready!(state.stream.poll().map_err(error::__user)) {
+                None => match try_ready!(state.stream.poll().map_err(Error::copy_in_stream)) {
                     Some(data) => {
                         let mut buf = vec![];
-                        frontend::copy_data(data.as_ref(), &mut buf).map_err(error::io)?;
+                        frontend::copy_data(data.as_ref(), &mut buf).map_err(Error::encode)?;
                         CopyMessage::Data(buf)
                     }
                     None => {
@@ -171,7 +170,7 @@ where
                     state.pending_message = Some(message);
                     return Ok(Async::NotReady);
                 }
-                Err(_) => return Err(disconnected()),
+                Err(_) => return Err(Error::closed()),
             }
         }
     }
@@ -179,7 +178,7 @@ where
     fn poll_write_copy_done<'a>(
         state: &'a mut RentToOwn<'a, WriteCopyDone>,
     ) -> Poll<AfterWriteCopyDone, Error> {
-        try_ready!(state.future.poll().map_err(|_| disconnected()));
+        try_ready!(state.future.poll().map_err(|_| Error::closed()));
         let state = state.take();
 
         transition!(ReadCommandComplete {
@@ -190,16 +189,23 @@ where
     fn poll_read_command_complete<'a>(
         state: &'a mut RentToOwn<'a, ReadCommandComplete>,
     ) -> Poll<AfterReadCommandComplete, Error> {
-        let message = try_receive!(state.receiver.poll());
+        let message = try_ready_receive!(state.receiver.poll());
 
         match message {
             Some(Message::CommandComplete(body)) => {
-                let rows = body.tag()?.rsplit(' ').next().unwrap().parse().unwrap_or(0);
+                let rows = body
+                    .tag()
+                    .map_err(Error::parse)?
+                    .rsplit(' ')
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .unwrap_or(0);
                 transition!(Finished(rows))
             }
-            Some(Message::ErrorResponse(body)) => Err(error::__db(body)),
-            Some(_) => Err(bad_response()),
-            None => Err(disconnected()),
+            Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+            Some(_) => Err(Error::unexpected_message()),
+            None => Err(Error::closed()),
         }
     }
 }

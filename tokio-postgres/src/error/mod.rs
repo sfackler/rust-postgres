@@ -2,10 +2,10 @@
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
-use std::convert::From;
 use std::error;
 use std::fmt;
 use std::io;
+use tokio_timer;
 
 pub use self::sqlstate::*;
 
@@ -333,147 +333,175 @@ pub enum ErrorPosition {
     },
 }
 
-#[doc(hidden)]
-pub fn connect(e: Box<error::Error + Sync + Send>) -> Error {
-    Error(Box::new(ErrorKind::ConnectParams(e)))
+#[derive(Debug, PartialEq)]
+enum Kind {
+    Io,
+    UnexpectedMessage,
+    Tls,
+    ToSql,
+    FromSql,
+    CopyInStream,
+    Closed,
+    Db,
+    Parse,
+    Encode,
+    MissingUser,
+    MissingPassword,
+    UnsupportedAuthentication,
+    Connect,
+    Timer,
+    Authentication,
 }
 
-#[doc(hidden)]
-pub fn tls(e: Box<error::Error + Sync + Send>) -> Error {
-    Error(Box::new(ErrorKind::Tls(e)))
-}
-
-#[doc(hidden)]
-pub fn db(e: DbError) -> Error {
-    Error(Box::new(ErrorKind::Db(e)))
-}
-
-#[doc(hidden)]
-pub fn __db(e: ErrorResponseBody) -> Error {
-    match DbError::new(&mut e.fields()) {
-        Ok(e) => Error(Box::new(ErrorKind::Db(e))),
-        Err(e) => Error(Box::new(ErrorKind::Io(e))),
-    }
-}
-
-#[doc(hidden)]
-pub fn __user<T>(e: T) -> Error
-where
-    T: Into<Box<error::Error + Sync + Send>>,
-{
-    Error(Box::new(ErrorKind::Conversion(e.into())))
-}
-
-#[doc(hidden)]
-pub fn io(e: io::Error) -> Error {
-    Error(Box::new(ErrorKind::Io(e)))
-}
-
-#[doc(hidden)]
-pub fn conversion(e: Box<error::Error + Sync + Send>) -> Error {
-    Error(Box::new(ErrorKind::Conversion(e)))
-}
-
-#[derive(Debug)]
-enum ErrorKind {
-    ConnectParams(Box<error::Error + Sync + Send>),
-    Tls(Box<error::Error + Sync + Send>),
-    Db(DbError),
-    Io(io::Error),
-    Conversion(Box<error::Error + Sync + Send>),
+struct ErrorInner {
+    kind: Kind,
+    cause: Option<Box<error::Error + Sync + Send>>,
 }
 
 /// An error communicating with the Postgres server.
-#[derive(Debug)]
-pub struct Error(Box<ErrorKind>);
+pub struct Error(Box<ErrorInner>);
+
+impl fmt::Debug for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Error")
+            .field("kind", &self.0.kind)
+            .field("cause", &self.0.cause)
+            .finish()
+    }
+}
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.write_str(error::Error::description(self))?;
-        match *self.0 {
-            ErrorKind::ConnectParams(ref err) => write!(fmt, ": {}", err),
-            ErrorKind::Tls(ref err) => write!(fmt, ": {}", err),
-            ErrorKind::Db(ref err) => write!(fmt, ": {}", err),
-            ErrorKind::Io(ref err) => write!(fmt, ": {}", err),
-            ErrorKind::Conversion(ref err) => write!(fmt, ": {}", err),
+        if let Some(ref cause) = self.0.cause {
+            write!(fmt, ": {}", cause)?;
         }
+        Ok(())
     }
 }
 
 impl error::Error for Error {
     fn description(&self) -> &str {
-        match *self.0 {
-            ErrorKind::ConnectParams(_) => "invalid connection parameters",
-            ErrorKind::Tls(_) => "TLS handshake error",
-            ErrorKind::Db(_) => "database error",
-            ErrorKind::Io(_) => "IO error",
-            ErrorKind::Conversion(_) => "type conversion error",
+        match self.0.kind {
+            Kind::Io => "error communicating with the server",
+            Kind::UnexpectedMessage => "unexpected message from server",
+            Kind::Tls => "error performing TLS handshake",
+            Kind::ToSql => "error serializing a value",
+            Kind::FromSql => "error deserializing a value",
+            Kind::CopyInStream => "error from a copy_in stream",
+            Kind::Closed => "connection closed",
+            Kind::Db => "db error",
+            Kind::Parse => "error parsing response from server",
+            Kind::Encode => "error encoding message to server",
+            Kind::MissingUser => "username not provided",
+            Kind::MissingPassword => "password not provided",
+            Kind::UnsupportedAuthentication => "unsupported authentication method requested",
+            Kind::Connect => "error connecting to server",
+            Kind::Timer => "timer error",
+            Kind::Authentication => "authentication error",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        match *self.0 {
-            ErrorKind::ConnectParams(ref err) => Some(&**err),
-            ErrorKind::Tls(ref err) => Some(&**err),
-            ErrorKind::Db(ref err) => Some(err),
-            ErrorKind::Io(ref err) => Some(err),
-            ErrorKind::Conversion(ref err) => Some(&**err),
-        }
+        self.0.cause.as_ref().map(|e| &**e as &error::Error)
     }
 }
 
 impl Error {
-    /// Returns the SQLSTATE error code associated with this error if it is a DB
-    /// error.
+    /// Returns the error's cause.
+    ///
+    /// This is the same as `Error::cause` except that it provides extra bounds
+    /// required to be able to downcast the error.
+    pub fn cause2(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
+        self.0.cause.as_ref().map(|e| &**e)
+    }
+
+    /// Consumes the error, returning its cause.
+    pub fn into_cause(self) -> Option<Box<error::Error + Sync + Send>> {
+        self.0.cause
+    }
+
+    /// Returns the SQLSTATE error code associated with the error.
+    ///
+    /// This is a convenience method that downcasts the cause to a `DbError`
+    /// and returns its code.
     pub fn code(&self) -> Option<&SqlState> {
-        self.as_db().map(|e| &e.code)
+        self.cause2()
+            .and_then(|e| e.downcast_ref::<DbError>())
+            .map(|e| e.code())
     }
 
-    /// Returns the inner error if this is a connection parameter error.
-    pub fn as_connection(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
-        match *self.0 {
-            ErrorKind::ConnectParams(ref err) => Some(&**err),
-            _ => None,
+    fn new(kind: Kind, cause: Option<Box<error::Error + Sync + Send>>) -> Error {
+        Error(Box::new(ErrorInner { kind, cause }))
+    }
+
+    pub(crate) fn closed() -> Error {
+        Error::new(Kind::Closed, None)
+    }
+
+    pub(crate) fn unexpected_message() -> Error {
+        Error::new(Kind::UnexpectedMessage, None)
+    }
+
+    pub(crate) fn db(error: ErrorResponseBody) -> Error {
+        match DbError::new(&mut error.fields()) {
+            Ok(e) => Error::new(Kind::Db, Some(Box::new(e))),
+            Err(e) => Error::new(Kind::Parse, Some(Box::new(e))),
         }
     }
 
-    /// Returns the `DbError` associated with this error if it is a DB error.
-    pub fn as_db(&self) -> Option<&DbError> {
-        match *self.0 {
-            ErrorKind::Db(ref err) => Some(err),
-            _ => None,
-        }
+    pub(crate) fn parse(e: io::Error) -> Error {
+        Error::new(Kind::Parse, Some(Box::new(e)))
     }
 
-    /// Returns the inner error if this is a conversion error.
-    pub fn as_conversion(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
-        match *self.0 {
-            ErrorKind::Conversion(ref err) => Some(&**err),
-            _ => None,
-        }
+    pub(crate) fn encode(e: io::Error) -> Error {
+        Error::new(Kind::Encode, Some(Box::new(e)))
     }
 
-    /// Returns the inner `io::Error` associated with this error if it is an IO
-    /// error.
-    pub fn as_io(&self) -> Option<&io::Error> {
-        match *self.0 {
-            ErrorKind::Io(ref err) => Some(err),
-            _ => None,
-        }
+    pub(crate) fn to_sql(e: Box<error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::ToSql, Some(e))
     }
-}
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error(Box::new(ErrorKind::Io(err)))
+    pub(crate) fn from_sql(e: Box<error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::FromSql, Some(e))
     }
-}
 
-impl From<Error> for io::Error {
-    fn from(err: Error) -> io::Error {
-        match *err.0 {
-            ErrorKind::Io(e) => e,
-            _ => io::Error::new(io::ErrorKind::Other, err),
-        }
+    pub(crate) fn copy_in_stream<E>(e: E) -> Error
+    where
+        E: Into<Box<error::Error + Sync + Send>>,
+    {
+        Error::new(Kind::CopyInStream, Some(e.into()))
+    }
+
+    pub(crate) fn missing_user() -> Error {
+        Error::new(Kind::MissingUser, None)
+    }
+
+    pub(crate) fn missing_password() -> Error {
+        Error::new(Kind::MissingPassword, None)
+    }
+
+    pub(crate) fn unsupported_authentication() -> Error {
+        Error::new(Kind::UnsupportedAuthentication, None)
+    }
+
+    pub(crate) fn tls(e: Box<error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::Tls, Some(e))
+    }
+
+    pub(crate) fn connect(e: io::Error) -> Error {
+        Error::new(Kind::Connect, Some(Box::new(e)))
+    }
+
+    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
+        Error::new(Kind::Timer, Some(Box::new(e)))
+    }
+
+    pub(crate) fn io(e: io::Error) -> Error {
+        Error::new(Kind::Io, Some(Box::new(e)))
+    }
+
+    pub(crate) fn authentication(e: io::Error) -> Error {
+        Error::new(Kind::Authentication, Some(Box::new(e)))
     }
 }

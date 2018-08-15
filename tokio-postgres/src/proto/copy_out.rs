@@ -4,10 +4,9 @@ use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
-use error::{self, Error};
 use proto::client::{Client, PendingRequest};
 use proto::statement::Statement;
-use {bad_response, disconnected};
+use Error;
 
 enum State {
     Start {
@@ -60,9 +59,9 @@ impl Stream for CopyOutStream {
                         Some(Message::CopyOutResponse(_)) => {
                             self.0 = State::ReadingCopyData { receiver };
                         }
-                        Some(Message::ErrorResponse(body)) => break Err(error::__db(body)),
-                        Some(_) => break Err(bad_response()),
-                        None => break Err(disconnected()),
+                        Some(Message::ErrorResponse(body)) => break Err(Error::db(body)),
+                        Some(_) => break Err(Error::unexpected_message()),
+                        None => break Err(Error::closed()),
                     }
                 }
                 State::ReadingCopyData { mut receiver } => {
@@ -84,9 +83,9 @@ impl Stream for CopyOutStream {
                             self.0 = State::ReadingCopyData { receiver };
                         }
                         Some(Message::ReadyForQuery(_)) => break Ok(Async::Ready(None)),
-                        Some(Message::ErrorResponse(body)) => break Err(error::__db(body)),
-                        Some(_) => break Err(bad_response()),
-                        None => break Err(disconnected()),
+                        Some(Message::ErrorResponse(body)) => break Err(Error::db(body)),
+                        Some(_) => break Err(Error::unexpected_message()),
+                        None => break Err(Error::closed()),
                     }
                 }
                 State::Done => break Ok(Async::Ready(None)),
