@@ -18,9 +18,6 @@ enum State {
         receiver: mpsc::Receiver<Message>,
         statement: Statement,
     },
-    ReadingReadyForQuery {
-        receiver: mpsc::Receiver<Message>,
-    },
     Done,
 }
 
@@ -77,24 +74,8 @@ impl Stream for QueryStream {
                             break Ok(Async::Ready(Some(row)));
                         }
                         Some(Message::EmptyQueryResponse) | Some(Message::CommandComplete(_)) => {
-                            self.0 = State::ReadingReadyForQuery { receiver };
+                            break Ok(Async::Ready(None));
                         }
-                        Some(_) => break Err(Error::unexpected_message()),
-                        None => break Err(Error::closed()),
-                    }
-                }
-                State::ReadingReadyForQuery { mut receiver } => {
-                    let message = match receiver.poll() {
-                        Ok(Async::Ready(message)) => message,
-                        Ok(Async::NotReady) => {
-                            self.0 = State::ReadingReadyForQuery { receiver };
-                            break Ok(Async::NotReady);
-                        }
-                        Err(()) => unreachable!("mpsc::Receiver doesn't return errors"),
-                    };
-
-                    match message {
-                        Some(Message::ReadyForQuery(_)) => break Ok(Async::Ready(None)),
                         Some(_) => break Err(Error::unexpected_message()),
                         None => break Err(Error::closed()),
                     }

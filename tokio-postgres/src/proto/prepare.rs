@@ -32,20 +32,12 @@ pub enum Prepare {
         receiver: mpsc::Receiver<Message>,
         name: String,
     },
-    #[state_machine_future(transitions(ReadReadyForQuery))]
+    #[state_machine_future(transitions(GetParameterTypes, GetColumnTypes, Finished))]
     ReadRowDescription {
         client: Client,
         receiver: mpsc::Receiver<Message>,
         name: String,
         parameters: Vec<Oid>,
-    },
-    #[state_machine_future(transitions(GetParameterTypes, GetColumnTypes, Finished))]
-    ReadReadyForQuery {
-        client: Client,
-        receiver: mpsc::Receiver<Message>,
-        name: String,
-        parameters: Vec<Oid>,
-        columns: Vec<(String, Oid)>,
     },
     #[state_machine_future(transitions(GetColumnTypes, Finished))]
     GetParameterTypes {
@@ -135,27 +127,6 @@ impl PollPrepare for Prepare {
             None => return Err(Error::closed()),
         };
 
-        transition!(ReadReadyForQuery {
-            receiver: state.receiver,
-            name: state.name,
-            parameters: state.parameters,
-            columns,
-            client: state.client,
-        })
-    }
-
-    fn poll_read_ready_for_query<'a>(
-        state: &'a mut RentToOwn<'a, ReadReadyForQuery>,
-    ) -> Poll<AfterReadReadyForQuery, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
-        let state = state.take();
-
-        match message {
-            Some(Message::ReadyForQuery(_)) => {}
-            Some(_) => return Err(Error::unexpected_message()),
-            None => return Err(Error::closed()),
-        }
-
         let mut parameters = state.parameters.into_iter();
         if let Some(oid) = parameters.next() {
             transition!(GetParameterTypes {
@@ -163,11 +134,11 @@ impl PollPrepare for Prepare {
                 remaining_parameters: parameters,
                 name: state.name,
                 parameters: vec![],
-                columns: state.columns,
+                columns: columns,
             });
         }
 
-        let mut columns = state.columns.into_iter();
+        let mut columns = columns.into_iter();
         if let Some((name, oid)) = columns.next() {
             transition!(GetColumnTypes {
                 future: TypeinfoFuture::new(oid, state.client),

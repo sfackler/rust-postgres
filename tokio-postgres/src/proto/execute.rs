@@ -15,13 +15,8 @@ pub enum Execute {
         request: PendingRequest,
         statement: Statement,
     },
-    #[state_machine_future(transitions(ReadReadyForQuery))]
-    ReadResponse { receiver: mpsc::Receiver<Message> },
     #[state_machine_future(transitions(Finished))]
-    ReadReadyForQuery {
-        receiver: mpsc::Receiver<Message>,
-        rows: u64,
-    },
+    ReadResponse { receiver: mpsc::Receiver<Message> },
     #[state_machine_future(ready)]
     Finished(u64),
     #[state_machine_future(error)]
@@ -56,34 +51,12 @@ impl PollExecute for Execute {
                         .unwrap()
                         .parse()
                         .unwrap_or(0);
-                    let state = state.take();
-                    transition!(ReadReadyForQuery {
-                        receiver: state.receiver,
-                        rows,
-                    });
+                    transition!(Finished(rows))
                 }
-                Some(Message::EmptyQueryResponse) => {
-                    let state = state.take();
-                    transition!(ReadReadyForQuery {
-                        receiver: state.receiver,
-                        rows: 0,
-                    });
-                }
+                Some(Message::EmptyQueryResponse) => transition!(Finished(0)),
                 Some(_) => return Err(Error::unexpected_message()),
                 None => return Err(Error::closed()),
             }
-        }
-    }
-
-    fn poll_read_ready_for_query<'a>(
-        state: &'a mut RentToOwn<'a, ReadReadyForQuery>,
-    ) -> Poll<AfterReadReadyForQuery, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
-
-        match message {
-            Some(Message::ReadyForQuery(_)) => transition!(Finished(state.rows)),
-            Some(_) => Err(Error::unexpected_message()),
-            None => Err(Error::closed()),
         }
     }
 }
