@@ -9,15 +9,16 @@ struct Inner {
     statement: Statement,
 }
 
-pub struct Portal(Arc<Inner>);
-
-impl Drop for Portal {
+impl Drop for Inner {
     fn drop(&mut self) {
-        if let Some(client) = self.0.client.upgrade() {
-            client.close_portal(&self.0.name);
+        if let Some(client) = self.client.upgrade() {
+            client.close_portal(&self.name);
         }
     }
 }
+
+#[derive(Clone)]
+pub struct Portal(Arc<Inner>);
 
 impl Portal {
     pub fn new(client: WeakClient, name: String, statement: Statement) -> Portal {

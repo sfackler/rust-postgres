@@ -13,6 +13,7 @@ use proto::connection::{Request, RequestMessages};
 use proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use proto::copy_out::CopyOutStream;
 use proto::execute::ExecuteFuture;
+use proto::portal::Portal;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
 use proto::simple_query::SimpleQueryFuture;
@@ -133,7 +134,7 @@ impl Client {
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn query(&self, statement: &Statement, params: &[&ToSql]) -> QueryStream {
+    pub fn query(&self, statement: &Statement, params: &[&ToSql]) -> QueryStream<Statement> {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(RequestMessages::Single),
@@ -148,6 +149,15 @@ impl Client {
         }
         let pending = PendingRequest(buf.map(RequestMessages::Single));
         BindFuture::new(self.clone(), pending, name, statement.clone())
+    }
+
+    pub fn query_portal(&self, portal: &Portal, rows: i32) -> QueryStream<Portal> {
+        let pending = self.pending(|buf| {
+            frontend::execute(portal.name(), rows, buf).map_err(Error::parse)?;
+            frontend::sync(buf);
+            Ok(())
+        });
+        QueryStream::new(self.clone(), pending, portal.clone())
     }
 
     pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>

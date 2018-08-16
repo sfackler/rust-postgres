@@ -7,6 +7,7 @@ use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
+use proto::statement::Statement;
 use proto::typeinfo_composite::TypeinfoCompositeFuture;
 use proto::typeinfo_enum::TypeinfoEnumFuture;
 use types::{Kind, Oid, Type};
@@ -55,7 +56,7 @@ pub enum Typeinfo {
         QueryingRangeSubtype
     ))]
     QueryingTypeinfo {
-        future: stream::Collect<QueryStream>,
+        future: stream::Collect<QueryStream<Statement>>,
         oid: Oid,
         client: Client,
     },

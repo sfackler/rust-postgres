@@ -7,6 +7,7 @@ use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
+use proto::statement::Statement;
 use types::Oid;
 
 const TYPEINFO_ENUM_QUERY: &'static str = "
@@ -45,7 +46,7 @@ pub enum TypeinfoEnum {
     },
     #[state_machine_future(transitions(Finished))]
     QueryingEnumVariants {
-        future: stream::Collect<QueryStream>,
+        future: stream::Collect<QueryStream<Statement>>,
         client: Client,
     },
     #[state_machine_future(ready)]

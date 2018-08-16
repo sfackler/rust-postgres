@@ -9,6 +9,7 @@ use next_statement;
 use proto::client::Client;
 use proto::prepare::PrepareFuture;
 use proto::query::QueryStream;
+use proto::statement::Statement;
 use proto::typeinfo::TypeinfoFuture;
 use types::{Field, Oid};
 
@@ -36,7 +37,7 @@ pub enum TypeinfoComposite {
     },
     #[state_machine_future(transitions(QueryingCompositeFieldTypes, Finished))]
     QueryingCompositeFields {
-        future: stream::Collect<QueryStream>,
+        future: stream::Collect<QueryStream<Statement>>,
         client: Client,
     },
     #[state_machine_future(transitions(Finished))]

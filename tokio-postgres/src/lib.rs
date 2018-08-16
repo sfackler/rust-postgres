@@ -92,6 +92,10 @@ impl Client {
         Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
+    pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> QueryPortal {
+        QueryPortal(self.0.query_portal(&portal.0, max_rows))
+    }
+
     pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
     where
         S: Stream,
@@ -218,7 +222,7 @@ impl Future for Execute {
 }
 
 #[must_use = "streams do nothing unless polled"]
-pub struct Query(proto::QueryStream);
+pub struct Query(proto::QueryStream<proto::Statement>);
 
 impl Stream for Query {
     type Item = Row;
@@ -244,6 +248,23 @@ impl Future for Bind {
     fn poll(&mut self) -> Poll<Portal, Error> {
         match self.0.poll() {
             Ok(Async::Ready(portal)) => Ok(Async::Ready(Portal(portal))),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+#[must_use = "streams do nothing unless polled"]
+pub struct QueryPortal(proto::QueryStream<proto::Portal>);
+
+impl Stream for QueryPortal {
+    type Item = Row;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Row>, Error> {
+        match self.0.poll() {
+            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(e),
         }

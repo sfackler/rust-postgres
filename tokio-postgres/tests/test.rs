@@ -199,6 +199,49 @@ fn insert_select() {
 }
 
 #[test]
+fn query_portal() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let handshake = tokio_postgres::connect(
+        "postgres://postgres@localhost:5433".parse().unwrap(),
+        TlsMode::None,
+    );
+    let (mut client, connection) = runtime.block_on(handshake).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT);
+             INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');
+             BEGIN;",
+        )).unwrap();
+
+    let statement = runtime
+        .block_on(client.prepare("SELECT id, name FROM foo ORDER BY id"))
+        .unwrap();
+    let portal = runtime.block_on(client.bind(&statement, &[])).unwrap();
+
+    let f1 = client.query_portal(&portal, 2).collect();
+    let f2 = client.query_portal(&portal, 2).collect();
+    let f3 = client.query_portal(&portal, 2).collect();
+    let (r1, r2, r3) = runtime.block_on(f1.join3(f2, f3)).unwrap();
+
+    assert_eq!(r1.len(), 2);
+    assert_eq!(r1[0].get::<_, i32>(0), 1);
+    assert_eq!(r1[0].get::<_, &str>(1), "alice");
+    assert_eq!(r1[1].get::<_, i32>(0), 2);
+    assert_eq!(r1[1].get::<_, &str>(1), "bob");
+
+    assert_eq!(r2.len(), 1);
+    assert_eq!(r2[0].get::<_, i32>(0), 3);
+    assert_eq!(r2[0].get::<_, &str>(1), "charlie");
+
+    assert_eq!(r3.len(), 0);
+}
+
+#[test]
 fn cancel_query() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();

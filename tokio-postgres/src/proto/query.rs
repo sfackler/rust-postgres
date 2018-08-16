@@ -4,26 +4,46 @@ use postgres_protocol::message::backend::Message;
 use std::mem;
 
 use proto::client::{Client, PendingRequest};
+use proto::portal::Portal;
 use proto::row::Row;
 use proto::statement::Statement;
 use Error;
 
-enum State {
+pub trait StatementHolder {
+    fn statement(&self) -> &Statement;
+}
+
+impl StatementHolder for Statement {
+    fn statement(&self) -> &Statement {
+        self
+    }
+}
+
+impl StatementHolder for Portal {
+    fn statement(&self) -> &Statement {
+        self.statement()
+    }
+}
+
+enum State<T> {
     Start {
         client: Client,
         request: PendingRequest,
-        statement: Statement,
+        statement: T,
     },
     ReadingResponse {
         receiver: mpsc::Receiver<Message>,
-        statement: Statement,
+        statement: T,
     },
     Done,
 }
 
-pub struct QueryStream(State);
+pub struct QueryStream<T>(State<T>);
 
-impl Stream for QueryStream {
+impl<T> Stream for QueryStream<T>
+where
+    T: StatementHolder,
+{
     type Item = Row;
     type Error = Error;
 
@@ -66,14 +86,16 @@ impl Stream for QueryStream {
                         }
                         Some(Message::ErrorResponse(body)) => break Err(Error::db(body)),
                         Some(Message::DataRow(body)) => {
-                            let row = Row::new(statement.clone(), body)?;
+                            let row = Row::new(statement.statement().clone(), body)?;
                             self.0 = State::ReadingResponse {
                                 receiver,
                                 statement,
                             };
                             break Ok(Async::Ready(Some(row)));
                         }
-                        Some(Message::EmptyQueryResponse) | Some(Message::CommandComplete(_)) => {
+                        Some(Message::EmptyQueryResponse)
+                        | Some(Message::PortalSuspended)
+                        | Some(Message::CommandComplete(_)) => {
                             break Ok(Async::Ready(None));
                         }
                         Some(_) => break Err(Error::unexpected_message()),
@@ -86,8 +108,11 @@ impl Stream for QueryStream {
     }
 }
 
-impl QueryStream {
-    pub fn new(client: Client, request: PendingRequest, statement: Statement) -> QueryStream {
+impl<T> QueryStream<T>
+where
+    T: StatementHolder,
+{
+    pub fn new(client: Client, request: PendingRequest, statement: T) -> QueryStream<T> {
         QueryStream(State::Start {
             client,
             request,
