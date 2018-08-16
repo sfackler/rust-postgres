@@ -18,6 +18,7 @@ macro_rules! try_ready_closed {
     };
 }
 
+mod bind;
 mod cancel;
 mod client;
 mod codec;
@@ -27,6 +28,7 @@ mod copy_in;
 mod copy_out;
 mod execute;
 mod handshake;
+mod portal;
 mod prepare;
 mod query;
 mod row;
@@ -38,6 +40,7 @@ mod typeinfo;
 mod typeinfo_composite;
 mod typeinfo_enum;
 
+pub use proto::bind::BindFuture;
 pub use proto::cancel::CancelFuture;
 pub use proto::client::Client;
 pub use proto::codec::PostgresCodec;
@@ -46,6 +49,7 @@ pub use proto::copy_in::CopyInFuture;
 pub use proto::copy_out::CopyOutStream;
 pub use proto::execute::ExecuteFuture;
 pub use proto::handshake::HandshakeFuture;
+pub use proto::portal::Portal;
 pub use proto::prepare::PrepareFuture;
 pub use proto::query::QueryStream;
 pub use proto::row::Row;

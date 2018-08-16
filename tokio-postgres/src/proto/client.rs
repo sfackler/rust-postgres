@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::sync::{Arc, Weak};
 
+use proto::bind::BindFuture;
 use proto::connection::{Request, RequestMessages};
 use proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use proto::copy_out::CopyOutStream;
@@ -140,6 +141,15 @@ impl Client {
         QueryStream::new(self.clone(), pending, statement.clone())
     }
 
+    pub fn bind(&self, statement: &Statement, name: String, params: &[&ToSql]) -> BindFuture {
+        let mut buf = self.bind_message(statement, &name, params);
+        if let Ok(ref mut buf) = buf {
+            frontend::sync(buf);
+        }
+        let pending = PendingRequest(buf.map(RequestMessages::Single));
+        BindFuture::new(self.clone(), pending, name, statement.clone())
+    }
+
     pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>
     where
         S: Stream,
@@ -169,8 +179,16 @@ impl Client {
     }
 
     pub fn close_statement(&self, name: &str) {
+        self.close(b'S', name)
+    }
+
+    pub fn close_portal(&self, name: &str) {
+        self.close(b'P', name)
+    }
+
+    fn close(&self, ty: u8, name: &str) {
         let mut buf = vec![];
-        frontend::close(b'S', name, &mut buf).expect("statement name not valid");
+        frontend::close(ty, name, &mut buf).expect("statement name not valid");
         frontend::sync(&mut buf);
         let (sender, _) = mpsc::channel(0);
         let _ = self.0.sender.unbounded_send(Request {
@@ -179,10 +197,15 @@ impl Client {
         });
     }
 
-    fn excecute_message(&self, statement: &Statement, params: &[&ToSql]) -> Result<Vec<u8>, Error> {
+    fn bind_message(
+        &self,
+        statement: &Statement,
+        name: &str,
+        params: &[&ToSql],
+    ) -> Result<Vec<u8>, Error> {
         let mut buf = vec![];
         let r = frontend::bind(
-            "",
+            name,
             statement.name(),
             Some(1),
             params.iter().zip(statement.params()),
@@ -195,10 +218,14 @@ impl Client {
             &mut buf,
         );
         match r {
-            Ok(()) => {}
+            Ok(()) => Ok(buf),
             Err(frontend::BindError::Conversion(e)) => return Err(Error::to_sql(e)),
             Err(frontend::BindError::Serialization(e)) => return Err(Error::encode(e)),
         }
+    }
+
+    fn excecute_message(&self, statement: &Statement, params: &[&ToSql]) -> Result<Vec<u8>, Error> {
+        let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);
         Ok(buf)

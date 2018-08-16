@@ -45,10 +45,14 @@ pub mod error;
 mod proto;
 pub mod tls;
 
-static NEXT_STATEMENT_ID: AtomicUsize = AtomicUsize::new(0);
-
 fn next_statement() -> String {
-    format!("s{}", NEXT_STATEMENT_ID.fetch_add(1, Ordering::SeqCst))
+    static ID: AtomicUsize = AtomicUsize::new(0);
+    format!("s{}", ID.fetch_add(1, Ordering::SeqCst))
+}
+
+fn next_portal() -> String {
+    static ID: AtomicUsize = AtomicUsize::new(0);
+    format!("p{}", ID.fetch_add(1, Ordering::SeqCst))
 }
 
 pub enum TlsMode {
@@ -82,6 +86,10 @@ impl Client {
 
     pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
+    }
+
+    pub fn bind(&mut self, statement: &Statement, params: &[&ToSql]) -> Bind {
+        Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
     pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
@@ -225,6 +233,24 @@ impl Stream for Query {
         }
     }
 }
+
+#[must_use = "futures do nothing unless polled"]
+pub struct Bind(proto::BindFuture);
+
+impl Future for Bind {
+    type Item = Portal;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Portal, Error> {
+        match self.0.poll() {
+            Ok(Async::Ready(portal)) => Ok(Async::Ready(Portal(portal))),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+pub struct Portal(proto::Portal);
 
 #[must_use = "futures do nothing unless polled"]
 pub struct CopyIn<S>(proto::CopyInFuture<S>)
