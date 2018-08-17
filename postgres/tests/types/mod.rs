@@ -15,7 +15,7 @@ mod bit_vec;
 mod chrono;
 #[cfg(feature = "with-eui48-0.3")]
 mod eui48;
-#[cfg(feature = "with-geo-0.8")]
+#[cfg(feature = "with-geo-0.10")]
 mod geo;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json;

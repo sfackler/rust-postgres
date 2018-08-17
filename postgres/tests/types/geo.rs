@@ -1,6 +1,6 @@
 extern crate geo;
 
-use self::geo::{Bbox, LineString, Point};
+use self::geo::{Coordinate, LineString, Point, Rect};
 use types::test_type;
 
 #[test]
@@ -21,11 +21,9 @@ fn test_box_params() {
         "BOX",
         &[
             (
-                Some(Bbox {
-                    xmax: 160.0,
-                    ymax: 69701.5615,
-                    xmin: -3.14,
-                    ymin: 1.618,
+                Some(Rect {
+                    min: Coordinate { x: -3.14, y: 1.618, },
+                    max: Coordinate { x: 160.0, y: 69701.5615, },
                 }),
                 "BOX(POINT(160.0, 69701.5615), POINT(-3.14, 1.618))",
             ),
