@@ -1,6 +1,6 @@
 extern crate geo;
 
-use self::geo::{Bbox, LineString, Point};
+use self::geo::{Coordinate, LineString, Point, Rect};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types;
 use std::error::Error;
@@ -26,23 +26,21 @@ impl ToSql for Point<f64> {
     to_sql_checked!();
 }
 
-impl<'a> FromSql<'a> for Bbox<f64> {
+impl<'a> FromSql<'a> for Rect<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
-        let bbox = types::box_from_sql(raw)?;
-        Ok(Bbox {
-            xmin: bbox.lower_left().x(),
-            xmax: bbox.upper_right().x(),
-            ymin: bbox.lower_left().y(),
-            ymax: bbox.upper_right().y(),
+        let rect = types::box_from_sql(raw)?;
+        Ok(Rect {
+            min: Coordinate { x: rect.lower_left().x(), y: rect.lower_left().y(), },
+            max: Coordinate { x: rect.upper_right().x(), y: rect.upper_right().y(), },
         })
     }
 
     accepts!(BOX);
 }
 
-impl ToSql for Bbox<f64> {
+impl ToSql for Rect<f64> {
     fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
-        types::box_to_sql(self.xmin, self.ymin, self.xmax, self.ymax, out);
+        types::box_to_sql(self.min.x, self.min.y, self.max.x, self.max.y, out);
         Ok(IsNull::No)
     }
 
@@ -53,7 +51,7 @@ impl ToSql for Bbox<f64> {
 impl<'a> FromSql<'a> for LineString<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
         let path = types::path_from_sql(raw)?;
-        let points = path.points().map(|p| Point::new(p.x(), p.y())).collect()?;
+        let points = path.points().map(|p| Coordinate { x: p.x(), y: p.y() }).collect()?;
         Ok(LineString(points))
     }
 
@@ -63,7 +61,7 @@ impl<'a> FromSql<'a> for LineString<f64> {
 impl ToSql for LineString<f64> {
     fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
         let closed = false; // always encode an open path from LineString
-        types::path_to_sql(closed, self.0.iter().map(|p| (p.x(), p.y())), out)?;
+        types::path_to_sql(closed, self.0.iter().map(|p| (p.x, p.y)), out)?;
         Ok(IsNull::No)
     }
 
