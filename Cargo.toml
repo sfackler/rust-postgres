@@ -9,12 +9,3 @@ members = [
     "tokio-postgres",
     "tokio-postgres-openssl",
 ]
-
-[patch.crates-io]
-tokio = { git = "https://github.com/tokio-rs/tokio" }
-tokio-codec = { git = "https://github.com/tokio-rs/tokio" }
-tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
-tokio-reactor = { git = "https://github.com/tokio-rs/tokio" }
-tokio-timer = { git = "https://github.com/tokio-rs/tokio" }
-tokio-uds = { git = "https://github.com/tokio-rs/tokio" }
