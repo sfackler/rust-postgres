@@ -110,7 +110,14 @@ impl PollConnect for Connect {
                     params: state.params,
                     tls: state.tls,
                 })
-            }
+            },
+            #[cfg(not(unix))]
+            Host::Unix(_) => {
+                Err(Error::connect(io::Error::new(
+                    io::ErrorKind::Other,
+                    "unix sockets are not supported on this platform",
+                )))
+            },
         }
     }
 
