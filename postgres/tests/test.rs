@@ -332,6 +332,41 @@ fn test_nested_transactions_finish() {
 }
 
 #[test]
+fn test_nested_transactions_partial_rollback() {
+    let conn = or_panic!(Connection::connect(
+        "postgres://postgres@localhost:5433",
+        TlsMode::None,
+    ));
+    or_panic!(conn.execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)", &[]));
+
+    or_panic!(conn.execute("INSERT INTO foo (id) VALUES ($1)", &[&1i32]));
+
+    {
+        let trans = or_panic!(conn.transaction());
+        or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&2i32]));
+        {
+            let trans = or_panic!(trans.transaction());
+            or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&3i32]));
+            {
+                let trans = or_panic!(trans.transaction());
+                or_panic!(trans.execute("INSERT INTO foo (id) VALUES ($1)", &[&4i32]));
+                drop(trans);
+            }
+            drop(trans);
+        }
+        or_panic!(trans.commit());
+    }
+
+    let stmt = or_panic!(conn.prepare("SELECT * FROM foo ORDER BY id"));
+    let result = or_panic!(stmt.query(&[]));
+
+    assert_eq!(
+        vec![1i32, 2],
+        result.iter().map(|row| row.get(0)).collect::<Vec<i32>>()
+    );
+}
+
+#[test]
 #[should_panic(expected = "active transaction")]
 fn test_conn_trans_when_nested() {
     let conn = or_panic!(Connection::connect(
