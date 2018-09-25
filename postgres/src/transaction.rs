@@ -244,7 +244,7 @@ impl<'conn> Transaction<'conn> {
     ///
     /// Panics if there is an active nested transaction.
     pub fn transaction<'a>(&'a self) -> Result<Transaction<'a>> {
-        self.savepoint("sp")
+        self.savepoint(format!("sp_{}", self.depth()))
     }
 
     /// Like `Connection::transaction`, but creates a nested transaction via
@@ -253,7 +253,14 @@ impl<'conn> Transaction<'conn> {
     /// # Panics
     ///
     /// Panics if there is an active nested transaction.
-    pub fn savepoint<'a>(&'a self, name: &str) -> Result<Transaction<'a>> {
+    #[inline]
+    pub fn savepoint<'a, I>(&'a self, name: I) -> Result<Transaction<'a>>
+        where I: Into<String>
+    {
+        self._savepoint(name.into())
+    }
+
+    fn _savepoint<'a>(&'a self, name: String) -> Result<Transaction<'a>> {
         let mut conn = self.conn.0.borrow_mut();
         check_desync!(conn);
         assert!(
@@ -265,7 +272,7 @@ impl<'conn> Transaction<'conn> {
         Ok(Transaction {
             conn: self.conn,
             depth: self.depth + 1,
-            savepoint_name: Some(name.to_owned()),
+            savepoint_name: Some(name),
             commit: Cell::new(false),
             finished: false,
         })
