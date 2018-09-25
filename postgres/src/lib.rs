@@ -262,15 +262,6 @@ impl InnerConnection {
         let params = params.into_connect_params().map_err(error::connect)?;
         let stream = priv_io::initialize_stream(&params, tls)?;
 
-        let user = match params.user() {
-            Some(user) => user,
-            None => {
-                return Err(error::connect(
-                    "user missing from connection parameters".into(),
-                ));
-            }
-        };
-
         let mut conn = InnerConnection {
             stream: MessageStream::new(stream),
             next_stmt_id: 0,
@@ -297,7 +288,9 @@ impl InnerConnection {
         // WITH TIME ZONE values. Timespec converts to GMT internally.
         options.push(("timezone".to_owned(), "GMT".to_owned()));
         // We have to clone here since we need the user again for auth
-        options.push(("user".to_owned(), user.name().to_owned()));
+        if let Some(user) = params.user() {
+            options.push(("user".to_owned(), user.name().to_owned()));
+        }
         if let Some(database) = params.database() {
             options.push(("database".to_owned(), database.to_owned()));
         }
@@ -307,7 +300,7 @@ impl InnerConnection {
             .write_message(|buf| frontend::startup_message(options, buf))?;
         conn.stream.flush()?;
 
-        conn.handle_auth(user)?;
+        conn.handle_auth(&params.user())?;
 
         loop {
             match conn.read_message()? {
@@ -400,11 +393,11 @@ impl InnerConnection {
         }
     }
 
-    fn handle_auth(&mut self, user: &User) -> Result<()> {
+    fn handle_auth(&mut self, user: &Option<&User>) -> Result<()> {
         match self.read_message()? {
             backend::Message::AuthenticationOk => return Ok(()),
             backend::Message::AuthenticationCleartextPassword => {
-                let pass = user.password().ok_or_else(|| {
+                let pass = user.and_then(|u| u.password()).ok_or_else(|| {
                     error::connect("a password was requested but not provided".into())
                 })?;
                 self.stream
@@ -412,11 +405,14 @@ impl InnerConnection {
                 self.stream.flush()?;
             }
             backend::Message::AuthenticationMd5Password(body) => {
-                let pass = user.password().ok_or_else(|| {
+                let username = user.ok_or_else(|| {
+                    error::connect("user name required for authentication but not provided".into())
+                })?.name();
+                let pass = user.and_then(|u| u.password()).ok_or_else(|| {
                     error::connect("a password was requested but not provided".into())
                 })?;
                 let output =
-                    authentication::md5_hash(user.name().as_bytes(), pass.as_bytes(), body.salt());
+                    authentication::md5_hash(username.as_bytes(), pass.as_bytes(), body.salt());
                 self.stream
                     .write_message(|buf| frontend::password_message(&output, buf))?;
                 self.stream.flush()?;
@@ -460,7 +456,7 @@ impl InnerConnection {
                     );
                 };
 
-                let pass = user.password().ok_or_else(|| {
+                let pass = user.and_then(|u| u.password()).ok_or_else(|| {
                     error::connect("a password was requested but not provided".into())
                 })?;
 
