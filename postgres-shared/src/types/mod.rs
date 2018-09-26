@@ -87,6 +87,9 @@ mod uuid;
 mod special;
 mod type_gen;
 
+#[cfg(feature = "with-serde_json-1")]
+pub use self::serde_json::Json;
+
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Type(Inner);
