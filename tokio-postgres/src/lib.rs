@@ -6,7 +6,6 @@ extern crate phf;
 extern crate postgres_protocol;
 extern crate postgres_shared;
 extern crate tokio;
-extern crate tokio_timer;
 
 #[macro_use]
 extern crate futures;

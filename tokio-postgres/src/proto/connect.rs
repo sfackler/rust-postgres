@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 use tokio::io::{read_exact, write_all, ReadExact, WriteAll};
 use tokio::net::{tcp, TcpStream};
-use tokio_timer::Delay;
+use tokio::timer::Delay;
 
 #[cfg(unix)]
 use tokio_uds::{self, UnixStream};

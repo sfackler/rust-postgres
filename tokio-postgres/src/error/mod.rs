@@ -5,7 +5,7 @@ use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::error;
 use std::fmt;
 use std::io;
-use tokio_timer;
+use tokio::timer;
 
 pub use self::sqlstate::*;
 
@@ -493,7 +493,7 @@ impl Error {
         Error::new(Kind::Connect, Some(Box::new(e)))
     }
 
-    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
+    pub(crate) fn timer(e: timer::Error) -> Error {
         Error::new(Kind::Timer, Some(Box::new(e)))
     }
 
