@@ -7,7 +7,7 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 use std::vec;
-use tokio_io::io::{read_exact, write_all, ReadExact, WriteAll};
+use tokio::io::{read_exact, write_all, ReadExact, WriteAll};
 use tokio_tcp::{self, TcpStream};
 use tokio_timer::Delay;
 

@@ -1,7 +1,7 @@
 use bytes::{Buf, BufMut};
 use futures::Poll;
 use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
 #[cfg(unix)]

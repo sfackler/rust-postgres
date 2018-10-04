@@ -5,8 +5,8 @@ extern crate futures_cpupool;
 extern crate phf;
 extern crate postgres_protocol;
 extern crate postgres_shared;
+extern crate tokio;
 extern crate tokio_codec;
-extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
 

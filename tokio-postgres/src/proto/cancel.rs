@@ -1,7 +1,7 @@
 use futures::{Future, Poll};
 use postgres_protocol::message::frontend;
 use state_machine_future::RentToOwn;
-use tokio_io::io::{self, Flush, WriteAll};
+use tokio::io::{self, Flush, WriteAll};
 
 use error::Error;
 use params::ConnectParams;
