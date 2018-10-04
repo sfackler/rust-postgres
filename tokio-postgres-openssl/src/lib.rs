@@ -1,12 +1,9 @@
 extern crate bytes;
 extern crate futures;
 extern crate openssl;
-extern crate tokio_io;
+extern crate tokio;
 extern crate tokio_openssl;
 extern crate tokio_postgres;
-
-#[cfg(test)]
-extern crate tokio;
 
 use bytes::{Buf, BufMut};
 use futures::{Future, IntoFuture, Poll};
@@ -14,7 +11,7 @@ use openssl::error::ErrorStack;
 use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslRef};
 use std::error::Error;
 use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_openssl::ConnectConfigurationExt;
 use tokio_postgres::tls::{Socket, TlsConnect, TlsStream};
 
