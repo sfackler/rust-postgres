@@ -9,7 +9,7 @@ use postgres_protocol::message::frontend;
 use state_machine_future::RentToOwn;
 use std::collections::HashMap;
 use std::io;
-use tokio_codec::Framed;
+use tokio::codec::Framed;
 
 use params::{ConnectParams, User};
 use proto::client::Client;

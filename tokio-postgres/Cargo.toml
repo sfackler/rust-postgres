@@ -44,7 +44,6 @@ postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
 postgres-shared = { version = "0.4.0", path = "../postgres-shared" }
 state_machine_future = "0.1.7"
 tokio = "0.1.11"
-tokio-codec = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 
