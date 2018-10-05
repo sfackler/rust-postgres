@@ -2,7 +2,7 @@ use bytes::{Buf, BufMut};
 use futures::{Future, Poll};
 use std::error::Error;
 use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use proto;
 

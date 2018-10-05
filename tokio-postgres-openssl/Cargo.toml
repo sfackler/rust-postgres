@@ -7,9 +7,6 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 bytes = "0.4"
 futures = "0.1"
 openssl = "0.10"
-tokio-io = "0.1"
+tokio = "0.1.9"
 tokio-openssl = "0.2"
 tokio-postgres = { version = "0.3", path = "../tokio-postgres" }
-
-[dev-dependencies]
-tokio = "0.1.7"

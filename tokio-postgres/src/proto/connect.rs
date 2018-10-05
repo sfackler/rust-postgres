@@ -7,9 +7,9 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 use std::vec;
-use tokio_io::io::{read_exact, write_all, ReadExact, WriteAll};
-use tokio_tcp::{self, TcpStream};
-use tokio_timer::Delay;
+use tokio::io::{read_exact, write_all, ReadExact, WriteAll};
+use tokio::net::{tcp, TcpStream};
+use tokio::timer::Delay;
 
 #[cfg(unix)]
 use tokio_uds::{self, UnixStream};
@@ -42,7 +42,7 @@ pub enum Connect {
     #[state_machine_future(transitions(PreparingSsl))]
     ConnectingTcp {
         addrs: vec::IntoIter<SocketAddr>,
-        future: tokio_tcp::ConnectFuture,
+        future: tcp::ConnectFuture,
         timeout: Option<(Duration, Delay)>,
         params: ConnectParams,
         tls: TlsMode,

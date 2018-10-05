@@ -4,7 +4,7 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::io;
-use tokio_codec::Framed;
+use tokio::codec::Framed;
 
 use proto::codec::PostgresCodec;
 use proto::copy_in::CopyInReceiver;

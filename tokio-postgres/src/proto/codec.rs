@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use postgres_protocol::message::backend;
 use std::io;
-use tokio_codec::{Decoder, Encoder};
+use tokio::codec::{Decoder, Encoder};
 
 pub struct PostgresCodec;
 
