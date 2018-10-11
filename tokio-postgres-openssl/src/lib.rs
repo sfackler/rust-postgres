@@ -52,7 +52,7 @@ impl TlsConnect for TlsConnector {
         &self,
         domain: &str,
         socket: Socket,
-    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send> {
+    ) -> Box<Future<Item = Box<TlsStream + Send>, Error = Box<Error + Sync + Send>> + Sync + Send> {
         let f = self
             .connector
             .configure()
@@ -67,7 +67,7 @@ impl TlsConnect for TlsConnector {
                 move |ssl| {
                     ssl.connect_async(&domain, socket)
                         .map(|s| {
-                            let s: Box<TlsStream> = Box::new(SslStream(s));
+                            let s: Box<TlsStream + Send> = Box::new(SslStream(s));
                             s
                         })
                         .map_err(|e| {

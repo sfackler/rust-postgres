@@ -57,8 +57,8 @@ fn next_portal() -> String {
 
 pub enum TlsMode {
     None,
-    Prefer(Box<TlsConnect>),
-    Require(Box<TlsConnect>),
+    Prefer(Box<TlsConnect + Send>),
+    Require(Box<TlsConnect + Send>),
 }
 
 pub fn cancel_query(params: ConnectParams, tls: TlsMode, cancel_data: CancelData) -> CancelQuery {

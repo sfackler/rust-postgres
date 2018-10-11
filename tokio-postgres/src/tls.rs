@@ -55,7 +55,7 @@ pub trait TlsConnect {
         &self,
         domain: &str,
         socket: Socket,
-    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send>;
+    ) -> Box<Future<Item = Box<TlsStream + Send>, Error = Box<Error + Sync + Send>> + Sync + Send>;
 }
 
 pub trait TlsStream: 'static + Sync + Send + AsyncRead + AsyncWrite {

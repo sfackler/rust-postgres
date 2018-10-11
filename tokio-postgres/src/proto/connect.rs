@@ -65,20 +65,20 @@ pub enum Connect {
     SendingSsl {
         future: WriteAll<Socket, Vec<u8>>,
         params: ConnectParams,
-        connector: Box<TlsConnect>,
+        connector: Box<TlsConnect + Send>,
         required: bool,
     },
     #[state_machine_future(transitions(ConnectingTls, Ready))]
     ReadingSsl {
         future: ReadExact<Socket, [u8; 1]>,
         params: ConnectParams,
-        connector: Box<TlsConnect>,
+        connector: Box<TlsConnect + Send>,
         required: bool,
     },
     #[state_machine_future(transitions(Ready))]
     ConnectingTls {
         future:
-            Box<Future<Item = Box<TlsStream>, Error = Box<StdError + Sync + Send>> + Sync + Send>,
+            Box<Future<Item = Box<TlsStream + Send>, Error = Box<StdError + Sync + Send>> + Sync + Send>,
         params: ConnectParams,
     },
     #[state_machine_future(ready)]
