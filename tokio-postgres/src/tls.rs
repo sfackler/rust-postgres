@@ -50,7 +50,7 @@ impl AsyncWrite for Socket {
     }
 }
 
-pub trait TlsConnect {
+pub trait TlsConnect: Sync + Send {
     fn connect(
         &self,
         domain: &str,
