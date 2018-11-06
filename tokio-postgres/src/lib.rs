@@ -116,7 +116,17 @@ impl Client {
         // FIXME error type?
         T::Error: From<Error>,
     {
-        Transaction(proto::TransactionFuture::new(self.0.clone(), future))
+        self.transaction_builder().build(future)
+    }
+
+    /// Creates a TransactionBuilder, which can later be used to create
+    /// a Transaction around a future.
+    ///
+    /// Use this when Client is moved into the future being built.
+    /// For example, when executing multiple statements that depend
+    /// on the previous statement's result.
+    pub fn transaction_builder(&self) -> TransactionBuilder {
+        TransactionBuilder(self.0.clone())
     }
 
     pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
@@ -330,6 +340,19 @@ impl Row {
         T: FromSql<'a>,
     {
         self.0.try_get(idx)
+    }
+}
+
+pub struct TransactionBuilder(proto::Client);
+
+impl TransactionBuilder {
+    pub fn build<T>(self, future: T) -> Transaction<T>
+    where
+        T: Future,
+        // FIXME error type?
+        T::Error: From<Error>,
+    {
+        Transaction(proto::TransactionFuture::new(self.0, future))
     }
 }
 
