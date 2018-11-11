@@ -2,12 +2,14 @@
 pub use priv_io::Stream;
 
 use std::error::Error;
-use std::io::prelude::*;
 use std::fmt;
+use std::io::prelude::*;
 
 #[cfg(feature = "with-native-tls")]
+#[deprecated(since = "0.15.2", note = "use the postgres-native-tls crate")]
 pub mod native_tls;
 #[cfg(feature = "with-openssl")]
+#[deprecated(since = "0.15.2", note = "use the postgres-openssl crate")]
 pub mod openssl;
 #[cfg(feature = "with-schannel")]
 pub mod schannel;

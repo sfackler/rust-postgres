@@ -1,8 +1,4 @@
 extern crate fallible_iterator;
-#[cfg(feature = "native-tls")]
-extern crate native_tls;
-#[cfg(feature = "with-openssl")]
-extern crate openssl;
 extern crate postgres;
 #[macro_use]
 extern crate postgres_shared;
@@ -955,38 +951,6 @@ fn test_cancel_query() {
 }
 
 #[test]
-#[cfg(feature = "with-openssl")]
-fn test_require_ssl_conn() {
-    use openssl::ssl::{SslConnectorBuilder, SslMethod};
-    use postgres::tls::openssl::OpenSsl;
-
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::from(builder.build());
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
-#[cfg(feature = "with-openssl")]
-fn test_prefer_ssl_conn() {
-    use openssl::ssl::{SslConnectorBuilder, SslMethod};
-    use postgres::tls::openssl::OpenSsl;
-
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::from(builder.build());
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
 #[cfg(feature = "with-security-framework")]
 fn security_framework_ssl() {
     use postgres::tls::security_framework::SecurityFramework;
@@ -996,21 +960,6 @@ fn security_framework_ssl() {
     let certificate = or_panic!(SecCertificate::from_der(certificate));
     let mut negotiator = SecurityFramework::new();
     negotiator.builder_mut().anchor_certificates(&[certificate]);
-    let conn = or_panic!(Connection::connect(
-        "postgres://postgres@localhost:5433",
-        TlsMode::Require(&negotiator),
-    ));
-    or_panic!(conn.execute("SELECT 1::VARCHAR", &[]));
-}
-
-#[test]
-#[ignore]
-// need to ignore until native-tls supports extra root certs :(
-#[cfg(feature = "with-native-tls")]
-fn native_tls_ssl() {
-    use postgres::tls::native_tls::NativeTls;
-
-    let negotiator = NativeTls::new().unwrap();
     let conn = or_panic!(Connection::connect(
         "postgres://postgres@localhost:5433",
         TlsMode::Require(&negotiator),
