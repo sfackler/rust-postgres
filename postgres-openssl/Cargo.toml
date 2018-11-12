@@ -2,6 +2,9 @@
 name = "postgres-openssl"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+license = "MIT"
+description = "openssl support for the postgres crate"
+categories = ["database"]
 
 [dependencies]
 openssl = "0.10.9"

@@ -2,6 +2,9 @@
 name = "postgres-native-tls"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+license = "MIT"
+description = "native-tls support for the postgres crate"
+categories = ["database"]
 
 [dependencies]
 native-tls = "0.2"

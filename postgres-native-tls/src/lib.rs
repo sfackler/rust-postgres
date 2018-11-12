@@ -1,4 +1,4 @@
-//! Native TLS support for the `postgres` crate.
+//! `native-tls` support for the `postgres` crate.
 pub extern crate native_tls;
 extern crate postgres;
 

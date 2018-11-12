@@ -1,4 +1,4 @@
-//! OpenSSL support for the `postgres` crate.
+//! `openssl` support for the `postgres` crate.
 pub extern crate openssl;
 extern crate postgres;
 
