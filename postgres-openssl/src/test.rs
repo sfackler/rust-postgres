@@ -7,7 +7,7 @@ use OpenSsl;
 fn require() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::with_connector(builder.build());
+    let negotiator = OpenSsl::from(builder.build());
     let conn = Connection::connect(
         "postgres://ssl_user@localhost:5433/postgres",
         TlsMode::Require(&negotiator),
@@ -19,7 +19,7 @@ fn require() {
 fn prefer() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_ca_file("../test/server.crt").unwrap();
-    let negotiator = OpenSsl::with_connector(builder.build());
+    let negotiator = OpenSsl::from(builder.build());
     let conn = Connection::connect(
         "postgres://ssl_user@localhost:5433/postgres",
         TlsMode::Require(&negotiator),

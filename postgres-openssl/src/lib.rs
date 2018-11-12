@@ -1,19 +1,23 @@
+//! OpenSSL support for the `postgres` crate.
 pub extern crate openssl;
 extern crate postgres;
 
-use openssl::error::ErrorStack;
-use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslStream};
-use postgres::tls::{Stream, TlsHandshake, TlsStream};
 use std::error::Error;
-use std::fmt;
 use std::io::{self, Read, Write};
+use std::fmt;
+use openssl::error::ErrorStack;
+use openssl::ssl::{SslMethod, SslConnector, SslStream};
+use postgres::tls::{TlsStream, Stream, TlsHandshake};
 
 #[cfg(test)]
 mod test;
 
+/// A `TlsHandshake` implementation that uses OpenSSL.
+///
+/// Requires the `with-openssl` feature.
 pub struct OpenSsl {
     connector: SslConnector,
-    config: Box<Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + Sync + Send>,
+    disable_verification: bool,
 }
 
 impl fmt::Debug for OpenSsl {
@@ -23,23 +27,39 @@ impl fmt::Debug for OpenSsl {
 }
 
 impl OpenSsl {
+    /// Creates a `OpenSsl` with `SslConnector`'s default configuration.
     pub fn new() -> Result<OpenSsl, ErrorStack> {
         let connector = SslConnector::builder(SslMethod::tls())?.build();
-        Ok(OpenSsl::with_connector(connector))
+        Ok(OpenSsl::from(connector))
     }
 
-    pub fn with_connector(connector: SslConnector) -> OpenSsl {
+    /// Returns a reference to the inner `SslConnector`.
+    pub fn connector(&self) -> &SslConnector {
+        &self.connector
+    }
+
+    /// Returns a mutable reference to the inner `SslConnector`.
+    pub fn connector_mut(&mut self) -> &mut SslConnector {
+        &mut self.connector
+    }
+
+    /// If set, the
+    /// `SslConnector::danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication`
+    /// method will be used to connect.
+    ///
+    /// If certificate verification has been disabled in the `SslConnector`, verification must be
+    /// additionally disabled here for that setting to take effect.
+    pub fn danger_disable_hostname_verification(&mut self, disable_verification: bool) {
+        self.disable_verification = disable_verification;
+    }
+}
+
+impl From<SslConnector> for OpenSsl {
+    fn from(connector: SslConnector) -> OpenSsl {
         OpenSsl {
-            connector,
-            config: Box::new(|_| Ok(())),
+            connector: connector,
+            disable_verification: false,
         }
-    }
-
-    pub fn callback<F>(&mut self, f: F)
-    where
-        F: Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + 'static + Sync + Send,
-    {
-        self.config = Box::new(f);
     }
 }
 
@@ -48,11 +68,13 @@ impl TlsHandshake for OpenSsl {
         &self,
         domain: &str,
         stream: Stream,
-    ) -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
+    ) -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
         let mut ssl = self.connector.configure()?;
-        (self.config)(&mut ssl)?;
+        if self.disable_verification {
+            ssl.set_use_server_name_indication(false);
+            ssl.set_verify_hostname(false);
+        }
         let stream = ssl.connect(domain, stream)?;
-
         Ok(Box::new(OpenSslStream(stream)))
     }
 }

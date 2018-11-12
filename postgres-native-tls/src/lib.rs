@@ -1,33 +1,48 @@
+//! Native TLS support for the `postgres` crate.
 pub extern crate native_tls;
 extern crate postgres;
 
 use native_tls::TlsConnector;
 use postgres::tls::{Stream, TlsHandshake, TlsStream};
 use std::error::Error;
-use std::fmt::{self, Debug};
+use std::fmt;
 use std::io::{self, Read, Write};
 
 #[cfg(test)]
 mod test;
 
-pub struct NativeTls {
-    connector: TlsConnector,
-}
+/// A `TlsHandshake` implementation that uses the native-tls crate.
+///
+/// Requires the `with-native-tls` feature.
+pub struct NativeTls(TlsConnector);
 
-impl Debug for NativeTls {
+impl fmt::Debug for NativeTls {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("NativeTls").finish()
     }
 }
 
 impl NativeTls {
+    /// Creates a new `NativeTls` with its default configuration.
     pub fn new() -> Result<NativeTls, native_tls::Error> {
         let connector = TlsConnector::builder().build()?;
-        Ok(NativeTls::with_connector(connector))
+        Ok(NativeTls(connector))
     }
 
-    pub fn with_connector(connector: TlsConnector) -> NativeTls {
-        NativeTls { connector }
+    /// Returns a reference to the inner `TlsConnector`.
+    pub fn connector(&self) -> &TlsConnector {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the inner `TlsConnector`.
+    pub fn connector_mut(&mut self) -> &mut TlsConnector {
+        &mut self.0
+    }
+}
+
+impl From<TlsConnector> for NativeTls {
+    fn from(connector: TlsConnector) -> NativeTls {
+        NativeTls(connector)
     }
 }
 
@@ -36,8 +51,8 @@ impl TlsHandshake for NativeTls {
         &self,
         domain: &str,
         stream: Stream,
-    ) -> Result<Box<TlsStream>, Box<Error + Sync + Send>> {
-        let stream = self.connector.connect(domain, stream)?;
+    ) -> Result<Box<TlsStream>, Box<Error + Send + Sync>> {
+        let stream = self.0.connect(domain, stream)?;
         Ok(Box::new(NativeTlsStream(stream)))
     }
 }

@@ -12,7 +12,7 @@ fn connect() {
     builder.add_root_certificate(cert);
     let connector = builder.build().unwrap();
 
-    let handshake = NativeTls::with_connector(connector);
+    let handshake = NativeTls::from(connector);
     let conn = Connection::connect(
         "postgres://ssl_user@localhost:5433/postgres",
         TlsMode::Require(&handshake),
