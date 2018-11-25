@@ -61,7 +61,7 @@ pub enum Handshake {
         parameters: HashMap<String, String>,
     },
     #[state_machine_future(ready)]
-    Finished((Client, Connection)),
+    Finished((Client, Connection<Box<TlsStream>>)),
     #[state_machine_future(error)]
     Failed(Error),
 }

@@ -28,6 +28,7 @@ use postgres_shared::rows::RowIndex;
 use std::error::Error as StdError;
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 #[doc(inline)]
 pub use postgres_shared::stmt::Column;
@@ -38,7 +39,7 @@ pub use postgres_shared::{CancelData, Notification};
 
 use error::{DbError, Error};
 use params::ConnectParams;
-use tls::TlsConnect;
+use tls::{TlsConnect, TlsStream};
 use types::{FromSql, ToSql, Type};
 
 pub mod error;
@@ -125,9 +126,12 @@ impl Client {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection(proto::Connection);
+pub struct Connection<S>(proto::Connection<S>);
 
-impl Connection {
+impl<S> Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data()
     }
@@ -141,7 +145,10 @@ impl Connection {
     }
 }
 
-impl Future for Connection {
+impl<S> Future for Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     type Item = ();
     type Error = Error;
 
@@ -173,10 +180,10 @@ impl Future for CancelQuery {
 pub struct Handshake(proto::HandshakeFuture);
 
 impl Future for Handshake {
-    type Item = (Client, Connection);
+    type Item = (Client, Connection<Box<TlsStream>>);
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(Client, Connection), Error> {
+    fn poll(&mut self) -> Poll<(Client, Connection<Box<TlsStream>>), Error> {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))

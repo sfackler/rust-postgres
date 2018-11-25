@@ -5,10 +5,10 @@ use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use tokio_codec::Framed;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto::codec::PostgresCodec;
 use proto::copy_in::CopyInReceiver;
-use tls::TlsStream;
 use {AsyncMessage, CancelData, Notification};
 use {DbError, Error};
 
@@ -32,8 +32,8 @@ enum State {
     Closing,
 }
 
-pub struct Connection {
-    stream: Framed<Box<TlsStream>, PostgresCodec>,
+pub struct Connection<S> {
+    stream: Framed<S, PostgresCodec>,
     cancel_data: CancelData,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
@@ -43,13 +43,16 @@ pub struct Connection {
     state: State,
 }
 
-impl Connection {
+impl<S> Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     pub fn new(
-        stream: Framed<Box<TlsStream>, PostgresCodec>,
+        stream: Framed<S, PostgresCodec>,
         cancel_data: CancelData,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
-    ) -> Connection {
+    ) -> Connection<S> {
         Connection {
             stream,
             cancel_data,
@@ -295,7 +298,10 @@ impl Connection {
     }
 }
 
-impl Future for Connection {
+impl<S> Future for Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     type Item = ();
     type Error = Error;
 
