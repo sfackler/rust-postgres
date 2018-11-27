@@ -1,83 +1,274 @@
 use bytes::{Buf, BufMut};
-use futures::{Future, Poll};
+use futures::future::{self, FutureResult};
+use futures::{Async, Future, Poll};
 use std::error::Error;
+use std::fmt;
 use std::io::{self, Read, Write};
 use tokio_io::{AsyncRead, AsyncWrite};
+use void::Void;
 
-use proto;
+pub struct ChannelBinding {
+    pub(crate) tls_server_end_point: Option<Vec<u8>>,
+    pub(crate) tls_unique: Option<Vec<u8>>,
+}
 
-pub struct Socket(pub(crate) proto::Socket);
+impl ChannelBinding {
+    pub fn new() -> ChannelBinding {
+        ChannelBinding {
+            tls_server_end_point: None,
+            tls_unique: None,
+        }
+    }
 
-impl Read for Socket {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
+    pub fn tls_server_end_point(mut self, tls_server_end_point: Vec<u8>) -> ChannelBinding {
+        self.tls_server_end_point = Some(tls_server_end_point);
+        self
+    }
+
+    pub fn tls_unique(mut self, tls_unique: Vec<u8>) -> ChannelBinding {
+        self.tls_unique = Some(tls_unique);
+        self
     }
 }
 
-impl AsyncRead for Socket {
+pub trait TlsMode<S> {
+    type Stream: AsyncRead + AsyncWrite;
+    type Error: Into<Box<Error + Sync + Send>>;
+    type Future: Future<Item = (Self::Stream, ChannelBinding), Error = Self::Error>;
+
+    fn request_tls(&self) -> bool;
+
+    fn handle_tls(self, use_tls: bool, stream: S) -> Self::Future;
+}
+
+pub trait TlsConnect<S> {
+    type Stream: AsyncRead + AsyncWrite;
+    type Error: Into<Box<Error + Sync + Send>>;
+    type Future: Future<Item = (Self::Stream, ChannelBinding), Error = Self::Error>;
+
+    fn connect(self, stream: S) -> Self::Future;
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct NoTls;
+
+impl<S> TlsMode<S> for NoTls
+where
+    S: AsyncRead + AsyncWrite,
+{
+    type Stream = S;
+    type Error = Void;
+    type Future = FutureResult<(S, ChannelBinding), Void>;
+
+    fn request_tls(&self) -> bool {
+        false
+    }
+
+    fn handle_tls(self, use_tls: bool, stream: S) -> FutureResult<(S, ChannelBinding), Void> {
+        debug_assert!(!use_tls);
+
+        future::ok((stream, ChannelBinding::new()))
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct PreferTls<T>(pub T);
+
+impl<T, S> TlsMode<S> for PreferTls<T>
+where
+    T: TlsConnect<S>,
+    S: AsyncRead + AsyncWrite,
+{
+    type Stream = MaybeTlsStream<T::Stream, S>;
+    type Error = T::Error;
+    type Future = PreferTlsFuture<T::Future, S>;
+
+    fn request_tls(&self) -> bool {
+        true
+    }
+
+    fn handle_tls(self, use_tls: bool, stream: S) -> PreferTlsFuture<T::Future, S> {
+        let f = if use_tls {
+            PreferTlsFutureInner::Tls(self.0.connect(stream))
+        } else {
+            PreferTlsFutureInner::Raw(Some(stream))
+        };
+
+        PreferTlsFuture(f)
+    }
+}
+
+enum PreferTlsFutureInner<F, S> {
+    Tls(F),
+    Raw(Option<S>),
+}
+
+pub struct PreferTlsFuture<F, S>(PreferTlsFutureInner<F, S>);
+
+impl<F, S, T> Future for PreferTlsFuture<F, S>
+where
+    F: Future<Item = (T, ChannelBinding)>,
+{
+    type Item = (MaybeTlsStream<T, S>, ChannelBinding);
+    type Error = F::Error;
+
+    fn poll(&mut self) -> Poll<(MaybeTlsStream<T, S>, ChannelBinding), F::Error> {
+        match &mut self.0 {
+            PreferTlsFutureInner::Tls(f) => {
+                let (stream, channel_binding) = try_ready!(f.poll());
+                Ok(Async::Ready((MaybeTlsStream::Tls(stream), channel_binding)))
+            }
+            PreferTlsFutureInner::Raw(s) => Ok(Async::Ready((
+                MaybeTlsStream::Raw(s.take().expect("future polled after completion")),
+                ChannelBinding::new(),
+            ))),
+        }
+    }
+}
+
+pub enum MaybeTlsStream<T, U> {
+    Tls(T),
+    Raw(U),
+}
+
+impl<T, U> Read for MaybeTlsStream<T, U>
+where
+    T: Read,
+    U: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            MaybeTlsStream::Tls(s) => s.read(buf),
+            MaybeTlsStream::Raw(s) => s.read(buf),
+        }
+    }
+}
+
+impl<T, U> AsyncRead for MaybeTlsStream<T, U>
+where
+    T: AsyncRead,
+    U: AsyncRead,
+{
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
+        match self {
+            MaybeTlsStream::Tls(s) => s.prepare_uninitialized_buffer(buf),
+            MaybeTlsStream::Raw(s) => s.prepare_uninitialized_buffer(buf),
+        }
     }
 
     fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
     where
         B: BufMut,
     {
-        self.0.read_buf(buf)
+        match self {
+            MaybeTlsStream::Tls(s) => s.read_buf(buf),
+            MaybeTlsStream::Raw(s) => s.read_buf(buf),
+        }
     }
 }
 
-impl Write for Socket {
+impl<T, U> Write for MaybeTlsStream<T, U>
+where
+    T: Write,
+    U: Write,
+{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        match self {
+            MaybeTlsStream::Tls(s) => s.write(buf),
+            MaybeTlsStream::Raw(s) => s.write(buf),
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        match self {
+            MaybeTlsStream::Tls(s) => s.flush(),
+            MaybeTlsStream::Raw(s) => s.flush(),
+        }
     }
 }
 
-impl AsyncWrite for Socket {
+impl<T, U> AsyncWrite for MaybeTlsStream<T, U>
+where
+    T: AsyncWrite,
+    U: AsyncWrite,
+{
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.0.shutdown()
+        match self {
+            MaybeTlsStream::Tls(s) => s.shutdown(),
+            MaybeTlsStream::Raw(s) => s.shutdown(),
+        }
     }
 
     fn write_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
     where
         B: Buf,
     {
-        self.0.write_buf(buf)
+        match self {
+            MaybeTlsStream::Tls(s) => s.write_buf(buf),
+            MaybeTlsStream::Raw(s) => s.write_buf(buf),
+        }
     }
 }
 
-pub trait TlsConnect: Sync + Send {
-    fn connect(
-        &self,
-        domain: &str,
-        socket: Socket,
-    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send>;
-}
+#[derive(Debug, Copy, Clone)]
+pub struct RequireTls<T>(pub T);
 
-pub trait TlsStream: 'static + Sync + Send + AsyncRead + AsyncWrite {
-    /// Returns the data associated with the `tls-unique` channel binding type as described in
-    /// [RFC 5929], if supported.
-    ///
-    /// An implementation only needs to support at most one of this or `tls_server_end_point`.
-    ///
-    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
-    fn tls_unique(&self) -> Option<Vec<u8>> {
-        None
+impl<T, S> TlsMode<S> for RequireTls<T>
+where
+    T: TlsConnect<S>,
+{
+    type Stream = T::Stream;
+    type Error = Box<Error + Sync + Send>;
+    type Future = RequireTlsFuture<T::Future>;
+
+    fn request_tls(&self) -> bool {
+        true
     }
 
-    /// Returns the data associated with the `tls-server-end-point` channel binding type as
-    /// described in [RFC 5929], if supported.
-    ///
-    /// An implementation only needs to support at most one of this or `tls_unique`.
-    ///
-    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
-    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
-        None
+    fn handle_tls(self, use_tls: bool, stream: S) -> RequireTlsFuture<T::Future> {
+        let f = if use_tls {
+            Ok(self.0.connect(stream))
+        } else {
+            Err(TlsUnsupportedError(()).into())
+        };
+
+        RequireTlsFuture { f: Some(f) }
     }
 }
 
-impl TlsStream for proto::Socket {}
+#[derive(Debug)]
+pub struct TlsUnsupportedError(());
+
+impl fmt::Display for TlsUnsupportedError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str("TLS was required but not supported by the server")
+    }
+}
+
+impl Error for TlsUnsupportedError {}
+
+pub struct RequireTlsFuture<T> {
+    f: Option<Result<T, Box<Error + Sync + Send>>>,
+}
+
+impl<T> Future for RequireTlsFuture<T>
+where
+    T: Future,
+    T::Error: Into<Box<Error + Sync + Send>>,
+{
+    type Item = T::Item;
+    type Error = Box<Error + Sync + Send>;
+
+    fn poll(&mut self) -> Poll<T::Item, Box<Error + Sync + Send>> {
+        match self.f.take().expect("future polled after completion") {
+            Ok(mut f) => match f.poll().map_err(Into::into)? {
+                Async::Ready(r) => Ok(Async::Ready(r)),
+                Async::NotReady => {
+                    self.f = Some(Ok(f));
+                    Ok(Async::NotReady)
+                }
+            },
+            Err(e) => Err(e),
+        }
+    }
+}

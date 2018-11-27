@@ -7,20 +7,14 @@ extern crate postgres_protocol;
 extern crate postgres_shared;
 extern crate tokio_codec;
 extern crate tokio_io;
-extern crate tokio_tcp;
-extern crate tokio_timer;
+extern crate void;
 
 #[macro_use]
 extern crate futures;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate state_machine_future;
-
-#[cfg(unix)]
-extern crate tokio_uds;
 
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
@@ -37,14 +31,16 @@ pub use postgres_shared::{params, types};
 #[doc(inline)]
 pub use postgres_shared::{CancelData, Notification};
 
-use error::{DbError, Error};
-use params::ConnectParams;
-use tls::{TlsConnect, TlsStream};
+pub use builder::*;
+pub use error::*;
+use proto::CancelFuture;
+pub use tls::*;
 use types::{FromSql, ToSql, Type};
 
+mod builder;
 pub mod error;
 mod proto;
-pub mod tls;
+mod tls;
 
 fn next_statement() -> String {
     static ID: AtomicUsize = AtomicUsize::new(0);
@@ -56,18 +52,12 @@ fn next_portal() -> String {
     format!("p{}", ID.fetch_add(1, Ordering::SeqCst))
 }
 
-pub enum TlsMode {
-    None,
-    Prefer(Box<TlsConnect>),
-    Require(Box<TlsConnect>),
-}
-
-pub fn cancel_query(params: ConnectParams, tls: TlsMode, cancel_data: CancelData) -> CancelQuery {
-    CancelQuery(proto::CancelFuture::new(params, tls, cancel_data))
-}
-
-pub fn connect(params: ConnectParams, tls: TlsMode) -> Handshake {
-    Handshake(proto::HandshakeFuture::new(params, tls))
+pub fn cancel_query<S, T>(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQuery<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    CancelQuery(CancelFuture::new(stream, tls_mode, cancel_data))
 }
 
 pub struct Client(proto::Client);
@@ -165,9 +155,16 @@ pub enum AsyncMessage {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct CancelQuery(proto::CancelFuture);
+pub struct CancelQuery<S, T>(proto::CancelFuture<S, T>)
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>;
 
-impl Future for CancelQuery {
+impl<S, T> Future for CancelQuery<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
     type Item = ();
     type Error = Error;
 
@@ -177,13 +174,20 @@ impl Future for CancelQuery {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Handshake(proto::HandshakeFuture);
+pub struct Connect<S, T>(proto::ConnectFuture<S, T>)
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>;
 
-impl Future for Handshake {
-    type Item = (Client, Connection<Box<TlsStream>>);
+impl<S, T> Future for Connect<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    type Item = (Client, Connection<T::Stream>);
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(Client, Connection<Box<TlsStream>>), Error> {
+    fn poll(&mut self) -> Poll<(Client, Connection<T::Stream>), Error> {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))

@@ -5,7 +5,6 @@ use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::error;
 use std::fmt;
 use std::io;
-use tokio_timer;
 
 pub use self::sqlstate::*;
 
@@ -348,8 +347,6 @@ enum Kind {
     MissingUser,
     MissingPassword,
     UnsupportedAuthentication,
-    Connect,
-    Timer,
     Authentication,
 }
 
@@ -396,8 +393,6 @@ impl error::Error for Error {
             Kind::MissingUser => "username not provided",
             Kind::MissingPassword => "password not provided",
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
-            Kind::Connect => "error connecting to server",
-            Kind::Timer => "timer error",
             Kind::Authentication => "authentication error",
         }
     }
@@ -487,14 +482,6 @@ impl Error {
 
     pub(crate) fn tls(e: Box<error::Error + Sync + Send>) -> Error {
         Error::new(Kind::Tls, Some(e))
-    }
-
-    pub(crate) fn connect(e: io::Error) -> Error {
-        Error::new(Kind::Connect, Some(Box::new(e)))
-    }
-
-    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
-        Error::new(Kind::Timer, Some(Box::new(e)))
     }
 
     pub(crate) fn io(e: io::Error) -> Error {

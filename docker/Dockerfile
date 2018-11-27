@@ -1,3 +1,3 @@
-FROM postgres:11-beta1
+FROM postgres:11
 
 COPY sql_setup.sh /docker-entrypoint-initdb.d/
