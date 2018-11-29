@@ -22,8 +22,11 @@ fn test_box_params() {
         &[
             (
                 Some(Rect {
-                    min: Coordinate { x: -3.14, y: 1.618, },
-                    max: Coordinate { x: 160.0, y: 69701.5615, },
+                    min: Coordinate { x: -3.14, y: 1.618 },
+                    max: Coordinate {
+                        x: 160.0,
+                        y: 69701.5615,
+                    },
                 }),
                 "BOX(POINT(160.0, 69701.5615), POINT(-3.14, 1.618))",
             ),
@@ -35,9 +38,12 @@ fn test_box_params() {
 #[test]
 fn test_path_params() {
     let points = vec![
-        Point::new(0.0, 0.0),
-        Point::new(-3.14, 1.618),
-        Point::new(160.0, 69701.5615),
+        Coordinate { x: 0., y: 0. },
+        Coordinate { x: -3.14, y: 1.618 },
+        Coordinate {
+            x: 160.0,
+            y: 69701.5615,
+        },
     ];
     test_type(
         "PATH",
