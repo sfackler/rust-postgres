@@ -293,7 +293,8 @@ where
 
 impl<S> Future for CopyIn<S>
 where
-    S: Stream<Item = Vec<u8>>,
+    S: Stream,
+    S::Item: AsRef<[u8]>,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     type Item = u64;
