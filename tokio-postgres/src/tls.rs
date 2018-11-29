@@ -9,24 +9,17 @@ use void::Void;
 
 pub struct ChannelBinding {
     pub(crate) tls_server_end_point: Option<Vec<u8>>,
-    pub(crate) tls_unique: Option<Vec<u8>>,
 }
 
 impl ChannelBinding {
     pub fn new() -> ChannelBinding {
         ChannelBinding {
             tls_server_end_point: None,
-            tls_unique: None,
         }
     }
 
     pub fn tls_server_end_point(mut self, tls_server_end_point: Vec<u8>) -> ChannelBinding {
         self.tls_server_end_point = Some(tls_server_end_point);
-        self
-    }
-
-    pub fn tls_unique(mut self, tls_unique: Vec<u8>) -> ChannelBinding {
-        self.tls_unique = Some(tls_unique);
         self
     }
 }

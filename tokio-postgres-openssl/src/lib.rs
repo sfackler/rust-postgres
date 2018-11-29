@@ -10,6 +10,8 @@ extern crate futures;
 extern crate tokio;
 
 use futures::{Async, Future, Poll};
+use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
 use openssl::ssl::{ConnectConfiguration, HandshakeError, SslRef};
 use std::fmt::Debug;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -58,19 +60,22 @@ where
     fn poll(&mut self) -> Poll<(SslStream<S>, ChannelBinding), HandshakeError<S>> {
         let stream = try_ready!(self.0.poll());
 
-        let f = if stream.get_ref().ssl().session_reused() {
-            SslRef::peer_finished
-        } else {
-            SslRef::finished
-        };
+        let mut channel_binding = ChannelBinding::new();
+        if let Some(buf) = tls_server_end_point(stream.get_ref().ssl()) {
+            channel_binding = channel_binding.tls_server_end_point(buf);
+        }
 
-        let len = f(stream.get_ref().ssl(), &mut []);
-        let mut tls_unique = vec![0; len];
-        f(stream.get_ref().ssl(), &mut tls_unique);
-
-        Ok(Async::Ready((
-            stream,
-            ChannelBinding::new().tls_unique(tls_unique),
-        )))
+        Ok(Async::Ready((stream, channel_binding)))
     }
+}
+
+fn tls_server_end_point(ssl: &SslRef) -> Option<Vec<u8>> {
+    let cert = ssl.peer_certificate()?;
+    let algo_nid = cert.signature_algorithm().object().nid();
+    let signature_algorithms = algo_nid.signature_algorithms()?;
+    let md = match signature_algorithms.digest {
+        Nid::MD5 | Nid::SHA1 => MessageDigest::sha256(),
+        nid => MessageDigest::from_nid(nid)?,
+    };
+    cert.digest(md).ok().map(|b| b.to_vec())
 }

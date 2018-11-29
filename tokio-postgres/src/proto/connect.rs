@@ -156,9 +156,7 @@ where
                     }
                 }
 
-                let channel_binding = if let Some(tls_unique) = state.channel_binding.tls_unique {
-                    Some(sasl::ChannelBinding::tls_unique(tls_unique))
-                } else if let Some(tls_server_end_point) =
+                let channel_binding = if let Some(tls_server_end_point) =
                     state.channel_binding.tls_server_end_point
                 {
                     Some(sasl::ChannelBinding::tls_server_end_point(
