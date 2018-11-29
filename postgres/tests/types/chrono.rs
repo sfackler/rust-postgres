@@ -1,6 +1,6 @@
 extern crate chrono;
 
-use self::chrono::{TimeZone, NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc};
+use self::chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use types::test_type;
 
 use postgres::types::{Date, Timestamp};
@@ -9,9 +9,7 @@ use postgres::types::{Date, Timestamp};
 fn test_naive_date_time_params() {
     fn make_check<'a>(time: &'a str) -> (Option<NaiveDateTime>, &'a str) {
         (
-            Some(
-                NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap(),
-            ),
+            Some(NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()),
             time,
         )
     }

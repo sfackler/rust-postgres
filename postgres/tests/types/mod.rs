@@ -364,7 +364,8 @@ fn test_slice() {
                         INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
     ).unwrap();
 
-    let stmt = conn.prepare("SELECT f FROM foo WHERE id = ANY($1)")
+    let stmt = conn
+        .prepare("SELECT f FROM foo WHERE id = ANY($1)")
         .unwrap();
     let result = stmt.query(&[&&[1i32, 3, 4][..]]).unwrap();
     assert_eq!(
@@ -382,7 +383,8 @@ fn test_slice_wrong_type() {
     conn.simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
-    let stmt = conn.prepare("SELECT * FROM foo WHERE id = ANY($1)")
+    let stmt = conn
+        .prepare("SELECT * FROM foo WHERE id = ANY($1)")
         .unwrap();
     let err = stmt.query(&[&&["hi"][..]]).unwrap_err();
     match err.as_conversion() {

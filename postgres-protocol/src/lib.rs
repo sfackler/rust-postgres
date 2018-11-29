@@ -9,7 +9,7 @@
 //!
 //! This library assumes that the `client_encoding` backend parameter has been
 //! set to `UTF8`. It will most likely not behave properly if that is not the case.
-#![doc(html_root_url="https://docs.rs/postgres-protocol/0.3")]
+#![doc(html_root_url = "https://docs.rs/postgres-protocol/0.3")]
 #![warn(missing_docs)]
 extern crate base64;
 extern crate byteorder;
@@ -68,13 +68,16 @@ macro_rules! from_usize {
             #[inline]
             fn from_usize(x: usize) -> io::Result<$t> {
                 if x > <$t>::max_value() as usize {
-                    Err(io::Error::new(io::ErrorKind::InvalidInput, "value too large to transmit"))
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "value too large to transmit",
+                    ))
                 } else {
                     Ok(x as $t)
                 }
             }
         }
-    }
+    };
 }
 
 from_usize!(i16);

@@ -1,17 +1,17 @@
 //! Asynchronous notifications.
 
+use error::DbError;
 use fallible_iterator::{FallibleIterator, IntoFallibleIterator};
+use postgres_protocol::message::backend::{self, ErrorFields};
 use std::fmt;
 use std::time::Duration;
-use postgres_protocol::message::backend::{self, ErrorFields};
-use error::DbError;
 
 #[doc(inline)]
 use postgres_shared;
 pub use postgres_shared::Notification;
 
-use {desynchronized, Result, Connection};
 use error::Error;
+use {desynchronized, Connection, Result};
 
 /// Notifications from the Postgres backend.
 pub struct Notifications<'conn> {
@@ -105,13 +105,11 @@ impl<'a> FallibleIterator for Iter<'a> {
         }
 
         match conn.read_message_with_notification_nonblocking() {
-            Ok(Some(backend::Message::NotificationResponse(body))) => {
-                Ok(Some(Notification {
-                    process_id: body.process_id(),
-                    channel: body.channel()?.to_owned(),
-                    payload: body.message()?.to_owned(),
-                }))
-            }
+            Ok(Some(backend::Message::NotificationResponse(body))) => Ok(Some(Notification {
+                process_id: body.process_id(),
+                channel: body.channel()?.to_owned(),
+                payload: body.message()?.to_owned(),
+            })),
             Ok(Some(backend::Message::ErrorResponse(body))) => Err(err(&mut body.fields())),
             Ok(None) => Ok(None),
             Err(err) => Err(err.into()),
@@ -145,13 +143,11 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
         }
 
         match conn.read_message_with_notification() {
-            Ok(backend::Message::NotificationResponse(body)) => {
-                Ok(Some(Notification {
-                    process_id: body.process_id(),
-                    channel: body.channel()?.to_owned(),
-                    payload: body.message()?.to_owned(),
-                }))
-            }
+            Ok(backend::Message::NotificationResponse(body)) => Ok(Some(Notification {
+                process_id: body.process_id(),
+                channel: body.channel()?.to_owned(),
+                payload: body.message()?.to_owned(),
+            })),
             Ok(backend::Message::ErrorResponse(body)) => Err(err(&mut body.fields())),
             Err(err) => Err(err.into()),
             _ => unreachable!(),
@@ -182,13 +178,11 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
         }
 
         match conn.read_message_with_notification_timeout(self.timeout) {
-            Ok(Some(backend::Message::NotificationResponse(body))) => {
-                Ok(Some(Notification {
-                    process_id: body.process_id(),
-                    channel: body.channel()?.to_owned(),
-                    payload: body.message()?.to_owned(),
-                }))
-            }
+            Ok(Some(backend::Message::NotificationResponse(body))) => Ok(Some(Notification {
+                process_id: body.process_id(),
+                channel: body.channel()?.to_owned(),
+                payload: body.message()?.to_owned(),
+            })),
             Ok(Some(backend::Message::ErrorResponse(body))) => Err(err(&mut body.fields())),
             Ok(None) => Ok(None),
             Err(err) => Err(err.into()),

@@ -1,12 +1,12 @@
 //! Frontend message serialization.
 #![allow(missing_docs)]
 
-use byteorder::{WriteBytesExt, BigEndian, ByteOrder};
+use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use std::error::Error;
 use std::io;
 use std::marker;
 
-use {Oid, FromUsize, IsNull, write_nullable};
+use {write_nullable, FromUsize, IsNull, Oid};
 
 pub enum Message<'a> {
     Bind {
@@ -16,24 +16,51 @@ pub enum Message<'a> {
         values: &'a [Option<Vec<u8>>],
         result_formats: &'a [i16],
     },
-    CancelRequest { process_id: i32, secret_key: i32 },
-    Close { variant: u8, name: &'a str },
-    CopyData { data: &'a [u8] },
+    CancelRequest {
+        process_id: i32,
+        secret_key: i32,
+    },
+    Close {
+        variant: u8,
+        name: &'a str,
+    },
+    CopyData {
+        data: &'a [u8],
+    },
     CopyDone,
-    CopyFail { message: &'a str },
-    Describe { variant: u8, name: &'a str },
-    Execute { portal: &'a str, max_rows: i32 },
+    CopyFail {
+        message: &'a str,
+    },
+    Describe {
+        variant: u8,
+        name: &'a str,
+    },
+    Execute {
+        portal: &'a str,
+        max_rows: i32,
+    },
     Parse {
         name: &'a str,
         query: &'a str,
         param_types: &'a [Oid],
     },
-    PasswordMessage { password: &'a str },
-    Query { query: &'a str },
-    SaslInitialResponse { mechanism: &'a str, data: &'a [u8] },
-    SaslResponse { data: &'a [u8] },
+    PasswordMessage {
+        password: &'a str,
+    },
+    Query {
+        query: &'a str,
+    },
+    SaslInitialResponse {
+        mechanism: &'a str,
+        data: &'a [u8],
+    },
+    SaslResponse {
+        data: &'a [u8],
+    },
     SslRequest,
-    StartupMessage { parameters: &'a [(String, String)] },
+    StartupMessage {
+        parameters: &'a [(String, String)],
+    },
     Sync,
     Terminate,
     #[doc(hidden)]

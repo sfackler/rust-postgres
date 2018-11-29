@@ -30,8 +30,14 @@ impl<'a> FromSql<'a> for Rect<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
         let rect = types::box_from_sql(raw)?;
         Ok(Rect {
-            min: Coordinate { x: rect.lower_left().x(), y: rect.lower_left().y(), },
-            max: Coordinate { x: rect.upper_right().x(), y: rect.upper_right().y(), },
+            min: Coordinate {
+                x: rect.lower_left().x(),
+                y: rect.lower_left().y(),
+            },
+            max: Coordinate {
+                x: rect.upper_right().x(),
+                y: rect.upper_right().y(),
+            },
         })
     }
 
@@ -51,7 +57,10 @@ impl ToSql for Rect<f64> {
 impl<'a> FromSql<'a> for LineString<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<Error + Sync + Send>> {
         let path = types::path_from_sql(raw)?;
-        let points = path.points().map(|p| Coordinate { x: p.x(), y: p.y() }).collect()?;
+        let points = path
+            .points()
+            .map(|p| Coordinate { x: p.x(), y: p.y() })
+            .collect()?;
         Ok(LineString(points))
     }
 

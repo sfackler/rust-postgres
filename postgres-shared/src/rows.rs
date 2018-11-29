@@ -59,11 +59,7 @@ where
     }
 }
 
-impl<'a, T> RowIndex for &'a T
-where
-    T: ?Sized + Sealed,
-{
-}
+impl<'a, T> RowIndex for &'a T where T: ?Sized + Sealed {}
 
 #[doc(hidden)]
 pub struct RowData {

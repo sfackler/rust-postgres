@@ -59,7 +59,8 @@ impl MessageStream {
 
     fn read_in(&mut self) -> io::Result<()> {
         self.in_buf.reserve(1);
-        match self.stream
+        match self
+            .stream
             .get_mut()
             .read(unsafe { self.in_buf.bytes_mut() })
         {
@@ -206,8 +207,7 @@ fn open_socket(params: &ConnectParams) -> Result<Socket> {
                         io::ErrorKind::InvalidInput,
                         "could not resolve any addresses",
                     )
-                })
-                .into())
+                }).into())
         }
         #[cfg(unix)]
         Host::Unix(ref path) => {

@@ -19,21 +19,21 @@ macro_rules! check_desync {
 }
 
 macro_rules! bad_response {
-    ($s:expr) => ({
+    ($s:expr) => {{
         debug!("Bad response at {}:{}", file!(), line!());
         $s.desynchronized = true;
         return Err(::bad_response().into());
-    })
+    }};
 }
 
 #[cfg(feature = "no-logging")]
 macro_rules! debug {
-    ($($t:tt)*) => {}
+    ($($t:tt)*) => {};
 }
 
 #[cfg(feature = "no-logging")]
 macro_rules! info {
-    ($($t:tt)*) => {}
+    ($($t:tt)*) => {};
 }
 
 /// Generates a simple implementation of `ToSql::accepts` which accepts the

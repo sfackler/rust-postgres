@@ -8,8 +8,8 @@ use std::str;
 #[doc(inline)]
 pub use postgres_shared::rows::RowIndex;
 
-use stmt::{Column};
-use {Result, error};
+use stmt::Column;
+use {error, Result};
 
 /// The resulting rows of a query.
 pub struct TextRows {
@@ -89,11 +89,9 @@ impl<'a> Iterator for Iter<'a> {
     type Item = TextRow<'a>;
 
     fn next(&mut self) -> Option<TextRow<'a>> {
-        self.iter.next().map(|row| {
-            TextRow {
-                columns: self.columns,
-                data: row,
-            }
+        self.iter.next().map(|row| TextRow {
+            columns: self.columns,
+            data: row,
         })
     }
 
@@ -104,11 +102,9 @@ impl<'a> Iterator for Iter<'a> {
 
 impl<'a> DoubleEndedIterator for Iter<'a> {
     fn next_back(&mut self) -> Option<TextRow<'a>> {
-        self.iter.next_back().map(|row| {
-            TextRow {
-                columns: self.columns,
-                data: row,
-            }
+        self.iter.next_back().map(|row| TextRow {
+            columns: self.columns,
+            data: row,
         })
     }
 }
@@ -188,7 +184,8 @@ impl<'a> TextRow<'a> {
             None => return None,
         };
 
-        self.data.get(idx)
+        self.data
+            .get(idx)
             .map(|s| str::from_utf8(s).map_err(|e| error::conversion(Box::new(e))))
     }
 }

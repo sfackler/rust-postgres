@@ -337,11 +337,7 @@ pub trait FromSql<'a>: Sized {
 /// This is primarily useful for trait bounds on functions.
 pub trait FromSqlOwned: for<'a> FromSql<'a> {}
 
-impl<T> FromSqlOwned for T
-where
-    T: for<'a> FromSql<'a>,
-{
-}
+impl<T> FromSqlOwned for T where T: for<'a> FromSql<'a> {}
 
 impl<'a, T: FromSql<'a>> FromSql<'a> for Option<T> {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Option<T>, Box<Error + Sync + Send>> {

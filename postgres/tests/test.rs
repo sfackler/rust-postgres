@@ -1365,8 +1365,8 @@ fn test_rows_index() {
 #[test]
 fn test_type_names() {
     let conn = Connection::connect("postgres://postgres@localhost:5433", TlsMode::None).unwrap();
-    let stmt =
-        conn.prepare(
+    let stmt = conn
+        .prepare(
             "SELECT t.oid, t.typname
                                 FROM pg_catalog.pg_type t, pg_namespace n
                              WHERE n.oid = t.typnamespace
