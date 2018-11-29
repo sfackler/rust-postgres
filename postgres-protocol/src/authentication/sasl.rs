@@ -59,7 +59,6 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
 enum ChannelBindingInner {
     Unrequested,
     Unsupported,
-    TlsUnique(Vec<u8>),
     TlsServerEndPoint(Vec<u8>),
 }
 
@@ -77,11 +76,6 @@ impl ChannelBinding {
         ChannelBinding(ChannelBindingInner::Unsupported)
     }
 
-    /// The server requested channel binding and the client will use the `tls-unique` method.
-    pub fn tls_unique(finished: Vec<u8>) -> ChannelBinding {
-        ChannelBinding(ChannelBindingInner::TlsUnique(finished))
-    }
-
     /// The server requested channel binding and the client will use the `tls-server-end-point`
     /// method.
     pub fn tls_server_end_point(signature: Vec<u8>) -> ChannelBinding {
@@ -92,7 +86,6 @@ impl ChannelBinding {
         match self.0 {
             ChannelBindingInner::Unrequested => "y,,",
             ChannelBindingInner::Unsupported => "n,,",
-            ChannelBindingInner::TlsUnique(_) => "p=tls-unique,,",
             ChannelBindingInner::TlsServerEndPoint(_) => "p=tls-server-end-point,,",
         }
     }
@@ -100,8 +93,7 @@ impl ChannelBinding {
     fn cbind_data(&self) -> &[u8] {
         match self.0 {
             ChannelBindingInner::Unrequested | ChannelBindingInner::Unsupported => &[],
-            ChannelBindingInner::TlsUnique(ref buf)
-            | ChannelBindingInner::TlsServerEndPoint(ref buf) => buf,
+            ChannelBindingInner::TlsServerEndPoint(ref buf) => buf,
         }
     }
 }

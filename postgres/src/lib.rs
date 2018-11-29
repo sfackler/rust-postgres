@@ -435,14 +435,8 @@ impl InnerConnection {
                 let channel_binding = self
                     .stream
                     .get_ref()
-                    .tls_unique()
-                    .map(ChannelBinding::tls_unique)
-                    .or_else(|| {
-                        self.stream
-                            .get_ref()
-                            .tls_server_end_point()
-                            .map(ChannelBinding::tls_server_end_point)
-                    });
+                    .tls_server_end_point()
+                    .map(ChannelBinding::tls_server_end_point);
 
                 let (channel_binding, mechanism) = if has_scram_plus {
                     match channel_binding {
