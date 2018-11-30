@@ -60,10 +60,10 @@ where
     fn poll(&mut self) -> Poll<(SslStream<S>, ChannelBinding), HandshakeError<S>> {
         let stream = try_ready!(self.0.poll());
 
-        let mut channel_binding = ChannelBinding::new();
-        if let Some(buf) = tls_server_end_point(stream.get_ref().ssl()) {
-            channel_binding = channel_binding.tls_server_end_point(buf);
-        }
+        let channel_binding = match tls_server_end_point(stream.get_ref().ssl()) {
+            Some(buf) => ChannelBinding::tls_server_end_point(buf),
+            None => ChannelBinding::none(),
+        };
 
         Ok(Async::Ready((stream, channel_binding)))
     }

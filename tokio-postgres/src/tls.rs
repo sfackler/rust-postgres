@@ -12,15 +12,16 @@ pub struct ChannelBinding {
 }
 
 impl ChannelBinding {
-    pub fn new() -> ChannelBinding {
+    pub fn none() -> ChannelBinding {
         ChannelBinding {
             tls_server_end_point: None,
         }
     }
 
-    pub fn tls_server_end_point(mut self, tls_server_end_point: Vec<u8>) -> ChannelBinding {
-        self.tls_server_end_point = Some(tls_server_end_point);
-        self
+    pub fn tls_server_end_point(tls_server_end_point: Vec<u8>) -> ChannelBinding {
+        ChannelBinding {
+            tls_server_end_point: Some(tls_server_end_point),
+        }
     }
 }
 
@@ -60,7 +61,7 @@ where
     fn handle_tls(self, use_tls: bool, stream: S) -> FutureResult<(S, ChannelBinding), Void> {
         debug_assert!(!use_tls);
 
-        future::ok((stream, ChannelBinding::new()))
+        future::ok((stream, ChannelBinding::none()))
     }
 }
 
@@ -113,7 +114,7 @@ where
             }
             PreferTlsFutureInner::Raw(s) => Ok(Async::Ready((
                 MaybeTlsStream::Raw(s.take().expect("future polled after completion")),
-                ChannelBinding::new(),
+                ChannelBinding::none(),
             ))),
         }
     }
