@@ -316,7 +316,7 @@ impl<'conn> Transaction<'conn> {
         self.finish()
     }
 
-    /// Consumes the transaction, commiting or rolling it back as appropriate.
+    /// Consumes the transaction, committing or rolling it back as appropriate.
     ///
     /// Functionally equivalent to the `Drop` implementation of `Transaction`
     /// except that it returns any error to the caller.
