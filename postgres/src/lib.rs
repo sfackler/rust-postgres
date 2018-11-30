@@ -1268,7 +1268,7 @@ impl Connection {
 
     /// Like `prepare`, but allows for the types of query parameters to be explicitly specified.
     ///
-    /// Postgres will normally infer the types of paramters, but this function offers more control
+    /// Postgres will normally infer the types of parameters, but this function offers more control
     /// of that behavior. `None` will cause Postgres to infer the type. The list of types can be
     /// shorter than the number of parameters in the query; it will act as if padded out with `None`
     /// values.
@@ -1383,7 +1383,7 @@ impl Connection {
     /// statements, it's not possible to pass a separate parameters list with
     /// this API.
     ///
-    /// In general, the `query` API should be prefered whenever possible.
+    /// In general, the `query` API should be preferred whenever possible.
     ///
     /// # Example
     ///
