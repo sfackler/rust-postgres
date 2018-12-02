@@ -101,22 +101,7 @@ impl Client {
         CopyOut(self.0.copy_out(&statement.0, params))
     }
 
-    pub fn transaction<T>(&mut self, future: T) -> Transaction<T>
-    where
-        T: Future,
-        // FIXME error type?
-        T::Error: From<Error>,
-    {
-        self.transaction_builder().build(future)
-    }
-
-    /// Creates a TransactionBuilder, which can later be used to create
-    /// a Transaction around a future.
-    ///
-    /// Use this when Client is moved into the future being built.
-    /// For example, when executing multiple statements that depend
-    /// on the previous statement's result.
-    pub fn transaction_builder(&self) -> TransactionBuilder {
+    pub fn transaction(&mut self) -> TransactionBuilder {
         TransactionBuilder(self.0.clone())
     }
 

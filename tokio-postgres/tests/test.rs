@@ -537,7 +537,7 @@ fn transaction_commit() {
         )).unwrap();
 
     let f = client.batch_execute("INSERT INTO foo (name) VALUES ('steven')");
-    runtime.block_on(client.transaction(f)).unwrap();
+    runtime.block_on(client.transaction().build(f)).unwrap();
 
     let rows = runtime
         .block_on(
@@ -573,7 +573,7 @@ fn transaction_abort() {
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
         .map_err(|e| Box::new(e) as Box<Error>)
         .and_then(|_| Err::<(), _>(Box::<Error>::from("")));
-    runtime.block_on(client.transaction(f)).unwrap_err();
+    runtime.block_on(client.transaction().build(f)).unwrap_err();
 
     let rows = runtime
         .block_on(
@@ -700,21 +700,19 @@ fn transaction_builder_around_moved_client() {
     let mut runtime = Runtime::new().unwrap();
 
     let (mut client, connection) = runtime
-        .block_on(tokio_postgres::connect(
-            "postgres://postgres@localhost:5433".parse().unwrap(),
-            TlsMode::None,
-        )).unwrap();
+        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
+        .unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let transaction_builder = client.transaction_builder();
+    let transaction_builder = client.transaction();
     let work = future::lazy(move || {
-        let execute =
-            client.batch_execute(
-                "CREATE TEMPORARY TABLE transaction_foo (
+        let execute = client.batch_execute(
+            "CREATE TEMPORARY TABLE transaction_foo (
                     id SERIAL,
                     name TEXT
-                )");
+                )",
+        );
 
         execute.and_then(move |_| {
             client
