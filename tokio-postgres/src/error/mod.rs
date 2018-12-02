@@ -2,7 +2,7 @@
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
-use std::error;
+use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
 
@@ -312,11 +312,7 @@ impl fmt::Display for DbError {
     }
 }
 
-impl error::Error for DbError {
-    fn description(&self) -> &str {
-        &self.message
-    }
-}
+impl error::Error for DbError {}
 
 /// Represents the position of an error in a query.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -369,17 +365,7 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(error::Error::description(self))?;
-        if let Some(ref cause) = self.0.cause {
-            write!(fmt, ": {}", cause)?;
-        }
-        Ok(())
-    }
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match self.0.kind {
+        let s = match self.0.kind {
             Kind::Io => "error communicating with the server",
             Kind::UnexpectedMessage => "unexpected message from server",
             Kind::Tls => "error performing TLS handshake",
@@ -394,23 +380,22 @@ impl error::Error for Error {
             Kind::MissingPassword => "password not provided",
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
             Kind::Authentication => "authentication error",
+        };
+        fmt.write_str(s)?;
+        if let Some(ref cause) = self.0.cause {
+            write!(fmt, ": {}", cause)?;
         }
+        Ok(())
     }
+}
 
-    fn cause(&self) -> Option<&error::Error> {
-        self.0.cause.as_ref().map(|e| &**e as &error::Error)
+impl error::Error for Error {
+    fn source(&self) -> Option<&(error::Error + 'static)> {
+        self.0.cause.as_ref().map(|e| &**e as _)
     }
 }
 
 impl Error {
-    /// Returns the error's cause.
-    ///
-    /// This is the same as `Error::cause` except that it provides extra bounds
-    /// required to be able to downcast the error.
-    pub fn cause2(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
-        self.0.cause.as_ref().map(|e| &**e)
-    }
-
     /// Consumes the error, returning its cause.
     pub fn into_cause(self) -> Option<Box<error::Error + Sync + Send>> {
         self.0.cause
@@ -421,7 +406,7 @@ impl Error {
     /// This is a convenience method that downcasts the cause to a `DbError`
     /// and returns its code.
     pub fn code(&self) -> Option<&SqlState> {
-        self.cause2()
+        self.source()
             .and_then(|e| e.downcast_ref::<DbError>())
             .map(|e| e.code())
     }
