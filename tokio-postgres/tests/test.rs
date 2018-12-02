@@ -693,3 +693,52 @@ fn copy_out() {
         ).unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 }
+
+#[test]
+fn transaction_builder_around_moved_client() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime
+        .block_on(tokio_postgres::connect(
+            "postgres://postgres@localhost:5433".parse().unwrap(),
+            TlsMode::None,
+        )).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    let transaction_builder = client.transaction_builder();
+    let work = future::lazy(move || {
+        let execute =
+            client.batch_execute(
+                "CREATE TEMPORARY TABLE transaction_foo (
+                    id SERIAL,
+                    name TEXT
+                )");
+
+        execute.and_then(move |_| {
+            client
+                .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
+                .map(|statement| (client, statement))
+        })
+    }).and_then(|(mut client, statement)| {
+        client
+            .query(&statement, &[&"jim", &"joe"])
+            .collect()
+            .map(|_res| client)
+    });
+
+    let transaction = transaction_builder.build(work);
+    let mut client = runtime.block_on(transaction).unwrap();
+
+    let data = runtime
+        .block_on(
+            client
+                .prepare("COPY transaction_foo TO STDOUT")
+                .and_then(|s| client.copy_out(&s, &[]).concat2()),
+        ).unwrap();
+    assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
+
+    drop(client);
+    runtime.run().unwrap();
+}
