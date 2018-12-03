@@ -16,7 +16,7 @@ extern crate log;
 #[macro_use]
 extern crate state_machine_future;
 
-use bytes::Bytes;
+use bytes::{Bytes, IntoBuf};
 use futures::{Async, Future, Poll, Stream};
 use postgres_shared::rows::RowIndex;
 use std::error::Error as StdError;
@@ -90,7 +90,8 @@ impl Client {
     pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
     where
         S: Stream,
-        S::Item: AsRef<[u8]>,
+        S::Item: IntoBuf,
+        <S::Item as IntoBuf>::Buf: Send,
         // FIXME error type?
         S::Error: Into<Box<StdError + Sync + Send>>,
     {
@@ -283,13 +284,15 @@ pub struct Portal(proto::Portal);
 pub struct CopyIn<S>(proto::CopyInFuture<S>)
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
     S::Error: Into<Box<StdError + Sync + Send>>;
 
 impl<S> Future for CopyIn<S>
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     type Item = u64;

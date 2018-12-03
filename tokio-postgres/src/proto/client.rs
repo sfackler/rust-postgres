@@ -1,4 +1,5 @@
 use antidote::Mutex;
+use bytes::IntoBuf;
 use futures::sync::mpsc;
 use futures::{AsyncSink, Sink, Stream};
 use postgres_protocol;
@@ -163,7 +164,8 @@ impl Client {
     pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>
     where
         S: Stream,
-        S::Item: AsRef<[u8]>,
+        S::Item: IntoBuf,
+        <S::Item as IntoBuf>::Buf: Send,
         S::Error: Into<Box<StdError + Sync + Send>>,
     {
         let (mut sender, receiver) = mpsc::channel(0);

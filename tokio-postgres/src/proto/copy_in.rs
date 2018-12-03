@@ -1,3 +1,4 @@
+use bytes::{Buf, IntoBuf};
 use futures::sink;
 use futures::sync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
@@ -63,7 +64,8 @@ impl Stream for CopyInReceiver {
 pub enum CopyIn<S>
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     #[state_machine_future(start, transitions(ReadCopyInResponse))]
@@ -103,7 +105,8 @@ where
 impl<S> PollCopyIn<S> for CopyIn<S>
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S>>) -> Poll<AfterStart<S>, Error> {
@@ -151,7 +154,9 @@ where
                 None => match try_ready!(state.stream.poll().map_err(Error::copy_in_stream)) {
                     Some(data) => {
                         let mut buf = vec![];
-                        frontend::copy_data(data.as_ref(), &mut buf).map_err(Error::encode)?;
+                        // FIXME avoid collect
+                        frontend::copy_data(&data.into_buf().collect::<Vec<_>>(), &mut buf)
+                            .map_err(Error::encode)?;
                         CopyMessage::Data(buf)
                     }
                     None => {
@@ -213,7 +218,8 @@ where
 impl<S> CopyInFuture<S>
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
     S::Error: Into<Box<StdError + Sync + Send>>,
 {
     pub fn new(
