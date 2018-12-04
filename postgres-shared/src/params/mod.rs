@@ -234,6 +234,17 @@ impl IntoConnectParams for Url {
             builder.user(&info.user, info.pass.as_ref().map(|p| &**p));
         }
 
+        if let Some((_, user)) = options.iter().find(|(name, _)| &*name == "user") {
+            if let Some(_) = builder.user {
+                return Err("user specified twice".into());
+            }
+            let password = options
+                .iter()
+                .find(|(name, _)| &*name == "password")
+                .map(|(_, password)| &**password);
+            builder.user(user, password);
+        }
+
         if !path.is_empty() {
             // path contains the leading /
             builder.database(&path[1..]);
@@ -251,6 +262,8 @@ impl IntoConnectParams for Url {
                     let keepalive = Duration::from_secs(keepalive);
                     builder.keepalive(Some(keepalive));
                 }
+                // user/password are handled above
+                "user" | "password" => (),
                 _ => {
                     builder.option(&name, &value);
                 }
@@ -291,5 +304,35 @@ mod test {
             &[("application_name".to_string(), "foo".to_string())][..]
         );
         assert_eq!(params.connect_timeout(), Some(Duration::from_secs(10)));
+    }
+
+    #[test]
+    fn parse_url_with_query_string() {
+        let params = "postgres://host:44/dbname?user=someone&password=supersecret&connect_timeout=10&application_name=foo";
+        let params = params.into_connect_params().unwrap();
+        assert_eq!(
+            params.user(),
+            Some(&User {
+                name: "someone".to_string(),
+                password: Some("supersecret".to_string()),
+            })
+        );
+        assert_eq!(params.host(), &Host::Tcp("host".to_string()));
+        assert_eq!(params.port(), 44);
+        assert_eq!(params.database(), Some("dbname"));
+        assert_eq!(
+            params.options(),
+            &[("application_name".to_string(), "foo".to_string())][..]
+        );
+        assert_eq!(params.connect_timeout(), Some(Duration::from_secs(10)));
+    }
+
+    #[test]
+    fn parse_url_with_two_users() {
+        let params = "postgres://user@host:44/dbname?user=someone&password=supersecret&connect_timeout=10&application_name=foo";
+        match params.into_connect_params() {
+            Ok(_) => assert!(false, "These params should not parse succesfully"),
+            Err(error) => assert_eq!(format!("{}", error), "user specified twice".to_string()),
+        }
     }
 }
