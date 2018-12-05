@@ -230,19 +230,32 @@ impl IntoConnectParams for Url {
             builder.port(port);
         }
 
-        if let Some(info) = user {
-            builder.user(&info.user, info.pass.as_ref().map(|p| &**p));
-        }
+        {
+            let mut username: Option<&str> = None;
+            let mut password: Option<&str> = None;
 
-        if let Some((_, user)) = options.iter().find(|(name, _)| &*name == "user") {
-            if let Some(_) = builder.user {
-                return Err("user specified twice".into());
+            if let Some(info) = &user {
+                username = Some(info.user.as_ref());
+                password = info.pass.as_ref().map(|p| &**p);
             }
-            let password = options
-                .iter()
-                .find(|(name, _)| &*name == "password")
-                .map(|(_, password)| &**password);
-            builder.user(user, password);
+
+            if let Some((_, value)) = options.iter().find(|(name, _)| &*name == "user") {
+                if let Some(_) = username {
+                    return Err("user specified twice".into());
+                }
+                username = Some(value);
+            }
+
+            if let Some((_, value)) = options.iter().find(|(name, _)| &*name == "password") {
+                if let Some(_) = password {
+                    return Err("password specified twice".into());
+                }
+                password = Some(value);
+            }
+
+            if let Some(username) = username {
+                builder.user(username, password);
+            }
         }
 
         if !path.is_empty() {
@@ -309,6 +322,27 @@ mod test {
     #[test]
     fn parse_url_with_query_string() {
         let params = "postgres://host:44/dbname?user=someone&password=supersecret&connect_timeout=10&application_name=foo";
+        let params = params.into_connect_params().unwrap();
+        assert_eq!(
+            params.user(),
+            Some(&User {
+                name: "someone".to_string(),
+                password: Some("supersecret".to_string()),
+            })
+        );
+        assert_eq!(params.host(), &Host::Tcp("host".to_string()));
+        assert_eq!(params.port(), 44);
+        assert_eq!(params.database(), Some("dbname"));
+        assert_eq!(
+            params.options(),
+            &[("application_name".to_string(), "foo".to_string())][..]
+        );
+        assert_eq!(params.connect_timeout(), Some(Duration::from_secs(10)));
+    }
+
+    #[test]
+    fn parse_url_with_mixed_query_string() {
+        let params = "postgres://someone@host:44/dbname?password=supersecret&connect_timeout=10&application_name=foo";
         let params = params.into_connect_params().unwrap();
         assert_eq!(
             params.user(),
