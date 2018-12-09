@@ -4,7 +4,7 @@ use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
 use tokio_postgres::{self, PreferTls, RequireTls, TlsMode};
 
-use TlsConnector;
+use crate::TlsConnector;
 
 fn smoke_test<T>(builder: &tokio_postgres::Builder, tls: T)
 where

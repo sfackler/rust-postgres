@@ -1,15 +1,6 @@
-extern crate openssl;
-extern crate tokio_io;
-extern crate tokio_openssl;
-extern crate tokio_postgres;
+#![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate futures;
-
-#[cfg(test)]
-extern crate tokio;
-
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::ssl::{ConnectConfiguration, HandshakeError, SslRef};
