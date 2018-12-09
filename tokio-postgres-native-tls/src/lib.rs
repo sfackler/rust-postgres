@@ -1,15 +1,6 @@
-extern crate native_tls;
-extern crate tokio_io;
-extern crate tokio_postgres;
-extern crate tokio_tls;
+#![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate futures;
-
-#[cfg(test)]
-extern crate tokio;
-
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_postgres::{ChannelBinding, TlsConnect};
 use tokio_tls::{Connect, TlsStream};
