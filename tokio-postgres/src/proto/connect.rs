@@ -1,19 +1,19 @@
 use fallible_iterator::FallibleIterator;
 use futures::sink;
 use futures::sync::mpsc;
-use futures::{Future, Poll, Sink, Stream};
+use futures::{try_ready, Future, Poll, Sink, Stream};
 use postgres_protocol::authentication;
 use postgres_protocol::authentication::sasl::{self, ScramSha256};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::collections::HashMap;
 use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::{Client, Connection, PostgresCodec, TlsFuture};
-use {CancelData, ChannelBinding, Error, TlsMode};
+use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
+use crate::{CancelData, ChannelBinding, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Connect<S, T>
@@ -180,7 +180,7 @@ where
                     return Err(Error::unsupported_authentication());
                 };
 
-                let mut scram = ScramSha256::new(pass.as_bytes(), channel_binding);
+                let scram = ScramSha256::new(pass.as_bytes(), channel_binding);
 
                 let mut buf = vec![];
                 frontend::sasl_initial_response(mechanism, scram.message(), &mut buf)

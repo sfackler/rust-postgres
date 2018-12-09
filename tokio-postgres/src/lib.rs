@@ -1,34 +1,19 @@
-extern crate antidote;
-extern crate bytes;
-extern crate fallible_iterator;
-extern crate futures_cpupool;
-extern crate phf;
-extern crate postgres_protocol;
-extern crate tokio_codec;
-extern crate tokio_io;
-extern crate void;
-
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate state_machine_future;
+#![warn(rust_2018_idioms)]
 
 use bytes::{Bytes, IntoBuf};
-use futures::{Async, Future, Poll, Stream};
+use futures::{try_ready, Async, Future, Poll, Stream};
 use std::error::Error as StdError;
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-pub use builder::*;
-pub use error::*;
-use proto::CancelFuture;
-use rows::RowIndex;
-pub use stmt::Column;
-pub use tls::*;
-use types::{FromSql, ToSql, Type};
+pub use crate::builder::*;
+pub use crate::error::*;
+use crate::proto::CancelFuture;
+use crate::rows::RowIndex;
+pub use crate::stmt::Column;
+pub use crate::tls::*;
+use crate::types::{FromSql, ToSql, Type};
 
 mod builder;
 pub mod error;
@@ -67,15 +52,15 @@ impl Client {
         Prepare(self.0.prepare(next_statement(), query, param_types))
     }
 
-    pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> Execute {
+    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Execute {
         Execute(self.0.execute(&statement.0, params))
     }
 
-    pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
+    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
     }
 
-    pub fn bind(&mut self, statement: &Statement, params: &[&ToSql]) -> Bind {
+    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Bind {
         Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
@@ -83,18 +68,23 @@ impl Client {
         QueryPortal(self.0.query_portal(&portal.0, max_rows))
     }
 
-    pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
+    pub fn copy_in<S>(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+        stream: S,
+    ) -> CopyIn<S>
     where
         S: Stream,
         S::Item: IntoBuf,
         <S::Item as IntoBuf>::Buf: Send,
         // FIXME error type?
-        S::Error: Into<Box<StdError + Sync + Send>>,
+        S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
         CopyIn(self.0.copy_in(&statement.0, params, stream))
     }
 
-    pub fn copy_out(&mut self, statement: &Statement, params: &[&ToSql]) -> CopyOut {
+    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOut {
         CopyOut(self.0.copy_out(&statement.0, params))
     }
 
@@ -282,14 +272,14 @@ where
     S: Stream,
     S::Item: IntoBuf,
     <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<StdError + Sync + Send>>;
+    S::Error: Into<Box<dyn StdError + Sync + Send>>;
 
 impl<S> Future for CopyIn<S>
 where
     S: Stream,
     S::Item: IntoBuf,
     <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<StdError + Sync + Send>>,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>,
 {
     type Item = u64;
     type Error = Error;

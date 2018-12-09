@@ -1,16 +1,16 @@
 use futures::stream::{self, Stream};
-use futures::{Async, Future, Poll};
-use state_machine_future::RentToOwn;
+use futures::{try_ready, Async, Future, Poll};
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
-use error::{Error, SqlState};
-use next_statement;
-use proto::client::Client;
-use proto::prepare::PrepareFuture;
-use proto::query::QueryStream;
-use proto::statement::Statement;
-use proto::typeinfo_composite::TypeinfoCompositeFuture;
-use proto::typeinfo_enum::TypeinfoEnumFuture;
-use types::{Kind, Oid, Type};
+use crate::error::{Error, SqlState};
+use crate::next_statement;
+use crate::proto::client::Client;
+use crate::proto::prepare::PrepareFuture;
+use crate::proto::query::QueryStream;
+use crate::proto::statement::Statement;
+use crate::proto::typeinfo_composite::TypeinfoCompositeFuture;
+use crate::proto::typeinfo_enum::TypeinfoEnumFuture;
+use crate::types::{Kind, Oid, Type};
 
 const TYPEINFO_QUERY: &'static str = "
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -30,10 +30,7 @@ WHERE t.oid = $1
 
 #[derive(StateMachineFuture)]
 pub enum Typeinfo {
-    #[state_machine_future(
-        start,
-        transitions(PreparingTypeinfo, QueryingTypeinfo, Finished)
-    )]
+    #[state_machine_future(start, transitions(PreparingTypeinfo, QueryingTypeinfo, Finished))]
     Start { oid: Oid, client: Client },
     #[state_machine_future(transitions(PreparingTypeinfoFallback, QueryingTypeinfo))]
     PreparingTypeinfo {
@@ -136,7 +133,7 @@ impl PollTypeinfo for Typeinfo {
             Ok(Async::Ready(statement)) => statement,
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-                let mut state = state.take();
+                let state = state.take();
 
                 transition!(PreparingTypeinfoFallback {
                     future: Box::new(state.client.prepare(

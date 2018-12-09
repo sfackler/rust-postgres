@@ -9,18 +9,18 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::sync::{Arc, Weak};
 
-use proto::bind::BindFuture;
-use proto::connection::{Request, RequestMessages};
-use proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
-use proto::copy_out::CopyOutStream;
-use proto::execute::ExecuteFuture;
-use proto::portal::Portal;
-use proto::prepare::PrepareFuture;
-use proto::query::QueryStream;
-use proto::simple_query::SimpleQueryFuture;
-use proto::statement::Statement;
-use types::{IsNull, Oid, ToSql, Type};
-use Error;
+use crate::proto::bind::BindFuture;
+use crate::proto::connection::{Request, RequestMessages};
+use crate::proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
+use crate::proto::copy_out::CopyOutStream;
+use crate::proto::execute::ExecuteFuture;
+use crate::proto::portal::Portal;
+use crate::proto::prepare::PrepareFuture;
+use crate::proto::query::QueryStream;
+use crate::proto::simple_query::SimpleQueryFuture;
+use crate::proto::statement::Statement;
+use crate::types::{IsNull, Oid, ToSql, Type};
+use crate::Error;
 
 pub struct PendingRequest(Result<RequestMessages, Error>);
 
@@ -127,7 +127,7 @@ impl Client {
         PrepareFuture::new(self.clone(), pending, name)
     }
 
-    pub fn execute(&self, statement: &Statement, params: &[&ToSql]) -> ExecuteFuture {
+    pub fn execute(&self, statement: &Statement, params: &[&dyn ToSql]) -> ExecuteFuture {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(RequestMessages::Single),
@@ -135,7 +135,7 @@ impl Client {
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn query(&self, statement: &Statement, params: &[&ToSql]) -> QueryStream<Statement> {
+    pub fn query(&self, statement: &Statement, params: &[&dyn ToSql]) -> QueryStream<Statement> {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(RequestMessages::Single),
@@ -143,7 +143,7 @@ impl Client {
         QueryStream::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn bind(&self, statement: &Statement, name: String, params: &[&ToSql]) -> BindFuture {
+    pub fn bind(&self, statement: &Statement, name: String, params: &[&dyn ToSql]) -> BindFuture {
         let mut buf = self.bind_message(statement, &name, params);
         if let Ok(ref mut buf) = buf {
             frontend::sync(buf);
@@ -161,12 +161,12 @@ impl Client {
         QueryStream::new(self.clone(), pending, portal.clone())
     }
 
-    pub fn copy_in<S>(&self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyInFuture<S>
+    pub fn copy_in<S>(&self, statement: &Statement, params: &[&dyn ToSql], stream: S) -> CopyInFuture<S>
     where
         S: Stream,
         S::Item: IntoBuf,
         <S::Item as IntoBuf>::Buf: Send,
-        S::Error: Into<Box<StdError + Sync + Send>>,
+        S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
         let (mut sender, receiver) = mpsc::channel(0);
         let pending = PendingRequest(self.excecute_message(statement, params).map(|buf| {
@@ -182,7 +182,7 @@ impl Client {
         CopyInFuture::new(self.clone(), pending, statement.clone(), stream, sender)
     }
 
-    pub fn copy_out(&self, statement: &Statement, params: &[&ToSql]) -> CopyOutStream {
+    pub fn copy_out(&self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOutStream {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(RequestMessages::Single),
@@ -213,7 +213,7 @@ impl Client {
         &self,
         statement: &Statement,
         name: &str,
-        params: &[&ToSql],
+        params: &[&dyn ToSql],
     ) -> Result<Vec<u8>, Error> {
         let mut buf = vec![];
         let r = frontend::bind(
@@ -236,7 +236,7 @@ impl Client {
         }
     }
 
-    fn excecute_message(&self, statement: &Statement, params: &[&ToSql]) -> Result<Vec<u8>, Error> {
+    fn excecute_message(&self, statement: &Statement, params: &[&dyn ToSql]) -> Result<Vec<u8>, Error> {
         let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);

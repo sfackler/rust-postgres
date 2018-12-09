@@ -1,6 +1,4 @@
-extern crate geo;
-
-use self::geo::{Coordinate, LineString, Point, Rect};
+use geo::{Coordinate, LineString, Point, Rect};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types;
 use std::error::Error;

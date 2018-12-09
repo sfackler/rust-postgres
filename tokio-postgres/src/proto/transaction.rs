@@ -1,9 +1,9 @@
-use futures::{Async, Future, Poll};
-use proto::client::Client;
-use proto::simple_query::SimpleQueryFuture;
-use state_machine_future::RentToOwn;
+use crate::proto::client::Client;
+use crate::proto::simple_query::SimpleQueryFuture;
+use futures::{try_ready, Async, Future, Poll};
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
-use Error;
+use crate::Error;
 
 #[derive(StateMachineFuture)]
 pub enum Transaction<F, T, E>

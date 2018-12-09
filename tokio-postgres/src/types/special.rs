@@ -2,7 +2,7 @@ use postgres_protocol::types;
 use std::error::Error;
 use std::{i32, i64};
 
-use types::{FromSql, IsNull, ToSql, Type};
+use crate::types::{FromSql, IsNull, ToSql, Type};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,7 +16,7 @@ pub enum Date<T> {
 }
 
 impl<'a, T: FromSql<'a>> FromSql<'a> for Date<T> {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<Error + Sync + Send>> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         match types::date_from_sql(raw)? {
             i32::MAX => Ok(Date::PosInfinity),
             i32::MIN => Ok(Date::NegInfinity),
@@ -30,7 +30,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Date<T> {
 }
 
 impl<T: ToSql> ToSql for Date<T> {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let value = match *self {
             Date::PosInfinity => i32::MAX,
             Date::NegInfinity => i32::MIN,
@@ -61,7 +61,7 @@ pub enum Timestamp<T> {
 }
 
 impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<Error + Sync + Send>> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         match types::timestamp_from_sql(raw)? {
             i64::MAX => Ok(Timestamp::PosInfinity),
             i64::MIN => Ok(Timestamp::NegInfinity),
@@ -78,7 +78,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
 }
 
 impl<T: ToSql> ToSql for Timestamp<T> {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let value = match *self {
             Timestamp::PosInfinity => i64::MAX,
             Timestamp::NegInfinity => i64::MIN,

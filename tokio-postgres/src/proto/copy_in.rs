@@ -1,15 +1,15 @@
 use bytes::{Buf, IntoBuf};
 use futures::sink;
 use futures::sync::mpsc;
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::{try_ready, Async, AsyncSink, Future, Poll, Sink, Stream};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::error::Error as StdError;
 
-use proto::client::{Client, PendingRequest};
-use proto::statement::Statement;
-use Error;
+use crate::proto::client::{Client, PendingRequest};
+use crate::proto::statement::Statement;
+use crate::Error;
 
 pub enum CopyMessage {
     Data(Vec<u8>),
@@ -66,7 +66,7 @@ where
     S: Stream,
     S::Item: IntoBuf,
     <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<StdError + Sync + Send>>,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>,
 {
     #[state_machine_future(start, transitions(ReadCopyInResponse))]
     Start {
@@ -107,7 +107,7 @@ where
     S: Stream,
     S::Item: IntoBuf,
     <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<StdError + Sync + Send>>,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S>>) -> Poll<AfterStart<S>, Error> {
         let state = state.take();
@@ -220,7 +220,7 @@ where
     S: Stream,
     S::Item: IntoBuf,
     <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<StdError + Sync + Send>>,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>,
 {
     pub fn new(
         client: Client,

@@ -1,10 +1,10 @@
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
 
-use proto::statement::Statement;
-use rows::{RowData, RowIndex};
-use types::{FromSql, WrongType};
-use {Column, Error};
+use crate::proto::statement::Statement;
+use crate::rows::{RowData, RowIndex};
+use crate::types::{FromSql, WrongType};
+use crate::{Column, Error};
 
 pub struct Row {
     statement: Statement,

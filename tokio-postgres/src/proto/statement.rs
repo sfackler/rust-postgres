@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use proto::client::WeakClient;
-use types::Type;
-use Column;
+use crate::proto::client::WeakClient;
+use crate::types::Type;
+use crate::Column;
 
 pub struct StatementInner {
     client: WeakClient,

@@ -1,5 +1,6 @@
 use futures::sync::mpsc;
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::{try_ready, Async, AsyncSink, Future, Poll, Sink, Stream};
+use log::trace;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
@@ -7,10 +8,10 @@ use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::codec::PostgresCodec;
-use proto::copy_in::CopyInReceiver;
-use {AsyncMessage, CancelData, Notification};
-use {DbError, Error};
+use crate::proto::codec::PostgresCodec;
+use crate::proto::copy_in::CopyInReceiver;
+use crate::{AsyncMessage, CancelData, Notification};
+use crate::{DbError, Error};
 
 pub enum RequestMessages {
     Single(Vec<u8>),

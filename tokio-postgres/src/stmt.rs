@@ -1,4 +1,4 @@
-use types::Type;
+use crate::types::Type;
 
 /// Information about a column of a Postgres query.
 #[derive(Debug)]

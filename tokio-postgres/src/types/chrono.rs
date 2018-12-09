@@ -1,6 +1,4 @@
-extern crate chrono;
-
-use self::chrono::{
+use chrono::{
     DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc,
 };
 use postgres_protocol::types;

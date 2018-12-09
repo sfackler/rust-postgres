@@ -1,10 +1,10 @@
-use futures::{Future, Poll};
+use futures::{try_ready, Future, Poll};
 use postgres_protocol::message::frontend;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, ReadExact, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use {ChannelBinding, Error, TlsMode};
+use crate::{ChannelBinding, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Tls<S, T>

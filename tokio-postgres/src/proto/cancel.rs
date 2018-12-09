@@ -1,12 +1,12 @@
-use futures::{Future, Poll};
+use futures::{try_ready, Future, Poll};
 use postgres_protocol::message::frontend;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, Flush, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use error::Error;
-use proto::TlsFuture;
-use {CancelData, TlsMode};
+use crate::error::Error;
+use crate::proto::TlsFuture;
+use crate::{CancelData, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Cancel<S, T>

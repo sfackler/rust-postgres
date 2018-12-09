@@ -1,6 +1,6 @@
 use bytes::{Buf, BufMut};
 use futures::future::{self, FutureResult};
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -27,7 +27,7 @@ impl ChannelBinding {
 
 pub trait TlsMode<S> {
     type Stream: AsyncRead + AsyncWrite;
-    type Error: Into<Box<Error + Sync + Send>>;
+    type Error: Into<Box<dyn Error + Sync + Send>>;
     type Future: Future<Item = (Self::Stream, ChannelBinding), Error = Self::Error>;
 
     fn request_tls(&self) -> bool;
@@ -37,7 +37,7 @@ pub trait TlsMode<S> {
 
 pub trait TlsConnect<S> {
     type Stream: AsyncRead + AsyncWrite;
-    type Error: Into<Box<Error + Sync + Send>>;
+    type Error: Into<Box<dyn Error + Sync + Send>>;
     type Future: Future<Item = (Self::Stream, ChannelBinding), Error = Self::Error>;
 
     fn connect(self, stream: S) -> Self::Future;
@@ -212,7 +212,7 @@ where
     T: TlsConnect<S>,
 {
     type Stream = T::Stream;
-    type Error = Box<Error + Sync + Send>;
+    type Error = Box<dyn Error + Sync + Send>;
     type Future = RequireTlsFuture<T::Future>;
 
     fn request_tls(&self) -> bool {
@@ -234,7 +234,7 @@ where
 pub struct TlsUnsupportedError(());
 
 impl fmt::Display for TlsUnsupportedError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.write_str("TLS was required but not supported by the server")
     }
 }
@@ -242,18 +242,18 @@ impl fmt::Display for TlsUnsupportedError {
 impl Error for TlsUnsupportedError {}
 
 pub struct RequireTlsFuture<T> {
-    f: Option<Result<T, Box<Error + Sync + Send>>>,
+    f: Option<Result<T, Box<dyn Error + Sync + Send>>>,
 }
 
 impl<T> Future for RequireTlsFuture<T>
 where
     T: Future,
-    T::Error: Into<Box<Error + Sync + Send>>,
+    T::Error: Into<Box<dyn Error + Sync + Send>>,
 {
     type Item = T::Item;
-    type Error = Box<Error + Sync + Send>;
+    type Error = Box<dyn Error + Sync + Send>;
 
-    fn poll(&mut self) -> Poll<T::Item, Box<Error + Sync + Send>> {
+    fn poll(&mut self) -> Poll<T::Item, Box<dyn Error + Sync + Send>> {
         match self.f.take().expect("future polled after completion") {
             Ok(mut f) => match f.poll().map_err(Into::into)? {
                 Async::Ready(r) => Ok(Async::Ready(r)),

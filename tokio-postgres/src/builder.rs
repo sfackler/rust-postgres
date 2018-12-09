@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::ConnectFuture;
-use {Connect, TlsMode};
+use crate::proto::ConnectFuture;
+use crate::{Connect, TlsMode};
 
 #[derive(Clone)]
 pub struct Builder {

@@ -1,6 +1,4 @@
-extern crate uuid;
-
-use self::uuid::Uuid;
+use uuid::Uuid;
 use postgres_protocol::types;
 use std::error::Error;
 

@@ -3,11 +3,11 @@ use postgres_protocol::message::backend::DataRowBody;
 use std::io;
 use std::ops::Range;
 
-use rows::sealed::Sealed;
-use stmt::Column;
+use crate::rows::sealed::Sealed;
+use crate::stmt::Column;
 
 mod sealed {
-    use stmt::Column;
+    use crate::stmt::Column;
 
     pub trait Sealed {
         fn __idx(&self, stmt: &[Column]) -> Option<usize>;

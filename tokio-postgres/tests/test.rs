@@ -1,15 +1,8 @@
-extern crate env_logger;
-extern crate tokio;
-extern crate tokio_postgres;
+#![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate log;
-
-use futures::future;
-use futures::stream;
 use futures::sync::mpsc;
+use futures::{future, stream, try_ready};
+use log::debug;
 use std::error::Error;
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
@@ -244,7 +237,8 @@ fn query_portal() {
             "CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT);
              INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');
              BEGIN;",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let statement = runtime
         .block_on(client.prepare("SELECT id, name FROM foo ORDER BY id"))
@@ -292,10 +286,12 @@ fn cancel_query() {
         .then(|r| {
             r.unwrap();
             TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        }).then(|r| {
+        })
+        .then(|r| {
             let s = r.unwrap();
             tokio_postgres::cancel_query(s, NoTls, cancel_data)
-        }).then(|r| {
+        })
+        .then(|r| {
             r.unwrap();
             Ok::<(), ()>(())
         });
@@ -321,7 +317,8 @@ fn custom_enum() {
                 'ok',
                 'happy'
             )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::mood");
     let select = runtime.block_on(select).unwrap();
@@ -352,7 +349,8 @@ fn custom_domain() {
     runtime
         .block_on(client.batch_execute(
             "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::session_id");
     let select = runtime.block_on(select).unwrap();
@@ -405,7 +403,8 @@ fn custom_composite() {
                 supplier INTEGER,
                 price NUMERIC
             )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::inventory_item");
     let select = runtime.block_on(select).unwrap();
@@ -442,7 +441,8 @@ fn custom_range() {
                 subtype = float8,
                 subtype_diff = float8mi
             )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let select = client.prepare("SELECT $1::floatrange");
     let select = runtime.block_on(select).unwrap();
@@ -534,7 +534,8 @@ fn transaction_commit() {
                 id SERIAL,
                 name TEXT
             )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let f = client.batch_execute("INSERT INTO foo (name) VALUES ('steven')");
     runtime.block_on(client.transaction().build(f)).unwrap();
@@ -544,7 +545,8 @@ fn transaction_commit() {
             client
                 .prepare("SELECT name FROM foo")
                 .and_then(|s| client.query(&s, &[]).collect()),
-        ).unwrap();
+        )
+        .unwrap();
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "steven");
@@ -567,12 +569,13 @@ fn transaction_abort() {
                 id SERIAL,
                 name TEXT
             )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let f = client
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
-        .map_err(|e| Box::new(e) as Box<Error>)
-        .and_then(|_| Err::<(), _>(Box::<Error>::from("")));
+        .map_err(|e| Box::new(e) as Box<dyn Error>)
+        .and_then(|_| Err::<(), _>(Box::<dyn Error>::from("")));
     runtime.block_on(client.transaction().build(f)).unwrap_err();
 
     let rows = runtime
@@ -580,7 +583,8 @@ fn transaction_abort() {
             client
                 .prepare("SELECT name FROM foo")
                 .and_then(|s| client.query(&s, &[]).collect()),
-        ).unwrap();
+        )
+        .unwrap();
 
     assert_eq!(rows.len(), 0);
 }
@@ -602,7 +606,8 @@ fn copy_in() {
                 id INTEGER,
                 name TEXT
              )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let stream = stream::iter_ok::<_, String>(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]);
     let rows = runtime
@@ -610,7 +615,8 @@ fn copy_in() {
             client
                 .prepare("COPY foo FROM STDIN")
                 .and_then(|s| client.copy_in(&s, &[], stream)),
-        ).unwrap();
+        )
+        .unwrap();
     assert_eq!(rows, 2);
 
     let rows = runtime
@@ -618,7 +624,8 @@ fn copy_in() {
             client
                 .prepare("SELECT id, name FROM foo ORDER BY id")
                 .and_then(|s| client.query(&s, &[]).collect()),
-        ).unwrap();
+        )
+        .unwrap();
 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -644,7 +651,8 @@ fn copy_in_error() {
                 id INTEGER,
                 name TEXT
              )",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let stream = stream::iter_result(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
     let error = runtime
@@ -652,7 +660,8 @@ fn copy_in_error() {
             client
                 .prepare("COPY foo FROM STDIN")
                 .and_then(|s| client.copy_in(&s, &[], stream)),
-        ).unwrap_err();
+        )
+        .unwrap_err();
     assert!(error.to_string().contains("asdf"));
 
     let rows = runtime
@@ -660,7 +669,8 @@ fn copy_in_error() {
             client
                 .prepare("SELECT id, name FROM foo ORDER BY id")
                 .and_then(|s| client.query(&s, &[]).collect()),
-        ).unwrap();
+        )
+        .unwrap();
 
     assert_eq!(rows.len(), 0);
 }
@@ -683,14 +693,16 @@ fn copy_out() {
                 name TEXT
             );
             INSERT INTO foo (name) VALUES ('jim'), ('joe');",
-        )).unwrap();
+        ))
+        .unwrap();
 
     let data = runtime
         .block_on(
             client
                 .prepare("COPY foo TO STDOUT")
                 .and_then(|s| client.copy_out(&s, &[]).concat2()),
-        ).unwrap();
+        )
+        .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 }
 
@@ -719,7 +731,8 @@ fn transaction_builder_around_moved_client() {
                 .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
                 .map(|statement| (client, statement))
         })
-    }).and_then(|(mut client, statement)| {
+    })
+    .and_then(|(mut client, statement)| {
         client
             .query(&statement, &[&"jim", &"joe"])
             .collect()
@@ -734,7 +747,8 @@ fn transaction_builder_around_moved_client() {
             client
                 .prepare("COPY transaction_foo TO STDOUT")
                 .and_then(|s| client.copy_out(&s, &[]).concat2()),
-        ).unwrap();
+        )
+        .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 
     drop(client);

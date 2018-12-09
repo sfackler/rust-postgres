@@ -3,11 +3,11 @@ use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
-use proto::client::{Client, PendingRequest};
-use proto::portal::Portal;
-use proto::row::Row;
-use proto::statement::Statement;
-use Error;
+use crate::proto::client::{Client, PendingRequest};
+use crate::proto::portal::Portal;
+use crate::proto::row::Row;
+use crate::proto::statement::Statement;
+use crate::Error;
 
 pub trait StatementHolder {
     fn statement(&self) -> &Statement;

@@ -1,6 +1,4 @@
-extern crate bit_vec;
-
-use self::bit_vec::BitVec;
+use bit_vec::BitVec;
 use postgres_protocol::types;
 use std::error::Error;
 

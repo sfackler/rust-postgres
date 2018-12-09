@@ -13,7 +13,7 @@ macro_rules! try_ready_closed {
         match $e {
             Ok(::futures::Async::Ready(v)) => v,
             Ok(::futures::Async::NotReady) => return Ok(::futures::Async::NotReady),
-            Err(_) => return Err(::Error::closed()),
+            Err(_) => return Err(crate::Error::closed()),
         }
     };
 }
@@ -39,20 +39,20 @@ mod typeinfo;
 mod typeinfo_composite;
 mod typeinfo_enum;
 
-pub use proto::bind::BindFuture;
-pub use proto::cancel::CancelFuture;
-pub use proto::client::Client;
-pub use proto::codec::PostgresCodec;
-pub use proto::connect::ConnectFuture;
-pub use proto::connection::Connection;
-pub use proto::copy_in::CopyInFuture;
-pub use proto::copy_out::CopyOutStream;
-pub use proto::execute::ExecuteFuture;
-pub use proto::portal::Portal;
-pub use proto::prepare::PrepareFuture;
-pub use proto::query::QueryStream;
-pub use proto::row::Row;
-pub use proto::simple_query::SimpleQueryFuture;
-pub use proto::statement::Statement;
-pub use proto::tls::TlsFuture;
-pub use proto::transaction::TransactionFuture;
+pub use crate::proto::bind::BindFuture;
+pub use crate::proto::cancel::CancelFuture;
+pub use crate::proto::client::Client;
+pub use crate::proto::codec::PostgresCodec;
+pub use crate::proto::connect::ConnectFuture;
+pub use crate::proto::connection::Connection;
+pub use crate::proto::copy_in::CopyInFuture;
+pub use crate::proto::copy_out::CopyOutStream;
+pub use crate::proto::execute::ExecuteFuture;
+pub use crate::proto::portal::Portal;
+pub use crate::proto::prepare::PrepareFuture;
+pub use crate::proto::query::QueryStream;
+pub use crate::proto::row::Row;
+pub use crate::proto::simple_query::SimpleQueryFuture;
+pub use crate::proto::statement::Statement;
+pub use crate::proto::tls::TlsFuture;
+pub use crate::proto::transaction::TransactionFuture;

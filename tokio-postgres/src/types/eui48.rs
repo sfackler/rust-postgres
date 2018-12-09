@@ -1,6 +1,4 @@
-extern crate eui48;
-
-use self::eui48::MacAddress;
+use eui48::MacAddress;
 use postgres_protocol::types;
 use std::error::Error;
 

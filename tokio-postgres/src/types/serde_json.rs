@@ -1,8 +1,5 @@
-extern crate serde;
-extern crate serde_json;
-
-use self::serde::{Deserialize, Serialize};
-use self::serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::error::Error;
 use std::fmt::Debug;
 use std::io::Read;

@@ -32,7 +32,7 @@ pub enum Severity {
 }
 
 impl fmt::Display for Severity {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match *self {
             Severity::Panic => "PANIC",
             Severity::Fatal => "FATAL",
@@ -85,7 +85,7 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn new(fields: &mut ErrorFields) -> io::Result<DbError> {
+    pub(crate) fn new(fields: &mut ErrorFields<'_>) -> io::Result<DbError> {
         let mut severity = None;
         let mut parsed_severity = None;
         let mut code = None;
@@ -307,7 +307,7 @@ impl DbError {
 }
 
 impl fmt::Display for DbError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}: {}", self.severity, self.message)
     }
 }
@@ -348,14 +348,14 @@ enum Kind {
 
 struct ErrorInner {
     kind: Kind,
-    cause: Option<Box<error::Error + Sync + Send>>,
+    cause: Option<Box<dyn error::Error + Sync + Send>>,
 }
 
 /// An error communicating with the Postgres server.
 pub struct Error(Box<ErrorInner>);
 
 impl fmt::Debug for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Error")
             .field("kind", &self.0.kind)
             .field("cause", &self.0.cause)
@@ -364,7 +364,7 @@ impl fmt::Debug for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self.0.kind {
             Kind::Io => "error communicating with the server",
             Kind::UnexpectedMessage => "unexpected message from server",
@@ -390,14 +390,14 @@ impl fmt::Display for Error {
 }
 
 impl error::Error for Error {
-    fn source(&self) -> Option<&(error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         self.0.cause.as_ref().map(|e| &**e as _)
     }
 }
 
 impl Error {
     /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<error::Error + Sync + Send>> {
+    pub fn into_cause(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause
     }
 
@@ -411,7 +411,7 @@ impl Error {
             .map(|e| e.code())
     }
 
-    fn new(kind: Kind, cause: Option<Box<error::Error + Sync + Send>>) -> Error {
+    fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
         Error(Box::new(ErrorInner { kind, cause }))
     }
 
@@ -438,17 +438,17 @@ impl Error {
         Error::new(Kind::Encode, Some(Box::new(e)))
     }
 
-    pub(crate) fn to_sql(e: Box<error::Error + Sync + Send>) -> Error {
+    pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::ToSql, Some(e))
     }
 
-    pub(crate) fn from_sql(e: Box<error::Error + Sync + Send>) -> Error {
+    pub(crate) fn from_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::FromSql, Some(e))
     }
 
     pub(crate) fn copy_in_stream<E>(e: E) -> Error
     where
-        E: Into<Box<error::Error + Sync + Send>>,
+        E: Into<Box<dyn error::Error + Sync + Send>>,
     {
         Error::new(Kind::CopyInStream, Some(e.into()))
     }
@@ -465,7 +465,7 @@ impl Error {
         Error::new(Kind::UnsupportedAuthentication, None)
     }
 
-    pub(crate) fn tls(e: Box<error::Error + Sync + Send>) -> Error {
+    pub(crate) fn tls(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::Tls, Some(e))
     }
 

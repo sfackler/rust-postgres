@@ -4,9 +4,9 @@ use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
-use proto::client::{Client, PendingRequest};
-use proto::statement::Statement;
-use Error;
+use crate::proto::client::{Client, PendingRequest};
+use crate::proto::statement::Statement;
+use crate::Error;
 
 enum State {
     Start {
