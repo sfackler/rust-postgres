@@ -1,11 +1,8 @@
 [workspace]
 members = [
     "codegen",
-    "postgres",
     "postgres-protocol",
     "postgres-shared",
-    "postgres-openssl",
-    "postgres-native-tls",
     "tokio-postgres",
     "tokio-postgres-native-tls",
     "tokio-postgres-openssl",
