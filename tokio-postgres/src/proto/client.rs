@@ -161,7 +161,12 @@ impl Client {
         QueryStream::new(self.clone(), pending, portal.clone())
     }
 
-    pub fn copy_in<S>(&self, statement: &Statement, params: &[&dyn ToSql], stream: S) -> CopyInFuture<S>
+    pub fn copy_in<S>(
+        &self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+        stream: S,
+    ) -> CopyInFuture<S>
     where
         S: Stream,
         S::Item: IntoBuf,
@@ -236,7 +241,11 @@ impl Client {
         }
     }
 
-    fn excecute_message(&self, statement: &Statement, params: &[&dyn ToSql]) -> Result<Vec<u8>, Error> {
+    fn excecute_message(
+        &self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> Result<Vec<u8>, Error> {
         let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);

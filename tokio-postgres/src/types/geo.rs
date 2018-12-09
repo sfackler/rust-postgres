@@ -1,5 +1,5 @@
-use geo::{Coordinate, LineString, Point, Rect};
 use fallible_iterator::FallibleIterator;
+use geo::{Coordinate, LineString, Point, Rect};
 use postgres_protocol::types;
 use std::error::Error;
 

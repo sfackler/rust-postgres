@@ -132,7 +132,8 @@ pub struct Other {{
     pub schema: String,
 }}
 "
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn make_enum(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
@@ -141,7 +142,8 @@ fn make_enum(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
         "
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Inner {{"
-    ).unwrap();
+    )
+    .unwrap();
 
     for type_ in types.values() {
         write!(
@@ -149,7 +151,8 @@ pub enum Inner {{"
             "
     {},",
             type_.variant
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(
@@ -159,7 +162,8 @@ pub enum Inner {{"
 }}
 
 "
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
@@ -169,7 +173,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     pub fn from_oid(oid: Oid) -> Option<Inner> {{
         match oid {{
 ",
-    ).unwrap();
+    )
+    .unwrap();
 
     for (oid, type_) in types {
         write!(
@@ -177,7 +182,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             "            {} => Some(Inner::{}),
 ",
             oid, type_.variant
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(
@@ -189,7 +195,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     pub fn oid(&self) -> Oid {{
         match *self {{
 ",
-    ).unwrap();
+    )
+    .unwrap();
 
     for (oid, type_) in types {
         write!(
@@ -197,7 +204,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             "            Inner::{} => {},
 ",
             type_.variant, oid
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(
@@ -209,7 +217,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     pub fn kind(&self) -> &Kind {{
         match *self {{
 ",
-    ).unwrap();
+    )
+    .unwrap();
 
     for type_ in types.values() {
         let kind = match type_.kind {
@@ -227,7 +236,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             }}
 ",
             type_.variant, kind
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(
@@ -239,7 +249,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     pub fn name(&self) -> &str {{
         match *self {{
 "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     for type_ in types.values() {
         write!(
@@ -247,7 +258,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             r#"            Inner::{} => "{}",
 "#,
             type_.variant, type_.name
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(
@@ -257,7 +269,8 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     }}
 }}
 "
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn make_consts(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
@@ -272,7 +285,8 @@ fn make_consts(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
             docs = type_.doc,
             ident = type_.ident,
             variant = type_.variant
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     write!(w, "}}").unwrap();

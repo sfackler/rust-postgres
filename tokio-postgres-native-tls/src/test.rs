@@ -38,7 +38,8 @@ fn require() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
             Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
-        ).build()
+        )
+        .build()
         .unwrap();
     smoke_test(
         tokio_postgres::Builder::new()
@@ -53,7 +54,8 @@ fn prefer() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
             Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
-        ).build()
+        )
+        .build()
         .unwrap();
     smoke_test(
         tokio_postgres::Builder::new()
@@ -68,7 +70,8 @@ fn scram_user() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
             Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
-        ).build()
+        )
+        .build()
         .unwrap();
     smoke_test(
         tokio_postgres::Builder::new()

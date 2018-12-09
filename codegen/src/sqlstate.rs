@@ -60,7 +60,8 @@ impl SqlState {{
         &self.0
     }}
 "
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn make_consts(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<File>) {
@@ -74,7 +75,8 @@ fn make_consts(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<
 "#,
                 name = name,
                 code = code,
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -87,7 +89,8 @@ fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<Fil
         "
 #[cfg_attr(rustfmt, rustfmt_skip)]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = "
-    ).unwrap();
+    )
+    .unwrap();
     let mut builder = phf_codegen::Map::new();
     for (code, names) in codes {
         builder.entry(&**code, &format!("SqlState::{}", &names[0]));

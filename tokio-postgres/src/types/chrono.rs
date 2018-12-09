@@ -1,6 +1,4 @@
-use chrono::{
-    DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc,
-};
+use chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use postgres_protocol::types;
 use std::error::Error;
 

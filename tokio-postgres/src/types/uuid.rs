@@ -1,6 +1,6 @@
-use uuid::Uuid;
 use postgres_protocol::types;
 use std::error::Error;
+use uuid::Uuid;
 
 use types::{FromSql, IsNull, ToSql, Type};
 

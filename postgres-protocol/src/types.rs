@@ -167,7 +167,10 @@ pub fn float8_from_sql(mut buf: &[u8]) -> Result<f64, StdBox<dyn Error + Sync + 
 
 /// Serializes an `HSTORE` value.
 #[inline]
-pub fn hstore_to_sql<'a, I>(values: I, buf: &mut Vec<u8>) -> Result<(), StdBox<dyn Error + Sync + Send>>
+pub fn hstore_to_sql<'a, I>(
+    values: I,
+    buf: &mut Vec<u8>,
+) -> Result<(), StdBox<dyn Error + Sync + Send>>
 where
     I: IntoIterator<Item = (&'a str, Option<&'a str>)>,
 {
@@ -228,7 +231,9 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
     type Error = StdBox<dyn Error + Sync + Send>;
 
     #[inline]
-    fn next(&mut self) -> Result<Option<(&'a str, Option<&'a str>)>, StdBox<dyn Error + Sync + Send>> {
+    fn next(
+        &mut self,
+    ) -> Result<Option<(&'a str, Option<&'a str>)>, StdBox<dyn Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
                 return Err("invalid buffer size".into());
@@ -288,7 +293,9 @@ where
 
 /// Deserializes a `VARBIT` or `BIT` value.
 #[inline]
-pub fn varbit_from_sql<'a>(mut buf: &'a [u8]) -> Result<Varbit<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn varbit_from_sql<'a>(
+    mut buf: &'a [u8],
+) -> Result<Varbit<'a>, StdBox<dyn Error + Sync + Send>> {
     let len = buf.read_i32::<BigEndian>()?;
     if len < 0 {
         return Err("invalid varbit length".into());
@@ -1053,7 +1060,8 @@ mod test {
                 None => Ok(IsNull::Yes),
             },
             &mut buf,
-        ).unwrap();
+        )
+        .unwrap();
 
         let array = array_from_sql(&buf).unwrap();
         assert_eq!(array.has_nulls(), true);
@@ -1089,7 +1097,8 @@ mod test {
                 None => Ok(IsNull::Yes),
             },
             &mut buf,
-        ).unwrap();
+        )
+        .unwrap();
 
         let array = array_from_sql(&buf).unwrap();
         assert_eq!(array.has_nulls(), false);
