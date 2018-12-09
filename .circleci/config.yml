@@ -34,5 +34,5 @@ jobs:
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
       - run: cargo test --all
-      - run: cargo test -p tokio-postgres --all-features
+      - run: cargo test --manifest-path tokio-postgres/Cargo.toml --all-features
       - *SAVE_DEPS
