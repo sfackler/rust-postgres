@@ -4,7 +4,6 @@ extern crate fallible_iterator;
 extern crate futures_cpupool;
 extern crate phf;
 extern crate postgres_protocol;
-extern crate postgres_shared;
 extern crate tokio_codec;
 extern crate tokio_io;
 extern crate void;
@@ -18,29 +17,26 @@ extern crate state_machine_future;
 
 use bytes::{Bytes, IntoBuf};
 use futures::{Async, Future, Poll, Stream};
-use postgres_shared::rows::RowIndex;
 use std::error::Error as StdError;
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-#[doc(inline)]
-pub use postgres_shared::stmt::Column;
-#[doc(inline)]
-pub use postgres_shared::{params, types};
-#[doc(inline)]
-pub use postgres_shared::{CancelData, Notification};
-
 pub use builder::*;
 pub use error::*;
 use proto::CancelFuture;
+use rows::RowIndex;
+pub use stmt::Column;
 pub use tls::*;
 use types::{FromSql, ToSql, Type};
 
 mod builder;
 pub mod error;
 mod proto;
+pub mod rows;
+mod stmt;
 mod tls;
+pub mod types;
 
 fn next_statement() -> String {
     static ID: AtomicUsize = AtomicUsize::new(0);
@@ -385,4 +381,24 @@ impl Future for BatchExecute {
     fn poll(&mut self) -> Poll<(), Error> {
         self.0.poll()
     }
+}
+
+/// Contains information necessary to cancel queries for a session.
+#[derive(Copy, Clone, Debug)]
+pub struct CancelData {
+    /// The process ID of the session.
+    pub process_id: i32,
+    /// The secret key for the session.
+    pub secret_key: i32,
+}
+
+/// An asynchronous notification.
+#[derive(Clone, Debug)]
+pub struct Notification {
+    /// The process ID of the notifying backend process.
+    pub process_id: i32,
+    /// The name of the channel that the notify has been raised on.
+    pub channel: String,
+    /// The "payload" string passed from the notifying process.
+    pub payload: String,
 }

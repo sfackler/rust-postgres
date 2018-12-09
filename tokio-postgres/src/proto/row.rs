@@ -1,8 +1,8 @@
 use postgres_protocol::message::backend::DataRowBody;
-use postgres_shared::rows::{RowData, RowIndex};
 use std::fmt;
 
 use proto::statement::Statement;
+use rows::{RowData, RowIndex};
 use types::{FromSql, WrongType};
 use {Column, Error};
 

@@ -2,7 +2,6 @@
 members = [
     "codegen",
     "postgres-protocol",
-    "postgres-shared",
     "tokio-postgres",
     "tokio-postgres-native-tls",
     "tokio-postgres-openssl",
