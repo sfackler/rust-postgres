@@ -1,13 +1,13 @@
 use postgres_protocol::types;
 use std::error::Error;
-use uuid_06::Uuid;
+use uuid_07::Uuid;
 
 use crate::types::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Uuid {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Uuid, Box<dyn Error + Sync + Send>> {
         let bytes = types::uuid_from_sql(raw)?;
-        Ok(Uuid::from_bytes(&bytes).unwrap())
+        Ok(Uuid::from_bytes(bytes))
     }
 
     accepts!(UUID);

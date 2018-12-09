@@ -1,4 +1,4 @@
-use eui48_03::MacAddress;
+use eui48_04::MacAddress;
 use postgres_protocol::types;
 use std::error::Error;
 

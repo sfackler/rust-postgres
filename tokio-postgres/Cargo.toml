@@ -26,10 +26,10 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 [features]
 "with-bit-vec-0.5" = ["bit-vec-05"]
 "with-chrono-0.4" = ["chrono-04"]
-"with-eui48-0.3" = ["eui48-03"]
+"with-eui48-0.4" = ["eui48-04"]
 "with-geo-0.10" = ["geo-010"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
-"with-uuid-0.6" = ["uuid-06"]
+"with-uuid-0.7" = ["uuid-07"]
 
 [dependencies]
 antidote = "1.0"
@@ -47,11 +47,11 @@ void = "1.0"
 
 bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }
-eui48-03 = { version = "0.3", package = "eui48", optional = true }
+eui48-04 = { version = "0.4", package = "eui48", optional = true }
 geo-010 = { version = "0.10", package = "geo", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
-uuid-06 = { version = "0.6", package = "uuid", optional = true }
+uuid-07 = { version = "0.7", package = "uuid", optional = true }
 
 [dev-dependencies]
 tokio = "0.1.7"
