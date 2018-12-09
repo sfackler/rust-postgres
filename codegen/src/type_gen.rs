@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
-use snake_to_camel;
+use crate::snake_to_camel;
 
 const PG_TYPE_H: &'static str = include_str!("pg_type.h");
 const PG_RANGE_H: &'static str = include_str!("pg_range.h");

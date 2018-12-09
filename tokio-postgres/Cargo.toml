@@ -24,12 +24,12 @@ features = [
 circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
-"with-bit-vec-0.5" = ["bit-vec"]
-"with-chrono-0.4" = ["chrono"]
-"with-eui48-0.3" = ["eui48"]
-"with-geo-0.10" = ["geo"]
-with-serde_json-1 = ["serde", "serde_json"]
-"with-uuid-0.6" = ["uuid"]
+"with-bit-vec-0.5" = ["bit-vec-05"]
+"with-chrono-0.4" = ["chrono-04"]
+"with-eui48-0.3" = ["eui48-03"]
+"with-geo-0.10" = ["geo-010"]
+with-serde_json-1 = ["serde-1", "serde_json-1"]
+"with-uuid-0.6" = ["uuid-06"]
 
 [dependencies]
 antidote = "1.0"
@@ -45,13 +45,13 @@ tokio-codec = "0.1"
 tokio-io = "0.1"
 void = "1.0"
 
-bit-vec = { version = "0.5", optional = true }
-chrono = { version = "0.4", optional = true }
-eui48 = { version = "0.3", optional = true }
-geo = { version = "0.10", optional = true }
-serde = { version = "1.0", optional = true }
-serde_json = { version = "1.0", optional = true }
-uuid = { version = "0.6", optional = true }
+bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
+chrono-04 = { version = "0.4", package = "chrono", optional = true }
+eui48-03 = { version = "0.3", package = "eui48", optional = true }
+geo-010 = { version = "0.10", package = "geo", optional = true }
+serde-1 = { version = "1.0", package = "serde", optional = true }
+serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
+uuid-06 = { version = "0.6", package = "uuid", optional = true }
 
 [dev-dependencies]
 tokio = "0.1.7"

@@ -72,23 +72,23 @@ where
 }
 
 #[cfg(feature = "with-bit-vec-0.5")]
-mod bit_vec;
+mod bit_vec_05;
 #[cfg(feature = "with-chrono-0.4")]
-mod chrono;
+mod chrono_04;
 #[cfg(feature = "with-eui48-0.3")]
-mod eui48;
+mod eui48_03;
 #[cfg(feature = "with-geo-0.10")]
-mod geo;
+mod geo_010;
 #[cfg(feature = "with-serde_json-1")]
-mod serde_json;
+mod serde_json_1;
 #[cfg(feature = "with-uuid-0.6")]
-mod uuid;
+mod uuid_06;
 
 mod special;
 mod type_gen;
 
 #[cfg(feature = "with-serde_json-1")]
-pub use self::serde_json::Json;
+pub use crate::types::serde_json_1::Json;
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
