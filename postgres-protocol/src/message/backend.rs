@@ -9,7 +9,7 @@ use std::io::{self, Read};
 use std::ops::Range;
 use std::str;
 
-use Oid;
+use crate::Oid;
 
 /// An enum representing Postgres backend messages.
 pub enum Message {

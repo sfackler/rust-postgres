@@ -1,6 +1,5 @@
 //! SASL-based authentication support.
 
-use base64;
 use generic_array::typenum::U32;
 use generic_array::GenericArray;
 use hmac::{Hmac, Mac};
@@ -11,7 +10,6 @@ use std::io;
 use std::iter;
 use std::mem;
 use std::str;
-use stringprep;
 
 const NONCE_LENGTH: usize = 24;
 
@@ -143,7 +141,8 @@ impl ScramSha256 {
                     v = 0x7e
                 }
                 v as char
-            }).collect::<String>();
+            })
+            .collect::<String>();
 
         ScramSha256::new_inner(password, channel_binding, nonce)
     }
@@ -333,7 +332,7 @@ impl<'a> Parser<'a> {
 
     fn printable(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-            '\x21'...'\x2b' | '\x2d'...'\x7e' => true,
+            '\x21'..='\x2b' | '\x2d'..='\x7e' => true,
             _ => false,
         })
     }
@@ -346,7 +345,7 @@ impl<'a> Parser<'a> {
 
     fn base64(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-            'a'...'z' | 'A'...'Z' | '0'...'9' | '/' | '+' | '=' => true,
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '+' | '=' => true,
             _ => false,
         })
     }
@@ -359,7 +358,7 @@ impl<'a> Parser<'a> {
 
     fn posit_number(&mut self) -> io::Result<u32> {
         let n = self.take_while(|c| match c {
-            '0'...'9' => true,
+            '0'..='9' => true,
             _ => false,
         })?;
         n.parse()

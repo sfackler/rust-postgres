@@ -6,7 +6,7 @@ use std::error::Error;
 use std::io;
 use std::marker;
 
-use {write_nullable, FromUsize, IsNull, Oid};
+use crate::{write_nullable, FromUsize, IsNull, Oid};
 
 pub enum Message<'a> {
     Bind {
@@ -148,13 +148,13 @@ where
 }
 
 pub enum BindError {
-    Conversion(Box<Error + marker::Sync + Send>),
+    Conversion(Box<dyn Error + marker::Sync + Send>),
     Serialization(io::Error),
 }
 
-impl From<Box<Error + marker::Sync + Send>> for BindError {
+impl From<Box<dyn Error + marker::Sync + Send>> for BindError {
     #[inline]
-    fn from(e: Box<Error + marker::Sync + Send>) -> BindError {
+    fn from(e: Box<dyn Error + marker::Sync + Send>) -> BindError {
         BindError::Conversion(e)
     }
 }
@@ -179,7 +179,7 @@ pub fn bind<I, J, F, T, K>(
 where
     I: IntoIterator<Item = i16>,
     J: IntoIterator<Item = T>,
-    F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<Error + marker::Sync + Send>>,
+    F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + marker::Sync + Send>>,
     K: IntoIterator<Item = i16>,
 {
     buf.push(b'B');
@@ -225,7 +225,8 @@ pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut Vec<u8>) {
         buf.write_i32::<BigEndian>(80877102).unwrap();
         buf.write_i32::<BigEndian>(process_id).unwrap();
         buf.write_i32::<BigEndian>(secret_key)
-    }).unwrap();
+    })
+    .unwrap();
 }
 
 #[inline]
