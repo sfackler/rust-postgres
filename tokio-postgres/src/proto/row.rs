@@ -12,8 +12,8 @@ pub struct Row {
 }
 
 impl Row {
-    pub fn new(statement: Statement, data: DataRowBody) -> Result<Row, Error> {
-        let data = RowData::new(data).map_err(Error::parse)?;
+    pub(crate) fn parse(statement: Statement, data: DataRowBody) -> Result<Row, Error> {
+        let data = RowData::parse(data).map_err(Error::parse)?;
         Ok(Row { statement, data })
     }
 

@@ -10,6 +10,12 @@ pub struct Builder {
     password: Option<String>,
 }
 
+impl Default for Builder {
+    fn default() -> Builder {
+        Builder::new()
+    }
+}
+
 impl Builder {
     pub fn new() -> Builder {
         let mut params = HashMap::new();

@@ -28,8 +28,9 @@ jobs:
       - image: sfackler/rust-postgres-test:5
     steps:
       - checkout
-      - run: rustup component add rustfmt
+      - run: rustup component add rustfmt clippy
       - run: cargo fmt --all -- --check
+      - run: cargo clippy --all
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - *SAVE_REGISTRY

@@ -8,6 +8,7 @@ use std::io;
 
 pub use self::sqlstate::*;
 
+#[allow(clippy::unreadable_literal)]
 mod sqlstate;
 
 /// The severity of a Postgres error or notice.
@@ -85,7 +86,7 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn new(fields: &mut ErrorFields<'_>) -> io::Result<DbError> {
+    pub(crate) fn parse(fields: &mut ErrorFields<'_>) -> io::Result<DbError> {
         let mut severity = None;
         let mut parsed_severity = None;
         let mut code = None;
@@ -160,18 +161,18 @@ impl DbError {
         Ok(DbError {
             severity: severity
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing"))?,
-            parsed_severity: parsed_severity,
+            parsed_severity,
             code: code
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`C` field missing"))?,
             message: message
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`M` field missing"))?,
-            detail: detail,
-            hint: hint,
+            detail,
+            hint,
             position: match normal_position {
                 Some(position) => Some(ErrorPosition::Original(position)),
                 None => match internal_position {
                     Some(position) => Some(ErrorPosition::Internal {
-                        position: position,
+                        position,
                         query: internal_query.ok_or_else(|| {
                             io::Error::new(
                                 io::ErrorKind::InvalidInput,
@@ -182,15 +183,15 @@ impl DbError {
                     None => None,
                 },
             },
-            where_: where_,
-            schema: schema,
-            table: table,
-            column: column,
-            datatype: datatype,
-            constraint: constraint,
-            file: file,
-            line: line,
-            routine: routine,
+            where_,
+            schema,
+            table,
+            column,
+            datatype,
+            constraint,
+            file,
+            line,
+            routine,
         })
     }
 
@@ -423,8 +424,9 @@ impl Error {
         Error::new(Kind::UnexpectedMessage, None)
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn db(error: ErrorResponseBody) -> Error {
-        match DbError::new(&mut error.fields()) {
+        match DbError::parse(&mut error.fields()) {
             Ok(e) => Error::new(Kind::Db, Some(Box::new(e))),
             Err(e) => Error::new(Kind::Parse, Some(Box::new(e))),
         }
@@ -438,6 +440,7 @@ impl Error {
         Error::new(Kind::Encode, Some(Box::new(e)))
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::ToSql, Some(e))
     }

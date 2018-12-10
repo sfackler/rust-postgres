@@ -12,7 +12,7 @@ use crate::proto::typeinfo_composite::TypeinfoCompositeFuture;
 use crate::proto::typeinfo_enum::TypeinfoEnumFuture;
 use crate::types::{Kind, Oid, Type};
 
-const TYPEINFO_QUERY: &'static str = "
+const TYPEINFO_QUERY: &str = "
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
 FROM pg_catalog.pg_type t
 LEFT OUTER JOIN pg_catalog.pg_range r ON r.rngtypid = t.oid
@@ -21,7 +21,7 @@ WHERE t.oid = $1
 ";
 
 // Range types weren't added until Postgres 9.2, so pg_range may not exist
-const TYPEINFO_FALLBACK_QUERY: &'static str = "
+const TYPEINFO_FALLBACK_QUERY: &str = "
 SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, n.nspname, t.typrelid
 FROM pg_catalog.pg_type t
 INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid

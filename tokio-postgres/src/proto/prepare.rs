@@ -1,3 +1,5 @@
+#![allow(clippy::large_enum_variant)]
+
 use fallible_iterator::FallibleIterator;
 use futures::sync::mpsc;
 use futures::{try_ready, Future, Poll, Stream};

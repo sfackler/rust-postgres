@@ -103,7 +103,7 @@ where
 
             let message = match message {
                 Message::NoticeResponse(body) => {
-                    let error = DbError::new(&mut body.fields()).map_err(Error::parse)?;
+                    let error = DbError::parse(&mut body.fields()).map_err(Error::parse)?;
                     return Ok(Some(AsyncMessage::Notice(error)));
                 }
                 Message::NotificationResponse(body) => {

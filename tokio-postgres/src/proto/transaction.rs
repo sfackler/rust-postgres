@@ -63,7 +63,7 @@ where
         state: &'a mut RentToOwn<'a, Running<F, T, E>>,
     ) -> Poll<AfterRunning<T, E>, E> {
         match state.future.poll() {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(t)) => transition!(Finishing {
                 future: state.client.batch_execute("COMMIT"),
                 result: Ok(t),
@@ -79,7 +79,7 @@ where
         state: &'a mut RentToOwn<'a, Finishing<T, E>>,
     ) -> Poll<AfterFinishing<T>, E> {
         match state.future.poll() {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(())) => {
                 let t = state.take().result?;
                 transition!(Finished(t))

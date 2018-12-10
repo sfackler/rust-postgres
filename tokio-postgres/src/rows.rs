@@ -61,29 +61,18 @@ where
 
 impl<'a, T> RowIndex for &'a T where T: ?Sized + Sealed {}
 
-#[doc(hidden)]
-pub struct RowData {
+pub(crate) struct RowData {
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
 
 impl RowData {
-    pub fn new(body: DataRowBody) -> io::Result<RowData> {
+    pub fn parse(body: DataRowBody) -> io::Result<RowData> {
         let ranges = body.ranges().collect()?;
-        Ok(RowData {
-            body: body,
-            ranges: ranges,
-        })
-    }
-
-    pub fn len(&self) -> usize {
-        self.ranges.len()
+        Ok(RowData { body, ranges })
     }
 
     pub fn get(&self, index: usize) -> Option<&[u8]> {
-        match &self.ranges[index] {
-            &Some(ref range) => Some(&self.body.buffer()[range.clone()]),
-            &None => None,
-        }
+        self.ranges[index].clone().map(|r| &self.body.buffer()[r])
     }
 }

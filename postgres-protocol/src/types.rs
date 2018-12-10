@@ -216,7 +216,7 @@ pub fn hstore_from_sql<'a>(
 
     Ok(HstoreEntries {
         remaining: count,
-        buf: buf,
+        buf,
     })
 }
 
@@ -231,6 +231,7 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
     type Error = StdBox<dyn Error + Sync + Send>;
 
     #[inline]
+    #[allow(clippy::type_complexity)]
     fn next(
         &mut self,
     ) -> Result<Option<(&'a str, Option<&'a str>)>, StdBox<dyn Error + Sync + Send>> {
@@ -322,6 +323,12 @@ impl<'a> Varbit<'a> {
     #[inline]
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Determines if the value has no bits.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Returns the bits as a slice of bytes.
@@ -503,11 +510,11 @@ pub fn array_from_sql<'a>(mut buf: &'a [u8]) -> Result<Array<'a>, StdBox<dyn Err
     }
 
     Ok(Array {
-        dimensions: dimensions,
-        has_nulls: has_nulls,
-        element_type: element_type,
-        elements: elements,
-        buf: buf,
+        dimensions,
+        has_nulls,
+        element_type,
+        elements,
+        buf,
     })
 }
 
@@ -565,10 +572,7 @@ impl<'a> FallibleIterator for ArrayDimensions<'a> {
         let len = self.0.read_i32::<BigEndian>()?;
         let lower_bound = self.0.read_i32::<BigEndian>()?;
 
-        Ok(Some(ArrayDimension {
-            len: len,
-            lower_bound: lower_bound,
-        }))
+        Ok(Some(ArrayDimension { len, lower_bound }))
     }
 
     #[inline]
@@ -783,7 +787,7 @@ pub fn point_from_sql(mut buf: &[u8]) -> Result<Point, StdBox<dyn Error + Sync +
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
     }
-    Ok(Point { x: x, y: y })
+    Ok(Point { x, y })
 }
 
 /// A Postgres point.
@@ -887,9 +891,9 @@ pub fn path_from_sql<'a>(mut buf: &'a [u8]) -> Result<Path<'a>, StdBox<dyn Error
     let points = buf.read_i32::<BigEndian>()?;
 
     Ok(Path {
-        closed: closed,
-        points: points,
-        buf: buf,
+        closed,
+        points,
+        buf,
     })
 }
 
@@ -940,7 +944,7 @@ impl<'a> FallibleIterator for PathPoints<'a> {
         let x = self.buf.read_f64::<BigEndian>()?;
         let y = self.buf.read_f64::<BigEndian>()?;
 
-        Ok(Some(Point { x: x, y: y }))
+        Ok(Some(Point { x, y }))
     }
 
     #[inline]
@@ -979,18 +983,19 @@ mod test {
     #[test]
     fn int4() {
         let mut buf = vec![];
-        int4_to_sql(0x01020304, &mut buf);
-        assert_eq!(int4_from_sql(&buf).unwrap(), 0x01020304);
+        int4_to_sql(0x0102_0304, &mut buf);
+        assert_eq!(int4_from_sql(&buf).unwrap(), 0x0102_0304);
     }
 
     #[test]
     fn int8() {
         let mut buf = vec![];
-        int8_to_sql(0x0102030405060708, &mut buf);
-        assert_eq!(int8_from_sql(&buf).unwrap(), 0x0102030405060708);
+        int8_to_sql(0x0102_0304_0506_0708, &mut buf);
+        assert_eq!(int8_from_sql(&buf).unwrap(), 0x0102_0304_0506_0708);
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn float4() {
         let mut buf = vec![];
         float4_to_sql(10343.95, &mut buf);
@@ -998,6 +1003,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn float8() {
         let mut buf = vec![];
         float8_to_sql(10343.95, &mut buf);

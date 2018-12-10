@@ -10,7 +10,7 @@ use crate::proto::query::QueryStream;
 use crate::proto::statement::Statement;
 use crate::types::Oid;
 
-const TYPEINFO_ENUM_QUERY: &'static str = "
+const TYPEINFO_ENUM_QUERY: &str = "
 SELECT enumlabel
 FROM pg_catalog.pg_enum
 WHERE enumtypid = $1
@@ -18,7 +18,7 @@ ORDER BY enumsortorder
 ";
 
 // Postgres 9.0 didn't have enumsortorder
-const TYPEINFO_ENUM_FALLBACK_QUERY: &'static str = "
+const TYPEINFO_ENUM_FALLBACK_QUERY: &str = "
 SELECT enumlabel
 FROM pg_catalog.pg_enum
 WHERE enumtypid = $1

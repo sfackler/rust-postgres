@@ -88,40 +88,37 @@ impl Message {
                 let channel = buf.read_cstr()?;
                 let message = buf.read_cstr()?;
                 Message::NotificationResponse(NotificationResponseBody {
-                    process_id: process_id,
-                    channel: channel,
-                    message: message,
+                    process_id,
+                    channel,
+                    message,
                 })
             }
             b'c' => Message::CopyDone,
             b'C' => {
                 let tag = buf.read_cstr()?;
-                Message::CommandComplete(CommandCompleteBody { tag: tag })
+                Message::CommandComplete(CommandCompleteBody { tag })
             }
             b'd' => {
                 let storage = buf.read_all();
-                Message::CopyData(CopyDataBody { storage: storage })
+                Message::CopyData(CopyDataBody { storage })
             }
             b'D' => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
-                Message::DataRow(DataRowBody {
-                    storage: storage,
-                    len: len,
-                })
+                Message::DataRow(DataRowBody { storage, len })
             }
             b'E' => {
                 let storage = buf.read_all();
-                Message::ErrorResponse(ErrorResponseBody { storage: storage })
+                Message::ErrorResponse(ErrorResponseBody { storage })
             }
             b'G' => {
                 let format = buf.read_u8()?;
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyInResponse(CopyInResponseBody {
-                    format: format,
-                    len: len,
-                    storage: storage,
+                    format,
+                    len,
+                    storage,
                 })
             }
             b'H' => {
@@ -129,9 +126,9 @@ impl Message {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
-                    format: format,
-                    len: len,
-                    storage: storage,
+                    format,
+                    len,
+                    storage,
                 })
             }
             b'I' => Message::EmptyQueryResponse,
@@ -139,14 +136,14 @@ impl Message {
                 let process_id = buf.read_i32::<BigEndian>()?;
                 let secret_key = buf.read_i32::<BigEndian>()?;
                 Message::BackendKeyData(BackendKeyDataBody {
-                    process_id: process_id,
-                    secret_key: secret_key,
+                    process_id,
+                    secret_key,
                 })
             }
             b'n' => Message::NoData,
             b'N' => {
                 let storage = buf.read_all();
-                Message::NoticeResponse(NoticeResponseBody { storage: storage })
+                Message::NoticeResponse(NoticeResponseBody { storage })
             }
             b'R' => match buf.read_i32::<BigEndian>()? {
                 0 => Message::AuthenticationOk,
@@ -155,7 +152,7 @@ impl Message {
                 5 => {
                     let mut salt = [0; 4];
                     buf.read_exact(&mut salt)?;
-                    Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody { salt: salt })
+                    Message::AuthenticationMd5Password(AuthenticationMd5PasswordBody { salt })
                 }
                 6 => Message::AuthenticationScmCredential,
                 7 => Message::AuthenticationGss,
@@ -187,30 +184,21 @@ impl Message {
             b'S' => {
                 let name = buf.read_cstr()?;
                 let value = buf.read_cstr()?;
-                Message::ParameterStatus(ParameterStatusBody {
-                    name: name,
-                    value: value,
-                })
+                Message::ParameterStatus(ParameterStatusBody { name, value })
             }
             b't' => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
-                Message::ParameterDescription(ParameterDescriptionBody {
-                    storage: storage,
-                    len: len,
-                })
+                Message::ParameterDescription(ParameterDescriptionBody { storage, len })
             }
             b'T' => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
-                Message::RowDescription(RowDescriptionBody {
-                    storage: storage,
-                    len: len,
-                })
+                Message::RowDescription(RowDescriptionBody { storage, len })
             }
             b'Z' => {
                 let status = buf.read_u8()?;
-                Message::ReadyForQuery(ReadyForQueryBody { status: status })
+                Message::ReadyForQuery(ReadyForQueryBody { status })
             }
             tag => {
                 return Err(io::Error::new(
@@ -305,7 +293,7 @@ pub struct AuthenticationSaslBody(Bytes);
 
 impl AuthenticationSaslBody {
     #[inline]
-    pub fn mechanisms<'a>(&'a self) -> SaslMechanisms<'a> {
+    pub fn mechanisms(&self) -> SaslMechanisms<'_> {
         SaslMechanisms(&self.0)
     }
 }
@@ -410,7 +398,7 @@ impl CopyInResponseBody {
     }
 
     #[inline]
-    pub fn column_formats<'a>(&'a self) -> ColumnFormats<'a> {
+    pub fn column_formats(&self) -> ColumnFormats<'_> {
         ColumnFormats {
             remaining: self.len,
             buf: &self.storage,
@@ -464,7 +452,7 @@ impl CopyOutResponseBody {
     }
 
     #[inline]
-    pub fn column_formats<'a>(&'a self) -> ColumnFormats<'a> {
+    pub fn column_formats(&self) -> ColumnFormats<'_> {
         ColumnFormats {
             remaining: self.len,
             buf: &self.storage,
@@ -479,7 +467,7 @@ pub struct DataRowBody {
 
 impl DataRowBody {
     #[inline]
-    pub fn ranges<'a>(&'a self) -> DataRowRanges<'a> {
+    pub fn ranges(&self) -> DataRowRanges<'_> {
         DataRowRanges {
             buf: &self.storage,
             len: self.storage.len(),
@@ -547,7 +535,7 @@ pub struct ErrorResponseBody {
 
 impl ErrorResponseBody {
     #[inline]
-    pub fn fields<'a>(&'a self) -> ErrorFields<'a> {
+    pub fn fields(&self) -> ErrorFields<'_> {
         ErrorFields { buf: &self.storage }
     }
 }
@@ -578,10 +566,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
         let value = get_str(&self.buf[..value_end])?;
         self.buf = &self.buf[value_end + 1..];
 
-        Ok(Some(ErrorField {
-            type_: type_,
-            value: value,
-        }))
+        Ok(Some(ErrorField { type_, value }))
     }
 }
 
@@ -608,7 +593,7 @@ pub struct NoticeResponseBody {
 
 impl NoticeResponseBody {
     #[inline]
-    pub fn fields<'a>(&'a self) -> ErrorFields<'a> {
+    pub fn fields(&self) -> ErrorFields<'_> {
         ErrorFields { buf: &self.storage }
     }
 }
@@ -643,7 +628,7 @@ pub struct ParameterDescriptionBody {
 
 impl ParameterDescriptionBody {
     #[inline]
-    pub fn parameters<'a>(&'a self) -> Parameters<'a> {
+    pub fn parameters(&self) -> Parameters<'_> {
         Parameters {
             buf: &self.storage,
             remaining: self.len,
@@ -719,7 +704,7 @@ pub struct RowDescriptionBody {
 
 impl RowDescriptionBody {
     #[inline]
-    pub fn fields<'a>(&'a self) -> Fields<'a> {
+    pub fn fields(&self) -> Fields<'_> {
         Fields {
             buf: &self.storage,
             remaining: self.len,
@@ -761,13 +746,13 @@ impl<'a> FallibleIterator for Fields<'a> {
         let format = self.buf.read_i16::<BigEndian>()?;
 
         Ok(Some(Field {
-            name: name,
-            table_oid: table_oid,
-            column_id: column_id,
-            type_oid: type_oid,
-            type_size: type_size,
-            type_modifier: type_modifier,
-            format: format,
+            name,
+            table_oid,
+            column_id,
+            type_oid,
+            type_size,
+            type_modifier,
+            format,
         }))
     }
 }

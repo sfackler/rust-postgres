@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 extern crate linked_hash_map;
 extern crate marksman_escape;
 extern crate phf_codegen;

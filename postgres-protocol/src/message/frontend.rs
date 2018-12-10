@@ -102,10 +102,16 @@ impl<'a> Message<'a> {
             Message::CancelRequest {
                 process_id,
                 secret_key,
-            } => Ok(cancel_request(process_id, secret_key, buf)),
+            } => {
+                cancel_request(process_id, secret_key, buf);
+                Ok(())
+            }
             Message::Close { variant, name } => close(variant, name, buf),
             Message::CopyData { data } => copy_data(data, buf),
-            Message::CopyDone => Ok(copy_done(buf)),
+            Message::CopyDone => {
+                copy_done(buf);
+                Ok(())
+            }
             Message::CopyFail { message } => copy_fail(message, buf),
             Message::Describe { variant, name } => describe(variant, name, buf),
             Message::Execute { portal, max_rows } => execute(portal, max_rows, buf),
@@ -120,12 +126,21 @@ impl<'a> Message<'a> {
                 sasl_initial_response(mechanism, data, buf)
             }
             Message::SaslResponse { data } => sasl_response(data, buf),
-            Message::SslRequest => Ok(ssl_request(buf)),
+            Message::SslRequest => {
+                ssl_request(buf);
+                Ok(())
+            }
             Message::StartupMessage { parameters } => {
                 startup_message(parameters.iter().map(|&(ref k, ref v)| (&**k, &**v)), buf)
             }
-            Message::Sync => Ok(sync(buf)),
-            Message::Terminate => Ok(terminate(buf)),
+            Message::Sync => {
+                sync(buf);
+                Ok(())
+            }
+            Message::Terminate => {
+                terminate(buf);
+                Ok(())
+            }
             Message::__ForExtensibility => unreachable!(),
         }
     }
@@ -222,7 +237,7 @@ where
 #[inline]
 pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut Vec<u8>) {
     write_body(buf, |buf| {
-        buf.write_i32::<BigEndian>(80877102).unwrap();
+        buf.write_i32::<BigEndian>(80_877_102).unwrap();
         buf.write_i32::<BigEndian>(process_id).unwrap();
         buf.write_i32::<BigEndian>(secret_key)
     })
@@ -320,12 +335,15 @@ pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) ->
 #[inline]
 pub fn sasl_response(data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'p');
-    write_body(buf, |buf| Ok(buf.extend_from_slice(data)))
+    write_body(buf, |buf| {
+        buf.extend_from_slice(data);
+        Ok(())
+    })
 }
 
 #[inline]
 pub fn ssl_request(buf: &mut Vec<u8>) {
-    write_body(buf, |buf| buf.write_i32::<BigEndian>(80877103)).unwrap();
+    write_body(buf, |buf| buf.write_i32::<BigEndian>(80_877_103)).unwrap();
 }
 
 #[inline]
@@ -334,10 +352,10 @@ where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
     write_body(buf, |buf| {
-        buf.write_i32::<BigEndian>(196608).unwrap();
+        buf.write_i32::<BigEndian>(196_608).unwrap();
         for (key, value) in parameters {
-            buf.write_cstr(key.as_ref())?;
-            buf.write_cstr(value.as_ref())?;
+            buf.write_cstr(key)?;
+            buf.write_cstr(value)?;
         }
         buf.push(0);
         Ok(())

@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms)]
+#![warn(rust_2018_idioms, clippy::all)]
 
 use bytes::{Bytes, IntoBuf};
 use futures::{try_ready, Async, Future, Poll, Stream};
@@ -129,6 +129,7 @@ where
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum AsyncMessage {
     Notice(DbError),
     Notification(Notification),
@@ -306,6 +307,10 @@ pub struct Row(proto::Row);
 impl Row {
     pub fn columns(&self) -> &[Column] {
         self.0.columns()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn len(&self) -> usize {

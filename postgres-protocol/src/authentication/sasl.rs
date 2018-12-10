@@ -14,9 +14,9 @@ use std::str;
 const NONCE_LENGTH: usize = 24;
 
 /// The identifier of the SCRAM-SHA-256 SASL authentication mechanism.
-pub const SCRAM_SHA_256: &'static str = "SCRAM-SHA-256";
+pub const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
 /// The identifier of the SCRAM-SHA-256-PLUS SASL authentication mechanism.
-pub const SCRAM_SHA_256_PLUS: &'static str = "SCRAM-SHA-256-PLUS";
+pub const SCRAM_SHA_256_PLUS: &str = "SCRAM-SHA-256-PLUS";
 
 // since postgres passwords are not required to exclude saslprep-prohibited
 // characters or even be valid UTF8, we run saslprep if possible and otherwise
@@ -153,7 +153,7 @@ impl ScramSha256 {
             state: State::Update {
                 nonce,
                 password: normalize(password),
-                channel_binding: channel_binding,
+                channel_binding,
             },
         }
     }
@@ -228,8 +228,8 @@ impl ScramSha256 {
         write!(&mut self.message, ",p={}", base64::encode(&*client_proof)).unwrap();
 
         self.state = State::Finish {
-            salted_password: salted_password,
-            auth_message: auth_message,
+            salted_password,
+            auth_message,
         };
         Ok(())
     }
@@ -288,7 +288,7 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn new(s: &'a str) -> Parser<'a> {
         Parser {
-            s: s,
+            s,
             it: s.char_indices().peekable(),
         }
     }
@@ -390,9 +390,9 @@ impl<'a> Parser<'a> {
         self.eof()?;
 
         Ok(ServerFirstMessage {
-            nonce: nonce,
-            salt: salt,
-            iteration_count: iteration_count,
+            nonce,
+            salt,
+            iteration_count,
         })
     }
 

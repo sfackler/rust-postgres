@@ -10,10 +10,7 @@ pub struct Column {
 impl Column {
     #[doc(hidden)]
     pub fn new(name: String, type_: Type) -> Column {
-        Column {
-            name: name,
-            type_: type_,
-        }
+        Column { name, type_ }
     }
 
     /// Returns the name of the column.

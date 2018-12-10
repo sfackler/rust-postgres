@@ -236,8 +236,8 @@ impl Client {
         );
         match r {
             Ok(()) => Ok(buf),
-            Err(frontend::BindError::Conversion(e)) => return Err(Error::to_sql(e)),
-            Err(frontend::BindError::Serialization(e)) => return Err(Error::encode(e)),
+            Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e)),
+            Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
         }
     }
 

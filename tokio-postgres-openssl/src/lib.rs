@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms)]
+#![warn(rust_2018_idioms, clippy::all)]
 
 use futures::{try_ready, Async, Future, Poll};
 use openssl::hash::MessageDigest;

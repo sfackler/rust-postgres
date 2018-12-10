@@ -13,7 +13,7 @@ use crate::proto::statement::Statement;
 use crate::proto::typeinfo::TypeinfoFuture;
 use crate::types::{Field, Oid};
 
-const TYPEINFO_COMPOSITE_QUERY: &'static str = "
+const TYPEINFO_COMPOSITE_QUERY: &str = "
 SELECT attname, atttypid
 FROM pg_catalog.pg_attribute
 WHERE attrelid = $1

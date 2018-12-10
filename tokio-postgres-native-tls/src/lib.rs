@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms)]
+#![warn(rust_2018_idioms, clippy::all)]
 
 use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -14,11 +14,6 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    pub fn new(domain: &str) -> Result<TlsConnector, native_tls::Error> {
-        let connector = native_tls::TlsConnector::new()?;
-        Ok(TlsConnector::with_connector(connector, domain))
-    }
-
     pub fn with_connector(connector: native_tls::TlsConnector, domain: &str) -> TlsConnector {
         TlsConnector {
             connector: tokio_tls::TlsConnector::from(connector),

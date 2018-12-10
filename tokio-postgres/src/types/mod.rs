@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -18,7 +19,7 @@ pub use postgres_protocol::Oid;
 pub use crate::types::special::{Date, Timestamp};
 
 // Number of seconds from 1970-01-01 to 2000-01-01
-const TIME_SEC_CONVERSION: u64 = 946684800;
+const TIME_SEC_CONVERSION: u64 = 946_684_800;
 const USEC_PER_SEC: u64 = 1_000_000;
 const NSEC_PER_USEC: u64 = 1_000;
 
@@ -109,10 +110,10 @@ impl Type {
     #[doc(hidden)]
     pub fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
         Type(Inner::Other(Arc::new(Other {
-            name: name,
-            oid: oid,
-            kind: kind,
-            schema: schema,
+            name,
+            oid,
+            kind,
+            schema,
         })))
     }
 
@@ -189,10 +190,7 @@ impl Field {
 impl Field {
     #[doc(hidden)]
     pub fn new(name: String, type_: Type) -> Field {
-        Field {
-            name: name,
-            type_: type_,
-        }
+        Field { name, type_ }
     }
 }
 
@@ -440,11 +438,14 @@ simple_from!(i64, int8_from_sql, INT8);
 simple_from!(f32, float4_from_sql, FLOAT4);
 simple_from!(f64, float8_from_sql, FLOAT8);
 
-impl<'a> FromSql<'a> for HashMap<String, Option<String>> {
+impl<'a, S> FromSql<'a> for HashMap<String, Option<String>, S>
+where
+    S: Default + BuildHasher,
+{
     fn from_sql(
         _: &Type,
         raw: &'a [u8],
-    ) -> Result<HashMap<String, Option<String>>, Box<dyn Error + Sync + Send>> {
+    ) -> Result<HashMap<String, Option<String>, S>, Box<dyn Error + Sync + Send>> {
         types::hstore_from_sql(raw)?
             .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
             .collect()
@@ -739,7 +740,10 @@ simple_to!(i64, int8_to_sql, INT8);
 simple_to!(f32, float4_to_sql, FLOAT4);
 simple_to!(f64, float8_to_sql, FLOAT8);
 
-impl ToSql for HashMap<String, Option<String>> {
+impl<H> ToSql for HashMap<String, Option<String>, H>
+where
+    H: BuildHasher,
+{
     fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::hstore_to_sql(
             self.iter().map(|(k, v)| (&**k, v.as_ref().map(|v| &**v))),
@@ -760,7 +764,7 @@ impl ToSql for SystemTime {
         let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
 
         let to_usec =
-            |d: Duration| d.as_secs() * USEC_PER_SEC + (d.subsec_nanos() as u64) / NSEC_PER_USEC;
+            |d: Duration| d.as_secs() * USEC_PER_SEC + u64::from(d.subsec_nanos()) / NSEC_PER_USEC;
 
         let time = match self.duration_since(epoch) {
             Ok(duration) => to_usec(duration) as i64,
