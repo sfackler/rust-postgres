@@ -29,13 +29,13 @@ jobs:
     steps:
       - checkout
       - run: rustup component add rustfmt clippy
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - *SAVE_REGISTRY
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all
       - run: cargo test --all
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --all-features
       - *SAVE_DEPS
