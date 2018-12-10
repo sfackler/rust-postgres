@@ -32,7 +32,8 @@ impl SqlState {
     pub const WARNING_IMPLICIT_ZERO_BIT_PADDING: SqlState = SqlState(Cow::Borrowed("01008"));
 
     /// 01003
-    pub const WARNING_NULL_VALUE_ELIMINATED_IN_SET_FUNCTION: SqlState = SqlState(Cow::Borrowed("01003"));
+    pub const WARNING_NULL_VALUE_ELIMINATED_IN_SET_FUNCTION: SqlState =
+        SqlState(Cow::Borrowed("01003"));
 
     /// 01007
     pub const WARNING_PRIVILEGE_NOT_GRANTED: SqlState = SqlState(Cow::Borrowed("01007"));
@@ -50,7 +51,8 @@ impl SqlState {
     pub const NO_DATA: SqlState = SqlState(Cow::Borrowed("02000"));
 
     /// 02001
-    pub const NO_ADDITIONAL_DYNAMIC_RESULT_SETS_RETURNED: SqlState = SqlState(Cow::Borrowed("02001"));
+    pub const NO_ADDITIONAL_DYNAMIC_RESULT_SETS_RETURNED: SqlState =
+        SqlState(Cow::Borrowed("02001"));
 
     /// 03000
     pub const SQL_STATEMENT_NOT_YET_COMPLETE: SqlState = SqlState(Cow::Borrowed("03000"));
@@ -65,10 +67,12 @@ impl SqlState {
     pub const CONNECTION_FAILURE: SqlState = SqlState(Cow::Borrowed("08006"));
 
     /// 08001
-    pub const SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION: SqlState = SqlState(Cow::Borrowed("08001"));
+    pub const SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION: SqlState =
+        SqlState(Cow::Borrowed("08001"));
 
     /// 08004
-    pub const SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION: SqlState = SqlState(Cow::Borrowed("08004"));
+    pub const SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION: SqlState =
+        SqlState(Cow::Borrowed("08004"));
 
     /// 08007
     pub const TRANSACTION_RESOLUTION_UNKNOWN: SqlState = SqlState(Cow::Borrowed("08007"));
@@ -104,7 +108,8 @@ impl SqlState {
     pub const DIAGNOSTICS_EXCEPTION: SqlState = SqlState(Cow::Borrowed("0Z000"));
 
     /// 0Z002
-    pub const STACKED_DIAGNOSTICS_ACCESSED_WITHOUT_ACTIVE_HANDLER: SqlState = SqlState(Cow::Borrowed("0Z002"));
+    pub const STACKED_DIAGNOSTICS_ACCESSED_WITHOUT_ACTIVE_HANDLER: SqlState =
+        SqlState(Cow::Borrowed("0Z002"));
 
     /// 20000
     pub const CASE_NOT_FOUND: SqlState = SqlState(Cow::Borrowed("20000"));
@@ -158,7 +163,8 @@ impl SqlState {
     pub const INVALID_ARGUMENT_FOR_POWER_FUNCTION: SqlState = SqlState(Cow::Borrowed("2201F"));
 
     /// 2201G
-    pub const INVALID_ARGUMENT_FOR_WIDTH_BUCKET_FUNCTION: SqlState = SqlState(Cow::Borrowed("2201G"));
+    pub const INVALID_ARGUMENT_FOR_WIDTH_BUCKET_FUNCTION: SqlState =
+        SqlState(Cow::Borrowed("2201G"));
 
     /// 22018
     pub const INVALID_CHARACTER_VALUE_FOR_CAST: SqlState = SqlState(Cow::Borrowed("22018"));
@@ -191,7 +197,8 @@ impl SqlState {
     pub const INVALID_ROW_COUNT_IN_LIMIT_CLAUSE: SqlState = SqlState(Cow::Borrowed("2201W"));
 
     /// 2201X
-    pub const INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE: SqlState = SqlState(Cow::Borrowed("2201X"));
+    pub const INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE: SqlState =
+        SqlState(Cow::Borrowed("2201X"));
 
     /// 2202H
     pub const INVALID_TABLESAMPLE_ARGUMENT: SqlState = SqlState(Cow::Borrowed("2202H"));
@@ -302,22 +309,27 @@ impl SqlState {
     pub const BRANCH_TRANSACTION_ALREADY_ACTIVE: SqlState = SqlState(Cow::Borrowed("25002"));
 
     /// 25008
-    pub const HELD_CURSOR_REQUIRES_SAME_ISOLATION_LEVEL: SqlState = SqlState(Cow::Borrowed("25008"));
+    pub const HELD_CURSOR_REQUIRES_SAME_ISOLATION_LEVEL: SqlState =
+        SqlState(Cow::Borrowed("25008"));
 
     /// 25003
-    pub const INAPPROPRIATE_ACCESS_MODE_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Cow::Borrowed("25003"));
+    pub const INAPPROPRIATE_ACCESS_MODE_FOR_BRANCH_TRANSACTION: SqlState =
+        SqlState(Cow::Borrowed("25003"));
 
     /// 25004
-    pub const INAPPROPRIATE_ISOLATION_LEVEL_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Cow::Borrowed("25004"));
+    pub const INAPPROPRIATE_ISOLATION_LEVEL_FOR_BRANCH_TRANSACTION: SqlState =
+        SqlState(Cow::Borrowed("25004"));
 
     /// 25005
-    pub const NO_ACTIVE_SQL_TRANSACTION_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Cow::Borrowed("25005"));
+    pub const NO_ACTIVE_SQL_TRANSACTION_FOR_BRANCH_TRANSACTION: SqlState =
+        SqlState(Cow::Borrowed("25005"));
 
     /// 25006
     pub const READ_ONLY_SQL_TRANSACTION: SqlState = SqlState(Cow::Borrowed("25006"));
 
     /// 25007
-    pub const SCHEMA_AND_DATA_STATEMENT_MIXING_NOT_SUPPORTED: SqlState = SqlState(Cow::Borrowed("25007"));
+    pub const SCHEMA_AND_DATA_STATEMENT_MIXING_NOT_SUPPORTED: SqlState =
+        SqlState(Cow::Borrowed("25007"));
 
     /// 25P01
     pub const NO_ACTIVE_SQL_TRANSACTION: SqlState = SqlState(Cow::Borrowed("25P01"));
@@ -344,7 +356,8 @@ impl SqlState {
     pub const INVALID_PASSWORD: SqlState = SqlState(Cow::Borrowed("28P01"));
 
     /// 2B000
-    pub const DEPENDENT_PRIVILEGE_DESCRIPTORS_STILL_EXIST: SqlState = SqlState(Cow::Borrowed("2B000"));
+    pub const DEPENDENT_PRIVILEGE_DESCRIPTORS_STILL_EXIST: SqlState =
+        SqlState(Cow::Borrowed("2B000"));
 
     /// 2BP01
     pub const DEPENDENT_OBJECTS_STILL_EXIST: SqlState = SqlState(Cow::Borrowed("2BP01"));
@@ -356,7 +369,8 @@ impl SqlState {
     pub const SQL_ROUTINE_EXCEPTION: SqlState = SqlState(Cow::Borrowed("2F000"));
 
     /// 2F005
-    pub const S_R_E_FUNCTION_EXECUTED_NO_RETURN_STATEMENT: SqlState = SqlState(Cow::Borrowed("2F005"));
+    pub const S_R_E_FUNCTION_EXECUTED_NO_RETURN_STATEMENT: SqlState =
+        SqlState(Cow::Borrowed("2F005"));
 
     /// 2F002
     pub const S_R_E_MODIFYING_SQL_DATA_NOT_PERMITTED: SqlState = SqlState(Cow::Borrowed("2F002"));
@@ -698,7 +712,8 @@ impl SqlState {
     pub const FDW_INVALID_OPTION_NAME: SqlState = SqlState(Cow::Borrowed("HV00D"));
 
     /// HV090
-    pub const FDW_INVALID_STRING_LENGTH_OR_BUFFER_LENGTH: SqlState = SqlState(Cow::Borrowed("HV090"));
+    pub const FDW_INVALID_STRING_LENGTH_OR_BUFFER_LENGTH: SqlState =
+        SqlState(Cow::Borrowed("HV090"));
 
     /// HV00A
     pub const FDW_INVALID_STRING_FORMAT: SqlState = SqlState(Cow::Borrowed("HV00A"));
