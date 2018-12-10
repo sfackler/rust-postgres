@@ -28,6 +28,8 @@ jobs:
       - image: sfackler/rust-postgres-test:5
     steps:
       - checkout
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all -- --check
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - *SAVE_REGISTRY

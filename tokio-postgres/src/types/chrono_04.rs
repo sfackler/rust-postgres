@@ -41,7 +41,11 @@ impl<'a> FromSql<'a> for DateTime<Utc> {
 }
 
 impl ToSql for DateTime<Utc> {
-    fn to_sql(&self, type_: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        type_: &Type,
+        w: &mut Vec<u8>,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         self.naive_utc().to_sql(type_, w)
     }
 
@@ -59,7 +63,11 @@ impl<'a> FromSql<'a> for DateTime<Local> {
 }
 
 impl ToSql for DateTime<Local> {
-    fn to_sql(&self, type_: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        type_: &Type,
+        w: &mut Vec<u8>,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         self.with_timezone(&Utc).to_sql(type_, w)
     }
 
@@ -80,7 +88,11 @@ impl<'a> FromSql<'a> for DateTime<FixedOffset> {
 }
 
 impl ToSql for DateTime<FixedOffset> {
-    fn to_sql(&self, type_: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        type_: &Type,
+        w: &mut Vec<u8>,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         self.with_timezone(&Utc).to_sql(type_, w)
     }
 
