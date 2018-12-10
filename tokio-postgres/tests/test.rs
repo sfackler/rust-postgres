@@ -13,6 +13,8 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{AsyncMessage, Client, Connection, NoTls};
 
+mod types;
+
 fn connect(
     builder: &tokio_postgres::Builder,
 ) -> impl Future<Item = (Client, Connection<TcpStream>), Error = tokio_postgres::Error> {
