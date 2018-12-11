@@ -17,6 +17,7 @@ mod sealed {
 ///
 /// This cannot be implemented outside of this crate.
 pub trait RowIndex: Sealed {
+    #[doc(hidden)]
     fn __idx(&self, columns: &[Column]) -> Option<usize>;
 }
 
