@@ -3,22 +3,21 @@
 use bytes::{Bytes, IntoBuf};
 use futures::{try_ready, Async, Future, Poll, Stream};
 use std::error::Error as StdError;
-use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use crate::builder::*;
 pub use crate::error::*;
 use crate::proto::CancelFuture;
-use crate::rows::RowIndex;
+pub use crate::row::{Row, RowIndex};
 pub use crate::stmt::Column;
 pub use crate::tls::*;
-use crate::types::{FromSql, ToSql, Type};
+use crate::types::{ToSql, Type};
 
 mod builder;
 pub mod error;
 mod proto;
-pub mod rows;
+mod row;
 mod stmt;
 mod tls;
 pub mod types;
@@ -223,12 +222,7 @@ impl Stream for Query {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
+        self.0.poll()
     }
 }
 
@@ -256,12 +250,7 @@ impl Stream for QueryPortal {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
+        self.0.poll()
     }
 }
 
@@ -299,38 +288,6 @@ impl Stream for CopyOut {
 
     fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
         self.0.poll()
-    }
-}
-
-pub struct Row(proto::Row);
-
-impl Row {
-    pub fn columns(&self) -> &[Column] {
-        self.0.columns()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn get<'a, I, T>(&'a self, idx: I) -> T
-    where
-        I: RowIndex + fmt::Debug,
-        T: FromSql<'a>,
-    {
-        self.0.get(idx)
-    }
-
-    pub fn try_get<'a, I, T>(&'a self, idx: I) -> Result<Option<T>, Error>
-    where
-        I: RowIndex,
-        T: FromSql<'a>,
-    {
-        self.0.try_get(idx)
     }
 }
 

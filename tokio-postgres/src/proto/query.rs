@@ -5,9 +5,8 @@ use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
 use crate::proto::portal::Portal;
-use crate::proto::row::Row;
 use crate::proto::statement::Statement;
-use crate::Error;
+use crate::{Error, Row};
 
 pub trait StatementHolder {
     fn statement(&self) -> &Statement;
@@ -86,7 +85,7 @@ where
                         }
                         Some(Message::ErrorResponse(body)) => break Err(Error::db(body)),
                         Some(Message::DataRow(body)) => {
-                            let row = Row::parse(statement.statement().clone(), body)?;
+                            let row = Row::new(statement.statement().clone(), body)?;
                             self.0 = State::ReadingResponse {
                                 receiver,
                                 statement,
