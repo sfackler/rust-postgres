@@ -1,16 +1,18 @@
+#![allow(clippy::large_enum_variant)]
+
 use fallible_iterator::FallibleIterator;
 use futures::sync::mpsc;
-use futures::{Future, Poll, Stream};
+use futures::{try_ready, Future, Poll, Stream};
 use postgres_protocol::message::backend::Message;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::mem;
 use std::vec;
 
-use proto::client::{Client, PendingRequest};
-use proto::statement::Statement;
-use proto::typeinfo::TypeinfoFuture;
-use types::{Oid, Type};
-use {Column, Error};
+use crate::proto::client::{Client, PendingRequest};
+use crate::proto::statement::Statement;
+use crate::proto::typeinfo::TypeinfoFuture;
+use crate::types::{Oid, Type};
+use crate::{Column, Error};
 
 #[derive(StateMachineFuture)]
 pub enum Prepare {

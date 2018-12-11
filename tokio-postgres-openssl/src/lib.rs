@@ -1,141 +1,72 @@
-extern crate bytes;
-extern crate futures;
-extern crate openssl;
-extern crate tokio_io;
-extern crate tokio_openssl;
-extern crate tokio_postgres;
+#![warn(rust_2018_idioms, clippy::all)]
 
-#[cfg(test)]
-extern crate tokio;
-
-use bytes::{Buf, BufMut};
-use futures::{Future, IntoFuture, Poll};
-use openssl::error::ErrorStack;
-use openssl::ssl::{ConnectConfiguration, SslConnector, SslMethod, SslRef};
-use std::error::Error;
-use std::io::{self, Read, Write};
+use futures::{try_ready, Async, Future, Poll};
+use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
+use openssl::ssl::{ConnectConfiguration, HandshakeError, SslRef};
+use std::fmt::Debug;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_openssl::ConnectConfigurationExt;
-use tokio_postgres::tls::{Socket, TlsConnect, TlsStream};
+use tokio_openssl::{ConnectAsync, ConnectConfigurationExt, SslStream};
+use tokio_postgres::{ChannelBinding, TlsConnect};
 
 #[cfg(test)]
 mod test;
 
 pub struct TlsConnector {
-    connector: SslConnector,
-    callback: Box<Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + Sync + Send>,
+    ssl: ConnectConfiguration,
+    domain: String,
 }
 
 impl TlsConnector {
-    pub fn new() -> Result<TlsConnector, ErrorStack> {
-        let connector = SslConnector::builder(SslMethod::tls())?.build();
-        Ok(TlsConnector::with_connector(connector))
-    }
-
-    pub fn with_connector(connector: SslConnector) -> TlsConnector {
+    pub fn new(ssl: ConnectConfiguration, domain: &str) -> TlsConnector {
         TlsConnector {
-            connector,
-            callback: Box::new(|_| Ok(())),
+            ssl,
+            domain: domain.to_string(),
         }
     }
+}
 
-    pub fn set_callback<F>(&mut self, f: F)
-    where
-        F: Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + 'static + Sync + Send,
-    {
-        self.callback = Box::new(f);
+impl<S> TlsConnect<S> for TlsConnector
+where
+    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
+{
+    type Stream = SslStream<S>;
+    type Error = HandshakeError<S>;
+    type Future = TlsConnectFuture<S>;
+
+    fn connect(self, stream: S) -> TlsConnectFuture<S> {
+        TlsConnectFuture(self.ssl.connect_async(&self.domain, stream))
     }
 }
 
-impl TlsConnect for TlsConnector {
-    fn connect(
-        &self,
-        domain: &str,
-        socket: Socket,
-    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send> {
-        let f = self
-            .connector
-            .configure()
-            .and_then(|mut ssl| (self.callback)(&mut ssl).map(|_| ssl))
-            .map_err(|e| {
-                let e: Box<Error + Sync + Send> = Box::new(e);
-                e
-            })
-            .into_future()
-            .and_then({
-                let domain = domain.to_string();
-                move |ssl| {
-                    ssl.connect_async(&domain, socket)
-                        .map(|s| {
-                            let s: Box<TlsStream> = Box::new(SslStream(s));
-                            s
-                        })
-                        .map_err(|e| {
-                            let e: Box<Error + Sync + Send> = Box::new(e);
-                            e
-                        })
-                }
-            });
-        Box::new(f)
-    }
-}
+pub struct TlsConnectFuture<S>(ConnectAsync<S>);
 
-struct SslStream(tokio_openssl::SslStream<Socket>);
+impl<S> Future for TlsConnectFuture<S>
+where
+    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
+{
+    type Item = (SslStream<S>, ChannelBinding);
+    type Error = HandshakeError<S>;
 
-impl Read for SslStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-}
+    fn poll(&mut self) -> Poll<(SslStream<S>, ChannelBinding), HandshakeError<S>> {
+        let stream = try_ready!(self.0.poll());
 
-impl AsyncRead for SslStream {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
-    }
-
-    fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
-    where
-        B: BufMut,
-    {
-        self.0.read_buf(buf)
-    }
-}
-
-impl Write for SslStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
-    }
-}
-
-impl AsyncWrite for SslStream {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.0.shutdown()
-    }
-
-    fn write_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
-    where
-        B: Buf,
-    {
-        self.0.write_buf(buf)
-    }
-}
-
-impl TlsStream for SslStream {
-    fn tls_unique(&self) -> Option<Vec<u8>> {
-        let f = if self.0.get_ref().ssl().session_reused() {
-            SslRef::peer_finished
-        } else {
-            SslRef::finished
+        let channel_binding = match tls_server_end_point(stream.get_ref().ssl()) {
+            Some(buf) => ChannelBinding::tls_server_end_point(buf),
+            None => ChannelBinding::none(),
         };
 
-        let len = f(self.0.get_ref().ssl(), &mut []);
-        let mut buf = vec![0; len];
-        f(self.0.get_ref().ssl(), &mut buf);
-
-        Some(buf)
+        Ok(Async::Ready((stream, channel_binding)))
     }
+}
+
+fn tls_server_end_point(ssl: &SslRef) -> Option<Vec<u8>> {
+    let cert = ssl.peer_certificate()?;
+    let algo_nid = cert.signature_algorithm().object().nid();
+    let signature_algorithms = algo_nid.signature_algorithms()?;
+    let md = match signature_algorithms.digest {
+        Nid::MD5 | Nid::SHA1 => MessageDigest::sha256(),
+        nid => MessageDigest::from_nid(nid)?,
+    };
+    cert.digest(md).ok().map(|b| b.to_vec())
 }

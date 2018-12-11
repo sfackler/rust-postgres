@@ -1,9 +1,9 @@
-use futures::{Async, Future, Poll};
-use proto::client::Client;
-use proto::simple_query::SimpleQueryFuture;
-use state_machine_future::RentToOwn;
+use crate::proto::client::Client;
+use crate::proto::simple_query::SimpleQueryFuture;
+use futures::{try_ready, Async, Future, Poll};
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
-use Error;
+use crate::Error;
 
 #[derive(StateMachineFuture)]
 pub enum Transaction<F, T, E>
@@ -63,7 +63,7 @@ where
         state: &'a mut RentToOwn<'a, Running<F, T, E>>,
     ) -> Poll<AfterRunning<T, E>, E> {
         match state.future.poll() {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(t)) => transition!(Finishing {
                 future: state.client.batch_execute("COMMIT"),
                 result: Ok(t),
@@ -79,7 +79,7 @@ where
         state: &'a mut RentToOwn<'a, Finishing<T, E>>,
     ) -> Poll<AfterFinishing<T>, E> {
         match state.future.poll() {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(())) => {
                 let t = state.take().result?;
                 transition!(Finished(t))

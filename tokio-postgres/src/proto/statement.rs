@@ -1,8 +1,8 @@
-use postgres_shared::stmt::Column;
 use std::sync::Arc;
 
-use proto::client::WeakClient;
-use types::Type;
+use crate::proto::client::WeakClient;
+use crate::types::Type;
+use crate::Column;
 
 pub struct StatementInner {
     client: WeakClient,

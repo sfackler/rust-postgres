@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 extern crate linked_hash_map;
 extern crate marksman_escape;
 extern crate phf_codegen;
@@ -9,7 +11,7 @@ mod sqlstate;
 mod type_gen;
 
 fn main() {
-    let path = Path::new("../postgres-shared/src");
+    let path = Path::new("../tokio-postgres/src");
     sqlstate::build(path);
     type_gen::build(path);
 }

@@ -2,13 +2,13 @@
 name = "tokio-postgres-openssl"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-bytes = "0.4"
 futures = "0.1"
 openssl = "0.10"
 tokio-io = "0.1"
-tokio-openssl = "0.2"
+tokio-openssl = "0.3"
 tokio-postgres = { version = "0.3", path = "../tokio-postgres" }
 
 [dev-dependencies]

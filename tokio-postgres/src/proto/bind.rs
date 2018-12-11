@@ -1,11 +1,12 @@
 use futures::sync::mpsc;
 use futures::{Poll, Stream};
 use postgres_protocol::message::backend::Message;
-use proto::client::{Client, PendingRequest};
-use proto::portal::Portal;
-use proto::statement::Statement;
-use state_machine_future::RentToOwn;
-use Error;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
+
+use crate::proto::client::{Client, PendingRequest};
+use crate::proto::portal::Portal;
+use crate::proto::statement::Statement;
+use crate::Error;
 
 #[derive(StateMachineFuture)]
 pub enum Bind {

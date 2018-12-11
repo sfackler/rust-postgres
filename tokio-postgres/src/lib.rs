@@ -1,49 +1,26 @@
-extern crate antidote;
-extern crate bytes;
-extern crate fallible_iterator;
-extern crate futures_cpupool;
-extern crate phf;
-extern crate postgres_protocol;
-extern crate postgres_shared;
-extern crate tokio_codec;
-extern crate tokio_io;
-extern crate tokio_tcp;
-extern crate tokio_timer;
+#![warn(rust_2018_idioms, clippy::all)]
 
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate state_machine_future;
-
-#[cfg(unix)]
-extern crate tokio_uds;
-
-use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream};
-use postgres_shared::rows::RowIndex;
+use bytes::{Bytes, IntoBuf};
+use futures::{try_ready, Async, Future, Poll, Stream};
 use std::error::Error as StdError;
-use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio_io::{AsyncRead, AsyncWrite};
 
-#[doc(inline)]
-pub use postgres_shared::stmt::Column;
-#[doc(inline)]
-pub use postgres_shared::{params, types};
-#[doc(inline)]
-pub use postgres_shared::{CancelData, Notification};
+pub use crate::builder::*;
+pub use crate::error::*;
+use crate::proto::CancelFuture;
+pub use crate::row::{Row, RowIndex};
+pub use crate::stmt::Column;
+pub use crate::tls::*;
+use crate::types::{ToSql, Type};
 
-use error::{DbError, Error};
-use params::ConnectParams;
-use tls::TlsConnect;
-use types::{FromSql, ToSql, Type};
-
+mod builder;
 pub mod error;
 mod proto;
-pub mod tls;
+mod row;
+mod stmt;
+mod tls;
+pub mod types;
 
 fn next_statement() -> String {
     static ID: AtomicUsize = AtomicUsize::new(0);
@@ -55,18 +32,12 @@ fn next_portal() -> String {
     format!("p{}", ID.fetch_add(1, Ordering::SeqCst))
 }
 
-pub enum TlsMode {
-    None,
-    Prefer(Box<TlsConnect>),
-    Require(Box<TlsConnect>),
-}
-
-pub fn cancel_query(params: ConnectParams, tls: TlsMode, cancel_data: CancelData) -> CancelQuery {
-    CancelQuery(proto::CancelFuture::new(params, tls, cancel_data))
-}
-
-pub fn connect(params: ConnectParams, tls: TlsMode) -> Handshake {
-    Handshake(proto::HandshakeFuture::new(params, tls))
+pub fn cancel_query<S, T>(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQuery<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    CancelQuery(CancelFuture::new(stream, tls_mode, cancel_data))
 }
 
 pub struct Client(proto::Client);
@@ -80,15 +51,15 @@ impl Client {
         Prepare(self.0.prepare(next_statement(), query, param_types))
     }
 
-    pub fn execute(&mut self, statement: &Statement, params: &[&ToSql]) -> Execute {
+    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Execute {
         Execute(self.0.execute(&statement.0, params))
     }
 
-    pub fn query(&mut self, statement: &Statement, params: &[&ToSql]) -> Query {
+    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Query {
         Query(self.0.query(&statement.0, params))
     }
 
-    pub fn bind(&mut self, statement: &Statement, params: &[&ToSql]) -> Bind {
+    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Bind {
         Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
@@ -96,27 +67,28 @@ impl Client {
         QueryPortal(self.0.query_portal(&portal.0, max_rows))
     }
 
-    pub fn copy_in<S>(&mut self, statement: &Statement, params: &[&ToSql], stream: S) -> CopyIn<S>
+    pub fn copy_in<S>(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+        stream: S,
+    ) -> CopyIn<S>
     where
         S: Stream,
-        S::Item: AsRef<[u8]>,
+        S::Item: IntoBuf,
+        <S::Item as IntoBuf>::Buf: Send,
         // FIXME error type?
-        S::Error: Into<Box<StdError + Sync + Send>>,
+        S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
         CopyIn(self.0.copy_in(&statement.0, params, stream))
     }
 
-    pub fn copy_out(&mut self, statement: &Statement, params: &[&ToSql]) -> CopyOut {
+    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOut {
         CopyOut(self.0.copy_out(&statement.0, params))
     }
 
-    pub fn transaction<T>(&mut self, future: T) -> Transaction<T>
-    where
-        T: Future,
-        // FIXME error type?
-        T::Error: From<Error>,
-    {
-        Transaction(proto::TransactionFuture::new(self.0.clone(), future))
+    pub fn transaction(&mut self) -> TransactionBuilder {
+        TransactionBuilder(self.0.clone())
     }
 
     pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
@@ -125,9 +97,12 @@ impl Client {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection(proto::Connection);
+pub struct Connection<S>(proto::Connection<S>);
 
-impl Connection {
+impl<S> Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     pub fn cancel_data(&self) -> CancelData {
         self.0.cancel_data()
     }
@@ -141,7 +116,10 @@ impl Connection {
     }
 }
 
-impl Future for Connection {
+impl<S> Future for Connection<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
     type Item = ();
     type Error = Error;
 
@@ -150,6 +128,7 @@ impl Future for Connection {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum AsyncMessage {
     Notice(DbError),
     Notification(Notification),
@@ -158,9 +137,16 @@ pub enum AsyncMessage {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct CancelQuery(proto::CancelFuture);
+pub struct CancelQuery<S, T>(proto::CancelFuture<S, T>)
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>;
 
-impl Future for CancelQuery {
+impl<S, T> Future for CancelQuery<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
     type Item = ();
     type Error = Error;
 
@@ -170,13 +156,20 @@ impl Future for CancelQuery {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Handshake(proto::HandshakeFuture);
+pub struct Connect<S, T>(proto::ConnectFuture<S, T>)
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>;
 
-impl Future for Handshake {
-    type Item = (Client, Connection);
+impl<S, T> Future for Connect<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    type Item = (Client, Connection<T::Stream>);
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(Client, Connection), Error> {
+    fn poll(&mut self) -> Poll<(Client, Connection<T::Stream>), Error> {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))
@@ -229,12 +222,7 @@ impl Stream for Query {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
+        self.0.poll()
     }
 }
 
@@ -262,12 +250,7 @@ impl Stream for QueryPortal {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(Some(row))) => Ok(Async::Ready(Some(Row(row)))),
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
+        self.0.poll()
     }
 }
 
@@ -277,13 +260,16 @@ pub struct Portal(proto::Portal);
 pub struct CopyIn<S>(proto::CopyInFuture<S>)
 where
     S: Stream,
-    S::Item: AsRef<[u8]>,
-    S::Error: Into<Box<StdError + Sync + Send>>;
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>;
 
 impl<S> Future for CopyIn<S>
 where
-    S: Stream<Item = Vec<u8>>,
-    S::Error: Into<Box<StdError + Sync + Send>>,
+    S: Stream,
+    S::Item: IntoBuf,
+    <S::Item as IntoBuf>::Buf: Send,
+    S::Error: Into<Box<dyn StdError + Sync + Send>>,
 {
     type Item = u64;
     type Error = Error;
@@ -305,31 +291,16 @@ impl Stream for CopyOut {
     }
 }
 
-pub struct Row(proto::Row);
+pub struct TransactionBuilder(proto::Client);
 
-impl Row {
-    pub fn columns(&self) -> &[Column] {
-        self.0.columns()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn get<'a, I, T>(&'a self, idx: I) -> T
+impl TransactionBuilder {
+    pub fn build<T>(self, future: T) -> Transaction<T>
     where
-        I: RowIndex + fmt::Debug,
-        T: FromSql<'a>,
+        T: Future,
+        // FIXME error type?
+        T::Error: From<Error>,
     {
-        self.0.get(idx)
-    }
-
-    pub fn try_get<'a, I, T>(&'a self, idx: I) -> Result<Option<T>, Error>
-    where
-        I: RowIndex,
-        T: FromSql<'a>,
-    {
-        self.0.try_get(idx)
+        Transaction(proto::TransactionFuture::new(self.0, future))
     }
 }
 
@@ -362,4 +333,24 @@ impl Future for BatchExecute {
     fn poll(&mut self) -> Poll<(), Error> {
         self.0.poll()
     }
+}
+
+/// Contains information necessary to cancel queries for a session.
+#[derive(Copy, Clone, Debug)]
+pub struct CancelData {
+    /// The process ID of the session.
+    pub process_id: i32,
+    /// The secret key for the session.
+    pub secret_key: i32,
+}
+
+/// An asynchronous notification.
+#[derive(Clone, Debug)]
+pub struct Notification {
+    /// The process ID of the notifying backend process.
+    pub process_id: i32,
+    /// The name of the channel that the notify has been raised on.
+    pub channel: String,
+    /// The "payload" string passed from the notifying process.
+    pub payload: String,
 }

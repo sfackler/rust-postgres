@@ -2,6 +2,7 @@
 name = "postgres-protocol"
 version = "0.3.2"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+edition = "2018"
 description = "Low level Postgres protocol APIs"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/sfackler/rust-postgres-protocol"

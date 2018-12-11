@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use proto::client::WeakClient;
-use proto::statement::Statement;
+use crate::proto::client::WeakClient;
+use crate::proto::statement::Statement;
 
 struct Inner {
     client: WeakClient,

@@ -1,36 +1,43 @@
-use futures::{Future, Poll};
+use futures::{try_ready, Future, Poll};
 use postgres_protocol::message::frontend;
-use state_machine_future::RentToOwn;
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, Flush, WriteAll};
+use tokio_io::{AsyncRead, AsyncWrite};
 
-use error::Error;
-use params::ConnectParams;
-use proto::connect::ConnectFuture;
-use tls::TlsStream;
-use {CancelData, TlsMode};
+use crate::error::Error;
+use crate::proto::TlsFuture;
+use crate::{CancelData, TlsMode};
 
 #[derive(StateMachineFuture)]
-pub enum Cancel {
+pub enum Cancel<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
     #[state_machine_future(start, transitions(SendingCancel))]
     Start {
-        future: ConnectFuture,
+        future: TlsFuture<S, T>,
         cancel_data: CancelData,
     },
     #[state_machine_future(transitions(FlushingCancel))]
     SendingCancel {
-        future: WriteAll<Box<TlsStream>, Vec<u8>>,
+        future: WriteAll<T::Stream, Vec<u8>>,
     },
     #[state_machine_future(transitions(Finished))]
-    FlushingCancel { future: Flush<Box<TlsStream>> },
+    FlushingCancel { future: Flush<T::Stream> },
     #[state_machine_future(ready)]
     Finished(()),
     #[state_machine_future(error)]
     Failed(Error),
 }
 
-impl PollCancel for Cancel {
-    fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
-        let stream = try_ready!(state.future.poll());
+impl<S, T> PollCancel<S, T> for Cancel<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S, T>>) -> Poll<AfterStart<S, T>, Error> {
+        let (stream, _) = try_ready!(state.future.poll());
 
         let mut buf = vec![];
         frontend::cancel_request(
@@ -45,8 +52,8 @@ impl PollCancel for Cancel {
     }
 
     fn poll_sending_cancel<'a>(
-        state: &'a mut RentToOwn<'a, SendingCancel>,
-    ) -> Poll<AfterSendingCancel, Error> {
+        state: &'a mut RentToOwn<'a, SendingCancel<S, T>>,
+    ) -> Poll<AfterSendingCancel<S, T>, Error> {
         let (stream, _) = try_ready_closed!(state.future.poll());
 
         transition!(FlushingCancel {
@@ -55,15 +62,19 @@ impl PollCancel for Cancel {
     }
 
     fn poll_flushing_cancel<'a>(
-        state: &'a mut RentToOwn<'a, FlushingCancel>,
+        state: &'a mut RentToOwn<'a, FlushingCancel<S, T>>,
     ) -> Poll<AfterFlushingCancel, Error> {
         try_ready_closed!(state.future.poll());
         transition!(Finished(()))
     }
 }
 
-impl CancelFuture {
-    pub fn new(params: ConnectParams, mode: TlsMode, cancel_data: CancelData) -> CancelFuture {
-        Cancel::start(ConnectFuture::new(params, mode), cancel_data)
+impl<S, T> CancelFuture<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: TlsMode<S>,
+{
+    pub fn new(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelFuture<S, T> {
+        Cancel::start(TlsFuture::new(stream, tls_mode), cancel_data)
     }
 }

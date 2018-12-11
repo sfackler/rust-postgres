@@ -1,16 +1,16 @@
 use futures::stream::{self, Stream};
-use futures::{Async, Future, Poll};
-use state_machine_future::RentToOwn;
+use futures::{try_ready, Async, Future, Poll};
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
-use error::{Error, SqlState};
-use next_statement;
-use proto::client::Client;
-use proto::prepare::PrepareFuture;
-use proto::query::QueryStream;
-use proto::statement::Statement;
-use types::Oid;
+use crate::error::{Error, SqlState};
+use crate::next_statement;
+use crate::proto::client::Client;
+use crate::proto::prepare::PrepareFuture;
+use crate::proto::query::QueryStream;
+use crate::proto::statement::Statement;
+use crate::types::Oid;
 
-const TYPEINFO_ENUM_QUERY: &'static str = "
+const TYPEINFO_ENUM_QUERY: &str = "
 SELECT enumlabel
 FROM pg_catalog.pg_enum
 WHERE enumtypid = $1
@@ -18,7 +18,7 @@ ORDER BY enumsortorder
 ";
 
 // Postgres 9.0 didn't have enumsortorder
-const TYPEINFO_ENUM_FALLBACK_QUERY: &'static str = "
+const TYPEINFO_ENUM_FALLBACK_QUERY: &str = "
 SELECT enumlabel
 FROM pg_catalog.pg_enum
 WHERE enumtypid = $1
@@ -27,10 +27,7 @@ ORDER BY oid
 
 #[derive(StateMachineFuture)]
 pub enum TypeinfoEnum {
-    #[state_machine_future(
-        start,
-        transitions(PreparingTypeinfoEnum, QueryingEnumVariants)
-    )]
+    #[state_machine_future(start, transitions(PreparingTypeinfoEnum, QueryingEnumVariants))]
     Start { oid: Oid, client: Client },
     #[state_machine_future(transitions(PreparingTypeinfoEnumFallback, QueryingEnumVariants))]
     PreparingTypeinfoEnum {
@@ -83,7 +80,7 @@ impl PollTypeinfoEnum for TypeinfoEnum {
             Ok(Async::Ready(statement)) => statement,
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
-                let mut state = state.take();
+                let state = state.take();
 
                 transition!(PreparingTypeinfoEnumFallback {
                     future: Box::new(state.client.prepare(

@@ -2,13 +2,13 @@
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
-use std::error;
+use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
-use tokio_timer;
 
 pub use self::sqlstate::*;
 
+#[allow(clippy::unreadable_literal)]
 mod sqlstate;
 
 /// The severity of a Postgres error or notice.
@@ -33,7 +33,7 @@ pub enum Severity {
 }
 
 impl fmt::Display for Severity {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match *self {
             Severity::Panic => "PANIC",
             Severity::Fatal => "FATAL",
@@ -86,7 +86,7 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn new(fields: &mut ErrorFields) -> io::Result<DbError> {
+    pub(crate) fn parse(fields: &mut ErrorFields<'_>) -> io::Result<DbError> {
         let mut severity = None;
         let mut parsed_severity = None;
         let mut code = None;
@@ -161,18 +161,18 @@ impl DbError {
         Ok(DbError {
             severity: severity
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`S` field missing"))?,
-            parsed_severity: parsed_severity,
+            parsed_severity,
             code: code
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`C` field missing"))?,
             message: message
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "`M` field missing"))?,
-            detail: detail,
-            hint: hint,
+            detail,
+            hint,
             position: match normal_position {
                 Some(position) => Some(ErrorPosition::Original(position)),
                 None => match internal_position {
                     Some(position) => Some(ErrorPosition::Internal {
-                        position: position,
+                        position,
                         query: internal_query.ok_or_else(|| {
                             io::Error::new(
                                 io::ErrorKind::InvalidInput,
@@ -183,15 +183,15 @@ impl DbError {
                     None => None,
                 },
             },
-            where_: where_,
-            schema: schema,
-            table: table,
-            column: column,
-            datatype: datatype,
-            constraint: constraint,
-            file: file,
-            line: line,
-            routine: routine,
+            where_,
+            schema,
+            table,
+            column,
+            datatype,
+            constraint,
+            file,
+            line,
+            routine,
         })
     }
 
@@ -308,16 +308,12 @@ impl DbError {
 }
 
 impl fmt::Display for DbError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}: {}", self.severity, self.message)
     }
 }
 
-impl error::Error for DbError {
-    fn description(&self) -> &str {
-        &self.message
-    }
-}
+impl error::Error for DbError {}
 
 /// Represents the position of an error in a query.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -348,21 +344,19 @@ enum Kind {
     MissingUser,
     MissingPassword,
     UnsupportedAuthentication,
-    Connect,
-    Timer,
     Authentication,
 }
 
 struct ErrorInner {
     kind: Kind,
-    cause: Option<Box<error::Error + Sync + Send>>,
+    cause: Option<Box<dyn error::Error + Sync + Send>>,
 }
 
 /// An error communicating with the Postgres server.
 pub struct Error(Box<ErrorInner>);
 
 impl fmt::Debug for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Error")
             .field("kind", &self.0.kind)
             .field("cause", &self.0.cause)
@@ -371,18 +365,8 @@ impl fmt::Debug for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(error::Error::description(self))?;
-        if let Some(ref cause) = self.0.cause {
-            write!(fmt, ": {}", cause)?;
-        }
-        Ok(())
-    }
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match self.0.kind {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self.0.kind {
             Kind::Io => "error communicating with the server",
             Kind::UnexpectedMessage => "unexpected message from server",
             Kind::Tls => "error performing TLS handshake",
@@ -396,28 +380,25 @@ impl error::Error for Error {
             Kind::MissingUser => "username not provided",
             Kind::MissingPassword => "password not provided",
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
-            Kind::Connect => "error connecting to server",
-            Kind::Timer => "timer error",
             Kind::Authentication => "authentication error",
+        };
+        fmt.write_str(s)?;
+        if let Some(ref cause) = self.0.cause {
+            write!(fmt, ": {}", cause)?;
         }
+        Ok(())
     }
+}
 
-    fn cause(&self) -> Option<&error::Error> {
-        self.0.cause.as_ref().map(|e| &**e as &error::Error)
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.0.cause.as_ref().map(|e| &**e as _)
     }
 }
 
 impl Error {
-    /// Returns the error's cause.
-    ///
-    /// This is the same as `Error::cause` except that it provides extra bounds
-    /// required to be able to downcast the error.
-    pub fn cause2(&self) -> Option<&(error::Error + 'static + Sync + Send)> {
-        self.0.cause.as_ref().map(|e| &**e)
-    }
-
     /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<error::Error + Sync + Send>> {
+    pub fn into_cause(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause
     }
 
@@ -426,12 +407,12 @@ impl Error {
     /// This is a convenience method that downcasts the cause to a `DbError`
     /// and returns its code.
     pub fn code(&self) -> Option<&SqlState> {
-        self.cause2()
+        self.source()
             .and_then(|e| e.downcast_ref::<DbError>())
             .map(|e| e.code())
     }
 
-    fn new(kind: Kind, cause: Option<Box<error::Error + Sync + Send>>) -> Error {
+    fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
         Error(Box::new(ErrorInner { kind, cause }))
     }
 
@@ -443,8 +424,9 @@ impl Error {
         Error::new(Kind::UnexpectedMessage, None)
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn db(error: ErrorResponseBody) -> Error {
-        match DbError::new(&mut error.fields()) {
+        match DbError::parse(&mut error.fields()) {
             Ok(e) => Error::new(Kind::Db, Some(Box::new(e))),
             Err(e) => Error::new(Kind::Parse, Some(Box::new(e))),
         }
@@ -458,17 +440,18 @@ impl Error {
         Error::new(Kind::Encode, Some(Box::new(e)))
     }
 
-    pub(crate) fn to_sql(e: Box<error::Error + Sync + Send>) -> Error {
+    #[allow(clippy::wrong_self_convention)]
+    pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::ToSql, Some(e))
     }
 
-    pub(crate) fn from_sql(e: Box<error::Error + Sync + Send>) -> Error {
+    pub(crate) fn from_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::FromSql, Some(e))
     }
 
     pub(crate) fn copy_in_stream<E>(e: E) -> Error
     where
-        E: Into<Box<error::Error + Sync + Send>>,
+        E: Into<Box<dyn error::Error + Sync + Send>>,
     {
         Error::new(Kind::CopyInStream, Some(e.into()))
     }
@@ -485,16 +468,8 @@ impl Error {
         Error::new(Kind::UnsupportedAuthentication, None)
     }
 
-    pub(crate) fn tls(e: Box<error::Error + Sync + Send>) -> Error {
+    pub(crate) fn tls(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::Tls, Some(e))
-    }
-
-    pub(crate) fn connect(e: io::Error) -> Error {
-        Error::new(Kind::Connect, Some(Box::new(e)))
-    }
-
-    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
-        Error::new(Kind::Timer, Some(Box::new(e)))
     }
 
     pub(crate) fn io(e: io::Error) -> Error {

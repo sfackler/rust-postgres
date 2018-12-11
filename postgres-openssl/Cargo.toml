@@ -1,9 +1,0 @@
-[package]
-name = "postgres-openssl"
-version = "0.1.0"
-authors = ["Steven Fackler <sfackler@gmail.com>"]
-
-[dependencies]
-openssl = "0.10.9"
-
-postgres = { version = "0.15", path = "../postgres" }

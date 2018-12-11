@@ -1,6 +1,5 @@
 //! SASL-based authentication support.
 
-use base64;
 use generic_array::typenum::U32;
 use generic_array::GenericArray;
 use hmac::{Hmac, Mac};
@@ -11,14 +10,13 @@ use std::io;
 use std::iter;
 use std::mem;
 use std::str;
-use stringprep;
 
 const NONCE_LENGTH: usize = 24;
 
 /// The identifier of the SCRAM-SHA-256 SASL authentication mechanism.
-pub const SCRAM_SHA_256: &'static str = "SCRAM-SHA-256";
+pub const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
 /// The identifier of the SCRAM-SHA-256-PLUS SASL authentication mechanism.
-pub const SCRAM_SHA_256_PLUS: &'static str = "SCRAM-SHA-256-PLUS";
+pub const SCRAM_SHA_256_PLUS: &str = "SCRAM-SHA-256-PLUS";
 
 // since postgres passwords are not required to exclude saslprep-prohibited
 // characters or even be valid UTF8, we run saslprep if possible and otherwise
@@ -59,7 +57,6 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
 enum ChannelBindingInner {
     Unrequested,
     Unsupported,
-    TlsUnique(Vec<u8>),
     TlsServerEndPoint(Vec<u8>),
 }
 
@@ -77,11 +74,6 @@ impl ChannelBinding {
         ChannelBinding(ChannelBindingInner::Unsupported)
     }
 
-    /// The server requested channel binding and the client will use the `tls-unique` method.
-    pub fn tls_unique(finished: Vec<u8>) -> ChannelBinding {
-        ChannelBinding(ChannelBindingInner::TlsUnique(finished))
-    }
-
     /// The server requested channel binding and the client will use the `tls-server-end-point`
     /// method.
     pub fn tls_server_end_point(signature: Vec<u8>) -> ChannelBinding {
@@ -92,7 +84,6 @@ impl ChannelBinding {
         match self.0 {
             ChannelBindingInner::Unrequested => "y,,",
             ChannelBindingInner::Unsupported => "n,,",
-            ChannelBindingInner::TlsUnique(_) => "p=tls-unique,,",
             ChannelBindingInner::TlsServerEndPoint(_) => "p=tls-server-end-point,,",
         }
     }
@@ -100,8 +91,7 @@ impl ChannelBinding {
     fn cbind_data(&self) -> &[u8] {
         match self.0 {
             ChannelBindingInner::Unrequested | ChannelBindingInner::Unsupported => &[],
-            ChannelBindingInner::TlsUnique(ref buf)
-            | ChannelBindingInner::TlsServerEndPoint(ref buf) => buf,
+            ChannelBindingInner::TlsServerEndPoint(ref buf) => buf,
         }
     }
 }
@@ -151,7 +141,8 @@ impl ScramSha256 {
                     v = 0x7e
                 }
                 v as char
-            }).collect::<String>();
+            })
+            .collect::<String>();
 
         ScramSha256::new_inner(password, channel_binding, nonce)
     }
@@ -162,7 +153,7 @@ impl ScramSha256 {
             state: State::Update {
                 nonce,
                 password: normalize(password),
-                channel_binding: channel_binding,
+                channel_binding,
             },
         }
     }
@@ -237,8 +228,8 @@ impl ScramSha256 {
         write!(&mut self.message, ",p={}", base64::encode(&*client_proof)).unwrap();
 
         self.state = State::Finish {
-            salted_password: salted_password,
-            auth_message: auth_message,
+            salted_password,
+            auth_message,
         };
         Ok(())
     }
@@ -297,7 +288,7 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn new(s: &'a str) -> Parser<'a> {
         Parser {
-            s: s,
+            s,
             it: s.char_indices().peekable(),
         }
     }
@@ -341,7 +332,7 @@ impl<'a> Parser<'a> {
 
     fn printable(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-            '\x21'...'\x2b' | '\x2d'...'\x7e' => true,
+            '\x21'..='\x2b' | '\x2d'..='\x7e' => true,
             _ => false,
         })
     }
@@ -354,7 +345,7 @@ impl<'a> Parser<'a> {
 
     fn base64(&mut self) -> io::Result<&'a str> {
         self.take_while(|c| match c {
-            'a'...'z' | 'A'...'Z' | '0'...'9' | '/' | '+' | '=' => true,
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '+' | '=' => true,
             _ => false,
         })
     }
@@ -367,7 +358,7 @@ impl<'a> Parser<'a> {
 
     fn posit_number(&mut self) -> io::Result<u32> {
         let n = self.take_while(|c| match c {
-            '0'...'9' => true,
+            '0'..='9' => true,
             _ => false,
         })?;
         n.parse()
@@ -399,9 +390,9 @@ impl<'a> Parser<'a> {
         self.eof()?;
 
         Ok(ServerFirstMessage {
-            nonce: nonce,
-            salt: salt,
-            iteration_count: iteration_count,
+            nonce,
+            salt,
+            iteration_count,
         })
     }
 

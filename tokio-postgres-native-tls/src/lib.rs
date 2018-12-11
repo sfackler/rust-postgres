@@ -1,106 +1,57 @@
-extern crate bytes;
-extern crate futures;
-extern crate native_tls;
-extern crate tokio_io;
-extern crate tokio_postgres;
-extern crate tokio_tls;
+#![warn(rust_2018_idioms, clippy::all)]
 
-#[cfg(test)]
-extern crate tokio;
-
-use bytes::{Buf, BufMut};
-use futures::{Future, Poll};
-use std::error::Error;
-use std::io::{self, Read, Write};
+use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_postgres::tls::{Socket, TlsConnect, TlsStream};
+use tokio_postgres::{ChannelBinding, TlsConnect};
+use tokio_tls::{Connect, TlsStream};
 
 #[cfg(test)]
 mod test;
 
 pub struct TlsConnector {
     connector: tokio_tls::TlsConnector,
+    domain: String,
 }
 
 impl TlsConnector {
-    pub fn new() -> Result<TlsConnector, native_tls::Error> {
-        let connector = native_tls::TlsConnector::new()?;
-        Ok(TlsConnector::with_connector(connector))
-    }
-
-    pub fn with_connector(connector: native_tls::TlsConnector) -> TlsConnector {
+    pub fn with_connector(connector: native_tls::TlsConnector, domain: &str) -> TlsConnector {
         TlsConnector {
             connector: tokio_tls::TlsConnector::from(connector),
+            domain: domain.to_string(),
         }
     }
 }
 
-impl TlsConnect for TlsConnector {
-    fn connect(
-        &self,
-        domain: &str,
-        socket: Socket,
-    ) -> Box<Future<Item = Box<TlsStream>, Error = Box<Error + Sync + Send>> + Sync + Send> {
-        let f = self
-            .connector
-            .connect(domain, socket)
-            .map(|s| {
-                let s: Box<TlsStream> = Box::new(SslStream(s));
-                s
-            }).map_err(|e| {
-                let e: Box<Error + Sync + Send> = Box::new(e);
-                e
-            });
-        Box::new(f)
+impl<S> TlsConnect<S> for TlsConnector
+where
+    S: AsyncRead + AsyncWrite,
+{
+    type Stream = TlsStream<S>;
+    type Error = native_tls::Error;
+    type Future = TlsConnectFuture<S>;
+
+    fn connect(self, stream: S) -> TlsConnectFuture<S> {
+        TlsConnectFuture(self.connector.connect(&self.domain, stream))
     }
 }
 
-struct SslStream(tokio_tls::TlsStream<Socket>);
+pub struct TlsConnectFuture<S>(Connect<S>);
 
-impl Read for SslStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-}
+impl<S> Future for TlsConnectFuture<S>
+where
+    S: AsyncRead + AsyncWrite,
+{
+    type Item = (TlsStream<S>, ChannelBinding);
+    type Error = native_tls::Error;
 
-impl AsyncRead for SslStream {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
-    }
+    fn poll(&mut self) -> Poll<(TlsStream<S>, ChannelBinding), native_tls::Error> {
+        let stream = try_ready!(self.0.poll());
 
-    fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
-    where
-        B: BufMut,
-    {
-        self.0.read_buf(buf)
-    }
-}
+        let channel_binding = match stream.get_ref().tls_server_end_point().unwrap_or(None) {
+            Some(buf) => ChannelBinding::tls_server_end_point(buf),
+            None => ChannelBinding::none(),
+        };
 
-impl Write for SslStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
-    }
-}
-
-impl AsyncWrite for SslStream {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.0.shutdown()
-    }
-
-    fn write_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
-    where
-        B: Buf,
-    {
-        self.0.write_buf(buf)
-    }
-}
-
-impl TlsStream for SslStream {
-    fn tls_server_end_point(&self) -> Option<Vec<u8>> {
-        self.0.get_ref().tls_server_end_point().unwrap_or(None)
+        Ok(Async::Ready((stream, channel_binding)))
     }
 }

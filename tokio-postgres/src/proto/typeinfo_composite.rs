@@ -1,19 +1,19 @@
 use futures::stream::{self, Stream};
-use futures::{Future, Poll};
-use state_machine_future::RentToOwn;
+use futures::{try_ready, Future, Poll};
+use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::mem;
 use std::vec;
 
-use error::Error;
-use next_statement;
-use proto::client::Client;
-use proto::prepare::PrepareFuture;
-use proto::query::QueryStream;
-use proto::statement::Statement;
-use proto::typeinfo::TypeinfoFuture;
-use types::{Field, Oid};
+use crate::error::Error;
+use crate::next_statement;
+use crate::proto::client::Client;
+use crate::proto::prepare::PrepareFuture;
+use crate::proto::query::QueryStream;
+use crate::proto::statement::Statement;
+use crate::proto::typeinfo::TypeinfoFuture;
+use crate::types::{Field, Oid};
 
-const TYPEINFO_COMPOSITE_QUERY: &'static str = "
+const TYPEINFO_COMPOSITE_QUERY: &str = "
 SELECT attname, atttypid
 FROM pg_catalog.pg_attribute
 WHERE attrelid = $1
@@ -99,7 +99,8 @@ impl PollTypeinfoComposite for TypeinfoComposite {
                 let name = row.try_get(0)?.ok_or_else(Error::unexpected_message)?;
                 let oid = row.try_get(1)?.ok_or_else(Error::unexpected_message)?;
                 Ok((name, oid))
-            }).collect::<Result<Vec<(String, Oid)>, Error>>()?;
+            })
+            .collect::<Result<Vec<(String, Oid)>, Error>>()?;
 
         let mut remaining_fields = fields.into_iter();
         match remaining_fields.next() {
