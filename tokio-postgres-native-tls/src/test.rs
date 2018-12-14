@@ -44,7 +44,7 @@ fn require() {
     smoke_test(
         tokio_postgres::Builder::new()
             .user("ssl_user")
-            .database("postgres"),
+            .dbname("postgres"),
         RequireTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }
@@ -60,7 +60,7 @@ fn prefer() {
     smoke_test(
         tokio_postgres::Builder::new()
             .user("ssl_user")
-            .database("postgres"),
+            .dbname("postgres"),
         PreferTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }
@@ -77,7 +77,7 @@ fn scram_user() {
         tokio_postgres::Builder::new()
             .user("scram_user")
             .password("password")
-            .database("postgres"),
+            .dbname("postgres"),
         RequireTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }
