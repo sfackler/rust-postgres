@@ -16,19 +16,19 @@ use tokio_postgres::{AsyncMessage, Client, Connection, NoTls};
 mod types;
 
 fn connect(
-    builder: &tokio_postgres::Builder,
+    s: &str,
 ) -> impl Future<Item = (Client, Connection<TcpStream>), Error = tokio_postgres::Error> {
-    let builder = builder.clone();
+    let builder = s.parse::<tokio_postgres::Builder>().unwrap();
     TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))
         .and_then(move |s| builder.connect(s, NoTls))
 }
 
-fn smoke_test(builder: &tokio_postgres::Builder) {
+fn smoke_test(s: &str) {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(builder);
+    let handshake = connect(s);
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
@@ -51,11 +51,7 @@ fn plain_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("pass_user")
-            .database("postgres"),
-    );
+    let handshake = connect("user=pass_user dbname=postgres");
     runtime.block_on(handshake).err().unwrap();
 }
 
@@ -64,12 +60,7 @@ fn plain_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("pass_user")
-            .password("foo")
-            .database("postgres"),
-    );
+    let handshake = connect("user=pass_user password=foo dbname=postgres");
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -79,12 +70,7 @@ fn plain_password_wrong() {
 
 #[test]
 fn plain_password_ok() {
-    smoke_test(
-        tokio_postgres::Builder::new()
-            .user("pass_user")
-            .password("password")
-            .database("postgres"),
-    );
+    smoke_test("user=pass_user password=password dbname=postgres");
 }
 
 #[test]
@@ -92,11 +78,7 @@ fn md5_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("md5_user")
-            .database("postgres"),
-    );
+    let handshake = connect("user=md5_user dbname=postgres");
     runtime.block_on(handshake).err().unwrap();
 }
 
@@ -105,12 +87,7 @@ fn md5_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("md5_user")
-            .password("foo")
-            .database("postgres"),
-    );
+    let handshake = connect("user=md5_user password=foo dbname=postgres");
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -120,12 +97,7 @@ fn md5_password_wrong() {
 
 #[test]
 fn md5_password_ok() {
-    smoke_test(
-        tokio_postgres::Builder::new()
-            .user("md5_user")
-            .password("password")
-            .database("postgres"),
-    );
+    smoke_test("user=md5_user password=password dbname=postgres");
 }
 
 #[test]
@@ -133,11 +105,7 @@ fn scram_password_missing() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("scram_user")
-            .database("postgres"),
-    );
+    let handshake = connect("user=scram_user dbname=postgres");
     runtime.block_on(handshake).err().unwrap();
 }
 
@@ -146,12 +114,7 @@ fn scram_password_wrong() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(
-        tokio_postgres::Builder::new()
-            .user("scram_user")
-            .password("foo")
-            .database("postgres"),
-    );
+    let handshake = connect("user=scram_user password=foo dbname=postgres");
     match runtime.block_on(handshake) {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
@@ -161,12 +124,7 @@ fn scram_password_wrong() {
 
 #[test]
 fn scram_password_ok() {
-    smoke_test(
-        tokio_postgres::Builder::new()
-            .user("scram_user")
-            .password("password")
-            .database("postgres"),
-    );
+    smoke_test("user=scram_user password=password dbname=postgres");
 }
 
 #[test]
@@ -174,9 +132,7 @@ fn pipelined_prepare() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -194,9 +150,7 @@ fn insert_select() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -228,9 +182,7 @@ fn query_portal() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -270,9 +222,7 @@ fn cancel_query() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let cancel_data = connection.cancel_data();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
@@ -306,9 +256,7 @@ fn custom_enum() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -342,9 +290,7 @@ fn custom_domain() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -367,9 +313,7 @@ fn custom_array() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -392,9 +336,7 @@ fn custom_composite() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -431,9 +373,7 @@ fn custom_range() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -459,9 +399,7 @@ fn custom_simple() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -478,9 +416,7 @@ fn notifications() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, mut connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, mut connection) = runtime.block_on(connect("user=postgres")).unwrap();
 
     let (tx, rx) = mpsc::unbounded();
     let connection = future::poll_fn(move || {
@@ -524,9 +460,7 @@ fn transaction_commit() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -559,9 +493,7 @@ fn transaction_abort() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -596,9 +528,7 @@ fn copy_in() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -641,9 +571,7 @@ fn copy_in_error() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -682,9 +610,7 @@ fn copy_out() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -713,9 +639,7 @@ fn transaction_builder_around_moved_client() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime
-        .block_on(connect(tokio_postgres::Builder::new().user("postgres")))
-        .unwrap();
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 

@@ -345,6 +345,7 @@ enum Kind {
     MissingPassword,
     UnsupportedAuthentication,
     Authentication,
+    ConnectionSyntax,
 }
 
 struct ErrorInner {
@@ -381,6 +382,7 @@ impl fmt::Display for Error {
             Kind::MissingPassword => "password not provided",
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
             Kind::Authentication => "authentication error",
+            Kind::ConnectionSyntax => "invalid connection string",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -478,5 +480,9 @@ impl Error {
 
     pub(crate) fn authentication(e: io::Error) -> Error {
         Error::new(Kind::Authentication, Some(Box::new(e)))
+    }
+
+    pub(crate) fn connection_syntax(e: Box<dyn error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::ConnectionSyntax, Some(e))
     }
 }

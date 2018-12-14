@@ -10,6 +10,9 @@ readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
 
+[lib]
+test = false
+
 [package.metadata.docs.rs]
 features = [
     "with-bit-vec-0.5",

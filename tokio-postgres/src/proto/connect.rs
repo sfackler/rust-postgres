@@ -24,7 +24,6 @@ where
     #[state_machine_future(start, transitions(SendingStartup))]
     Start {
         future: TlsFuture<S, T>,
-        password: Option<String>,
         params: HashMap<String, String>,
     },
     #[state_machine_future(transitions(ReadingAuth))]
@@ -80,6 +79,14 @@ where
         let (stream, channel_binding) = try_ready!(state.future.poll());
         let mut state = state.take();
 
+        // we don't want to send the password as a param
+        let password = state.params.remove("password");
+
+        // libpq uses the parameter "dbname" but the protocol expects "database" (!?!)
+        if let Some(dbname) = state.params.remove("dbname") {
+            state.params.insert("database".to_string(), dbname);
+        }
+
         let mut buf = vec![];
         frontend::startup_message(state.params.iter().map(|(k, v)| (&**k, &**v)), &mut buf)
             .map_err(Error::encode)?;
@@ -94,7 +101,7 @@ where
         transition!(SendingStartup {
             future: stream.send(buf),
             user,
-            password: state.password,
+            password,
             channel_binding,
         })
     }
@@ -317,12 +324,7 @@ where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(
-        stream: S,
-        tls_mode: T,
-        password: Option<String>,
-        params: HashMap<String, String>,
-    ) -> ConnectFuture<S, T> {
-        Connect::start(TlsFuture::new(stream, tls_mode), password, params)
+    pub fn new(stream: S, tls_mode: T, params: HashMap<String, String>) -> ConnectFuture<S, T> {
+        Connect::start(TlsFuture::new(stream, tls_mode), params)
     }
 }

@@ -32,7 +32,7 @@ where
 {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -190,7 +190,7 @@ fn test_text_params() {
 fn test_borrowed_text() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -207,7 +207,7 @@ fn test_borrowed_text() {
 fn test_bpchar_params() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -240,7 +240,7 @@ fn test_bpchar_params() {
 fn test_citext_params() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -286,7 +286,7 @@ fn test_bytea_params() {
 fn test_borrowed_bytea() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -345,7 +345,7 @@ where
 {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -372,7 +372,7 @@ fn test_f64_nan_param() {
 fn test_pg_database_datname() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -388,7 +388,7 @@ fn test_pg_database_datname() {
 fn test_slice() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -419,7 +419,7 @@ fn test_slice() {
 fn test_slice_wrong_type() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -445,7 +445,7 @@ fn test_slice_wrong_type() {
 fn test_slice_range() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -502,7 +502,7 @@ fn domain() {
 
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -531,7 +531,7 @@ fn domain() {
 fn composite() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -566,7 +566,7 @@ fn composite() {
 fn enum_() {
     let mut runtime = Runtime::new().unwrap();
 
-    let handshake = connect(tokio_postgres::Builder::new().user("postgres"));
+    let handshake = connect("user=postgres");
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
