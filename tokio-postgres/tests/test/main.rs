@@ -22,7 +22,7 @@ fn connect(
     let builder = s.parse::<tokio_postgres::Builder>().unwrap();
     TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))
-        .and_then(move |s| builder.connect(s, NoTls))
+        .and_then(move |s| builder.handshake(s, NoTls))
 }
 
 fn smoke_test(s: &str) {

@@ -3,8 +3,8 @@ use std::iter;
 use std::str::{self, FromStr};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::ConnectFuture;
-use crate::{Connect, Error, TlsMode};
+use crate::proto::HandshakeFuture;
+use crate::{Error, Handshake, TlsMode};
 
 #[derive(Clone)]
 pub struct Builder {
@@ -48,12 +48,12 @@ impl Builder {
         Iter(self.params.iter())
     }
 
-    pub fn connect<S, T>(&self, stream: S, tls_mode: T) -> Connect<S, T>
+    pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
     where
         S: AsyncRead + AsyncWrite,
         T: TlsMode<S>,
     {
-        Connect(ConnectFuture::new(stream, tls_mode, self.params.clone()))
+        Handshake(HandshakeFuture::new(stream, tls_mode, self.params.clone()))
     }
 }
 

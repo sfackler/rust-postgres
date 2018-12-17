@@ -15,7 +15,7 @@ where
 
     let handshake = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))
-        .and_then(|s| builder.connect(s, tls));
+        .and_then(|s| builder.handshake(s, tls));
     let (mut client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);

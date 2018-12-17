@@ -27,6 +27,9 @@ features = [
 circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
+default = ["runtime"]
+runtime = ["tokio-tcp", "tokio-uds"]
+
 "with-bit-vec-0.5" = ["bit-vec-05"]
 "with-chrono-0.4" = ["chrono-04"]
 "with-eui48-0.4" = ["eui48-04"]
@@ -48,6 +51,8 @@ tokio-codec = "0.1"
 tokio-io = "0.1"
 void = "1.0"
 
+tokio-tcp = { version = "0.1", optional = true }
+
 bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
@@ -55,6 +60,9 @@ geo-010 = { version = "0.10", package = "geo", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
 uuid-07 = { version = "0.7", package = "uuid", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+tokio-uds = { version = "0.2", optional = true }
 
 [dev-dependencies]
 tokio = "0.1.7"

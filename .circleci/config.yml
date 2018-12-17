@@ -37,5 +37,6 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all
       - run: cargo test --all
+      - run: cargo test --manifest-path tokio-postgres/Cargo.toml --no-default-features
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --all-features
       - *SAVE_DEPS

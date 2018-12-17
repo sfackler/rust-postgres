@@ -10,6 +10,8 @@ pub use crate::builder::*;
 pub use crate::error::*;
 use crate::proto::CancelFuture;
 pub use crate::row::{Row, RowIndex};
+#[cfg(feature = "runtime")]
+pub use crate::socket::Socket;
 pub use crate::stmt::Column;
 pub use crate::tls::*;
 use crate::types::{ToSql, Type};
@@ -18,6 +20,8 @@ mod builder;
 pub mod error;
 mod proto;
 mod row;
+#[cfg(feature = "runtime")]
+mod socket;
 mod stmt;
 mod tls;
 pub mod types;
@@ -156,12 +160,12 @@ where
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Connect<S, T>(proto::ConnectFuture<S, T>)
+pub struct Handshake<S, T>(proto::HandshakeFuture<S, T>)
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>;
 
-impl<S, T> Future for Connect<S, T>
+impl<S, T> Future for Handshake<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
