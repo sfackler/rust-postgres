@@ -13,6 +13,7 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{AsyncMessage, Client, Connection, NoTls};
 
+mod parse;
 mod types;
 
 fn connect(
