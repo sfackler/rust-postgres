@@ -22,6 +22,8 @@ mod bind;
 mod cancel;
 mod client;
 mod codec;
+#[cfg(feature = "runtime")]
+mod connect;
 mod connection;
 mod copy_in;
 mod copy_out;
@@ -42,6 +44,8 @@ pub use crate::proto::bind::BindFuture;
 pub use crate::proto::cancel::CancelFuture;
 pub use crate::proto::client::Client;
 pub use crate::proto::codec::PostgresCodec;
+#[cfg(feature = "runtime")]
+pub use crate::proto::connect::ConnectFuture;
 pub use crate::proto::connection::Connection;
 pub use crate::proto::copy_in::CopyInFuture;
 pub use crate::proto::copy_out::CopyOutStream;

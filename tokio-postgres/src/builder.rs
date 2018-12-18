@@ -3,7 +3,11 @@ use std::iter;
 use std::str::{self, FromStr};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+#[cfg(feature = "runtime")]
+use crate::proto::ConnectFuture;
 use crate::proto::HandshakeFuture;
+#[cfg(feature = "runtime")]
+use crate::{Connect, Socket};
 use crate::{Error, Handshake, TlsMode};
 
 #[derive(Clone)]
@@ -54,6 +58,14 @@ impl Builder {
         T: TlsMode<S>,
     {
         Handshake(HandshakeFuture::new(stream, tls_mode, self.params.clone()))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn connect<T>(&self, tls_mode: T) -> Connect<T>
+    where
+        T: TlsMode<Socket>,
+    {
+        Connect(ConnectFuture::new(tls_mode, self.params.clone()))
     }
 }
 

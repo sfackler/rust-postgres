@@ -180,6 +180,27 @@ where
     }
 }
 
+#[cfg(feature = "runtime")]
+#[must_use = "futures do nothing unless polled"]
+pub struct Connect<T>(proto::ConnectFuture<T>)
+where
+    T: TlsMode<Socket>;
+
+#[cfg(feature = "runtime")]
+impl<T> Future for Connect<T>
+where
+    T: TlsMode<Socket>,
+{
+    type Item = (Client, Connection<T::Stream>);
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(Client, Connection<T::Stream>), Error> {
+        let (client, connection) = try_ready!(self.0.poll());
+
+        Ok(Async::Ready((Client(client), Connection(connection))))
+    }
+}
+
 #[must_use = "futures do nothing unless polled"]
 pub struct Prepare(proto::PrepareFuture);
 

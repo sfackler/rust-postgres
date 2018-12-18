@@ -28,7 +28,7 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 default = ["runtime"]
-runtime = ["tokio-tcp", "tokio-uds"]
+runtime = ["tokio-tcp", "tokio-uds", "futures-cpupool", "lazy_static"]
 
 "with-bit-vec-0.5" = ["bit-vec-05"]
 "with-chrono-0.4" = ["chrono-04"]
@@ -42,7 +42,6 @@ antidote = "1.0"
 bytes = "0.4"
 fallible-iterator = "0.1.6"
 futures = "0.1.7"
-futures-cpupool = "0.1"
 log = "0.4"
 phf = "0.7.23"
 postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
@@ -52,6 +51,8 @@ tokio-io = "0.1"
 void = "1.0"
 
 tokio-tcp = { version = "0.1", optional = true }
+futures-cpupool = { version = "0.1", optional = true }
+lazy_static = { version = "1.0", optional = true }
 
 bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }

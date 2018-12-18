@@ -5,6 +5,8 @@ use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
+#[cfg(feature = "runtime")]
+use std::num::ParseIntError;
 
 pub use self::sqlstate::*;
 
@@ -346,6 +348,11 @@ enum Kind {
     UnsupportedAuthentication,
     Authentication,
     ConnectionSyntax,
+    Connect,
+    #[cfg(feature = "runtime")]
+    MissingHost,
+    #[cfg(feature = "runtime")]
+    InvalidPort,
 }
 
 struct ErrorInner {
@@ -383,6 +390,11 @@ impl fmt::Display for Error {
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
             Kind::Authentication => "authentication error",
             Kind::ConnectionSyntax => "invalid connection string",
+            Kind::Connect => "error connecting to server",
+            #[cfg(feature = "runtime")]
+            Kind::MissingHost => "host not provided",
+            #[cfg(feature = "runtime")]
+            Kind::InvalidPort => "invalid port",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -484,5 +496,20 @@ impl Error {
 
     pub(crate) fn connection_syntax(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::ConnectionSyntax, Some(e))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn connect(e: io::Error) -> Error {
+        Error::new(Kind::Connect, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn missing_host() -> Error {
+        Error::new(Kind::MissingHost, None)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_port(e: ParseIntError) -> Error {
+        Error::new(Kind::InvalidPort, Some(Box::new(e)))
     }
 }

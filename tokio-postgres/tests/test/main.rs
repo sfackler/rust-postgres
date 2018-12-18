@@ -14,6 +14,8 @@ use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{AsyncMessage, Client, Connection, NoTls};
 
 mod parse;
+#[cfg(feature = "runtime")]
+mod runtime;
 mod types;
 
 fn connect(
