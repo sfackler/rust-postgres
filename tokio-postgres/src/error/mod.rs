@@ -348,6 +348,7 @@ enum Kind {
     UnsupportedAuthentication,
     Authentication,
     ConnectionSyntax,
+    #[cfg(feature = "runtime")]
     Connect,
     #[cfg(feature = "runtime")]
     MissingHost,
@@ -390,6 +391,7 @@ impl fmt::Display for Error {
             Kind::UnsupportedAuthentication => "unsupported authentication method requested",
             Kind::Authentication => "authentication error",
             Kind::ConnectionSyntax => "invalid connection string",
+            #[cfg(feature = "runtime")]
             Kind::Connect => "error connecting to server",
             #[cfg(feature = "runtime")]
             Kind::MissingHost => "host not provided",
