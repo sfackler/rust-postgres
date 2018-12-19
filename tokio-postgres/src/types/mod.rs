@@ -4,7 +4,10 @@ use fallible_iterator::FallibleIterator;
 use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::cmp::Eq;
+use std::hash::Hash;
+use std::iter::FromIterator;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use std::hash::BuildHasher;
@@ -377,6 +380,33 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     }
 }
 
+
+impl<'a, T: FromSql<'a> + Eq + Hash> FromSql<'a> for HashSet<T> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<HashSet<T>, Box<dyn std::error::Error + Sync + Send>> {
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
+            _ => panic!("expected array type"),
+        };
+
+        let array = types::array_from_sql(raw)?;
+        if array.dimensions().count()? > 1 {
+            return Err("array contains too many dimensions".into());
+        }
+
+        let val: Vec<T> = array.values()
+                            .and_then(|v| T::from_sql_nullable(member_type, v))
+                            .collect().unwrap();
+        Ok(HashSet::from_iter(val))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Array(ref inner) => T::accepts(inner),
+            _ => false,
+        }
+    }
+}
+
 impl<'a> FromSql<'a> for Vec<u8> {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Vec<u8>, Box<dyn Error + Sync + Send>> {
         Ok(types::bytea_from_sql(raw).to_owned())
@@ -655,6 +685,19 @@ impl<T: ToSql> ToSql for Vec<T> {
 
     fn accepts(ty: &Type) -> bool {
         <&[T] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl<T: ToSql + Eq + Hash> ToSql for HashSet<T> {
+    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        let v = self.into_iter().collect();
+        <Vec<&T> as ToSql>::to_sql(&v, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <Vec<&T> as ToSql>::accepts(ty)
     }
 
     to_sql_checked!();

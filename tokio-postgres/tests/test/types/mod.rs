@@ -1,5 +1,5 @@
 use futures::{Future, Stream};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::f32;
 use std::f64;
@@ -338,6 +338,26 @@ fn test_array_params() {
         ],
     );
 }
+
+#[test]
+fn test_array_for_hashset_params() {
+    macro_rules! make_set {
+        ($($v:expr),+) => ({
+            let mut set = HashSet::new();
+            $(set.insert($v);)+
+            set
+        })
+    }
+    test_type(
+        "integer[]",
+        &[
+            (Some(make_set!(1i32, 2i32)), "ARRAY[1,2]"),
+            (Some(make_set!(1i32)), "ARRAY[1]"),
+            (None, "NULL"),
+        ],
+    );
+}
+
 
 fn test_nan_param<T>(sql_type: &str)
 where
