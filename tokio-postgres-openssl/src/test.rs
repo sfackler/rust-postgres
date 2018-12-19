@@ -4,7 +4,7 @@ use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
 use tokio_postgres::{self, PreferTls, RequireTls, TlsMode};
 
-use crate::TlsConnector;
+use super::*;
 
 fn smoke_test<T>(builder: &tokio_postgres::Builder, tls: T)
 where
@@ -71,4 +71,25 @@ fn scram_user() {
             .dbname("postgres"),
         RequireTls(TlsConnector::new(ctx.configure().unwrap(), "localhost")),
     );
+}
+
+#[test]
+#[cfg(feature = "runtime")]
+fn runtime() {
+    let mut runtime = Runtime::new().unwrap();
+
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
+    let connector = MakeTlsConnector::new(builder.build());
+
+    let connect = "host=localhost port=5433 user=postgres"
+        .parse::<tokio_postgres::Builder>()
+        .unwrap()
+        .connect(RequireTls(connector));
+    let (mut client, connection) = runtime.block_on(connect).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.spawn(connection);
+
+    let execute = client.batch_execute("SELECT 1");
+    runtime.block_on(execute).unwrap();
 }

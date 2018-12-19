@@ -6,12 +6,14 @@ use tokio_tcp::TcpStream;
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
+#[derive(Debug)]
 enum Inner {
     Tcp(TcpStream),
     #[cfg(unix)]
     Unix(UnixStream),
 }
 
+#[derive(Debug)]
 pub struct Socket(Inner);
 
 impl Socket {

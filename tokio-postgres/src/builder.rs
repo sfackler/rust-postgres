@@ -7,7 +7,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use crate::proto::ConnectFuture;
 use crate::proto::HandshakeFuture;
 #[cfg(feature = "runtime")]
-use crate::{Connect, Socket};
+use crate::{Connect, MakeTlsMode, Socket};
 use crate::{Error, Handshake, TlsMode};
 
 #[derive(Clone)]
@@ -61,11 +61,11 @@ impl Builder {
     }
 
     #[cfg(feature = "runtime")]
-    pub fn connect<T>(&self, tls_mode: T) -> Connect<T>
+    pub fn connect<T>(&self, make_tls_mode: T) -> Connect<T>
     where
-        T: TlsMode<Socket>,
+        T: MakeTlsMode<Socket>,
     {
-        Connect(ConnectFuture::new(tls_mode, self.params.clone()))
+        Connect(ConnectFuture::new(make_tls_mode, self.params.clone()))
     }
 }
 

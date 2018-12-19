@@ -184,12 +184,12 @@ where
 #[must_use = "futures do nothing unless polled"]
 pub struct Connect<T>(proto::ConnectFuture<T>)
 where
-    T: TlsMode<Socket>;
+    T: MakeTlsMode<Socket>;
 
 #[cfg(feature = "runtime")]
 impl<T> Future for Connect<T>
 where
-    T: TlsMode<Socket>,
+    T: MakeTlsMode<Socket>,
 {
     type Item = (Client, Connection<T::Stream>);
     type Error = Error;

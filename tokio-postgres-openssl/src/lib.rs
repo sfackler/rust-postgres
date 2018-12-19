@@ -1,16 +1,71 @@
 #![warn(rust_2018_idioms, clippy::all)]
 
+#[cfg(feature = "runtime")]
+use futures::future::{self, FutureResult};
 use futures::{try_ready, Async, Future, Poll};
+#[cfg(feature = "runtime")]
+use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
+#[cfg(feature = "runtime")]
+use openssl::ssl::SslConnector;
 use openssl::ssl::{ConnectConfiguration, HandshakeError, SslRef};
 use std::fmt::Debug;
+#[cfg(feature = "runtime")]
+use std::sync::Arc;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{ConnectAsync, ConnectConfigurationExt, SslStream};
+#[cfg(feature = "runtime")]
+use tokio_postgres::MakeTlsConnect;
 use tokio_postgres::{ChannelBinding, TlsConnect};
 
 #[cfg(test)]
 mod test;
+
+#[cfg(feature = "runtime")]
+#[derive(Clone)]
+pub struct MakeTlsConnector {
+    connector: SslConnector,
+    config: Arc<dyn Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + Sync + Send>,
+}
+
+#[cfg(feature = "runtime")]
+impl MakeTlsConnector {
+    pub fn new(connector: SslConnector) -> MakeTlsConnector {
+        MakeTlsConnector {
+            connector,
+            config: Arc::new(|_| Ok(())),
+        }
+    }
+
+    pub fn set_callback<F>(&mut self, f: F)
+    where
+        F: Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + 'static + Sync + Send,
+    {
+        self.config = Arc::new(f);
+    }
+
+    fn make_tls_connect_inner(&mut self, domain: &str) -> Result<TlsConnector, ErrorStack> {
+        let mut ssl = self.connector.configure()?;
+        (self.config)(&mut ssl)?;
+        Ok(TlsConnector::new(ssl, domain))
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl<S> MakeTlsConnect<S> for MakeTlsConnector
+where
+    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
+{
+    type Stream = SslStream<S>;
+    type TlsConnect = TlsConnector;
+    type Error = ErrorStack;
+    type Future = FutureResult<TlsConnector, ErrorStack>;
+
+    fn make_tls_connect(&mut self, domain: &str) -> FutureResult<TlsConnector, ErrorStack> {
+        future::result(self.make_tls_connect_inner(domain))
+    }
+}
 
 pub struct TlsConnector {
     ssl: ConnectConfiguration,
