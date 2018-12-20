@@ -354,6 +354,8 @@ enum Kind {
     MissingHost,
     #[cfg(feature = "runtime")]
     InvalidPort,
+    #[cfg(feature = "runtime")]
+    InvalidPortCount,
 }
 
 struct ErrorInner {
@@ -397,6 +399,8 @@ impl fmt::Display for Error {
             Kind::MissingHost => "host not provided",
             #[cfg(feature = "runtime")]
             Kind::InvalidPort => "invalid port",
+            #[cfg(feature = "runtime")]
+            Kind::InvalidPortCount => "wrong number of ports provided",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -513,5 +517,10 @@ impl Error {
     #[cfg(feature = "runtime")]
     pub(crate) fn invalid_port(e: ParseIntError) -> Error {
         Error::new(Kind::InvalidPort, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_port_count() -> Error {
+        Error::new(Kind::InvalidPortCount, None)
     }
 }
