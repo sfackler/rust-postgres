@@ -418,7 +418,7 @@ impl error::Error for Error {
 
 impl Error {
     /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<dyn error::Error + Sync + Send>> {
+    pub fn into_source(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause
     }
 
