@@ -7,11 +7,13 @@ use tokio::runtime::{self, Runtime};
 mod builder;
 mod client;
 mod statement;
+mod transaction;
 
 #[cfg(feature = "runtime")]
 pub use crate::builder::*;
 pub use crate::client::*;
 pub use crate::statement::*;
+pub use crate::transaction::*;
 
 #[cfg(feature = "runtime")]
 lazy_static! {

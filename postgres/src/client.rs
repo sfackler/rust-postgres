@@ -6,7 +6,7 @@ use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
 
 #[cfg(feature = "runtime")]
 use crate::Builder;
-use crate::Statement;
+use crate::{Statement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -50,6 +50,11 @@ impl Client {
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.0.batch_execute(query).wait()
+    }
+
+    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.batch_execute("BEGIN")?;
+        Ok(Transaction::new(self))
     }
 }
 
