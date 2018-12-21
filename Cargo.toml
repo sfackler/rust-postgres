@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "codegen",
+    "postgres",
     "postgres-protocol",
     "tokio-postgres",
     "tokio-postgres-native-tls",
