@@ -6,7 +6,7 @@ use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
 
 #[cfg(feature = "runtime")]
 use crate::Builder;
-use crate::{Statement, Transaction};
+use crate::{Query, Statement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -36,15 +36,19 @@ impl Client {
         self.0.prepare_typed(query, types).wait().map(Statement)
     }
 
-    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Result<u64, Error> {
+    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    where
+        T: Query,
+    {
+        let statement = query.__statement(self)?;
         self.0.execute(&statement.0, params).wait()
     }
 
-    pub fn query(
-        &mut self,
-        statement: &Statement,
-        params: &[&dyn ToSql],
-    ) -> Result<Vec<Row>, Error> {
+    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    where
+        T: Query,
+    {
+        let statement = query.__statement(self)?;
         self.0.query(&statement.0, params).collect().wait()
     }
 

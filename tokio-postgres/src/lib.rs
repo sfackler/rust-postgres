@@ -215,6 +215,7 @@ impl Future for Prepare {
     }
 }
 
+#[derive(Clone)]
 pub struct Statement(proto::Statement);
 
 impl Statement {

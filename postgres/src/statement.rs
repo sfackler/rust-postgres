@@ -1,6 +1,7 @@
 use tokio_postgres::types::Type;
 use tokio_postgres::Column;
 
+#[derive(Clone)]
 pub struct Statement(pub(crate) tokio_postgres::Statement);
 
 impl Statement {

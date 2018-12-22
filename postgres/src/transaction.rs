@@ -1,7 +1,7 @@
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 
-use crate::{Client, Statement};
+use crate::{Client, Query, Statement};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
@@ -46,16 +46,18 @@ impl<'a> Transaction<'a> {
         self.client.prepare_typed(query, types)
     }
 
-    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Result<u64, Error> {
-        self.client.execute(statement, params)
+    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    where
+        T: Query,
+    {
+        self.client.execute(query, params)
     }
 
-    pub fn query(
-        &mut self,
-        statement: &Statement,
-        params: &[&dyn ToSql],
-    ) -> Result<Vec<Row>, Error> {
-        self.client.query(statement, params)
+    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    where
+        T: Query,
+    {
+        self.client.query(query, params)
     }
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
