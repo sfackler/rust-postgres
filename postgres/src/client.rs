@@ -60,6 +60,10 @@ impl Client {
         self.batch_execute("BEGIN")?;
         Ok(Transaction::new(self))
     }
+
+    pub fn is_closed(&self) -> bool {
+        self.0.is_closed()
+    }
 }
 
 impl From<tokio_postgres::Client> for Client {

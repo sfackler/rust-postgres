@@ -98,6 +98,10 @@ impl Client {
     pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
         BatchExecute(self.0.batch_execute(query))
     }
+
+    pub fn is_closed(&self) -> bool {
+        self.0.is_closed()
+    }
 }
 
 #[must_use = "futures do nothing unless polled"]

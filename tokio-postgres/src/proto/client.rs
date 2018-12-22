@@ -60,6 +60,10 @@ impl Client {
         }))
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.0.sender.is_closed()
+    }
+
     pub fn downgrade(&self) -> WeakClient {
         WeakClient(Arc::downgrade(&self.0))
     }
