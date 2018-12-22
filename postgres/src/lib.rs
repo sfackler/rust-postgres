@@ -11,6 +11,10 @@ mod statement;
 mod transaction;
 
 #[cfg(feature = "runtime")]
+#[cfg(test)]
+mod test;
+
+#[cfg(feature = "runtime")]
 pub use crate::builder::*;
 pub use crate::client::*;
 pub use crate::query::*;

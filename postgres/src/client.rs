@@ -38,7 +38,7 @@ impl Client {
 
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
-        T: Query,
+        T: ?Sized + Query,
     {
         let statement = query.__statement(self)?;
         self.0.execute(&statement.0, params).wait()
@@ -46,7 +46,7 @@ impl Client {
 
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
-        T: Query,
+        T: ?Sized + Query,
     {
         let statement = query.__statement(self)?;
         self.0.query(&statement.0, params).collect().wait()

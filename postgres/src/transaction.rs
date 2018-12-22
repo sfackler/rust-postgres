@@ -48,14 +48,14 @@ impl<'a> Transaction<'a> {
 
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
-        T: Query,
+        T: ?Sized + Query,
     {
         self.client.execute(query, params)
     }
 
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
-        T: Query,
+        T: ?Sized + Query,
     {
         self.client.query(query, params)
     }
