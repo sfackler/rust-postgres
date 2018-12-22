@@ -5,6 +5,7 @@ use crate::{Client, Query, Statement};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
+    depth: u32,
     done: bool,
 }
 
@@ -20,13 +21,19 @@ impl<'a> Transaction<'a> {
     pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
         Transaction {
             client,
+            depth: 0,
             done: false,
         }
     }
 
     pub fn commit(mut self) -> Result<(), Error> {
         self.done = true;
-        self.client.batch_execute("COMMIT")
+        if self.depth == 0 {
+            self.client.batch_execute("COMMIT")
+        } else {
+            self.client
+                .batch_execute(&format!("RELEASE sp{}", self.depth))
+        }
     }
 
     pub fn rollback(mut self) -> Result<(), Error> {
@@ -35,7 +42,12 @@ impl<'a> Transaction<'a> {
     }
 
     fn rollback_inner(&mut self) -> Result<(), Error> {
-        self.client.batch_execute("ROLLBACK")
+        if self.depth == 0 {
+            self.client.batch_execute("ROLLBACK")
+        } else {
+            self.client
+                .batch_execute(&format!("ROLLBACK TO sp{}", self.depth))
+        }
     }
 
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
@@ -62,5 +74,16 @@ impl<'a> Transaction<'a> {
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.client.batch_execute(query)
+    }
+
+    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        let depth = self.depth + 1;
+        self.client
+            .batch_execute(&format!("SAVEPOINT sp{}", depth))?;
+        Ok(Transaction {
+            client: self.client,
+            depth,
+            done: false,
+        })
     }
 }

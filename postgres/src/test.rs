@@ -93,3 +93,54 @@ fn transaction_drop() {
     let rows = client.query("SELECT * FROM foo", &[]).unwrap();
     assert_eq!(rows.len(), 0);
 }
+
+#[test]
+fn nested_transactions() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
+        .unwrap();
+
+    let mut transaction = client.transaction().unwrap();
+
+    transaction
+        .execute("INSERT INTO foo (id) VALUES (1)", &[])
+        .unwrap();
+
+    let mut transaction2 = transaction.transaction().unwrap();
+
+    transaction2
+        .execute("INSERT INTO foo (id) VALUES (2)", &[])
+        .unwrap();
+
+    transaction2.rollback().unwrap();
+
+    let rows = transaction
+        .query("SELECT id FROM foo ORDER BY id", &[])
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+
+    let mut transaction3 = transaction.transaction().unwrap();
+
+    transaction3
+        .execute("INSERT INTO foo (id) VALUES(3)", &[])
+        .unwrap();
+
+    let mut transaction4 = transaction3.transaction().unwrap();
+
+    transaction4
+        .execute("INSERT INTO foo (id) VALUES(4)", &[])
+        .unwrap();
+
+    transaction4.commit().unwrap();
+    transaction3.commit().unwrap();
+    transaction.commit().unwrap();
+
+    let rows = client.query("SELECT id FROM foo ORDER BY id", &[]).unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[1].get::<_, i32>(0), 3);
+    assert_eq!(rows[2].get::<_, i32>(0), 4);
+}
