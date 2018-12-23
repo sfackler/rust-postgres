@@ -192,6 +192,7 @@ fn copy_out() {
         .unwrap();
     let mut s = String::new();
     reader.read_to_string(&mut s).unwrap();
+    drop(reader);
 
     assert_eq!(s, "1\tsteven\n2\ttimothy\n");
 

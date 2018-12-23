@@ -213,6 +213,11 @@ pub struct CopyOutReader<'a> {
     _p: PhantomData<&'a mut ()>,
 }
 
+// no-op impl to extend borrow until drop
+impl<'a> Drop for CopyOutReader<'a> {
+    fn drop(&mut self) {}
+}
+
 impl<'a> Read for CopyOutReader<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let b = self.fill_buf()?;
