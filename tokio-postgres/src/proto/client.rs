@@ -109,7 +109,7 @@ impl Client {
 
     pub fn send(&self, request: PendingRequest) -> Result<mpsc::Receiver<Message>, Error> {
         let (messages, idle) = request.0?;
-        let (sender, receiver) = mpsc::channel(0);
+        let (sender, receiver) = mpsc::channel(1);
         self.0
             .sender
             .unbounded_send(Request {
