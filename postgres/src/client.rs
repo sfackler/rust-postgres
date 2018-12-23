@@ -1,5 +1,5 @@
 use futures::sync::mpsc;
-use futures::{try_ready, Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use std::io::{self, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
@@ -73,6 +73,7 @@ impl Client {
             sender,
             reader,
             pending: None,
+            done: false,
         }
         .wait()
     }
@@ -125,23 +126,7 @@ struct CopyInFuture<R> {
     sender: mpsc::Sender<CopyData>,
     reader: R,
     pending: Option<CopyData>,
-}
-
-impl<R> CopyInFuture<R> {
-    fn poll_send_data(&mut self, data: CopyData) -> Poll<(), Error> {
-        match self.sender.start_send(data) {
-            Ok(AsyncSink::Ready) => Ok(Async::Ready(())),
-            Ok(AsyncSink::NotReady(pending)) => {
-                self.pending = Some(pending);
-                Ok(Async::NotReady)
-            }
-            // the future's hung up on its end of the channel, so we'll wait for it to report an error
-            Err(_) => {
-                self.pending = Some(CopyData::Done);
-                Ok(Async::NotReady)
-            }
-        }
-    }
+    done: bool,
 }
 
 impl<R> Future for CopyInFuture<R>
@@ -152,24 +137,45 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<u64, Error> {
-        if let Async::Ready(n) = self.future.poll()? {
-            return Ok(Async::Ready(n));
-        }
-
         loop {
+            if let Async::Ready(n) = self.future.poll()? {
+                return Ok(Async::Ready(n));
+            }
+
             let data = match self.pending.take() {
                 Some(pending) => pending,
                 None => {
+                    if self.done {
+                        continue;
+                    }
+
                     let mut buf = vec![];
                     match self.reader.by_ref().take(4096).read_to_end(&mut buf) {
-                        Ok(0) => CopyData::Done,
+                        Ok(0) => {
+                            self.done = true;
+                            CopyData::Done
+                        }
                         Ok(_) => CopyData::Data(buf),
-                        Err(e) => CopyData::Error(e),
+                        Err(e) => {
+                            self.done = true;
+                            CopyData::Error(e)
+                        }
                     }
                 }
             };
 
-            try_ready!(self.poll_send_data(data));
+            match self.sender.start_send(data) {
+                Ok(AsyncSink::Ready) => {}
+                Ok(AsyncSink::NotReady(pending)) => {
+                    self.pending = Some(pending);
+                    return Ok(Async::NotReady);
+                }
+                // the future's hung up on its end of the channel, so we'll wait for it to error
+                Err(_) => {
+                    self.done = true;
+                    return Ok(Async::NotReady);
+                }
+            }
         }
     }
 }
