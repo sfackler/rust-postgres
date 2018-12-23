@@ -10,6 +10,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::codec::PostgresCodec;
 use crate::proto::copy_in::CopyInReceiver;
+use crate::proto::idle::IdleGuard;
 use crate::{AsyncMessage, CancelData, Notification};
 use crate::{DbError, Error};
 
@@ -24,6 +25,12 @@ pub enum RequestMessages {
 pub struct Request {
     pub messages: RequestMessages,
     pub sender: mpsc::Sender<Message>,
+    pub idle: Option<IdleGuard>,
+}
+
+struct Response {
+    sender: mpsc::Sender<Message>,
+    _idle: Option<IdleGuard>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -40,7 +47,7 @@ pub struct Connection<S> {
     receiver: mpsc::UnboundedReceiver<Request>,
     pending_request: Option<RequestMessages>,
     pending_response: Option<Message>,
-    responses: VecDeque<mpsc::Sender<Message>>,
+    responses: VecDeque<Response>,
     state: State,
 }
 
@@ -124,8 +131,8 @@ where
                 m => m,
             };
 
-            let mut sender = match self.responses.pop_front() {
-                Some(sender) => sender,
+            let mut response = match self.responses.pop_front() {
+                Some(response) => response,
                 None => match message {
                     Message::ErrorResponse(error) => return Err(Error::db(error)),
                     _ => return Err(Error::unexpected_message()),
@@ -137,16 +144,16 @@ where
                 _ => false,
             };
 
-            match sender.start_send(message) {
+            match response.sender.start_send(message) {
                 // if the receiver's hung up we still need to page through the rest of the messages
                 // designated to it
                 Ok(AsyncSink::Ready) | Err(_) => {
                     if !request_complete {
-                        self.responses.push_front(sender);
+                        self.responses.push_front(response);
                     }
                 }
                 Ok(AsyncSink::NotReady(message)) => {
-                    self.responses.push_front(sender);
+                    self.responses.push_front(response);
                     self.pending_response = Some(message);
                     trace!("poll_read: waiting on sender");
                     return Ok(None);
@@ -164,7 +171,10 @@ where
         match try_ready_receive!(self.receiver.poll()) {
             Some(request) => {
                 trace!("polled new request");
-                self.responses.push_back(request.sender);
+                self.responses.push_back(Response {
+                    sender: request.sender,
+                    _idle: request.idle,
+                });
                 Ok(Async::Ready(Some(request.messages)))
             }
             None => Ok(Async::Ready(None)),

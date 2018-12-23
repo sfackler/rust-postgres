@@ -4,6 +4,7 @@ use futures::sync::mpsc;
 use futures::{future, stream, try_ready};
 use log::debug;
 use std::error::Error;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
@@ -682,4 +683,53 @@ fn transaction_builder_around_moved_client() {
 
     drop(client);
     runtime.run().unwrap();
+}
+
+#[test]
+fn poll_idle() {
+    struct IdleFuture {
+        client: tokio_postgres::Client,
+        query: Option<tokio_postgres::Prepare>,
+    }
+
+    impl Future for IdleFuture {
+        type Item = ();
+        type Error = tokio_postgres::Error;
+
+        fn poll(&mut self) -> Poll<(), tokio_postgres::Error> {
+            if let Some(_) = self.query.take() {
+                assert!(!self.client.poll_idle().unwrap().is_ready());
+                return Ok(Async::NotReady);
+            }
+
+            try_ready!(self.client.poll_idle());
+            assert!(QUERY_DONE.load(Ordering::SeqCst));
+
+            Ok(Async::Ready(()))
+        }
+    }
+
+    static QUERY_DONE: AtomicBool = AtomicBool::new(false);
+
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    let stmt = runtime.block_on(client.prepare("SELECT 1")).unwrap();
+
+    let query = client
+        .query(&stmt, &[])
+        .collect()
+        .map(|_| QUERY_DONE.store(true, Ordering::SeqCst))
+        .map_err(|e| panic!("{}", e));
+    runtime.spawn(query);
+
+    let future = IdleFuture {
+        query: Some(client.prepare("")),
+        client,
+    };
+    runtime.block_on(future).unwrap();
 }

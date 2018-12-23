@@ -31,6 +31,7 @@ mod copy_in;
 mod copy_out;
 mod execute;
 mod handshake;
+mod idle;
 mod portal;
 mod prepare;
 mod query;

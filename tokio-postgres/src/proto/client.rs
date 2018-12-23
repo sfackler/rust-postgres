@@ -1,7 +1,7 @@
 use antidote::Mutex;
 use bytes::IntoBuf;
 use futures::sync::mpsc;
-use futures::{AsyncSink, Sink, Stream};
+use futures::{AsyncSink, Poll, Sink, Stream};
 use postgres_protocol;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -14,6 +14,7 @@ use crate::proto::connection::{Request, RequestMessages};
 use crate::proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use crate::proto::copy_out::CopyOutStream;
 use crate::proto::execute::ExecuteFuture;
+use crate::proto::idle::{IdleGuard, IdleState};
 use crate::proto::portal::Portal;
 use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
@@ -22,7 +23,7 @@ use crate::proto::statement::Statement;
 use crate::types::{IsNull, Oid, ToSql, Type};
 use crate::Error;
 
-pub struct PendingRequest(Result<RequestMessages, Error>);
+pub struct PendingRequest(Result<(RequestMessages, IdleGuard), Error>);
 
 pub struct WeakClient(Weak<Inner>);
 
@@ -41,6 +42,7 @@ struct State {
 
 struct Inner {
     state: Mutex<State>,
+    idle: IdleState,
     sender: mpsc::UnboundedSender<Request>,
 }
 
@@ -56,12 +58,17 @@ impl Client {
                 typeinfo_enum_query: None,
                 typeinfo_composite_query: None,
             }),
+            idle: IdleState::new(),
             sender,
         }))
     }
 
     pub fn is_closed(&self) -> bool {
         self.0.sender.is_closed()
+    }
+
+    pub fn poll_idle(&self) -> Poll<(), Error> {
+        self.0.idle.poll_idle()
     }
 
     pub fn downgrade(&self) -> WeakClient {
@@ -101,11 +108,15 @@ impl Client {
     }
 
     pub fn send(&self, request: PendingRequest) -> Result<mpsc::Receiver<Message>, Error> {
-        let messages = request.0?;
+        let (messages, idle) = request.0?;
         let (sender, receiver) = mpsc::channel(0);
         self.0
             .sender
-            .unbounded_send(Request { messages, sender })
+            .unbounded_send(Request {
+                messages,
+                sender,
+                idle: Some(idle),
+            })
             .map(|_| receiver)
             .map_err(|_| Error::closed())
     }
@@ -134,7 +145,7 @@ impl Client {
     pub fn execute(&self, statement: &Statement, params: &[&dyn ToSql]) -> ExecuteFuture {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
-                .map(RequestMessages::Single),
+                .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
         );
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
@@ -142,7 +153,7 @@ impl Client {
     pub fn query(&self, statement: &Statement, params: &[&dyn ToSql]) -> QueryStream<Statement> {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
-                .map(RequestMessages::Single),
+                .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
         );
         QueryStream::new(self.clone(), pending, statement.clone())
     }
@@ -152,7 +163,8 @@ impl Client {
         if let Ok(ref mut buf) = buf {
             frontend::sync(buf);
         }
-        let pending = PendingRequest(buf.map(RequestMessages::Single));
+        let pending =
+            PendingRequest(buf.map(|m| (RequestMessages::Single(m), self.0.idle.guard())));
         BindFuture::new(self.clone(), pending, name, statement.clone())
     }
 
@@ -183,10 +195,13 @@ impl Client {
                 Ok(AsyncSink::Ready) => {}
                 _ => unreachable!("channel should have capacity"),
             }
-            RequestMessages::CopyIn {
-                receiver: CopyInReceiver::new(receiver),
-                pending_message: None,
-            }
+            (
+                RequestMessages::CopyIn {
+                    receiver: CopyInReceiver::new(receiver),
+                    pending_message: None,
+                },
+                self.0.idle.guard(),
+            )
         }));
         CopyInFuture::new(self.clone(), pending, statement.clone(), stream, sender)
     }
@@ -194,7 +209,7 @@ impl Client {
     pub fn copy_out(&self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOutStream {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
-                .map(RequestMessages::Single),
+                .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
         );
         CopyOutStream::new(self.clone(), pending, statement.clone())
     }
@@ -215,6 +230,7 @@ impl Client {
         let _ = self.0.sender.unbounded_send(Request {
             messages: RequestMessages::Single(buf),
             sender,
+            idle: None,
         });
     }
 
@@ -261,6 +277,8 @@ impl Client {
         F: FnOnce(&mut Vec<u8>) -> Result<(), Error>,
     {
         let mut buf = vec![];
-        PendingRequest(messages(&mut buf).map(|()| RequestMessages::Single(buf)))
+        PendingRequest(
+            messages(&mut buf).map(|()| (RequestMessages::Single(buf), self.0.idle.guard())),
+        )
     }
 }

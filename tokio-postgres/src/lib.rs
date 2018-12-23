@@ -102,6 +102,10 @@ impl Client {
     pub fn is_closed(&self) -> bool {
         self.0.is_closed()
     }
+
+    pub fn poll_idle(&mut self) -> Poll<(), Error> {
+        self.0.poll_idle()
+    }
 }
 
 #[must_use = "futures do nothing unless polled"]
