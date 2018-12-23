@@ -1,3 +1,4 @@
+use std::io::Read;
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
 
@@ -170,4 +171,29 @@ fn copy_in() {
     assert_eq!(rows[0].get::<_, &str>(1), "steven");
     assert_eq!(rows[1].get::<_, i32>(0), 2);
     assert_eq!(rows[1].get::<_, &str>(1), "timothy");
+}
+
+#[test]
+fn copy_out() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE foo (id INT, name TEXT);
+
+            INSERT INTO foo (id, name) VALUES (1, 'steven'), (2, 'timothy');
+            ",
+        )
+        .unwrap();
+
+    let mut reader = client
+        .copy_out("COPY foo (id, name) TO STDOUT", &[])
+        .unwrap();
+    let mut s = String::new();
+    reader.read_to_string(&mut s).unwrap();
+
+    assert_eq!(s, "1\tsteven\n2\ttimothy\n");
+
+    client.batch_execute("SELECT 1").unwrap();
 }

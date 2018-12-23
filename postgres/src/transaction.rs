@@ -2,7 +2,7 @@ use std::io::Read;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 
-use crate::{Client, Query, Statement};
+use crate::{Client, CopyOutReader, Query, Statement};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
@@ -84,6 +84,17 @@ impl<'a> Transaction<'a> {
         R: Read,
     {
         self.client.copy_in(query, params, reader)
+    }
+
+    pub fn copy_out<T>(
+        &mut self,
+        query: &T,
+        params: &[&dyn ToSql],
+    ) -> Result<CopyOutReader<'_>, Error>
+    where
+        T: ?Sized + Query,
+    {
+        self.client.copy_out(query, params)
     }
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {

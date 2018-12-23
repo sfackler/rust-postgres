@@ -10,6 +10,7 @@ default = ["runtime"]
 runtime = ["tokio-postgres/runtime", "tokio", "lazy_static", "log"]
 
 [dependencies]
+bytes = "0.4"
 futures = "0.1"
 tokio-postgres = { version = "0.3", path = "../tokio-postgres", default-features = false }
 

@@ -1,6 +1,9 @@
+use bytes::{Buf, Bytes};
+use futures::stream;
 use futures::sync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-use std::io::{self, Read};
+use std::io::{self, BufRead, Cursor, Read};
+use std::marker::PhantomData;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 #[cfg(feature = "runtime")]
@@ -76,6 +79,30 @@ impl Client {
             done: false,
         }
         .wait()
+    }
+
+    pub fn copy_out<T>(
+        &mut self,
+        query: &T,
+        params: &[&dyn ToSql],
+    ) -> Result<CopyOutReader<'_>, Error>
+    where
+        T: ?Sized + Query,
+    {
+        let statement = query.__statement(self)?;
+        let mut stream = self.0.copy_out(&statement.0, params).wait();
+
+        let cur = match stream.next() {
+            Some(Ok(cur)) => cur,
+            Some(Err(e)) => return Err(e),
+            None => Bytes::new(),
+        };
+
+        Ok(CopyOutReader {
+            stream,
+            cur: Cursor::new(cur),
+            _p: PhantomData,
+        })
     }
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
@@ -177,5 +204,39 @@ where
                 }
             }
         }
+    }
+}
+
+pub struct CopyOutReader<'a> {
+    stream: stream::Wait<tokio_postgres::CopyOut>,
+    cur: Cursor<Bytes>,
+    _p: PhantomData<&'a mut ()>,
+}
+
+impl<'a> Read for CopyOutReader<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let b = self.fill_buf()?;
+        let len = usize::min(buf.len(), b.len());
+        buf[..len].copy_from_slice(&b[..len]);
+        self.consume(len);
+        Ok(len)
+    }
+}
+
+impl<'a> BufRead for CopyOutReader<'a> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        if self.cur.remaining() == 0 {
+            match self.stream.next() {
+                Some(Ok(cur)) => self.cur = Cursor::new(cur),
+                Some(Err(e)) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+                None => {}
+            };
+        }
+
+        Ok(Buf::bytes(&self.cur))
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.cur.advance(amt);
     }
 }
