@@ -108,6 +108,18 @@ impl Client {
     pub fn is_closed(&self) -> bool {
         self.0.is_closed()
     }
+
+    pub fn get_ref(&self) -> &tokio_postgres::Client {
+        &self.0
+    }
+
+    pub fn get_mut(&mut self) -> &mut tokio_postgres::Client {
+        &mut self.0
+    }
+
+    pub fn into_inner(self) -> tokio_postgres::Client {
+        self.0
+    }
 }
 
 impl From<tokio_postgres::Client> for Client {
