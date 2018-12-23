@@ -133,12 +133,12 @@ impl<R> CopyInFuture<R> {
             Ok(AsyncSink::Ready) => Ok(Async::Ready(())),
             Ok(AsyncSink::NotReady(pending)) => {
                 self.pending = Some(pending);
-                return Ok(Async::NotReady);
+                Ok(Async::NotReady)
             }
             // the future's hung up on its end of the channel, so we'll wait for it to report an error
             Err(_) => {
                 self.pending = Some(CopyData::Done);
-                return Ok(Async::NotReady);
+                Ok(Async::NotReady)
             }
         }
     }
