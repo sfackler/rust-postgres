@@ -1,3 +1,4 @@
+use std::io::Read;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 
@@ -70,6 +71,19 @@ impl<'a> Transaction<'a> {
         T: ?Sized + Query,
     {
         self.client.query(query, params)
+    }
+
+    pub fn copy_in<T, R>(
+        &mut self,
+        query: &T,
+        params: &[&dyn ToSql],
+        reader: R,
+    ) -> Result<u64, Error>
+    where
+        T: ?Sized + Query,
+        R: Read,
+    {
+        self.client.copy_in(query, params, reader)
     }
 
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
