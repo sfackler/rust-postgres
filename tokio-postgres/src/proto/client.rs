@@ -189,7 +189,7 @@ impl Client {
         <S::Item as IntoBuf>::Buf: Send,
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
-        let (mut sender, receiver) = mpsc::channel(0);
+        let (mut sender, receiver) = mpsc::channel(1);
         let pending = PendingRequest(self.excecute_message(statement, params).map(|buf| {
             match sender.start_send(CopyMessage::Data(buf)) {
                 Ok(AsyncSink::Ready) => {}

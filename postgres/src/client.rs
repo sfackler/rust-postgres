@@ -1,4 +1,6 @@
-use futures::{Future, Stream};
+use futures::sync::mpsc;
+use futures::{try_ready, Async, AsyncSink, Future, Poll, Sink, Stream};
+use std::io::{self, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 #[cfg(feature = "runtime")]
@@ -52,6 +54,29 @@ impl Client {
         self.0.query(&statement.0, params).collect().wait()
     }
 
+    pub fn copy_in<T, R>(
+        &mut self,
+        query: &T,
+        params: &[&dyn ToSql],
+        reader: R,
+    ) -> Result<u64, Error>
+    where
+        T: ?Sized + Query,
+        R: Read,
+    {
+        let statement = query.__statement(self)?;
+        let (sender, receiver) = mpsc::channel(1);
+        let future = self.0.copy_in(&statement.0, params, CopyInStream(receiver));
+
+        CopyInFuture {
+            future,
+            sender,
+            reader,
+            pending: None,
+        }
+        .wait()
+    }
+
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.0.batch_execute(query).wait()
     }
@@ -69,5 +94,82 @@ impl Client {
 impl From<tokio_postgres::Client> for Client {
     fn from(c: tokio_postgres::Client) -> Client {
         Client(c)
+    }
+}
+
+enum CopyData {
+    Data(Vec<u8>),
+    Error(io::Error),
+    Done,
+}
+
+struct CopyInStream(mpsc::Receiver<CopyData>);
+
+impl Stream for CopyInStream {
+    type Item = Vec<u8>;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Vec<u8>>, io::Error> {
+        match self.0.poll().expect("mpsc::Receiver can't error") {
+            Async::Ready(Some(CopyData::Data(buf))) => Ok(Async::Ready(Some(buf))),
+            Async::Ready(Some(CopyData::Error(e))) => Err(e),
+            Async::Ready(Some(CopyData::Done)) => Ok(Async::Ready(None)),
+            Async::Ready(None) => Err(io::Error::new(io::ErrorKind::Other, "writer disconnected")),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+}
+
+struct CopyInFuture<R> {
+    future: tokio_postgres::CopyIn<CopyInStream>,
+    sender: mpsc::Sender<CopyData>,
+    reader: R,
+    pending: Option<CopyData>,
+}
+
+impl<R> CopyInFuture<R> {
+    fn poll_send_data(&mut self, data: CopyData) -> Poll<(), Error> {
+        match self.sender.start_send(data) {
+            Ok(AsyncSink::Ready) => Ok(Async::Ready(())),
+            Ok(AsyncSink::NotReady(pending)) => {
+                self.pending = Some(pending);
+                return Ok(Async::NotReady);
+            }
+            // the future's hung up on its end of the channel, so we'll wait for it to report an error
+            Err(_) => {
+                self.pending = Some(CopyData::Done);
+                return Ok(Async::NotReady);
+            }
+        }
+    }
+}
+
+impl<R> Future for CopyInFuture<R>
+where
+    R: Read,
+{
+    type Item = u64;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<u64, Error> {
+        if let Async::Ready(n) = self.future.poll()? {
+            return Ok(Async::Ready(n));
+        }
+
+        loop {
+            let data = match self.pending.take() {
+                Some(pending) => pending,
+                None => {
+                    let mut buf = vec![];
+                    match self.reader.by_ref().take(4096).read_to_end(&mut buf) {
+                        Ok(0) => CopyData::Done,
+                        Ok(_) => CopyData::Data(buf),
+                        Err(e) => CopyData::Error(e),
+                    }
+                }
+            };
+
+            try_ready!(self.poll_send_data(data));
+        }
     }
 }

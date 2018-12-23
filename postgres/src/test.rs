@@ -144,3 +144,30 @@ fn nested_transactions() {
     assert_eq!(rows[1].get::<_, i32>(0), 3);
     assert_eq!(rows[2].get::<_, i32>(0), 4);
 }
+
+#[test]
+fn copy_in() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
+        .unwrap();
+
+    client
+        .copy_in(
+            "COPY foo FROM stdin",
+            &[],
+            &mut &b"1\tsteven\n2\ttimothy"[..],
+        )
+        .unwrap();
+
+    let rows = client
+        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .unwrap();
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[0].get::<_, &str>(1), "steven");
+    assert_eq!(rows[1].get::<_, i32>(0), 2);
+    assert_eq!(rows[1].get::<_, &str>(1), "timothy");
+}
