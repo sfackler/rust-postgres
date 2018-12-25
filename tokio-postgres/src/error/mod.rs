@@ -356,6 +356,12 @@ enum Kind {
     InvalidPort,
     #[cfg(feature = "runtime")]
     InvalidPortCount,
+    #[cfg(feature = "runtime")]
+    InvalidConnectTimeout,
+    #[cfg(feature = "runtime")]
+    Timer,
+    #[cfg(feature = "runtime")]
+    ConnectTimeout,
 }
 
 struct ErrorInner {
@@ -401,6 +407,12 @@ impl fmt::Display for Error {
             Kind::InvalidPort => "invalid port",
             #[cfg(feature = "runtime")]
             Kind::InvalidPortCount => "wrong number of ports provided",
+            #[cfg(feature = "runtime")]
+            Kind::InvalidConnectTimeout => "invalid connect_timeout",
+            #[cfg(feature = "runtime")]
+            Kind::Timer => "timer error",
+            #[cfg(feature = "runtime")]
+            Kind::ConnectTimeout => "timed out connecting to server",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -522,5 +534,20 @@ impl Error {
     #[cfg(feature = "runtime")]
     pub(crate) fn invalid_port_count() -> Error {
         Error::new(Kind::InvalidPortCount, None)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_connect_timeout(e: ParseIntError) -> Error {
+        Error::new(Kind::InvalidConnectTimeout, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
+        Error::new(Kind::Timer, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn connect_timeout() -> Error {
+        Error::new(Kind::ConnectTimeout, None)
     }
 }
