@@ -117,7 +117,7 @@ where
                 return Err(Error::connect(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "resolved 0 addresses",
-                )))
+                )));
             }
         };
 
@@ -134,7 +134,7 @@ where
     ) -> Poll<AfterConnectingTcp<T>, Error> {
         let stream = loop {
             match state.future.poll() {
-                Ok(Async::Ready(stream)) => break Socket::new_tcp(stream),
+                Ok(Async::Ready(stream)) => break stream,
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => {
                     let addr = match state.addrs.next() {
@@ -146,6 +146,9 @@ where
             }
         };
         let state = state.take();
+
+        stream.set_nodelay(true).map_err(Error::connect)?;
+        let stream = Socket::new_tcp(stream);
 
         transition!(Handshaking {
             future: HandshakeFuture::new(stream, state.tls_mode, state.params),
