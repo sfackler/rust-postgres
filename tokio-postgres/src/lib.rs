@@ -9,7 +9,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 pub use crate::builder::*;
 pub use crate::error::*;
 use crate::proto::CancelFuture;
-pub use crate::row::{Row, RowIndex};
+pub use crate::row::*;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::stmt::Column;
@@ -358,14 +358,16 @@ where
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct BatchExecute(proto::SimpleQueryFuture);
+pub struct BatchExecute(proto::SimpleQueryStream);
 
 impl Future for BatchExecute {
     type Item = ();
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(), Error> {
-        self.0.poll()
+        while let Some(_) = try_ready!(self.0.poll()) {}
+
+        Ok(Async::Ready(()))
     }
 }
 

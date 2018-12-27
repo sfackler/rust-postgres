@@ -1,56 +1,70 @@
 use futures::sync::mpsc;
-use futures::{Poll, Stream};
+use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
-use state_machine_future::{transition, RentToOwn, StateMachineFuture};
+use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
-use crate::Error;
+use crate::{Error, StringRow};
 
-#[derive(StateMachineFuture)]
-pub enum SimpleQuery {
-    #[state_machine_future(start, transitions(ReadResponse))]
+pub enum State {
     Start {
         client: Client,
         request: PendingRequest,
     },
-    #[state_machine_future(transitions(Finished))]
-    ReadResponse { receiver: mpsc::Receiver<Message> },
-    #[state_machine_future(ready)]
-    Finished(()),
-    #[state_machine_future(error)]
-    Failed(Error),
+    ReadResponse {
+        receiver: mpsc::Receiver<Message>,
+    },
+    Done,
 }
 
-impl PollSimpleQuery for SimpleQuery {
-    fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start>) -> Poll<AfterStart, Error> {
-        let state = state.take();
-        let receiver = state.client.send(state.request)?;
+pub struct SimpleQueryStream(State);
 
-        transition!(ReadResponse { receiver })
-    }
+impl Stream for SimpleQueryStream {
+    type Item = StringRow;
+    type Error = Error;
 
-    fn poll_read_response<'a>(
-        state: &'a mut RentToOwn<'a, ReadResponse>,
-    ) -> Poll<AfterReadResponse, Error> {
+    fn poll(&mut self) -> Poll<Option<StringRow>, Error> {
         loop {
-            let message = try_ready_receive!(state.receiver.poll());
+            match mem::replace(&mut self.0, State::Done) {
+                State::Start { client, request } => {
+                    let receiver = client.send(request)?;
+                    self.0 = State::ReadResponse { receiver };
+                }
+                State::ReadResponse { mut receiver } => {
+                    let message = match receiver.poll() {
+                        Ok(Async::Ready(message)) => message,
+                        Ok(Async::NotReady) => {
+                            self.0 = State::ReadResponse { receiver };
+                            return Ok(Async::NotReady);
+                        }
+                        Err(()) => unreachable!("mpsc receiver can't panic"),
+                    };
 
-            match message {
-                Some(Message::CommandComplete(_))
-                | Some(Message::RowDescription(_))
-                | Some(Message::DataRow(_))
-                | Some(Message::EmptyQueryResponse) => {}
-                Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
-                Some(Message::ReadyForQuery(_)) => transition!(Finished(())),
-                Some(_) => return Err(Error::unexpected_message()),
-                None => return Err(Error::closed()),
+                    match message {
+                        Some(Message::CommandComplete(_))
+                        | Some(Message::RowDescription(_))
+                        | Some(Message::EmptyQueryResponse) => {
+                            self.0 = State::ReadResponse { receiver };
+                        }
+                        Some(Message::DataRow(body)) => {
+                            self.0 = State::ReadResponse { receiver };
+                            let row = StringRow::new(body)?;
+                            return Ok(Async::Ready(Some(row)));
+                        }
+                        Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
+                        Some(Message::ReadyForQuery(_)) => return Ok(Async::Ready(None)),
+                        Some(_) => return Err(Error::unexpected_message()),
+                        None => return Err(Error::closed()),
+                    }
+                }
+                State::Done => return Ok(Async::Ready(None)),
             }
         }
     }
 }
 
-impl SimpleQueryFuture {
-    pub fn new(client: Client, request: PendingRequest) -> SimpleQueryFuture {
-        SimpleQuery::start(client, request)
+impl SimpleQueryStream {
+    pub fn new(client: Client, request: PendingRequest) -> SimpleQueryStream {
+        SimpleQueryStream(State::Start { client, request })
     }
 }

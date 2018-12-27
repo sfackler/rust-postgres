@@ -59,7 +59,7 @@ pub use crate::proto::handshake::HandshakeFuture;
 pub use crate::proto::portal::Portal;
 pub use crate::proto::prepare::PrepareFuture;
 pub use crate::proto::query::QueryStream;
-pub use crate::proto::simple_query::SimpleQueryFuture;
+pub use crate::proto::simple_query::SimpleQueryStream;
 pub use crate::proto::statement::Statement;
 pub use crate::proto::tls::TlsFuture;
 pub use crate::proto::transaction::TransactionFuture;

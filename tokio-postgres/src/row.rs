@@ -2,6 +2,7 @@ use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
 use std::ops::Range;
+use std::str;
 
 use crate::proto;
 use crate::row::sealed::Sealed;
@@ -131,5 +132,52 @@ impl Row {
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         let value = FromSql::from_sql_nullable(ty, buf);
         value.map(Some).map_err(Error::from_sql)
+    }
+}
+
+pub struct StringRow {
+    body: DataRowBody,
+    ranges: Vec<Option<Range<usize>>>,
+}
+
+impl StringRow {
+    #[allow(clippy::new_ret_no_self)]
+    pub(crate) fn new(body: DataRowBody) -> Result<StringRow, Error> {
+        let ranges = body.ranges().collect().map_err(Error::parse)?;
+        Ok(StringRow { body, ranges })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.ranges.len()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<&str> {
+        match self.try_get(idx) {
+            Ok(Some(ok)) => ok,
+            Err(err) => panic!("error retrieving column {}: {}", idx, err),
+            Ok(None) => panic!("no such column {}", idx),
+        }
+    }
+
+    #[allow(clippy::option_option)] // FIXME
+    pub fn try_get(&self, idx: usize) -> Result<Option<Option<&str>>, Error> {
+        let buf = match self.ranges.get(idx) {
+            Some(range) => range.clone().map(|r| &self.body.buffer()[r]),
+            None => return Ok(None),
+        };
+
+        let v = match buf {
+            Some(buf) => {
+                let s = str::from_utf8(buf).map_err(|e| Error::from_sql(Box::new(e)))?;
+                Some(s)
+            }
+            None => None,
+        };
+
+        Ok(Some(v))
     }
 }

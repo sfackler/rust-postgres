@@ -8,8 +8,7 @@ pub struct Column {
 }
 
 impl Column {
-    #[doc(hidden)]
-    pub fn new(name: String, type_: Type) -> Column {
+    pub(crate) fn new(name: String, type_: Type) -> Column {
         Column { name, type_ }
     }
 

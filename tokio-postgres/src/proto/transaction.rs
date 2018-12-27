@@ -1,6 +1,6 @@
 use crate::proto::client::Client;
-use crate::proto::simple_query::SimpleQueryFuture;
-use futures::{try_ready, Async, Future, Poll};
+use crate::proto::simple_query::SimpleQueryStream;
+use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
 use crate::Error;
@@ -16,14 +16,14 @@ where
     #[state_machine_future(transitions(Running))]
     Beginning {
         client: Client,
-        begin: SimpleQueryFuture,
+        begin: SimpleQueryStream,
         future: F,
     },
     #[state_machine_future(transitions(Finishing))]
     Running { client: Client, future: F },
     #[state_machine_future(transitions(Finished))]
     Finishing {
-        future: SimpleQueryFuture,
+        future: SimpleQueryStream,
         result: Result<T, E>,
     },
     #[state_machine_future(ready)]
@@ -51,7 +51,8 @@ where
     fn poll_beginning<'a>(
         state: &'a mut RentToOwn<'a, Beginning<F, T, E>>,
     ) -> Poll<AfterBeginning<F, T, E>, E> {
-        try_ready!(state.begin.poll());
+        while let Some(_) = try_ready!(state.begin.poll()) {}
+
         let state = state.take();
         transition!(Running {
             client: state.client,
@@ -78,17 +79,20 @@ where
     fn poll_finishing<'a>(
         state: &'a mut RentToOwn<'a, Finishing<T, E>>,
     ) -> Poll<AfterFinishing<T>, E> {
-        match state.future.poll() {
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(())) => {
-                let t = state.take().result?;
-                transition!(Finished(t))
+        loop {
+            match state.future.poll() {
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(Some(_))) => {}
+                Ok(Async::Ready(None)) => {
+                    let t = state.take().result?;
+                    transition!(Finished(t))
+                }
+                Err(e) => match state.take().result {
+                    Ok(_) => return Err(e.into()),
+                    // prioritize the future's error over the rollback error
+                    Err(e) => return Err(e),
+                },
             }
-            Err(e) => match state.take().result {
-                Ok(_) => Err(e.into()),
-                // prioritize the future's error over the rollback error
-                Err(e) => Err(e),
-            },
         }
     }
 }

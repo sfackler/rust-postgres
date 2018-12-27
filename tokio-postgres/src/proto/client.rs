@@ -18,7 +18,7 @@ use crate::proto::idle::{IdleGuard, IdleState};
 use crate::proto::portal::Portal;
 use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
-use crate::proto::simple_query::SimpleQueryFuture;
+use crate::proto::simple_query::SimpleQueryStream;
 use crate::proto::statement::Statement;
 use crate::types::{IsNull, Oid, ToSql, Type};
 use crate::Error;
@@ -121,13 +121,13 @@ impl Client {
             .map_err(|_| Error::closed())
     }
 
-    pub fn batch_execute(&self, query: &str) -> SimpleQueryFuture {
+    pub fn batch_execute(&self, query: &str) -> SimpleQueryStream {
         let pending = self.pending(|buf| {
             frontend::query(query, buf).map_err(Error::parse)?;
             Ok(())
         });
 
-        SimpleQueryFuture::new(self.clone(), pending)
+        SimpleQueryStream::new(self.clone(), pending)
     }
 
     pub fn prepare(&self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {
