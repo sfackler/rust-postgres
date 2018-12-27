@@ -134,7 +134,7 @@ where
             Some(Message::AuthenticationCleartextPassword) => {
                 let pass = state.password.ok_or_else(Error::missing_password)?;
                 let mut buf = vec![];
-                frontend::password_message(&pass, &mut buf).map_err(Error::encode)?;
+                frontend::password_message(pass.as_bytes(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
                     future: state.stream.send(buf)
                 })
@@ -144,7 +144,7 @@ where
                 let output =
                     authentication::md5_hash(state.user.as_bytes(), pass.as_bytes(), body.salt());
                 let mut buf = vec![];
-                frontend::password_message(&output, &mut buf).map_err(Error::encode)?;
+                frontend::password_message(output.as_bytes(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
                     future: state.stream.send(buf)
                 })

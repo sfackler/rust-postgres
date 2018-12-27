@@ -45,7 +45,7 @@ pub enum Message<'a> {
         param_types: &'a [Oid],
     },
     PasswordMessage {
-        password: &'a str,
+        password: &'a [u8],
     },
     Query {
         query: &'a str,
@@ -200,8 +200,8 @@ where
     buf.push(b'B');
 
     write_body(buf, |buf| {
-        buf.write_cstr(portal)?;
-        buf.write_cstr(statement)?;
+        buf.write_cstr(portal.as_bytes())?;
+        buf.write_cstr(statement.as_bytes())?;
         write_counted(formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
         write_counted(
             values,
@@ -249,7 +249,7 @@ pub fn close(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'C');
     write_body(buf, |buf| {
         buf.push(variant);
-        buf.write_cstr(name)
+        buf.write_cstr(name.as_bytes())
     })
 }
 
@@ -272,7 +272,7 @@ pub fn copy_done(buf: &mut Vec<u8>) {
 #[inline]
 pub fn copy_fail(message: &str, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'f');
-    write_body(buf, |buf| buf.write_cstr(message))
+    write_body(buf, |buf| buf.write_cstr(message.as_bytes()))
 }
 
 #[inline]
@@ -280,7 +280,7 @@ pub fn describe(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'D');
     write_body(buf, |buf| {
         buf.push(variant);
-        buf.write_cstr(name)
+        buf.write_cstr(name.as_bytes())
     })
 }
 
@@ -288,7 +288,7 @@ pub fn describe(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
 pub fn execute(portal: &str, max_rows: i32, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'E');
     write_body(buf, |buf| {
-        buf.write_cstr(portal)?;
+        buf.write_cstr(portal.as_bytes())?;
         buf.write_i32::<BigEndian>(max_rows).unwrap();
         Ok(())
     })
@@ -301,15 +301,15 @@ where
 {
     buf.push(b'P');
     write_body(buf, |buf| {
-        buf.write_cstr(name)?;
-        buf.write_cstr(query)?;
+        buf.write_cstr(name.as_bytes())?;
+        buf.write_cstr(query.as_bytes())?;
         write_counted(param_types, |t, buf| buf.write_u32::<BigEndian>(t), buf)?;
         Ok(())
     })
 }
 
 #[inline]
-pub fn password_message(password: &str, buf: &mut Vec<u8>) -> io::Result<()> {
+pub fn password_message(password: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'p');
     write_body(buf, |buf| buf.write_cstr(password))
 }
@@ -317,14 +317,14 @@ pub fn password_message(password: &str, buf: &mut Vec<u8>) -> io::Result<()> {
 #[inline]
 pub fn query(query: &str, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'Q');
-    write_body(buf, |buf| buf.write_cstr(query))
+    write_body(buf, |buf| buf.write_cstr(query.as_bytes()))
 }
 
 #[inline]
 pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
     buf.push(b'p');
     write_body(buf, |buf| {
-        buf.write_cstr(mechanism)?;
+        buf.write_cstr(mechanism.as_bytes())?;
         let len = i32::from_usize(data.len())?;
         buf.write_i32::<BigEndian>(len)?;
         buf.extend_from_slice(data);
@@ -354,8 +354,8 @@ where
     write_body(buf, |buf| {
         buf.write_i32::<BigEndian>(196_608).unwrap();
         for (key, value) in parameters {
-            buf.write_cstr(key)?;
-            buf.write_cstr(value)?;
+            buf.write_cstr(key.as_bytes())?;
+            buf.write_cstr(value.as_bytes())?;
         }
         buf.push(0);
         Ok(())
@@ -375,19 +375,19 @@ pub fn terminate(buf: &mut Vec<u8>) {
 }
 
 trait WriteCStr {
-    fn write_cstr(&mut self, s: &str) -> Result<(), io::Error>;
+    fn write_cstr(&mut self, s: &[u8]) -> Result<(), io::Error>;
 }
 
 impl WriteCStr for Vec<u8> {
     #[inline]
-    fn write_cstr(&mut self, s: &str) -> Result<(), io::Error> {
-        if s.as_bytes().contains(&0) {
+    fn write_cstr(&mut self, s: &[u8]) -> Result<(), io::Error> {
+        if s.contains(&0) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "string contains embedded null",
             ));
         }
-        self.extend_from_slice(s.as_bytes());
+        self.extend_from_slice(s);
         self.push(0);
         Ok(())
     }
