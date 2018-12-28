@@ -1,4 +1,4 @@
-use std::collections::hash_map::{self, HashMap};
+use std::collections::HashMap;
 use std::iter;
 #[cfg(all(feature = "runtime", unix))]
 use std::path::{Path, PathBuf};
@@ -168,23 +168,6 @@ impl FromStr for Builder {
         }
 
         Ok(builder)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Iter<'a>(hash_map::Iter<'a, String, String>);
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = (&'a str, &'a str);
-
-    fn next(&mut self) -> Option<(&'a str, &'a str)> {
-        self.0.next().map(|(k, v)| (&**k, &**v))
-    }
-}
-
-impl<'a> ExactSizeIterator for Iter<'a> {
-    fn len(&self) -> usize {
-        self.0.len()
     }
 }
 
