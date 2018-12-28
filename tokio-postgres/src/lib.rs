@@ -44,6 +44,7 @@ where
     CancelQuery(CancelFuture::new(stream, tls_mode, cancel_data))
 }
 
+#[derive(Clone)]
 pub struct Client(proto::Client);
 
 impl Client {
