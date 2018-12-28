@@ -67,10 +67,7 @@ impl Builder {
         #[cfg(unix)]
         {
             if host.starts_with('/') {
-                Arc::make_mut(&mut self.0)
-                    .host
-                    .push(Host::Unix(PathBuf::from(host)));
-                return self;
+                return self.host_path(host);
             }
         }
 
