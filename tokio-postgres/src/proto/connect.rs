@@ -1,10 +1,8 @@
 use futures::{try_ready, Async, Future, Poll};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
-use std::collections::HashMap;
-use std::vec;
 
 use crate::proto::{Client, ConnectOnceFuture, Connection};
-use crate::{Error, MakeTlsMode, Socket};
+use crate::{Builder, Error, Host, MakeTlsMode, Socket};
 
 #[derive(StateMachineFuture)]
 pub enum Connect<T>
@@ -12,25 +10,20 @@ where
     T: MakeTlsMode<Socket>,
 {
     #[state_machine_future(start, transitions(MakingTlsMode))]
-    Start {
-        make_tls_mode: T,
-        params: HashMap<String, String>,
-    },
+    Start { make_tls_mode: T, config: Builder },
     #[state_machine_future(transitions(Connecting))]
     MakingTlsMode {
         future: T::Future,
-        host: String,
-        port: u16,
-        addrs: vec::IntoIter<(String, u16)>,
+        idx: usize,
         make_tls_mode: T,
-        params: HashMap<String, String>,
+        config: Builder,
     },
     #[state_machine_future(transitions(MakingTlsMode, Finished))]
     Connecting {
         future: ConnectOnceFuture<T::TlsMode>,
-        addrs: vec::IntoIter<(String, u16)>,
+        idx: usize,
         make_tls_mode: T,
-        params: HashMap<String, String>,
+        config: Builder,
     },
     #[state_machine_future(ready)]
     Finished((Client, Connection<T::Stream>)),
@@ -45,47 +38,27 @@ where
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let mut state = state.take();
 
-        let host = match state.params.remove("host") {
-            Some(host) => host,
-            None => return Err(Error::missing_host()),
-        };
-        let mut addrs = host
-            .split(',')
-            .map(|s| (s.to_string(), 0u16))
-            .collect::<Vec<_>>();
-
-        let port = state.params.remove("port").unwrap_or_else(String::new);
-        let mut ports = port
-            .split(',')
-            .map(|s| {
-                if s.is_empty() {
-                    Ok(5432)
-                } else {
-                    s.parse::<u16>().map_err(Error::invalid_port)
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if ports.len() == 1 {
-            ports.resize(addrs.len(), ports[0]);
+        if state.config.host.is_empty() {
+            return Err(Error::missing_host());
         }
-        if addrs.len() != ports.len() {
+
+        if state.config.port.len() > 1 && state.config.port.len() != state.config.host.len() {
             return Err(Error::invalid_port_count());
         }
 
-        for (addr, port) in addrs.iter_mut().zip(ports) {
-            addr.1 = port;
-        }
-
-        let mut addrs = addrs.into_iter();
-        let (host, port) = addrs.next().expect("addrs cannot be empty");
+        let hostname = match &state.config.host[0] {
+            Host::Tcp(host) => &**host,
+            // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
+            #[cfg(unix)]
+            Host::Unix(_) => "",
+        };
+        let future = state.make_tls_mode.make_tls_mode(hostname);
 
         transition!(MakingTlsMode {
-            future: state.make_tls_mode.make_tls_mode(&host),
-            host,
-            port,
-            addrs,
+            future,
+            idx: 0,
             make_tls_mode: state.make_tls_mode,
-            params: state.params,
+            config: state.config,
         })
     }
 
@@ -96,10 +69,10 @@ where
         let state = state.take();
 
         transition!(Connecting {
-            future: ConnectOnceFuture::new(state.host, state.port, tls_mode, state.params.clone()),
-            addrs: state.addrs,
+            future: ConnectOnceFuture::new(state.idx, tls_mode, state.config.clone()),
+            idx: state.idx,
             make_tls_mode: state.make_tls_mode,
-            params: state.params,
+            config: state.config,
         })
     }
 
@@ -111,18 +84,25 @@ where
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => {
                 let mut state = state.take();
-                let (host, port) = match state.addrs.next() {
-                    Some(addr) => addr,
+                let idx = state.idx + 1;
+
+                let host = match state.config.host.get(idx) {
+                    Some(host) => host,
                     None => return Err(e),
                 };
 
+                let hostname = match host {
+                    Host::Tcp(host) => &**host,
+                    #[cfg(unix)]
+                    Host::Unix(_) => "",
+                };
+                let future = state.make_tls_mode.make_tls_mode(hostname);
+
                 transition!(MakingTlsMode {
-                    future: state.make_tls_mode.make_tls_mode(&host),
-                    host,
-                    port,
-                    addrs: state.addrs,
+                    future,
+                    idx,
                     make_tls_mode: state.make_tls_mode,
-                    params: state.params,
+                    config: state.config,
                 })
             }
         }
@@ -133,7 +113,7 @@ impl<T> ConnectFuture<T>
 where
     T: MakeTlsMode<Socket>,
 {
-    pub fn new(make_tls_mode: T, params: HashMap<String, String>) -> ConnectFuture<T> {
-        Connect::start(make_tls_mode, params)
+    pub fn new(make_tls_mode: T, config: Builder) -> ConnectFuture<T> {
+        Connect::start(make_tls_mode, config)
     }
 }

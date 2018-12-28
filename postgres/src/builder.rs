@@ -1,7 +1,9 @@
 use futures::sync::oneshot;
 use futures::Future;
 use log::error;
+use std::path::Path;
 use std::str::FromStr;
+use std::time::Duration;
 use tokio_postgres::{Error, MakeTlsMode, Socket, TlsMode};
 
 use crate::{Client, RUNTIME};
@@ -19,8 +21,40 @@ impl Builder {
         Builder(tokio_postgres::Builder::new())
     }
 
+    pub fn host(&mut self, host: &str) -> &mut Builder {
+        self.0.host(host);
+        self
+    }
+
+    #[cfg(unix)]
+    pub fn host_path<T>(&mut self, host: T) -> &mut Builder
+    where
+        T: AsRef<Path>,
+    {
+        self.0.host_path(host);
+        self
+    }
+
+    pub fn port(&mut self, port: u16) -> &mut Builder {
+        self.0.port(port);
+        self
+    }
+
     pub fn param(&mut self, key: &str, value: &str) -> &mut Builder {
         self.0.param(key, value);
+        self
+    }
+
+    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Builder {
+        self.0.connect_timeout(connect_timeout);
+        self
+    }
+
+    pub fn password<T>(&mut self, password: T) -> &mut Builder
+    where
+        T: AsRef<[u8]>,
+    {
+        self.0.password(password);
         self
     }
 

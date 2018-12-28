@@ -13,7 +13,7 @@ use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
-use crate::{CancelData, ChannelBinding, Error, TlsMode};
+use crate::{Builder, CancelData, ChannelBinding, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Handshake<S, T>
@@ -24,20 +24,18 @@ where
     #[state_machine_future(start, transitions(SendingStartup))]
     Start {
         future: TlsFuture<S, T>,
-        params: HashMap<String, String>,
+        config: Builder,
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
         future: sink::Send<Framed<T::Stream, PostgresCodec>>,
-        user: String,
-        password: Option<String>,
+        config: Builder,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
         stream: Framed<T::Stream, PostgresCodec>,
-        user: String,
-        password: Option<String>,
+        config: Builder,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
@@ -77,31 +75,24 @@ where
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S, T>>) -> Poll<AfterStart<S, T>, Error> {
         let (stream, channel_binding) = try_ready!(state.future.poll());
-        let mut state = state.take();
-
-        // we don't want to send the password as a param
-        let password = state.params.remove("password");
-
-        // libpq uses the parameter "dbname" but the protocol expects "database" (!?!)
-        if let Some(dbname) = state.params.remove("dbname") {
-            state.params.insert("database".to_string(), dbname);
-        }
+        let state = state.take();
 
         let mut buf = vec![];
-        frontend::startup_message(state.params.iter().map(|(k, v)| (&**k, &**v)), &mut buf)
-            .map_err(Error::encode)?;
+        frontend::startup_message(
+            state.config.params.iter().map(|(k, v)| {
+                // libpq uses dbname, but the backend expects database (!)
+                let k = if k == "dbname" { "database" } else { &**k };
+                (k, &**v)
+            }),
+            &mut buf,
+        )
+        .map_err(Error::encode)?;
 
         let stream = Framed::new(stream, PostgresCodec);
 
-        let user = state
-            .params
-            .remove("user")
-            .ok_or_else(Error::missing_user)?;
-
         transition!(SendingStartup {
             future: stream.send(buf),
-            user,
-            password,
+            config: state.config,
             channel_binding,
         })
     }
@@ -113,8 +104,7 @@ where
         let state = state.take();
         transition!(ReadingAuth {
             stream,
-            user: state.user,
-            password: state.password,
+            config: state.config,
             channel_binding: state.channel_binding,
         })
     }
@@ -132,17 +122,29 @@ where
                 parameters: HashMap::new(),
             }),
             Some(Message::AuthenticationCleartextPassword) => {
-                let pass = state.password.ok_or_else(Error::missing_password)?;
+                let pass = state
+                    .config
+                    .password
+                    .as_ref()
+                    .ok_or_else(Error::missing_password)?;
                 let mut buf = vec![];
-                frontend::password_message(pass.as_bytes(), &mut buf).map_err(Error::encode)?;
+                frontend::password_message(pass, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
                     future: state.stream.send(buf)
                 })
             }
             Some(Message::AuthenticationMd5Password(body)) => {
-                let pass = state.password.ok_or_else(Error::missing_password)?;
-                let output =
-                    authentication::md5_hash(state.user.as_bytes(), pass.as_bytes(), body.salt());
+                let user = state
+                    .config
+                    .params
+                    .get("user")
+                    .ok_or_else(Error::missing_user)?;
+                let pass = state
+                    .config
+                    .password
+                    .as_ref()
+                    .ok_or_else(Error::missing_password)?;
+                let output = authentication::md5_hash(user.as_bytes(), pass, body.salt());
                 let mut buf = vec![];
                 frontend::password_message(output.as_bytes(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
@@ -150,7 +152,11 @@ where
                 })
             }
             Some(Message::AuthenticationSasl(body)) => {
-                let pass = state.password.ok_or_else(Error::missing_password)?;
+                let pass = state
+                    .config
+                    .password
+                    .as_ref()
+                    .ok_or_else(Error::missing_password)?;
 
                 let mut has_scram = false;
                 let mut has_scram_plus = false;
@@ -187,7 +193,7 @@ where
                     return Err(Error::unsupported_authentication());
                 };
 
-                let scram = ScramSha256::new(pass.as_bytes(), channel_binding);
+                let scram = ScramSha256::new(pass, channel_binding);
 
                 let mut buf = vec![];
                 frontend::sasl_initial_response(mechanism, scram.message(), &mut buf)
@@ -324,7 +330,7 @@ where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(stream: S, tls_mode: T, params: HashMap<String, String>) -> HandshakeFuture<S, T> {
-        Handshake::start(TlsFuture::new(stream, tls_mode), params)
+    pub fn new(stream: S, tls_mode: T, config: Builder) -> HandshakeFuture<S, T> {
+        Handshake::start(TlsFuture::new(stream, tls_mode), config)
     }
 }

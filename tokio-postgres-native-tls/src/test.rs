@@ -6,12 +6,14 @@ use tokio_postgres::{self, PreferTls, RequireTls, TlsMode};
 
 use crate::TlsConnector;
 
-fn smoke_test<T>(builder: &tokio_postgres::Builder, tls: T)
+fn smoke_test<T>(s: &str, tls: T)
 where
     T: TlsMode<TcpStream>,
     T::Stream: 'static,
 {
     let mut runtime = Runtime::new().unwrap();
+
+    let builder = s.parse::<tokio_postgres::Builder>().unwrap();
 
     let handshake = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))
@@ -42,9 +44,7 @@ fn require() {
         .build()
         .unwrap();
     smoke_test(
-        tokio_postgres::Builder::new()
-            .user("ssl_user")
-            .dbname("postgres"),
+        "user=ssl_user dbname=postgres",
         RequireTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }
@@ -58,9 +58,7 @@ fn prefer() {
         .build()
         .unwrap();
     smoke_test(
-        tokio_postgres::Builder::new()
-            .user("ssl_user")
-            .dbname("postgres"),
+        "user=ssl_user dbname=postgres",
         PreferTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }
@@ -74,10 +72,7 @@ fn scram_user() {
         .build()
         .unwrap();
     smoke_test(
-        tokio_postgres::Builder::new()
-            .user("scram_user")
-            .password("password")
-            .dbname("postgres"),
+        "user=scram_user password=password dbname=postgres",
         RequireTls(TlsConnector::with_connector(connector, "localhost")),
     );
 }

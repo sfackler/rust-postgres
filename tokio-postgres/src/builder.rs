@@ -1,6 +1,10 @@
 use std::collections::hash_map::{self, HashMap};
 use std::iter;
+#[cfg(all(feature = "runtime", unix))]
+use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
+#[cfg(feature = "runtime")]
+use std::time::Duration;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
@@ -10,9 +14,24 @@ use crate::proto::HandshakeFuture;
 use crate::{Connect, MakeTlsMode, Socket};
 use crate::{Error, Handshake, TlsMode};
 
-#[derive(Clone)]
+#[cfg(feature = "runtime")]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Host {
+    Tcp(String),
+    #[cfg(unix)]
+    Unix(PathBuf),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Builder {
-    params: HashMap<String, String>,
+    pub(crate) params: HashMap<String, String>,
+    pub(crate) password: Option<Vec<u8>>,
+    #[cfg(feature = "runtime")]
+    pub(crate) host: Vec<Host>,
+    #[cfg(feature = "runtime")]
+    pub(crate) port: Vec<u16>,
+    #[cfg(feature = "runtime")]
+    pub(crate) connect_timeout: Option<Duration>,
 }
 
 impl Default for Builder {
@@ -27,19 +46,59 @@ impl Builder {
         params.insert("client_encoding".to_string(), "UTF8".to_string());
         params.insert("timezone".to_string(), "GMT".to_string());
 
-        Builder { params }
+        Builder {
+            params,
+            password: None,
+            #[cfg(feature = "runtime")]
+            host: vec![],
+            #[cfg(feature = "runtime")]
+            port: vec![],
+            #[cfg(feature = "runtime")]
+            connect_timeout: None,
+        }
     }
 
-    pub fn user(&mut self, user: &str) -> &mut Builder {
-        self.param("user", user)
+    #[cfg(feature = "runtime")]
+    pub fn host(&mut self, host: &str) -> &mut Builder {
+        #[cfg(unix)]
+        {
+            if host.starts_with('/') {
+                self.host.push(Host::Unix(PathBuf::from(host)));
+                return self;
+            }
+        }
+
+        self.host.push(Host::Tcp(host.to_string()));
+        self
     }
 
-    pub fn dbname(&mut self, database: &str) -> &mut Builder {
-        self.param("dbname", database)
+    #[cfg(all(feature = "runtime", unix))]
+    pub fn host_path<T>(&mut self, host: T) -> &mut Builder
+    where
+        T: AsRef<Path>,
+    {
+        self.host.push(Host::Unix(host.as_ref().to_path_buf()));
+        self
     }
 
-    pub fn password(&mut self, password: &str) -> &mut Builder {
-        self.param("password", password)
+    #[cfg(feature = "runtime")]
+    pub fn port(&mut self, port: u16) -> &mut Builder {
+        self.port.push(port);
+        self
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Builder {
+        self.connect_timeout = Some(connect_timeout);
+        self
+    }
+
+    pub fn password<T>(&mut self, password: T) -> &mut Builder
+    where
+        T: AsRef<[u8]>,
+    {
+        self.password = Some(password.as_ref().to_vec());
+        self
     }
 
     pub fn param(&mut self, key: &str, value: &str) -> &mut Builder {
@@ -47,17 +106,12 @@ impl Builder {
         self
     }
 
-    /// FIXME do we want this?
-    pub fn iter(&self) -> Iter<'_> {
-        Iter(self.params.iter())
-    }
-
     pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
     where
         S: AsyncRead + AsyncWrite,
         T: TlsMode<S>,
     {
-        Handshake(HandshakeFuture::new(stream, tls_mode, self.params.clone()))
+        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone()))
     }
 
     #[cfg(feature = "runtime")]
@@ -65,7 +119,7 @@ impl Builder {
     where
         T: MakeTlsMode<Socket>,
     {
-        Connect(ConnectFuture::new(make_tls_mode, self.params.clone()))
+        Connect(ConnectFuture::new(make_tls_mode, self.clone()))
     }
 }
 
@@ -77,7 +131,40 @@ impl FromStr for Builder {
         let mut builder = Builder::new();
 
         while let Some((key, value)) = parser.parameter()? {
-            builder.params.insert(key.to_string(), value);
+            match key {
+                "password" => {
+                    builder.password(value);
+                }
+                #[cfg(feature = "runtime")]
+                "host" => {
+                    for host in value.split(',') {
+                        builder.host(host);
+                    }
+                }
+                #[cfg(feature = "runtime")]
+                "port" => {
+                    for port in value.split(',') {
+                        let port = if port.is_empty() {
+                            5432
+                        } else {
+                            port.parse().map_err(Error::invalid_port)?
+                        };
+                        builder.port(port);
+                    }
+                }
+                #[cfg(feature = "runtime")]
+                "connect_timeout" => {
+                    let timeout = value
+                        .parse::<i64>()
+                        .map_err(Error::invalid_connect_timeout)?;
+                    if timeout > 0 {
+                        builder.connect_timeout(Duration::from_secs(timeout as u64));
+                    }
+                }
+                key => {
+                    builder.param(key, &value);
+                }
+            }
         }
 
         Ok(builder)
