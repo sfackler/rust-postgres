@@ -38,15 +38,15 @@ where
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let mut state = state.take();
 
-        if state.config.host.is_empty() {
+        if state.config.0.host.is_empty() {
             return Err(Error::missing_host());
         }
 
-        if state.config.port.len() > 1 && state.config.port.len() != state.config.host.len() {
+        if state.config.0.port.len() > 1 && state.config.0.port.len() != state.config.0.host.len() {
             return Err(Error::invalid_port_count());
         }
 
-        let hostname = match &state.config.host[0] {
+        let hostname = match &state.config.0.host[0] {
             Host::Tcp(host) => &**host,
             // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
@@ -86,7 +86,7 @@ where
                 let mut state = state.take();
                 let idx = state.idx + 1;
 
-                let host = match state.config.host.get(idx) {
+                let host = match state.config.0.host.get(idx) {
                     Some(host) => host,
                     None => return Err(e),
                 };

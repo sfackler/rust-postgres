@@ -3,6 +3,7 @@ use std::iter;
 #[cfg(all(feature = "runtime", unix))]
 use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
+use std::sync::Arc;
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -23,7 +24,7 @@ pub(crate) enum Host {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Builder {
+pub(crate) struct Inner {
     pub(crate) params: HashMap<String, String>,
     pub(crate) password: Option<Vec<u8>>,
     #[cfg(feature = "runtime")]
@@ -33,6 +34,9 @@ pub struct Builder {
     #[cfg(feature = "runtime")]
     pub(crate) connect_timeout: Option<Duration>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Builder(pub(crate) Arc<Inner>);
 
 impl Default for Builder {
     fn default() -> Builder {
@@ -46,7 +50,7 @@ impl Builder {
         params.insert("client_encoding".to_string(), "UTF8".to_string());
         params.insert("timezone".to_string(), "GMT".to_string());
 
-        Builder {
+        Builder(Arc::new(Inner {
             params,
             password: None,
             #[cfg(feature = "runtime")]
@@ -55,7 +59,7 @@ impl Builder {
             port: vec![],
             #[cfg(feature = "runtime")]
             connect_timeout: None,
-        }
+        }))
     }
 
     #[cfg(feature = "runtime")]
@@ -63,12 +67,16 @@ impl Builder {
         #[cfg(unix)]
         {
             if host.starts_with('/') {
-                self.host.push(Host::Unix(PathBuf::from(host)));
+                Arc::make_mut(&mut self.0)
+                    .host
+                    .push(Host::Unix(PathBuf::from(host)));
                 return self;
             }
         }
 
-        self.host.push(Host::Tcp(host.to_string()));
+        Arc::make_mut(&mut self.0)
+            .host
+            .push(Host::Tcp(host.to_string()));
         self
     }
 
@@ -77,19 +85,21 @@ impl Builder {
     where
         T: AsRef<Path>,
     {
-        self.host.push(Host::Unix(host.as_ref().to_path_buf()));
+        Arc::make_mut(&mut self.0)
+            .host
+            .push(Host::Unix(host.as_ref().to_path_buf()));
         self
     }
 
     #[cfg(feature = "runtime")]
     pub fn port(&mut self, port: u16) -> &mut Builder {
-        self.port.push(port);
+        Arc::make_mut(&mut self.0).port.push(port);
         self
     }
 
     #[cfg(feature = "runtime")]
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Builder {
-        self.connect_timeout = Some(connect_timeout);
+        Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
         self
     }
 
@@ -97,12 +107,14 @@ impl Builder {
     where
         T: AsRef<[u8]>,
     {
-        self.password = Some(password.as_ref().to_vec());
+        Arc::make_mut(&mut self.0).password = Some(password.as_ref().to_vec());
         self
     }
 
     pub fn param(&mut self, key: &str, value: &str) -> &mut Builder {
-        self.params.insert(key.to_string(), value.to_string());
+        Arc::make_mut(&mut self.0)
+            .params
+            .insert(key.to_string(), value.to_string());
         self
     }
 

@@ -78,17 +78,19 @@ where
 
         let port = *state
             .config
+            .0
             .port
             .get(state.idx)
-            .or_else(|| state.config.port.get(0))
+            .or_else(|| state.config.0.port.get(0))
             .unwrap_or(&5432);
 
         let timeout = state
             .config
+            .0
             .connect_timeout
             .map(|d| Delay::new(Instant::now() + d));
 
-        match &state.config.host[state.idx] {
+        match &state.config.0.host[state.idx] {
             Host::Tcp(host) => {
                 let host = host.clone();
                 transition!(ResolvingDns {

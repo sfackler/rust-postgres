@@ -79,7 +79,7 @@ where
 
         let mut buf = vec![];
         frontend::startup_message(
-            state.config.params.iter().map(|(k, v)| {
+            state.config.0.params.iter().map(|(k, v)| {
                 // libpq uses dbname, but the backend expects database (!)
                 let k = if k == "dbname" { "database" } else { &**k };
                 (k, &**v)
@@ -124,6 +124,7 @@ where
             Some(Message::AuthenticationCleartextPassword) => {
                 let pass = state
                     .config
+                    .0
                     .password
                     .as_ref()
                     .ok_or_else(Error::missing_password)?;
@@ -136,11 +137,13 @@ where
             Some(Message::AuthenticationMd5Password(body)) => {
                 let user = state
                     .config
+                    .0
                     .params
                     .get("user")
                     .ok_or_else(Error::missing_user)?;
                 let pass = state
                     .config
+                    .0
                     .password
                     .as_ref()
                     .ok_or_else(Error::missing_password)?;
@@ -154,6 +157,7 @@ where
             Some(Message::AuthenticationSasl(body)) => {
                 let pass = state
                     .config
+                    .0
                     .password
                     .as_ref()
                     .ok_or_else(Error::missing_password)?;
