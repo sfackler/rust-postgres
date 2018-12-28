@@ -1,8 +1,9 @@
+use futures::{Future, Stream};
 use std::io::Read;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 
-use crate::{Client, CopyOutReader, Query, Statement};
+use crate::{Client, CopyOutReader, Portal, Query, Statement};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
@@ -71,6 +72,26 @@ impl<'a> Transaction<'a> {
         T: ?Sized + Query,
     {
         self.client.query(query, params)
+    }
+
+    pub fn bind<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Portal, Error>
+    where
+        T: ?Sized + Query,
+    {
+        let statement = query.__statement(&mut self.client)?;
+        self.client
+            .get_mut()
+            .bind(&statement.0, params)
+            .wait()
+            .map(Portal)
+    }
+
+    pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
+        self.client
+            .get_mut()
+            .query_portal(&portal.0, max_rows)
+            .collect()
+            .wait()
     }
 
     pub fn copy_in<T, R>(

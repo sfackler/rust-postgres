@@ -198,3 +198,33 @@ fn copy_out() {
 
     client.batch_execute("SELECT 1").unwrap();
 }
+
+#[test]
+fn portal() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE foo (id INT);
+
+            INSERT INTO foo (id) VALUES (1), (2), (3);
+            ",
+        )
+        .unwrap();
+
+    let mut transaction = client.transaction().unwrap();
+
+    let portal = transaction
+        .bind("SELECT * FROM foo ORDER BY id", &[])
+        .unwrap();
+
+    let rows = transaction.query_portal(&portal, 2).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[1].get::<_, i32>(0), 2);
+
+    let rows = transaction.query_portal(&portal, 2).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, i32>(0), 3);
+}

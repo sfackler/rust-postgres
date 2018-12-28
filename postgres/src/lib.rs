@@ -6,6 +6,7 @@ use tokio::runtime::{self, Runtime};
 #[cfg(feature = "runtime")]
 mod builder;
 mod client;
+mod portal;
 mod query;
 mod statement;
 mod transaction;
@@ -17,6 +18,7 @@ mod test;
 #[cfg(feature = "runtime")]
 pub use crate::builder::*;
 pub use crate::client::*;
+pub use crate::portal::*;
 pub use crate::query::*;
 pub use crate::statement::*;
 pub use crate::transaction::*;
