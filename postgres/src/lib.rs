@@ -6,6 +6,7 @@ use tokio::runtime::{self, Runtime};
 #[cfg(feature = "runtime")]
 mod builder;
 mod client;
+mod copy_out_reader;
 mod portal;
 mod query;
 mod query_portal;
@@ -20,6 +21,7 @@ mod test;
 #[cfg(feature = "runtime")]
 pub use crate::builder::*;
 pub use crate::client::*;
+pub use crate::copy_out_reader::*;
 pub use crate::portal::*;
 pub use crate::query::*;
 pub use crate::query_portal::*;
