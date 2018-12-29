@@ -10,7 +10,10 @@ where
     T: MakeTlsMode<Socket>,
 {
     #[state_machine_future(start, transitions(MakingTlsMode))]
-    Start { make_tls_mode: T, config: Builder },
+    Start {
+        make_tls_mode: T,
+        config: Result<Builder, Error>,
+    },
     #[state_machine_future(transitions(Connecting))]
     MakingTlsMode {
         future: T::Future,
@@ -38,15 +41,17 @@ where
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let mut state = state.take();
 
-        if state.config.0.host.is_empty() {
+        let config = state.config?;
+
+        if config.0.host.is_empty() {
             return Err(Error::missing_host());
         }
 
-        if state.config.0.port.len() > 1 && state.config.0.port.len() != state.config.0.host.len() {
+        if config.0.port.len() > 1 && config.0.port.len() != config.0.host.len() {
             return Err(Error::invalid_port_count());
         }
 
-        let hostname = match &state.config.0.host[0] {
+        let hostname = match &config.0.host[0] {
             Host::Tcp(host) => &**host,
             // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
@@ -58,7 +63,7 @@ where
             future,
             idx: 0,
             make_tls_mode: state.make_tls_mode,
-            config: state.config,
+            config,
         })
     }
 
@@ -113,7 +118,7 @@ impl<T> ConnectFuture<T>
 where
     T: MakeTlsMode<Socket>,
 {
-    pub fn new(make_tls_mode: T, config: Builder) -> ConnectFuture<T> {
+    pub fn new(make_tls_mode: T, config: Result<Builder, Error>) -> ConnectFuture<T> {
         Connect::start(make_tls_mode, config)
     }
 }

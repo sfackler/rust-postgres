@@ -36,6 +36,14 @@ fn next_portal() -> String {
     format!("p{}", ID.fetch_add(1, Ordering::SeqCst))
 }
 
+#[cfg(feature = "runtime")]
+pub fn connect<T>(config: &str, tls_mode: T) -> Connect<T>
+where
+    T: MakeTlsMode<Socket>,
+{
+    Connect(proto::ConnectFuture::new(tls_mode, config.parse()))
+}
+
 pub fn cancel_query<S, T>(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQuery<S, T>
 where
     S: AsyncRead + AsyncWrite,

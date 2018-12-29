@@ -128,7 +128,7 @@ impl Builder {
     where
         T: MakeTlsMode<Socket>,
     {
-        Connect(ConnectFuture::new(make_tls_mode, self.clone()))
+        Connect(ConnectFuture::new(make_tls_mode, Ok(self.clone())))
     }
 }
 

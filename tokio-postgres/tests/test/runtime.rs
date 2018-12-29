@@ -1,14 +1,10 @@
 use futures::Future;
 use tokio::runtime::current_thread::Runtime;
-use tokio_postgres::{Client, Connection, Error, NoTls, Socket};
-
-fn connect(s: &str) -> impl Future<Item = (Client, Connection<Socket>), Error = Error> {
-    s.parse::<tokio_postgres::Builder>().unwrap().connect(NoTls)
-}
+use tokio_postgres::NoTls;
 
 fn smoke_test(s: &str) {
     let mut runtime = Runtime::new().unwrap();
-    let connect = connect(s);
+    let connect = tokio_postgres::connect(s, NoTls);
     let (mut client, connection) = runtime.block_on(connect).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
@@ -41,9 +37,12 @@ fn multiple_hosts_multiple_ports() {
 #[test]
 fn wrong_port_count() {
     let mut runtime = Runtime::new().unwrap();
-    let f = connect("host=localhost port=5433,5433 user=postgres");
+    let f = tokio_postgres::connect("host=localhost port=5433,5433 user=postgres", NoTls);
     runtime.block_on(f).err().unwrap();
 
-    let f = connect("host=localhost,localhost,localhost port=5433,5433 user=postgres");
+    let f = tokio_postgres::connect(
+        "host=localhost,localhost,localhost port=5433,5433 user=postgres",
+        NoTls,
+    );
     runtime.block_on(f).err().unwrap();
 }

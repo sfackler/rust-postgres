@@ -77,10 +77,7 @@ fn runtime() {
     builder.set_ca_file("../test/server.crt").unwrap();
     let connector = MakeTlsConnector::new(builder.build());
 
-    let connect = "host=localhost port=5433 user=postgres"
-        .parse::<tokio_postgres::Builder>()
-        .unwrap()
-        .connect(RequireTls(connector));
+    let connect = tokio_postgres::connect("host=localhost port=5433 user=postgres", RequireTls(connector));
     let (mut client, connection) = runtime.block_on(connect).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
