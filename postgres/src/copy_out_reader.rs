@@ -16,6 +16,7 @@ impl<'a> Drop for CopyOutReader<'a> {
 }
 
 impl<'a> CopyOutReader<'a> {
+    #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new(stream: tokio_postgres::CopyOut) -> Result<CopyOutReader<'a>, Error> {
         let mut it = stream.wait();
         let cur = match it.next() {
