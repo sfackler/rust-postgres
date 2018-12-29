@@ -1,3 +1,4 @@
+use fallible_iterator::FallibleIterator;
 use std::io::Read;
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
@@ -20,7 +21,11 @@ fn query_prepared() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let stmt = client.prepare("SELECT $1::TEXT").unwrap();
-    let rows = client.query(&stmt, &[&"hello"]).unwrap();
+    let rows = client
+        .query(&stmt, &[&"hello"])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
 }
@@ -29,7 +34,11 @@ fn query_prepared() {
 fn query_unprepared() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
-    let rows = client.query("SELECT $1::TEXT", &[&"hello"]).unwrap();
+    let rows = client
+        .query("SELECT $1::TEXT", &[&"hello"])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
 }
@@ -50,7 +59,11 @@ fn transaction_commit() {
 
     transaction.commit().unwrap();
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client
+        .query("SELECT * FROM foo", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
 }
@@ -71,7 +84,11 @@ fn transaction_rollback() {
 
     transaction.rollback().unwrap();
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client
+        .query("SELECT * FROM foo", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -91,7 +108,11 @@ fn transaction_drop() {
 
     drop(transaction);
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client
+        .query("SELECT * FROM foo", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -119,6 +140,8 @@ fn nested_transactions() {
 
     let rows = transaction
         .query("SELECT id FROM foo ORDER BY id", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -139,7 +162,11 @@ fn nested_transactions() {
     transaction3.commit().unwrap();
     transaction.commit().unwrap();
 
-    let rows = client.query("SELECT id FROM foo ORDER BY id", &[]).unwrap();
+    let rows = client
+        .query("SELECT id FROM foo ORDER BY id", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
     assert_eq!(rows[1].get::<_, i32>(0), 3);
@@ -164,6 +191,8 @@ fn copy_in() {
 
     let rows = client
         .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .unwrap()
+        .collect::<Vec<_>>()
         .unwrap();
 
     assert_eq!(rows.len(), 2);
@@ -219,12 +248,20 @@ fn portal() {
         .bind("SELECT * FROM foo ORDER BY id", &[])
         .unwrap();
 
-    let rows = transaction.query_portal(&portal, 2).unwrap();
+    let rows = transaction
+        .query_portal(&portal, 2)
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
     assert_eq!(rows[1].get::<_, i32>(0), 2);
 
-    let rows = transaction.query_portal(&portal, 2).unwrap();
+    let rows = transaction
+        .query_portal(&portal, 2)
+        .unwrap()
+        .collect::<Vec<_>>()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 3);
 }

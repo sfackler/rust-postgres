@@ -4,13 +4,13 @@ use futures::{Async, Future, Poll, Stream};
 use std::io::{self, BufRead, Cursor, Read};
 use std::marker::PhantomData;
 use tokio_postgres::types::{ToSql, Type};
-use tokio_postgres::{Error, Row};
+use tokio_postgres::Error;
 #[cfg(feature = "runtime")]
 use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
 
 #[cfg(feature = "runtime")]
 use crate::Builder;
-use crate::{Statement, ToStatement, Transaction};
+use crate::{Query, Statement, ToStatement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -48,12 +48,12 @@ impl Client {
         self.0.execute(&statement.0, params).wait()
     }
 
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Query<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        self.0.query(&statement.0, params).collect().wait()
+        Ok(Query::new(self.0.query(&statement.0, params)))
     }
 
     pub fn copy_in<T, R>(
