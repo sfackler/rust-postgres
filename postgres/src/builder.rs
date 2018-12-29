@@ -8,6 +8,7 @@ use tokio_postgres::{Error, MakeTlsMode, Socket, TlsMode};
 
 use crate::{Client, RUNTIME};
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Builder(tokio_postgres::Builder);
 
 impl Default for Builder {
