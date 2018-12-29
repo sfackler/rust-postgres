@@ -10,7 +10,7 @@ use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
 
 #[cfg(feature = "runtime")]
 use crate::Builder;
-use crate::{Query, Statement, Transaction};
+use crate::{Statement, ToStatement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -42,7 +42,7 @@ impl Client {
 
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
         self.0.execute(&statement.0, params).wait()
@@ -50,7 +50,7 @@ impl Client {
 
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
         self.0.query(&statement.0, params).collect().wait()
@@ -63,7 +63,7 @@ impl Client {
         reader: R,
     ) -> Result<u64, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
         R: Read,
     {
         let statement = query.__statement(self)?;
@@ -78,7 +78,7 @@ impl Client {
         params: &[&dyn ToSql],
     ) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
         let mut stream = self.0.copy_out(&statement.0, params).wait();

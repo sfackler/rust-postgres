@@ -3,7 +3,7 @@ use std::io::Read;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row};
 
-use crate::{Client, CopyOutReader, Portal, Query, Statement};
+use crate::{Client, CopyOutReader, Portal, Statement, ToStatement};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
@@ -62,21 +62,21 @@ impl<'a> Transaction<'a> {
 
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         self.client.execute(query, params)
     }
 
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         self.client.query(query, params)
     }
 
     pub fn bind<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Portal, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         let statement = query.__statement(&mut self.client)?;
         self.client
@@ -101,7 +101,7 @@ impl<'a> Transaction<'a> {
         reader: R,
     ) -> Result<u64, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
         R: Read,
     {
         self.client.copy_in(query, params, reader)
@@ -113,7 +113,7 @@ impl<'a> Transaction<'a> {
         params: &[&dyn ToSql],
     ) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + Query,
+        T: ?Sized + ToStatement,
     {
         self.client.copy_out(query, params)
     }

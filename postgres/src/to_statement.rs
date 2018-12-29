@@ -6,14 +6,14 @@ mod sealed {
     pub trait Sealed {}
 }
 
-pub trait Query: sealed::Sealed {
+pub trait ToStatement: sealed::Sealed {
     #[doc(hidden)]
     fn __statement(&self, client: &mut Client) -> Result<Statement, Error>;
 }
 
 impl sealed::Sealed for str {}
 
-impl Query for str {
+impl ToStatement for str {
     fn __statement(&self, client: &mut Client) -> Result<Statement, Error> {
         client.prepare(self)
     }
@@ -21,7 +21,7 @@ impl Query for str {
 
 impl sealed::Sealed for Statement {}
 
-impl Query for Statement {
+impl ToStatement for Statement {
     fn __statement(&self, _: &mut Client) -> Result<Statement, Error> {
         Ok(self.clone())
     }
