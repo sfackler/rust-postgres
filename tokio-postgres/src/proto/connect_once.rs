@@ -1,6 +1,6 @@
 #![allow(clippy::large_enum_variant)]
 
-use futures::{try_ready, Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
 use lazy_static::lazy_static;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
@@ -15,8 +15,8 @@ use tokio_timer::Delay;
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
-use crate::proto::{Client, Connection, HandshakeFuture};
-use crate::{Config, Error, Host, Socket, TlsMode};
+use crate::proto::{Client, Connection, HandshakeFuture, SimpleQueryStream};
+use crate::{Config, Error, Host, Socket, TargetSessionAttrs, TlsMode};
 
 lazy_static! {
     static ref DNS_POOL: CpuPool = futures_cpupool::Builder::new()
@@ -61,8 +61,17 @@ where
         tls_mode: T,
         config: Config,
     },
+    #[state_machine_future(transitions(CheckingSessionAttrs, Finished))]
+    Handshaking {
+        future: HandshakeFuture<Socket, T>,
+        target_session_attrs: TargetSessionAttrs,
+    },
     #[state_machine_future(transitions(Finished))]
-    Handshaking { future: HandshakeFuture<Socket, T> },
+    CheckingSessionAttrs {
+        stream: SimpleQueryStream,
+        client: Client,
+        connection: Connection<T::Stream>,
+    },
     #[state_machine_future(ready)]
     Finished((Client, Connection<T::Stream>)),
     #[state_machine_future(error)]
@@ -130,7 +139,8 @@ where
         let state = state.take();
 
         transition!(Handshaking {
-            future: HandshakeFuture::new(stream, state.tls_mode, state.config)
+            target_session_attrs: state.config.0.target_session_attrs,
+            future: HandshakeFuture::new(stream, state.tls_mode, state.config),
         })
     }
 
@@ -203,6 +213,7 @@ where
         let stream = Socket::new_tcp(stream);
 
         transition!(Handshaking {
+            target_session_attrs: state.config.0.target_session_attrs,
             future: HandshakeFuture::new(stream, state.tls_mode, state.config),
         })
     }
@@ -210,9 +221,37 @@ where
     fn poll_handshaking<'a>(
         state: &'a mut RentToOwn<'a, Handshaking<T>>,
     ) -> Poll<AfterHandshaking<T>, Error> {
-        let r = try_ready!(state.future.poll());
+        let (client, connection) = try_ready!(state.future.poll());
 
-        transition!(Finished(r))
+        if let TargetSessionAttrs::ReadWrite = state.target_session_attrs {
+            transition!(CheckingSessionAttrs {
+                stream: client.batch_execute("SHOW transaction_read_only"),
+                client,
+                connection,
+            })
+        } else {
+            transition!(Finished((client, connection)))
+        }
+    }
+
+    fn poll_checking_session_attrs<'a>(
+        state: &'a mut RentToOwn<'a, CheckingSessionAttrs<T>>,
+    ) -> Poll<AfterCheckingSessionAttrs<T>, Error> {
+        if let Async::Ready(()) = state.connection.poll()? {
+            return Err(Error::closed());
+        }
+
+        match try_ready!(state.stream.poll()) {
+            Some(row) => {
+                if row.get(0) == Some("on") {
+                    Err(Error::read_only_database())
+                } else {
+                    let state = state.take();
+                    transition!(Finished((state.client, state.connection)))
+                }
+            }
+            None => Err(Error::closed()),
+        }
     }
 }
 

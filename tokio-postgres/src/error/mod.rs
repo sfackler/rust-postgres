@@ -361,11 +361,15 @@ enum Kind {
     #[cfg(feature = "runtime")]
     InvalidKeepalives,
     #[cfg(feature = "runtime")]
+    InvalidTargetSessionAttrs,
+    #[cfg(feature = "runtime")]
     InvalidKeepalivesIdle,
     #[cfg(feature = "runtime")]
     Timer,
     #[cfg(feature = "runtime")]
     ConnectTimeout,
+    #[cfg(feature = "runtime")]
+    ReadOnlyDatabase,
 }
 
 struct ErrorInner {
@@ -418,9 +422,13 @@ impl fmt::Display for Error {
             #[cfg(feature = "runtime")]
             Kind::InvalidKeepalivesIdle => "invalid keepalives_value",
             #[cfg(feature = "runtime")]
+            Kind::InvalidTargetSessionAttrs => "invalid target_session_attrs",
+            #[cfg(feature = "runtime")]
             Kind::Timer => "timer error",
             #[cfg(feature = "runtime")]
             Kind::ConnectTimeout => "timed out connecting to server",
+            #[cfg(feature = "runtime")]
+            Kind::ReadOnlyDatabase => "the database was read-only",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -560,6 +568,11 @@ impl Error {
     }
 
     #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_target_session_attrs() -> Error {
+        Error::new(Kind::InvalidTargetSessionAttrs, None)
+    }
+
+    #[cfg(feature = "runtime")]
     pub(crate) fn timer(e: tokio_timer::Error) -> Error {
         Error::new(Kind::Timer, Some(Box::new(e)))
     }
@@ -567,5 +580,10 @@ impl Error {
     #[cfg(feature = "runtime")]
     pub(crate) fn connect_timeout() -> Error {
         Error::new(Kind::ConnectTimeout, None)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn read_only_database() -> Error {
+        Error::new(Kind::ReadOnlyDatabase, None)
     }
 }

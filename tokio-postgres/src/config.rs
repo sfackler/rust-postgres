@@ -16,6 +16,15 @@ use crate::{Connect, MakeTlsMode, Socket};
 use crate::{Error, Handshake, TlsMode};
 
 #[cfg(feature = "runtime")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TargetSessionAttrs {
+    Any,
+    ReadWrite,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+#[cfg(feature = "runtime")]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Host {
     Tcp(String),
@@ -37,6 +46,8 @@ pub(crate) struct Inner {
     pub(crate) keepalives: bool,
     #[cfg(feature = "runtime")]
     pub(crate) keepalives_idle: Duration,
+    #[cfg(feature = "runtime")]
+    pub(crate) target_session_attrs: TargetSessionAttrs,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +78,8 @@ impl Config {
             keepalives: true,
             #[cfg(feature = "runtime")]
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
+            #[cfg(feature = "runtime")]
+            target_session_attrs: TargetSessionAttrs::Any,
         }))
     }
 
@@ -117,6 +130,15 @@ impl Config {
     #[cfg(feature = "runtime")]
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).keepalives_idle = keepalives_idle;
+        self
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn target_session_attrs(
+        &mut self,
+        target_session_attrs: TargetSessionAttrs,
+    ) -> &mut Config {
+        Arc::make_mut(&mut self.0).target_session_attrs = target_session_attrs;
         self
     }
 
@@ -203,6 +225,15 @@ impl FromStr for Config {
                     if keepalives_idle > 0 {
                         builder.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                     }
+                }
+                #[cfg(feature = "runtime")]
+                "target_session_attrs" => {
+                    let target_session_attrs = match &*value {
+                        "any" => TargetSessionAttrs::Any,
+                        "read-write" => TargetSessionAttrs::ReadWrite,
+                        _ => return Err(Error::invalid_target_session_attrs()),
+                    };
+                    builder.target_session_attrs(target_session_attrs);
                 }
                 key => {
                     builder.param(key, &value);

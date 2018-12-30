@@ -46,3 +46,23 @@ fn wrong_port_count() {
     );
     runtime.block_on(f).err().unwrap();
 }
+
+#[test]
+fn target_session_attrs_ok() {
+    let mut runtime = Runtime::new().unwrap();
+    let f = tokio_postgres::connect(
+        "host=localhost port=5433 user=postgres target_session_attrs=read-write",
+        NoTls,
+    );
+    runtime.block_on(f).unwrap();
+}
+
+#[test]
+fn target_session_attrs_err() {
+    let mut runtime = Runtime::new().unwrap();
+    let f = tokio_postgres::connect(
+        "host=localhost port=5433 user=postgres target_session_attrs=read-write default_transaction_read_only=on",
+        NoTls,
+    );
+    runtime.block_on(f).err().unwrap();
+}

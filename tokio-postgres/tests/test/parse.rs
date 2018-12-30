@@ -1,5 +1,7 @@
 #[cfg(feature = "runtime")]
 use std::time::Duration;
+#[cfg(feature = "runtime")]
+use tokio_postgres::TargetSessionAttrs;
 
 #[test]
 fn pairs_ok() {
@@ -31,15 +33,17 @@ fn pairs_ws() {
 #[test]
 #[cfg(feature = "runtime")]
 fn settings() {
-    let params = "connect_timeout=3 keepalives=0 keepalives_idle=30"
-        .parse::<tokio_postgres::Config>()
-        .unwrap();
+    let params =
+        "connect_timeout=3 keepalives=0 keepalives_idle=30 target_session_attrs=read-write"
+            .parse::<tokio_postgres::Config>()
+            .unwrap();
 
     let mut expected = tokio_postgres::Config::new();
     expected
         .connect_timeout(Duration::from_secs(3))
         .keepalives(false)
-        .keepalives_idle(Duration::from_secs(30));
+        .keepalives_idle(Duration::from_secs(30))
+        .target_session_attrs(TargetSessionAttrs::ReadWrite);
 
     assert_eq!(params, expected);
 }
