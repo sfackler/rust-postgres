@@ -3,9 +3,9 @@ use lazy_static::lazy_static;
 #[cfg(feature = "runtime")]
 use tokio::runtime::{self, Runtime};
 
+mod client;
 #[cfg(feature = "runtime")]
 mod config;
-mod client;
 mod copy_out_reader;
 mod portal;
 mod query;
@@ -18,9 +18,9 @@ mod transaction;
 #[cfg(test)]
 mod test;
 
+pub use crate::client::*;
 #[cfg(feature = "runtime")]
 pub use crate::config::*;
-pub use crate::client::*;
 pub use crate::copy_out_reader::*;
 pub use crate::portal::*;
 pub use crate::query::*;
