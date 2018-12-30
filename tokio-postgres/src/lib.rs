@@ -6,7 +6,7 @@ use std::error::Error as StdError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-pub use crate::builder::*;
+pub use crate::config::*;
 pub use crate::error::*;
 use crate::proto::CancelFuture;
 pub use crate::row::*;
@@ -16,7 +16,7 @@ pub use crate::stmt::Column;
 pub use crate::tls::*;
 use crate::types::{ToSql, Type};
 
-mod builder;
+mod config;
 pub mod error;
 mod proto;
 mod row;

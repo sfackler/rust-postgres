@@ -2,7 +2,7 @@ use futures::{try_ready, Async, Future, Poll};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
 use crate::proto::{Client, ConnectOnceFuture, Connection};
-use crate::{Builder, Error, Host, MakeTlsMode, Socket};
+use crate::{Config, Error, Host, MakeTlsMode, Socket};
 
 #[derive(StateMachineFuture)]
 pub enum Connect<T>
@@ -12,21 +12,21 @@ where
     #[state_machine_future(start, transitions(MakingTlsMode))]
     Start {
         make_tls_mode: T,
-        config: Result<Builder, Error>,
+        config: Result<Config, Error>,
     },
     #[state_machine_future(transitions(Connecting))]
     MakingTlsMode {
         future: T::Future,
         idx: usize,
         make_tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(transitions(MakingTlsMode, Finished))]
     Connecting {
         future: ConnectOnceFuture<T::TlsMode>,
         idx: usize,
         make_tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(ready)]
     Finished((Client, Connection<T::Stream>)),
@@ -118,7 +118,7 @@ impl<T> ConnectFuture<T>
 where
     T: MakeTlsMode<Socket>,
 {
-    pub fn new(make_tls_mode: T, config: Result<Builder, Error>) -> ConnectFuture<T> {
+    pub fn new(make_tls_mode: T, config: Result<Config, Error>) -> ConnectFuture<T> {
         Connect::start(make_tls_mode, config)
     }
 }

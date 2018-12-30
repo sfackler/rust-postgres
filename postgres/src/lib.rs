@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use tokio::runtime::{self, Runtime};
 
 #[cfg(feature = "runtime")]
-mod builder;
+mod config;
 mod client;
 mod copy_out_reader;
 mod portal;
@@ -19,7 +19,7 @@ mod transaction;
 mod test;
 
 #[cfg(feature = "runtime")]
-pub use crate::builder::*;
+pub use crate::config::*;
 pub use crate::client::*;
 pub use crate::copy_out_reader::*;
 pub use crate::portal::*;

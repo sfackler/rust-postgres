@@ -22,7 +22,7 @@ mod types;
 fn connect(
     s: &str,
 ) -> impl Future<Item = (Client, Connection<TcpStream>), Error = tokio_postgres::Error> {
-    let builder = s.parse::<tokio_postgres::Builder>().unwrap();
+    let builder = s.parse::<tokio_postgres::Config>().unwrap();
     TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))
         .and_then(move |s| builder.handshake(s, NoTls))

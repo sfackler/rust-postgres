@@ -13,7 +13,7 @@ use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
-use crate::{Builder, CancelData, ChannelBinding, Error, TlsMode};
+use crate::{CancelData, ChannelBinding, Config, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Handshake<S, T>
@@ -24,18 +24,18 @@ where
     #[state_machine_future(start, transitions(SendingStartup))]
     Start {
         future: TlsFuture<S, T>,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
         future: sink::Send<Framed<T::Stream, PostgresCodec>>,
-        config: Builder,
+        config: Config,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
         stream: Framed<T::Stream, PostgresCodec>,
-        config: Builder,
+        config: Config,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
@@ -334,7 +334,7 @@ where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(stream: S, tls_mode: T, config: Builder) -> HandshakeFuture<S, T> {
+    pub fn new(stream: S, tls_mode: T, config: Config) -> HandshakeFuture<S, T> {
         Handshake::start(TlsFuture::new(stream, tls_mode), config)
     }
 }

@@ -9,26 +9,26 @@ use tokio_postgres::{Error, MakeTlsMode, Socket, TlsMode};
 use crate::{Client, RUNTIME};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Builder(tokio_postgres::Builder);
+pub struct Config(tokio_postgres::Config);
 
-impl Default for Builder {
-    fn default() -> Builder {
-        Builder(tokio_postgres::Builder::default())
+impl Default for Config {
+    fn default() -> Config {
+        Config(tokio_postgres::Config::default())
     }
 }
 
-impl Builder {
-    pub fn new() -> Builder {
-        Builder(tokio_postgres::Builder::new())
+impl Config {
+    pub fn new() -> Config {
+        Config(tokio_postgres::Config::new())
     }
 
-    pub fn host(&mut self, host: &str) -> &mut Builder {
+    pub fn host(&mut self, host: &str) -> &mut Config {
         self.0.host(host);
         self
     }
 
     #[cfg(unix)]
-    pub fn host_path<T>(&mut self, host: T) -> &mut Builder
+    pub fn host_path<T>(&mut self, host: T) -> &mut Config
     where
         T: AsRef<Path>,
     {
@@ -36,22 +36,22 @@ impl Builder {
         self
     }
 
-    pub fn port(&mut self, port: u16) -> &mut Builder {
+    pub fn port(&mut self, port: u16) -> &mut Config {
         self.0.port(port);
         self
     }
 
-    pub fn param(&mut self, key: &str, value: &str) -> &mut Builder {
+    pub fn param(&mut self, key: &str, value: &str) -> &mut Config {
         self.0.param(key, value);
         self
     }
 
-    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Builder {
+    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         self.0.connect_timeout(connect_timeout);
         self
     }
 
-    pub fn password<T>(&mut self, password: T) -> &mut Builder
+    pub fn password<T>(&mut self, password: T) -> &mut Config
     where
         T: AsRef<[u8]>,
     {
@@ -76,10 +76,10 @@ impl Builder {
     }
 }
 
-impl FromStr for Builder {
+impl FromStr for Config {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Builder, Error> {
-        s.parse().map(Builder)
+    fn from_str(s: &str) -> Result<Config, Error> {
+        s.parse().map(Config)
     }
 }

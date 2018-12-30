@@ -13,7 +13,7 @@ where
 {
     let mut runtime = Runtime::new().unwrap();
 
-    let builder = s.parse::<tokio_postgres::Builder>().unwrap();
+    let builder = s.parse::<tokio_postgres::Config>().unwrap();
 
     let handshake = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))

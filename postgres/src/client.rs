@@ -6,7 +6,7 @@ use tokio_postgres::Error;
 use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
 
 #[cfg(feature = "runtime")]
-use crate::Builder;
+use crate::Config;
 use crate::{CopyOutReader, Query, Statement, ToStatement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
@@ -21,12 +21,12 @@ impl Client {
         T::Future: Send,
         <T::TlsMode as TlsMode<Socket>>::Future: Send,
     {
-        params.parse::<Builder>()?.connect(tls_mode)
+        params.parse::<Config>()?.connect(tls_mode)
     }
 
     #[cfg(feature = "runtime")]
-    pub fn builder() -> Builder {
-        Builder::new()
+    pub fn builder() -> Config {
+        Config::new()
     }
 
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {

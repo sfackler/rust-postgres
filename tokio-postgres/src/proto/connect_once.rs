@@ -16,7 +16,7 @@ use tokio_timer::Delay;
 use tokio_uds::UnixStream;
 
 use crate::proto::{Client, Connection, HandshakeFuture};
-use crate::{Builder, Error, Host, Socket, TlsMode};
+use crate::{Config, Error, Host, Socket, TlsMode};
 
 lazy_static! {
     static ref DNS_POOL: CpuPool = futures_cpupool::Builder::new()
@@ -36,7 +36,7 @@ where
     Start {
         idx: usize,
         tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[cfg(unix)]
     #[state_machine_future(transitions(Handshaking))]
@@ -44,14 +44,14 @@ where
         future: tokio_uds::ConnectFuture,
         timeout: Option<Delay>,
         tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(transitions(ConnectingTcp))]
     ResolvingDns {
         future: CpuFuture<vec::IntoIter<SocketAddr>, io::Error>,
         timeout: Option<Delay>,
         tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(transitions(Handshaking))]
     ConnectingTcp {
@@ -59,7 +59,7 @@ where
         addrs: vec::IntoIter<SocketAddr>,
         timeout: Option<Delay>,
         tls_mode: T,
-        config: Builder,
+        config: Config,
     },
     #[state_machine_future(transitions(Finished))]
     Handshaking { future: HandshakeFuture<Socket, T> },
@@ -214,7 +214,7 @@ impl<T> ConnectOnceFuture<T>
 where
     T: TlsMode<Socket>,
 {
-    pub fn new(idx: usize, tls_mode: T, config: Builder) -> ConnectOnceFuture<T> {
+    pub fn new(idx: usize, tls_mode: T, config: Config) -> ConnectOnceFuture<T> {
         ConnectOnce::start(idx, tls_mode, config)
     }
 }

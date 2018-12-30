@@ -36,21 +36,21 @@ pub(crate) struct Inner {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Builder(pub(crate) Arc<Inner>);
+pub struct Config(pub(crate) Arc<Inner>);
 
-impl Default for Builder {
-    fn default() -> Builder {
-        Builder::new()
+impl Default for Config {
+    fn default() -> Config {
+        Config::new()
     }
 }
 
-impl Builder {
-    pub fn new() -> Builder {
+impl Config {
+    pub fn new() -> Config {
         let mut params = HashMap::new();
         params.insert("client_encoding".to_string(), "UTF8".to_string());
         params.insert("timezone".to_string(), "GMT".to_string());
 
-        Builder(Arc::new(Inner {
+        Config(Arc::new(Inner {
             params,
             password: None,
             #[cfg(feature = "runtime")]
@@ -63,7 +63,7 @@ impl Builder {
     }
 
     #[cfg(feature = "runtime")]
-    pub fn host(&mut self, host: &str) -> &mut Builder {
+    pub fn host(&mut self, host: &str) -> &mut Config {
         #[cfg(unix)]
         {
             if host.starts_with('/') {
@@ -78,7 +78,7 @@ impl Builder {
     }
 
     #[cfg(all(feature = "runtime", unix))]
-    pub fn host_path<T>(&mut self, host: T) -> &mut Builder
+    pub fn host_path<T>(&mut self, host: T) -> &mut Config
     where
         T: AsRef<Path>,
     {
@@ -89,18 +89,18 @@ impl Builder {
     }
 
     #[cfg(feature = "runtime")]
-    pub fn port(&mut self, port: u16) -> &mut Builder {
+    pub fn port(&mut self, port: u16) -> &mut Config {
         Arc::make_mut(&mut self.0).port.push(port);
         self
     }
 
     #[cfg(feature = "runtime")]
-    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Builder {
+    pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
         self
     }
 
-    pub fn password<T>(&mut self, password: T) -> &mut Builder
+    pub fn password<T>(&mut self, password: T) -> &mut Config
     where
         T: AsRef<[u8]>,
     {
@@ -108,7 +108,7 @@ impl Builder {
         self
     }
 
-    pub fn param(&mut self, key: &str, value: &str) -> &mut Builder {
+    pub fn param(&mut self, key: &str, value: &str) -> &mut Config {
         Arc::make_mut(&mut self.0)
             .params
             .insert(key.to_string(), value.to_string());
@@ -132,12 +132,12 @@ impl Builder {
     }
 }
 
-impl FromStr for Builder {
+impl FromStr for Config {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Builder, Error> {
+    fn from_str(s: &str) -> Result<Config, Error> {
         let mut parser = Parser::new(s);
-        let mut builder = Builder::new();
+        let mut builder = Config::new();
 
         while let Some((key, value)) = parser.parameter()? {
             match key {
