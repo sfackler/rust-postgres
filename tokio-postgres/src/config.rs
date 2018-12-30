@@ -33,6 +33,10 @@ pub(crate) struct Inner {
     pub(crate) port: Vec<u16>,
     #[cfg(feature = "runtime")]
     pub(crate) connect_timeout: Option<Duration>,
+    #[cfg(feature = "runtime")]
+    pub(crate) keepalives: bool,
+    #[cfg(feature = "runtime")]
+    pub(crate) keepalives_idle: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +63,10 @@ impl Config {
             port: vec![],
             #[cfg(feature = "runtime")]
             connect_timeout: None,
+            #[cfg(feature = "runtime")]
+            keepalives: true,
+            #[cfg(feature = "runtime")]
+            keepalives_idle: Duration::from_secs(2 * 60 * 60),
         }))
     }
 
@@ -97,6 +105,18 @@ impl Config {
     #[cfg(feature = "runtime")]
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
+        self
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn keepalives(&mut self, keepalives: bool) -> &mut Config {
+        Arc::make_mut(&mut self.0).keepalives = keepalives;
+        self
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
+        Arc::make_mut(&mut self.0).keepalives_idle = keepalives_idle;
         self
     }
 
@@ -168,6 +188,20 @@ impl FromStr for Config {
                         .map_err(Error::invalid_connect_timeout)?;
                     if timeout > 0 {
                         builder.connect_timeout(Duration::from_secs(timeout as u64));
+                    }
+                }
+                #[cfg(feature = "runtime")]
+                "keepalives" => {
+                    let keepalives = value.parse::<u64>().map_err(Error::invalid_keepalives)?;
+                    builder.keepalives(keepalives != 0);
+                }
+                #[cfg(feature = "runtime")]
+                "keepalives_idle" => {
+                    let keepalives_idle = value
+                        .parse::<i64>()
+                        .map_err(Error::invalid_keepalives_idle)?;
+                    if keepalives_idle > 0 {
+                        builder.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                     }
                 }
                 key => {

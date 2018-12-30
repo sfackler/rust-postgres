@@ -194,6 +194,12 @@ where
         let state = state.take();
 
         stream.set_nodelay(true).map_err(Error::connect)?;
+        if state.config.0.keepalives {
+            stream
+                .set_keepalive(Some(state.config.0.keepalives_idle))
+                .map_err(Error::connect)?;
+        }
+
         let stream = Socket::new_tcp(stream);
 
         transition!(Handshaking {

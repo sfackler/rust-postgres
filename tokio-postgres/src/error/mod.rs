@@ -359,6 +359,10 @@ enum Kind {
     #[cfg(feature = "runtime")]
     InvalidConnectTimeout,
     #[cfg(feature = "runtime")]
+    InvalidKeepalives,
+    #[cfg(feature = "runtime")]
+    InvalidKeepalivesIdle,
+    #[cfg(feature = "runtime")]
     Timer,
     #[cfg(feature = "runtime")]
     ConnectTimeout,
@@ -409,6 +413,10 @@ impl fmt::Display for Error {
             Kind::InvalidPortCount => "wrong number of ports provided",
             #[cfg(feature = "runtime")]
             Kind::InvalidConnectTimeout => "invalid connect_timeout",
+            #[cfg(feature = "runtime")]
+            Kind::InvalidKeepalives => "invalid keepalives",
+            #[cfg(feature = "runtime")]
+            Kind::InvalidKeepalivesIdle => "invalid keepalives_value",
             #[cfg(feature = "runtime")]
             Kind::Timer => "timer error",
             #[cfg(feature = "runtime")]
@@ -539,6 +547,16 @@ impl Error {
     #[cfg(feature = "runtime")]
     pub(crate) fn invalid_connect_timeout(e: ParseIntError) -> Error {
         Error::new(Kind::InvalidConnectTimeout, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_keepalives(e: ParseIntError) -> Error {
+        Error::new(Kind::InvalidKeepalives, Some(Box::new(e)))
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn invalid_keepalives_idle(e: ParseIntError) -> Error {
+        Error::new(Kind::InvalidKeepalivesIdle, Some(Box::new(e)))
     }
 
     #[cfg(feature = "runtime")]
