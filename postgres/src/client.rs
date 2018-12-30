@@ -25,7 +25,7 @@ impl Client {
     }
 
     #[cfg(feature = "runtime")]
-    pub fn builder() -> Config {
+    pub fn configure() -> Config {
         Config::new()
     }
 
