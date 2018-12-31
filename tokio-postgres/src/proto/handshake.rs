@@ -77,16 +77,23 @@ where
         let (stream, channel_binding) = try_ready!(state.future.poll());
         let state = state.take();
 
+        let mut params = vec![("client_encoding", "UTF8"), ("timezone", "GMT")];
+        if let Some(user) = &state.config.0.user {
+            params.push(("user", &**user));
+        }
+        if let Some(dbname) = &state.config.0.dbname {
+            params.push(("database", &**dbname));
+        }
+        if let Some(options) = &state.config.0.options {
+            params.push(("options", &**options));
+        }
+        if let Some(application_name) = &state.config.0.application_name {
+            params.push(("application_name", &**application_name));
+        }
+
         let mut buf = vec![];
-        frontend::startup_message(
-            state.config.0.params.iter().map(|(k, v)| {
-                // libpq uses dbname, but the backend expects database (!)
-                let k = if k == "dbname" { "database" } else { &**k };
-                (k, &**v)
-            }),
-            &mut buf,
-        )
-        .map_err(Error::encode)?;
+        frontend::startup_message(params.iter().map(|e| (e.0, e.1)), &mut buf)
+            .map_err(Error::encode)?;
 
         let stream = Framed::new(stream, PostgresCodec);
 
@@ -127,7 +134,7 @@ where
                     .0
                     .password
                     .as_ref()
-                    .ok_or_else(Error::missing_password)?;
+                    .ok_or_else(|| Error::config("password missing".into()))?;
                 let mut buf = vec![];
                 frontend::password_message(pass, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
@@ -138,15 +145,15 @@ where
                 let user = state
                     .config
                     .0
-                    .params
-                    .get("user")
-                    .ok_or_else(Error::missing_user)?;
+                    .user
+                    .as_ref()
+                    .ok_or_else(|| Error::config("user missing".into()))?;
                 let pass = state
                     .config
                     .0
                     .password
                     .as_ref()
-                    .ok_or_else(Error::missing_password)?;
+                    .ok_or_else(|| Error::config("password missing".into()))?;
                 let output = authentication::md5_hash(user.as_bytes(), pass, body.salt());
                 let mut buf = vec![];
                 frontend::password_message(output.as_bytes(), &mut buf).map_err(Error::encode)?;
@@ -160,7 +167,7 @@ where
                     .0
                     .password
                     .as_ref()
-                    .ok_or_else(Error::missing_password)?;
+                    .ok_or_else(|| Error::config("password missing".into()))?;
 
                 let mut has_scram = false;
                 let mut has_scram_plus = false;
@@ -194,7 +201,9 @@ where
                         None => (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
                     }
                 } else {
-                    return Err(Error::unsupported_authentication());
+                    return Err(Error::authentication(
+                        "unsupported authentication method".into(),
+                    ));
                 };
 
                 let scram = ScramSha256::new(pass, channel_binding);
@@ -211,7 +220,9 @@ where
             Some(Message::AuthenticationKerberosV5)
             | Some(Message::AuthenticationScmCredential)
             | Some(Message::AuthenticationGss)
-            | Some(Message::AuthenticationSspi) => Err(Error::unsupported_authentication()),
+            | Some(Message::AuthenticationSspi) => Err(Error::authentication(
+                "unsupported authentication method".into(),
+            )),
             Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
             Some(_) => Err(Error::unexpected_message()),
             None => Err(Error::closed()),
@@ -247,7 +258,7 @@ where
                 state
                     .scram
                     .update(body.data())
-                    .map_err(Error::authentication)?;
+                    .map_err(|e| Error::authentication(Box::new(e)))?;
                 let mut buf = vec![];
                 frontend::sasl_response(state.scram.message(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingSasl {
@@ -259,7 +270,7 @@ where
                 state
                     .scram
                     .finish(body.data())
-                    .map_err(Error::authentication)?;
+                    .map_err(|e| Error::authentication(Box::new(e)))?;
                 transition!(ReadingAuthCompletion {
                     stream: state.stream
                 })

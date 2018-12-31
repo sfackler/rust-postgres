@@ -4,7 +4,7 @@ use log::error;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio_postgres::{Error, MakeTlsMode, Socket, TlsMode};
+use tokio_postgres::{Error, MakeTlsMode, Socket, TargetSessionAttrs, TlsMode};
 
 use crate::{Client, RUNTIME};
 
@@ -20,6 +20,34 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Config {
         Config(tokio_postgres::Config::new())
+    }
+
+    pub fn user(&mut self, user: &str) -> &mut Config {
+        self.0.user(user);
+        self
+    }
+
+    pub fn password<T>(&mut self, password: T) -> &mut Config
+    where
+        T: AsRef<[u8]>,
+    {
+        self.0.password(password);
+        self
+    }
+
+    pub fn dbname(&mut self, dbname: &str) -> &mut Config {
+        self.0.dbname(dbname);
+        self
+    }
+
+    pub fn options(&mut self, options: &str) -> &mut Config {
+        self.0.options(options);
+        self
+    }
+
+    pub fn application_name(&mut self, application_name: &str) -> &mut Config {
+        self.0.application_name(application_name);
+        self
     }
 
     pub fn host(&mut self, host: &str) -> &mut Config {
@@ -41,21 +69,26 @@ impl Config {
         self
     }
 
-    pub fn param(&mut self, key: &str, value: &str) -> &mut Config {
-        self.0.param(key, value);
-        self
-    }
-
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         self.0.connect_timeout(connect_timeout);
         self
     }
 
-    pub fn password<T>(&mut self, password: T) -> &mut Config
-    where
-        T: AsRef<[u8]>,
-    {
-        self.0.password(password);
+    pub fn keepalives(&mut self, keepalives: bool) -> &mut Config {
+        self.0.keepalives(keepalives);
+        self
+    }
+
+    pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
+        self.0.keepalives_idle(keepalives_idle);
+        self
+    }
+
+    pub fn target_session_attrs(
+        &mut self,
+        target_session_attrs: TargetSessionAttrs,
+    ) -> &mut Config {
+        self.0.target_session_attrs(target_session_attrs);
         self
     }
 

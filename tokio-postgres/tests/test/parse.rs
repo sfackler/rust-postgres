@@ -5,15 +5,15 @@ use tokio_postgres::TargetSessionAttrs;
 
 #[test]
 fn pairs_ok() {
-    let params = r"user=foo password=' fizz \'buzz\\ ' thing = ''"
+    let params = r"user=foo password=' fizz \'buzz\\ ' application_name = ''"
         .parse::<tokio_postgres::Config>()
         .unwrap();
 
     let mut expected = tokio_postgres::Config::new();
     expected
-        .param("user", "foo")
+        .user("foo")
         .password(r" fizz 'buzz\ ")
-        .param("thing", "");
+        .application_name("");
 
     assert_eq!(params, expected);
 }
@@ -25,7 +25,7 @@ fn pairs_ws() {
         .unwrap();
 
     let mut expected = tokio_postgres::Config::new();
-    expected.param("user", "foo").password("hunter2");
+    expected.user("foo").password("hunter2");
 
     assert_eq!(params, expected);
 }

@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::error;
+use std::fmt;
 use std::iter;
 #[cfg(all(feature = "runtime", unix))]
 use std::path::{Path, PathBuf};
@@ -34,8 +35,11 @@ pub(crate) enum Host {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Inner {
-    pub(crate) params: HashMap<String, String>,
+    pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
+    pub(crate) dbname: Option<String>,
+    pub(crate) options: Option<String>,
+    pub(crate) application_name: Option<String>,
     #[cfg(feature = "runtime")]
     pub(crate) host: Vec<Host>,
     #[cfg(feature = "runtime")]
@@ -61,13 +65,12 @@ impl Default for Config {
 
 impl Config {
     pub fn new() -> Config {
-        let mut params = HashMap::new();
-        params.insert("client_encoding".to_string(), "UTF8".to_string());
-        params.insert("timezone".to_string(), "GMT".to_string());
-
         Config(Arc::new(Inner {
-            params,
+            user: None,
             password: None,
+            dbname: None,
+            options: None,
+            application_name: None,
             #[cfg(feature = "runtime")]
             host: vec![],
             #[cfg(feature = "runtime")]
@@ -81,6 +84,34 @@ impl Config {
             #[cfg(feature = "runtime")]
             target_session_attrs: TargetSessionAttrs::Any,
         }))
+    }
+
+    pub fn user(&mut self, user: &str) -> &mut Config {
+        Arc::make_mut(&mut self.0).user = Some(user.to_string());
+        self
+    }
+
+    pub fn password<T>(&mut self, password: T) -> &mut Config
+    where
+        T: AsRef<[u8]>,
+    {
+        Arc::make_mut(&mut self.0).password = Some(password.as_ref().to_vec());
+        self
+    }
+
+    pub fn dbname(&mut self, dbname: &str) -> &mut Config {
+        Arc::make_mut(&mut self.0).dbname = Some(dbname.to_string());
+        self
+    }
+
+    pub fn options(&mut self, options: &str) -> &mut Config {
+        Arc::make_mut(&mut self.0).options = Some(options.to_string());
+        self
+    }
+
+    pub fn application_name(&mut self, application_name: &str) -> &mut Config {
+        Arc::make_mut(&mut self.0).application_name = Some(application_name.to_string());
+        self
     }
 
     #[cfg(feature = "runtime")]
@@ -142,21 +173,6 @@ impl Config {
         self
     }
 
-    pub fn password<T>(&mut self, password: T) -> &mut Config
-    where
-        T: AsRef<[u8]>,
-    {
-        Arc::make_mut(&mut self.0).password = Some(password.as_ref().to_vec());
-        self
-    }
-
-    pub fn param(&mut self, key: &str, value: &str) -> &mut Config {
-        Arc::make_mut(&mut self.0)
-            .params
-            .insert(key.to_string(), value.to_string());
-        self
-    }
-
     pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
     where
         S: AsyncRead + AsyncWrite,
@@ -183,8 +199,20 @@ impl FromStr for Config {
 
         while let Some((key, value)) = parser.parameter()? {
             match key {
+                "user" => {
+                    builder.user(&value);
+                }
                 "password" => {
                     builder.password(value);
+                }
+                "dbname" => {
+                    builder.dbname(&value);
+                }
+                "options" => {
+                    builder.options(&value);
+                }
+                "application_name" => {
+                    builder.application_name(&value);
                 }
                 #[cfg(feature = "runtime")]
                 "host" => {
@@ -198,30 +226,33 @@ impl FromStr for Config {
                         let port = if port.is_empty() {
                             5432
                         } else {
-                            port.parse().map_err(Error::invalid_port)?
+                            port.parse()
+                                .map_err(|_| Error::config_parse(Box::new(InvalidValue("port"))))?
                         };
                         builder.port(port);
                     }
                 }
                 #[cfg(feature = "runtime")]
                 "connect_timeout" => {
-                    let timeout = value
-                        .parse::<i64>()
-                        .map_err(Error::invalid_connect_timeout)?;
+                    let timeout = value.parse::<i64>().map_err(|_| {
+                        Error::config_parse(Box::new(InvalidValue("connect_timeout")))
+                    })?;
                     if timeout > 0 {
                         builder.connect_timeout(Duration::from_secs(timeout as u64));
                     }
                 }
                 #[cfg(feature = "runtime")]
                 "keepalives" => {
-                    let keepalives = value.parse::<u64>().map_err(Error::invalid_keepalives)?;
+                    let keepalives = value
+                        .parse::<u64>()
+                        .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
                     builder.keepalives(keepalives != 0);
                 }
                 #[cfg(feature = "runtime")]
                 "keepalives_idle" => {
-                    let keepalives_idle = value
-                        .parse::<i64>()
-                        .map_err(Error::invalid_keepalives_idle)?;
+                    let keepalives_idle = value.parse::<i64>().map_err(|_| {
+                        Error::config_parse(Box::new(InvalidValue("keepalives_idle")))
+                    })?;
                     if keepalives_idle > 0 {
                         builder.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                     }
@@ -231,12 +262,18 @@ impl FromStr for Config {
                     let target_session_attrs = match &*value {
                         "any" => TargetSessionAttrs::Any,
                         "read-write" => TargetSessionAttrs::ReadWrite,
-                        _ => return Err(Error::invalid_target_session_attrs()),
+                        _ => {
+                            return Err(Error::config_parse(Box::new(InvalidValue(
+                                "target_session_attrs",
+                            ))))
+                        }
                     };
                     builder.target_session_attrs(target_session_attrs);
                 }
                 key => {
-                    builder.param(key, &value);
+                    return Err(Error::config_parse(Box::new(UnknownOption(
+                        key.to_string(),
+                    ))))
                 }
             }
         }
@@ -244,6 +281,28 @@ impl FromStr for Config {
         Ok(builder)
     }
 }
+
+#[derive(Debug)]
+struct UnknownOption(String);
+
+impl fmt::Display for UnknownOption {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "unknown option `{}`", self.0)
+    }
+}
+
+impl error::Error for UnknownOption {}
+
+#[derive(Debug)]
+struct InvalidValue(&'static str);
+
+impl fmt::Display for InvalidValue {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "invalid value for option `{}`", self.0)
+    }
+}
+
+impl error::Error for InvalidValue {}
 
 struct Parser<'a> {
     s: &'a str,
@@ -290,9 +349,9 @@ impl<'a> Parser<'a> {
                     "unexpected character at byte {}: expected `{}` but got `{}`",
                     i, target, c
                 );
-                Err(Error::connection_syntax(m.into()))
+                Err(Error::config_parse(m.into()))
             }
-            None => Err(Error::connection_syntax("unexpected EOF".into())),
+            None => Err(Error::config_parse("unexpected EOF".into())),
         }
     }
 
@@ -351,7 +410,7 @@ impl<'a> Parser<'a> {
         }
 
         if value.is_empty() {
-            return Err(Error::connection_syntax("unexpected EOF".into()));
+            return Err(Error::config_parse("unexpected EOF".into()));
         }
 
         Ok(value)
@@ -375,7 +434,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Err(Error::connection_syntax(
+        Err(Error::config_parse(
             "unterminated quoted connection parameter value".into(),
         ))
     }

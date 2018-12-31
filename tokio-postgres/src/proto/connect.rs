@@ -44,11 +44,11 @@ where
         let config = state.config?;
 
         if config.0.host.is_empty() {
-            return Err(Error::missing_host());
+            return Err(Error::config("host missing".into()));
         }
 
         if config.0.port.len() > 1 && config.0.port.len() != config.0.host.len() {
-            return Err(Error::invalid_port_count());
+            return Err(Error::config("invalid number of ports".into()));
         }
 
         let hostname = match &config.0.host[0] {

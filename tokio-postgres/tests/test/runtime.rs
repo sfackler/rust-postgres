@@ -61,7 +61,8 @@ fn target_session_attrs_ok() {
 fn target_session_attrs_err() {
     let mut runtime = Runtime::new().unwrap();
     let f = tokio_postgres::connect(
-        "host=localhost port=5433 user=postgres target_session_attrs=read-write default_transaction_read_only=on",
+        "host=localhost port=5433 user=postgres target_session_attrs=read-write
+         options='-c default_transaction_read_only=on'",
         NoTls,
     );
     runtime.block_on(f).err().unwrap();

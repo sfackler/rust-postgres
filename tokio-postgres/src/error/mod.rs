@@ -5,8 +5,6 @@ use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
-#[cfg(feature = "runtime")]
-use std::num::ParseIntError;
 
 pub use self::sqlstate::*;
 
@@ -343,33 +341,11 @@ enum Kind {
     Db,
     Parse,
     Encode,
-    MissingUser,
-    MissingPassword,
-    UnsupportedAuthentication,
     Authentication,
-    ConnectionSyntax,
+    ConfigParse,
+    Config,
     #[cfg(feature = "runtime")]
     Connect,
-    #[cfg(feature = "runtime")]
-    MissingHost,
-    #[cfg(feature = "runtime")]
-    InvalidPort,
-    #[cfg(feature = "runtime")]
-    InvalidPortCount,
-    #[cfg(feature = "runtime")]
-    InvalidConnectTimeout,
-    #[cfg(feature = "runtime")]
-    InvalidKeepalives,
-    #[cfg(feature = "runtime")]
-    InvalidTargetSessionAttrs,
-    #[cfg(feature = "runtime")]
-    InvalidKeepalivesIdle,
-    #[cfg(feature = "runtime")]
-    Timer,
-    #[cfg(feature = "runtime")]
-    ConnectTimeout,
-    #[cfg(feature = "runtime")]
-    ReadOnlyDatabase,
 }
 
 struct ErrorInner {
@@ -402,33 +378,11 @@ impl fmt::Display for Error {
             Kind::Db => "db error",
             Kind::Parse => "error parsing response from server",
             Kind::Encode => "error encoding message to server",
-            Kind::MissingUser => "username not provided",
-            Kind::MissingPassword => "password not provided",
-            Kind::UnsupportedAuthentication => "unsupported authentication method requested",
             Kind::Authentication => "authentication error",
-            Kind::ConnectionSyntax => "invalid connection string",
+            Kind::ConfigParse => "invalid connection string",
+            Kind::Config => "invalid configuration",
             #[cfg(feature = "runtime")]
             Kind::Connect => "error connecting to server",
-            #[cfg(feature = "runtime")]
-            Kind::MissingHost => "host not provided",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidPort => "invalid port",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidPortCount => "wrong number of ports provided",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidConnectTimeout => "invalid connect_timeout",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidKeepalives => "invalid keepalives",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidKeepalivesIdle => "invalid keepalives_value",
-            #[cfg(feature = "runtime")]
-            Kind::InvalidTargetSessionAttrs => "invalid target_session_attrs",
-            #[cfg(feature = "runtime")]
-            Kind::Timer => "timer error",
-            #[cfg(feature = "runtime")]
-            Kind::ConnectTimeout => "timed out connecting to server",
-            #[cfg(feature = "runtime")]
-            Kind::ReadOnlyDatabase => "the database was read-only",
         };
         fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
@@ -504,18 +458,6 @@ impl Error {
         Error::new(Kind::CopyInStream, Some(e.into()))
     }
 
-    pub(crate) fn missing_user() -> Error {
-        Error::new(Kind::MissingUser, None)
-    }
-
-    pub(crate) fn missing_password() -> Error {
-        Error::new(Kind::MissingPassword, None)
-    }
-
-    pub(crate) fn unsupported_authentication() -> Error {
-        Error::new(Kind::UnsupportedAuthentication, None)
-    }
-
     pub(crate) fn tls(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::Tls, Some(e))
     }
@@ -524,66 +466,20 @@ impl Error {
         Error::new(Kind::Io, Some(Box::new(e)))
     }
 
-    pub(crate) fn authentication(e: io::Error) -> Error {
-        Error::new(Kind::Authentication, Some(Box::new(e)))
+    pub(crate) fn authentication(e: Box<dyn error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::Authentication, Some(e))
     }
 
-    pub(crate) fn connection_syntax(e: Box<dyn error::Error + Sync + Send>) -> Error {
-        Error::new(Kind::ConnectionSyntax, Some(e))
+    pub(crate) fn config_parse(e: Box<dyn error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::ConfigParse, Some(e))
+    }
+
+    pub(crate) fn config(e: Box<dyn error::Error + Sync + Send>) -> Error {
+        Error::new(Kind::Config, Some(e))
     }
 
     #[cfg(feature = "runtime")]
     pub(crate) fn connect(e: io::Error) -> Error {
         Error::new(Kind::Connect, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn missing_host() -> Error {
-        Error::new(Kind::MissingHost, None)
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_port(e: ParseIntError) -> Error {
-        Error::new(Kind::InvalidPort, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_port_count() -> Error {
-        Error::new(Kind::InvalidPortCount, None)
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_connect_timeout(e: ParseIntError) -> Error {
-        Error::new(Kind::InvalidConnectTimeout, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_keepalives(e: ParseIntError) -> Error {
-        Error::new(Kind::InvalidKeepalives, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_keepalives_idle(e: ParseIntError) -> Error {
-        Error::new(Kind::InvalidKeepalivesIdle, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn invalid_target_session_attrs() -> Error {
-        Error::new(Kind::InvalidTargetSessionAttrs, None)
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn timer(e: tokio_timer::Error) -> Error {
-        Error::new(Kind::Timer, Some(Box::new(e)))
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn connect_timeout() -> Error {
-        Error::new(Kind::ConnectTimeout, None)
-    }
-
-    #[cfg(feature = "runtime")]
-    pub(crate) fn read_only_database() -> Error {
-        Error::new(Kind::ReadOnlyDatabase, None)
     }
 }

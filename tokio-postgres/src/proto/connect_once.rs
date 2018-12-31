@@ -128,9 +128,11 @@ where
     ) -> Poll<AfterConnectingUnix<T>, Error> {
         if let Some(timeout) = &mut state.timeout {
             match timeout.poll() {
-                Ok(Async::Ready(())) => return Err(Error::connect_timeout()),
+                Ok(Async::Ready(())) => {
+                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
+                }
                 Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::timer(e)),
+                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
             }
         }
 
@@ -149,9 +151,11 @@ where
     ) -> Poll<AfterResolvingDns<T>, Error> {
         if let Some(timeout) = &mut state.timeout {
             match timeout.poll() {
-                Ok(Async::Ready(())) => return Err(Error::connect_timeout()),
+                Ok(Async::Ready(())) => {
+                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
+                }
                 Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::timer(e)),
+                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
             }
         }
 
@@ -182,9 +186,11 @@ where
     ) -> Poll<AfterConnectingTcp<T>, Error> {
         if let Some(timeout) = &mut state.timeout {
             match timeout.poll() {
-                Ok(Async::Ready(())) => return Err(Error::connect_timeout()),
+                Ok(Async::Ready(())) => {
+                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
+                }
                 Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::timer(e)),
+                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
             }
         }
 
@@ -244,7 +250,10 @@ where
         match try_ready!(state.stream.poll()) {
             Some(row) => {
                 if row.get(0) == Some("on") {
-                    Err(Error::read_only_database())
+                    Err(Error::connect(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "database does not allow writes",
+                    )))
                 } else {
                     let state = state.take();
                     transition!(Finished((state.client, state.connection)))
