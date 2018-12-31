@@ -294,14 +294,17 @@ impl fmt::Display for UnknownOption {
 impl error::Error for UnknownOption {}
 
 #[derive(Debug)]
+#[cfg(feature = "runtime")]
 struct InvalidValue(&'static str);
 
+#[cfg(feature = "runtime")]
 impl fmt::Display for InvalidValue {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "invalid value for option `{}`", self.0)
     }
 }
 
+#[cfg(feature = "runtime")]
 impl error::Error for InvalidValue {}
 
 struct Parser<'a> {
