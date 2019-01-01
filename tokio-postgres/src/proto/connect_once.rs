@@ -6,8 +6,6 @@ use lazy_static::lazy_static;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-#[cfg(unix)]
-use std::path::Path;
 use std::time::Instant;
 use std::vec;
 use tokio_tcp::TcpStream;
@@ -111,7 +109,7 @@ where
             }
             #[cfg(unix)]
             Host::Unix(host) => {
-                let path = Path::new(host).join(format!(".s.PGSQL.{}", port));
+                let path = host.join(format!(".s.PGSQL.{}", port));
                 transition!(ConnectingUnix {
                     future: UnixStream::connect(path),
                     timeout,
