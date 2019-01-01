@@ -1,6 +1,12 @@
+use std::borrow::Cow;
 use std::error;
+#[cfg(all(feature = "runtime", unix))]
+use std::ffi::OsStr;
 use std::fmt;
 use std::iter;
+use std::mem;
+#[cfg(all(feature = "runtime", unix))]
+use std::os::unix::ffi::OsStrExt;
 #[cfg(all(feature = "runtime", unix))]
 use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
@@ -173,6 +179,89 @@ impl Config {
         self
     }
 
+    fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
+        match key {
+            "user" => {
+                self.user(&value);
+            }
+            "password" => {
+                self.password(value);
+            }
+            "dbname" => {
+                self.dbname(&value);
+            }
+            "options" => {
+                self.options(&value);
+            }
+            "application_name" => {
+                self.application_name(&value);
+            }
+            #[cfg(feature = "runtime")]
+            "host" => {
+                for host in value.split(',') {
+                    self.host(host);
+                }
+            }
+            #[cfg(feature = "runtime")]
+            "port" => {
+                for port in value.split(',') {
+                    let port = if port.is_empty() {
+                        5432
+                    } else {
+                        port.parse()
+                            .map_err(|_| Error::config_parse(Box::new(InvalidValue("port"))))?
+                    };
+                    self.port(port);
+                }
+            }
+            #[cfg(feature = "runtime")]
+            "connect_timeout" => {
+                let timeout = value
+                    .parse::<i64>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("connect_timeout"))))?;
+                if timeout > 0 {
+                    self.connect_timeout(Duration::from_secs(timeout as u64));
+                }
+            }
+            #[cfg(feature = "runtime")]
+            "keepalives" => {
+                let keepalives = value
+                    .parse::<u64>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
+                self.keepalives(keepalives != 0);
+            }
+            #[cfg(feature = "runtime")]
+            "keepalives_idle" => {
+                let keepalives_idle = value
+                    .parse::<i64>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives_idle"))))?;
+                if keepalives_idle > 0 {
+                    self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
+                }
+            }
+            #[cfg(feature = "runtime")]
+            "target_session_attrs" => {
+                let target_session_attrs = match &*value {
+                    "any" => TargetSessionAttrs::Any,
+                    "read-write" => TargetSessionAttrs::ReadWrite,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "target_session_attrs",
+                        ))));
+                    }
+                };
+                self.target_session_attrs(target_session_attrs);
+            }
+            key => {
+                return Err(Error::config_parse(Box::new(UnknownOption(
+                    key.to_string(),
+                ))));
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
     where
         S: AsyncRead + AsyncWrite,
@@ -194,91 +283,10 @@ impl FromStr for Config {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Config, Error> {
-        let mut parser = Parser::new(s);
-        let mut builder = Config::new();
-
-        while let Some((key, value)) = parser.parameter()? {
-            match key {
-                "user" => {
-                    builder.user(&value);
-                }
-                "password" => {
-                    builder.password(value);
-                }
-                "dbname" => {
-                    builder.dbname(&value);
-                }
-                "options" => {
-                    builder.options(&value);
-                }
-                "application_name" => {
-                    builder.application_name(&value);
-                }
-                #[cfg(feature = "runtime")]
-                "host" => {
-                    for host in value.split(',') {
-                        builder.host(host);
-                    }
-                }
-                #[cfg(feature = "runtime")]
-                "port" => {
-                    for port in value.split(',') {
-                        let port = if port.is_empty() {
-                            5432
-                        } else {
-                            port.parse()
-                                .map_err(|_| Error::config_parse(Box::new(InvalidValue("port"))))?
-                        };
-                        builder.port(port);
-                    }
-                }
-                #[cfg(feature = "runtime")]
-                "connect_timeout" => {
-                    let timeout = value.parse::<i64>().map_err(|_| {
-                        Error::config_parse(Box::new(InvalidValue("connect_timeout")))
-                    })?;
-                    if timeout > 0 {
-                        builder.connect_timeout(Duration::from_secs(timeout as u64));
-                    }
-                }
-                #[cfg(feature = "runtime")]
-                "keepalives" => {
-                    let keepalives = value
-                        .parse::<u64>()
-                        .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
-                    builder.keepalives(keepalives != 0);
-                }
-                #[cfg(feature = "runtime")]
-                "keepalives_idle" => {
-                    let keepalives_idle = value.parse::<i64>().map_err(|_| {
-                        Error::config_parse(Box::new(InvalidValue("keepalives_idle")))
-                    })?;
-                    if keepalives_idle > 0 {
-                        builder.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
-                    }
-                }
-                #[cfg(feature = "runtime")]
-                "target_session_attrs" => {
-                    let target_session_attrs = match &*value {
-                        "any" => TargetSessionAttrs::Any,
-                        "read-write" => TargetSessionAttrs::ReadWrite,
-                        _ => {
-                            return Err(Error::config_parse(Box::new(InvalidValue(
-                                "target_session_attrs",
-                            ))))
-                        }
-                    };
-                    builder.target_session_attrs(target_session_attrs);
-                }
-                key => {
-                    return Err(Error::config_parse(Box::new(UnknownOption(
-                        key.to_string(),
-                    ))))
-                }
-            }
+        match UrlParser::parse(s)? {
+            Some(config) => Ok(config),
+            None => Parser::parse(s),
         }
-
-        Ok(builder)
     }
 }
 
@@ -294,17 +302,14 @@ impl fmt::Display for UnknownOption {
 impl error::Error for UnknownOption {}
 
 #[derive(Debug)]
-#[cfg(feature = "runtime")]
 struct InvalidValue(&'static str);
 
-#[cfg(feature = "runtime")]
 impl fmt::Display for InvalidValue {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "invalid value for option `{}`", self.0)
     }
 }
 
-#[cfg(feature = "runtime")]
 impl error::Error for InvalidValue {}
 
 struct Parser<'a> {
@@ -313,11 +318,19 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(s: &'a str) -> Parser<'a> {
-        Parser {
+    fn parse(s: &'a str) -> Result<Config, Error> {
+        let mut parser = Parser {
             s,
             it: s.char_indices().peekable(),
+        };
+
+        let mut config = Config::new();
+
+        while let Some((key, value)) = parser.parameter()? {
+            config.param(key, &value)?;
         }
+
+        Ok(config)
     }
 
     fn skip_ws(&mut self) {
@@ -454,5 +467,196 @@ impl<'a> Parser<'a> {
         let value = self.value()?;
 
         Ok(Some((keyword, value)))
+    }
+}
+
+// This is a pretty sloppy "URL" parser, but it matches the behavior of libpq, where things really aren't very strict
+struct UrlParser<'a> {
+    s: &'a str,
+    config: Config,
+}
+
+impl<'a> UrlParser<'a> {
+    fn parse(s: &'a str) -> Result<Option<Config>, Error> {
+        let s = match Self::remove_url_prefix(s) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        let mut parser = UrlParser {
+            s,
+            config: Config::new(),
+        };
+
+        parser.parse_credentials()?;
+        parser.parse_host()?;
+        parser.parse_path()?;
+        parser.parse_params()?;
+
+        Ok(Some(parser.config))
+    }
+
+    fn remove_url_prefix(s: &str) -> Option<&str> {
+        for prefix in &["postgres://", "postgresql://"] {
+            if s.starts_with(prefix) {
+                return Some(&s[prefix.len()..]);
+            }
+        }
+
+        None
+    }
+
+    fn take_until(&mut self, end: &[char]) -> Option<&'a str> {
+        match self.s.find(end) {
+            Some(pos) => {
+                let (head, tail) = self.s.split_at(pos);
+                self.s = tail;
+                Some(head)
+            }
+            None => None,
+        }
+    }
+
+    fn take_all(&mut self) -> &'a str {
+        mem::replace(&mut self.s, "")
+    }
+
+    fn eat_byte(&mut self) {
+        self.s = &self.s[1..];
+    }
+
+    fn parse_credentials(&mut self) -> Result<(), Error> {
+        let creds = match self.take_until(&['@']) {
+            Some(creds) => creds,
+            None => return Ok(()),
+        };
+        self.eat_byte();
+
+        let mut it = creds.splitn(2, ':');
+        let user = self.decode(it.next().unwrap())?;
+        self.config.user(&user);
+
+        if let Some(password) = it.next() {
+            let password = Cow::from(percent_encoding::percent_decode(password.as_bytes()));
+            self.config.password(password);
+        }
+
+        Ok(())
+    }
+
+    fn parse_host(&mut self) -> Result<(), Error> {
+        let host = match self.take_until(&['/', '?']) {
+            Some(host) => host,
+            None => self.take_all(),
+        };
+
+        if host.is_empty() {
+            return Ok(());
+        }
+
+        for chunk in host.split(',') {
+            let (host, port) = if chunk.starts_with('[') {
+                let idx = match chunk.find(']') {
+                    Some(idx) => idx,
+                    None => return Err(Error::config_parse(InvalidValue("host").into())),
+                };
+
+                let host = &chunk[1..idx];
+                let remaining = &chunk[idx + 1..];
+                let port = if remaining.starts_with(':') {
+                    Some(&remaining[1..])
+                } else if remaining.is_empty() {
+                    None
+                } else {
+                    return Err(Error::config_parse(InvalidValue("host").into()));
+                };
+
+                (host, port)
+            } else {
+                let mut it = chunk.splitn(2, ':');
+                (it.next().unwrap(), it.next())
+            };
+
+            self.host_param(host)?;
+            let port = self.decode(port.unwrap_or("5432"))?;
+            self.config.param("port", &port)?;
+        }
+
+        Ok(())
+    }
+
+    fn parse_path(&mut self) -> Result<(), Error> {
+        if !self.s.starts_with('/') {
+            return Ok(());
+        }
+        self.eat_byte();
+
+        let dbname = match self.take_until(&['?']) {
+            Some(dbname) => dbname,
+            None => self.take_all(),
+        };
+
+        if !dbname.is_empty() {
+            self.config.dbname(&self.decode(dbname)?);
+        }
+
+        Ok(())
+    }
+
+    fn parse_params(&mut self) -> Result<(), Error> {
+        if !self.s.starts_with('?') {
+            return Ok(());
+        }
+        self.eat_byte();
+
+        while !self.s.is_empty() {
+            let key = match self.take_until(&['=']) {
+                Some(key) => self.decode(key)?,
+                None => return Err(Error::config_parse("unterminated parameter".into())),
+            };
+            self.eat_byte();
+
+            let value = match self.take_until(&['&']) {
+                Some(value) => {
+                    self.eat_byte();
+                    value
+                }
+                None => self.take_all(),
+            };
+
+            if key == "host" {
+                self.host_param(value)?;
+            } else {
+                let value = self.decode(value)?;
+                self.config.param(&key, &value)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(all(feature = "runtime", unix))]
+    fn host_param(&mut self, s: &str) -> Result<(), Error> {
+        let decoded = Cow::from(percent_encoding::percent_decode(s.as_bytes()));
+        if decoded.get(0) == Some(&b'/') {
+            self.config.host_path(OsStr::from_bytes(&decoded));
+        } else {
+            let decoded = str::from_utf8(&decoded).map_err(|e| Error::config_parse(Box::new(e)))?;
+            self.config.host(decoded);
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(all(feature = "runtime", unix)))]
+    fn host_param(&mut self, s: &str) -> Result<(), Error> {
+        let s = self.decode(s)?;
+        self.config.param("host", &s)
+    }
+
+    fn decode(&self, s: &'a str) -> Result<Cow<'a, str>, Error> {
+        percent_encoding::percent_decode(s.as_bytes())
+            .decode_utf8()
+            .map_err(|e| Error::config_parse(e.into()))
     }
 }

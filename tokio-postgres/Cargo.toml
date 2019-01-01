@@ -43,6 +43,7 @@ bytes = "0.4"
 fallible-iterator = "0.1.6"
 futures = "0.1.7"
 log = "0.4"
+percent-encoding = "1.0"
 phf = "0.7.23"
 postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
 state_machine_future = "0.1.7"
