@@ -92,8 +92,7 @@ where
         }
 
         let mut buf = vec![];
-        frontend::startup_message(params.iter().map(|e| (e.0, e.1)), &mut buf)
-            .map_err(Error::encode)?;
+        frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
 
         let stream = Framed::new(stream, PostgresCodec);
 
