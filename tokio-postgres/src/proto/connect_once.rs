@@ -1,61 +1,27 @@
 #![allow(clippy::large_enum_variant)]
 
 use futures::{try_ready, Async, Future, Poll, Stream};
-use futures_cpupool::{CpuFuture, CpuPool};
-use lazy_static::lazy_static;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::time::Instant;
-use std::vec;
-use tokio_tcp::TcpStream;
-use tokio_timer::Delay;
-#[cfg(unix)]
-use tokio_uds::UnixStream;
 
-use crate::proto::{Client, Connection, HandshakeFuture, SimpleQueryStream};
-use crate::{Config, Error, Host, Socket, TargetSessionAttrs, TlsMode};
-
-lazy_static! {
-    static ref DNS_POOL: CpuPool = futures_cpupool::Builder::new()
-        .name_prefix("postgres-dns-")
-        .pool_size(2)
-        .create();
-}
+use crate::proto::{Client, ConnectSocketFuture, Connection, HandshakeFuture, SimpleQueryStream};
+use crate::{Config, Error, Socket, TargetSessionAttrs, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectOnce<T>
 where
     T: TlsMode<Socket>,
 {
-    #[state_machine_future(start)]
-    #[cfg_attr(unix, state_machine_future(transitions(ConnectingUnix, ResolvingDns)))]
-    #[cfg_attr(not(unix), state_machine_future(transitions(ConnectingTcp)))]
+    #[state_machine_future(start, transitions(ConnectingSocket))]
     Start {
         idx: usize,
         tls_mode: T,
         config: Config,
     },
-    #[cfg(unix)]
     #[state_machine_future(transitions(Handshaking))]
-    ConnectingUnix {
-        future: tokio_uds::ConnectFuture,
-        timeout: Option<Delay>,
-        tls_mode: T,
-        config: Config,
-    },
-    #[state_machine_future(transitions(ConnectingTcp))]
-    ResolvingDns {
-        future: CpuFuture<vec::IntoIter<SocketAddr>, io::Error>,
-        timeout: Option<Delay>,
-        tls_mode: T,
-        config: Config,
-    },
-    #[state_machine_future(transitions(Handshaking))]
-    ConnectingTcp {
-        future: tokio_tcp::ConnectFuture,
-        addrs: vec::IntoIter<SocketAddr>,
-        timeout: Option<Delay>,
+    ConnectingSocket {
+        future: ConnectSocketFuture,
+        idx: usize,
         tls_mode: T,
         config: Config,
     },
@@ -83,142 +49,23 @@ where
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let state = state.take();
 
-        let port = *state
-            .config
-            .0
-            .port
-            .get(state.idx)
-            .or_else(|| state.config.0.port.get(0))
-            .unwrap_or(&5432);
-
-        let timeout = state
-            .config
-            .0
-            .connect_timeout
-            .map(|d| Delay::new(Instant::now() + d));
-
-        match &state.config.0.host[state.idx] {
-            Host::Tcp(host) => {
-                let host = host.clone();
-                transition!(ResolvingDns {
-                    future: DNS_POOL.spawn_fn(move || (&*host, port).to_socket_addrs()),
-                    timeout,
-                    tls_mode: state.tls_mode,
-                    config: state.config,
-                })
-            }
-            #[cfg(unix)]
-            Host::Unix(host) => {
-                let path = host.join(format!(".s.PGSQL.{}", port));
-                transition!(ConnectingUnix {
-                    future: UnixStream::connect(path),
-                    timeout,
-                    tls_mode: state.tls_mode,
-                    config: state.config,
-                })
-            }
-        }
-    }
-
-    #[cfg(unix)]
-    fn poll_connecting_unix<'a>(
-        state: &'a mut RentToOwn<'a, ConnectingUnix<T>>,
-    ) -> Poll<AfterConnectingUnix<T>, Error> {
-        if let Some(timeout) = &mut state.timeout {
-            match timeout.poll() {
-                Ok(Async::Ready(())) => {
-                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
-                }
-                Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
-            }
-        }
-
-        let stream = try_ready!(state.future.poll().map_err(Error::connect));
-        let stream = Socket::new_unix(stream);
-        let state = state.take();
-
-        transition!(Handshaking {
-            target_session_attrs: state.config.0.target_session_attrs,
-            future: HandshakeFuture::new(stream, state.tls_mode, state.config),
-        })
-    }
-
-    fn poll_resolving_dns<'a>(
-        state: &'a mut RentToOwn<'a, ResolvingDns<T>>,
-    ) -> Poll<AfterResolvingDns<T>, Error> {
-        if let Some(timeout) = &mut state.timeout {
-            match timeout.poll() {
-                Ok(Async::Ready(())) => {
-                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
-                }
-                Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
-            }
-        }
-
-        let mut addrs = try_ready!(state.future.poll().map_err(Error::connect));
-        let state = state.take();
-
-        let addr = match addrs.next() {
-            Some(addr) => addr,
-            None => {
-                return Err(Error::connect(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "resolved 0 addresses",
-                )));
-            }
-        };
-
-        transition!(ConnectingTcp {
-            future: TcpStream::connect(&addr),
-            addrs,
-            timeout: state.timeout,
+        transition!(ConnectingSocket {
+            future: ConnectSocketFuture::new(state.config.clone(), state.idx),
+            idx: state.idx,
             tls_mode: state.tls_mode,
             config: state.config,
         })
     }
 
-    fn poll_connecting_tcp<'a>(
-        state: &'a mut RentToOwn<'a, ConnectingTcp<T>>,
-    ) -> Poll<AfterConnectingTcp<T>, Error> {
-        if let Some(timeout) = &mut state.timeout {
-            match timeout.poll() {
-                Ok(Async::Ready(())) => {
-                    return Err(Error::connect(io::Error::from(io::ErrorKind::TimedOut)))
-                }
-                Ok(Async::NotReady) => {}
-                Err(e) => return Err(Error::connect(io::Error::new(io::ErrorKind::Other, e))),
-            }
-        }
-
-        let stream = loop {
-            match state.future.poll() {
-                Ok(Async::Ready(stream)) => break stream,
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(e) => {
-                    let addr = match state.addrs.next() {
-                        Some(addr) => addr,
-                        None => return Err(Error::connect(e)),
-                    };
-                    state.future = TcpStream::connect(&addr);
-                }
-            }
-        };
+    fn poll_connecting_socket<'a>(
+        state: &'a mut RentToOwn<'a, ConnectingSocket<T>>,
+    ) -> Poll<AfterConnectingSocket<T>, Error> {
+        let socket = try_ready!(state.future.poll());
         let state = state.take();
-
-        stream.set_nodelay(true).map_err(Error::connect)?;
-        if state.config.0.keepalives {
-            stream
-                .set_keepalive(Some(state.config.0.keepalives_idle))
-                .map_err(Error::connect)?;
-        }
-
-        let stream = Socket::new_tcp(stream);
 
         transition!(Handshaking {
             target_session_attrs: state.config.0.target_session_attrs,
-            future: HandshakeFuture::new(stream, state.tls_mode, state.config),
+            future: HandshakeFuture::new(socket, state.tls_mode, state.config),
         })
     }
 

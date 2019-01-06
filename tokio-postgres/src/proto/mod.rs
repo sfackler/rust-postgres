@@ -26,6 +26,8 @@ mod codec;
 mod connect;
 #[cfg(feature = "runtime")]
 mod connect_once;
+#[cfg(feature = "runtime")]
+mod connect_socket;
 mod connection;
 mod copy_in;
 mod copy_out;
@@ -51,6 +53,8 @@ pub use crate::proto::codec::PostgresCodec;
 pub use crate::proto::connect::ConnectFuture;
 #[cfg(feature = "runtime")]
 pub use crate::proto::connect_once::ConnectOnceFuture;
+#[cfg(feature = "runtime")]
+pub use crate::proto::connect_socket::ConnectSocketFuture;
 pub use crate::proto::connection::Connection;
 pub use crate::proto::copy_in::CopyInFuture;
 pub use crate::proto::copy_out::CopyOutStream;
