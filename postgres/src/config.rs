@@ -97,7 +97,6 @@ impl Config {
         T: MakeTlsMode<Socket> + 'static + Send,
         T::TlsMode: Send,
         T::Stream: Send,
-        T::Future: Send,
         <T::TlsMode as TlsMode<Socket>>::Future: Send,
     {
         let connect = self.0.connect(tls_mode);

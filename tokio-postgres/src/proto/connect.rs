@@ -1,4 +1,4 @@
-use futures::{try_ready, Async, Future, Poll};
+use futures::{Async, Future, Poll};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
 use crate::proto::{Client, ConnectOnceFuture, Connection};
@@ -9,19 +9,12 @@ pub enum Connect<T>
 where
     T: MakeTlsMode<Socket>,
 {
-    #[state_machine_future(start, transitions(MakingTlsMode))]
+    #[state_machine_future(start, transitions(Connecting))]
     Start {
         make_tls_mode: T,
         config: Result<Config, Error>,
     },
-    #[state_machine_future(transitions(Connecting))]
-    MakingTlsMode {
-        future: T::Future,
-        idx: usize,
-        make_tls_mode: T,
-        config: Config,
-    },
-    #[state_machine_future(transitions(MakingTlsMode, Finished))]
+    #[state_machine_future(transitions(Finished))]
     Connecting {
         future: ConnectOnceFuture<T::TlsMode>,
         idx: usize,
@@ -57,58 +50,48 @@ where
             #[cfg(unix)]
             Host::Unix(_) => "",
         };
-        let future = state.make_tls_mode.make_tls_mode(hostname);
+        let tls_mode = state
+            .make_tls_mode
+            .make_tls_mode(hostname)
+            .map_err(|e| Error::tls(e.into()))?;
 
-        transition!(MakingTlsMode {
-            future,
+        transition!(Connecting {
+            future: ConnectOnceFuture::new(0, tls_mode, config.clone()),
             idx: 0,
             make_tls_mode: state.make_tls_mode,
             config,
         })
     }
 
-    fn poll_making_tls_mode<'a>(
-        state: &'a mut RentToOwn<'a, MakingTlsMode<T>>,
-    ) -> Poll<AfterMakingTlsMode<T>, Error> {
-        let tls_mode = try_ready!(state.future.poll().map_err(|e| Error::tls(e.into())));
-        let state = state.take();
-
-        transition!(Connecting {
-            future: ConnectOnceFuture::new(state.idx, tls_mode, state.config.clone()),
-            idx: state.idx,
-            make_tls_mode: state.make_tls_mode,
-            config: state.config,
-        })
-    }
-
     fn poll_connecting<'a>(
         state: &'a mut RentToOwn<'a, Connecting<T>>,
     ) -> Poll<AfterConnecting<T>, Error> {
-        match state.future.poll() {
-            Ok(Async::Ready(r)) => transition!(Finished(r)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => {
-                let mut state = state.take();
-                let idx = state.idx + 1;
+        loop {
+            match state.future.poll() {
+                Ok(Async::Ready(r)) => transition!(Finished(r)),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(e) => {
+                    let state = &mut **state;
+                    state.idx += 1;
 
-                let host = match state.config.0.host.get(idx) {
-                    Some(host) => host,
-                    None => return Err(e),
-                };
+                    let host = match state.config.0.host.get(state.idx) {
+                        Some(host) => host,
+                        None => return Err(e),
+                    };
 
-                let hostname = match host {
-                    Host::Tcp(host) => &**host,
-                    #[cfg(unix)]
-                    Host::Unix(_) => "",
-                };
-                let future = state.make_tls_mode.make_tls_mode(hostname);
+                    let hostname = match host {
+                        Host::Tcp(host) => &**host,
+                        #[cfg(unix)]
+                        Host::Unix(_) => "",
+                    };
+                    let tls_mode = state
+                        .make_tls_mode
+                        .make_tls_mode(hostname)
+                        .map_err(|e| Error::tls(e.into()))?;
 
-                transition!(MakingTlsMode {
-                    future,
-                    idx,
-                    make_tls_mode: state.make_tls_mode,
-                    config: state.config,
-                })
+                    state.future =
+                        ConnectOnceFuture::new(state.idx, tls_mode, state.config.clone());
+                }
             }
         }
     }

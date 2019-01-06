@@ -18,7 +18,6 @@ impl Client {
         T: MakeTlsMode<Socket> + 'static + Send,
         T::TlsMode: Send,
         T::Stream: Send,
-        T::Future: Send,
         <T::TlsMode as TlsMode<Socket>>::Future: Send,
     {
         params.parse::<Config>()?.connect(tls_mode)

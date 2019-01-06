@@ -1,7 +1,5 @@
 #![warn(rust_2018_idioms, clippy::all)]
 
-#[cfg(feature = "runtime")]
-use futures::future::{self, FutureResult};
 use futures::{try_ready, Async, Future, Poll};
 #[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
@@ -44,12 +42,6 @@ impl MakeTlsConnector {
     {
         self.config = Arc::new(f);
     }
-
-    fn make_tls_connect_inner(&mut self, domain: &str) -> Result<TlsConnector, ErrorStack> {
-        let mut ssl = self.connector.configure()?;
-        (self.config)(&mut ssl)?;
-        Ok(TlsConnector::new(ssl, domain))
-    }
 }
 
 #[cfg(feature = "runtime")]
@@ -60,10 +52,11 @@ where
     type Stream = SslStream<S>;
     type TlsConnect = TlsConnector;
     type Error = ErrorStack;
-    type Future = FutureResult<TlsConnector, ErrorStack>;
 
-    fn make_tls_connect(&mut self, domain: &str) -> FutureResult<TlsConnector, ErrorStack> {
-        future::result(self.make_tls_connect_inner(domain))
+    fn make_tls_connect(&mut self, domain: &str) -> Result<TlsConnector, ErrorStack> {
+        let mut ssl = self.connector.configure()?;
+        (self.config)(&mut ssl)?;
+        Ok(TlsConnector::new(ssl, domain))
     }
 }
 

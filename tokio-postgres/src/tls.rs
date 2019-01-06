@@ -30,9 +30,8 @@ pub trait MakeTlsMode<S> {
     type Stream: AsyncRead + AsyncWrite;
     type TlsMode: TlsMode<S, Stream = Self::Stream>;
     type Error: Into<Box<dyn Error + Sync + Send>>;
-    type Future: Future<Item = Self::TlsMode, Error = Self::Error>;
 
-    fn make_tls_mode(&mut self, domain: &str) -> Self::Future;
+    fn make_tls_mode(&mut self, domain: &str) -> Result<Self::TlsMode, Self::Error>;
 }
 
 pub trait TlsMode<S> {
@@ -50,9 +49,8 @@ pub trait MakeTlsConnect<S> {
     type Stream: AsyncRead + AsyncWrite;
     type TlsConnect: TlsConnect<S, Stream = Self::Stream>;
     type Error: Into<Box<dyn Error + Sync + Send>>;
-    type Future: Future<Item = Self::TlsConnect, Error = Self::Error>;
 
-    fn make_tls_connect(&mut self, domain: &str) -> Self::Future;
+    fn make_tls_connect(&mut self, domain: &str) -> Result<Self::TlsConnect, Self::Error>;
 }
 
 pub trait TlsConnect<S> {
@@ -74,10 +72,9 @@ where
     type Stream = S;
     type TlsMode = NoTls;
     type Error = Void;
-    type Future = FutureResult<NoTls, Void>;
 
-    fn make_tls_mode(&mut self, _: &str) -> FutureResult<NoTls, Void> {
-        future::ok(NoTls)
+    fn make_tls_mode(&mut self, _: &str) -> Result<NoTls, Void> {
+        Ok(NoTls)
     }
 }
 
@@ -112,26 +109,9 @@ where
     type Stream = MaybeTlsStream<T::Stream, S>;
     type TlsMode = PreferTls<T::TlsConnect>;
     type Error = T::Error;
-    type Future = MakePreferTlsFuture<T::Future>;
 
-    fn make_tls_mode(&mut self, domain: &str) -> MakePreferTlsFuture<T::Future> {
-        MakePreferTlsFuture(self.0.make_tls_connect(domain))
-    }
-}
-
-#[cfg(feature = "runtime")]
-pub struct MakePreferTlsFuture<F>(F);
-
-#[cfg(feature = "runtime")]
-impl<F> Future for MakePreferTlsFuture<F>
-where
-    F: Future,
-{
-    type Item = PreferTls<F::Item>;
-    type Error = F::Error;
-
-    fn poll(&mut self) -> Poll<PreferTls<F::Item>, F::Error> {
-        self.0.poll().map(|f| f.map(PreferTls))
+    fn make_tls_mode(&mut self, domain: &str) -> Result<PreferTls<T::TlsConnect>, T::Error> {
+        self.0.make_tls_connect(domain).map(PreferTls)
     }
 }
 
@@ -282,26 +262,9 @@ where
     type Stream = T::Stream;
     type TlsMode = RequireTls<T::TlsConnect>;
     type Error = T::Error;
-    type Future = MakeRequireTlsFuture<T::Future>;
 
-    fn make_tls_mode(&mut self, domain: &str) -> MakeRequireTlsFuture<T::Future> {
-        MakeRequireTlsFuture(self.0.make_tls_connect(domain))
-    }
-}
-
-#[cfg(feature = "runtime")]
-pub struct MakeRequireTlsFuture<F>(F);
-
-#[cfg(feature = "runtime")]
-impl<F> Future for MakeRequireTlsFuture<F>
-where
-    F: Future,
-{
-    type Item = RequireTls<F::Item>;
-    type Error = F::Error;
-
-    fn poll(&mut self) -> Poll<RequireTls<F::Item>, F::Error> {
-        self.0.poll().map(|f| f.map(RequireTls))
+    fn make_tls_mode(&mut self, domain: &str) -> Result<RequireTls<T::TlsConnect>, T::Error> {
+        self.0.make_tls_connect(domain).map(RequireTls)
     }
 }
 
