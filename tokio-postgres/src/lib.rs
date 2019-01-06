@@ -1,3 +1,111 @@
+//! An asynchronous, pipelined, PostgreSQL client.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use futures::{Future, Stream};
+//! use tokio_postgres::NoTls;
+//!
+//! # #[cfg(not(feature = "runtime"))]
+//! # let fut = futures::future::ok(());
+//! # #[cfg(feature = "runtime")]
+//! let fut =
+//!     // Connect to the database
+//!     tokio_postgres::connect("host=localhost user=postgres", NoTls)
+//!
+//!     .map(|(client, connection)| {
+//!         // The connection object performs the actual communication with the database,
+//!         // so spawn it off to run on its own.
+//!         let connection = connection.map_err(|e| eprintln!("connection error: {}", e));
+//!         tokio::spawn(connection);
+//!
+//!         // The client is what you use to make requests.
+//!         client
+//!     })
+//!
+//!     .and_then(|mut client| {
+//!         // Now we can prepare a simple statement that just returns its parameter.
+//!         client.prepare("SELECT $1::TEXT")
+//!             .map(|statement| (client, statement))
+//!     })
+//!
+//!     .and_then(|(mut client, statement)| {
+//!         // And then execute it, returning a Stream of Rows which we collect into a Vec
+//!         client.query(&statement, &[&"hello world"]).collect()
+//!     })
+//!
+//!     // Now we can check that we got back the same string we sent over.
+//!     .map(|rows| {
+//!         let value: &str = rows[0].get(0);
+//!         assert_eq!(value, "hello world");
+//!     })
+//!
+//!     // And report any errors that happened.
+//!     .map_err(|e| {
+//!         eprintln!("error: {}", e);
+//!     });
+//!
+//! // By default, tokio_postgres uses the tokio crate as its runtime.
+//! tokio::run(fut);
+//! ```
+//!
+//! # Pipelining
+//!
+//! The client supports *pipelined* requests. Pipelining can improve performance in use cases in which multiple,
+//! independent queries need to be executed. In a traditional workflow, each query is sent to the server after the
+//! previous query completes. In contrast, pipelining allows the client to send all of the queries to the server up
+//! front, eliminating time spent on both sides waiting for the other to finish sending data:
+//!
+//! ```not_rust
+//!             Sequential                              Pipelined
+//! | Client         | Server          |    | Client         | Server          |
+//! |----------------|-----------------|    |----------------|-----------------|
+//! | send query 1   |                 |    | send query 1   |                 |
+//! |                | process query 1 |    | send query 2   | process query 1 |
+//! | receive rows 1 |                 |    | send query 3   | process query 2 |
+//! | send query 2   |                 |    | receive rows 1 | process query 3 |
+//! |                | process query 2 |    | receive rows 2 |                 |
+//! | receive rows 2 |                 |    | receive rows 3 |                 |
+//! | send query 3   |                 |
+//! |                | process query 3 |
+//! | receive rows 3 |                 |
+//! ```
+//!
+//! In both cases, the PostgreSQL server is executing the queries sequentially - pipelining just allows both sides of
+//! the connection to work concurrently when possible.
+//!
+//! Pipelining happens automatically when futures are polled concurrently (for example, by using the futures `join`
+//! combinator). Say we want to prepare 2 statements:
+//!
+//! ```no_run
+//! use futures::Future;
+//! use tokio_postgres::{Client, Error, Statement};
+//!
+//! fn prepare_sequential(
+//!     client: &mut Client,
+//! ) -> impl Future<Item = (Statement, Statement), Error = Error>
+//! {
+//!     client.prepare("SELECT * FROM foo")
+//!         .and_then({
+//!             let f = client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)");
+//!             |s1| f.map(|s2| (s1, s2))
+//!         })
+//! }
+//!
+//! fn prepare_pipelined(
+//!     client: &mut Client,
+//! ) -> impl Future<Item = (Statement, Statement), Error = Error>
+//! {
+//!     client.prepare("SELECT * FROM foo")
+//!         .join(client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)"))
+//! }
+//! ```
+//!
+//! # Runtime
+//!
+//! The client works with arbitrary `AsyncRead + AsyncWrite` streams. Convenience APIs are provided to handle the
+//! connection process, but these are gated by the `runtime` Cargo feature, which is enabled by default. If disabled,
+//! all dependence on the tokio runtime is removed.
 #![warn(rust_2018_idioms, clippy::all)]
 
 use bytes::{Bytes, IntoBuf};
