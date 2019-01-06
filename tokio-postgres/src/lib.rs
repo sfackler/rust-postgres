@@ -116,7 +116,6 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use crate::config::*;
 pub use crate::error::*;
-use crate::proto::CancelFuture;
 pub use crate::row::*;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
@@ -150,14 +149,6 @@ where
     T: MakeTlsMode<Socket>,
 {
     Connect(proto::ConnectFuture::new(tls_mode, config.parse()))
-}
-
-pub fn cancel_query<S, T>(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQuery<S, T>
-where
-    S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
-{
-    CancelQuery(CancelFuture::new(stream, tls_mode, cancel_data))
 }
 
 pub struct Client(proto::Client);
@@ -265,12 +256,12 @@ pub enum AsyncMessage {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct CancelQuery<S, T>(proto::CancelFuture<S, T>)
+pub struct CancelQueryRaw<S, T>(proto::CancelQueryRawFuture<S, T>)
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>;
 
-impl<S, T> Future for CancelQuery<S, T>
+impl<S, T> Future for CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,

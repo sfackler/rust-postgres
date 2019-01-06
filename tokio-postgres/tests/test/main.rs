@@ -245,7 +245,7 @@ fn cancel_query() {
         })
         .then(|r| {
             let s = r.unwrap();
-            tokio_postgres::cancel_query(s, NoTls, cancel_data)
+            tokio_postgres::Config::new().cancel_query_raw(s, NoTls, cancel_data)
         })
         .then(|r| {
             r.unwrap();

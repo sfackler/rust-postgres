@@ -19,7 +19,7 @@ macro_rules! try_ready_closed {
 }
 
 mod bind;
-mod cancel;
+mod cancel_query_raw;
 mod client;
 mod codec;
 #[cfg(feature = "runtime")]
@@ -44,7 +44,7 @@ mod typeinfo_composite;
 mod typeinfo_enum;
 
 pub use crate::proto::bind::BindFuture;
-pub use crate::proto::cancel::CancelFuture;
+pub use crate::proto::cancel_query_raw::CancelQueryRawFuture;
 pub use crate::proto::client::Client;
 pub use crate::proto::codec::PostgresCodec;
 #[cfg(feature = "runtime")]

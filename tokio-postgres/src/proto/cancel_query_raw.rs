@@ -9,7 +9,7 @@ use crate::proto::TlsFuture;
 use crate::{CancelData, TlsMode};
 
 #[derive(StateMachineFuture)]
-pub enum Cancel<S, T>
+pub enum CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
@@ -31,7 +31,7 @@ where
     Failed(Error),
 }
 
-impl<S, T> PollCancel<S, T> for Cancel<S, T>
+impl<S, T> PollCancelQueryRaw<S, T> for CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
@@ -69,12 +69,12 @@ where
     }
 }
 
-impl<S, T> CancelFuture<S, T>
+impl<S, T> CancelQueryRawFuture<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelFuture<S, T> {
-        Cancel::start(TlsFuture::new(stream, tls_mode), cancel_data)
+    pub fn new(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQueryRawFuture<S, T> {
+        CancelQueryRaw::start(TlsFuture::new(stream, tls_mode), cancel_data)
     }
 }
