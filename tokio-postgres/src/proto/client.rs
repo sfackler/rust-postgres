@@ -8,6 +8,7 @@ use postgres_protocol::message::frontend;
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::sync::{Arc, Weak};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::bind::BindFuture;
 use crate::proto::connection::{Request, RequestMessages};
@@ -20,8 +21,13 @@ use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
 use crate::proto::simple_query::SimpleQueryStream;
 use crate::proto::statement::Statement;
+#[cfg(feature = "runtime")]
+use crate::proto::CancelQueryFuture;
+use crate::proto::CancelQueryRawFuture;
 use crate::types::{IsNull, Oid, ToSql, Type};
-use crate::Error;
+use crate::{Config, Error, TlsMode};
+#[cfg(feature = "runtime")]
+use crate::{MakeTlsMode, Socket};
 
 pub struct PendingRequest(Result<(RequestMessages, IdleGuard), Error>);
 
@@ -44,13 +50,25 @@ struct Inner {
     state: Mutex<State>,
     idle: IdleState,
     sender: mpsc::UnboundedSender<Request>,
+    process_id: i32,
+    secret_key: i32,
+    #[cfg_attr(not(feature = "runtime"), allow(dead_code))]
+    config: Config,
+    #[cfg_attr(not(feature = "runtime"), allow(dead_code))]
+    idx: Option<usize>,
 }
 
 #[derive(Clone)]
 pub struct Client(Arc<Inner>);
 
 impl Client {
-    pub fn new(sender: mpsc::UnboundedSender<Request>) -> Client {
+    pub fn new(
+        sender: mpsc::UnboundedSender<Request>,
+        process_id: i32,
+        secret_key: i32,
+        config: Config,
+        idx: Option<usize>,
+    ) -> Client {
         Client(Arc::new(Inner {
             state: Mutex::new(State {
                 types: HashMap::new(),
@@ -60,6 +78,10 @@ impl Client {
             }),
             idle: IdleState::new(),
             sender,
+            process_id,
+            secret_key,
+            config,
+            idx,
         }))
     }
 
@@ -220,6 +242,28 @@ impl Client {
 
     pub fn close_portal(&self, name: &str) {
         self.close(b'P', name)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn cancel_query<T>(&self, make_tls_mode: T) -> CancelQueryFuture<T>
+    where
+        T: MakeTlsMode<Socket>,
+    {
+        CancelQueryFuture::new(
+            make_tls_mode,
+            self.0.idx,
+            self.0.config.clone(),
+            self.0.process_id,
+            self.0.secret_key,
+        )
+    }
+
+    pub fn cancel_query_raw<S, T>(&self, stream: S, tls_mode: T) -> CancelQueryRawFuture<S, T>
+    where
+        S: AsyncRead + AsyncWrite,
+        T: TlsMode<S>,
+    {
+        CancelQueryRawFuture::new(stream, tls_mode, self.0.process_id, self.0.secret_key)
     }
 
     fn close(&self, ty: u8, name: &str) {

@@ -206,6 +206,22 @@ impl Client {
         BatchExecute(self.0.batch_execute(query))
     }
 
+    #[cfg(feature = "runtime")]
+    pub fn cancel_query<T>(&mut self, make_tls_mode: T) -> CancelQuery<T>
+    where
+        T: MakeTlsMode<Socket>,
+    {
+        CancelQuery(self.0.cancel_query(make_tls_mode))
+    }
+
+    pub fn cancel_query_raw<S, T>(&mut self, stream: S, tls_mode: T) -> CancelQueryRaw<S, T>
+    where
+        S: AsyncRead + AsyncWrite,
+        T: TlsMode<S>,
+    {
+        CancelQueryRaw(self.0.cancel_query_raw(stream, tls_mode))
+    }
+
     pub fn is_closed(&self) -> bool {
         self.0.is_closed()
     }
@@ -222,10 +238,6 @@ impl<S> Connection<S>
 where
     S: AsyncRead + AsyncWrite,
 {
-    pub fn cancel_data(&self) -> CancelData {
-        self.0.cancel_data()
-    }
-
     pub fn parameter(&self, name: &str) -> Option<&str> {
         self.0.parameter(name)
     }
@@ -265,6 +277,25 @@ impl<S, T> Future for CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
+{
+    type Item = ();
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(), Error> {
+        self.0.poll()
+    }
+}
+
+#[cfg(feature = "runtime")]
+#[must_use = "futures do nothing unless polled"]
+pub struct CancelQuery<T>(proto::CancelQueryFuture<T>)
+where
+    T: MakeTlsMode<Socket>;
+
+#[cfg(feature = "runtime")]
+impl<T> Future for CancelQuery<T>
+where
+    T: MakeTlsMode<Socket>,
 {
     type Item = ();
     type Error = Error;
@@ -476,15 +507,6 @@ impl Future for BatchExecute {
 
         Ok(Async::Ready(()))
     }
-}
-
-/// Contains information necessary to cancel queries for a session.
-#[derive(Copy, Clone, Debug)]
-pub struct CancelData {
-    /// The process ID of the session.
-    pub process_id: i32,
-    /// The secret key for the session.
-    pub secret_key: i32,
 }
 
 /// An asynchronous notification.

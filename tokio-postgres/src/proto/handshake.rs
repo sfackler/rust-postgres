@@ -8,12 +8,11 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::collections::HashMap;
-use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
-use crate::{CancelData, ChannelBinding, Config, Error, TlsMode};
+use crate::{ChannelBinding, Config, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
 pub enum Handshake<S, T>
@@ -25,42 +24,56 @@ where
     Start {
         future: TlsFuture<S, T>,
         config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
         future: sink::Send<Framed<T::Stream, PostgresCodec>>,
         config: Config,
+        idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
         stream: Framed<T::Stream, PostgresCodec>,
         config: Config,
+        idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
     SendingPassword {
         future: sink::Send<Framed<T::Stream, PostgresCodec>>,
+        config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingSasl))]
     SendingSasl {
         future: sink::Send<Framed<T::Stream, PostgresCodec>>,
         scram: ScramSha256,
+        config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(transitions(SendingSasl, ReadingAuthCompletion))]
     ReadingSasl {
         stream: Framed<T::Stream, PostgresCodec>,
         scram: ScramSha256,
+        config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingInfo))]
     ReadingAuthCompletion {
         stream: Framed<T::Stream, PostgresCodec>,
+        config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(transitions(Finished))]
     ReadingInfo {
         stream: Framed<T::Stream, PostgresCodec>,
-        cancel_data: Option<CancelData>,
+        process_id: i32,
+        secret_key: i32,
         parameters: HashMap<String, String>,
+        config: Config,
+        idx: Option<usize>,
     },
     #[state_machine_future(ready)]
     Finished((Client, Connection<T::Stream>)),
@@ -99,6 +112,7 @@ where
         transition!(SendingStartup {
             future: stream.send(buf),
             config: state.config,
+            idx: state.idx,
             channel_binding,
         })
     }
@@ -111,6 +125,7 @@ where
         transition!(ReadingAuth {
             stream,
             config: state.config,
+            idx: state.idx,
             channel_binding: state.channel_binding,
         })
     }
@@ -124,8 +139,11 @@ where
         match message {
             Some(Message::AuthenticationOk) => transition!(ReadingInfo {
                 stream: state.stream,
-                cancel_data: None,
+                process_id: 0,
+                secret_key: 0,
                 parameters: HashMap::new(),
+                config: state.config,
+                idx: state.idx,
             }),
             Some(Message::AuthenticationCleartextPassword) => {
                 let pass = state
@@ -137,7 +155,9 @@ where
                 let mut buf = vec![];
                 frontend::password_message(pass, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
-                    future: state.stream.send(buf)
+                    future: state.stream.send(buf),
+                    config: state.config,
+                    idx: state.idx,
                 })
             }
             Some(Message::AuthenticationMd5Password(body)) => {
@@ -157,7 +177,9 @@ where
                 let mut buf = vec![];
                 frontend::password_message(output.as_bytes(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
-                    future: state.stream.send(buf)
+                    future: state.stream.send(buf),
+                    config: state.config,
+                    idx: state.idx,
                 })
             }
             Some(Message::AuthenticationSasl(body)) => {
@@ -214,6 +236,8 @@ where
                 transition!(SendingSasl {
                     future: state.stream.send(buf),
                     scram,
+                    config: state.config,
+                    idx: state.idx,
                 })
             }
             Some(Message::AuthenticationKerberosV5)
@@ -232,7 +256,12 @@ where
         state: &'a mut RentToOwn<'a, SendingPassword<S, T>>,
     ) -> Poll<AfterSendingPassword<S, T>, Error> {
         let stream = try_ready!(state.future.poll().map_err(Error::io));
-        transition!(ReadingAuthCompletion { stream })
+        let state = state.take();
+        transition!(ReadingAuthCompletion {
+            stream,
+            config: state.config,
+            idx: state.idx,
+        })
     }
 
     fn poll_sending_sasl<'a>(
@@ -243,6 +272,8 @@ where
         transition!(ReadingSasl {
             stream,
             scram: state.scram,
+            config: state.config,
+            idx: state.idx,
         })
     }
 
@@ -263,6 +294,8 @@ where
                 transition!(SendingSasl {
                     future: state.stream.send(buf),
                     scram: state.scram,
+                    config: state.config,
+                    idx: state.idx,
                 })
             }
             Some(Message::AuthenticationSaslFinal(body)) => {
@@ -271,7 +304,9 @@ where
                     .finish(body.data())
                     .map_err(|e| Error::authentication(Box::new(e)))?;
                 transition!(ReadingAuthCompletion {
-                    stream: state.stream
+                    stream: state.stream,
+                    config: state.config,
+                    idx: state.idx,
                 })
             }
             Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
@@ -289,8 +324,11 @@ where
         match message {
             Some(Message::AuthenticationOk) => transition!(ReadingInfo {
                 stream: state.stream,
-                cancel_data: None,
-                parameters: HashMap::new()
+                process_id: 0,
+                secret_key: 0,
+                parameters: HashMap::new(),
+                config: state.config,
+                idx: state.idx,
             }),
             Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
             Some(_) => Err(Error::unexpected_message()),
@@ -305,10 +343,8 @@ where
             let message = try_ready!(state.stream.poll().map_err(Error::io));
             match message {
                 Some(Message::BackendKeyData(body)) => {
-                    state.cancel_data = Some(CancelData {
-                        process_id: body.process_id(),
-                        secret_key: body.secret_key(),
-                    });
+                    state.process_id = body.process_id();
+                    state.secret_key = body.secret_key();
                 }
                 Some(Message::ParameterStatus(body)) => {
                     state.parameters.insert(
@@ -318,16 +354,15 @@ where
                 }
                 Some(Message::ReadyForQuery(_)) => {
                     let state = state.take();
-                    let cancel_data = state.cancel_data.ok_or_else(|| {
-                        Error::parse(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "BackendKeyData message missing",
-                        ))
-                    })?;
                     let (sender, receiver) = mpsc::unbounded();
-                    let client = Client::new(sender);
-                    let connection =
-                        Connection::new(state.stream, cancel_data, state.parameters, receiver);
+                    let client = Client::new(
+                        sender,
+                        state.process_id,
+                        state.secret_key,
+                        state.config,
+                        state.idx,
+                    );
+                    let connection = Connection::new(state.stream, state.parameters, receiver);
                     transition!(Finished((client, connection)))
                 }
                 Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
@@ -344,7 +379,12 @@ where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(stream: S, tls_mode: T, config: Config) -> HandshakeFuture<S, T> {
-        Handshake::start(TlsFuture::new(stream, tls_mode), config)
+    pub fn new(
+        stream: S,
+        tls_mode: T,
+        config: Config,
+        idx: Option<usize>,
+    ) -> HandshakeFuture<S, T> {
+        Handshake::start(TlsFuture::new(stream, tls_mode), config, idx)
     }
 }

@@ -11,7 +11,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use crate::proto::codec::PostgresCodec;
 use crate::proto::copy_in::CopyInReceiver;
 use crate::proto::idle::IdleGuard;
-use crate::{AsyncMessage, CancelData, Notification};
+use crate::{AsyncMessage, Notification};
 use crate::{DbError, Error};
 
 pub enum RequestMessages {
@@ -42,7 +42,6 @@ enum State {
 
 pub struct Connection<S> {
     stream: Framed<S, PostgresCodec>,
-    cancel_data: CancelData,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
     pending_request: Option<RequestMessages>,
@@ -57,13 +56,11 @@ where
 {
     pub fn new(
         stream: Framed<S, PostgresCodec>,
-        cancel_data: CancelData,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
     ) -> Connection<S> {
         Connection {
             stream,
-            cancel_data,
             parameters,
             receiver,
             pending_request: None,
@@ -71,10 +68,6 @@ where
             responses: VecDeque::new(),
             state: State::Active,
         }
-    }
-
-    pub fn cancel_data(&self) -> CancelData {
-        self.cancel_data
     }
 
     pub fn parameter(&self, name: &str) -> Option<&str> {

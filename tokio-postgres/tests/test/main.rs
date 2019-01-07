@@ -222,12 +222,11 @@ fn query_portal() {
 }
 
 #[test]
-fn cancel_query() {
+fn cancel_query_raw() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
     let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let cancel_data = connection.cancel_data();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -245,7 +244,7 @@ fn cancel_query() {
         })
         .then(|r| {
             let s = r.unwrap();
-            tokio_postgres::Config::new().cancel_query_raw(s, NoTls, cancel_data)
+            client.cancel_query_raw(s, NoTls)
         })
         .then(|r| {
             r.unwrap();

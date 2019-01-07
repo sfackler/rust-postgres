@@ -6,7 +6,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::error::Error;
 use crate::proto::TlsFuture;
-use crate::{CancelData, TlsMode};
+use crate::TlsMode;
 
 #[derive(StateMachineFuture)]
 pub enum CancelQueryRaw<S, T>
@@ -17,7 +17,8 @@ where
     #[state_machine_future(start, transitions(SendingCancel))]
     Start {
         future: TlsFuture<S, T>,
-        cancel_data: CancelData,
+        process_id: i32,
+        secret_key: i32,
     },
     #[state_machine_future(transitions(FlushingCancel))]
     SendingCancel {
@@ -40,11 +41,7 @@ where
         let (stream, _) = try_ready!(state.future.poll());
 
         let mut buf = vec![];
-        frontend::cancel_request(
-            state.cancel_data.process_id,
-            state.cancel_data.secret_key,
-            &mut buf,
-        );
+        frontend::cancel_request(state.process_id, state.secret_key, &mut buf);
 
         transition!(SendingCancel {
             future: io::write_all(stream, buf),
@@ -74,7 +71,12 @@ where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
 {
-    pub fn new(stream: S, tls_mode: T, cancel_data: CancelData) -> CancelQueryRawFuture<S, T> {
-        CancelQueryRaw::start(TlsFuture::new(stream, tls_mode), cancel_data)
+    pub fn new(
+        stream: S,
+        tls_mode: T,
+        process_id: i32,
+        secret_key: i32,
+    ) -> CancelQueryRawFuture<S, T> {
+        CancelQueryRaw::start(TlsFuture::new(stream, tls_mode), process_id, secret_key)
     }
 }

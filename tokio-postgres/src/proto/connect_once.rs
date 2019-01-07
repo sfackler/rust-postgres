@@ -65,7 +65,7 @@ where
 
         transition!(Handshaking {
             target_session_attrs: state.config.0.target_session_attrs,
-            future: HandshakeFuture::new(socket, state.tls_mode, state.config),
+            future: HandshakeFuture::new(socket, state.tls_mode, state.config, Some(state.idx)),
         })
     }
 

@@ -1,6 +1,8 @@
 use futures::Future;
+use std::time::{Duration, Instant};
 use tokio::runtime::current_thread::Runtime;
-use tokio_postgres::NoTls;
+use tokio::timer::Delay;
+use tokio_postgres::{NoTls, SqlState};
 
 fn smoke_test(s: &str) {
     let mut runtime = Runtime::new().unwrap();
@@ -66,4 +68,33 @@ fn target_session_attrs_err() {
         NoTls,
     );
     runtime.block_on(f).err().unwrap();
+}
+
+#[test]
+fn cancel_query() {
+    let mut runtime = Runtime::new().unwrap();
+
+    let connect = tokio_postgres::connect("host=localhost port=5433 user=postgres", NoTls);
+    let (mut client, connection) = runtime.block_on(connect).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.spawn(connection);
+
+    let sleep = client
+        .batch_execute("SELECT pg_sleep(100)")
+        .then(|r| match r {
+            Ok(_) => panic!("unexpected success"),
+            Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
+            Err(e) => panic!("unexpected error {}", e),
+        });
+    let cancel = Delay::new(Instant::now() + Duration::from_millis(100))
+        .then(|r| {
+            r.unwrap();
+            client.cancel_query(NoTls)
+        })
+        .then(|r| {
+            r.unwrap();
+            Ok::<(), ()>(())
+        });
+
+    let ((), ()) = runtime.block_on(sleep.join(cancel)).unwrap();
 }

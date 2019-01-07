@@ -17,10 +17,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
 use crate::proto::ConnectFuture;
-use crate::proto::{CancelQueryRawFuture, HandshakeFuture};
-use crate::{CancelData, CancelQueryRaw, Error, Handshake, TlsMode};
+use crate::proto::HandshakeFuture;
 #[cfg(feature = "runtime")]
 use crate::{Connect, MakeTlsMode, Socket};
+use crate::{Error, Handshake, TlsMode};
 
 #[cfg(feature = "runtime")]
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -267,7 +267,7 @@ impl Config {
         S: AsyncRead + AsyncWrite,
         T: TlsMode<S>,
     {
-        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone()))
+        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone(), None))
     }
 
     #[cfg(feature = "runtime")]
@@ -276,19 +276,6 @@ impl Config {
         T: MakeTlsMode<Socket>,
     {
         Connect(ConnectFuture::new(make_tls_mode, Ok(self.clone())))
-    }
-
-    pub fn cancel_query_raw<S, T>(
-        &self,
-        stream: S,
-        tls_mode: T,
-        cancel_data: CancelData,
-    ) -> CancelQueryRaw<S, T>
-    where
-        S: AsyncRead + AsyncWrite,
-        T: TlsMode<S>,
-    {
-        CancelQueryRaw(CancelQueryRawFuture::new(stream, tls_mode, cancel_data))
     }
 }
 
