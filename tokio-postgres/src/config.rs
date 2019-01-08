@@ -144,6 +144,7 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Creates a new configuration.
     pub fn new() -> Config {
         Config(Arc::new(Inner {
             user: None,
@@ -166,11 +167,15 @@ impl Config {
         }))
     }
 
+    /// Sets the user to authenticate with.
+    ///
+    /// Required.
     pub fn user(&mut self, user: &str) -> &mut Config {
         Arc::make_mut(&mut self.0).user = Some(user.to_string());
         self
     }
 
+    /// Sets the password to authenticate with.
     pub fn password<T>(&mut self, password: T) -> &mut Config
     where
         T: AsRef<[u8]>,
@@ -179,21 +184,32 @@ impl Config {
         self
     }
 
+    /// Sets the name of the database to connect to.
+    ///
+    /// Defaults to the user.
     pub fn dbname(&mut self, dbname: &str) -> &mut Config {
         Arc::make_mut(&mut self.0).dbname = Some(dbname.to_string());
         self
     }
 
+    /// Sets command line options used to configure the server.
     pub fn options(&mut self, options: &str) -> &mut Config {
         Arc::make_mut(&mut self.0).options = Some(options.to_string());
         self
     }
 
+    /// Sets the value of the `application_name` runtime parameter.
     pub fn application_name(&mut self, application_name: &str) -> &mut Config {
         Arc::make_mut(&mut self.0).application_name = Some(application_name.to_string());
         self
     }
 
+    /// Adds a host to the configuration.
+    ///
+    /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
+    /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn host(&mut self, host: &str) -> &mut Config {
         #[cfg(unix)]
@@ -209,6 +225,11 @@ impl Config {
         self
     }
 
+    /// Adds a Unix socket host to the configuration.
+    ///
+    /// Unlike `host`, this method allows non-UTF8 paths.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default) and a Unix target.
     #[cfg(all(feature = "runtime", unix))]
     pub fn host_path<T>(&mut self, host: T) -> &mut Config
     where
@@ -220,6 +241,13 @@ impl Config {
         self
     }
 
+    /// Adds a port to the configuration.
+    ///
+    /// Multiple ports can be specified by calling this method multiple times. There must either be no ports, in which
+    /// case the default of 5432 is used, a single port, in which it is used for all hosts, or the same number of ports
+    /// as hosts.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn port(&mut self, port: u16) -> &mut Config {
         Arc::make_mut(&mut self.0).port.push(port);

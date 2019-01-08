@@ -426,7 +426,7 @@ fn notifications() {
         while let Some(message) = try_ready!(connection.poll_message().map_err(|e| panic!("{}", e)))
         {
             if let AsyncMessage::Notification(notification) = message {
-                debug!("received {}", notification.payload);
+                debug!("received {}", notification.payload());
                 tx.unbounded_send(notification).unwrap();
             }
         }
@@ -452,10 +452,10 @@ fn notifications() {
 
     let notifications = rx.collect().wait().unwrap();
     assert_eq!(notifications.len(), 2);
-    assert_eq!(notifications[0].channel, "test_notifications");
-    assert_eq!(notifications[0].payload, "hello");
-    assert_eq!(notifications[1].channel, "test_notifications");
-    assert_eq!(notifications[1].payload, "world");
+    assert_eq!(notifications[0].channel(), "test_notifications");
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].channel(), "test_notifications");
+    assert_eq!(notifications[1].payload(), "world");
 }
 
 #[test]
