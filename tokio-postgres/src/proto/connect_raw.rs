@@ -15,7 +15,7 @@ use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
 use crate::{ChannelBinding, Config, Error, TlsMode};
 
 #[derive(StateMachineFuture)]
-pub enum Handshake<S, T>
+pub enum ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
@@ -81,7 +81,7 @@ where
     Failed(Error),
 }
 
-impl<S, T> PollHandshake<S, T> for Handshake<S, T>
+impl<S, T> PollConnectRaw<S, T> for ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
@@ -374,7 +374,7 @@ where
     }
 }
 
-impl<S, T> HandshakeFuture<S, T>
+impl<S, T> ConnectRawFuture<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,
@@ -384,7 +384,7 @@ where
         tls_mode: T,
         config: Config,
         idx: Option<usize>,
-    ) -> HandshakeFuture<S, T> {
-        Handshake::start(TlsFuture::new(stream, tls_mode), config, idx)
+    ) -> ConnectRawFuture<S, T> {
+        ConnectRaw::start(TlsFuture::new(stream, tls_mode), config, idx)
     }
 }

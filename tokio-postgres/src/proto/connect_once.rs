@@ -4,7 +4,7 @@ use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 
-use crate::proto::{Client, ConnectSocketFuture, Connection, HandshakeFuture, SimpleQueryStream};
+use crate::proto::{Client, ConnectRawFuture, ConnectSocketFuture, Connection, SimpleQueryStream};
 use crate::{Config, Error, Socket, TargetSessionAttrs, TlsMode};
 
 #[derive(StateMachineFuture)]
@@ -18,7 +18,7 @@ where
         tls_mode: T,
         config: Config,
     },
-    #[state_machine_future(transitions(Handshaking))]
+    #[state_machine_future(transitions(ConnectingRaw))]
     ConnectingSocket {
         future: ConnectSocketFuture,
         idx: usize,
@@ -26,8 +26,8 @@ where
         config: Config,
     },
     #[state_machine_future(transitions(CheckingSessionAttrs, Finished))]
-    Handshaking {
-        future: HandshakeFuture<Socket, T>,
+    ConnectingRaw {
+        future: ConnectRawFuture<Socket, T>,
         target_session_attrs: TargetSessionAttrs,
     },
     #[state_machine_future(transitions(Finished))]
@@ -63,15 +63,15 @@ where
         let socket = try_ready!(state.future.poll());
         let state = state.take();
 
-        transition!(Handshaking {
+        transition!(ConnectingRaw {
             target_session_attrs: state.config.0.target_session_attrs,
-            future: HandshakeFuture::new(socket, state.tls_mode, state.config, Some(state.idx)),
+            future: ConnectRawFuture::new(socket, state.tls_mode, state.config, Some(state.idx)),
         })
     }
 
-    fn poll_handshaking<'a>(
-        state: &'a mut RentToOwn<'a, Handshaking<T>>,
-    ) -> Poll<AfterHandshaking<T>, Error> {
+    fn poll_connecting_raw<'a>(
+        state: &'a mut RentToOwn<'a, ConnectingRaw<T>>,
+    ) -> Poll<AfterConnectingRaw<T>, Error> {
         let (client, connection) = try_ready!(state.future.poll());
 
         if let TargetSessionAttrs::ReadWrite = state.target_session_attrs {

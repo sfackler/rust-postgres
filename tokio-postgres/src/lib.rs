@@ -377,12 +377,12 @@ where
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct Handshake<S, T>(proto::HandshakeFuture<S, T>)
+pub struct ConnectRaw<S, T>(proto::ConnectRawFuture<S, T>)
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>;
 
-impl<S, T> Future for Handshake<S, T>
+impl<S, T> Future for ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
     T: TlsMode<S>,

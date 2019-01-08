@@ -17,10 +17,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
 use crate::proto::ConnectFuture;
-use crate::proto::HandshakeFuture;
+use crate::proto::ConnectRawFuture;
 #[cfg(feature = "runtime")]
 use crate::{Connect, MakeTlsMode, Socket};
-use crate::{Error, Handshake, TlsMode};
+use crate::{ConnectRaw, Error, TlsMode};
 
 /// Properties required of a database.
 #[cfg(feature = "runtime")]
@@ -400,12 +400,12 @@ impl Config {
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
     /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application` name are ignored.
-    pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
+    pub fn connect_raw<S, T>(&self, stream: S, tls_mode: T) -> ConnectRaw<S, T>
     where
         S: AsyncRead + AsyncWrite,
         T: TlsMode<S>,
     {
-        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone(), None))
+        ConnectRaw(ConnectRawFuture::new(stream, tls_mode, self.clone(), None))
     }
 }
 
