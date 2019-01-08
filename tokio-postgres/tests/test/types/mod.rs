@@ -522,7 +522,7 @@ fn domain() {
 
     let prepare = client.prepare("SELECT id FROM pg_temp.foo");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[&id]).collect();
+    let query = client.query(&stmt, &[]).collect();
     let rows = runtime.block_on(query).unwrap();
     assert_eq!(id, rows[0].get(0));
 }
