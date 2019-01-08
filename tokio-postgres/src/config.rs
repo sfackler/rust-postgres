@@ -22,10 +22,13 @@ use crate::proto::HandshakeFuture;
 use crate::{Connect, MakeTlsMode, Socket};
 use crate::{Error, Handshake, TlsMode};
 
+/// Properties required of a database.
 #[cfg(feature = "runtime")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TargetSessionAttrs {
+    /// No special permissions are required.
     Any,
+    /// The database must be writable.
     ReadWrite,
     #[doc(hidden)]
     __NonExhaustive,
@@ -60,6 +63,77 @@ pub(crate) struct Inner {
     pub(crate) target_session_attrs: TargetSessionAttrs,
 }
 
+/// Connection configuration.
+///
+/// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
+///
+/// # Key-Value
+///
+/// This format consists of space-separated key-value pairs. Values which are either the empty string or contain
+/// whitespace should be wrapped in `'`. `'` and `\` characters should be backslash-escaped.
+///
+/// ## Keys
+///
+/// * `user` - The username to authenticate with. Required.
+/// * `password` - The password to authenticate with.
+/// * `dbname` - The name of the database to connect to. Defaults to the username.
+/// * `options` - Command line options used to configure the server.
+/// * `application_name` - Sets the `application_name` parameter on the server.
+/// * `host` - The host to connect to. On Unix platforms, if the host starts with a `/` character it is treated as the
+///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
+///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
+///     with the `connect` method.
+/// * `port` - The port to connect to. Multiple ports can be specified, separated by commas. The number of ports must be
+///     either 1, in which case it will be used for all hosts, or the same as the number of hosts. Defaults to 5432 if
+///     omitted or the empty string.
+/// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
+///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
+///     This option is ignored when connecting with Unix sockets. Defaults to on.
+/// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
+///     This option is ignored when connecting with Unix sockets. Defaults to 2 hours.
+/// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
+///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
+///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
+///
+/// ## Examples
+///
+/// ```not_rust
+/// host=localhost user=postgres connect_timeout=10 keepalives=0
+/// ```
+///
+/// ```not_rust
+/// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// ```
+///
+/// ```not_rust
+/// host=host1,host2,host3 port=1234,,5678 user=postgres target_session_attrs=read-write
+/// ```
+///
+/// # Url
+///
+/// This format resembles a URL with a scheme of either `postgres://` or `postgresql://`. All components are optional,
+/// and the format accept query parameters for all of the key-value pairs described in the section above. Multiple
+/// host/port pairs can be comma-separated. Unix socket paths in the host section of the URL should be percent-encoded,
+/// as the path component of the URL specifies the database name.
+///
+/// ## Examples
+///
+/// ```not_rust
+/// postgresql://user@localhost
+/// ```
+///
+/// ```not_rust
+/// postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10
+/// ```
+///
+/// ```not_rust
+/// postgresql://user@host1:1234,host2host3:5678?target_session_attrs=read-write
+/// ```
+///
+/// ```not_rust
+/// postgresql:///mydb?user=user&host=/var/lib/postgresql
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config(pub(crate) Arc<Inner>);
 

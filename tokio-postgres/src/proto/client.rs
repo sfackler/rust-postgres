@@ -284,6 +284,8 @@ impl Client {
         name: &str,
         params: &[&dyn ToSql],
     ) -> Result<Vec<u8>, Error> {
+        assert_eq!(statement.params().len(), params.len());
+
         let mut buf = vec![];
         let r = frontend::bind(
             name,
