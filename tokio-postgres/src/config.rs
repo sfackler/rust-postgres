@@ -22,13 +22,13 @@ use crate::proto::ConnectRawFuture;
 use crate::{Connect, MakeTlsMode, Socket};
 use crate::{ConnectRaw, Error, TlsMode};
 
-/// Properties required of a database.
+/// Properties required of a session.
 #[cfg(feature = "runtime")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TargetSessionAttrs {
-    /// No special permissions are required.
+    /// No special properties are required.
     Any,
-    /// The database must be writable.
+    /// The session must allow writes.
     ReadWrite,
     #[doc(hidden)]
     __NonExhaustive,
@@ -128,7 +128,7 @@ pub(crate) struct Inner {
 /// ```
 ///
 /// ```not_rust
-/// postgresql://user@host1:1234,host2host3:5678?target_session_attrs=read-write
+/// postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write
 /// ```
 ///
 /// ```not_rust
