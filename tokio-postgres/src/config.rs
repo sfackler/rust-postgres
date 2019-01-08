@@ -254,24 +254,46 @@ impl Config {
         self
     }
 
+    /// Sets the timeout applied to socket-level connection attempts.
+    ///
+    /// Note that hostnames can resolve to multiple IP addresses, and this timeout will apply to each address of each
+    /// host separately. Defaults to no limit.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
         self
     }
 
+    /// Controls the use of TCP keepalive.
+    ///
+    /// This is ignored for Unix domain socket connections. Defaults to `true`.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn keepalives(&mut self, keepalives: bool) -> &mut Config {
         Arc::make_mut(&mut self.0).keepalives = keepalives;
         self
     }
 
+    /// Sets the amount of idle time before a keepalive packet is sent on the connection.
+    ///
+    /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).keepalives_idle = keepalives_idle;
         self
     }
 
+    /// Sets the requirements of the session.
+    ///
+    /// This can be used to connect to the primary server in a clustered database rather than one of the read-only
+    /// secondary servers. Defaults to `Any`.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn target_session_attrs(
         &mut self,
@@ -364,20 +386,26 @@ impl Config {
         Ok(())
     }
 
-    pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
-    where
-        S: AsyncRead + AsyncWrite,
-        T: TlsMode<S>,
-    {
-        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone(), None))
-    }
-
+    /// Opens a connection to a PostgreSQL database.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
     pub fn connect<T>(&self, make_tls_mode: T) -> Connect<T>
     where
         T: MakeTlsMode<Socket>,
     {
         Connect(ConnectFuture::new(make_tls_mode, Ok(self.clone())))
+    }
+
+    /// Connects to a PostgreSQL database over an arbitrary stream.
+    ///
+    /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application` name are ignored.
+    pub fn handshake<S, T>(&self, stream: S, tls_mode: T) -> Handshake<S, T>
+    where
+        S: AsyncRead + AsyncWrite,
+        T: TlsMode<S>,
+    {
+        Handshake(HandshakeFuture::new(stream, tls_mode, self.clone(), None))
     }
 }
 
