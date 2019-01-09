@@ -111,12 +111,12 @@ pub mod types;
 
 fn next_statement() -> String {
     static ID: AtomicUsize = AtomicUsize::new(0);
-    format!("s{}", ID.fetch_add(1, Ordering::SeqCst))
+    format!("s{}", ID.fetch_add(1, Ordering::Relaxed))
 }
 
 fn next_portal() -> String {
     static ID: AtomicUsize = AtomicUsize::new(0);
-    format!("p{}", ID.fetch_add(1, Ordering::SeqCst))
+    format!("p{}", ID.fetch_add(1, Ordering::Relaxed))
 }
 
 /// A convenience function which parses a connection string and connects to the database.
