@@ -685,6 +685,76 @@ fn transaction_builder_around_moved_client() {
 }
 
 #[test]
+fn parallel_transactions() {
+    use std::sync::{Arc, Mutex};
+    use std::time;
+    use tokio::timer::Delay;
+
+    const N: usize = 2;
+
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(client.batch_execute(
+            "CREATE TEMPORARY TABLE transaction_foo (amount int);
+            INSERT INTO transaction_foo VALUES (0);",
+        ))
+        .unwrap();
+
+    let select_stmt = runtime
+        .block_on(client.prepare("SELECT amount FROM transaction_foo;"))
+        .unwrap();
+
+    let update_stmt = runtime
+        .block_on(client.prepare("UPDATE transaction_foo SET amount = $1 RETURNING amount;"))
+        .unwrap();
+
+    let client = Arc::new(Mutex::new(client));
+
+    let results = tokio::prelude::future::collect((0..N).map(move |_| {
+        let transaction_builder = { client.lock().unwrap().transaction() };
+        let select_query = { client.lock().unwrap().query(&select_stmt, &[]) };
+
+        {
+            let client = client.clone();
+            let update_stmt = update_stmt.clone();
+            transaction_builder.build(select_query.collect().and_then(move |rows| {
+                let amount: i32 = rows[0].get(0);
+                eprintln!("parallel_transactions: got amount = {}", amount);
+
+                Delay::new(time::Instant::now() + time::Duration::from_secs(1))
+                    .map_err(|e| -> tokio_postgres::Error { panic!("Delay error: {}", e) })
+                    .and_then(move |_| {
+                        client
+                            .lock()
+                            .unwrap()
+                            .query(&update_stmt, &[&(amount + 1)])
+                            .collect()
+                            .map(|rows| {
+                                let updated_amount: i32 = rows[0].get(0);
+                                eprintln!(
+                                    "parallel_transactions: got updated_amount = {}",
+                                    updated_amount
+                                );
+                                updated_amount
+                            })
+                    })
+            }))
+        }
+    }));
+
+    let results = runtime.block_on(results).unwrap();
+    assert_eq!(vec![1, 2], results);
+
+    runtime.run().unwrap();
+}
+
+#[test]
 fn poll_idle_running() {
     struct DelayStream(Delay);
 
