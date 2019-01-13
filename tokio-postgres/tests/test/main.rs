@@ -12,7 +12,7 @@ use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{AsyncMessage, Client, Connection, NoTls};
+use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, NoTlsStream};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -21,7 +21,8 @@ mod types;
 
 fn connect(
     s: &str,
-) -> impl Future<Item = (Client, Connection<TcpStream>), Error = tokio_postgres::Error> {
+) -> impl Future<Item = (Client, Connection<TcpStream, NoTlsStream>), Error = tokio_postgres::Error>
+{
     let builder = s.parse::<tokio_postgres::Config>().unwrap();
     TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .map_err(|e| panic!("{}", e))

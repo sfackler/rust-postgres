@@ -4,7 +4,7 @@ use log::error;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio_postgres::{Error, MakeTlsMode, Socket, TargetSessionAttrs, TlsMode};
+use tokio_postgres::{Error, MakeTlsConnect, Socket, TargetSessionAttrs, TlsConnect};
 
 use crate::{Client, RUNTIME};
 
@@ -94,10 +94,10 @@ impl Config {
 
     pub fn connect<T>(&self, tls_mode: T) -> Result<Client, Error>
     where
-        T: MakeTlsMode<Socket> + 'static + Send,
-        T::TlsMode: Send,
+        T: MakeTlsConnect<Socket> + 'static + Send,
+        T::TlsConnect: Send,
         T::Stream: Send,
-        <T::TlsMode as TlsMode<Socket>>::Future: Send,
+        <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         let connect = self.0.connect(tls_mode);
         let (client, connection) = oneshot::spawn(connect, &RUNTIME.executor()).wait()?;

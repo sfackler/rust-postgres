@@ -49,7 +49,6 @@ postgres-protocol = { version = "0.3.0", path = "../postgres-protocol" }
 state_machine_future = "0.1.7"
 tokio-codec = "0.1"
 tokio-io = "0.1"
-void = "1.0"
 
 tokio-tcp = { version = "0.1", optional = true }
 futures-cpupool = { version = "0.1", optional = true }

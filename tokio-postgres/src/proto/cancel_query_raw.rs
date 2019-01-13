@@ -5,14 +5,14 @@ use tokio_io::io::{self, Flush, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::error::Error;
-use crate::proto::TlsFuture;
-use crate::TlsMode;
+use crate::proto::{MaybeTlsStream, TlsFuture};
+use crate::{SslMode, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     #[state_machine_future(start, transitions(SendingCancel))]
     Start {
@@ -22,10 +22,12 @@ where
     },
     #[state_machine_future(transitions(FlushingCancel))]
     SendingCancel {
-        future: WriteAll<T::Stream, Vec<u8>>,
+        future: WriteAll<MaybeTlsStream<S, T::Stream>, Vec<u8>>,
     },
     #[state_machine_future(transitions(Finished))]
-    FlushingCancel { future: Flush<T::Stream> },
+    FlushingCancel {
+        future: Flush<MaybeTlsStream<S, T::Stream>>,
+    },
     #[state_machine_future(ready)]
     Finished(()),
     #[state_machine_future(error)]
@@ -35,7 +37,7 @@ where
 impl<S, T> PollCancelQueryRaw<S, T> for CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S, T>>) -> Poll<AfterStart<S, T>, Error> {
         let (stream, _) = try_ready!(state.future.poll());
@@ -69,14 +71,15 @@ where
 impl<S, T> CancelQueryRawFuture<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     pub fn new(
         stream: S,
-        tls_mode: T,
+        mode: SslMode,
+        tls: T,
         process_id: i32,
         secret_key: i32,
     ) -> CancelQueryRawFuture<S, T> {
-        CancelQueryRaw::start(TlsFuture::new(stream, tls_mode), process_id, secret_key)
+        CancelQueryRaw::start(TlsFuture::new(stream, mode, tls), process_id, secret_key)
     }
 }

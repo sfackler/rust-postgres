@@ -2,13 +2,13 @@ use futures::{Future, Stream};
 use openssl::ssl::{SslConnector, SslMethod};
 use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
-use tokio_postgres::{self, PreferTls, RequireTls, TlsMode};
+use tokio_postgres::TlsConnect;
 
 use super::*;
 
 fn smoke_test<T>(s: &str, tls: T)
 where
-    T: TlsMode<TcpStream>,
+    T: TlsConnect<TcpStream>,
     T::Stream: 'static,
 {
     let mut runtime = Runtime::new().unwrap();
@@ -41,8 +41,8 @@ fn require() {
     builder.set_ca_file("../test/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
-        "user=ssl_user dbname=postgres",
-        RequireTls(TlsConnector::new(ctx.configure().unwrap(), "localhost")),
+        "user=ssl_user dbname=postgres sslmode=require",
+        TlsConnector::new(ctx.configure().unwrap(), "localhost"),
     );
 }
 
@@ -53,7 +53,7 @@ fn prefer() {
     let ctx = builder.build();
     smoke_test(
         "user=ssl_user dbname=postgres",
-        PreferTls(TlsConnector::new(ctx.configure().unwrap(), "localhost")),
+        TlsConnector::new(ctx.configure().unwrap(), "localhost"),
     );
 }
 
@@ -63,8 +63,8 @@ fn scram_user() {
     builder.set_ca_file("../test/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
-        "user=scram_user password=password dbname=postgres",
-        RequireTls(TlsConnector::new(ctx.configure().unwrap(), "localhost")),
+        "user=scram_user password=password dbname=postgres sslmode=require",
+        TlsConnector::new(ctx.configure().unwrap(), "localhost"),
     );
 }
 
@@ -78,8 +78,8 @@ fn runtime() {
     let connector = MakeTlsConnector::new(builder.build());
 
     let connect = tokio_postgres::connect(
-        "host=localhost port=5433 user=postgres",
-        RequireTls(connector),
+        "host=localhost port=5433 user=postgres sslmode=require",
+        connector,
     );
     let (mut client, connection) = runtime.block_on(connect).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));

@@ -11,14 +11,14 @@ use std::collections::HashMap;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::{Client, Connection, PostgresCodec, TlsFuture};
-use crate::{ChannelBinding, Config, Error, TlsMode};
+use crate::proto::{Client, Connection, MaybeTlsStream, PostgresCodec, TlsFuture};
+use crate::{ChannelBinding, Config, Error, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     #[state_machine_future(start, transitions(SendingStartup))]
     Start {
@@ -28,47 +28,47 @@ where
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
-        future: sink::Send<Framed<T::Stream, PostgresCodec>>,
+        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
         config: Config,
         idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
-        stream: Framed<T::Stream, PostgresCodec>,
+        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
         config: Config,
         idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
     SendingPassword {
-        future: sink::Send<Framed<T::Stream, PostgresCodec>>,
+        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingSasl))]
     SendingSasl {
-        future: sink::Send<Framed<T::Stream, PostgresCodec>>,
+        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
         scram: ScramSha256,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(SendingSasl, ReadingAuthCompletion))]
     ReadingSasl {
-        stream: Framed<T::Stream, PostgresCodec>,
+        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
         scram: ScramSha256,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingInfo))]
     ReadingAuthCompletion {
-        stream: Framed<T::Stream, PostgresCodec>,
+        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(Finished))]
     ReadingInfo {
-        stream: Framed<T::Stream, PostgresCodec>,
+        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
         process_id: i32,
         secret_key: i32,
         parameters: HashMap<String, String>,
@@ -76,7 +76,7 @@ where
         idx: Option<usize>,
     },
     #[state_machine_future(ready)]
-    Finished((Client, Connection<T::Stream>)),
+    Finished((Client, Connection<MaybeTlsStream<S, T::Stream>>)),
     #[state_machine_future(error)]
     Failed(Error),
 }
@@ -84,7 +84,7 @@ where
 impl<S, T> PollConnectRaw<S, T> for ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S, T>>) -> Poll<AfterStart<S, T>, Error> {
         let (stream, channel_binding) = try_ready!(state.future.poll());
@@ -377,14 +377,9 @@ where
 impl<S, T> ConnectRawFuture<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
-    pub fn new(
-        stream: S,
-        tls_mode: T,
-        config: Config,
-        idx: Option<usize>,
-    ) -> ConnectRawFuture<S, T> {
-        ConnectRaw::start(TlsFuture::new(stream, tls_mode), config, idx)
+    pub fn new(stream: S, tls: T, config: Config, idx: Option<usize>) -> ConnectRawFuture<S, T> {
+        ConnectRaw::start(TlsFuture::new(stream, config.0.ssl_mode, tls), config, idx)
     }
 }

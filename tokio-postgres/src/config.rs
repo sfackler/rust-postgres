@@ -19,8 +19,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use crate::proto::ConnectFuture;
 use crate::proto::ConnectRawFuture;
 #[cfg(feature = "runtime")]
-use crate::{Connect, MakeTlsMode, Socket};
-use crate::{ConnectRaw, Error, TlsMode};
+use crate::{Connect, MakeTlsConnect, Socket};
+use crate::{ConnectRaw, Error, TlsConnect};
 
 /// Properties required of a session.
 #[cfg(feature = "runtime")]
@@ -32,6 +32,17 @@ pub enum TargetSessionAttrs {
     ReadWrite,
     #[doc(hidden)]
     __NonExhaustive,
+}
+
+/// TLS configuration.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum SslMode {
+    /// Do not use TLS.
+    Disable,
+    /// Attempt to connect with TLS but allow sessions without.
+    Prefer,
+    /// Require the use of TLS.
+    Require,
 }
 
 #[cfg(feature = "runtime")]
@@ -49,6 +60,7 @@ pub(crate) struct Inner {
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
+    pub(crate) ssl_mode: SslMode,
     #[cfg(feature = "runtime")]
     pub(crate) host: Vec<Host>,
     #[cfg(feature = "runtime")]
@@ -79,6 +91,8 @@ pub(crate) struct Inner {
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
 /// * `application_name` - Sets the `application_name` parameter on the server.
+/// * `sslmode` - Controls usage of TLS. If set to `disable`, TLS will not be used. If set to `prefer`, TLS will be used
+///     if available, but not used otherwise. If set to `require`, TLS will be forced to be used. Defaults to `prefer`.
 /// * `host` - The host to connect to. On Unix platforms, if the host starts with a `/` character it is treated as the
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
@@ -152,6 +166,7 @@ impl Config {
             dbname: None,
             options: None,
             application_name: None,
+            ssl_mode: SslMode::Prefer,
             #[cfg(feature = "runtime")]
             host: vec![],
             #[cfg(feature = "runtime")]
@@ -201,6 +216,14 @@ impl Config {
     /// Sets the value of the `application_name` runtime parameter.
     pub fn application_name(&mut self, application_name: &str) -> &mut Config {
         Arc::make_mut(&mut self.0).application_name = Some(application_name.to_string());
+        self
+    }
+
+    /// Sets the SSL configuration.
+    ///
+    /// Defaults to `prefer`.
+    pub fn ssl_mode(&mut self, ssl_mode: SslMode) -> &mut Config {
+        Arc::make_mut(&mut self.0).ssl_mode = ssl_mode;
         self
     }
 
@@ -320,6 +343,15 @@ impl Config {
             "application_name" => {
                 self.application_name(&value);
             }
+            "sslmode" => {
+                let mode = match value {
+                    "disable" => SslMode::Disable,
+                    "prefer" => SslMode::Prefer,
+                    "require" => SslMode::Require,
+                    _ => return Err(Error::config_parse(Box::new(InvalidValue("sslmode")))),
+                };
+                self.ssl_mode(mode);
+            }
             #[cfg(feature = "runtime")]
             "host" => {
                 for host in value.split(',') {
@@ -390,22 +422,22 @@ impl Config {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn connect<T>(&self, make_tls_mode: T) -> Connect<T>
+    pub fn connect<T>(&self, tls: T) -> Connect<T>
     where
-        T: MakeTlsMode<Socket>,
+        T: MakeTlsConnect<Socket>,
     {
-        Connect(ConnectFuture::new(make_tls_mode, Ok(self.clone())))
+        Connect(ConnectFuture::new(tls, Ok(self.clone())))
     }
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
     /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application` name are ignored.
-    pub fn connect_raw<S, T>(&self, stream: S, tls_mode: T) -> ConnectRaw<S, T>
+    pub fn connect_raw<S, T>(&self, stream: S, tls: T) -> ConnectRaw<S, T>
     where
         S: AsyncRead + AsyncWrite,
-        T: TlsMode<S>,
+        T: TlsConnect<S>,
     {
-        ConnectRaw(ConnectRawFuture::new(stream, tls_mode, self.clone(), None))
+        ConnectRaw(ConnectRawFuture::new(stream, tls, self.clone(), None))
     }
 }
 

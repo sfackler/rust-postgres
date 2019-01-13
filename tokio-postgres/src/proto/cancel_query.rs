@@ -3,16 +3,16 @@ use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 
 use crate::proto::{CancelQueryRawFuture, ConnectSocketFuture};
-use crate::{Config, Error, Host, MakeTlsMode, Socket};
+use crate::{Config, Error, Host, MakeTlsConnect, Socket, SslMode};
 
 #[derive(StateMachineFuture)]
 pub enum CancelQuery<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
     #[state_machine_future(start, transitions(ConnectingSocket))]
     Start {
-        make_tls_mode: T,
+        tls: T,
         idx: Option<usize>,
         config: Config,
         process_id: i32,
@@ -21,13 +21,14 @@ where
     #[state_machine_future(transitions(Canceling))]
     ConnectingSocket {
         future: ConnectSocketFuture,
-        tls_mode: T::TlsMode,
+        mode: SslMode,
+        tls: T::TlsConnect,
         process_id: i32,
         secret_key: i32,
     },
     #[state_machine_future(transitions(Finished))]
     Canceling {
-        future: CancelQueryRawFuture<Socket, T::TlsMode>,
+        future: CancelQueryRawFuture<Socket, T::TlsConnect>,
     },
     #[state_machine_future(ready)]
     Finished(()),
@@ -37,7 +38,7 @@ where
 
 impl<T> PollCancelQuery<T> for CancelQuery<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let mut state = state.take();
@@ -52,14 +53,15 @@ where
             #[cfg(unix)]
             Host::Unix(_) => "",
         };
-        let tls_mode = state
-            .make_tls_mode
-            .make_tls_mode(hostname)
+        let tls = state
+            .tls
+            .make_tls_connect(hostname)
             .map_err(|e| Error::tls(e.into()))?;
 
         transition!(ConnectingSocket {
+            mode: state.config.0.ssl_mode,
             future: ConnectSocketFuture::new(state.config, idx),
-            tls_mode,
+            tls,
             process_id: state.process_id,
             secret_key: state.secret_key,
         })
@@ -74,7 +76,8 @@ where
         transition!(Canceling {
             future: CancelQueryRawFuture::new(
                 socket,
-                state.tls_mode,
+                state.mode,
+                state.tls,
                 state.process_id,
                 state.secret_key
             ),
@@ -91,15 +94,15 @@ where
 
 impl<T> CancelQueryFuture<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
     pub fn new(
-        make_tls_mode: T,
+        tls: T,
         idx: Option<usize>,
         config: Config,
         process_id: i32,
         secret_key: i32,
     ) -> CancelQueryFuture<T> {
-        CancelQuery::start(make_tls_mode, idx, config, process_id, secret_key)
+        CancelQuery::start(tls, idx, config, process_id, secret_key)
     }
 }

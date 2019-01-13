@@ -25,9 +25,9 @@ use crate::proto::statement::Statement;
 use crate::proto::CancelQueryFuture;
 use crate::proto::CancelQueryRawFuture;
 use crate::types::{IsNull, Oid, ToSql, Type};
-use crate::{Config, Error, TlsMode};
+use crate::{Config, Error, TlsConnect};
 #[cfg(feature = "runtime")]
-use crate::{MakeTlsMode, Socket};
+use crate::{MakeTlsConnect, Socket};
 
 pub struct PendingRequest(Result<(RequestMessages, IdleGuard), Error>);
 
@@ -247,7 +247,7 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub fn cancel_query<T>(&self, make_tls_mode: T) -> CancelQueryFuture<T>
     where
-        T: MakeTlsMode<Socket>,
+        T: MakeTlsConnect<Socket>,
     {
         CancelQueryFuture::new(
             make_tls_mode,
@@ -258,12 +258,18 @@ impl Client {
         )
     }
 
-    pub fn cancel_query_raw<S, T>(&self, stream: S, tls_mode: T) -> CancelQueryRawFuture<S, T>
+    pub fn cancel_query_raw<S, T>(&self, stream: S, mode: T) -> CancelQueryRawFuture<S, T>
     where
         S: AsyncRead + AsyncWrite,
-        T: TlsMode<S>,
+        T: TlsConnect<S>,
     {
-        CancelQueryRawFuture::new(stream, tls_mode, self.0.process_id, self.0.secret_key)
+        CancelQueryRawFuture::new(
+            stream,
+            self.0.config.0.ssl_mode,
+            mode,
+            self.0.process_id,
+            self.0.secret_key,
+        )
     }
 
     fn close(&self, ty: u8, name: &str) {

@@ -127,11 +127,11 @@ fn next_portal() -> String {
 ///
 /// [`Config`]: ./Config.t.html
 #[cfg(feature = "runtime")]
-pub fn connect<T>(config: &str, tls_mode: T) -> Connect<T>
+pub fn connect<T>(config: &str, tls: T) -> Connect<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
-    Connect(proto::ConnectFuture::new(tls_mode, config.parse()))
+    Connect(proto::ConnectFuture::new(tls, config.parse()))
 }
 
 /// An asynchronous PostgreSQL client.
@@ -250,7 +250,7 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub fn cancel_query<T>(&mut self, make_tls_mode: T) -> CancelQuery<T>
     where
-        T: MakeTlsMode<Socket>,
+        T: MakeTlsConnect<Socket>,
     {
         CancelQuery(self.0.cancel_query(make_tls_mode))
     }
@@ -260,7 +260,7 @@ impl Client {
     pub fn cancel_query_raw<S, T>(&mut self, stream: S, tls_mode: T) -> CancelQueryRaw<S, T>
     where
         S: AsyncRead + AsyncWrite,
-        T: TlsMode<S>,
+        T: TlsConnect<S>,
     {
         CancelQueryRaw(self.0.cancel_query_raw(stream, tls_mode))
     }
@@ -291,11 +291,12 @@ impl Client {
 /// `Connection` implements `Future`, and only resolves when the connection is closed, either because a fatal error has
 /// occurred, or because its associated `Client` has dropped and all outstanding work has completed.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<S>(proto::Connection<S>);
+pub struct Connection<S, T>(proto::Connection<proto::MaybeTlsStream<S, T>>);
 
-impl<S> Connection<S>
+impl<S, T> Connection<S, T>
 where
     S: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite,
 {
     /// Returns the value of a runtime parameter for this connection.
     pub fn parameter(&self, name: &str) -> Option<&str> {
@@ -311,9 +312,10 @@ where
     }
 }
 
-impl<S> Future for Connection<S>
+impl<S, T> Future for Connection<S, T>
 where
     S: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite,
 {
     type Item = ();
     type Error = Error;
@@ -342,12 +344,12 @@ pub enum AsyncMessage {
 pub struct CancelQueryRaw<S, T>(proto::CancelQueryRawFuture<S, T>)
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>;
+    T: TlsConnect<S>;
 
 impl<S, T> Future for CancelQueryRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
     type Item = ();
     type Error = Error;
@@ -361,12 +363,12 @@ where
 #[must_use = "futures do nothing unless polled"]
 pub struct CancelQuery<T>(proto::CancelQueryFuture<T>)
 where
-    T: MakeTlsMode<Socket>;
+    T: MakeTlsConnect<Socket>;
 
 #[cfg(feature = "runtime")]
 impl<T> Future for CancelQuery<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
     type Item = ();
     type Error = Error;
@@ -380,17 +382,17 @@ where
 pub struct ConnectRaw<S, T>(proto::ConnectRawFuture<S, T>)
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>;
+    T: TlsConnect<S>;
 
 impl<S, T> Future for ConnectRaw<S, T>
 where
     S: AsyncRead + AsyncWrite,
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
 {
-    type Item = (Client, Connection<T::Stream>);
+    type Item = (Client, Connection<S, T::Stream>);
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(Client, Connection<T::Stream>), Error> {
+    fn poll(&mut self) -> Poll<(Client, Connection<S, T::Stream>), Error> {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))
@@ -401,17 +403,17 @@ where
 #[must_use = "futures do nothing unless polled"]
 pub struct Connect<T>(proto::ConnectFuture<T>)
 where
-    T: MakeTlsMode<Socket>;
+    T: MakeTlsConnect<Socket>;
 
 #[cfg(feature = "runtime")]
 impl<T> Future for Connect<T>
 where
-    T: MakeTlsMode<Socket>,
+    T: MakeTlsConnect<Socket>,
 {
-    type Item = (Client, Connection<T::Stream>);
+    type Item = (Client, Connection<Socket, T::Stream>);
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(Client, Connection<T::Stream>), Error> {
+    fn poll(&mut self) -> Poll<(Client, Connection<Socket, T::Stream>), Error> {
         let (client, connection) = try_ready!(self.0.poll());
 
         Ok(Async::Ready((Client(client), Connection(connection))))

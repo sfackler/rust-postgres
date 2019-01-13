@@ -4,25 +4,23 @@ use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 
-use crate::proto::{Client, ConnectRawFuture, ConnectSocketFuture, Connection, SimpleQueryStream};
-use crate::{Config, Error, Socket, TargetSessionAttrs, TlsMode};
+use crate::proto::{
+    Client, ConnectRawFuture, ConnectSocketFuture, Connection, MaybeTlsStream, SimpleQueryStream,
+};
+use crate::{Config, Error, Socket, TargetSessionAttrs, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectOnce<T>
 where
-    T: TlsMode<Socket>,
+    T: TlsConnect<Socket>,
 {
     #[state_machine_future(start, transitions(ConnectingSocket))]
-    Start {
-        idx: usize,
-        tls_mode: T,
-        config: Config,
-    },
+    Start { idx: usize, tls: T, config: Config },
     #[state_machine_future(transitions(ConnectingRaw))]
     ConnectingSocket {
         future: ConnectSocketFuture,
         idx: usize,
-        tls_mode: T,
+        tls: T,
         config: Config,
     },
     #[state_machine_future(transitions(CheckingSessionAttrs, Finished))]
@@ -34,17 +32,17 @@ where
     CheckingSessionAttrs {
         stream: SimpleQueryStream,
         client: Client,
-        connection: Connection<T::Stream>,
+        connection: Connection<MaybeTlsStream<Socket, T::Stream>>,
     },
     #[state_machine_future(ready)]
-    Finished((Client, Connection<T::Stream>)),
+    Finished((Client, Connection<MaybeTlsStream<Socket, T::Stream>>)),
     #[state_machine_future(error)]
     Failed(Error),
 }
 
 impl<T> PollConnectOnce<T> for ConnectOnce<T>
 where
-    T: TlsMode<Socket>,
+    T: TlsConnect<Socket>,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<T>>) -> Poll<AfterStart<T>, Error> {
         let state = state.take();
@@ -52,7 +50,7 @@ where
         transition!(ConnectingSocket {
             future: ConnectSocketFuture::new(state.config.clone(), state.idx),
             idx: state.idx,
-            tls_mode: state.tls_mode,
+            tls: state.tls,
             config: state.config,
         })
     }
@@ -65,7 +63,7 @@ where
 
         transition!(ConnectingRaw {
             target_session_attrs: state.config.0.target_session_attrs,
-            future: ConnectRawFuture::new(socket, state.tls_mode, state.config, Some(state.idx)),
+            future: ConnectRawFuture::new(socket, state.tls, state.config, Some(state.idx)),
         })
     }
 
@@ -111,9 +109,9 @@ where
 
 impl<T> ConnectOnceFuture<T>
 where
-    T: TlsMode<Socket>,
+    T: TlsConnect<Socket>,
 {
-    pub fn new(idx: usize, tls_mode: T, config: Config) -> ConnectOnceFuture<T> {
-        ConnectOnce::start(idx, tls_mode, config)
+    pub fn new(idx: usize, tls: T, config: Config) -> ConnectOnceFuture<T> {
+        ConnectOnce::start(idx, tls, config)
     }
 }

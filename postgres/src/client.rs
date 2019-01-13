@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::Error;
 #[cfg(feature = "runtime")]
-use tokio_postgres::{MakeTlsMode, Socket, TlsMode};
+use tokio_postgres::{MakeTlsConnect, Socket, TlsConnect};
 
 #[cfg(feature = "runtime")]
 use crate::Config;
@@ -15,10 +15,10 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub fn connect<T>(params: &str, tls_mode: T) -> Result<Client, Error>
     where
-        T: MakeTlsMode<Socket> + 'static + Send,
-        T::TlsMode: Send,
+        T: MakeTlsConnect<Socket> + 'static + Send,
+        T::TlsConnect: Send,
         T::Stream: Send,
-        <T::TlsMode as TlsMode<Socket>>::Future: Send,
+        <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         params.parse::<Config>()?.connect(tls_mode)
     }

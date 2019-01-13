@@ -2,13 +2,13 @@ use futures::{Future, Stream};
 use native_tls::{self, Certificate};
 use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
-use tokio_postgres::{self, PreferTls, RequireTls, TlsMode};
+use tokio_postgres::TlsConnect;
 
 use crate::TlsConnector;
 
 fn smoke_test<T>(s: &str, tls: T)
 where
-    T: TlsMode<TcpStream>,
+    T: TlsConnect<TcpStream>,
     T::Stream: 'static,
 {
     let mut runtime = Runtime::new().unwrap();
@@ -44,8 +44,8 @@ fn require() {
         .build()
         .unwrap();
     smoke_test(
-        "user=ssl_user dbname=postgres",
-        RequireTls(TlsConnector::with_connector(connector, "localhost")),
+        "user=ssl_user dbname=postgres sslmode=require",
+        TlsConnector::with_connector(connector, "localhost"),
     );
 }
 
@@ -59,7 +59,7 @@ fn prefer() {
         .unwrap();
     smoke_test(
         "user=ssl_user dbname=postgres",
-        PreferTls(TlsConnector::with_connector(connector, "localhost")),
+        TlsConnector::with_connector(connector, "localhost"),
     );
 }
 
@@ -72,7 +72,7 @@ fn scram_user() {
         .build()
         .unwrap();
     smoke_test(
-        "user=scram_user password=password dbname=postgres",
-        RequireTls(TlsConnector::with_connector(connector, "localhost")),
+        "user=scram_user password=password dbname=postgres sslmode=require",
+        TlsConnector::with_connector(connector, "localhost"),
     );
 }

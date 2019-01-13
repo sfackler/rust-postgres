@@ -4,54 +4,65 @@ use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, ReadExact, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::{ChannelBinding, Error, TlsMode};
+use crate::proto::MaybeTlsStream;
+use crate::tls::private::ForcePrivateApi;
+use crate::{ChannelBinding, Error, SslMode, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum Tls<S, T>
 where
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
     S: AsyncRead + AsyncWrite,
 {
-    #[state_machine_future(start, transitions(SendingTls, ConnectingTls))]
-    Start { stream: S, tls_mode: T },
+    #[state_machine_future(start, transitions(SendingTls, Ready))]
+    Start { stream: S, mode: SslMode, tls: T },
     #[state_machine_future(transitions(ReadingTls))]
     SendingTls {
         future: WriteAll<S, Vec<u8>>,
-        tls_mode: T,
+        mode: SslMode,
+        tls: T,
     },
-    #[state_machine_future(transitions(ConnectingTls))]
+    #[state_machine_future(transitions(ConnectingTls, Ready))]
     ReadingTls {
         future: ReadExact<S, [u8; 1]>,
-        tls_mode: T,
+        mode: SslMode,
+        tls: T,
     },
     #[state_machine_future(transitions(Ready))]
     ConnectingTls { future: T::Future },
     #[state_machine_future(ready)]
-    Ready((T::Stream, ChannelBinding)),
+    Ready((MaybeTlsStream<S, T::Stream>, ChannelBinding)),
     #[state_machine_future(error)]
     Failed(Error),
 }
 
 impl<S, T> PollTls<S, T> for Tls<S, T>
 where
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
     S: AsyncRead + AsyncWrite,
 {
     fn poll_start<'a>(state: &'a mut RentToOwn<'a, Start<S, T>>) -> Poll<AfterStart<S, T>, Error> {
         let state = state.take();
 
-        if state.tls_mode.request_tls() {
-            let mut buf = vec![];
-            frontend::ssl_request(&mut buf);
+        match state.mode {
+            SslMode::Disable => transition!(Ready((
+                MaybeTlsStream::Raw(state.stream),
+                ChannelBinding::none()
+            ))),
+            SslMode::Prefer if !state.tls.can_connect(ForcePrivateApi) => transition!(Ready((
+                MaybeTlsStream::Raw(state.stream),
+                ChannelBinding::none()
+            ))),
+            SslMode::Prefer | SslMode::Require => {
+                let mut buf = vec![];
+                frontend::ssl_request(&mut buf);
 
-            transition!(SendingTls {
-                future: io::write_all(state.stream, buf),
-                tls_mode: state.tls_mode,
-            })
-        } else {
-            transition!(ConnectingTls {
-                future: state.tls_mode.handle_tls(false, state.stream),
-            })
+                transition!(SendingTls {
+                    future: io::write_all(state.stream, buf),
+                    mode: state.mode,
+                    tls: state.tls,
+                })
+            }
         }
     }
 
@@ -62,7 +73,8 @@ where
         let state = state.take();
         transition!(ReadingTls {
             future: io::read_exact(stream, [0]),
-            tls_mode: state.tls_mode,
+            mode: state.mode,
+            tls: state.tls,
         })
     }
 
@@ -72,26 +84,32 @@ where
         let (stream, buf) = try_ready!(state.future.poll().map_err(Error::io));
         let state = state.take();
 
-        let use_tls = buf[0] == b'S';
-        transition!(ConnectingTls {
-            future: state.tls_mode.handle_tls(use_tls, stream)
-        })
+        if buf[0] == b'S' {
+            transition!(ConnectingTls {
+                future: state.tls.connect(stream),
+            })
+        } else if state.mode == SslMode::Require {
+            Err(Error::tls("server does not support TLS".into()))
+        } else {
+            transition!(Ready((MaybeTlsStream::Raw(stream), ChannelBinding::none())))
+        }
     }
 
     fn poll_connecting_tls<'a>(
         state: &'a mut RentToOwn<'a, ConnectingTls<S, T>>,
     ) -> Poll<AfterConnectingTls<S, T>, Error> {
-        let t = try_ready!(state.future.poll().map_err(|e| Error::tls(e.into())));
-        transition!(Ready(t))
+        let (stream, channel_binding) =
+            try_ready!(state.future.poll().map_err(|e| Error::tls(e.into())));
+        transition!(Ready((MaybeTlsStream::Tls(stream), channel_binding)))
     }
 }
 
 impl<S, T> TlsFuture<S, T>
 where
-    T: TlsMode<S>,
+    T: TlsConnect<S>,
     S: AsyncRead + AsyncWrite,
 {
-    pub fn new(stream: S, tls_mode: T) -> TlsFuture<S, T> {
-        Tls::start(stream, tls_mode)
+    pub fn new(stream: S, mode: SslMode, tls: T) -> TlsFuture<S, T> {
+        Tls::start(stream, mode, tls)
     }
 }
