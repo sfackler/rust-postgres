@@ -70,6 +70,8 @@ where
 mod bit_vec;
 #[cfg(feature = "with-uuid")]
 mod uuid;
+#[cfg(feature = "with-uuid-0.7")]
+mod uuid_07;
 #[cfg(feature = "with-time")]
 mod time;
 #[cfg(feature = "with-rustc-serialize")]

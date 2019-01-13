@@ -15,6 +15,7 @@ with-rustc-serialize = ["rustc-serialize"]
 with-serde_json = ["serde_json"]
 with-time = ["time"]
 with-uuid = ["uuid"]
+"with-uuid-0.7" = ["uuid-07"]
 
 [dependencies]
 hex = "0.2"
@@ -30,3 +31,4 @@ rustc-serialize = { version = "0.3", optional = true }
 serde_json = { version = "1.0", optional = true }
 time = { version = "0.1.14", optional = true }
 uuid = { version = "0.5", optional = true }
+uuid-07 = { version = "0.7", package = "uuid", optional = true }
