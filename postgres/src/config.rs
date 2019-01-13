@@ -4,7 +4,7 @@ use log::error;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio_postgres::{Error, MakeTlsConnect, Socket, TargetSessionAttrs, TlsConnect};
+use tokio_postgres::{Error, MakeTlsConnect, Socket, SslMode, TargetSessionAttrs, TlsConnect};
 
 use crate::{Client, RUNTIME};
 
@@ -47,6 +47,11 @@ impl Config {
 
     pub fn application_name(&mut self, application_name: &str) -> &mut Config {
         self.0.application_name(application_name);
+        self
+    }
+
+    pub fn ssl_mode(&mut self, ssl_mode: SslMode) -> &mut Config {
+        self.0.ssl_mode(ssl_mode);
         self
     }
 
