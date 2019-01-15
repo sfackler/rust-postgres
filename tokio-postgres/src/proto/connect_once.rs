@@ -1,5 +1,6 @@
 #![allow(clippy::large_enum_variant)]
 
+use fallible_iterator::FallibleIterator;
 use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
@@ -92,7 +93,8 @@ where
 
         match try_ready!(state.stream.poll()) {
             Some(row) => {
-                if row.get(0) == Some("on") {
+                let range = row.ranges().next().map_err(Error::parse)?.and_then(|r| r);
+                if range.map(|r| &row.buffer()[r]) == Some(b"on") {
                     Err(Error::connect(io::Error::new(
                         io::ErrorKind::PermissionDenied,
                         "database does not allow writes",

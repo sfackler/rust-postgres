@@ -1,10 +1,10 @@
 use futures::sync::mpsc;
 use futures::{Async, Poll, Stream};
-use postgres_protocol::message::backend::Message;
+use postgres_protocol::message::backend::{DataRowBody, Message};
 use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
-use crate::{Error, StringRow};
+use crate::Error;
 
 pub enum State {
     Start {
@@ -20,10 +20,10 @@ pub enum State {
 pub struct SimpleQueryStream(State);
 
 impl Stream for SimpleQueryStream {
-    type Item = StringRow;
+    type Item = DataRowBody;
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<Option<StringRow>, Error> {
+    fn poll(&mut self) -> Poll<Option<DataRowBody>, Error> {
         loop {
             match mem::replace(&mut self.0, State::Done) {
                 State::Start { client, request } => {
@@ -48,8 +48,7 @@ impl Stream for SimpleQueryStream {
                         }
                         Some(Message::DataRow(body)) => {
                             self.0 = State::ReadResponse { receiver };
-                            let row = StringRow::new(body)?;
-                            return Ok(Async::Ready(Some(row)));
+                            return Ok(Async::Ready(Some(body)));
                         }
                         Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
                         Some(Message::ReadyForQuery(_)) => return Ok(Async::Ready(None)),
