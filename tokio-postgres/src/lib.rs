@@ -75,7 +75,18 @@
 //! the connection to work concurrently when possible.
 //!
 //! Pipelining happens automatically when futures are polled concurrently (for example, by using the futures `join`
-//! combinator). Say we want to prepare 2 statements.
+//! combinator):
+//!
+//! ```rust
+//! use futures::Future;
+//! use tokio_postgres::{Client, Error, Statement};
+//!
+//! fn pipelined_prepare(client: &mut Client) -> impl Future<Item = (Statement, Statement), Error = Error>
+//! {
+//!     client.prepare("SELECT * FROM foo")
+//!         .join(client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)"))
+//! }
+//! ```
 //!
 //! # Runtime
 //!
