@@ -12,12 +12,12 @@ mod test;
 
 #[cfg(feature = "runtime")]
 #[derive(Clone)]
-pub struct MakeTlsConnector(tokio_tls::TlsConnector);
+pub struct MakeTlsConnector(native_tls::TlsConnector);
 
 #[cfg(feature = "runtime")]
 impl MakeTlsConnector {
     pub fn new(connector: native_tls::TlsConnector) -> MakeTlsConnector {
-        MakeTlsConnector(tokio_tls::TlsConnector::from(connector))
+        MakeTlsConnector(connector)
     }
 }
 
@@ -31,10 +31,7 @@ where
     type Error = native_tls::Error;
 
     fn make_tls_connect(&mut self, domain: &str) -> Result<TlsConnector, native_tls::Error> {
-        Ok(TlsConnector {
-            connector: self.0.clone(),
-            domain: domain.to_string(),
-        })
+        Ok(TlsConnector::new(self.0.clone(), domain))
     }
 }
 
