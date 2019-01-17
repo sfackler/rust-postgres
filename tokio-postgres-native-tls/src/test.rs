@@ -4,6 +4,8 @@ use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
 use tokio_postgres::TlsConnect;
 
+#[cfg(feature = "runtime")]
+use crate::MakeTlsConnector;
 use crate::TlsConnector;
 
 fn smoke_test<T>(s: &str, tls: T)
@@ -45,7 +47,7 @@ fn require() {
         .unwrap();
     smoke_test(
         "user=ssl_user dbname=postgres sslmode=require",
-        TlsConnector::with_connector(connector, "localhost"),
+        TlsConnector::new(connector, "localhost"),
     );
 }
 
@@ -59,7 +61,7 @@ fn prefer() {
         .unwrap();
     smoke_test(
         "user=ssl_user dbname=postgres",
-        TlsConnector::with_connector(connector, "localhost"),
+        TlsConnector::new(connector, "localhost"),
     );
 }
 
@@ -73,6 +75,31 @@ fn scram_user() {
         .unwrap();
     smoke_test(
         "user=scram_user password=password dbname=postgres sslmode=require",
-        TlsConnector::with_connector(connector, "localhost"),
+        TlsConnector::new(connector, "localhost"),
     );
+}
+
+#[test]
+#[cfg(feature = "runtime")]
+fn runtime() {
+    let mut runtime = Runtime::new().unwrap();
+
+    let connector = native_tls::TlsConnector::builder()
+        .add_root_certificate(
+            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+        )
+        .build()
+        .unwrap();
+    let connector = MakeTlsConnector::new(connector);
+
+    let connect = tokio_postgres::connect(
+        "host=localhost port=5433 user=postgres sslmode=require",
+        connector,
+    );
+    let (mut client, connection) = runtime.block_on(connect).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.spawn(connection);
+
+    let execute = client.batch_execute("SELECT 1");
+    runtime.block_on(execute).unwrap();
 }

@@ -2,11 +2,41 @@
 
 use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "runtime")]
+use tokio_postgres::MakeTlsConnect;
 use tokio_postgres::{ChannelBinding, TlsConnect};
 use tokio_tls::{Connect, TlsStream};
 
 #[cfg(test)]
 mod test;
+
+#[cfg(feature = "runtime")]
+#[derive(Clone)]
+pub struct MakeTlsConnector(tokio_tls::TlsConnector);
+
+#[cfg(feature = "runtime")]
+impl MakeTlsConnector {
+    pub fn new(connector: native_tls::TlsConnector) -> MakeTlsConnector {
+        MakeTlsConnector(tokio_tls::TlsConnector::from(connector))
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl<S> MakeTlsConnect<S> for MakeTlsConnector
+where
+    S: AsyncRead + AsyncWrite,
+{
+    type Stream = TlsStream<S>;
+    type TlsConnect = TlsConnector;
+    type Error = native_tls::Error;
+
+    fn make_tls_connect(&mut self, domain: &str) -> Result<TlsConnector, native_tls::Error> {
+        Ok(TlsConnector {
+            connector: self.0.clone(),
+            domain: domain.to_string(),
+        })
+    }
+}
 
 pub struct TlsConnector {
     connector: tokio_tls::TlsConnector,
@@ -14,7 +44,7 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    pub fn with_connector(connector: native_tls::TlsConnector, domain: &str) -> TlsConnector {
+    pub fn new(connector: native_tls::TlsConnector, domain: &str) -> TlsConnector {
         TlsConnector {
             connector: tokio_tls::TlsConnector::from(connector),
             domain: domain.to_string(),
