@@ -1,3 +1,4 @@
+//! Futures and stream types used in the crate.
 use bytes::{Bytes, IntoBuf};
 use futures::{try_ready, Async, Future, Poll, Stream};
 use std::error;
@@ -8,6 +9,7 @@ use crate::{Client, Connection, Error, Portal, Row, Statement, TlsConnect};
 #[cfg(feature = "runtime")]
 use crate::{MakeTlsConnect, Socket};
 
+/// The future returned by `Client::cancel_query_raw`.
 #[must_use = "futures do nothing unless polled"]
 pub struct CancelQueryRaw<S, T>(pub(crate) proto::CancelQueryRawFuture<S, T>)
 where
@@ -27,6 +29,7 @@ where
     }
 }
 
+/// The future returned by `Client::cancel_query`.
 #[cfg(feature = "runtime")]
 #[must_use = "futures do nothing unless polled"]
 pub struct CancelQuery<T>(pub(crate) proto::CancelQueryFuture<T>)
@@ -46,6 +49,7 @@ where
     }
 }
 
+/// The future returned by `Config::connect_raw`.
 #[must_use = "futures do nothing unless polled"]
 pub struct ConnectRaw<S, T>(pub(crate) proto::ConnectRawFuture<S, T>)
 where
@@ -67,6 +71,7 @@ where
     }
 }
 
+/// The future returned by `Config::connect`.
 #[cfg(feature = "runtime")]
 #[must_use = "futures do nothing unless polled"]
 pub struct Connect<T>(pub(crate) proto::ConnectFuture<T>)
@@ -88,6 +93,7 @@ where
     }
 }
 
+/// The future returned by `Client::prepare`.
 #[must_use = "futures do nothing unless polled"]
 pub struct Prepare(pub(crate) proto::PrepareFuture);
 
@@ -102,6 +108,7 @@ impl Future for Prepare {
     }
 }
 
+/// The future returned by `Client::query`.
 #[must_use = "streams do nothing unless polled"]
 pub struct Query(pub(crate) proto::QueryStream<proto::Statement>);
 
@@ -114,6 +121,7 @@ impl Stream for Query {
     }
 }
 
+/// The future returned by `Client::bind`.
 #[must_use = "futures do nothing unless polled"]
 pub struct Bind(pub(crate) proto::BindFuture);
 
@@ -130,6 +138,7 @@ impl Future for Bind {
     }
 }
 
+/// The future returned by `Client::query_portal`.
 #[must_use = "streams do nothing unless polled"]
 pub struct QueryPortal(pub(crate) proto::QueryStream<proto::Portal>);
 
@@ -142,6 +151,7 @@ impl Stream for QueryPortal {
     }
 }
 
+/// The future returned by `Client::copy_in`.
 #[must_use = "futures do nothing unless polled"]
 pub struct CopyIn<S>(pub(crate) proto::CopyInFuture<S>)
 where
@@ -165,6 +175,7 @@ where
     }
 }
 
+/// The future returned by `Client::copy_out`.
 #[must_use = "streams do nothing unless polled"]
 pub struct CopyOut(pub(crate) proto::CopyOutStream);
 
