@@ -11,6 +11,7 @@ use tokio::prelude::*;
 use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
+use tokio_postgres::impls;
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, NoTlsStream};
 
@@ -745,7 +746,7 @@ fn poll_idle_running() {
 fn poll_idle_new() {
     struct IdleFuture {
         client: tokio_postgres::Client,
-        prepare: Option<tokio_postgres::Prepare>,
+        prepare: Option<impls::Prepare>,
     }
 
     impl Future for IdleFuture {

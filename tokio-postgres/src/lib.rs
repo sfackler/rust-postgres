@@ -101,7 +101,7 @@
 //! all dependence on the tokio runtime is removed.
 #![warn(rust_2018_idioms, clippy::all)]
 
-use bytes::{Bytes, IntoBuf};
+use bytes::IntoBuf;
 use futures::{try_ready, Async, Future, Poll, Stream};
 use std::error::Error as StdError;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -118,6 +118,7 @@ use crate::types::{ToSql, Type};
 
 mod config;
 pub mod error;
+pub mod impls;
 mod proto;
 mod row;
 #[cfg(feature = "runtime")]
@@ -144,11 +145,11 @@ fn next_portal() -> String {
 ///
 /// [`Config`]: ./Config.t.html
 #[cfg(feature = "runtime")]
-pub fn connect<T>(config: &str, tls: T) -> Connect<T>
+pub fn connect<T>(config: &str, tls: T) -> impls::Connect<T>
 where
     T: MakeTlsConnect<Socket>,
 {
-    Connect(proto::ConnectFuture::new(tls, config.parse()))
+    impls::Connect(proto::ConnectFuture::new(tls, config.parse()))
 }
 
 /// An asynchronous PostgreSQL client.
@@ -162,7 +163,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
-    pub fn prepare(&mut self, query: &str) -> Prepare {
+    pub fn prepare(&mut self, query: &str) -> impls::Prepare {
         self.prepare_typed(query, &[])
     }
 
@@ -170,8 +171,8 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
-    pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> Prepare {
-        Prepare(self.0.prepare(next_statement(), query, param_types))
+    pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> impls::Prepare {
+        impls::Prepare(self.0.prepare(next_statement(), query, param_types))
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -190,8 +191,8 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Query {
-        Query(self.0.query(&statement.0, params))
+    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Query {
+        impls::Query(self.0.query(&statement.0, params))
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
@@ -202,16 +203,16 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Bind {
-        Bind(self.0.bind(&statement.0, next_portal(), params))
+    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Bind {
+        impls::Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
     /// Continues execution of a portal, returning a stream of the resulting rows.
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// query_portal. If the requested number is negative or 0, all rows will be returned.
-    pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> QueryPortal {
-        QueryPortal(self.0.query_portal(&portal.0, max_rows))
+    pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> impls::QueryPortal {
+        impls::QueryPortal(self.0.query_portal(&portal.0, max_rows))
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
@@ -223,7 +224,7 @@ impl Client {
         statement: &Statement,
         params: &[&dyn ToSql],
         stream: S,
-    ) -> CopyIn<S>
+    ) -> impls::CopyIn<S>
     where
         S: Stream,
         S::Item: IntoBuf,
@@ -231,12 +232,12 @@ impl Client {
         // FIXME error type?
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
-        CopyIn(self.0.copy_in(&statement.0, params, stream))
+        impls::CopyIn(self.0.copy_in(&statement.0, params, stream))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
-    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOut {
-        CopyOut(self.0.copy_out(&statement.0, params))
+    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::CopyOut {
+        impls::CopyOut(self.0.copy_out(&statement.0, params))
     }
 
     /// Executes a sequence of SQL statements.
@@ -283,21 +284,21 @@ impl Client {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&mut self, make_tls_mode: T) -> CancelQuery<T>
+    pub fn cancel_query<T>(&mut self, make_tls_mode: T) -> impls::CancelQuery<T>
     where
         T: MakeTlsConnect<Socket>,
     {
-        CancelQuery(self.0.cancel_query(make_tls_mode))
+        impls::CancelQuery(self.0.cancel_query(make_tls_mode))
     }
 
     /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
     /// connection itself.
-    pub fn cancel_query_raw<S, T>(&mut self, stream: S, tls_mode: T) -> CancelQueryRaw<S, T>
+    pub fn cancel_query_raw<S, T>(&mut self, stream: S, tls_mode: T) -> impls::CancelQueryRaw<S, T>
     where
         S: AsyncRead + AsyncWrite,
         T: TlsConnect<S>,
     {
-        CancelQueryRaw(self.0.cancel_query_raw(stream, tls_mode))
+        impls::CancelQueryRaw(self.0.cancel_query_raw(stream, tls_mode))
     }
 
     /// Determines if the connection to the server has already closed.
@@ -375,100 +376,6 @@ pub enum AsyncMessage {
     __NonExhaustive,
 }
 
-#[must_use = "futures do nothing unless polled"]
-pub struct CancelQueryRaw<S, T>(proto::CancelQueryRawFuture<S, T>)
-where
-    S: AsyncRead + AsyncWrite,
-    T: TlsConnect<S>;
-
-impl<S, T> Future for CancelQueryRaw<S, T>
-where
-    S: AsyncRead + AsyncWrite,
-    T: TlsConnect<S>,
-{
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(), Error> {
-        self.0.poll()
-    }
-}
-
-#[cfg(feature = "runtime")]
-#[must_use = "futures do nothing unless polled"]
-pub struct CancelQuery<T>(proto::CancelQueryFuture<T>)
-where
-    T: MakeTlsConnect<Socket>;
-
-#[cfg(feature = "runtime")]
-impl<T> Future for CancelQuery<T>
-where
-    T: MakeTlsConnect<Socket>,
-{
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(), Error> {
-        self.0.poll()
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-pub struct ConnectRaw<S, T>(proto::ConnectRawFuture<S, T>)
-where
-    S: AsyncRead + AsyncWrite,
-    T: TlsConnect<S>;
-
-impl<S, T> Future for ConnectRaw<S, T>
-where
-    S: AsyncRead + AsyncWrite,
-    T: TlsConnect<S>,
-{
-    type Item = (Client, Connection<S, T::Stream>);
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(Client, Connection<S, T::Stream>), Error> {
-        let (client, connection) = try_ready!(self.0.poll());
-
-        Ok(Async::Ready((Client(client), Connection(connection))))
-    }
-}
-
-#[cfg(feature = "runtime")]
-#[must_use = "futures do nothing unless polled"]
-pub struct Connect<T>(proto::ConnectFuture<T>)
-where
-    T: MakeTlsConnect<Socket>;
-
-#[cfg(feature = "runtime")]
-impl<T> Future for Connect<T>
-where
-    T: MakeTlsConnect<Socket>,
-{
-    type Item = (Client, Connection<Socket, T::Stream>);
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(Client, Connection<Socket, T::Stream>), Error> {
-        let (client, connection) = try_ready!(self.0.poll());
-
-        Ok(Async::Ready((Client(client), Connection(connection))))
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-pub struct Prepare(proto::PrepareFuture);
-
-impl Future for Prepare {
-    type Item = Statement;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Statement, Error> {
-        let statement = try_ready!(self.0.poll());
-
-        Ok(Async::Ready(Statement(statement)))
-    }
-}
-
 /// A prepared statement.
 ///
 /// Prepared statements can only be used with the connection that created them.
@@ -499,86 +406,11 @@ impl Future for Execute {
     }
 }
 
-#[must_use = "streams do nothing unless polled"]
-pub struct Query(proto::QueryStream<proto::Statement>);
-
-impl Stream for Query {
-    type Item = Row;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        self.0.poll()
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-pub struct Bind(proto::BindFuture);
-
-impl Future for Bind {
-    type Item = Portal;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Portal, Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(portal)) => Ok(Async::Ready(Portal(portal))),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-#[must_use = "streams do nothing unless polled"]
-pub struct QueryPortal(proto::QueryStream<proto::Portal>);
-
-impl Stream for QueryPortal {
-    type Item = Row;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Row>, Error> {
-        self.0.poll()
-    }
-}
-
 /// A portal.
 ///
 /// Portals can only be used with the connection that created them, and only exist for the duration of the transaction
 /// in which they were created.
 pub struct Portal(proto::Portal);
-
-#[must_use = "futures do nothing unless polled"]
-pub struct CopyIn<S>(proto::CopyInFuture<S>)
-where
-    S: Stream,
-    S::Item: IntoBuf,
-    <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<dyn StdError + Sync + Send>>;
-
-impl<S> Future for CopyIn<S>
-where
-    S: Stream,
-    S::Item: IntoBuf,
-    <S::Item as IntoBuf>::Buf: Send,
-    S::Error: Into<Box<dyn StdError + Sync + Send>>,
-{
-    type Item = u64;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<u64, Error> {
-        self.0.poll()
-    }
-}
-
-#[must_use = "streams do nothing unless polled"]
-pub struct CopyOut(proto::CopyOutStream);
-
-impl Stream for CopyOut {
-    type Item = Bytes;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.0.poll()
-    }
-}
 
 /// A builder type which can wrap a future in a database transaction.
 pub struct TransactionBuilder(proto::Client);

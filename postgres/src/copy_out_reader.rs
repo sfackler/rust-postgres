@@ -2,10 +2,11 @@ use bytes::{Buf, Bytes};
 use futures::stream::{self, Stream};
 use std::io::{self, BufRead, Cursor, Read};
 use std::marker::PhantomData;
+use tokio_postgres::impls;
 use tokio_postgres::Error;
 
 pub struct CopyOutReader<'a> {
-    it: stream::Wait<tokio_postgres::CopyOut>,
+    it: stream::Wait<impls::CopyOut>,
     cur: Cursor<Bytes>,
     _p: PhantomData<&'a mut ()>,
 }
@@ -17,7 +18,7 @@ impl<'a> Drop for CopyOutReader<'a> {
 
 impl<'a> CopyOutReader<'a> {
     #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(stream: tokio_postgres::CopyOut) -> Result<CopyOutReader<'a>, Error> {
+    pub(crate) fn new(stream: impls::CopyOut) -> Result<CopyOutReader<'a>, Error> {
         let mut it = stream.wait();
         let cur = match it.next() {
             Some(Ok(cur)) => cur,

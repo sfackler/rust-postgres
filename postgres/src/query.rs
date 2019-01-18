@@ -1,10 +1,11 @@
 use fallible_iterator::FallibleIterator;
 use futures::stream::{self, Stream};
 use std::marker::PhantomData;
+use tokio_postgres::impls;
 use tokio_postgres::{Error, Row};
 
 pub struct Query<'a> {
-    it: stream::Wait<tokio_postgres::Query>,
+    it: stream::Wait<impls::Query>,
     _p: PhantomData<&'a mut ()>,
 }
 
@@ -14,7 +15,7 @@ impl<'a> Drop for Query<'a> {
 }
 
 impl<'a> Query<'a> {
-    pub(crate) fn new(stream: tokio_postgres::Query) -> Query<'a> {
+    pub(crate) fn new(stream: impls::Query) -> Query<'a> {
         Query {
             it: stream.wait(),
             _p: PhantomData,

@@ -16,11 +16,14 @@ use std::time::Duration;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
+use crate::impls::Connect;
+use crate::impls::ConnectRaw;
+#[cfg(feature = "runtime")]
 use crate::proto::ConnectFuture;
 use crate::proto::ConnectRawFuture;
+use crate::{Error, TlsConnect};
 #[cfg(feature = "runtime")]
-use crate::{Connect, MakeTlsConnect, Socket};
-use crate::{ConnectRaw, Error, TlsConnect};
+use crate::{MakeTlsConnect, Socket};
 
 /// Properties required of a session.
 #[cfg(feature = "runtime")]
