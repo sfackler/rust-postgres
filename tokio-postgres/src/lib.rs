@@ -49,6 +49,12 @@
 //! tokio::run(fut);
 //! ```
 //!
+//! # Behavior
+//!
+//! Calling a method like `Client::query` on its own does nothing. The associated request is not sent to the database
+//! until the future returned by the method is first polled. Requests are executed in the order that they are first
+//! polled, not in the order that their futures are created.
+//!
 //! # Pipelining
 //!
 //! The client supports *pipelined* requests. Pipelining can improve performance in use cases in which multiple,
