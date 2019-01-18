@@ -478,7 +478,9 @@ fn transaction_commit() {
         .unwrap();
 
     let f = client.batch_execute("INSERT INTO foo (name) VALUES ('steven')");
-    runtime.block_on(client.transaction().build(f)).unwrap();
+    runtime
+        .block_on(client.build_transaction().build(f))
+        .unwrap();
 
     let rows = runtime
         .block_on(
@@ -514,7 +516,9 @@ fn transaction_abort() {
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
         .map_err(|e| Box::new(e) as Box<dyn Error>)
         .and_then(|_| Err::<(), _>(Box::<dyn Error>::from("")));
-    runtime.block_on(client.transaction().build(f)).unwrap_err();
+    runtime
+        .block_on(client.build_transaction().build(f))
+        .unwrap_err();
 
     let rows = runtime
         .block_on(
@@ -647,27 +651,25 @@ fn transaction_builder_around_moved_client() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let transaction_builder = client.transaction();
-    let work = future::lazy(move || {
-        let execute = client.batch_execute(
+    let transaction_builder = client.build_transaction();
+    let work = client
+        .batch_execute(
             "CREATE TEMPORARY TABLE transaction_foo (
-                    id SERIAL,
-                    name TEXT
-                )",
-        );
-
-        execute.and_then(move |_| {
+                id SERIAL,
+                name TEXT
+            )",
+        )
+        .and_then(move |_| {
             client
                 .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
                 .map(|statement| (client, statement))
         })
-    })
-    .and_then(|(mut client, statement)| {
-        client
-            .query(&statement, &[&"jim", &"joe"])
-            .collect()
-            .map(|_res| client)
-    });
+        .and_then(|(mut client, statement)| {
+            client
+                .query(&statement, &[&"jim", &"joe"])
+                .collect()
+                .map(|_res| client)
+        });
 
     let transaction = transaction_builder.build(work);
     let mut client = runtime.block_on(transaction).unwrap();

@@ -248,7 +248,25 @@ impl Client {
         BatchExecute(self.0.batch_execute(query))
     }
 
-    pub fn transaction(&mut self) -> TransactionBuilder {
+    /// A utility method to wrap a future in a database transaction.
+    ///
+    /// The returned future will start a transaction and then run the provided future. If the future returns `Ok`, it
+    /// will commit the transaction, and if it returns `Err`, it will roll the transaction back.
+    ///
+    /// This is simply a convenience API; it's roughly equivalent to:
+    ///
+    /// ```ignore
+    /// client.batch_execute("BEGIN")
+    ///     .and_then(your_future)
+    ///     .and_then(client.batch_execute("COMMIT"))
+    ///     .or_else(|e| client.batch_execute("ROLLBACK").then(|_| Err(e)))
+    /// ```
+    ///
+    /// # Warning
+    ///
+    /// Unlike the other futures created by a client, this future is *not* atomic with respect to other requests. If you
+    /// attempt to execute it concurrently with other futures created by the same connection, they will interleave!
+    pub fn build_transaction(&mut self) -> TransactionBuilder {
         TransactionBuilder(self.0.clone())
     }
 
@@ -556,6 +574,7 @@ impl Stream for CopyOut {
     }
 }
 
+/// A builder type which can wrap a future in a database transaction.
 pub struct TransactionBuilder(proto::Client);
 
 impl TransactionBuilder {
