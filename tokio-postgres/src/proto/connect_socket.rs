@@ -3,7 +3,7 @@ use futures_cpupool::{CpuFuture, CpuPool};
 use lazy_static::lazy_static;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::Instant;
 use std::vec;
 use tokio_tcp::TcpStream;
@@ -23,8 +23,14 @@ lazy_static! {
 #[derive(StateMachineFuture)]
 pub enum ConnectSocket {
     #[state_machine_future(start)]
-    #[cfg_attr(unix, state_machine_future(transitions(ConnectingUnix, ResolvingDns)))]
-    #[cfg_attr(not(unix), state_machine_future(transitions(ResolvingDns)))]
+    #[cfg_attr(
+        unix,
+        state_machine_future(transitions(ConnectingUnix, ConnectingTcp, ResolvingDns))
+    )]
+    #[cfg_attr(
+        not(unix),
+        state_machine_future(transitions(ConnectingTcp, ResolvingDns))
+    )]
     Start { config: Config, idx: usize },
     #[cfg(unix)]
     #[state_machine_future(transitions(Finished))]
@@ -63,13 +69,25 @@ impl PollConnectSocket for ConnectSocket {
             .unwrap_or(&5432);
 
         match &state.config.0.host[state.idx] {
-            Host::Tcp(host) => transition!(ResolvingDns {
-                future: DNS_POOL.spawn_fn({
-                    let host = host.clone();
-                    move || (&*host, port).to_socket_addrs()
+            Host::Tcp(host) => match host.parse::<IpAddr>() {
+                Ok(addr) => transition!(ConnectingTcp {
+                    future: TcpStream::connect(&SocketAddr::new(addr, port)),
+                    timeout: state
+                        .config
+                        .0
+                        .connect_timeout
+                        .map(|d| Delay::new(Instant::now() + d)),
+                    addrs: vec![].into_iter(),
+                    config: state.config,
                 }),
-                config: state.config,
-            }),
+                Err(_) => transition!(ResolvingDns {
+                    future: DNS_POOL.spawn_fn({
+                        let host = host.clone();
+                        move || (&*host, port).to_socket_addrs()
+                    }),
+                    config: state.config,
+                }),
+            },
             #[cfg(unix)]
             Host::Unix(host) => {
                 let path = host.join(format!(".s.PGSQL.{}", port));
