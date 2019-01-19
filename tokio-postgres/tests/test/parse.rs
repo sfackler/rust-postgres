@@ -1,8 +1,5 @@
-#[cfg(feature = "runtime")]
 use std::time::Duration;
-use tokio_postgres::Config;
-#[cfg(feature = "runtime")]
-use tokio_postgres::TargetSessionAttrs;
+use tokio_postgres::{Config, TargetSessionAttrs};
 
 fn check(s: &str, config: &Config) {
     assert_eq!(s.parse::<Config>().expect(s), *config, "`{}`", s);
@@ -28,7 +25,6 @@ fn pairs_ws() {
 }
 
 #[test]
-#[cfg(feature = "runtime")]
 fn settings() {
     check(
         "connect_timeout=3 keepalives=0 keepalives_idle=30 target_session_attrs=read-write",
@@ -41,7 +37,6 @@ fn settings() {
 }
 
 #[test]
-#[cfg(feature = "runtime")]
 fn url() {
     check("postgresql://", &Config::new());
     check(

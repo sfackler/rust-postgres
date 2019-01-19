@@ -1,17 +1,16 @@
 use std::borrow::Cow;
 use std::error;
-#[cfg(all(feature = "runtime", unix))]
+#[cfg(unix)]
 use std::ffi::OsStr;
 use std::fmt;
 use std::iter;
 use std::mem;
-#[cfg(all(feature = "runtime", unix))]
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
-#[cfg(all(feature = "runtime", unix))]
+#[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
 use std::sync::Arc;
-#[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -26,7 +25,6 @@ use crate::{Error, TlsConnect};
 use crate::{MakeTlsConnect, Socket};
 
 /// Properties required of a session.
-#[cfg(feature = "runtime")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TargetSessionAttrs {
     /// No special properties are required.
@@ -48,7 +46,6 @@ pub enum SslMode {
     Require,
 }
 
-#[cfg(feature = "runtime")]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Host {
     Tcp(String),
@@ -64,17 +61,11 @@ pub(crate) struct Inner {
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
     pub(crate) ssl_mode: SslMode,
-    #[cfg(feature = "runtime")]
     pub(crate) host: Vec<Host>,
-    #[cfg(feature = "runtime")]
     pub(crate) port: Vec<u16>,
-    #[cfg(feature = "runtime")]
     pub(crate) connect_timeout: Option<Duration>,
-    #[cfg(feature = "runtime")]
     pub(crate) keepalives: bool,
-    #[cfg(feature = "runtime")]
     pub(crate) keepalives_idle: Duration,
-    #[cfg(feature = "runtime")]
     pub(crate) target_session_attrs: TargetSessionAttrs,
 }
 
@@ -170,17 +161,11 @@ impl Config {
             options: None,
             application_name: None,
             ssl_mode: SslMode::Prefer,
-            #[cfg(feature = "runtime")]
             host: vec![],
-            #[cfg(feature = "runtime")]
             port: vec![],
-            #[cfg(feature = "runtime")]
             connect_timeout: None,
-            #[cfg(feature = "runtime")]
             keepalives: true,
-            #[cfg(feature = "runtime")]
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
-            #[cfg(feature = "runtime")]
             target_session_attrs: TargetSessionAttrs::Any,
         }))
     }
@@ -234,9 +219,6 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn host(&mut self, host: &str) -> &mut Config {
         #[cfg(unix)]
         {
@@ -254,9 +236,6 @@ impl Config {
     /// Adds a Unix socket host to the configuration.
     ///
     /// Unlike `host`, this method allows non-UTF8 paths.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default) and a Unix target.
-    #[cfg(all(feature = "runtime", unix))]
     pub fn host_path<T>(&mut self, host: T) -> &mut Config
     where
         T: AsRef<Path>,
@@ -272,9 +251,6 @@ impl Config {
     /// Multiple ports can be specified by calling this method multiple times. There must either be no ports, in which
     /// case the default of 5432 is used, a single port, in which it is used for all hosts, or the same number of ports
     /// as hosts.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn port(&mut self, port: u16) -> &mut Config {
         Arc::make_mut(&mut self.0).port.push(port);
         self
@@ -284,9 +260,6 @@ impl Config {
     ///
     /// Note that hostnames can resolve to multiple IP addresses, and this timeout will apply to each address of each
     /// host separately. Defaults to no limit.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
         self
@@ -295,9 +268,6 @@ impl Config {
     /// Controls the use of TCP keepalive.
     ///
     /// This is ignored for Unix domain socket connections. Defaults to `true`.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn keepalives(&mut self, keepalives: bool) -> &mut Config {
         Arc::make_mut(&mut self.0).keepalives = keepalives;
         self
@@ -306,9 +276,6 @@ impl Config {
     /// Sets the amount of idle time before a keepalive packet is sent on the connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         Arc::make_mut(&mut self.0).keepalives_idle = keepalives_idle;
         self
@@ -318,9 +285,6 @@ impl Config {
     ///
     /// This can be used to connect to the primary server in a clustered database rather than one of the read-only
     /// secondary servers. Defaults to `Any`.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn target_session_attrs(
         &mut self,
         target_session_attrs: TargetSessionAttrs,
@@ -355,13 +319,11 @@ impl Config {
                 };
                 self.ssl_mode(mode);
             }
-            #[cfg(feature = "runtime")]
             "host" => {
                 for host in value.split(',') {
                     self.host(host);
                 }
             }
-            #[cfg(feature = "runtime")]
             "port" => {
                 for port in value.split(',') {
                     let port = if port.is_empty() {
@@ -373,7 +335,6 @@ impl Config {
                     self.port(port);
                 }
             }
-            #[cfg(feature = "runtime")]
             "connect_timeout" => {
                 let timeout = value
                     .parse::<i64>()
@@ -382,14 +343,12 @@ impl Config {
                     self.connect_timeout(Duration::from_secs(timeout as u64));
                 }
             }
-            #[cfg(feature = "runtime")]
             "keepalives" => {
                 let keepalives = value
                     .parse::<u64>()
                     .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
                 self.keepalives(keepalives != 0);
             }
-            #[cfg(feature = "runtime")]
             "keepalives_idle" => {
                 let keepalives_idle = value
                     .parse::<i64>()
@@ -398,7 +357,6 @@ impl Config {
                     self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                 }
             }
-            #[cfg(feature = "runtime")]
             "target_session_attrs" => {
                 let target_session_attrs = match &*value {
                     "any" => TargetSessionAttrs::Any,
@@ -800,7 +758,7 @@ impl<'a> UrlParser<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "runtime", unix))]
+    #[cfg(unix)]
     fn host_param(&mut self, s: &str) -> Result<(), Error> {
         let decoded = Cow::from(percent_encoding::percent_decode(s.as_bytes()));
         if decoded.get(0) == Some(&b'/') {
@@ -813,7 +771,7 @@ impl<'a> UrlParser<'a> {
         Ok(())
     }
 
-    #[cfg(not(all(feature = "runtime", unix)))]
+    #[cfg(not(unix))]
     fn host_param(&mut self, s: &str) -> Result<(), Error> {
         let s = self.decode(s)?;
         self.config.param("host", &s)
