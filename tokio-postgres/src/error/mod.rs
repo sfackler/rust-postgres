@@ -485,7 +485,7 @@ impl Error {
     }
 
     #[cfg(feature = "runtime")]
-    pub(crate) fn connect(e: io::Error) -> Error {
+    pub fn connect(e: io::Error) -> Error {
         Error::new(Kind::Connect, Some(Box::new(e)))
     }
 }
