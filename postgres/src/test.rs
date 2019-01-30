@@ -20,7 +20,11 @@ fn query_prepared() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let stmt = client.prepare("SELECT $1::TEXT").unwrap();
-    let rows = client.query(&stmt, &[&"hello"]).unwrap().to_vec().unwrap();
+    let rows = client
+        .query(&stmt, &[&"hello"])
+        .unwrap()
+        .into_vec()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
 }
@@ -32,7 +36,7 @@ fn query_unprepared() {
     let rows = client
         .query("SELECT $1::TEXT", &[&"hello"])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
@@ -57,7 +61,7 @@ fn transaction_commit() {
     let rows = client
         .query("SELECT * FROM foo", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -82,7 +86,7 @@ fn transaction_rollback() {
     let rows = client
         .query("SELECT * FROM foo", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 0);
 }
@@ -106,7 +110,7 @@ fn transaction_drop() {
     let rows = client
         .query("SELECT * FROM foo", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 0);
 }
@@ -136,7 +140,7 @@ fn nested_transactions() {
     let rows = transaction
         .query("SELECT id FROM foo ORDER BY id", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -160,7 +164,7 @@ fn nested_transactions() {
     let rows = client
         .query("SELECT id FROM foo ORDER BY id", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -187,7 +191,7 @@ fn copy_in() {
     let rows = client
         .query("SELECT id, name FROM foo ORDER BY id", &[])
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
 
     assert_eq!(rows.len(), 2);
@@ -246,7 +250,7 @@ fn portal() {
     let rows = transaction
         .query_portal(&portal, 2)
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -255,7 +259,7 @@ fn portal() {
     let rows = transaction
         .query_portal(&portal, 2)
         .unwrap()
-        .to_vec()
+        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 3);

@@ -23,7 +23,7 @@ impl<'a> QueryPortal<'a> {
     }
 
     /// A convenience API which collects the resulting rows into a `Vec` and returns them.
-    pub fn to_vec(self) -> Result<Vec<Row>, Error> {
+    pub fn into_vec(self) -> Result<Vec<Row>, Error> {
         self.collect()
     }
 }
