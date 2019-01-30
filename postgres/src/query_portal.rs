@@ -21,6 +21,11 @@ impl<'a> QueryPortal<'a> {
             _p: PhantomData,
         }
     }
+
+    /// A convenience API which collects the resulting rows into a `Vec` and returns them.
+    pub fn to_vec(self) -> Result<Vec<Row>, Error> {
+        self.collect()
+    }
 }
 
 impl<'a> FallibleIterator for QueryPortal<'a> {
