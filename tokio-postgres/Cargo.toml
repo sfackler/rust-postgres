@@ -18,7 +18,7 @@ features = [
     "with-bit-vec-0.5",
     "with-chrono-0.4",
     "with-eui48-0.4",
-    "with-geo-0.10",
+    "with-geo-0.11",
     "with-serde_json-1",
     "with-uuid-0.7",
 ]
@@ -33,7 +33,7 @@ runtime = ["tokio-tcp", "tokio-timer", "tokio-uds", "futures-cpupool", "lazy_sta
 "with-bit-vec-0.5" = ["bit-vec-05"]
 "with-chrono-0.4" = ["chrono-04"]
 "with-eui48-0.4" = ["eui48-04"]
-"with-geo-0.10" = ["geo-010"]
+"with-geo-0.11" = ["geo-011"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 "with-uuid-0.7" = ["uuid-07"]
 
@@ -58,7 +58,7 @@ tokio-timer = { version = "0.2", optional = true }
 bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
-geo-010 = { version = "0.10", package = "geo", optional = true }
+geo-011 = { version = "0.11", package = "geo", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
 uuid-07 = { version = "0.7", package = "uuid", optional = true }
