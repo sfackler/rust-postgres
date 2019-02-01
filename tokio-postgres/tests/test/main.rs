@@ -13,7 +13,7 @@ use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::impls;
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, NoTlsStream};
+use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, NoTlsStream, SimpleQueryMessage};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -735,6 +735,56 @@ fn transaction_builder_around_moved_client() {
 
     drop(client);
     runtime.run().unwrap();
+}
+
+#[test]
+fn simple_query() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    let f = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            );
+            INSERT INTO foo (name) VALUES ('steven'), ('joe');
+            SELECT * FROM foo ORDER BY id;",
+        )
+        .collect();
+    let messages = runtime.block_on(f).unwrap();
+
+    match messages[0] {
+        SimpleQueryMessage::CommandComplete(0) => {}
+        _ => panic!("unexpected message"),
+    }
+    match messages[1] {
+        SimpleQueryMessage::CommandComplete(2) => {}
+        _ => panic!("unexpected message"),
+    }
+    match &messages[2] {
+        SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.get(0), Some("1"));
+            assert_eq!(row.get(1), Some("steven"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[3] {
+        SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.get(0), Some("2"));
+            assert_eq!(row.get(1), Some("joe"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match messages[4] {
+        SimpleQueryMessage::CommandComplete(2) => {}
+        _ => panic!("unexpected message"),
+    }
+    assert_eq!(messages.len(), 5);
 }
 
 #[test]
