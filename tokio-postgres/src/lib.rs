@@ -102,7 +102,7 @@
 #![warn(rust_2018_idioms, clippy::all)]
 
 use bytes::IntoBuf;
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{Future, Poll, Stream};
 use std::error::Error as StdError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -240,19 +240,21 @@ impl Client {
         impls::CopyOut(self.0.copy_out(&statement.0, params))
     }
 
-    /// Executes a sequence of SQL statements.
+    /// Executes a sequence of SQL statements using the simple query protocol.
     ///
     /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
-    /// point. This is intended for the execution of batches of non-dynamic statements, for example, the creation of
-    /// a schema for a fresh database.
+    /// point. The simple query protocol returns the values in rows as strings rather than in their binary encodings,
+    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning a stream over the
+    /// rows, this method returns a stream over an enum which indicates either the completion of one of the commands,
+    /// or a row of data. This preserves the framing between the separate statements in the request.
     ///
     /// # Warning
     ///
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn batch_execute(&mut self, query: &str) -> BatchExecute {
-        BatchExecute(self.0.batch_execute(query))
+    pub fn simple_query(&mut self, query: &str) -> impls::SimpleQuery {
+        impls::SimpleQuery(self.0.simple_query(query))
     }
 
     /// A utility method to wrap a future in a database transaction.
@@ -445,18 +447,11 @@ where
     }
 }
 
-#[must_use = "futures do nothing unless polled"]
-pub struct BatchExecute(proto::SimpleQueryStream);
-
-impl Future for BatchExecute {
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(), Error> {
-        while let Some(_) = try_ready!(self.0.poll()) {}
-
-        Ok(Async::Ready(()))
-    }
+pub enum SimpleQueryMessage {
+    Row(SimpleQueryRow),
+    CommandComplete(u64),
+    #[doc(hidden)]
+    __NonExhaustive,
 }
 
 /// An asynchronous notification.

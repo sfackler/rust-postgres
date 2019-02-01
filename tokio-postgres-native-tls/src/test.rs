@@ -100,6 +100,6 @@ fn runtime() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let execute = client.batch_execute("SELECT 1");
+    let execute = client.simple_query("SELECT 1").for_each(|_| Ok(()));
     runtime.block_on(execute).unwrap();
 }

@@ -161,7 +161,11 @@ fn insert_select() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)"))
+        .block_on(
+            client
+                .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
@@ -193,11 +197,15 @@ fn query_portal() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT);
-             INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');
-             BEGIN;",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT);
+                     INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');
+                     BEGIN;",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let statement = runtime
@@ -233,7 +241,8 @@ fn cancel_query_raw() {
     runtime.handle().spawn(connection).unwrap();
 
     let sleep = client
-        .batch_execute("SELECT pg_sleep(100)")
+        .simple_query("SELECT pg_sleep(100)")
+        .for_each(|_| Ok(()))
         .then(|r| match r {
             Ok(_) => panic!("unexpected success"),
             Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
@@ -266,13 +275,17 @@ fn custom_enum() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TYPE pg_temp.mood AS ENUM (
-                'sad',
-                'ok',
-                'happy'
-            )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TYPE pg_temp.mood AS ENUM (
+                        'sad',
+                        'ok',
+                        'happy'
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let select = client.prepare("SELECT $1::mood");
@@ -300,9 +313,13 @@ fn custom_domain() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let select = client.prepare("SELECT $1::session_id");
@@ -346,13 +363,17 @@ fn custom_composite() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TYPE pg_temp.inventory_item AS (
-                name TEXT,
-                supplier INTEGER,
-                price NUMERIC
-            )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TYPE pg_temp.inventory_item AS (
+                        name TEXT,
+                        supplier INTEGER,
+                        price NUMERIC
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let select = client.prepare("SELECT $1::inventory_item");
@@ -383,12 +404,16 @@ fn custom_range() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TYPE pg_temp.floatrange AS RANGE (
-                subtype = float8,
-                subtype_diff = float8mi
-            )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TYPE pg_temp.floatrange AS RANGE (
+                        subtype = float8,
+                        subtype_diff = float8mi
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let select = client.prepare("SELECT $1::floatrange");
@@ -438,15 +463,15 @@ fn notifications() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute("LISTEN test_notifications"))
-        .unwrap();
-
-    runtime
-        .block_on(client.batch_execute("NOTIFY test_notifications, 'hello'"))
-        .unwrap();
-
-    runtime
-        .block_on(client.batch_execute("NOTIFY test_notifications, 'world'"))
+        .block_on(
+            client
+                .simple_query(
+                    "LISTEN test_notifications;
+                     NOTIFY test_notifications, 'hello';
+                     NOTIFY test_notifications, 'world';",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     drop(client);
@@ -470,15 +495,21 @@ fn transaction_commit() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (
-                id SERIAL,
-                name TEXT
-            )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id SERIAL,
+                        name TEXT
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
-    let f = client.batch_execute("INSERT INTO foo (name) VALUES ('steven')");
+    let f = client
+        .simple_query("INSERT INTO foo (name) VALUES ('steven')")
+        .for_each(|_| Ok(()));
     runtime
         .block_on(client.build_transaction().build(f))
         .unwrap();
@@ -505,16 +536,21 @@ fn transaction_abort() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (
-                id SERIAL,
-                name TEXT
-            )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id SERIAL,
+                        name TEXT
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let f = client
-        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .simple_query("INSERT INTO foo (name) VALUES ('steven')")
+        .for_each(|_| Ok(()))
         .map_err(|e| Box::new(e) as Box<dyn Error>)
         .and_then(|_| Err::<(), _>(Box::<dyn Error>::from("")));
     runtime
@@ -542,12 +578,16 @@ fn copy_in() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (
-                id INTEGER,
-                name TEXT
-             )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id INTEGER,
+                        name TEXT
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let stream = stream::iter_ok::<_, String>(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]);
@@ -585,12 +625,16 @@ fn copy_in_error() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (
-                id INTEGER,
-                name TEXT
-             )",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id INTEGER,
+                        name TEXT
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let stream = stream::iter_result(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
@@ -624,13 +668,17 @@ fn copy_out() {
     runtime.handle().spawn(connection).unwrap();
 
     runtime
-        .block_on(client.batch_execute(
-            "CREATE TEMPORARY TABLE foo (
-                id SERIAL,
-                name TEXT
-            );
-            INSERT INTO foo (name) VALUES ('jim'), ('joe');",
-        ))
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id SERIAL,
+                        name TEXT
+                    );
+                    INSERT INTO foo (name) VALUES ('jim'), ('joe');",
+                )
+                .for_each(|_| Ok(())),
+        )
         .unwrap();
 
     let data = runtime
@@ -654,12 +702,13 @@ fn transaction_builder_around_moved_client() {
 
     let transaction_builder = client.build_transaction();
     let work = client
-        .batch_execute(
+        .simple_query(
             "CREATE TEMPORARY TABLE transaction_foo (
                 id SERIAL,
                 name TEXT
             )",
         )
+        .for_each(|_| Ok(()))
         .and_then(move |_| {
             client
                 .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
@@ -725,7 +774,9 @@ fn poll_idle_running() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
-    let execute = client.batch_execute("CREATE TEMPORARY TABLE foo (id INT)");
+    let execute = client
+        .simple_query("CREATE TEMPORARY TABLE foo (id INT)")
+        .for_each(|_| Ok(()));
     runtime.block_on(execute).unwrap();
 
     let prepare = client.prepare("COPY foo FROM STDIN");

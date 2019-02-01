@@ -1,3 +1,4 @@
+use fallible_iterator::FallibleIterator;
 use futures::{Async, Future, Poll, Stream};
 use std::io::{self, Read};
 use tokio_postgres::types::{ToSql, Type};
@@ -7,7 +8,7 @@ use tokio_postgres::{MakeTlsConnect, Socket, TlsConnect};
 
 #[cfg(feature = "runtime")]
 use crate::Config;
-use crate::{CopyOutReader, Query, Statement, ToStatement, Transaction};
+use crate::{CopyOutReader, Query, SimpleQuery, Statement, ToStatement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -81,12 +82,12 @@ impl Client {
         CopyOutReader::new(stream)
     }
 
-    pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
-        self.0.batch_execute(query).wait()
+    pub fn simple_query(&mut self, query: &str) -> Result<SimpleQuery<'_>, Error> {
+        Ok(SimpleQuery::new(self.0.simple_query(query)))
     }
 
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.batch_execute("BEGIN")?;
+        self.simple_query("BEGIN")?.count()?;
         Ok(Transaction::new(self))
     }
 

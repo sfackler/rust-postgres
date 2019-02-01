@@ -336,6 +336,7 @@ enum Kind {
     Tls,
     ToSql,
     FromSql,
+    Column,
     CopyInStream,
     Closed,
     Db,
@@ -373,6 +374,7 @@ impl fmt::Display for Error {
             Kind::Tls => "error performing TLS handshake",
             Kind::ToSql => "error serializing a value",
             Kind::FromSql => "error deserializing a value",
+            Kind::Column => "invalid column",
             Kind::CopyInStream => "error from a copy_in stream",
             Kind::Closed => "connection closed",
             Kind::Db => "db error",
@@ -449,6 +451,10 @@ impl Error {
 
     pub(crate) fn from_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::FromSql, Some(e))
+    }
+
+    pub(crate) fn column() -> Error {
+        Error::new(Kind::Column, None)
     }
 
     pub(crate) fn copy_in_stream<E>(e: E) -> Error

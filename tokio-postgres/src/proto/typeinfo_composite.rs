@@ -96,8 +96,8 @@ impl PollTypeinfoComposite for TypeinfoComposite {
         let fields = rows
             .iter()
             .map(|row| {
-                let name = row.try_get(0)?.ok_or_else(Error::unexpected_message)?;
-                let oid = row.try_get(1)?.ok_or_else(Error::unexpected_message)?;
+                let name = row.try_get(0)?;
+                let oid = row.try_get(1)?;
                 Ok((name, oid))
             })
             .collect::<Result<Vec<(String, Oid)>, Error>>()?;

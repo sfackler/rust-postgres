@@ -143,7 +143,7 @@ impl Client {
             .map_err(|_| Error::closed())
     }
 
-    pub fn batch_execute(&self, query: &str) -> SimpleQueryStream {
+    pub fn simple_query(&self, query: &str) -> SimpleQueryStream {
         let pending = self.pending(|buf| {
             frontend::query(query, buf).map_err(Error::parse)?;
             Ok(())

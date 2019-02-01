@@ -184,27 +184,13 @@ impl PollTypeinfo for Typeinfo {
             None => return Err(Error::unexpected_message()),
         };
 
-        let name = row
-            .try_get::<_, String>(0)?
-            .ok_or_else(Error::unexpected_message)?;
-        let type_ = row
-            .try_get::<_, i8>(1)?
-            .ok_or_else(Error::unexpected_message)?;
-        let elem_oid = row
-            .try_get::<_, Oid>(2)?
-            .ok_or_else(Error::unexpected_message)?;
-        let rngsubtype = row
-            .try_get::<_, Option<Oid>>(3)?
-            .ok_or_else(Error::unexpected_message)?;
-        let basetype = row
-            .try_get::<_, Oid>(4)?
-            .ok_or_else(Error::unexpected_message)?;
-        let schema = row
-            .try_get::<_, String>(5)?
-            .ok_or_else(Error::unexpected_message)?;
-        let relid = row
-            .try_get::<_, Oid>(6)?
-            .ok_or_else(Error::unexpected_message)?;
+        let name = row.try_get::<_, String>(0)?;
+        let type_ = row.try_get::<_, i8>(1)?;
+        let elem_oid = row.try_get::<_, Oid>(2)?;
+        let rngsubtype = row.try_get::<_, Option<Oid>>(3)?;
+        let basetype = row.try_get::<_, Oid>(4)?;
+        let schema = row.try_get::<_, String>(5)?;
+        let relid = row.try_get::<_, Oid>(6)?;
 
         let kind = if type_ == b'e' as i8 {
             transition!(QueryingEnumVariants {

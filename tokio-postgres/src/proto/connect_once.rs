@@ -1,6 +1,5 @@
 #![allow(clippy::large_enum_variant)]
 
-use fallible_iterator::FallibleIterator;
 use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
@@ -8,7 +7,7 @@ use std::io;
 use crate::proto::{
     Client, ConnectRawFuture, ConnectSocketFuture, Connection, MaybeTlsStream, SimpleQueryStream,
 };
-use crate::{Config, Error, Socket, TargetSessionAttrs, TlsConnect};
+use crate::{Config, Error, SimpleQueryMessage, Socket, TargetSessionAttrs, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectOnce<T>
@@ -75,7 +74,7 @@ where
 
         if let TargetSessionAttrs::ReadWrite = state.target_session_attrs {
             transition!(CheckingSessionAttrs {
-                stream: client.batch_execute("SHOW transaction_read_only"),
+                stream: client.simple_query("SHOW transaction_read_only"),
                 client,
                 connection,
             })
@@ -87,24 +86,26 @@ where
     fn poll_checking_session_attrs<'a>(
         state: &'a mut RentToOwn<'a, CheckingSessionAttrs<T>>,
     ) -> Poll<AfterCheckingSessionAttrs<T>, Error> {
-        if let Async::Ready(()) = state.connection.poll()? {
-            return Err(Error::closed());
-        }
-
-        match try_ready!(state.stream.poll()) {
-            Some(row) => {
-                let range = row.ranges().next().map_err(Error::parse)?.and_then(|r| r);
-                if range.map(|r| &row.buffer()[r]) == Some(b"on") {
-                    Err(Error::connect(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "database does not allow writes",
-                    )))
-                } else {
-                    let state = state.take();
-                    transition!(Finished((state.client, state.connection)))
-                }
+        loop {
+            if let Async::Ready(()) = state.connection.poll()? {
+                return Err(Error::closed());
             }
-            None => Err(Error::closed()),
+
+            match try_ready!(state.stream.poll()) {
+                Some(SimpleQueryMessage::Row(row)) => {
+                    if row.try_get(0)? == Some("on") {
+                        return Err(Error::connect(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "database does not allow writes",
+                        )));
+                    } else {
+                        let state = state.take();
+                        transition!(Finished((state.client, state.connection)))
+                    }
+                }
+                Some(_) => {}
+                None => return Err(Error::closed()),
+            }
         }
     }
 }

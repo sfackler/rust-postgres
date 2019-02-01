@@ -212,12 +212,14 @@ fn test_bpchar_params() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY,
-            b CHAR(5)
-        )",
-    );
+    let batch = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY,
+                b CHAR(5)
+            )",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)");
@@ -245,12 +247,14 @@ fn test_citext_params() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY,
-            b CITEXT
-        )",
-    );
+    let batch = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY,
+                b CITEXT
+            )",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)");
@@ -393,15 +397,16 @@ fn test_slice() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY,
-            f TEXT
-        );
+    let batch = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY,
+                f TEXT
+            );
 
-        INSERT INTO foo(f) VALUES ('a'), ('b'), ('c'), ('d');
-        ",
-    );
+            INSERT INTO foo(f) VALUES ('a'), ('b'), ('c'), ('d');",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("SELECT f FROM foo WHERE id = ANY($1)");
@@ -424,11 +429,13 @@ fn test_slice_wrong_type() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY
-        )",
-    );
+    let batch = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY
+            )",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("SELECT * FROM foo WHERE id = ANY($1)");
@@ -507,10 +514,12 @@ fn domain() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
-         CREATE TABLE pg_temp.foo (id pg_temp.session_id);",
-    );
+    let batch = client
+        .simple_query(
+            "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
+             CREATE TABLE pg_temp.foo (id pg_temp.session_id);",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let id = SessionId(b"0123456789abcdef".to_vec());
@@ -536,13 +545,15 @@ fn composite() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute(
-        "CREATE TYPE pg_temp.inventory_item AS (
-            name TEXT,
-            supplier INTEGER,
-            price NUMERIC
-        )",
-    );
+    let batch = client
+        .simple_query(
+            "CREATE TYPE pg_temp.inventory_item AS (
+                name TEXT,
+                supplier INTEGER,
+                price NUMERIC
+            )",
+        )
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("SELECT $1::inventory_item");
@@ -571,7 +582,9 @@ fn enum_() {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let batch = client.batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');");
+    let batch = client
+        .simple_query("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy');")
+        .for_each(|_| Ok(()));
     runtime.block_on(batch).unwrap();
 
     let prepare = client.prepare("SELECT $1::mood");

@@ -124,7 +124,7 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
         let variants = rows
             .iter()
-            .map(|row| row.try_get(0)?.ok_or_else(Error::unexpected_message))
+            .map(|row| row.try_get(0))
             .collect::<Result<Vec<_>, _>>()?;
 
         transition!(Finished((variants, state.client)))

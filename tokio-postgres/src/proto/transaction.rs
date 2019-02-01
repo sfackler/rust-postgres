@@ -42,7 +42,7 @@ where
     ) -> Poll<AfterStart<F, T, E>, E> {
         let state = state.take();
         transition!(Beginning {
-            begin: state.client.batch_execute("BEGIN"),
+            begin: state.client.simple_query("BEGIN"),
             client: state.client,
             future: state.future,
         })
@@ -66,11 +66,11 @@ where
         match state.future.poll() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(t)) => transition!(Finishing {
-                future: state.client.batch_execute("COMMIT"),
+                future: state.client.simple_query("COMMIT"),
                 result: Ok(t),
             }),
             Err(e) => transition!(Finishing {
-                future: state.client.batch_execute("ROLLBACK"),
+                future: state.client.simple_query("ROLLBACK"),
                 result: Err(e),
             }),
         }

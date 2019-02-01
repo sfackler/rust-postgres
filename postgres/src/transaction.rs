@@ -1,9 +1,12 @@
+use fallible_iterator::FallibleIterator;
 use futures::Future;
 use std::io::Read;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::Error;
 
-use crate::{Client, CopyOutReader, Portal, Query, QueryPortal, Statement, ToStatement};
+use crate::{
+    Client, CopyOutReader, Portal, Query, QueryPortal, SimpleQuery, Statement, ToStatement,
+};
 
 pub struct Transaction<'a> {
     client: &'a mut Client,
@@ -30,12 +33,14 @@ impl<'a> Transaction<'a> {
 
     pub fn commit(mut self) -> Result<(), Error> {
         self.done = true;
-        if self.depth == 0 {
-            self.client.batch_execute("COMMIT")
+        let it = if self.depth == 0 {
+            self.client.simple_query("COMMIT")?
         } else {
             self.client
-                .batch_execute(&format!("RELEASE sp{}", self.depth))
-        }
+                .simple_query(&format!("RELEASE sp{}", self.depth))?
+        };
+        it.count()?;
+        Ok(())
     }
 
     pub fn rollback(mut self) -> Result<(), Error> {
@@ -44,12 +49,14 @@ impl<'a> Transaction<'a> {
     }
 
     fn rollback_inner(&mut self) -> Result<(), Error> {
-        if self.depth == 0 {
-            self.client.batch_execute("ROLLBACK")
+        let it = if self.depth == 0 {
+            self.client.simple_query("ROLLBACK")?
         } else {
             self.client
-                .batch_execute(&format!("ROLLBACK TO sp{}", self.depth))
-        }
+                .simple_query(&format!("ROLLBACK TO sp{}", self.depth))?
+        };
+        it.count()?;
+        Ok(())
     }
 
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
@@ -120,14 +127,15 @@ impl<'a> Transaction<'a> {
         self.client.copy_out(query, params)
     }
 
-    pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
-        self.client.batch_execute(query)
+    pub fn simple_query(&mut self, query: &str) -> Result<SimpleQuery<'_>, Error> {
+        self.client.simple_query(query)
     }
 
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         let depth = self.depth + 1;
         self.client
-            .batch_execute(&format!("SAVEPOINT sp{}", depth))?;
+            .simple_query(&format!("SAVEPOINT sp{}", depth))?
+            .count()?;
         Ok(Transaction {
             client: self.client,
             depth,

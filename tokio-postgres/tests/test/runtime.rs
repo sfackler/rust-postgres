@@ -1,4 +1,4 @@
-use futures::Future;
+use futures::{Future, Stream};
 use std::time::{Duration, Instant};
 use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
@@ -11,7 +11,7 @@ fn smoke_test(s: &str) {
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
-    let execute = client.batch_execute("SELECT 1");
+    let execute = client.simple_query("SELECT 1").for_each(|_| Ok(()));
     runtime.block_on(execute).unwrap();
 }
 
@@ -80,7 +80,8 @@ fn cancel_query() {
     runtime.spawn(connection);
 
     let sleep = client
-        .batch_execute("SELECT pg_sleep(100)")
+        .simple_query("SELECT pg_sleep(100)")
+        .for_each(|_| Ok(()))
         .then(|r| match r {
             Ok(_) => panic!("unexpected success"),
             Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
