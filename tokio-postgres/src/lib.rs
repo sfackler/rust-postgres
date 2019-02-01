@@ -182,8 +182,8 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> Execute {
-        Execute(self.0.execute(&statement.0, params))
+    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Execute {
+        impls::Execute(self.0.execute(&statement.0, params))
     }
 
     /// Executes a statement, returning a stream of the resulting rows.
@@ -396,18 +396,6 @@ impl Statement {
     }
 }
 
-#[must_use = "futures do nothing unless polled"]
-pub struct Execute(proto::ExecuteFuture);
-
-impl Future for Execute {
-    type Item = u64;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<u64, Error> {
-        self.0.poll()
-    }
-}
-
 /// A portal.
 ///
 /// Portals can only be used with the connection that created them, and only exist for the duration of the transaction
@@ -447,8 +435,13 @@ where
     }
 }
 
+/// Message returned by the `SimpleQuery` stream.
 pub enum SimpleQueryMessage {
+    /// A row of data.
     Row(SimpleQueryRow),
+    /// A statement in the query has completed.
+    ///
+    /// The number of rows modified or selected is returned.
     CommandComplete(u64),
     #[doc(hidden)]
     __NonExhaustive,

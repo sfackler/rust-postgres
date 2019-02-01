@@ -121,6 +121,19 @@ impl Stream for Query {
     }
 }
 
+/// The future returned by `Client::execute`.
+#[must_use = "futures do nothing unless polled"]
+pub struct Execute(pub(crate) proto::ExecuteFuture);
+
+impl Future for Execute {
+    type Item = u64;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<u64, Error> {
+        self.0.poll()
+    }
+}
+
 /// The future returned by `Client::bind`.
 #[must_use = "futures do nothing unless polled"]
 pub struct Bind(pub(crate) proto::BindFuture);
