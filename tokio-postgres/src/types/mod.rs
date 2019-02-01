@@ -78,8 +78,8 @@ mod bit_vec_05;
 mod chrono_04;
 #[cfg(feature = "with-eui48-0.4")]
 mod eui48_04;
-#[cfg(feature = "with-geo-0.10")]
-mod geo_010;
+#[cfg(feature = "with-geo-0.11")]
+mod geo_011;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-uuid-0.7")]
