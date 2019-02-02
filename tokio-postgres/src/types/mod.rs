@@ -106,9 +106,7 @@ impl fmt::Display for Type {
 }
 
 impl Type {
-    // WARNING: this is not considered public API
-    #[doc(hidden)]
-    pub fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
+    pub(crate) fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
         Type(Inner::Other(Arc::new(Other {
             name,
             oid,
@@ -165,7 +163,7 @@ pub enum Kind {
     /// A composite type along with information about its fields.
     Composite(Vec<Field>),
     #[doc(hidden)]
-    __PseudoPrivateForExtensibility,
+    __ForExtensibility,
 }
 
 /// Information about a field of a composite type.
@@ -188,8 +186,7 @@ impl Field {
 }
 
 impl Field {
-    #[doc(hidden)]
-    pub fn new(name: String, type_: Type) -> Field {
+    pub(crate) fn new(name: String, type_: Type) -> Field {
         Field { name, type_ }
     }
 }
@@ -201,15 +198,11 @@ pub struct WasNull;
 
 impl fmt::Display for WasNull {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.write_str(self.description())
+        fmt.write_str("a Postgres value was `NULL`")
     }
 }
 
-impl Error for WasNull {
-    fn description(&self) -> &str {
-        "a Postgres value was `NULL`"
-    }
-}
+impl Error for WasNull {}
 
 /// An error indicating that a conversion was attempted between incompatible
 /// Rust and Postgres types.
@@ -226,15 +219,10 @@ impl fmt::Display for WrongType {
     }
 }
 
-impl Error for WrongType {
-    fn description(&self) -> &str {
-        "cannot convert to or from a Postgres value"
-    }
-}
+impl Error for WrongType {}
 
 impl WrongType {
-    #[doc(hidden)]
-    pub fn new(ty: Type) -> WrongType {
+    pub(crate) fn new(ty: Type) -> WrongType {
         WrongType(ty)
     }
 }
