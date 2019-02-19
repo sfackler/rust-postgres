@@ -53,7 +53,7 @@ pub(crate) enum Host {
     Unix(PathBuf),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Inner {
     pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
@@ -67,6 +67,45 @@ pub(crate) struct Inner {
     pub(crate) keepalives: bool,
     pub(crate) keepalives_idle: Duration,
     pub(crate) target_session_attrs: TargetSessionAttrs,
+}
+
+// Omit password from debug output
+impl fmt::Debug for Inner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Inner {{ \
+             user: {:?}, \
+             password: {}, \
+             dbname: {:?}, \
+             options: {:?}, \
+             application_name: {:?}, \
+             ssl_mode: {:?}, \
+             host: {:?}, \
+             port: {:?}, \
+             connect_timeout: {:?}, \
+             keepalives: {:?}, \
+             keepalives_idle: {:?}, \
+             target_session_attrs: {:?} \
+             }}",
+            self.user,
+            if self.password.is_some() {
+                "Some(_)"
+            } else {
+                "None"
+            },
+            self.dbname,
+            self.options,
+            self.application_name,
+            self.ssl_mode,
+            self.host,
+            self.port,
+            self.connect_timeout,
+            self.keepalives,
+            self.keepalives_idle,
+            self.target_session_attrs
+        )
+    }
 }
 
 /// Connection configuration.
