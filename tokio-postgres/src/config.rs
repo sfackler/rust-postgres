@@ -53,7 +53,7 @@ pub(crate) enum Host {
     Unix(PathBuf),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Inner {
     pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
@@ -142,7 +142,7 @@ pub(crate) struct Inner {
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Config(pub(crate) Arc<Inner>);
 
 impl Default for Config {
@@ -411,6 +411,33 @@ impl FromStr for Config {
             Some(config) => Ok(config),
             None => Parser::parse(s),
         }
+    }
+}
+
+// Omit password from debug output
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct Redaction {}
+        impl fmt::Debug for Redaction {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "_")
+            }
+        }
+
+        f.debug_struct("Config")
+            .field("user", &self.0.user)
+            .field("password", &self.0.password.as_ref().map(|_| Redaction {}))
+            .field("dbname", &self.0.dbname)
+            .field("options", &self.0.options)
+            .field("application_name", &self.0.application_name)
+            .field("ssl_mode", &self.0.ssl_mode)
+            .field("host", &self.0.host)
+            .field("port", &self.0.port)
+            .field("connect_timeout", &self.0.connect_timeout)
+            .field("keepalives", &self.0.keepalives)
+            .field("keepalives_idle", &self.0.keepalives_idle)
+            .field("target_session_attrs", &self.0.target_session_attrs)
+            .finish()
     }
 }
 
