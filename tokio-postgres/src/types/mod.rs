@@ -252,14 +252,11 @@ impl WrongType {
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name prefixed by `with-`. For example, the `with-serde_json` feature enables
+/// name prefixed by `with-`. For example, the `with-serde_json-1` feature enables
 /// the implementation for the `serde_json::Value` type.
 ///
 /// | Rust type                       | Postgres type(s)                    |
 /// |---------------------------------|-------------------------------------|
-/// | `serialize::json::Json`         | JSON, JSONB                         |
-/// | `serde_json::Value`             | JSON, JSONB                         |
-/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
 /// | `chrono::DateTime<Utc>`         | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
@@ -267,6 +264,10 @@ impl WrongType {
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
+/// | `geo_types::Point<f64>`         | POINT                               |
+/// | `geo_types::Rect<f64>`          | BOX                                 |
+/// | `geo_types::LineString<f64>`    | PATH                                |
+/// | `serde_json::Value`             | JSON, JSONB                         |
 /// | `uuid::Uuid`                    | UUID                                |
 /// | `bit_vec::BitVec`               | BIT, VARBIT                         |
 /// | `eui48::MacAddress`             | MACADDR                             |
@@ -496,25 +497,27 @@ pub enum IsNull {
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
 /// | `&[u8]`/Vec<u8>`                  | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
-/// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE           |
+/// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
 /// implementations, activate the Cargo feature corresponding to the crate's
-/// name prefixed by `with-`. For example, the `with-serde_json` feature enables
+/// name prefixed by `with-`. For example, the `with-serde_json-1` feature enables
 /// the implementation for the `serde_json::Value` type.
 ///
 /// | Rust type                       | Postgres type(s)                    |
 /// |---------------------------------|-------------------------------------|
-/// | `serialize::json::Json`         | JSON, JSONB                         |
-/// | `serde_json::Value`             | JSON, JSONB                         |
-/// | `time::Timespec`                | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
 /// | `chrono::NaiveDateTime`         | TIMESTAMP                           |
 /// | `chrono::DateTime<Utc>`         | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<Local>`       | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `eui48::MacAddress`             | MACADDR                             |
+/// | `geo_types::Point<f64>`         | POINT                               |
+/// | `geo_types::Rect<f64>`          | BOX                                 |
+/// | `geo_types::LineString<f64>`    | PATH                                |
+/// | `serde_json::Value`             | JSON, JSONB                         |
 /// | `uuid::Uuid`                    | UUID                                |
 /// | `bit_vec::BitVec`               | BIT, VARBIT                         |
 /// | `eui48::MacAddress`             | MACADDR                             |
