@@ -12,7 +12,8 @@ use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::{Client, Connection, MaybeTlsStream, PostgresCodec, TlsFuture};
-use crate::{ChannelBinding, Config, Error, TlsConnect};
+use crate::tls::ChannelBinding;
+use crate::{Config, Error, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectRaw<S, T>

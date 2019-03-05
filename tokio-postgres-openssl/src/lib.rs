@@ -14,8 +14,8 @@ use std::sync::Arc;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{ConnectAsync, ConnectConfigurationExt, SslStream};
 #[cfg(feature = "runtime")]
-use tokio_postgres::MakeTlsConnect;
-use tokio_postgres::{ChannelBinding, TlsConnect};
+use tokio_postgres::tls::MakeTlsConnect;
+use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 
 #[cfg(test)]
 mod test;

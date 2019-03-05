@@ -2,7 +2,7 @@ use futures::{Future, Stream};
 use native_tls::{self, Certificate};
 use tokio::net::TcpStream;
 use tokio::runtime::current_thread::Runtime;
-use tokio_postgres::TlsConnect;
+use tokio_postgres::tls::TlsConnect;
 
 #[cfg(feature = "runtime")]
 use crate::MakeTlsConnector;

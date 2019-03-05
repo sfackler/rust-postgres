@@ -3,8 +3,8 @@
 use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")]
-use tokio_postgres::MakeTlsConnect;
-use tokio_postgres::{ChannelBinding, TlsConnect};
+use tokio_postgres::tls::MakeTlsConnect;
+use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 use tokio_tls::{Connect, TlsStream};
 
 #[cfg(test)]

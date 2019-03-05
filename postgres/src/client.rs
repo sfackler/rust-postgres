@@ -4,7 +4,8 @@ use std::io::{self, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::Error;
 #[cfg(feature = "runtime")]
-use tokio_postgres::{MakeTlsConnect, Socket, TlsConnect};
+use tokio_postgres::{Socket};
+use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 
 #[cfg(feature = "runtime")]
 use crate::Config;

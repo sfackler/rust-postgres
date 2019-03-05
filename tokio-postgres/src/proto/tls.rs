@@ -6,7 +6,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::MaybeTlsStream;
 use crate::tls::private::ForcePrivateApi;
-use crate::{ChannelBinding, Error, SslMode, TlsConnect};
+use crate::tls::ChannelBinding;
+use crate::{Error, SslMode, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum Tls<S, T>

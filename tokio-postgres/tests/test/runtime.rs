@@ -2,7 +2,8 @@ use futures::{Future, Stream};
 use std::time::{Duration, Instant};
 use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
-use tokio_postgres::{NoTls, SqlState};
+use tokio_postgres::error::SqlState;
+use tokio_postgres::NoTls;
 
 fn smoke_test(s: &str) {
     let mut runtime = Runtime::new().unwrap();

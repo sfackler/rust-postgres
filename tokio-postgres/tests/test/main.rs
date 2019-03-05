@@ -12,8 +12,9 @@ use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::impls;
+use tokio_postgres::tls::NoTlsStream;
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, NoTlsStream, SimpleQueryMessage};
+use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, SimpleQueryMessage};
 
 mod parse;
 #[cfg(feature = "runtime")]

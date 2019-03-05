@@ -1,3 +1,5 @@
+//! TLS support.
+
 use futures::future::{self, FutureResult};
 use futures::{Future, Poll};
 use std::error::Error;

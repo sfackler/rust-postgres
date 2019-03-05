@@ -110,12 +110,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use crate::config::*;
-pub use crate::error::*;
+use crate::error::DbError;
+pub use crate::error::Error;
 pub use crate::row::*;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::stmt::Column;
-pub use crate::tls::*;
+#[cfg(feature = "runtime")]
+use crate::tls::MakeTlsConnect;
+pub use crate::tls::NoTls;
+use crate::tls::TlsConnect;
 use crate::types::{ToSql, Type};
 
 mod config;
@@ -126,7 +130,7 @@ mod row;
 #[cfg(feature = "runtime")]
 mod socket;
 mod stmt;
-mod tls;
+pub mod tls;
 pub mod types;
 
 fn next_statement() -> String {
