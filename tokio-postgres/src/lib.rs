@@ -162,6 +162,7 @@ where
 ///
 /// The client is one half of what is returned when a connection is established. Users interact with the database
 /// through this client object.
+#[derive(Clone)]
 pub struct Client(proto::Client);
 
 impl Client {
