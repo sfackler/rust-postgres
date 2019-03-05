@@ -1,5 +1,5 @@
 use std::time::Duration;
-use tokio_postgres::{Config, TargetSessionAttrs};
+use tokio_postgres::config::{Config, TargetSessionAttrs};
 
 fn check(s: &str, config: &Config) {
     assert_eq!(s.parse::<Config>().expect(s), *config, "`{}`", s);
