@@ -257,7 +257,7 @@ impl ScramSha256 {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("SCRAM error: {}", e),
-                ))
+                ));
             }
             ServerFinalMessage::Verifier(verifier) => verifier,
         };

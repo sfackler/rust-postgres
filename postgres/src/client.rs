@@ -1,11 +1,11 @@
 use fallible_iterator::FallibleIterator;
 use futures::{Async, Future, Poll, Stream};
 use std::io::{self, Read};
+use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::Error;
 #[cfg(feature = "runtime")]
-use tokio_postgres::{Socket};
-use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
+use tokio_postgres::Socket;
 
 #[cfg(feature = "runtime")]
 use crate::Config;
