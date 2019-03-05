@@ -1,3 +1,5 @@
+//! Connection configuration.
+
 use std::borrow::Cow;
 use std::error;
 #[cfg(unix)]

@@ -4,10 +4,11 @@ use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, ReadExact, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use crate::config::SslMode;
 use crate::proto::MaybeTlsStream;
 use crate::tls::private::ForcePrivateApi;
 use crate::tls::ChannelBinding;
-use crate::{Error, SslMode, TlsConnect};
+use crate::{Error, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum Tls<S, T>

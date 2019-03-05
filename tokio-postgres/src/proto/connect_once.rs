@@ -4,10 +4,11 @@ use futures::{try_ready, Async, Future, Poll, Stream};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 
+use crate::config::TargetSessionAttrs;
 use crate::proto::{
     Client, ConnectRawFuture, ConnectSocketFuture, Connection, MaybeTlsStream, SimpleQueryStream,
 };
-use crate::{Config, Error, SimpleQueryMessage, Socket, TargetSessionAttrs, TlsConnect};
+use crate::{Config, Error, SimpleQueryMessage, Socket, TlsConnect};
 
 #[derive(StateMachineFuture)]
 pub enum ConnectOnce<T>

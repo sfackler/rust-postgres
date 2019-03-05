@@ -4,8 +4,9 @@ use log::error;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
+use tokio_postgres::config::{SslMode, TargetSessionAttrs};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
-use tokio_postgres::{Error, Socket, SslMode, TargetSessionAttrs};
+use tokio_postgres::{Error, Socket};
 
 use crate::{Client, RUNTIME};
 

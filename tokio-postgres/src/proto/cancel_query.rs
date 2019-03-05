@@ -2,8 +2,9 @@ use futures::{try_ready, Future, Poll};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::io;
 
+use crate::config::{Host, SslMode};
 use crate::proto::{CancelQueryRawFuture, ConnectSocketFuture};
-use crate::{Config, Error, Host, MakeTlsConnect, Socket, SslMode};
+use crate::{Config, Error, MakeTlsConnect, Socket};
 
 #[derive(StateMachineFuture)]
 pub enum CancelQuery<T>

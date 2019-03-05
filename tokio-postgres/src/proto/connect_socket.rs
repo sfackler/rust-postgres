@@ -11,7 +11,8 @@ use tokio_timer::Delay;
 #[cfg(unix)]
 use tokio_uds::UnixStream;
 
-use crate::{Config, Error, Host, Socket};
+use crate::config::Host;
+use crate::{Config, Error, Socket};
 
 lazy_static! {
     static ref DNS_POOL: CpuPool = futures_cpupool::Builder::new()

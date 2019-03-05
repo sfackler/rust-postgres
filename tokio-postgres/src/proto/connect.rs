@@ -1,8 +1,9 @@
 use futures::{Async, Future, Poll};
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
+use crate::config::Host;
 use crate::proto::{Client, ConnectOnceFuture, Connection, MaybeTlsStream};
-use crate::{Config, Error, Host, MakeTlsConnect, Socket};
+use crate::{Config, Error, MakeTlsConnect, Socket};
 
 #[derive(StateMachineFuture)]
 pub enum Connect<T>

@@ -1,3 +1,5 @@
+//! Rows.
+
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;

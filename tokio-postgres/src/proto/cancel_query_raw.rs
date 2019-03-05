@@ -4,9 +4,10 @@ use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use tokio_io::io::{self, Flush, WriteAll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use crate::config::SslMode;
 use crate::error::Error;
 use crate::proto::{MaybeTlsStream, TlsFuture};
-use crate::{SslMode, TlsConnect};
+use crate::TlsConnect;
 
 #[derive(StateMachineFuture)]
 pub enum CancelQueryRaw<S, T>

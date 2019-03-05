@@ -109,10 +109,10 @@ use std::error::Error as StdError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-pub use crate::config::*;
+pub use crate::config::Config;
 use crate::error::DbError;
 pub use crate::error::Error;
-pub use crate::row::*;
+pub use crate::row::{Row, SimpleQueryRow};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::stmt::Column;
@@ -122,11 +122,11 @@ pub use crate::tls::NoTls;
 use crate::tls::TlsConnect;
 use crate::types::{ToSql, Type};
 
-mod config;
+pub mod config;
 pub mod error;
 pub mod impls;
 mod proto;
-mod row;
+pub mod row;
 #[cfg(feature = "runtime")]
 mod socket;
 mod stmt;
