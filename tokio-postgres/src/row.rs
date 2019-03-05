@@ -93,6 +93,7 @@ where
     }
 }
 
+/// A row of data returned from the database by a query.
 pub struct Row {
     statement: proto::Statement,
     body: DataRowBody,
@@ -110,18 +111,28 @@ impl Row {
         })
     }
 
+    /// Returns information about the columns of data in the row.
     pub fn columns(&self) -> &[Column] {
         self.statement.columns()
     }
 
+    /// Determines if the row contains no values.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the number of values in the row.
     pub fn len(&self) -> usize {
         self.columns().len()
     }
 
+    /// Deserializes a value from the row.
+    ///
+    /// The value can be specified either by its numeric index in the row, or by its column name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index is out of bounds or if the value cannot be converted to the specified type.
     pub fn get<'a, I, T>(&'a self, idx: I) -> T
     where
         I: RowIndex + fmt::Display,
@@ -133,6 +144,7 @@ impl Row {
         }
     }
 
+    /// Like `Row::get`, but returns a `Result` rather than panicking.
     pub fn try_get<'a, I, T>(&'a self, idx: I) -> Result<T, Error>
     where
         I: RowIndex,
@@ -161,6 +173,7 @@ impl Row {
     }
 }
 
+/// A row of data returned from the database by a simple query.
 pub struct SimpleQueryRow {
     columns: Arc<[String]>,
     body: DataRowBody,
@@ -178,14 +191,23 @@ impl SimpleQueryRow {
         })
     }
 
+    /// Determines if the row contains no values.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the number of values in the row.
     pub fn len(&self) -> usize {
         self.columns.len()
     }
 
+    /// Returns a value from the row.
+    ///
+    /// The value can be specified either by its numeric index in the row, or by its column name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index is out of bounds or if the value cannot be converted to the specified type.
     pub fn get<I>(&self, idx: I) -> Option<&str>
     where
         I: RowIndex + fmt::Display,
@@ -196,6 +218,7 @@ impl SimpleQueryRow {
         }
     }
 
+    /// Like `SimpleQueryRow::get`, but returns a `Result` rather than panicking.
     pub fn try_get<I>(&self, idx: I) -> Result<Option<&str>, Error>
     where
         I: RowIndex,

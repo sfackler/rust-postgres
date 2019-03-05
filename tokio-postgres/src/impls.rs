@@ -213,3 +213,23 @@ impl Stream for SimpleQuery {
         self.0.poll()
     }
 }
+
+/// The future returned by `TransactionBuilder::build`.
+#[must_use = "futures do nothing unless polled"]
+pub struct Transaction<T>(pub(crate) proto::TransactionFuture<T, T::Item, T::Error>)
+where
+    T: Future,
+    T::Error: From<Error>;
+
+impl<T> Future for Transaction<T>
+where
+    T: Future,
+    T::Error: From<Error>,
+{
+    type Item = T::Item;
+    type Error = T::Error;
+
+    fn poll(&mut self) -> Poll<T::Item, T::Error> {
+        self.0.poll()
+    }
+}

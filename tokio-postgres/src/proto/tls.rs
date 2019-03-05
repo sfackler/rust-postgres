@@ -63,6 +63,7 @@ where
                     tls: state.tls,
                 })
             }
+            SslMode::__NonExhaustive => unreachable!(),
         }
     }
 

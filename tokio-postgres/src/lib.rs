@@ -87,7 +87,9 @@
 //! use futures::Future;
 //! use tokio_postgres::{Client, Error, Statement};
 //!
-//! fn pipelined_prepare(client: &mut Client) -> impl Future<Item = (Statement, Statement), Error = Error>
+//! fn pipelined_prepare(
+//!     client: &mut Client,
+//! ) -> impl Future<Item = (Statement, Statement), Error = Error>
 //! {
 //!     client.prepare("SELECT * FROM foo")
 //!         .join(client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)"))
@@ -99,7 +101,7 @@
 //! The client works with arbitrary `AsyncRead + AsyncWrite` streams. Convenience APIs are provided to handle the
 //! connection process, but these are gated by the `runtime` Cargo feature, which is enabled by default. If disabled,
 //! all dependence on the tokio runtime is removed.
-#![warn(rust_2018_idioms, clippy::all)]
+#![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use bytes::IntoBuf;
 use futures::{Future, Poll, Stream};
@@ -406,32 +408,14 @@ pub struct Portal(proto::Portal);
 pub struct TransactionBuilder(proto::Client);
 
 impl TransactionBuilder {
-    pub fn build<T>(self, future: T) -> Transaction<T>
+    /// Returns a future which wraps another in a database transaction.
+    pub fn build<T>(self, future: T) -> impls::Transaction<T>
     where
         T: Future,
         // FIXME error type?
         T::Error: From<Error>,
     {
-        Transaction(proto::TransactionFuture::new(self.0, future))
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-pub struct Transaction<T>(proto::TransactionFuture<T, T::Item, T::Error>)
-where
-    T: Future,
-    T::Error: From<Error>;
-
-impl<T> Future for Transaction<T>
-where
-    T: Future,
-    T::Error: From<Error>,
-{
-    type Item = T::Item;
-    type Error = T::Error;
-
-    fn poll(&mut self) -> Poll<T::Item, T::Error> {
-        self.0.poll()
+        impls::Transaction(proto::TransactionFuture::new(self.0, future))
     }
 }
 

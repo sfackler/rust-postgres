@@ -13,6 +13,9 @@ enum Inner {
     Unix(UnixStream),
 }
 
+/// The standard stream type used by the crate.
+///
+/// Requires the `runtime` Cargo feature (enabled by default).
 #[derive(Debug)]
 pub struct Socket(Inner);
 

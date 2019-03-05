@@ -44,6 +44,8 @@ pub enum SslMode {
     Prefer,
     /// Require the use of TLS.
     Require,
+    #[doc(hidden)]
+    __NonExhaustive,
 }
 
 #[derive(Debug, Clone, PartialEq)]
