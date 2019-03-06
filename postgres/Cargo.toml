@@ -20,7 +20,7 @@ runtime = ["tokio-postgres/runtime", "tokio", "lazy_static", "log"]
 bytes = "0.4"
 fallible-iterator = "0.1"
 futures = "0.1"
-tokio-postgres = { version = "0.4.0-rc.1", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "0.4.0-rc.2", path = "../tokio-postgres", default-features = false }
 
 tokio = { version = "0.1", optional = true }
 lazy_static = { version = "1.0", optional = true }
