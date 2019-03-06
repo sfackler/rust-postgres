@@ -86,7 +86,7 @@ fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<Fil
     write!(
         file,
         "
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = "
     )
     .unwrap();

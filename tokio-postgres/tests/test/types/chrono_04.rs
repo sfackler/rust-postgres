@@ -5,7 +5,7 @@ use crate::types::test_type;
 
 #[test]
 fn test_naive_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Option<NaiveDateTime>, &'a str) {
+    fn make_check(time: &str) -> (Option<NaiveDateTime>, &str) {
         (
             Some(NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()),
             time,
@@ -24,7 +24,7 @@ fn test_naive_date_time_params() {
 
 #[test]
 fn test_with_special_naive_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Timestamp<NaiveDateTime>, &'a str) {
+    fn make_check(time: &str) -> (Timestamp<NaiveDateTime>, &str) {
         (
             Timestamp::Value(
                 NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap(),
@@ -46,7 +46,7 @@ fn test_with_special_naive_date_time_params() {
 
 #[test]
 fn test_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Option<DateTime<Utc>>, &'a str) {
+    fn make_check(time: &str) -> (Option<DateTime<Utc>>, &str) {
         (
             Some(
                 Utc.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'")
@@ -68,7 +68,7 @@ fn test_date_time_params() {
 
 #[test]
 fn test_with_special_date_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Timestamp<DateTime<Utc>>, &'a str) {
+    fn make_check(time: &str) -> (Timestamp<DateTime<Utc>>, &str) {
         (
             Timestamp::Value(
                 Utc.datetime_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'")
@@ -91,7 +91,7 @@ fn test_with_special_date_time_params() {
 
 #[test]
 fn test_date_params() {
-    fn make_check<'a>(time: &'a str) -> (Option<NaiveDate>, &'a str) {
+    fn make_check(time: &str) -> (Option<NaiveDate>, &str) {
         (
             Some(NaiveDate::parse_from_str(time, "'%Y-%m-%d'").unwrap()),
             time,
@@ -110,7 +110,7 @@ fn test_date_params() {
 
 #[test]
 fn test_with_special_date_params() {
-    fn make_check<'a>(date: &'a str) -> (Date<NaiveDate>, &'a str) {
+    fn make_check(date: &str) -> (Date<NaiveDate>, &str) {
         (
             Date::Value(NaiveDate::parse_from_str(date, "'%Y-%m-%d'").unwrap()),
             date,
@@ -130,7 +130,7 @@ fn test_with_special_date_params() {
 
 #[test]
 fn test_time_params() {
-    fn make_check<'a>(time: &'a str) -> (Option<NaiveTime>, &'a str) {
+    fn make_check(time: &str) -> (Option<NaiveTime>, &str) {
         (
             Some(NaiveTime::parse_from_str(time, "'%H:%M:%S.%f'").unwrap()),
             time,

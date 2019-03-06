@@ -775,7 +775,7 @@ impl SqlState {
     /// XX002
     pub const INDEX_CORRUPTED: SqlState = SqlState(Cow::Borrowed("XX002"));
 }
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = ::phf::Map {
     key: 3213172566270843353,
     disps: ::phf::Slice::Static(&[

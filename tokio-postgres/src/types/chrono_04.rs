@@ -103,7 +103,7 @@ impl ToSql for DateTime<FixedOffset> {
 impl<'a> FromSql<'a> for NaiveDate {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDate, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
-        Ok(base().date() + Duration::days(jd as i64))
+        Ok(base().date() + Duration::days(i64::from(jd)))
     }
 
     accepts!(DATE);
@@ -112,7 +112,7 @@ impl<'a> FromSql<'a> for NaiveDate {
 impl ToSql for NaiveDate {
     fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let jd = self.signed_duration_since(base().date()).num_days();
-        if jd > i32::max_value() as i64 || jd < i32::min_value() as i64 {
+        if jd > i64::from(i32::max_value()) || jd < i64::from(i32::min_value()) {
             return Err("value too large to transmit".into());
         }
 
