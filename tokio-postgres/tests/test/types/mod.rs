@@ -12,17 +12,17 @@ use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, Wr
 
 use crate::connect;
 
-#[cfg(feature = "with-bit-vec-0.7")]
+#[cfg(feature = "with-bit-vec-0_7")]
 mod bit_vec_07;
-#[cfg(feature = "with-chrono-0.4")]
+#[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
-#[cfg(feature = "with-eui48-0.4")]
+#[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
-#[cfg(feature = "with-geo-0.10")]
+#[cfg(feature = "with-geo-0_10")]
 mod geo_010;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
-#[cfg(feature = "with-uuid-0.7")]
+#[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
 
 fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])

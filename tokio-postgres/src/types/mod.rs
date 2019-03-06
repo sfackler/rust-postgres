@@ -72,17 +72,17 @@ where
     v.to_sql(ty, out)
 }
 
-#[cfg(feature = "with-bit-vec-0.5")]
+#[cfg(feature = "with-bit-vec-0_5")]
 mod bit_vec_05;
-#[cfg(feature = "with-chrono-0.4")]
+#[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
-#[cfg(feature = "with-eui48-0.4")]
+#[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
-#[cfg(feature = "with-geo-types-0.4")]
+#[cfg(feature = "with-geo-types-0_4")]
 mod geo_types_04;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
-#[cfg(feature = "with-uuid-0.7")]
+#[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
 
 mod special;
