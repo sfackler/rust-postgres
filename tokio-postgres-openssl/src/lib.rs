@@ -1,4 +1,24 @@
-#![warn(rust_2018_idioms, clippy::all)]
+//! TLS support for `tokio-postgres` via `openssl`.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use openssl::ssl::{SslConnector, SslMethod};
+//! use tokio_postgres_openssl::MakeTlsConnector;
+//!
+//! let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+//! builder.set_ca_file("database_cert.pem").unwrap();
+//! let connector = MakeTlsConnector::new(builder.build());
+//!
+//! let connect_future = tokio_postgres::connect(
+//!     "host=localhost user=postgres sslmode=require",
+//!     connector,
+//! );
+//!
+//! // ...
+//! ```
+
+#![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use futures::{try_ready, Async, Future, Poll};
 #[cfg(feature = "runtime")]
@@ -20,25 +40,32 @@ use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 #[cfg(test)]
 mod test;
 
+/// A `MakeTlsConnect` implementation using the `openssl` crate.
+///
+/// Requires the `runtime` Cargo feature (enabled by default).
 #[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub struct MakeTlsConnector {
     connector: SslConnector,
-    config: Arc<dyn Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + Sync + Send>,
+    config: Arc<dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send>,
 }
 
 #[cfg(feature = "runtime")]
 impl MakeTlsConnector {
+    /// Creates a new connector.
     pub fn new(connector: SslConnector) -> MakeTlsConnector {
         MakeTlsConnector {
             connector,
-            config: Arc::new(|_| Ok(())),
+            config: Arc::new(|_, _| Ok(())),
         }
     }
 
+    /// Sets a callback used to apply per-connection configuration.
+    ///
+    /// The the callback is provided the domain name along with the `ConnectConfiguration`.
     pub fn set_callback<F>(&mut self, f: F)
     where
-        F: Fn(&mut ConnectConfiguration) -> Result<(), ErrorStack> + 'static + Sync + Send,
+        F: Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + 'static + Sync + Send,
     {
         self.config = Arc::new(f);
     }
@@ -55,17 +82,19 @@ where
 
     fn make_tls_connect(&mut self, domain: &str) -> Result<TlsConnector, ErrorStack> {
         let mut ssl = self.connector.configure()?;
-        (self.config)(&mut ssl)?;
+        (self.config)(&mut ssl, domain)?;
         Ok(TlsConnector::new(ssl, domain))
     }
 }
 
+/// A `TlsConnect` implementation using the `openssl` crate.
 pub struct TlsConnector {
     ssl: ConnectConfiguration,
     domain: String,
 }
 
 impl TlsConnector {
+    /// Creates a new connector configured to connect to the specified domain.
     pub fn new(ssl: ConnectConfiguration, domain: &str) -> TlsConnector {
         TlsConnector {
             ssl,
@@ -87,6 +116,7 @@ where
     }
 }
 
+/// The future returned by `TlsConnector`.
 pub struct TlsConnectFuture<S>(ConnectAsync<S>);
 
 impl<S> Future for TlsConnectFuture<S>
