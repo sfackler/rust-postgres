@@ -1,10 +1,10 @@
 [package]
 name = "tokio-postgres"
-version = "0.3.0"
+version = "0.4.0-rc.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
-license = "MIT"
-description = "A native PostgreSQL driver using Tokio"
+license = "MIT/Apache-2.0"
+description = "A native, asynchronous PostgreSQL client"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
@@ -14,14 +14,7 @@ categories = ["database"]
 test = false
 
 [package.metadata.docs.rs]
-features = [
-    "with-bit-vec-0.5",
-    "with-chrono-0.4",
-    "with-eui48-0.4",
-    "with-geo-0.11",
-    "with-serde_json-1",
-    "with-uuid-0.7",
-]
+all-features = true
 
 [badges]
 circle-ci = { repository = "sfackler/rust-postgres" }
@@ -30,12 +23,12 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 default = ["runtime"]
 runtime = ["tokio-tcp", "tokio-timer", "tokio-uds", "futures-cpupool", "lazy_static"]
 
-"with-bit-vec-0.5" = ["bit-vec-05"]
-"with-chrono-0.4" = ["chrono-04"]
-"with-eui48-0.4" = ["eui48-04"]
-"with-geo-types-0.4" = ["geo-types-04"]
+"with-bit-vec-0_5" = ["bit-vec-05"]
+"with-chrono-0_4" = ["chrono-04"]
+"with-eui48-0_4" = ["eui48-04"]
+"with-geo-types-0_4" = ["geo-types-04"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
-"with-uuid-0.7" = ["uuid-07"]
+"with-uuid-0_7" = ["uuid-07"]
 
 [dependencies]
 antidote = "1.0"

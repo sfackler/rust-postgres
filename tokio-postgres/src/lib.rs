@@ -101,6 +101,7 @@
 //! The client works with arbitrary `AsyncRead + AsyncWrite` streams. Convenience APIs are provided to handle the
 //! connection process, but these are gated by the `runtime` Cargo feature, which is enabled by default. If disabled,
 //! all dependence on the tokio runtime is removed.
+#![doc(html_root_url = "https://docs.rs/tokio-postgres/0.4.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use bytes::IntoBuf;
