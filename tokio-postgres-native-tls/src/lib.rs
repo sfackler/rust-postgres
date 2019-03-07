@@ -1,4 +1,29 @@
-#![warn(rust_2018_idioms, clippy::all)]
+//! TLS support for `tokio-postgres` via `native-tls.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use native_tls::{Certificate, TlsConnector};
+//! use tokio_postgres_native_tls::MakeTlsConnector;
+//! use std::fs;
+//!
+//! let cert = fs::read("database_cert.pem").unwrap();
+//! let cert = Certificate::from_pem(&cert).unwrap();
+//! let connector = TlsConnector::builder()
+//!     .add_root_certificate(cert)
+//!     .build()
+//!     .unwrap();
+//! let connector = MakeTlsConnector::new(connector);
+//!
+//! let connect_future = tokio_postgres::connect(
+//!     "host=localhost user=postgres sslmode=require",
+//!     connector,
+//! );
+//!
+//! // ...
+//! ```
+
+#![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -10,12 +35,16 @@ use tokio_tls::{Connect, TlsStream};
 #[cfg(test)]
 mod test;
 
+/// A `MakeTlsConnect` implementation using the `native-tls` crate.
+///
+/// Requires the `runtime` Cargo feature (enabled by default).
 #[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub struct MakeTlsConnector(native_tls::TlsConnector);
 
 #[cfg(feature = "runtime")]
 impl MakeTlsConnector {
+    /// Creates a new connector.
     pub fn new(connector: native_tls::TlsConnector) -> MakeTlsConnector {
         MakeTlsConnector(connector)
     }
@@ -35,12 +64,14 @@ where
     }
 }
 
+/// A `TlsConnect` implementation using the `native-tls` crate.
 pub struct TlsConnector {
     connector: tokio_tls::TlsConnector,
     domain: String,
 }
 
 impl TlsConnector {
+    /// Creates a new connector configured to connect to the specified domain.
     pub fn new(connector: native_tls::TlsConnector, domain: &str) -> TlsConnector {
         TlsConnector {
             connector: tokio_tls::TlsConnector::from(connector),
@@ -62,6 +93,7 @@ where
     }
 }
 
+/// The future returned by `TlsConnector`.
 pub struct TlsConnectFuture<S>(Connect<S>);
 
 impl<S> Future for TlsConnectFuture<S>
