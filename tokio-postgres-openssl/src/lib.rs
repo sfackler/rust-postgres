@@ -17,7 +17,7 @@
 //!
 //! // ...
 //! ```
-
+#![doc(html_root_url = "https://docs.rs/tokio-postgres-openssl/0.1.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use futures::{try_ready, Async, Future, Poll};

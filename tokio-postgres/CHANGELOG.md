@@ -2,13 +2,13 @@
 
 ## [Unreleased]
 
-## [v0.4.0-rc.2] - 2019-05-03
+## [v0.4.0-rc.2] - 2019-03-05
 
 ### Fixed
 
 * Fixed Cargo features to actually enable the functionality they claim to.
 
-## [v0.4.0-rc.1] - 2019-05-03
+## [v0.4.0-rc.1] - 2019-03-05
 
 ### Changed
 
