@@ -77,7 +77,7 @@ impl Stream for SimpleQueryStream {
                         Some(Message::RowDescription(body)) => {
                             let columns = body
                                 .fields()
-                                .map(|f| f.name().to_string())
+                                .map(|f| Ok(f.name().to_string()))
                                 .collect::<Vec<_>>()
                                 .map_err(Error::parse)?
                                 .into();

@@ -18,7 +18,7 @@ runtime = ["tokio-postgres/runtime", "tokio", "lazy_static", "log"]
 
 [dependencies]
 bytes = "0.4"
-fallible-iterator = "0.1"
+fallible-iterator = "0.2"
 futures = "0.1"
 tokio-postgres = { version = "0.4.0-rc.2", path = "../tokio-postgres", default-features = false }
 

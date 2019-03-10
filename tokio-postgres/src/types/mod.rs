@@ -354,7 +354,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
 
         array
             .values()
-            .and_then(|v| T::from_sql_nullable(member_type, v))
+            .map(|v| T::from_sql_nullable(member_type, v))
             .collect()
     }
 
@@ -436,7 +436,7 @@ where
         raw: &'a [u8],
     ) -> Result<HashMap<String, Option<String>, S>, Box<dyn Error + Sync + Send>> {
         types::hstore_from_sql(raw)?
-            .map(|(k, v)| (k.to_owned(), v.map(str::to_owned)))
+            .map(|(k, v)| Ok((k.to_owned(), v.map(str::to_owned))))
             .collect()
     }
 

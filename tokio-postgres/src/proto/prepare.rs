@@ -121,7 +121,7 @@ impl PollPrepare for Prepare {
         let columns = match message {
             Some(Message::RowDescription(body)) => body
                 .fields()
-                .map(|f| (f.name().to_string(), f.type_oid()))
+                .map(|f| Ok((f.name().to_string(), f.type_oid())))
                 .collect()
                 .map_err(Error::parse)?,
             Some(Message::NoData) => vec![],
