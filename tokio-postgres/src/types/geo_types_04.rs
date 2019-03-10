@@ -57,7 +57,7 @@ impl<'a> FromSql<'a> for LineString<f64> {
         let path = types::path_from_sql(raw)?;
         let points = path
             .points()
-            .map(|p| Coordinate { x: p.x(), y: p.y() })
+            .map(|p| Ok(Coordinate { x: p.x(), y: p.y() }))
             .collect()?;
         Ok(LineString(points))
     }
