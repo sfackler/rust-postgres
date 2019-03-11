@@ -3,13 +3,13 @@ use futures::{Async, Future, Poll, Stream};
 use std::io::{self, Read};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
-use tokio_postgres::Error;
 #[cfg(feature = "runtime")]
 use tokio_postgres::Socket;
+use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
 #[cfg(feature = "runtime")]
 use crate::Config;
-use crate::{CopyOutReader, Query, SimpleQuery, Statement, ToStatement, Transaction};
+use crate::{CopyOutReader, QueryIter, SimpleQueryIter, Statement, ToStatement, Transaction};
 
 pub struct Client(tokio_postgres::Client);
 
@@ -46,12 +46,23 @@ impl Client {
         self.0.execute(&statement.0, params).wait()
     }
 
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Query<'_>, Error>
+    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query_iter(query, params)?.collect()
+    }
+
+    pub fn query_iter<T>(
+        &mut self,
+        query: &T,
+        params: &[&dyn ToSql],
+    ) -> Result<QueryIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        Ok(Query::new(self.0.query(&statement.0, params)))
+        Ok(QueryIter::new(self.0.query(&statement.0, params)))
     }
 
     pub fn copy_in<T, R>(
@@ -83,12 +94,16 @@ impl Client {
         CopyOutReader::new(stream)
     }
 
-    pub fn simple_query(&mut self, query: &str) -> Result<SimpleQuery<'_>, Error> {
-        Ok(SimpleQuery::new(self.0.simple_query(query)))
+    pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
+        self.simple_query_iter(query)?.collect()
+    }
+
+    pub fn simple_query_iter(&mut self, query: &str) -> Result<SimpleQueryIter<'_>, Error> {
+        Ok(SimpleQueryIter::new(self.0.simple_query(query)))
     }
 
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.simple_query("BEGIN")?.count()?;
+        self.simple_query("BEGIN")?;
         Ok(Transaction::new(self))
     }
 

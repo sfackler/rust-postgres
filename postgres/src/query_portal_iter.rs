@@ -4,31 +4,26 @@ use std::marker::PhantomData;
 use tokio_postgres::impls;
 use tokio_postgres::{Error, Row};
 
-pub struct QueryPortal<'a> {
+pub struct QueryPortalIter<'a> {
     it: stream::Wait<impls::QueryPortal>,
     _p: PhantomData<&'a mut ()>,
 }
 
 // no-op impl to extend the borrow until drop
-impl<'a> Drop for QueryPortal<'a> {
+impl<'a> Drop for QueryPortalIter<'a> {
     fn drop(&mut self) {}
 }
 
-impl<'a> QueryPortal<'a> {
-    pub(crate) fn new(stream: impls::QueryPortal) -> QueryPortal<'a> {
-        QueryPortal {
+impl<'a> QueryPortalIter<'a> {
+    pub(crate) fn new(stream: impls::QueryPortal) -> QueryPortalIter<'a> {
+        QueryPortalIter {
             it: stream.wait(),
             _p: PhantomData,
         }
     }
-
-    /// A convenience API which collects the resulting rows into a `Vec` and returns them.
-    pub fn into_vec(self) -> Result<Vec<Row>, Error> {
-        self.collect()
-    }
 }
 
-impl<'a> FallibleIterator for QueryPortal<'a> {
+impl<'a> FallibleIterator for QueryPortalIter<'a> {
     type Item = Row;
     type Error = Error;
 

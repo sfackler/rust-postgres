@@ -4,31 +4,26 @@ use std::marker::PhantomData;
 use tokio_postgres::impls;
 use tokio_postgres::{Error, SimpleQueryMessage};
 
-pub struct SimpleQuery<'a> {
+pub struct SimpleQueryIter<'a> {
     it: stream::Wait<impls::SimpleQuery>,
     _p: PhantomData<&'a mut ()>,
 }
 
 // no-op impl to extend borrow until drop
-impl<'a> Drop for SimpleQuery<'a> {
+impl<'a> Drop for SimpleQueryIter<'a> {
     fn drop(&mut self) {}
 }
 
-impl<'a> SimpleQuery<'a> {
-    pub(crate) fn new(stream: impls::SimpleQuery) -> SimpleQuery<'a> {
-        SimpleQuery {
+impl<'a> SimpleQueryIter<'a> {
+    pub(crate) fn new(stream: impls::SimpleQuery) -> SimpleQueryIter<'a> {
+        SimpleQueryIter {
             it: stream.wait(),
             _p: PhantomData,
         }
     }
-
-    /// A convenience API which collects the resulting messages into a `Vec` and returns them.
-    pub fn into_vec(self) -> Result<Vec<SimpleQueryMessage>, Error> {
-        self.collect()
-    }
 }
 
-impl<'a> FallibleIterator for SimpleQuery<'a> {
+impl<'a> FallibleIterator for SimpleQueryIter<'a> {
     type Item = SimpleQueryMessage;
     type Error = Error;
 

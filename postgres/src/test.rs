@@ -1,4 +1,3 @@
-use fallible_iterator::FallibleIterator;
 use std::io::Read;
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
@@ -21,11 +20,7 @@ fn query_prepared() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let stmt = client.prepare("SELECT $1::TEXT").unwrap();
-    let rows = client
-        .query(&stmt, &[&"hello"])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query(&stmt, &[&"hello"]).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
 }
@@ -34,11 +29,7 @@ fn query_prepared() {
 fn query_unprepared() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
-    let rows = client
-        .query("SELECT $1::TEXT", &[&"hello"])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query("SELECT $1::TEXT", &[&"hello"]).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "hello");
 }
@@ -49,8 +40,6 @@ fn transaction_commit() {
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -61,11 +50,7 @@ fn transaction_commit() {
 
     transaction.commit().unwrap();
 
-    let rows = client
-        .query("SELECT * FROM foo", &[])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
 }
@@ -76,8 +61,6 @@ fn transaction_rollback() {
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -88,11 +71,7 @@ fn transaction_rollback() {
 
     transaction.rollback().unwrap();
 
-    let rows = client
-        .query("SELECT * FROM foo", &[])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -102,8 +81,6 @@ fn transaction_drop() {
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -114,11 +91,7 @@ fn transaction_drop() {
 
     drop(transaction);
 
-    let rows = client
-        .query("SELECT * FROM foo", &[])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -128,8 +101,6 @@ fn nested_transactions() {
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -148,8 +119,6 @@ fn nested_transactions() {
 
     let rows = transaction
         .query("SELECT id FROM foo ORDER BY id", &[])
-        .unwrap()
-        .into_vec()
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -170,11 +139,7 @@ fn nested_transactions() {
     transaction3.commit().unwrap();
     transaction.commit().unwrap();
 
-    let rows = client
-        .query("SELECT id FROM foo ORDER BY id", &[])
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = client.query("SELECT id FROM foo ORDER BY id", &[]).unwrap();
     assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
     assert_eq!(rows[1].get::<_, i32>(0), 3);
@@ -187,8 +152,6 @@ fn copy_in() {
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
-        .unwrap()
-        .count()
         .unwrap();
 
     client
@@ -201,8 +164,6 @@ fn copy_in() {
 
     let rows = client
         .query("SELECT id, name FROM foo ORDER BY id", &[])
-        .unwrap()
-        .into_vec()
         .unwrap();
 
     assert_eq!(rows.len(), 2);
@@ -221,8 +182,6 @@ fn copy_out() {
             "CREATE TEMPORARY TABLE foo (id INT, name TEXT);
              INSERT INTO foo (id, name) VALUES (1, 'steven'), (2, 'timothy');",
         )
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut reader = client
@@ -234,7 +193,7 @@ fn copy_out() {
 
     assert_eq!(s, "1\tsteven\n2\ttimothy\n");
 
-    client.simple_query("SELECT 1").unwrap().count().unwrap();
+    client.simple_query("SELECT 1").unwrap();
 }
 
 #[test]
@@ -246,8 +205,6 @@ fn portal() {
             "CREATE TEMPORARY TABLE foo (id INT);
              INSERT INTO foo (id) VALUES (1), (2), (3);",
         )
-        .unwrap()
-        .count()
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -256,20 +213,12 @@ fn portal() {
         .bind("SELECT * FROM foo ORDER BY id", &[])
         .unwrap();
 
-    let rows = transaction
-        .query_portal(&portal, 2)
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = transaction.query_portal(&portal, 2).unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
     assert_eq!(rows[1].get::<_, i32>(0), 2);
 
-    let rows = transaction
-        .query_portal(&portal, 2)
-        .unwrap()
-        .into_vec()
-        .unwrap();
+    let rows = transaction.query_portal(&portal, 2).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 3);
 }
