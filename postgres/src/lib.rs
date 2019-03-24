@@ -1,3 +1,5 @@
+#![warn(clippy::all, rust_2018_idioms)]
+
 #[cfg(feature = "runtime")]
 use lazy_static::lazy_static;
 #[cfg(feature = "runtime")]

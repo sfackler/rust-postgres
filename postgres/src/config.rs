@@ -16,7 +16,8 @@ use crate::{Client, RUNTIME};
 #[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
-    executor: Option<Arc<Executor<Box<Future<Item = (), Error = ()> + Send>>>>,
+    #[allow(clippy::type_complexity)]
+    executor: Option<Arc<dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>>>>,
 }
 
 impl fmt::Debug for Config {
@@ -118,7 +119,7 @@ impl Config {
 
     pub fn executor<E>(&mut self, executor: E) -> &mut Config
     where
-        E: Executor<Box<Future<Item = (), Error = ()> + Send>> + 'static + Sync + Send,
+        E: Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + 'static + Sync + Send,
     {
         self.executor = Some(Arc::new(executor));
         self
@@ -149,7 +150,7 @@ impl Config {
 
     fn with_executor<F, T>(&self, f: F) -> T
     where
-        F: FnOnce(&Executor<Box<Future<Item = (), Error = ()> + Send>>) -> T,
+        F: FnOnce(&dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>>) -> T,
     {
         match &self.executor {
             Some(e) => f(&**e),
