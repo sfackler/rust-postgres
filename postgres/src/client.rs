@@ -31,11 +31,11 @@ impl Client {
     }
 
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        self.0.prepare(query).wait().map(Statement)
+        self.0.prepare(query).wait()
     }
 
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        self.0.prepare_typed(query, types).wait().map(Statement)
+        self.0.prepare_typed(query, types).wait()
     }
 
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
@@ -43,7 +43,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        self.0.execute(&statement.0, params).wait()
+        self.0.execute(&statement, params).wait()
     }
 
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
@@ -62,7 +62,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        Ok(QueryIter::new(self.0.query(&statement.0, params)))
+        Ok(QueryIter::new(self.0.query(&statement, params)))
     }
 
     pub fn copy_in<T, R>(
@@ -77,7 +77,7 @@ impl Client {
     {
         let statement = query.__statement(self)?;
         self.0
-            .copy_in(&statement.0, params, CopyInStream(reader))
+            .copy_in(&statement, params, CopyInStream(reader))
             .wait()
     }
 
@@ -90,7 +90,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        let stream = self.0.copy_out(&statement.0, params);
+        let stream = self.0.copy_out(&statement, params);
         CopyOutReader::new(stream)
     }
 

@@ -96,11 +96,7 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(&mut self.client)?;
-        self.client
-            .get_mut()
-            .bind(&statement.0, params)
-            .wait()
-            .map(Portal)
+        self.client.get_mut().bind(&statement, params).wait()
     }
 
     pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
@@ -113,7 +109,7 @@ impl<'a> Transaction<'a> {
         max_rows: i32,
     ) -> Result<QueryPortalIter<'_>, Error> {
         Ok(QueryPortalIter::new(
-            self.client.get_mut().query_portal(&portal.0, max_rows),
+            self.client.get_mut().query_portal(&portal, max_rows),
         ))
     }
 
