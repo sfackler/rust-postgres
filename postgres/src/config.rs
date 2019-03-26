@@ -13,11 +13,13 @@ use tokio_postgres::{Error, Socket};
 
 use crate::{Client, RUNTIME};
 
+type DynExecutor = dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Sync + Send;
+
 #[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
-    #[allow(clippy::type_complexity)]
-    executor: Option<Arc<dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>>>>,
+    // this is an option since we don't want to boot up our default runtime unless we're actually going to use it.
+    executor: Option<Arc<DynExecutor>>,
 }
 
 impl fmt::Debug for Config {
