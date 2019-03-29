@@ -19,7 +19,11 @@ pub struct Client(tokio_postgres::Client);
 impl Client {
     /// A convenience function which parses a configuration string into a `Config` and then connects to the database.
     ///
+    /// See the documentation for [`Config`] for information about the connection syntax.
+    ///
     /// Requires the `runtime` Cargo feature (enabled by default).
+    ///
+    /// [`Config`]: config/struct.Config.html
     #[cfg(feature = "runtime")]
     pub fn connect<T>(params: &str, tls_mode: T) -> Result<Client, Error>
     where
@@ -37,22 +41,6 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub fn configure() -> Config {
         Config::new()
-    }
-
-    /// Creates a new prepared statement.
-    ///
-    /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
-    /// which are set when executed. Prepared statements can only be used with the connection that created them.
-    pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        self.0.prepare(query).wait()
-    }
-
-    /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
-    ///
-    /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
-    /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
-    pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        self.0.prepare_typed(query, types).wait()
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -172,10 +160,80 @@ impl Client {
         Ok(QueryIter::new(self.0.query(&statement, params)))
     }
 
+    /// Creates a new prepared statement.
+    ///
+    /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
+    /// which are set when executed. Prepared statements can only be used with the connection that created them.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let statement = client.prepare("SELECT name FROM people WHERE id = $1")?;
+    ///
+    /// for id in 0..10 {
+    ///     let rows = client.query(&statement, &[&id])?;
+    ///     let name: &str = rows[0].get(0);
+    ///     println!("name: {}", name);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.0.prepare(query).wait()
+    }
+
+    /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
+    ///
+    /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
+    /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    /// use postgres::types::Type;
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let statement = client.prepare_typed(
+    ///     "SELECT name FROM people WHERE id = $1",
+    ///     &[Type::INT8],
+    /// )?;
+    ///
+    /// for id in 0..10 {
+    ///     let rows = client.query(&statement, &[&id])?;
+    ///     let name: &str = rows[0].get(0);
+    ///     println!("name: {}", name);
+    /// }
+    /// # Ok(())
+    /// # }
+    pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
+        self.0.prepare_typed(query, types).wait()
+    }
+
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
     ///
     /// The `query` argument can either be a `Statement`, or a raw query string. The data in the provided reader is
     /// passed along to the server verbatim; it is the caller's responsibility to ensure it uses the proper format.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// client.copy_in("COPY people FROM stdin", &[], &mut "1\tjohn\n2\tjane\n".as_bytes())?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn copy_in<T, R>(
         &mut self,
         query: &T,
@@ -195,6 +253,22 @@ impl Client {
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
     ///
     /// The `query` argument can either be a `Statement`, or a raw query string.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    /// use std::io::Read;
+    ///
+    /// # fn main() -> Result<(), Box<std::error::Error>> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let mut reader = client.copy_out("COPY people TO stdout", &[])?;
+    /// let mut buf = vec![];
+    /// reader.read_to_end(&mut buf)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn copy_out<T>(
         &mut self,
         query: &T,
@@ -227,13 +301,8 @@ impl Client {
         self.simple_query_iter(query)?.collect()
     }
 
-    /// Executes a sequence of SQL statements using the simple query protocol.
-    ///
-    /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
-    /// point. The simple query protocol returns the values in rows as strings rather than in their binary encodings,
-    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning the rows, this
-    /// method returns a sequence of an enum which indicates either the completion of one of the commands, or a row of
-    /// data. This preserves the framing between the separate statements in the request.
+    /// Like `simple_query`, except that it returns a fallible iterator over the resulting values rather than buffering
+    /// the response in memory.
     ///
     /// # Warning
     ///
@@ -245,23 +314,48 @@ impl Client {
     }
 
     /// Begins a new database transaction.
+    ///
+    /// The transaction will roll back by default - use the `commit` method to commit it.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let mut transaction = client.transaction()?;
+    /// transaction.execute("UPDATE foo SET bar = 10", &[])?;
+    /// // ...
+    ///
+    /// transaction.commit()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.simple_query("BEGIN")?;
         Ok(Transaction::new(self))
     }
 
+    /// Determines if the client's connection has already closed.
+    ///
+    /// If this returns `true`, the client is no longer usable.
     pub fn is_closed(&self) -> bool {
         self.0.is_closed()
     }
 
+    /// Returns a shared reference to the inner nonblocking client.
     pub fn get_ref(&self) -> &tokio_postgres::Client {
         &self.0
     }
 
+    /// Returns a mutable reference to the inner nonblocking client.
     pub fn get_mut(&mut self) -> &mut tokio_postgres::Client {
         &mut self.0
     }
 
+    /// Consumes the client, returning the inner nonblocking client.
     pub fn into_inner(self) -> tokio_postgres::Client {
         self.0
     }
