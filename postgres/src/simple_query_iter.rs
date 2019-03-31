@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use tokio_postgres::impls;
 use tokio_postgres::{Error, SimpleQueryMessage};
 
+/// The iterator returned by the `simple_query_iter` method.
 pub struct SimpleQueryIter<'a> {
     it: stream::Wait<impls::SimpleQuery>,
     _p: PhantomData<&'a mut ()>,

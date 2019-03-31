@@ -6,6 +6,12 @@ mod sealed {
     pub trait Sealed {}
 }
 
+/// A trait abstracting over prepared and unprepared statements.
+///
+/// Many methods are generic over this bound, so that they support both a raw query string as well as a statement which
+/// was prepared previously.
+///
+/// This trait is "sealed" and cannot be implemented by anything outside this crate.
 pub trait ToStatement: sealed::Sealed {
     #[doc(hidden)]
     fn __statement(&self, client: &mut Client) -> Result<Statement, Error>;

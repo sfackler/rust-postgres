@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use tokio_postgres::impls;
 use tokio_postgres::{Error, Row};
 
+/// The iterator returned by the `query_portal_iter` method.
 pub struct QueryPortalIter<'a> {
     it: stream::Wait<impls::QueryPortal>,
     _p: PhantomData<&'a mut ()>,
