@@ -66,17 +66,17 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    //// Like `Client::prepare`.
+    /// Like `Client::prepare`.
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.client.prepare(query)
     }
 
-    //// Like `Client::prepare_typed`.
+    /// Like `Client::prepare_typed`.
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.client.prepare_typed(query, types)
     }
 
-    //// Like `Client::execute`.
+    /// Like `Client::execute`.
     pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -84,7 +84,7 @@ impl<'a> Transaction<'a> {
         self.client.execute(query, params)
     }
 
-    //// Like `Client::query`.
+    /// Like `Client::query`.
     pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -92,7 +92,7 @@ impl<'a> Transaction<'a> {
         self.client.query(query, params)
     }
 
-    //// Like `Client::query_iter`.
+    /// Like `Client::query_iter`.
     pub fn query_iter<T>(
         &mut self,
         query: &T,

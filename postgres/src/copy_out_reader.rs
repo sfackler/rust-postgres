@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use tokio_postgres::impls;
 use tokio_postgres::Error;
 
-// The reader returned by the `copy_out` method.
+/// The reader returned by the `copy_out` method.
 pub struct CopyOutReader<'a> {
     it: stream::Wait<impls::CopyOut>,
     cur: Cursor<Bytes>,
