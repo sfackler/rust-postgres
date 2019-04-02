@@ -1,18 +1,18 @@
-//! TLS support for `tokio-postgres` via `native-tls.
+//! TLS support for `tokio-postgres` and `postgres` via `native-tls.
 //!
-//! # Example
+//! # Examples
 //!
 //! ```no_run
 //! use native_tls::{Certificate, TlsConnector};
 //! use tokio_postgres_native_tls::MakeTlsConnector;
 //! use std::fs;
 //!
-//! let cert = fs::read("database_cert.pem").unwrap();
-//! let cert = Certificate::from_pem(&cert).unwrap();
+//! # fn main() -> Result<(), Box<std::error::Error>> {
+//! let cert = fs::read("database_cert.pem")?;
+//! let cert = Certificate::from_pem(&cert)?;
 //! let connector = TlsConnector::builder()
 //!     .add_root_certificate(cert)
-//!     .build()
-//!     .unwrap();
+//!     .build()?;
 //! let connector = MakeTlsConnector::new(connector);
 //!
 //! let connect_future = tokio_postgres::connect(
@@ -21,6 +21,29 @@
 //! );
 //!
 //! // ...
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ```no_run
+//! use native_tls::{Certificate, TlsConnector};
+//! use tokio_postgres_native_tls::MakeTlsConnector;
+//! use std::fs;
+//!
+//! # fn main() -> Result<(), Box<std::error::Error>> {
+//! let cert = fs::read("database_cert.pem")?;
+//! let cert = Certificate::from_pem(&cert)?;
+//! let connector = TlsConnector::builder()
+//!     .add_root_certificate(cert)
+//!     .build()?;
+//! let connector = MakeTlsConnector::new(connector);
+//!
+//! let mut client = postgres::Client::connect(
+//!     "host=localhost user=postgres sslmode=require",
+//!     connector,
+//! )?;
+//! # Ok(())
+//! # }
 //! ```
 #![doc(html_root_url = "https://docs.rs/tokio-postgres-native-tls/0.1.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]

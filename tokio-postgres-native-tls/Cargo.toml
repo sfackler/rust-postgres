@@ -24,3 +24,4 @@ tokio-postgres = { version = "0.4.0-rc.1", path = "../tokio-postgres", default-f
 
 [dev-dependencies]
 tokio = "0.1.7"
+postgres = { version = "0.1.0", path = "../postgres" }

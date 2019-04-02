@@ -1,13 +1,14 @@
-//! TLS support for `tokio-postgres` via `openssl`.
+//! TLS support for `tokio-postgres` and `postgres` via `openssl`.
 //!
-//! # Example
+//! # Examples
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
 //! use tokio_postgres_openssl::MakeTlsConnector;
 //!
-//! let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-//! builder.set_ca_file("database_cert.pem").unwrap();
+//! # fn main() -> Result<(), Box<std::error::Error>> {
+//! let mut builder = SslConnector::builder(SslMethod::tls())?;
+//! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
 //!
 //! let connect_future = tokio_postgres::connect(
@@ -16,6 +17,27 @@
 //! );
 //!
 //! // ...
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ```no_run
+//! use openssl::ssl::{SslConnector, SslMethod};
+//! use tokio_postgres_openssl::MakeTlsConnector;
+//!
+//! # fn main() -> Result<(), Box<std::error::Error>> {
+//! let mut builder = SslConnector::builder(SslMethod::tls())?;
+//! builder.set_ca_file("database_cert.pem")?;
+//! let connector = MakeTlsConnector::new(builder.build());
+//!
+//! let mut client = postgres::Client::connect(
+//!     "host=localhost user=postgres sslmode=require",
+//!     connector,
+//! )?;
+//!
+//! // ...
+//! # Ok(())
+//! # }
 //! ```
 #![doc(html_root_url = "https://docs.rs/tokio-postgres-openssl/0.1.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
