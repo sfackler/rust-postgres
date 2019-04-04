@@ -4,6 +4,7 @@ use std::error::Error;
 use std::f32;
 use std::f64;
 use std::fmt;
+use std::net::IpAddr;
 use std::result;
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::runtime::current_thread::Runtime;
@@ -621,6 +622,36 @@ fn system_time() {
                 "'2000-01-01 00:00:01.01'",
             ),
             (None, "NULL"),
+        ],
+    );
+}
+
+#[test]
+fn inet() {
+    test_type(
+        "INET",
+        &[
+            (Some("127.0.0.1".parse::<IpAddr>().unwrap()), "'127.0.0.1'"),
+            (
+                Some("127.0.0.1".parse::<IpAddr>().unwrap()),
+                "'127.0.0.1/32'",
+            ),
+            (
+                Some(
+                    "2001:4f8:3:ba:2e0:81ff:fe22:d1f1"
+                        .parse::<IpAddr>()
+                        .unwrap(),
+                ),
+                "'2001:4f8:3:ba:2e0:81ff:fe22:d1f1'",
+            ),
+            (
+                Some(
+                    "2001:4f8:3:ba:2e0:81ff:fe22:d1f1"
+                        .parse::<IpAddr>()
+                        .unwrap(),
+                ),
+                "'2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'",
+            ),
         ],
     );
 }

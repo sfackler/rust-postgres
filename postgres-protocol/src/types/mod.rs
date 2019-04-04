@@ -3,6 +3,8 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use fallible_iterator::FallibleIterator;
 use std::boxed::Box as StdBox;
 use std::error::Error;
+use std::io::Read;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
 
 use crate::{write_nullable, FromUsize, IsNull, Oid};
@@ -15,6 +17,9 @@ const RANGE_LOWER_UNBOUNDED: u8 = 0b0000_1000;
 const RANGE_UPPER_INCLUSIVE: u8 = 0b0000_0100;
 const RANGE_LOWER_INCLUSIVE: u8 = 0b0000_0010;
 const RANGE_EMPTY: u8 = 0b0000_0001;
+
+const PGSQL_AF_INET: u8 = 2;
+const PGSQL_AF_INET6: u8 = 3;
 
 /// Serializes a `BOOL` value.
 #[inline]
@@ -954,5 +959,88 @@ impl<'a> FallibleIterator for PathPoints<'a> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let len = self.remaining as usize;
         (len, Some(len))
+    }
+}
+
+/// Serializes a Postgres inet.
+#[inline]
+pub fn inet_to_sql(addr: IpAddr, netmask: u8, buf: &mut Vec<u8>) {
+    let family = match addr {
+        IpAddr::V4(_) => PGSQL_AF_INET,
+        IpAddr::V6(_) => PGSQL_AF_INET6,
+    };
+    buf.push(family);
+    buf.push(netmask);
+    buf.push(0); // is_cidr
+    match addr {
+        IpAddr::V4(addr) => {
+            buf.push(4);
+            buf.extend_from_slice(&addr.octets());
+        }
+        IpAddr::V6(addr) => {
+            buf.push(16);
+            buf.extend_from_slice(&addr.octets());
+        }
+    }
+}
+
+/// Deserializes a Postgres inet.
+#[inline]
+pub fn inet_from_sql(mut buf: &[u8]) -> Result<Inet, StdBox<dyn Error + Sync + Send>> {
+    let family = buf.read_u8()?;
+    let netmask = buf.read_u8()?;
+    buf.read_u8()?; // is_cidr
+    let len = buf.read_u8()?;
+
+    let addr = match family {
+        PGSQL_AF_INET => {
+            if netmask > 32 {
+                return Err("invalid IPv4 netmask".into());
+            }
+            if len != 4 {
+                return Err("invalid IPv4 address length".into());
+            }
+            let mut addr = [0; 4];
+            buf.read_exact(&mut addr)?;
+            IpAddr::V4(Ipv4Addr::from(addr))
+        }
+        PGSQL_AF_INET6 => {
+            if netmask > 128 {
+                return Err("invalid IPv6 netmask".into());
+            }
+            if len != 16 {
+                return Err("invalid IPv6 address length".into());
+            }
+            let mut addr = [0; 16];
+            buf.read_exact(&mut addr)?;
+            IpAddr::V6(Ipv6Addr::from(addr))
+        }
+        _ => return Err("invalid IP family".into()),
+    };
+
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+
+    Ok(Inet { addr, netmask })
+}
+
+/// A Postgres network address.
+pub struct Inet {
+    addr: IpAddr,
+    netmask: u8,
+}
+
+impl Inet {
+    /// Returns the IP address.
+    #[inline]
+    pub fn addr(&self) -> IpAddr {
+        self.addr
+    }
+
+    /// Returns the netmask.
+    #[inline]
+    pub fn netmask(&self) -> u8 {
+        self.netmask
     }
 }

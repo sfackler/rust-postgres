@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::hash::BuildHasher;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -248,6 +249,7 @@ impl WrongType {
 /// | `&[u8]`/`Vec<u8>`                 | BYTEA                                         |
 /// | `HashMap<String, Option<String>>` | HSTORE                                        |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE           |
+/// | `IpAddr`                          | INET                                          |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -469,6 +471,15 @@ impl<'a> FromSql<'a> for SystemTime {
     accepts!(TIMESTAMP, TIMESTAMPTZ);
 }
 
+impl<'a> FromSql<'a> for IpAddr {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<IpAddr, Box<dyn Error + Sync + Send>> {
+        let inet = types::inet_from_sql(raw)?;
+        Ok(inet.addr())
+    }
+
+    accepts!(INET);
+}
+
 /// An enum representing the nullability of a Postgres value.
 pub enum IsNull {
     /// The value is NULL.
@@ -498,6 +509,7 @@ pub enum IsNull {
 /// | `&[u8]`/Vec<u8>`                  | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
+/// | `IpAddr`                          | INET                                 |
 ///
 /// In addition, some implementations are provided for types in third party
 /// crates. These are disabled by default; to opt into one of these
@@ -767,6 +779,21 @@ impl ToSql for SystemTime {
     }
 
     accepts!(TIMESTAMP, TIMESTAMPTZ);
+
+    to_sql_checked!();
+}
+
+impl ToSql for IpAddr {
+    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        let netmask = match self {
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(_) => 128,
+        };
+        types::inet_to_sql(*self, netmask, w);
+        Ok(IsNull::No)
+    }
+
+    accepts!(INET);
 
     to_sql_checked!();
 }
