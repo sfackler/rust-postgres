@@ -1,12 +1,23 @@
 [package]
 name = "postgres"
-version = "0.1.0"
+version = "0.16.0-rc.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
+license = "MIT/Apache-2.0"
+description = "A native, synchronous PostgreSQL client"
+repository = "https://github.com/sfackler/rust-postgres"
+readme = "../README.md"
+keywords = ["database", "postgres", "postgresql", "sql"]
+categories = ["database"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[badges]
+circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 default = ["runtime"]
-
 runtime = ["tokio-postgres/runtime", "tokio", "lazy_static", "log"]
 
 "with-bit-vec-0_5" = ["tokio-postgres/with-bit-vec-0_5"]

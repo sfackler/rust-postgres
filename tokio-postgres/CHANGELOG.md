@@ -14,8 +14,6 @@
 
 * The client API has been significantly overhauled. It now resembles `hyper`'s, with separate `Connection` and `Client`
     objects. See the crate-level documentation for more details.
-* Connection string configuration now fully mirrors libpq's syntax, and supports both URL-style and key-value style
-    strings.
 * The TLS connection mode (e.g. `prefer`) is now part of the connection configuration rather than being passed in
     separately.
 * The Cargo features enabling `ToSql` and `FromSql` implementations for external crates are now versioned. For example,
@@ -25,6 +23,8 @@
 
 ### Added
 
+* Connection string configuration now more fully mirrors libpq's syntax, and supports both URL-style and key-value style
+    strings.
 * `FromSql` implementations can now borrow from the data buffer. In particular, this means that you can deserialize
     values as `&str`. The `FromSqlOwned` trait can be used as a bound to restrict code to deserializing owned values.
 * Added support for channel binding with SCRAM authentication.
