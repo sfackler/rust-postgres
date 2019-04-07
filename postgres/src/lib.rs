@@ -60,6 +60,8 @@ use lazy_static::lazy_static;
 #[cfg(feature = "runtime")]
 use tokio::runtime::{self, Runtime};
 
+#[cfg(feature = "runtime")]
+pub use tokio_postgres::Socket;
 pub use tokio_postgres::{error, row, tls, types, Column, Portal, SimpleQueryMessage, Statement};
 
 pub use crate::client::*;
