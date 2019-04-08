@@ -375,14 +375,10 @@ where
 /// A trait allowing abstraction over connections and transactions
 pub trait GenericClient {
     /// Like `Client::execute`.
-    fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
-    where
-        T: ?Sized + ToStatement;
+    fn execute(&self, query: &str, params: &[&dyn ToSql]) -> Result<u64, Error>;
 
     /// Like `Client::query`.
-    fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + ToStatement;
+    fn query(&self, query: &str, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>;
 
     /// Like `Client::prepare`.
     fn prepare(&self, query: &str) -> Result<Statement, Error>;
@@ -392,16 +388,10 @@ pub trait GenericClient {
 }
 
 impl GenericClient for Client {
-    fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
-    where
-        T: ?Sized + ToStatement,
-    {
+    fn execute(&self, query: &str, params: &[&dyn ToSql]) -> Result<u64, Error> {
         self.execute(query, params)
     }
-    fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + ToStatement,
-    {
+    fn query(&self, query: &str, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error> {
         self.query(query, params)
     }
     fn prepare(&self, query: &str) -> Result<Statement, Error> {

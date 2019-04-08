@@ -187,15 +187,11 @@ impl<'a> Transaction<'a> {
 }
 
 impl<'a> GenericClient for Transaction<'a> {
-    fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
-    where
-        T: ?Sized + ToStatement,
+    fn execute(&self, query: &str, params: &[&dyn ToSql]) -> Result<u64, Error>
     {
         self.execute(query, params)
     }
-    fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + ToStatement,
+    fn query(&self, query: &str, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     {
         self.query(query, params)
     }
