@@ -8,7 +8,7 @@ use tokio_postgres::NoTls;
 fn smoke_test(s: &str) {
     let mut runtime = Runtime::new().unwrap();
     let connect = tokio_postgres::connect(s, NoTls);
-    let (mut client, connection) = runtime.block_on(connect).unwrap();
+    let (client, connection) = runtime.block_on(connect).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 
@@ -76,7 +76,7 @@ fn cancel_query() {
     let mut runtime = Runtime::new().unwrap();
 
     let connect = tokio_postgres::connect("host=localhost port=5433 user=postgres", NoTls);
-    let (mut client, connection) = runtime.block_on(connect).unwrap();
+    let (client, connection) = runtime.block_on(connect).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.spawn(connection);
 

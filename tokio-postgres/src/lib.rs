@@ -177,7 +177,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
-    pub fn prepare(&mut self, query: &str) -> impls::Prepare {
+    pub fn prepare(&self, query: &str) -> impls::Prepare {
         self.prepare_typed(query, &[])
     }
 
@@ -185,7 +185,7 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
-    pub fn prepare_typed(&mut self, query: &str, param_types: &[Type]) -> impls::Prepare {
+    pub fn prepare_typed(&self, query: &str, param_types: &[Type]) -> impls::Prepare {
         impls::Prepare(self.0.prepare(next_statement(), query, param_types))
     }
 
@@ -196,7 +196,7 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Execute {
+    pub fn execute(&self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Execute {
         impls::Execute(self.0.execute(&statement.0, params))
     }
 
@@ -205,7 +205,7 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Query {
+    pub fn query(&self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Query {
         impls::Query(self.0.query(&statement.0, params))
     }
 
@@ -217,7 +217,7 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Bind {
+    pub fn bind(&self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Bind {
         impls::Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
@@ -225,7 +225,7 @@ impl Client {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// query_portal. If the requested number is negative or 0, all rows will be returned.
-    pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> impls::QueryPortal {
+    pub fn query_portal(&self, portal: &Portal, max_rows: i32) -> impls::QueryPortal {
         impls::QueryPortal(self.0.query_portal(&portal.0, max_rows))
     }
 
@@ -234,7 +234,7 @@ impl Client {
     /// The data in the provided stream is passed along to the server verbatim; it is the caller's responsibility to
     /// ensure it uses the proper format.
     pub fn copy_in<S>(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&dyn ToSql],
         stream: S,
@@ -250,7 +250,7 @@ impl Client {
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
-    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::CopyOut {
+    pub fn copy_out(&self, statement: &Statement, params: &[&dyn ToSql]) -> impls::CopyOut {
         impls::CopyOut(self.0.copy_out(&statement.0, params))
     }
 
@@ -267,7 +267,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query(&mut self, query: &str) -> impls::SimpleQuery {
+    pub fn simple_query(&self, query: &str) -> impls::SimpleQuery {
         impls::SimpleQuery(self.0.simple_query(query))
     }
 
@@ -289,7 +289,7 @@ impl Client {
     ///
     /// Unlike the other futures created by a client, this future is *not* atomic with respect to other requests. If you
     /// attempt to execute it concurrently with other futures created by the same connection, they will interleave!
-    pub fn build_transaction(&mut self) -> TransactionBuilder {
+    pub fn build_transaction(&self) -> TransactionBuilder {
         TransactionBuilder(self.0.clone())
     }
 
@@ -300,7 +300,7 @@ impl Client {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&mut self, make_tls_mode: T) -> impls::CancelQuery<T>
+    pub fn cancel_query<T>(&self, make_tls_mode: T) -> impls::CancelQuery<T>
     where
         T: MakeTlsConnect<Socket>,
     {
@@ -309,7 +309,7 @@ impl Client {
 
     /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
     /// connection itself.
-    pub fn cancel_query_raw<S, T>(&mut self, stream: S, tls_mode: T) -> impls::CancelQueryRaw<S, T>
+    pub fn cancel_query_raw<S, T>(&self, stream: S, tls_mode: T) -> impls::CancelQueryRaw<S, T>
     where
         S: AsyncRead + AsyncWrite,
         T: TlsConnect<S>,
@@ -330,7 +330,7 @@ impl Client {
     /// example, this can be used by a connection pool to ensure that all work done by one checkout is done before
     /// making the client available for a new request. Otherwise, any non-completed work from the first request could
     /// interleave with the second.
-    pub fn poll_idle(&mut self) -> Poll<(), Error> {
+    pub fn poll_idle(&self) -> Poll<(), Error> {
         self.0.poll_idle()
     }
 }

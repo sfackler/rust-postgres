@@ -77,7 +77,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    pub fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -116,7 +116,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -148,11 +148,7 @@ impl Client {
     /// }
     /// # Ok(())
     /// # }
-    pub fn query_iter<T>(
-        &mut self,
-        query: &T,
-        params: &[&dyn ToSql],
-    ) -> Result<QueryIter<'_>, Error>
+    pub fn query_iter<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<QueryIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -183,7 +179,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+    pub fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.0.prepare(query).wait()
     }
 
@@ -213,7 +209,7 @@ impl Client {
     /// }
     /// # Ok(())
     /// # }
-    pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
+    pub fn prepare_typed(&self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.0.prepare_typed(query, types).wait()
     }
 
@@ -234,12 +230,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_in<T, R>(
-        &mut self,
-        query: &T,
-        params: &[&dyn ToSql],
-        reader: R,
-    ) -> Result<u64, Error>
+    pub fn copy_in<T, R>(&self, query: &T, params: &[&dyn ToSql], reader: R) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
         R: Read,
@@ -269,11 +260,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_out<T>(
-        &mut self,
-        query: &T,
-        params: &[&dyn ToSql],
-    ) -> Result<CopyOutReader<'_>, Error>
+    pub fn copy_out<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -297,7 +284,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
+    pub fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.simple_query_iter(query)?.collect()
     }
 
@@ -309,7 +296,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query_iter(&mut self, query: &str) -> Result<SimpleQueryIter<'_>, Error> {
+    pub fn simple_query_iter(&self, query: &str) -> Result<SimpleQueryIter<'_>, Error> {
         Ok(SimpleQueryIter::new(self.0.simple_query(query)))
     }
 
@@ -333,7 +320,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+    pub fn transaction(&self) -> Result<Transaction<'_>, Error> {
         self.simple_query("BEGIN")?;
         Ok(Transaction::new(self))
     }
@@ -351,9 +338,9 @@ impl Client {
     }
 
     /// Returns a mutable reference to the inner nonblocking client.
-    pub fn get_mut(&mut self) -> &mut tokio_postgres::Client {
+    /*pub fn get_mut(&mut self) -> &mut tokio_postgres::Client {
         &mut self.0
-    }
+    }*/
 
     /// Consumes the client, returning the inner nonblocking client.
     pub fn into_inner(self) -> tokio_postgres::Client {
@@ -382,5 +369,45 @@ where
             0 => Ok(Async::Ready(None)),
             _ => Ok(Async::Ready(Some(buf))),
         }
+    }
+}
+
+/// A trait allowing abstraction over connections and transactions
+pub trait GenericClient {
+    /// Like `Client::execute`.
+    fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement;
+
+    /// Like `Client::query`.
+    fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement;
+
+    /// Like `Client::prepare`.
+    fn prepare(&self, query: &str) -> Result<Statement, Error>;
+
+    /// Like `Client::transaction`.
+    fn transaction(&self) -> Result<Transaction<'_>, Error>;
+}
+
+impl GenericClient for Client {
+    fn execute<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.execute(query, params)
+    }
+    fn query<T>(&self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query(query, params)
+    }
+    fn prepare(&self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
+    fn transaction(&self) -> Result<Transaction<'_>, Error> {
+        self.transaction()
     }
 }

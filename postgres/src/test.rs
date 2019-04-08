@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn prepare() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let stmt = client.prepare("SELECT 1::INT, $1::TEXT").unwrap();
     assert_eq!(stmt.params(), &[Type::TEXT]);
@@ -17,7 +17,7 @@ fn prepare() {
 
 #[test]
 fn query_prepared() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let stmt = client.prepare("SELECT $1::TEXT").unwrap();
     let rows = client.query(&stmt, &[&"hello"]).unwrap();
@@ -27,7 +27,7 @@ fn query_prepared() {
 
 #[test]
 fn query_unprepared() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     let rows = client.query("SELECT $1::TEXT", &[&"hello"]).unwrap();
     assert_eq!(rows.len(), 1);
@@ -36,13 +36,13 @@ fn query_unprepared() {
 
 #[test]
 fn transaction_commit() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
-    let mut transaction = client.transaction().unwrap();
+    let transaction = client.transaction().unwrap();
 
     transaction
         .execute("INSERT INTO foo DEFAULT VALUES", &[])
@@ -57,13 +57,13 @@ fn transaction_commit() {
 
 #[test]
 fn transaction_rollback() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
-    let mut transaction = client.transaction().unwrap();
+    let transaction = client.transaction().unwrap();
 
     transaction
         .execute("INSERT INTO foo DEFAULT VALUES", &[])
@@ -77,13 +77,13 @@ fn transaction_rollback() {
 
 #[test]
 fn transaction_drop() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL PRIMARY KEY)")
         .unwrap();
 
-    let mut transaction = client.transaction().unwrap();
+    let transaction = client.transaction().unwrap();
 
     transaction
         .execute("INSERT INTO foo DEFAULT VALUES", &[])
@@ -97,19 +97,19 @@ fn transaction_drop() {
 
 #[test]
 fn nested_transactions() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
         .unwrap();
 
-    let mut transaction = client.transaction().unwrap();
+    let transaction = client.transaction().unwrap();
 
     transaction
         .execute("INSERT INTO foo (id) VALUES (1)", &[])
         .unwrap();
 
-    let mut transaction2 = transaction.transaction().unwrap();
+    let transaction2 = transaction.transaction().unwrap();
 
     transaction2
         .execute("INSERT INTO foo (id) VALUES (2)", &[])
@@ -123,13 +123,13 @@ fn nested_transactions() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
 
-    let mut transaction3 = transaction.transaction().unwrap();
+    let transaction3 = transaction.transaction().unwrap();
 
     transaction3
         .execute("INSERT INTO foo (id) VALUES(3)", &[])
         .unwrap();
 
-    let mut transaction4 = transaction3.transaction().unwrap();
+    let transaction4 = transaction3.transaction().unwrap();
 
     transaction4
         .execute("INSERT INTO foo (id) VALUES(4)", &[])
@@ -148,7 +148,7 @@ fn nested_transactions() {
 
 #[test]
 fn copy_in() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
@@ -175,7 +175,7 @@ fn copy_in() {
 
 #[test]
 fn copy_out() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query(
@@ -198,7 +198,7 @@ fn copy_out() {
 
 #[test]
 fn portal() {
-    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
         .simple_query(
@@ -207,7 +207,7 @@ fn portal() {
         )
         .unwrap();
 
-    let mut transaction = client.transaction().unwrap();
+    let transaction = client.transaction().unwrap();
 
     let portal = transaction
         .bind("SELECT * FROM foo ORDER BY id", &[])

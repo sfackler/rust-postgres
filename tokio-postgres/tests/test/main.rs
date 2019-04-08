@@ -36,7 +36,7 @@ fn smoke_test(s: &str) {
     let mut runtime = Runtime::new().unwrap();
 
     let handshake = connect(s);
-    let (mut client, connection) = runtime.block_on(handshake).unwrap();
+    let (client, connection) = runtime.block_on(handshake).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -139,7 +139,7 @@ fn pipelined_prepare() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -157,7 +157,7 @@ fn insert_select() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -193,7 +193,7 @@ fn query_portal() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -237,7 +237,7 @@ fn cancel_query_raw() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -271,7 +271,7 @@ fn custom_enum() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -309,7 +309,7 @@ fn custom_domain() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -336,7 +336,7 @@ fn custom_array() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -359,7 +359,7 @@ fn custom_composite() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -400,7 +400,7 @@ fn custom_range() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -430,7 +430,7 @@ fn custom_simple() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -447,7 +447,7 @@ fn notifications() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, mut connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, mut connection) = runtime.block_on(connect("user=postgres")).unwrap();
 
     let (tx, rx) = mpsc::unbounded();
     let connection = future::poll_fn(move || {
@@ -491,7 +491,7 @@ fn transaction_commit() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -532,7 +532,7 @@ fn transaction_abort() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -574,7 +574,7 @@ fn copy_in() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -621,7 +621,7 @@ fn copy_in_error() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -664,7 +664,7 @@ fn copy_out() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -697,7 +697,7 @@ fn transaction_builder_around_moved_client() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -715,7 +715,7 @@ fn transaction_builder_around_moved_client() {
                 .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
                 .map(|statement| (client, statement))
         })
-        .and_then(|(mut client, statement)| {
+        .and_then(|(client, statement)| {
             client
                 .query(&statement, &[&"jim", &"joe"])
                 .collect()
@@ -723,7 +723,7 @@ fn transaction_builder_around_moved_client() {
         });
 
     let transaction = transaction_builder.build(work);
-    let mut client = runtime.block_on(transaction).unwrap();
+    let client = runtime.block_on(transaction).unwrap();
 
     let data = runtime
         .block_on(
@@ -743,7 +743,7 @@ fn simple_query() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -821,7 +821,7 @@ fn poll_idle_running() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
@@ -872,7 +872,7 @@ fn poll_idle_new() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let (client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
     let connection = connection.map_err(|e| panic!("{}", e));
     runtime.handle().spawn(connection).unwrap();
 
