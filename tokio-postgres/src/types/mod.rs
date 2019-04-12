@@ -386,7 +386,7 @@ impl<'a> FromSql<'a> for &'a [u8] {
 
 impl<'a> FromSql<'a> for String {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<String, Box<dyn Error + Sync + Send>> {
-        types::text_from_sql(raw).map(|b| b.to_owned())
+        types::text_from_sql(raw).map(ToString::to_string)
     }
 
     fn accepts(ty: &Type) -> bool {

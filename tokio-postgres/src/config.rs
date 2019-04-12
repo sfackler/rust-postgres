@@ -489,7 +489,7 @@ impl<'a> Parser<'a> {
     }
 
     fn skip_ws(&mut self) {
-        self.take_while(|c| c.is_whitespace());
+        self.take_while(char::is_whitespace);
     }
 
     fn take_while<F>(&mut self, f: F) -> &'a str

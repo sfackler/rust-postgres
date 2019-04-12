@@ -413,7 +413,7 @@ impl Error {
     pub fn code(&self) -> Option<&SqlState> {
         self.source()
             .and_then(|e| e.downcast_ref::<DbError>())
-            .map(|e| e.code())
+            .map(DbError::code)
     }
 
     fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {

@@ -154,7 +154,7 @@ impl Client {
 
     pub fn prepare(&self, name: String, query: &str, param_types: &[Type]) -> PrepareFuture {
         let pending = self.pending(|buf| {
-            frontend::parse(&name, query, param_types.iter().map(|t| t.oid()), buf)
+            frontend::parse(&name, query, param_types.iter().map(Type::oid), buf)
                 .map_err(Error::parse)?;
             frontend::describe(b'S', &name, buf).map_err(Error::parse)?;
             frontend::sync(buf);
