@@ -298,22 +298,26 @@ impl Client {
         );
 
         let mut buf = vec![];
+        let mut error_idx = 0;
         let r = frontend::bind(
             name,
             statement.name(),
             Some(1),
-            params.iter().zip(statement.params()),
-            |(param, ty), buf| match param.to_sql_checked(ty, buf) {
+            params.iter().zip(statement.params()).enumerate(),
+            |(idx, (param, ty)), buf| match param.to_sql_checked(ty, buf) {
                 Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                 Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
-                Err(e) => Err(e),
+                Err(e) => {
+                    error_idx = idx;
+                    Err(e)
+                }
             },
             Some(1),
             &mut buf,
         );
         match r {
             Ok(()) => Ok(buf),
-            Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e)),
+            Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
             Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
         }
     }

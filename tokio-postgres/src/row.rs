@@ -167,11 +167,11 @@ impl Row {
 
         let ty = self.columns()[idx].type_();
         if !T::accepts(ty) {
-            return Err(Error::from_sql(Box::new(WrongType::new(ty.clone()))));
+            return Err(Error::from_sql(Box::new(WrongType::new(ty.clone())), idx));
         }
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
-        FromSql::from_sql_nullable(ty, buf).map_err(Error::from_sql)
+        FromSql::from_sql_nullable(ty, buf).map_err(|e| Error::from_sql(e, idx))
     }
 }
 
@@ -238,6 +238,6 @@ impl SimpleQueryRow {
         };
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
-        FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(Error::from_sql)
+        FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
     }
 }

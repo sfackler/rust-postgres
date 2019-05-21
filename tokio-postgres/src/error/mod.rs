@@ -334,8 +334,8 @@ enum Kind {
     Io,
     UnexpectedMessage,
     Tls,
-    ToSql,
-    FromSql,
+    ToSql(usize),
+    FromSql(usize),
     Column,
     CopyInStream,
     Closed,
@@ -368,25 +368,24 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self.0.kind {
-            Kind::Io => "error communicating with the server",
-            Kind::UnexpectedMessage => "unexpected message from server",
-            Kind::Tls => "error performing TLS handshake",
-            Kind::ToSql => "error serializing a value",
-            Kind::FromSql => "error deserializing a value",
-            Kind::Column => "invalid column",
-            Kind::CopyInStream => "error from a copy_in stream",
-            Kind::Closed => "connection closed",
-            Kind::Db => "db error",
-            Kind::Parse => "error parsing response from server",
-            Kind::Encode => "error encoding message to server",
-            Kind::Authentication => "authentication error",
-            Kind::ConfigParse => "invalid connection string",
-            Kind::Config => "invalid configuration",
+        match self.0.kind {
+            Kind::Io => fmt.write_str("error communicating with the server")?,
+            Kind::UnexpectedMessage => fmt.write_str("unexpected message from server")?,
+            Kind::Tls => fmt.write_str("error performing TLS handshake")?,
+            Kind::ToSql(idx) => write!(fmt, "error serializing parameter {}", idx)?,
+            Kind::FromSql(idx) => write!(fmt, "error deserializing column {}", idx)?,
+            Kind::Column => fmt.write_str("invalid column")?,
+            Kind::CopyInStream => fmt.write_str("error from a copy_in stream")?,
+            Kind::Closed => fmt.write_str("connection closed")?,
+            Kind::Db => fmt.write_str("db error")?,
+            Kind::Parse => fmt.write_str("error parsing response from server")?,
+            Kind::Encode => fmt.write_str("error encoding message to server")?,
+            Kind::Authentication => fmt.write_str("authentication error")?,
+            Kind::ConfigParse => fmt.write_str("invalid connection string")?,
+            Kind::Config => fmt.write_str("invalid configuration")?,
             #[cfg(feature = "runtime")]
-            Kind::Connect => "error connecting to server",
+            Kind::Connect => fmt.write_str("error connecting to server")?,
         };
-        fmt.write_str(s)?;
         if let Some(ref cause) = self.0.cause {
             write!(fmt, ": {}", cause)?;
         }
@@ -445,12 +444,12 @@ impl Error {
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
-        Error::new(Kind::ToSql, Some(e))
+    pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>, idx: usize) -> Error {
+        Error::new(Kind::ToSql(idx), Some(e))
     }
 
-    pub(crate) fn from_sql(e: Box<dyn error::Error + Sync + Send>) -> Error {
-        Error::new(Kind::FromSql, Some(e))
+    pub(crate) fn from_sql(e: Box<dyn error::Error + Sync + Send>, idx: usize) -> Error {
+        Error::new(Kind::FromSql(idx), Some(e))
     }
 
     pub(crate) fn column() -> Error {
