@@ -24,10 +24,13 @@ where
 
     let prepare = client.prepare("SELECT 1::INT4");
     let statement = runtime.block_on(prepare).unwrap();
-    let select = client.query(&statement, &[]).collect().map(|rows| {
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].get::<_, i32>(0), 1);
-    });
+    let select = client
+        .query(&statement, &[] as &[i32])
+        .collect()
+        .map(|rows| {
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get::<_, i32>(0), 1);
+        });
     runtime.block_on(select).unwrap();
 
     drop(statement);

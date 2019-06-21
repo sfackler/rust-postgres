@@ -196,7 +196,15 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Execute {
+    pub fn execute<I>(
+        &mut self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> impls::Execute
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         impls::Execute(self.0.execute(&statement.0, params))
     }
 
@@ -205,7 +213,15 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Query {
+    pub fn query<I>(
+        &mut self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> impls::Query
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         impls::Query(self.0.query(&statement.0, params))
     }
 
@@ -217,7 +233,15 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Bind {
+    pub fn bind<I>(
+        &mut self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> impls::Bind
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         impls::Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
@@ -233,13 +257,15 @@ impl Client {
     ///
     /// The data in the provided stream is passed along to the server verbatim; it is the caller's responsibility to
     /// ensure it uses the proper format.
-    pub fn copy_in<S>(
+    pub fn copy_in<I, S>(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
         stream: S,
     ) -> impls::CopyIn<S>
     where
+        I: Iterator,
+        I::Item: ToSql,
         S: Stream,
         S::Item: IntoBuf,
         <S::Item as IntoBuf>::Buf: Send,
@@ -250,7 +276,15 @@ impl Client {
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
-    pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::CopyOut {
+    pub fn copy_out<I>(
+        &mut self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> impls::CopyOut
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         impls::CopyOut(self.0.copy_out(&statement.0, params))
     }
 

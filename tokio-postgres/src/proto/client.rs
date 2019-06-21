@@ -164,7 +164,15 @@ impl Client {
         PrepareFuture::new(self.clone(), pending, name)
     }
 
-    pub fn execute(&self, statement: &Statement, params: &[&dyn ToSql]) -> ExecuteFuture {
+    pub fn execute<I>(
+        &self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> ExecuteFuture
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -172,7 +180,15 @@ impl Client {
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn query(&self, statement: &Statement, params: &[&dyn ToSql]) -> QueryStream<Statement> {
+    pub fn query<I>(
+        &self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> QueryStream<Statement>
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -180,7 +196,16 @@ impl Client {
         QueryStream::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn bind(&self, statement: &Statement, name: String, params: &[&dyn ToSql]) -> BindFuture {
+    pub fn bind<I>(
+        &self,
+        statement: &Statement,
+        name: String,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> BindFuture
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let mut buf = self.bind_message(statement, &name, params);
         if let Ok(ref mut buf) = buf {
             frontend::sync(buf);
@@ -199,13 +224,15 @@ impl Client {
         QueryStream::new(self.clone(), pending, portal.clone())
     }
 
-    pub fn copy_in<S>(
+    pub fn copy_in<I, S>(
         &self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
         stream: S,
     ) -> CopyInFuture<S>
     where
+        I: Iterator,
+        I::Item: ToSql,
         S: Stream,
         S::Item: IntoBuf,
         <S::Item as IntoBuf>::Buf: Send,
@@ -228,7 +255,15 @@ impl Client {
         CopyInFuture::new(self.clone(), pending, statement.clone(), stream, sender)
     }
 
-    pub fn copy_out(&self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOutStream {
+    pub fn copy_out<I>(
+        &self,
+        statement: &Statement,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> CopyOutStream
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -284,26 +319,55 @@ impl Client {
         });
     }
 
-    fn bind_message(
+    fn bind_message<I>(
         &self,
         statement: &Statement,
         name: &str,
-        params: &[&dyn ToSql],
-    ) -> Result<Vec<u8>, Error> {
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> Result<Vec<u8>, Error>
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
+        let params_iter = params.into_iter();
+        let (_l, u_opt) = params_iter.size_hint();
         assert!(
-            statement.params().len() == params.len(),
+            u_opt.is_some(),
+            "the number of parameters is larger than the maximum allowed size"
+        );
+        let num_params = u_opt.unwrap();
+
+        assert!(
+            statement.params().len() == num_params,
             "expected {} parameters but got {}",
             statement.params().len(),
-            params.len()
+            num_params
         );
 
+        if num_params > 0 {
+            self.bind_message_with_params(statement, name, params_iter)
+        } else {
+            self.bind_message_no_params(statement, name)
+        }
+    }
+
+    fn bind_message_with_params<I>(
+        &self,
+        statement: &Statement,
+        name: &str,
+        params_iter: I,
+    ) -> Result<Vec<u8>, Error>
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let mut buf = vec![];
         let mut error_idx = 0;
         let r = frontend::bind(
             name,
             statement.name(),
             Some(1),
-            params.iter().zip(statement.params()).enumerate(),
+            params_iter.zip(statement.params()).enumerate(),
             |(idx, (param, ty)), buf| match param.to_sql_checked(ty, buf) {
                 Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                 Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
@@ -322,11 +386,41 @@ impl Client {
         }
     }
 
-    fn excecute_message(
+    fn bind_message_no_params(&self, statement: &Statement, name: &str) -> Result<Vec<u8>, Error> {
+        assert!(
+            statement.params().len() == 0,
+            "expected no parameters in statement but got {}",
+            statement.params().len(),
+        );
+
+        let empty_zip_params: &[i32] = &[];
+        let mut buf = vec![];
+        let error_idx = 0;
+        let r = frontend::bind(
+            name,
+            statement.name(),
+            Some(1),
+            empty_zip_params.iter().zip(statement.params()).enumerate(),
+            |(_, (_, _)): (usize, (&i32, &Type)), &mut _| Ok(postgres_protocol::IsNull::Yes),
+            Some(1),
+            &mut buf,
+        );
+        match r {
+            Ok(()) => Ok(buf),
+            Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
+            Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
+        }
+    }
+
+    fn excecute_message<I>(
         &self,
         statement: &Statement,
-        params: &[&dyn ToSql],
-    ) -> Result<Vec<u8>, Error> {
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> Result<Vec<u8>, Error>
+    where
+        I: Iterator,
+        I::Item: ToSql,
+    {
         let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);

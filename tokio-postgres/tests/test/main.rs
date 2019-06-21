@@ -42,7 +42,8 @@ fn smoke_test(s: &str) {
 
     let prepare = client.prepare("SELECT 1::INT4");
     let statement = runtime.block_on(prepare).unwrap();
-    let select = client.query(&statement, &[]).collect().map(|rows| {
+    let params: &[&i32] = &[];
+    let select = client.query(&statement, params).collect().map(|rows| {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get::<_, i32>(0), 1);
     });
@@ -177,7 +178,8 @@ fn insert_select() {
     let insert = client
         .execute(&insert, &[&"alice", &"bob"])
         .map(|n| assert_eq!(n, 2));
-    let select = client.query(&select, &[]).collect().map(|rows| {
+    let params: &[&i32] = &[];
+    let select = client.query(&select, params).collect().map(|rows| {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].get::<_, i32>(0), 1);
         assert_eq!(rows[0].get::<_, &str>(1), "alice");
@@ -212,7 +214,8 @@ fn query_portal() {
     let statement = runtime
         .block_on(client.prepare("SELECT id, name FROM foo ORDER BY id"))
         .unwrap();
-    let portal = runtime.block_on(client.bind(&statement, &[])).unwrap();
+    let params: &[&i32] = &[];
+    let portal = runtime.block_on(client.bind(&statement, params)).unwrap();
 
     let f1 = client.query_portal(&portal, 2).collect();
     let f2 = client.query_portal(&portal, 2).collect();
@@ -515,11 +518,12 @@ fn transaction_commit() {
         .block_on(client.build_transaction().build(f))
         .unwrap();
 
+    let params: &[&i32] = &[];
     let rows = runtime
         .block_on(
             client
                 .prepare("SELECT name FROM foo")
-                .and_then(|s| client.query(&s, &[]).collect()),
+                .and_then(|s| client.query(&s, params).collect()),
         )
         .unwrap();
 
@@ -558,11 +562,12 @@ fn transaction_abort() {
         .block_on(client.build_transaction().build(f))
         .unwrap_err();
 
+    let params: &[&i32] = &[];
     let rows = runtime
         .block_on(
             client
                 .prepare("SELECT name FROM foo")
-                .and_then(|s| client.query(&s, &[]).collect()),
+                .and_then(|s| client.query(&s, params).collect()),
         )
         .unwrap();
 
@@ -592,11 +597,12 @@ fn copy_in() {
         .unwrap();
 
     let stream = stream::iter_ok::<_, String>(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]);
+    let params: &[&i32] = &[];
     let rows = runtime
         .block_on(
             client
                 .prepare("COPY foo FROM STDIN")
-                .and_then(|s| client.copy_in(&s, &[], stream)),
+                .and_then(|s| client.copy_in(&s, params, stream)),
         )
         .unwrap();
     assert_eq!(rows, 2);
@@ -605,7 +611,7 @@ fn copy_in() {
         .block_on(
             client
                 .prepare("SELECT id, name FROM foo ORDER BY id")
-                .and_then(|s| client.query(&s, &[]).collect()),
+                .and_then(|s| client.query(&s, params).collect()),
         )
         .unwrap();
 
@@ -639,11 +645,12 @@ fn copy_in_error() {
         .unwrap();
 
     let stream = stream::iter_result(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
+    let params: &[&i32] = &[];
     let error = runtime
         .block_on(
             client
                 .prepare("COPY foo FROM STDIN")
-                .and_then(|s| client.copy_in(&s, &[], stream)),
+                .and_then(|s| client.copy_in(&s, params, stream)),
         )
         .unwrap_err();
     assert!(error.to_string().contains("asdf"));
@@ -652,7 +659,7 @@ fn copy_in_error() {
         .block_on(
             client
                 .prepare("SELECT id, name FROM foo ORDER BY id")
-                .and_then(|s| client.query(&s, &[]).collect()),
+                .and_then(|s| client.query(&s, params).collect()),
         )
         .unwrap();
 
@@ -686,7 +693,7 @@ fn copy_out() {
         .block_on(
             client
                 .prepare("COPY foo TO STDOUT")
-                .and_then(|s| client.copy_out(&s, &[]).concat2()),
+                .and_then(|s| client.copy_out(&s, &[] as &[&i32]).concat2()),
         )
         .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
@@ -729,7 +736,7 @@ fn transaction_builder_around_moved_client() {
         .block_on(
             client
                 .prepare("COPY transaction_foo TO STDOUT")
-                .and_then(|s| client.copy_out(&s, &[]).concat2()),
+                .and_then(|s| client.copy_out(&s, &[] as &[&i32]).concat2()),
         )
         .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
@@ -834,7 +841,7 @@ fn poll_idle_running() {
     let stmt = runtime.block_on(prepare).unwrap();
     let copy_in = client.copy_in(
         &stmt,
-        &[],
+        &[] as &[&i32],
         DelayStream(Delay::new(Instant::now() + Duration::from_millis(10))),
     );
     let copy_in = copy_in.map(|_| ()).map_err(|e| panic!("{}", e));

@@ -77,9 +77,15 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    pub fn execute<T, I>(
+        &mut self,
+        query: &T,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
+        I: Iterator,
+        I::Item: ToSql,
     {
         let statement = query.__statement(self)?;
         self.0.execute(&statement, params).wait()
@@ -116,9 +122,15 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    pub fn query<T, I>(
+        &mut self,
+        query: &T,
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
+        I: Iterator,
+        I::Item: ToSql,
     {
         self.query_iter(query, params)?.collect()
     }
@@ -148,13 +160,15 @@ impl Client {
     /// }
     /// # Ok(())
     /// # }
-    pub fn query_iter<T>(
+    pub fn query_iter<T, I>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
     ) -> Result<QueryIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
+        I: Iterator,
+        I::Item: ToSql,
     {
         let statement = query.__statement(self)?;
         Ok(QueryIter::new(self.0.query(&statement, params)))
@@ -234,14 +248,16 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_in<T, R>(
+    pub fn copy_in<T, I, R>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
         reader: R,
     ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
+        I: Iterator,
+        I::Item: ToSql,
         R: Read,
     {
         let statement = query.__statement(self)?;
@@ -269,13 +285,15 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_out<T>(
+    pub fn copy_out<T, I>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: impl IntoIterator<IntoIter = I, Item = I::Item>,
     ) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
+        I: Iterator,
+        I::Item: ToSql,
     {
         let statement = query.__statement(self)?;
         let stream = self.0.copy_out(&statement, params);

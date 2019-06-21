@@ -45,12 +45,12 @@ fn transaction_commit() {
     let mut transaction = client.transaction().unwrap();
 
     transaction
-        .execute("INSERT INTO foo DEFAULT VALUES", &[])
+        .execute("INSERT INTO foo DEFAULT VALUES", &[] as &[i32])
         .unwrap();
 
     transaction.commit().unwrap();
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client.query("SELECT * FROM foo", &[] as &[i32]).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
 }
@@ -66,12 +66,12 @@ fn transaction_rollback() {
     let mut transaction = client.transaction().unwrap();
 
     transaction
-        .execute("INSERT INTO foo DEFAULT VALUES", &[])
+        .execute("INSERT INTO foo DEFAULT VALUES", &[] as &[i32])
         .unwrap();
 
     transaction.rollback().unwrap();
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client.query("SELECT * FROM foo", &[] as &[i32]).unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -86,12 +86,12 @@ fn transaction_drop() {
     let mut transaction = client.transaction().unwrap();
 
     transaction
-        .execute("INSERT INTO foo DEFAULT VALUES", &[])
+        .execute("INSERT INTO foo DEFAULT VALUES", &[] as &[i32])
         .unwrap();
 
     drop(transaction);
 
-    let rows = client.query("SELECT * FROM foo", &[]).unwrap();
+    let rows = client.query("SELECT * FROM foo", &[] as &[i32]).unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -106,19 +106,19 @@ fn nested_transactions() {
     let mut transaction = client.transaction().unwrap();
 
     transaction
-        .execute("INSERT INTO foo (id) VALUES (1)", &[])
+        .execute("INSERT INTO foo (id) VALUES (1)", &[] as &[i32])
         .unwrap();
 
     let mut transaction2 = transaction.transaction().unwrap();
 
     transaction2
-        .execute("INSERT INTO foo (id) VALUES (2)", &[])
+        .execute("INSERT INTO foo (id) VALUES (2)", &[] as &[i32])
         .unwrap();
 
     transaction2.rollback().unwrap();
 
     let rows = transaction
-        .query("SELECT id FROM foo ORDER BY id", &[])
+        .query("SELECT id FROM foo ORDER BY id", &[] as &[i32])
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -126,20 +126,22 @@ fn nested_transactions() {
     let mut transaction3 = transaction.transaction().unwrap();
 
     transaction3
-        .execute("INSERT INTO foo (id) VALUES(3)", &[])
+        .execute("INSERT INTO foo (id) VALUES(3)", &[] as &[i32])
         .unwrap();
 
     let mut transaction4 = transaction3.transaction().unwrap();
 
     transaction4
-        .execute("INSERT INTO foo (id) VALUES(4)", &[])
+        .execute("INSERT INTO foo (id) VALUES(4)", &[] as &[i32])
         .unwrap();
 
     transaction4.commit().unwrap();
     transaction3.commit().unwrap();
     transaction.commit().unwrap();
 
-    let rows = client.query("SELECT id FROM foo ORDER BY id", &[]).unwrap();
+    let rows = client
+        .query("SELECT id FROM foo ORDER BY id", &[] as &[i32])
+        .unwrap();
     assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
     assert_eq!(rows[1].get::<_, i32>(0), 3);
@@ -157,13 +159,13 @@ fn copy_in() {
     client
         .copy_in(
             "COPY foo FROM stdin",
-            &[],
+            &[] as &[i32],
             &mut &b"1\tsteven\n2\ttimothy"[..],
         )
         .unwrap();
 
     let rows = client
-        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .query("SELECT id, name FROM foo ORDER BY id", &[] as &[i32])
         .unwrap();
 
     assert_eq!(rows.len(), 2);
@@ -185,7 +187,7 @@ fn copy_out() {
         .unwrap();
 
     let mut reader = client
-        .copy_out("COPY foo (id, name) TO STDOUT", &[])
+        .copy_out("COPY foo (id, name) TO STDOUT", &[] as &[i32])
         .unwrap();
     let mut s = String::new();
     reader.read_to_string(&mut s).unwrap();
@@ -210,7 +212,7 @@ fn portal() {
     let mut transaction = client.transaction().unwrap();
 
     let portal = transaction
-        .bind("SELECT * FROM foo ORDER BY id", &[])
+        .bind("SELECT * FROM foo ORDER BY id", &[] as &[i32])
         .unwrap();
 
     let rows = transaction.query_portal(&portal, 2).unwrap();

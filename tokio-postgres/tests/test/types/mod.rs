@@ -41,7 +41,7 @@ where
     for &(ref val, ref repr) in checks.iter() {
         let prepare = client.prepare(&format!("SELECT {}::{}", repr, sql_type));
         let stmt = runtime.block_on(prepare).unwrap();
-        let query = client.query(&stmt, &[]).collect();
+        let query = client.query(&stmt, &[] as &[&i32]).collect();
         let rows = runtime.block_on(query).unwrap();
         let result = rows[0].get(0);
         assert_eq!(val, &result);
@@ -198,7 +198,7 @@ fn test_borrowed_text() {
 
     let prepare = client.prepare("SELECT 'foo'");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let rows = runtime.block_on(query).unwrap();
     let s: &str = rows[0].get(0);
     assert_eq!(s, "foo");
@@ -225,12 +225,12 @@ fn test_bpchar_params() {
 
     let prepare = client.prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)");
     let stmt = runtime.block_on(prepare).unwrap();
-    let execute = client.execute(&stmt, &[&"12345", &"123", &None::<&'static str>]);
+    let execute = client.execute(&stmt, &[&"12345", &"123", &""]); // was &None::<&'static str>
     runtime.block_on(execute).unwrap();
 
     let prepare = client.prepare("SELECT b FROM foo ORDER BY id");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let res = runtime.block_on(query).unwrap();
 
     assert_eq!(
@@ -260,12 +260,12 @@ fn test_citext_params() {
 
     let prepare = client.prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)");
     let stmt = runtime.block_on(prepare).unwrap();
-    let execute = client.execute(&stmt, &[&"foobar", &"FooBar", &None::<&'static str>]);
+    let execute = client.execute(&stmt, &[&"foobar", &"FooBar", &""]); // was &None::<&'static str>
     runtime.block_on(execute).unwrap();
 
     let prepare = client.prepare("SELECT b FROM foo WHERE b = 'FOOBAR' ORDER BY id");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let res = runtime.block_on(query).unwrap();
 
     assert_eq!(
@@ -298,7 +298,7 @@ fn test_borrowed_bytea() {
 
     let prepare = client.prepare("SELECT 'foo'::BYTEA");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let rows = runtime.block_on(query).unwrap();
     let s: &[u8] = rows[0].get(0);
     assert_eq!(s, b"foo");
@@ -358,7 +358,7 @@ where
 
     let prepare = client.prepare(&format!("SELECT 'NaN'::{}", sql_type));
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let rows = runtime.block_on(query).unwrap();
     let val: T = rows[0].get(0);
     assert!(val != val);
@@ -385,7 +385,7 @@ fn test_pg_database_datname() {
 
     let prepare = client.prepare("SELECT datname FROM pg_database");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let rows = runtime.block_on(query).unwrap();
     assert_eq!(rows[0].get::<_, &str>(0), "postgres");
 }
@@ -533,7 +533,7 @@ fn domain() {
 
     let prepare = client.prepare("SELECT id FROM pg_temp.foo");
     let stmt = runtime.block_on(prepare).unwrap();
-    let query = client.query(&stmt, &[]).collect();
+    let query = client.query(&stmt, &[] as &[&i32]).collect();
     let rows = runtime.block_on(query).unwrap();
     assert_eq!(id, rows[0].get(0));
 }
