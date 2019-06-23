@@ -22,7 +22,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: rust:1.31.0
+      - image: rust:1.35.0
         environment:
           RUSTFLAGS: -D warnings
       - image: sfackler/rust-postgres-test:5

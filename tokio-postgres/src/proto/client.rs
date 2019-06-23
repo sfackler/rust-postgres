@@ -212,8 +212,8 @@ impl Client {
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
         let (mut sender, receiver) = mpsc::channel(1);
-        let pending = PendingRequest(self.excecute_message(statement, params).map(|buf| {
-            match sender.start_send(CopyMessage::Data(buf)) {
+        let pending = PendingRequest(self.excecute_message(statement, params).map(|data| {
+            match sender.start_send(CopyMessage { data, done: false }) {
                 Ok(AsyncSink::Ready) => {}
                 _ => unreachable!("channel should have capacity"),
             }
