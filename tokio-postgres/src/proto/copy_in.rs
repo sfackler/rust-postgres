@@ -6,14 +6,15 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::error::Error as StdError;
+use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
 use crate::proto::statement::Statement;
 use crate::Error;
 
-pub enum CopyMessage {
-    Data(Vec<u8>),
-    Done,
+pub struct CopyMessage {
+    pub data: Vec<u8>,
+    pub done: bool,
 }
 
 pub struct CopyInReceiver {
@@ -40,13 +41,14 @@ impl Stream for CopyInReceiver {
         }
 
         match self.receiver.poll()? {
-            Async::Ready(Some(CopyMessage::Data(buf))) => Ok(Async::Ready(Some(buf))),
-            Async::Ready(Some(CopyMessage::Done)) => {
-                self.done = true;
-                let mut buf = vec![];
-                frontend::copy_done(&mut buf);
-                frontend::sync(&mut buf);
-                Ok(Async::Ready(Some(buf)))
+            Async::Ready(Some(mut data)) => {
+                if data.done {
+                    self.done = true;
+                    frontend::copy_done(&mut data.data);
+                    frontend::sync(&mut data.data);
+                }
+
+                Ok(Async::Ready(Some(data.data)))
             }
             Async::Ready(None) => {
                 self.done = true;
@@ -85,6 +87,7 @@ where
     #[state_machine_future(transitions(WriteCopyDone))]
     WriteCopyData {
         stream: S,
+        buf: Vec<u8>,
         pending_message: Option<CopyMessage>,
         sender: mpsc::Sender<CopyMessage>,
         receiver: mpsc::Receiver<Message>,
@@ -133,6 +136,7 @@ where
                     let state = state.take();
                     transition!(WriteCopyData {
                         stream: state.stream,
+                        buf: vec![],
                         pending_message: None,
                         sender: state.sender,
                         receiver: state.receiver
@@ -148,34 +152,58 @@ where
     fn poll_write_copy_data<'a>(
         state: &'a mut RentToOwn<'a, WriteCopyData<S>>,
     ) -> Poll<AfterWriteCopyData, Error> {
-        loop {
-            let message = match state.pending_message.take() {
-                Some(message) => message,
-                None => match try_ready!(state.stream.poll().map_err(Error::copy_in_stream)) {
-                    Some(data) => {
-                        let mut buf = vec![];
-                        // FIXME avoid collect
-                        frontend::copy_data(&data.into_buf().collect::<Vec<_>>(), &mut buf)
-                            .map_err(Error::encode)?;
-                        CopyMessage::Data(buf)
-                    }
-                    None => {
-                        let state = state.take();
-                        transition!(WriteCopyDone {
-                            future: state.sender.send(CopyMessage::Done),
-                            receiver: state.receiver
-                        })
-                    }
-                },
-            };
-
-            match state.sender.start_send(message) {
-                Ok(AsyncSink::Ready) => {}
-                Ok(AsyncSink::NotReady(message)) => {
+        if let Some(message) = state.pending_message.take() {
+            match state
+                .sender
+                .start_send(message)
+                .map_err(|_| Error::closed())?
+            {
+                AsyncSink::Ready => {}
+                AsyncSink::NotReady(message) => {
                     state.pending_message = Some(message);
                     return Ok(Async::NotReady);
                 }
-                Err(_) => return Err(Error::closed()),
+            }
+        }
+
+        loop {
+            let done = loop {
+                match try_ready!(state.stream.poll().map_err(Error::copy_in_stream)) {
+                    Some(data) => {
+                        // FIXME avoid collect
+                        frontend::copy_data(&data.into_buf().collect::<Vec<_>>(), &mut state.buf)
+                            .map_err(Error::encode)?;
+                        if state.buf.len() > 4096 {
+                            break false;
+                        }
+                    }
+                    None => break true,
+                }
+            };
+
+            let message = CopyMessage {
+                data: mem::replace(&mut state.buf, vec![]),
+                done,
+            };
+
+            if done {
+                let state = state.take();
+                transition!(WriteCopyDone {
+                    future: state.sender.send(message),
+                    receiver: state.receiver,
+                });
+            }
+
+            match state
+                .sender
+                .start_send(message)
+                .map_err(|_| Error::closed())?
+            {
+                AsyncSink::Ready => {}
+                AsyncSink::NotReady(message) => {
+                    state.pending_message = Some(message);
+                    return Ok(Async::NotReady);
+                }
             }
         }
     }
