@@ -170,7 +170,7 @@ pub struct CopyIn<S>(pub(crate) proto::CopyInFuture<S>)
 where
     S: Stream,
     S::Item: IntoBuf,
-    <S::Item as IntoBuf>::Buf: Send,
+    <S::Item as IntoBuf>::Buf: 'static + Send,
     S::Error: Into<Box<dyn error::Error + Sync + Send>>;
 
 impl<S> Future for CopyIn<S>

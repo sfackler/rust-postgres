@@ -53,7 +53,7 @@ pub use crate::proto::bind::BindFuture;
 pub use crate::proto::cancel_query::CancelQueryFuture;
 pub use crate::proto::cancel_query_raw::CancelQueryRawFuture;
 pub use crate::proto::client::Client;
-pub use crate::proto::codec::PostgresCodec;
+pub use crate::proto::codec::{FrontendMessage, PostgresCodec};
 #[cfg(feature = "runtime")]
 pub use crate::proto::connect::ConnectFuture;
 #[cfg(feature = "runtime")]

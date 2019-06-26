@@ -242,7 +242,7 @@ impl Client {
     where
         S: Stream,
         S::Item: IntoBuf,
-        <S::Item as IntoBuf>::Buf: Send,
+        <S::Item as IntoBuf>::Buf: 'static + Send,
         // FIXME error type?
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {

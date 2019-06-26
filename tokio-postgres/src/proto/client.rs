@@ -11,6 +11,7 @@ use std::sync::{Arc, Weak};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::proto::bind::BindFuture;
+use crate::proto::codec::FrontendMessage;
 use crate::proto::connection::{Request, RequestMessages};
 use crate::proto::copy_in::{CopyInFuture, CopyInReceiver, CopyMessage};
 use crate::proto::copy_out::CopyOutStream;
@@ -185,8 +186,12 @@ impl Client {
         if let Ok(ref mut buf) = buf {
             frontend::sync(buf);
         }
-        let pending =
-            PendingRequest(buf.map(|m| (RequestMessages::Single(m), self.0.idle.guard())));
+        let pending = PendingRequest(buf.map(|m| {
+            (
+                RequestMessages::Single(FrontendMessage::Raw(m)),
+                self.0.idle.guard(),
+            )
+        }));
         BindFuture::new(self.clone(), pending, name, statement.clone())
     }
 
@@ -208,12 +213,12 @@ impl Client {
     where
         S: Stream,
         S::Item: IntoBuf,
-        <S::Item as IntoBuf>::Buf: Send,
+        <S::Item as IntoBuf>::Buf: 'static + Send,
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
         let (mut sender, receiver) = mpsc::channel(1);
         let pending = PendingRequest(self.excecute_message(statement, params).map(|data| {
-            match sender.start_send(CopyMessage { data, done: false }) {
+            match sender.start_send(CopyMessage::Message(data)) {
                 Ok(AsyncSink::Ready) => {}
                 _ => unreachable!("channel should have capacity"),
             }
@@ -278,7 +283,7 @@ impl Client {
         frontend::sync(&mut buf);
         let (sender, _) = mpsc::channel(0);
         let _ = self.0.sender.unbounded_send(Request {
-            messages: RequestMessages::Single(buf),
+            messages: RequestMessages::Single(FrontendMessage::Raw(buf)),
             sender,
             idle: None,
         });
@@ -326,11 +331,11 @@ impl Client {
         &self,
         statement: &Statement,
         params: &[&dyn ToSql],
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<FrontendMessage, Error> {
         let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);
-        Ok(buf)
+        Ok(FrontendMessage::Raw(buf))
     }
 
     fn pending<F>(&self, messages: F) -> PendingRequest
@@ -338,8 +343,11 @@ impl Client {
         F: FnOnce(&mut Vec<u8>) -> Result<(), Error>,
     {
         let mut buf = vec![];
-        PendingRequest(
-            messages(&mut buf).map(|()| (RequestMessages::Single(buf), self.0.idle.guard())),
-        )
+        PendingRequest(messages(&mut buf).map(|()| {
+            (
+                RequestMessages::Single(FrontendMessage::Raw(buf)),
+                self.0.idle.guard(),
+            )
+        }))
     }
 }

@@ -2,6 +2,8 @@
 #![allow(missing_docs)]
 
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
+use bytes::{Buf, BufMut, BytesMut, IntoBuf};
+use std::convert::TryFrom;
 use std::error::Error;
 use std::io;
 use std::marker;
@@ -261,6 +263,40 @@ pub fn copy_data(data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
         buf.extend_from_slice(data);
         Ok(())
     })
+}
+
+pub struct CopyData<T> {
+    buf: T,
+    len: i32,
+}
+
+impl<T> CopyData<T>
+where
+    T: Buf,
+{
+    pub fn new<U>(buf: U) -> io::Result<CopyData<T>>
+    where
+        U: IntoBuf<Buf = T>,
+    {
+        let buf = buf.into_buf();
+
+        let len = buf
+            .remaining()
+            .checked_add(4)
+            .and_then(|l| i32::try_from(l).ok())
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "message length overflow")
+            })?;
+
+        Ok(CopyData { buf, len })
+    }
+
+    pub fn write(self, out: &mut BytesMut) {
+        out.reserve(self.len as usize + 1);
+        out.put_u8(b'd');
+        out.put_i32_be(self.len);
+        out.put(self.buf);
+    }
 }
 
 #[inline]
