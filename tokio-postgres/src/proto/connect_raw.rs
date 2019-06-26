@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::{Client, Connection, MaybeTlsStream, PostgresCodec, TlsFuture, FrontendMessage};
+use crate::proto::{Client, Connection, FrontendMessage, MaybeTlsStream, PostgresCodec, TlsFuture};
 use crate::tls::ChannelBinding;
 use crate::{Config, Error, TlsConnect};
 
