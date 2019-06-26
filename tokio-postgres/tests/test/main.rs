@@ -4,6 +4,7 @@ use futures::sync::mpsc;
 use futures::{future, stream, try_ready};
 use log::debug;
 use std::error::Error;
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
@@ -614,6 +615,49 @@ fn copy_in() {
     assert_eq!(rows[0].get::<_, &str>(1), "jim");
     assert_eq!(rows[1].get::<_, i32>(0), 2);
     assert_eq!(rows[1].get::<_, &str>(1), "joe");
+}
+
+#[test]
+fn copy_in_large() {
+    let _ = env_logger::try_init();
+    let mut runtime = Runtime::new().unwrap();
+
+    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
+    let connection = connection.map_err(|e| panic!("{}", e));
+    runtime.handle().spawn(connection).unwrap();
+
+    runtime
+        .block_on(
+            client
+                .simple_query(
+                    "CREATE TEMPORARY TABLE foo (
+                        id INTEGER,
+                        name TEXT
+                    )",
+                )
+                .for_each(|_| Ok(())),
+        )
+        .unwrap();
+
+    let a = "0\tname0\n".to_string();
+    let mut b = String::new();
+    for i in 1..5_000 {
+        writeln!(b, "{0}\tname{0}", i).unwrap();
+    }
+    let mut c = String::new();
+    for i in 5_000..10_000 {
+        writeln!(c, "{0}\tname{0}", i).unwrap();
+    }
+
+    let stream = stream::iter_ok::<_, String>(vec![a, b, c]);
+    let rows = runtime
+        .block_on(
+            client
+                .prepare("COPY foo FROM STDIN")
+                .and_then(|s| client.copy_in(&s, &[], stream)),
+        )
+        .unwrap();
+    assert_eq!(rows, 10_000);
 }
 
 #[test]

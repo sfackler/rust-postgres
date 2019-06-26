@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::{Client, Connection, MaybeTlsStream, PostgresCodec, TlsFuture};
+use crate::proto::{Client, Connection, FrontendMessage, MaybeTlsStream, PostgresCodec, TlsFuture};
 use crate::tls::ChannelBinding;
 use crate::{Config, Error, TlsConnect};
 
@@ -111,7 +111,7 @@ where
         let stream = Framed::new(stream, PostgresCodec);
 
         transition!(SendingStartup {
-            future: stream.send(buf),
+            future: stream.send(FrontendMessage::Raw(buf)),
             config: state.config,
             idx: state.idx,
             channel_binding,
@@ -156,7 +156,7 @@ where
                 let mut buf = vec![];
                 frontend::password_message(pass, &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
-                    future: state.stream.send(buf),
+                    future: state.stream.send(FrontendMessage::Raw(buf)),
                     config: state.config,
                     idx: state.idx,
                 })
@@ -178,7 +178,7 @@ where
                 let mut buf = vec![];
                 frontend::password_message(output.as_bytes(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingPassword {
-                    future: state.stream.send(buf),
+                    future: state.stream.send(FrontendMessage::Raw(buf)),
                     config: state.config,
                     idx: state.idx,
                 })
@@ -235,7 +235,7 @@ where
                     .map_err(Error::encode)?;
 
                 transition!(SendingSasl {
-                    future: state.stream.send(buf),
+                    future: state.stream.send(FrontendMessage::Raw(buf)),
                     scram,
                     config: state.config,
                     idx: state.idx,
@@ -293,7 +293,7 @@ where
                 let mut buf = vec![];
                 frontend::sasl_response(state.scram.message(), &mut buf).map_err(Error::encode)?;
                 transition!(SendingSasl {
-                    future: state.stream.send(buf),
+                    future: state.stream.send(FrontendMessage::Raw(buf)),
                     scram: state.scram,
                     config: state.config,
                     idx: state.idx,

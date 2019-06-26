@@ -8,17 +8,17 @@ use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::codec::PostgresCodec;
+use crate::proto::codec::{FrontendMessage, PostgresCodec};
 use crate::proto::copy_in::CopyInReceiver;
 use crate::proto::idle::IdleGuard;
 use crate::{AsyncMessage, Notification};
 use crate::{DbError, Error};
 
 pub enum RequestMessages {
-    Single(Vec<u8>),
+    Single(FrontendMessage),
     CopyIn {
         receiver: CopyInReceiver,
-        pending_message: Option<Vec<u8>>,
+        pending_message: Option<FrontendMessage>,
     },
 }
 
@@ -188,7 +188,7 @@ where
                     self.state = State::Terminating;
                     let mut request = vec![];
                     frontend::terminate(&mut request);
-                    RequestMessages::Single(request)
+                    RequestMessages::Single(FrontendMessage::Raw(request))
                 }
                 Async::Ready(None) => {
                     trace!(
