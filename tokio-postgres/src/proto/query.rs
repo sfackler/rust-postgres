@@ -1,10 +1,10 @@
-use futures::sync::mpsc;
 use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
 use crate::proto::portal::Portal;
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::{Error, Row};
 
@@ -31,7 +31,7 @@ enum State<T> {
         statement: T,
     },
     ReadingResponse {
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
         statement: T,
     },
     Done,
@@ -73,7 +73,7 @@ where
                             };
                             break Ok(Async::NotReady);
                         }
-                        Err(()) => unreachable!("mpsc::Receiver doesn't return errors"),
+                        Err(e) => return Err(e),
                     };
 
                     match message {

@@ -10,6 +10,7 @@ use std::error::Error as StdError;
 
 use crate::proto::client::{Client, PendingRequest};
 use crate::proto::codec::FrontendMessage;
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::Error;
 
@@ -82,7 +83,7 @@ where
     ReadCopyInResponse {
         stream: S,
         sender: mpsc::Sender<CopyMessage>,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     #[state_machine_future(transitions(WriteCopyDone))]
     WriteCopyData {
@@ -90,15 +91,15 @@ where
         buf: BytesMut,
         pending_message: Option<CopyMessage>,
         sender: mpsc::Sender<CopyMessage>,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     #[state_machine_future(transitions(ReadCommandComplete))]
     WriteCopyDone {
         future: sink::Send<mpsc::Sender<CopyMessage>>,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     #[state_machine_future(transitions(Finished))]
-    ReadCommandComplete { receiver: mpsc::Receiver<Message> },
+    ReadCommandComplete { receiver: Responses },
     #[state_machine_future(ready)]
     Finished(u64),
     #[state_machine_future(error)]
@@ -128,7 +129,7 @@ where
         state: &'a mut RentToOwn<'a, ReadCopyInResponse<S>>,
     ) -> Poll<AfterReadCopyInResponse<S>, Error> {
         loop {
-            let message = try_ready_receive!(state.receiver.poll());
+            let message = try_ready!(state.receiver.poll());
 
             match message {
                 Some(Message::BindComplete) => {}
@@ -229,7 +230,7 @@ where
     fn poll_read_command_complete<'a>(
         state: &'a mut RentToOwn<'a, ReadCommandComplete>,
     ) -> Poll<AfterReadCommandComplete, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
+        let message = try_ready!(state.receiver.poll());
 
         match message {
             Some(Message::CommandComplete(body)) => {

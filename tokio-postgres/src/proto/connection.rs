@@ -1,3 +1,4 @@
+use fallible_iterator::FallibleIterator;
 use futures::sync::mpsc;
 use futures::{try_ready, Async, AsyncSink, Future, Poll, Sink, Stream};
 use log::trace;
@@ -8,7 +9,7 @@ use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::proto::codec::{FrontendMessage, PostgresCodec};
+use crate::proto::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
 use crate::proto::copy_in::CopyInReceiver;
 use crate::proto::idle::IdleGuard;
 use crate::{AsyncMessage, Notification};
@@ -24,12 +25,12 @@ pub enum RequestMessages {
 
 pub struct Request {
     pub messages: RequestMessages,
-    pub sender: mpsc::Sender<Message>,
+    pub sender: mpsc::Sender<BackendMessages>,
     pub idle: Option<IdleGuard>,
 }
 
 struct Response {
-    sender: mpsc::Sender<Message>,
+    sender: mpsc::Sender<BackendMessages>,
     _idle: Option<IdleGuard>,
 }
 
@@ -45,7 +46,7 @@ pub struct Connection<S> {
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
     pending_request: Option<RequestMessages>,
-    pending_response: Option<Message>,
+    pending_response: Option<BackendMessage>,
     responses: VecDeque<Response>,
     state: State,
 }
@@ -74,7 +75,7 @@ where
         self.parameters.get(name).map(|s| &**s)
     }
 
-    fn poll_response(&mut self) -> Poll<Option<Message>, io::Error> {
+    fn poll_response(&mut self) -> Poll<Option<BackendMessage>, io::Error> {
         if let Some(message) = self.pending_response.take() {
             trace!("retrying pending response");
             return Ok(Async::Ready(Some(message)));
@@ -101,12 +102,12 @@ where
                 }
             };
 
-            let message = match message {
-                Message::NoticeResponse(body) => {
+            let (mut messages, request_complete) = match message {
+                BackendMessage::Async(Message::NoticeResponse(body)) => {
                     let error = DbError::parse(&mut body.fields()).map_err(Error::parse)?;
                     return Ok(Some(AsyncMessage::Notice(error)));
                 }
-                Message::NotificationResponse(body) => {
+                BackendMessage::Async(Message::NotificationResponse(body)) => {
                     let notification = Notification {
                         process_id: body.process_id(),
                         channel: body.channel().map_err(Error::parse)?.to_string(),
@@ -114,30 +115,29 @@ where
                     };
                     return Ok(Some(AsyncMessage::Notification(notification)));
                 }
-                Message::ParameterStatus(body) => {
+                BackendMessage::Async(Message::ParameterStatus(body)) => {
                     self.parameters.insert(
                         body.name().map_err(Error::parse)?.to_string(),
                         body.value().map_err(Error::parse)?.to_string(),
                     );
                     continue;
                 }
-                m => m,
+                BackendMessage::Async(_) => unreachable!(),
+                BackendMessage::Normal {
+                    messages,
+                    request_complete,
+                } => (messages, request_complete),
             };
 
             let mut response = match self.responses.pop_front() {
                 Some(response) => response,
-                None => match message {
-                    Message::ErrorResponse(error) => return Err(Error::db(error)),
+                None => match messages.next().map_err(Error::parse)? {
+                    Some(Message::ErrorResponse(error)) => return Err(Error::db(error)),
                     _ => return Err(Error::unexpected_message()),
                 },
             };
 
-            let request_complete = match message {
-                Message::ReadyForQuery(_) => true,
-                _ => false,
-            };
-
-            match response.sender.start_send(message) {
+            match response.sender.start_send(messages) {
                 // if the receiver's hung up we still need to page through the rest of the messages
                 // designated to it
                 Ok(AsyncSink::Ready) | Err(_) => {
@@ -145,9 +145,12 @@ where
                         self.responses.push_front(response);
                     }
                 }
-                Ok(AsyncSink::NotReady(message)) => {
+                Ok(AsyncSink::NotReady(messages)) => {
                     self.responses.push_front(response);
-                    self.pending_response = Some(message);
+                    self.pending_response = Some(BackendMessage::Normal {
+                        messages,
+                        request_complete,
+                    });
                     trace!("poll_read: waiting on sender");
                     return Ok(None);
                 }
@@ -161,8 +164,8 @@ where
             return Ok(Async::Ready(Some(message)));
         }
 
-        match try_ready_receive!(self.receiver.poll()) {
-            Some(request) => {
+        match self.receiver.poll() {
+            Ok(Async::Ready(Some(request))) => {
                 trace!("polled new request");
                 self.responses.push_back(Response {
                     sender: request.sender,
@@ -170,7 +173,9 @@ where
                 });
                 Ok(Async::Ready(Some(request.messages)))
             }
-            None => Ok(Async::Ready(None)),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(()) => unreachable!("mpsc::Receiver doesn't error"),
         }
     }
 

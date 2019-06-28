@@ -3,7 +3,6 @@ use bytes::IntoBuf;
 use futures::sync::mpsc;
 use futures::{AsyncSink, Poll, Sink, Stream};
 use postgres_protocol;
-use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::HashMap;
 use std::error::Error as StdError;
@@ -20,6 +19,7 @@ use crate::proto::idle::{IdleGuard, IdleState};
 use crate::proto::portal::Portal;
 use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
+use crate::proto::responses::{self, Responses};
 use crate::proto::simple_query::SimpleQueryStream;
 use crate::proto::statement::Statement;
 #[cfg(feature = "runtime")]
@@ -130,9 +130,9 @@ impl Client {
         self.0.state.lock().typeinfo_composite_query = Some(statement.clone());
     }
 
-    pub fn send(&self, request: PendingRequest) -> Result<mpsc::Receiver<Message>, Error> {
+    pub fn send(&self, request: PendingRequest) -> Result<Responses, Error> {
         let (messages, idle) = request.0?;
-        let (sender, receiver) = mpsc::channel(1);
+        let (sender, receiver) = responses::channel();
         self.0
             .sender
             .unbounded_send(Request {

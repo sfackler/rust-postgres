@@ -7,3 +7,6 @@ members = [
     "tokio-postgres-native-tls",
     "tokio-postgres-openssl",
 ]
+
+[profile.release]
+debug = 2

@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use memchr::memchr;
@@ -10,6 +10,66 @@ use std::ops::Range;
 use std::str;
 
 use crate::Oid;
+
+pub const PARSE_COMPLETE_TAG: u8 = b'1';
+pub const BIND_COMPLETE_TAG: u8 = b'2';
+pub const CLOSE_COMPLETE_TAG: u8 = b'3';
+pub const NOTIFICATION_RESPONSE_TAG: u8 = b'A';
+pub const COPY_DONE_TAG: u8 = b'c';
+pub const COMMAND_COMPLETE_TAG: u8 = b'C';
+pub const COPY_DATA_TAG: u8 = b'd';
+pub const DATA_ROW_TAG: u8 = b'D';
+pub const ERROR_RESPONSE_TAG: u8 = b'E';
+pub const COPY_IN_RESPONSE_TAG: u8 = b'G';
+pub const COPY_OUT_RESPONSE_TAG: u8 = b'H';
+pub const EMPTY_QUERY_RESPONSE_TAG: u8 = b'I';
+pub const BACKEND_KEY_DATA_TAG: u8 = b'K';
+pub const NO_DATA_TAG: u8 = b'n';
+pub const NOTICE_RESPONSE_TAG: u8 = b'N';
+pub const AUTHENTICATION_TAG: u8 = b'R';
+pub const PORTAL_SUSPENDED_TAG: u8 = b's';
+pub const PARAMETER_STATUS_TAG: u8 = b'S';
+pub const PARAMETER_DESCRIPTION_TAG: u8 = b't';
+pub const ROW_DESCRIPTION_TAG: u8 = b'T';
+pub const READY_FOR_QUERY_TAG: u8 = b'Z';
+
+#[derive(Debug, Copy, Clone)]
+pub struct Header {
+    tag: u8,
+    len: i32,
+}
+
+#[allow(clippy::len_without_is_empty)]
+impl Header {
+    #[inline]
+    pub fn parse(buf: &[u8]) -> io::Result<Option<Header>> {
+        if buf.len() < 5 {
+            return Ok(None);
+        }
+
+        let tag = buf[0];
+        let len = BigEndian::read_i32(&buf[1..]);
+
+        if len < 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid message length",
+            ));
+        }
+
+        Ok(Some(Header { tag, len }))
+    }
+
+    #[inline]
+    pub fn tag(self) -> u8 {
+        self.tag
+    }
+
+    #[inline]
+    pub fn len(self) -> i32 {
+        self.len
+    }
+}
 
 /// An enum representing Postgres backend messages.
 pub enum Message {
@@ -80,10 +140,10 @@ impl Message {
         };
 
         let message = match tag {
-            b'1' => Message::ParseComplete,
-            b'2' => Message::BindComplete,
-            b'3' => Message::CloseComplete,
-            b'A' => {
+            PARSE_COMPLETE_TAG => Message::ParseComplete,
+            BIND_COMPLETE_TAG => Message::BindComplete,
+            CLOSE_COMPLETE_TAG => Message::CloseComplete,
+            NOTIFICATION_RESPONSE_TAG => {
                 let process_id = buf.read_i32::<BigEndian>()?;
                 let channel = buf.read_cstr()?;
                 let message = buf.read_cstr()?;
@@ -93,25 +153,25 @@ impl Message {
                     message,
                 })
             }
-            b'c' => Message::CopyDone,
-            b'C' => {
+            COPY_DONE_TAG => Message::CopyDone,
+            COMMAND_COMPLETE_TAG => {
                 let tag = buf.read_cstr()?;
                 Message::CommandComplete(CommandCompleteBody { tag })
             }
-            b'd' => {
+            COPY_DATA_TAG => {
                 let storage = buf.read_all();
                 Message::CopyData(CopyDataBody { storage })
             }
-            b'D' => {
+            DATA_ROW_TAG => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::DataRow(DataRowBody { storage, len })
             }
-            b'E' => {
+            ERROR_RESPONSE_TAG => {
                 let storage = buf.read_all();
                 Message::ErrorResponse(ErrorResponseBody { storage })
             }
-            b'G' => {
+            COPY_IN_RESPONSE_TAG => {
                 let format = buf.read_u8()?;
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
@@ -121,7 +181,7 @@ impl Message {
                     storage,
                 })
             }
-            b'H' => {
+            COPY_OUT_RESPONSE_TAG => {
                 let format = buf.read_u8()?;
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
@@ -131,8 +191,8 @@ impl Message {
                     storage,
                 })
             }
-            b'I' => Message::EmptyQueryResponse,
-            b'K' => {
+            EMPTY_QUERY_RESPONSE_TAG => Message::EmptyQueryResponse,
+            BACKEND_KEY_DATA_TAG => {
                 let process_id = buf.read_i32::<BigEndian>()?;
                 let secret_key = buf.read_i32::<BigEndian>()?;
                 Message::BackendKeyData(BackendKeyDataBody {
@@ -140,12 +200,12 @@ impl Message {
                     secret_key,
                 })
             }
-            b'n' => Message::NoData,
-            b'N' => {
+            NO_DATA_TAG => Message::NoData,
+            NOTICE_RESPONSE_TAG => {
                 let storage = buf.read_all();
                 Message::NoticeResponse(NoticeResponseBody { storage })
             }
-            b'R' => match buf.read_i32::<BigEndian>()? {
+            AUTHENTICATION_TAG => match buf.read_i32::<BigEndian>()? {
                 0 => Message::AuthenticationOk,
                 2 => Message::AuthenticationKerberosV5,
                 3 => Message::AuthenticationCleartextPassword,
@@ -180,23 +240,23 @@ impl Message {
                     ));
                 }
             },
-            b's' => Message::PortalSuspended,
-            b'S' => {
+            PORTAL_SUSPENDED_TAG => Message::PortalSuspended,
+            PARAMETER_STATUS_TAG => {
                 let name = buf.read_cstr()?;
                 let value = buf.read_cstr()?;
                 Message::ParameterStatus(ParameterStatusBody { name, value })
             }
-            b't' => {
+            PARAMETER_DESCRIPTION_TAG => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::ParameterDescription(ParameterDescriptionBody { storage, len })
             }
-            b'T' => {
+            ROW_DESCRIPTION_TAG => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::RowDescription(RowDescriptionBody { storage, len })
             }
-            b'Z' => {
+            READY_FOR_QUERY_TAG => {
                 let status = buf.read_u8()?;
                 Message::ReadyForQuery(ReadyForQueryBody { status })
             }
