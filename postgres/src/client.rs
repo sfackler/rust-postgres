@@ -148,6 +148,7 @@ impl Client {
     /// }
     /// # Ok(())
     /// # }
+    /// ```
     pub fn query_iter<T>(
         &mut self,
         query: &T,
@@ -213,6 +214,7 @@ impl Client {
     /// }
     /// # Ok(())
     /// # }
+    /// ```
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.0.prepare_typed(query, types).wait()
     }

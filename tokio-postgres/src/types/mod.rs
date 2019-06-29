@@ -297,8 +297,7 @@ pub trait FromSql<'a>: Sized {
     /// The caller of this method is responsible for ensuring that this type
     /// is compatible with the Postgres `Type`.
     ///
-    /// The default implementation returns
-    /// `Err(Box::new(WasNull))`.
+    /// The default implementation returns `Err(Box::new(WasNull))`.
     #[allow(unused_variables)]
     fn from_sql_null(ty: &Type) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Err(Box::new(WasNull))
@@ -543,7 +542,7 @@ pub enum IsNull {
 /// # Arrays
 ///
 /// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
-/// and corresponds to one-dimentional Postgres arrays with an index offset of 1.
+/// and corresponds to one-dimensional Postgres arrays with an index offset of 1.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
