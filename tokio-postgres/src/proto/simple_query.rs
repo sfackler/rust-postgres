@@ -1,11 +1,11 @@
 use fallible_iterator::FallibleIterator;
-use futures::sync::mpsc;
 use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 use std::sync::Arc;
 
 use crate::proto::client::{Client, PendingRequest};
+use crate::proto::responses::Responses;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 
 pub enum State {
@@ -15,7 +15,7 @@ pub enum State {
     },
     ReadResponse {
         columns: Option<Arc<[String]>>,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     Done,
 }
@@ -46,7 +46,7 @@ impl Stream for SimpleQueryStream {
                             self.0 = State::ReadResponse { columns, receiver };
                             return Ok(Async::NotReady);
                         }
-                        Err(()) => unreachable!("mpsc receiver can't panic"),
+                        Err(e) => return Err(e),
                     };
 
                     match message {

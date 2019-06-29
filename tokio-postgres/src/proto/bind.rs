@@ -1,10 +1,10 @@
-use futures::sync::mpsc;
-use futures::{Poll, Stream};
+use futures::{try_ready, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
 use crate::proto::client::{Client, PendingRequest};
 use crate::proto::portal::Portal;
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::Error;
 
@@ -19,7 +19,7 @@ pub enum Bind {
     },
     #[state_machine_future(transitions(Finished))]
     ReadBindComplete {
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
         client: Client,
         name: String,
         statement: Statement,
@@ -46,7 +46,7 @@ impl PollBind for Bind {
     fn poll_read_bind_complete<'a>(
         state: &'a mut RentToOwn<'a, ReadBindComplete>,
     ) -> Poll<AfterReadBindComplete, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
+        let message = try_ready!(state.receiver.poll());
         let state = state.take();
 
         match message {

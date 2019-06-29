@@ -1,10 +1,10 @@
 use bytes::Bytes;
-use futures::sync::mpsc;
 use futures::{Async, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use std::mem;
 
 use crate::proto::client::{Client, PendingRequest};
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::Error;
 
@@ -15,10 +15,10 @@ enum State {
         statement: Statement,
     },
     ReadingCopyOutResponse {
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     ReadingCopyData {
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
     },
     Done,
 }
@@ -49,7 +49,7 @@ impl Stream for CopyOutStream {
                             self.0 = State::ReadingCopyOutResponse { receiver };
                             break Ok(Async::NotReady);
                         }
-                        Err(()) => unreachable!("mpsc::Receiver doesn't return errors"),
+                        Err(e) => return Err(e),
                     };
 
                     match message {
@@ -71,7 +71,7 @@ impl Stream for CopyOutStream {
                             self.0 = State::ReadingCopyData { receiver };
                             break Ok(Async::NotReady);
                         }
-                        Err(()) => unreachable!("mpsc::Reciever doesn't return errors"),
+                        Err(e) => return Err(e),
                     };
 
                     match message {

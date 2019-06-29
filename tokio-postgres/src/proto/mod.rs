@@ -1,13 +1,3 @@
-macro_rules! try_ready_receive {
-    ($e:expr) => {
-        match $e {
-            Ok(::futures::Async::Ready(v)) => v,
-            Ok(::futures::Async::NotReady) => return Ok(::futures::Async::NotReady),
-            Err(()) => unreachable!("mpsc::Receiver doesn't return errors"),
-        }
-    };
-}
-
 macro_rules! try_ready_closed {
     ($e:expr) => {
         match $e {
@@ -40,6 +30,7 @@ mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
+mod responses;
 mod simple_query;
 mod statement;
 mod tls;

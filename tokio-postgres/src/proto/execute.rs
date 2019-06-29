@@ -1,9 +1,9 @@
-use futures::sync::mpsc;
-use futures::{Poll, Stream};
+use futures::{try_ready, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 
 use crate::proto::client::{Client, PendingRequest};
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::Error;
 
@@ -16,7 +16,7 @@ pub enum Execute {
         statement: Statement,
     },
     #[state_machine_future(transitions(Finished))]
-    ReadResponse { receiver: mpsc::Receiver<Message> },
+    ReadResponse { receiver: Responses },
     #[state_machine_future(ready)]
     Finished(u64),
     #[state_machine_future(error)]
@@ -36,7 +36,7 @@ impl PollExecute for Execute {
         state: &'a mut RentToOwn<'a, ReadResponse>,
     ) -> Poll<AfterReadResponse, Error> {
         loop {
-            let message = try_ready_receive!(state.receiver.poll());
+            let message = try_ready!(state.receiver.poll());
 
             match message {
                 Some(Message::BindComplete) => {}

@@ -1,6 +1,6 @@
 use fallible_iterator::FallibleIterator;
-use futures::sink;
 use futures::sync::mpsc;
+use futures::{sink, Async, AsyncSink};
 use futures::{try_ready, Future, Poll, Sink, Stream};
 use postgres_protocol::authentication;
 use postgres_protocol::authentication::sasl::{self, ScramSha256};
@@ -8,12 +8,63 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
 use std::collections::HashMap;
+use std::io;
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use crate::proto::codec::{BackendMessage, BackendMessages};
 use crate::proto::{Client, Connection, FrontendMessage, MaybeTlsStream, PostgresCodec, TlsFuture};
 use crate::tls::ChannelBinding;
 use crate::{Config, Error, TlsConnect};
+
+pub struct StartupStream<S, T> {
+    inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
+    buf: BackendMessages,
+}
+
+impl<S, T> Sink for StartupStream<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite,
+{
+    type SinkItem = FrontendMessage;
+    type SinkError = io::Error;
+
+    fn start_send(&mut self, item: FrontendMessage) -> io::Result<AsyncSink<FrontendMessage>> {
+        self.inner.start_send(item)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), io::Error> {
+        self.inner.poll_complete()
+    }
+
+    fn close(&mut self) -> Poll<(), io::Error> {
+        self.inner.close()
+    }
+}
+
+impl<S, T> Stream for StartupStream<S, T>
+where
+    S: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite,
+{
+    type Item = Message;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Message>, io::Error> {
+        loop {
+            if let Some(message) = self.buf.next()? {
+                return Ok(Async::Ready(Some(message)));
+            }
+
+            match try_ready!(self.inner.poll()) {
+                Some(BackendMessage::Async(message)) => return Ok(Async::Ready(Some(message))),
+                Some(BackendMessage::Normal { messages, .. }) => self.buf = messages,
+                None => return Ok(Async::Ready(None)),
+            }
+        }
+    }
+}
 
 #[derive(StateMachineFuture)]
 pub enum ConnectRaw<S, T>
@@ -29,47 +80,47 @@ where
     },
     #[state_machine_future(transitions(ReadingAuth))]
     SendingStartup {
-        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
+        future: sink::Send<StartupStream<S, T::Stream>>,
         config: Config,
         idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingInfo, SendingPassword, SendingSasl))]
     ReadingAuth {
-        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
+        stream: StartupStream<S, T::Stream>,
         config: Config,
         idx: Option<usize>,
         channel_binding: ChannelBinding,
     },
     #[state_machine_future(transitions(ReadingAuthCompletion))]
     SendingPassword {
-        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
+        future: sink::Send<StartupStream<S, T::Stream>>,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingSasl))]
     SendingSasl {
-        future: sink::Send<Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>>,
+        future: sink::Send<StartupStream<S, T::Stream>>,
         scram: ScramSha256,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(SendingSasl, ReadingAuthCompletion))]
     ReadingSasl {
-        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
+        stream: StartupStream<S, T::Stream>,
         scram: ScramSha256,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(ReadingInfo))]
     ReadingAuthCompletion {
-        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
+        stream: StartupStream<S, T::Stream>,
         config: Config,
         idx: Option<usize>,
     },
     #[state_machine_future(transitions(Finished))]
     ReadingInfo {
-        stream: Framed<MaybeTlsStream<S, T::Stream>, PostgresCodec>,
+        stream: StartupStream<S, T::Stream>,
         process_id: i32,
         secret_key: i32,
         parameters: HashMap<String, String>,
@@ -109,6 +160,10 @@ where
         frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
 
         let stream = Framed::new(stream, PostgresCodec);
+        let stream = StartupStream {
+            inner: stream,
+            buf: BackendMessages::empty(),
+        };
 
         transition!(SendingStartup {
             future: stream.send(FrontendMessage::Raw(buf)),
@@ -363,7 +418,8 @@ where
                         state.config,
                         state.idx,
                     );
-                    let connection = Connection::new(state.stream, state.parameters, receiver);
+                    let connection =
+                        Connection::new(state.stream.inner, state.parameters, receiver);
                     transition!(Finished((client, connection)))
                 }
                 Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),

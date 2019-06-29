@@ -1,7 +1,6 @@
 #![allow(clippy::large_enum_variant)]
 
 use fallible_iterator::FallibleIterator;
-use futures::sync::mpsc;
 use futures::{try_ready, Future, Poll, Stream};
 use postgres_protocol::message::backend::Message;
 use state_machine_future::{transition, RentToOwn, StateMachineFuture};
@@ -9,6 +8,7 @@ use std::mem;
 use std::vec;
 
 use crate::proto::client::{Client, PendingRequest};
+use crate::proto::responses::Responses;
 use crate::proto::statement::Statement;
 use crate::proto::typeinfo::TypeinfoFuture;
 use crate::types::{Oid, Type};
@@ -25,19 +25,19 @@ pub enum Prepare {
     #[state_machine_future(transitions(ReadParameterDescription))]
     ReadParseComplete {
         client: Client,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
         name: String,
     },
     #[state_machine_future(transitions(ReadRowDescription))]
     ReadParameterDescription {
         client: Client,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
         name: String,
     },
     #[state_machine_future(transitions(GetParameterTypes, GetColumnTypes, Finished))]
     ReadRowDescription {
         client: Client,
-        receiver: mpsc::Receiver<Message>,
+        receiver: Responses,
         name: String,
         parameters: Vec<Oid>,
     },
@@ -79,7 +79,7 @@ impl PollPrepare for Prepare {
     fn poll_read_parse_complete<'a>(
         state: &'a mut RentToOwn<'a, ReadParseComplete>,
     ) -> Poll<AfterReadParseComplete, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
+        let message = try_ready!(state.receiver.poll());
         let state = state.take();
 
         match message {
@@ -97,7 +97,7 @@ impl PollPrepare for Prepare {
     fn poll_read_parameter_description<'a>(
         state: &'a mut RentToOwn<'a, ReadParameterDescription>,
     ) -> Poll<AfterReadParameterDescription, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
+        let message = try_ready!(state.receiver.poll());
         let state = state.take();
 
         match message {
@@ -115,7 +115,7 @@ impl PollPrepare for Prepare {
     fn poll_read_row_description<'a>(
         state: &'a mut RentToOwn<'a, ReadRowDescription>,
     ) -> Poll<AfterReadRowDescription, Error> {
-        let message = try_ready_receive!(state.receiver.poll());
+        let message = try_ready!(state.receiver.poll());
         let state = state.take();
 
         let columns = match message {
