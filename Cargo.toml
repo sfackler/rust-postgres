@@ -2,10 +2,10 @@
 members = [
     "codegen",
     "postgres",
+    "postgres-native-tls",
+    "postgres-openssl",
     "postgres-protocol",
     "tokio-postgres",
-    "tokio-postgres-native-tls",
-    "tokio-postgres-openssl",
 ]
 
 [profile.release]

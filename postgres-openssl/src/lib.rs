@@ -4,7 +4,7 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
-//! use tokio_postgres_openssl::MakeTlsConnector;
+//! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<std::error::Error>> {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;
@@ -23,7 +23,7 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
-//! use tokio_postgres_openssl::MakeTlsConnector;
+//! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<std::error::Error>> {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;

@@ -4,7 +4,7 @@
 //!
 //! ```no_run
 //! use native_tls::{Certificate, TlsConnector};
-//! use tokio_postgres_native_tls::MakeTlsConnector;
+//! use postgres_native_tls::MakeTlsConnector;
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<std::error::Error>> {
@@ -27,7 +27,7 @@
 //!
 //! ```no_run
 //! use native_tls::{Certificate, TlsConnector};
-//! use tokio_postgres_native_tls::MakeTlsConnector;
+//! use postgres_native_tls::MakeTlsConnector;
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<std::error::Error>> {

@@ -1,10 +1,10 @@
 [package]
-name = "tokio-postgres-openssl"
+name = "postgres-native-tls"
 version = "0.1.0-rc.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
-description = "TLS support for tokio-postgres via openssl"
+description = "TLS support for tokio-postgres via native-tls"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 
@@ -17,9 +17,9 @@ runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
 futures = "0.1"
-openssl = "0.10"
+native-tls = "0.2"
 tokio-io = "0.1"
-tokio-openssl = "0.3"
+tokio-tls = "0.2.1"
 tokio-postgres = { version = "0.4.0-rc.1", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
