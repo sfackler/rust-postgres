@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## v0.1.0-rc.1 - 2019-03-06
+## v0.2.0-rc.1 - 2019-06-29
 
-* Initial release.
-
-[Unreleased]: https://github.com/sfackler/rust-postgres/compare/tokio-postgres-native-tls-v0.1.0-rc.1...master
+* Updated to tokio-postgres v0.4.0-rc.
