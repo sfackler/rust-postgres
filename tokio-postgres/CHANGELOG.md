@@ -1,8 +1,6 @@
 # Change Log
 
-## [Unreleased]
-
-## [v0.4.0-rc.3] - 2019-06-29
+## v0.4.0-rc.3 - 2019-06-29
 
 ### Fixed
 
@@ -12,13 +10,13 @@
 
 * The items of the stream passed to `copy_in` must be `'static`.
 
-## [v0.4.0-rc.2] - 2019-03-05
+## v0.4.0-rc.2 - 2019-03-05
 
 ### Fixed
 
 * Fixed Cargo features to actually enable the functionality they claim to.
 
-## [v0.4.0-rc.1] - 2019-03-05
+## v0.4.0-rc.1 - 2019-03-05
 
 ### Changed
 
@@ -53,8 +51,4 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-postgres/compare/tokio-postgres-v0.4.0-rc.3...master
-[v0.4.0-rc.3]: https://github.com/sfackler/rust-postgres/compare/tokio-postgres-v0.4.0-rc.2...tokio-postgres-v0.4.0-rc.3
-[v0.4.0-rc.2]: https://github.com/sfackler/rust-postgres/compare/tokio-postgres-v0.4.0-rc.1...tokio-postgres-v0.4.0-rc.2
-[v0.4.0-rc.1]: https://github.com/sfackler/rust-postgres/compare/tokio-postgres-v0.3.0...tokio-postgres-v0.4.0-rc.1
 [release tags]: https://github.com/sfackler/rust-postgres/releases

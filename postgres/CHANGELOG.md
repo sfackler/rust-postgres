@@ -1,8 +1,12 @@
 # Change Log
 
-## [Unreleased]
+## v0.16.0-rc.2 - 2019-06-29
 
-## [v0.16.0-rc.1] - 2019-04-06
+### Fixed
+
+* Documentation fixes
+
+## v0.16.0-rc.1 - 2019-04-06
 
 ### Changed
 
@@ -93,6 +97,4 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-postgres/compare/postgres-v0.16.0-rc.1...master
-[v0.16.0-rc.1]: https://github.com/sfackler/rust-postgres/compare/postgres-v0.15.2...postgres-v0.16.0-rc.1
 [release tags]: https://github.com/sfackler/rust-postgres/releases

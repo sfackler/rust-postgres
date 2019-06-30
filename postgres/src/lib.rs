@@ -50,9 +50,9 @@
 //!
 //! TLS support is implemented via external libraries. `Client::connect` and `Config::connect` take a TLS implementation
 //! as an argument. The `NoTls` type in this crate can be used when TLS is not required. Otherwise, the
-//! `tokio-postgres-openssl` and `tokio-postgres-native-tls` crates provide implementations backed by the `openssl` and
-//! `native-tls` crates, respectively.
-#![doc(html_root_url = "https://docs.rs/postgres/0.16.0-rc.1")]
+//! `postgres-openssl` and `postgres-native-tls` crates provide implementations backed by the `openssl` and `native-tls`
+//! crates, respectively.
+#![doc(html_root_url = "https://docs.rs/postgres/0.16.0-rc.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
 #[cfg(feature = "runtime")]
