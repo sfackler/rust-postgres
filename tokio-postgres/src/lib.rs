@@ -108,7 +108,7 @@
 //! as an argument. The `NoTls` type in this crate can be used when TLS is not required. Otherwise, the
 //! `postgres-openssl` and `postgres-native-tls` crates provide implementations backed by the `openssl` and `native-tls`
 //! crates, respectively.
-#![doc(html_root_url = "https://docs.rs/tokio-postgres/0.4.0-rc.1")]
+#![doc(html_root_url = "https://docs.rs/tokio-postgres/0.4.0-rc.3")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use bytes::IntoBuf;
