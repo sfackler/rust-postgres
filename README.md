@@ -188,7 +188,7 @@ types. The driver currently supports the following conversions:
         </tr>
         <tr>
             <td>
-                <a href="https://github.com/rust-lang-nursery/rustc-serialize">serialize::json::Json</a>
+                postgres::types::Json
                 and
                 <a href="https://github.com/serde-rs/json">serde_json::Value</a>
                 (<a href="#optional-features">optional</a>)
@@ -313,10 +313,10 @@ implementations for `uuid`'s `Uuid` type. Requires `uuid` version 0.5.
 ### JSON/JSONB types
 
 [JSON and JSONB](http://www.postgresql.org/docs/9.4/static/datatype-json.html)
-support is provided optionally by the `with-rustc-serialize` feature, which adds
-`ToSql` and `FromSql` implementations for `rustc-serialize`'s `Json` type, and
-the `with-serde_json` feature, which adds implementations for `serde_json`'s
-`Value` type. Requires `serde_json` version 1.0, `rustc-serialize` version 0.3.
+support is provided optionally by the `with-serde_json-1` feature, which adds
+`ToSql` and `FromSql` implementations for `serde_json`'s `Value` type,
+as well as adding a generic `Json<T>` type with those same implementations.
+Requires `serde_json` version 1.0.
 
 ### TIMESTAMP/TIMESTAMPTZ/DATE/TIME types
 
