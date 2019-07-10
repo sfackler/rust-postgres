@@ -11,7 +11,7 @@ use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
 use crate::proto::statement::Statement;
 use crate::proto::typeinfo::TypeinfoFuture;
-use crate::types::{Field, Oid};
+use crate::types::{Field, Oid, ToSql};
 
 const TYPEINFO_COMPOSITE_QUERY: &str = "
 SELECT attname, atttypid
@@ -59,7 +59,10 @@ impl PollTypeinfoComposite for TypeinfoComposite {
 
         match state.client.typeinfo_composite_query() {
             Some(statement) => transition!(QueryingCompositeFields {
-                future: state.client.query(&statement, &[&state.oid]).collect(),
+                future: state
+                    .client
+                    .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                    .collect(),
                 client: state.client,
             }),
             None => transition!(PreparingTypeinfoComposite {
@@ -82,7 +85,10 @@ impl PollTypeinfoComposite for TypeinfoComposite {
 
         state.client.set_typeinfo_composite_query(&statement);
         transition!(QueryingCompositeFields {
-            future: state.client.query(&statement, &[&state.oid]).collect(),
+            future: state
+                .client
+                .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                .collect(),
             client: state.client,
         })
     }

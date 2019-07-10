@@ -197,6 +197,17 @@ impl Client {
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn execute(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Execute {
+        self.execute_iter(statement, params.iter().cloned())
+    }
+
+    /// Like [`execute`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`execute`]: #method.execute
+    pub fn execute_iter<'a, I>(&mut self, statement: &Statement, params: I) -> impls::Execute
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         impls::Execute(self.0.execute(&statement.0, params))
     }
 
@@ -206,6 +217,17 @@ impl Client {
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn query(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Query {
+        self.query_iter(statement, params.iter().cloned())
+    }
+
+    /// Like [`query`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`query`]: #method.query
+    pub fn query_iter<'a, I>(&mut self, statement: &Statement, params: I) -> impls::Query
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         impls::Query(self.0.query(&statement.0, params))
     }
 
@@ -214,10 +236,22 @@ impl Client {
     /// Portals only last for the duration of the transaction in which they are created - in particular, a portal
     /// created outside of a transaction is immediately destroyed. Portals can only be used on the connection that
     /// created them.
+    ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn bind(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::Bind {
+        self.bind_iter(statement, params.iter().cloned())
+    }
+
+    /// Like [`bind`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`bind`]: #method.bind
+    pub fn bind_iter<'a, I>(&mut self, statement: &Statement, params: I) -> impls::Bind
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         impls::Bind(self.0.bind(&statement.0, next_portal(), params))
     }
 
@@ -233,6 +267,10 @@ impl Client {
     ///
     /// The data in the provided stream is passed along to the server verbatim; it is the caller's responsibility to
     /// ensure it uses the proper format.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     pub fn copy_in<S>(
         &mut self,
         statement: &Statement,
@@ -246,11 +284,47 @@ impl Client {
         // FIXME error type?
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
     {
+        self.copy_in_iter(statement, params.iter().cloned(), stream)
+    }
+
+    /// Like [`copy_in`], except that it takes an iterator of parameters rather than a slice.
+    ///
+    /// [`copy_in`]: #method.copy_in
+    pub fn copy_in_iter<'a, I, S>(
+        &mut self,
+        statement: &Statement,
+        params: I,
+        stream: S,
+    ) -> impls::CopyIn<S>
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+        S: Stream,
+        S::Item: IntoBuf,
+        <S::Item as IntoBuf>::Buf: 'static + Send,
+        // FIXME error type?
+        S::Error: Into<Box<dyn StdError + Sync + Send>>,
+    {
         impls::CopyIn(self.0.copy_in(&statement.0, params, stream))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     pub fn copy_out(&mut self, statement: &Statement, params: &[&dyn ToSql]) -> impls::CopyOut {
+        self.copy_out_iter(statement, params.iter().cloned())
+    }
+
+    /// Like [`copy_out`], except that it takes an iterator of parameters rather than a slice.
+    ///
+    /// [`copy_out`]: #method.copy_out
+    pub fn copy_out_iter<'a, I>(&mut self, statement: &Statement, params: I) -> impls::CopyOut
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         impls::CopyOut(self.0.copy_out(&statement.0, params))
     }
 

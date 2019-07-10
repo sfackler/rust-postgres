@@ -8,7 +8,7 @@ use crate::proto::client::Client;
 use crate::proto::prepare::PrepareFuture;
 use crate::proto::query::QueryStream;
 use crate::proto::statement::Statement;
-use crate::types::Oid;
+use crate::types::{Oid, ToSql};
 
 const TYPEINFO_ENUM_QUERY: &str = "
 SELECT enumlabel
@@ -58,7 +58,10 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
         match state.client.typeinfo_enum_query() {
             Some(statement) => transition!(QueryingEnumVariants {
-                future: state.client.query(&statement, &[&state.oid]).collect(),
+                future: state
+                    .client
+                    .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                    .collect(),
                 client: state.client,
             }),
             None => transition!(PreparingTypeinfoEnum {
@@ -98,7 +101,10 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
         state.client.set_typeinfo_enum_query(&statement);
         transition!(QueryingEnumVariants {
-            future: state.client.query(&statement, &[&state.oid]).collect(),
+            future: state
+                .client
+                .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                .collect(),
             client: state.client,
         })
     }
@@ -111,7 +117,10 @@ impl PollTypeinfoEnum for TypeinfoEnum {
 
         state.client.set_typeinfo_enum_query(&statement);
         transition!(QueryingEnumVariants {
-            future: state.client.query(&statement, &[&state.oid]).collect(),
+            future: state
+                .client
+                .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                .collect(),
             client: state.client,
         })
     }

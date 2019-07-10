@@ -165,7 +165,11 @@ impl Client {
         PrepareFuture::new(self.clone(), pending, name)
     }
 
-    pub fn execute(&self, statement: &Statement, params: &[&dyn ToSql]) -> ExecuteFuture {
+    pub fn execute<'a, I>(&self, statement: &Statement, params: I) -> ExecuteFuture
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -173,7 +177,11 @@ impl Client {
         ExecuteFuture::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn query(&self, statement: &Statement, params: &[&dyn ToSql]) -> QueryStream<Statement> {
+    pub fn query<'a, I>(&self, statement: &Statement, params: I) -> QueryStream<Statement>
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -181,7 +189,11 @@ impl Client {
         QueryStream::new(self.clone(), pending, statement.clone())
     }
 
-    pub fn bind(&self, statement: &Statement, name: String, params: &[&dyn ToSql]) -> BindFuture {
+    pub fn bind<'a, I>(&self, statement: &Statement, name: String, params: I) -> BindFuture
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let mut buf = self.bind_message(statement, &name, params);
         if let Ok(ref mut buf) = buf {
             frontend::sync(buf);
@@ -204,17 +216,14 @@ impl Client {
         QueryStream::new(self.clone(), pending, portal.clone())
     }
 
-    pub fn copy_in<S>(
-        &self,
-        statement: &Statement,
-        params: &[&dyn ToSql],
-        stream: S,
-    ) -> CopyInFuture<S>
+    pub fn copy_in<'a, S, I>(&self, statement: &Statement, params: I, stream: S) -> CopyInFuture<S>
     where
         S: Stream,
         S::Item: IntoBuf,
         <S::Item as IntoBuf>::Buf: 'static + Send,
         S::Error: Into<Box<dyn StdError + Sync + Send>>,
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
     {
         let (mut sender, receiver) = mpsc::channel(1);
         let pending = PendingRequest(self.excecute_message(statement, params).map(|data| {
@@ -233,7 +242,11 @@ impl Client {
         CopyInFuture::new(self.clone(), pending, statement.clone(), stream, sender)
     }
 
-    pub fn copy_out(&self, statement: &Statement, params: &[&dyn ToSql]) -> CopyOutStream {
+    pub fn copy_out<'a, I>(&self, statement: &Statement, params: I) -> CopyOutStream
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let pending = PendingRequest(
             self.excecute_message(statement, params)
                 .map(|m| (RequestMessages::Single(m), self.0.idle.guard())),
@@ -289,12 +302,18 @@ impl Client {
         });
     }
 
-    fn bind_message(
+    fn bind_message<'a, I>(
         &self,
         statement: &Statement,
         name: &str,
-        params: &[&dyn ToSql],
-    ) -> Result<Vec<u8>, Error> {
+        params: I,
+    ) -> Result<Vec<u8>, Error>
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let params = params.into_iter();
+
         assert!(
             statement.params().len() == params.len(),
             "expected {} parameters but got {}",
@@ -308,7 +327,7 @@ impl Client {
             name,
             statement.name(),
             Some(1),
-            params.iter().zip(statement.params()).enumerate(),
+            params.zip(statement.params()).enumerate(),
             |(idx, (param, ty)), buf| match param.to_sql_checked(ty, buf) {
                 Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
                 Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
@@ -327,11 +346,15 @@ impl Client {
         }
     }
 
-    fn excecute_message(
+    fn excecute_message<'a, I>(
         &self,
         statement: &Statement,
-        params: &[&dyn ToSql],
-    ) -> Result<FrontendMessage, Error> {
+        params: I,
+    ) -> Result<FrontendMessage, Error>
+    where
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let mut buf = self.bind_message(statement, "", params)?;
         frontend::execute("", 0, &mut buf).map_err(Error::parse)?;
         frontend::sync(&mut buf);
