@@ -10,7 +10,7 @@ use crate::proto::query::QueryStream;
 use crate::proto::statement::Statement;
 use crate::proto::typeinfo_composite::TypeinfoCompositeFuture;
 use crate::proto::typeinfo_enum::TypeinfoEnumFuture;
-use crate::types::{Kind, Oid, Type};
+use crate::types::{Kind, Oid, ToSql, Type};
 
 const TYPEINFO_QUERY: &str = "
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -114,7 +114,10 @@ impl PollTypeinfo for Typeinfo {
 
         match state.client.typeinfo_query() {
             Some(statement) => transition!(QueryingTypeinfo {
-                future: state.client.query(&statement, &[&state.oid]).collect(),
+                future: state
+                    .client
+                    .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+                    .collect(),
                 oid: state.oid,
                 client: state.client,
             }),
@@ -149,7 +152,10 @@ impl PollTypeinfo for Typeinfo {
         };
         let state = state.take();
 
-        let future = state.client.query(&statement, &[&state.oid]).collect();
+        let future = state
+            .client
+            .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+            .collect();
         state.client.set_typeinfo_query(&statement);
         transition!(QueryingTypeinfo {
             future,
@@ -164,7 +170,10 @@ impl PollTypeinfo for Typeinfo {
         let statement = try_ready!(state.future.poll());
         let state = state.take();
 
-        let future = state.client.query(&statement, &[&state.oid]).collect();
+        let future = state
+            .client
+            .query(&statement, [&state.oid as &dyn ToSql].iter().cloned())
+            .collect();
         state.client.set_typeinfo_query(&statement);
         transition!(QueryingTypeinfo {
             future,
