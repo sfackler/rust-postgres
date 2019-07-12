@@ -5,6 +5,7 @@ version = "0.1.0"
 authors = ["jbg <jbg@dtmf.io>"]
 edition = "2018"
 license = "MIT"
+readme = "README.md"
 
 [dependencies]
 futures = "0.1.28"

@@ -6,6 +6,15 @@ and the [tokio-postgres asynchronous PostgreSQL client library](https://github.c
 
 [API Documentation](https://docs.rs/tokio-postgres-rustls/)
 
+# Example
+
+```
+let config = rustls::ClientConfig::new();
+let tls = tokio_postgres::rustls::MakeRustlsConnect::new(config);
+let connect_fut = tokio_postgres::connect("host=localhost user=postgres", tls);
+// ...
+```
+
 # License
 tokio-postgres-rustls is distributed under the MIT license.
 
