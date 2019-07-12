@@ -1,0 +1,13 @@
+[package]
+name = "tokio-postgres-rustls"
+version = "0.1.0"
+authors = ["jbg <jbg@dtmf.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.1.28"
+rustls = "0.15.2"
+tokio-io = "0.1.12"
+tokio-postgres = "0.4.0-rc.3"
+tokio-rustls = "0.10.0-alpha.3"
+webpki = "0.19.1"
