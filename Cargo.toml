@@ -1,8 +1,10 @@
 [package]
 name = "tokio-postgres-rustls"
+description = "Rustls integration for tokio-postgres"
 version = "0.1.0"
 authors = ["jbg <jbg@dtmf.io>"]
 edition = "2018"
+license = "MIT"
 
 [dependencies]
 futures = "0.1.28"
