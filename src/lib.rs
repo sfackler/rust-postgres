@@ -23,7 +23,7 @@ impl MakeRustlsConnect {
 
 impl<S> MakeTlsConnect<S> for MakeRustlsConnect
 where
-    S: AsyncRead + AsyncWrite + 'static
+    S: AsyncRead + AsyncWrite + Send + 'static
 {
     type Stream = TlsStream<S>;
     type TlsConnect = RustlsConnect;
@@ -46,16 +46,44 @@ pub struct RustlsConnect {
 
 impl<S> TlsConnect<S> for RustlsConnect
 where
-    S: AsyncRead + AsyncWrite + 'static
+    S: AsyncRead + AsyncWrite + Send + 'static
 {
     type Stream = TlsStream<S>;
     type Error = io::Error;
-    type Future = Box<dyn Future<Item=(Self::Stream, ChannelBinding), Error=Self::Error>>;
+    type Future = Box<dyn Future<Item=(Self::Stream, ChannelBinding), Error=Self::Error> + Send>;
 
     fn connect(self, stream: S) -> Self::Future {
         Box::new(
             self.connector.connect(self.hostname.as_ref(), stream)
                 .map(|s| (s, ChannelBinding::none()))  // TODO
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::{Future, Stream};
+    use tokio::runtime::current_thread;
+
+    #[test]
+    fn it_works() {
+        let config = rustls::ClientConfig::new();
+        let tls = super::MakeRustlsConnect::new(config);
+        current_thread::block_on_all(
+            tokio_postgres::connect("sslmode=require host=localhost user=postgres", tls)
+                .map(|(client, connection)| {
+                    tokio::spawn(
+                        connection.map_err(|e| panic!("{:?}", e))
+                    );
+                    client
+                })
+                .and_then(|mut client| {
+                    client.prepare("SELECT 1")
+                        .map(|s| (client, s))
+                })
+                .and_then(|(mut client, statement)| {
+                    client.query(&statement, &[]).collect()
+                })
+        ).unwrap();
     }
 }
