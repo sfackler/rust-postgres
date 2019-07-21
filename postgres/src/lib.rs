@@ -62,7 +62,9 @@ use tokio::runtime::{self, Runtime};
 
 #[cfg(feature = "runtime")]
 pub use tokio_postgres::Socket;
-pub use tokio_postgres::{error, row, tls, types, Column, Portal, SimpleQueryMessage, Statement};
+pub use tokio_postgres::{
+    accepts, error, row, tls, to_sql_checked, types, Column, Portal, SimpleQueryMessage, Statement,
+};
 
 pub use crate::client::*;
 #[cfg(feature = "runtime")]
