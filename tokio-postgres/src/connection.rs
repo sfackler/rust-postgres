@@ -1,12 +1,9 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::error::DbError;
-use crate::error::Error;
+use crate::error::{DbError, Error};
 use crate::maybe_tls_stream::MaybeTlsStream;
 use futures::channel::mpsc;
-use futures::ready;
 use futures::task::Context;
-use futures::Future;
-use futures::Poll;
+use futures::{ready, Future, Poll};
 use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;

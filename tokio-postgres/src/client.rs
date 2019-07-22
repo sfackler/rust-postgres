@@ -1,9 +1,8 @@
-use crate::connection::Request;
+use crate::connection::{Request, RequestMessages};
 use crate::error::Error;
 use crate::responses::{self, Responses};
 use crate::statement::Statement;
 use crate::types::Type;
-use crate::connection::RequestMessages;
 
 use futures::channel::mpsc;
 use std::sync::atomic::{AtomicUsize, Ordering};
