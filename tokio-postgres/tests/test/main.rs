@@ -1,140 +1,99 @@
 #![warn(rust_2018_idioms)]
+#![feature(async_await)]
 
-use futures::sync::mpsc;
-use futures::{future, stream, try_ready};
-use log::debug;
-use std::error::Error;
-use std::fmt::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
-use tokio::prelude::*;
-use tokio::runtime::current_thread::Runtime;
-use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::impls;
-use tokio_postgres::tls::NoTlsStream;
-use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{AsyncMessage, Client, Connection, NoTls, SimpleQueryMessage};
+use tokio_postgres::tls::{NoTls, NoTlsStream};
+use tokio_postgres::{Client, Config, Connection, Error};
 
 mod parse;
+/*
 #[cfg(feature = "runtime")]
 mod runtime;
 mod types;
+*/
 
-fn connect(
-    s: &str,
-) -> impl Future<Item = (Client, Connection<TcpStream, NoTlsStream>), Error = tokio_postgres::Error>
-{
-    let builder = s.parse::<tokio_postgres::Config>().unwrap();
-    TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        .map_err(|e| panic!("{}", e))
-        .and_then(move |s| builder.connect_raw(s, NoTls))
+async fn connect(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
+    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
+        .await
+        .unwrap();
+    let config = s.parse::<Config>().unwrap();
+    config.connect_raw(socket, NoTls).await
 }
 
-fn smoke_test(s: &str) {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect(s);
-    let (mut client, connection) = runtime.block_on(handshake).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let prepare = client.prepare("SELECT 1::INT4");
-    let statement = runtime.block_on(prepare).unwrap();
-    let select = client.query(&statement, &[]).collect().map(|rows| {
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].get::<_, i32>(0), 1);
-    });
-    runtime.block_on(select).unwrap();
-
-    drop(statement);
-    drop(client);
-    runtime.run().unwrap();
+#[tokio::test]
+async fn plain_password_missing() {
+    connect("user=pass_user dbname=postgres")
+        .await
+        .err()
+        .unwrap();
 }
 
-#[test]
-fn plain_password_missing() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=pass_user dbname=postgres");
-    runtime.block_on(handshake).err().unwrap();
-}
-
-#[test]
-fn plain_password_wrong() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=pass_user password=foo dbname=postgres");
-    match runtime.block_on(handshake) {
+#[tokio::test]
+async fn plain_password_wrong() {
+    match connect("user=pass_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
     }
 }
 
-#[test]
-fn plain_password_ok() {
-    smoke_test("user=pass_user password=password dbname=postgres");
+#[tokio::test]
+async fn plain_password_ok() {
+    connect("user=pass_user password=password dbname=postgres")
+        .await
+        .unwrap();
 }
 
-#[test]
-fn md5_password_missing() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=md5_user dbname=postgres");
-    runtime.block_on(handshake).err().unwrap();
+#[tokio::test]
+async fn md5_password_missing() {
+    connect("user=md5_user dbname=postgres")
+        .await
+        .err()
+        .unwrap();
 }
 
-#[test]
-fn md5_password_wrong() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=md5_user password=foo dbname=postgres");
-    match runtime.block_on(handshake) {
+#[tokio::test]
+async fn md5_password_wrong() {
+    match connect("user=md5_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
     }
 }
 
-#[test]
-fn md5_password_ok() {
-    smoke_test("user=md5_user password=password dbname=postgres");
+#[tokio::test]
+async fn md5_password_ok() {
+    connect("user=md5_user password=password dbname=postgres")
+        .await
+        .unwrap();
 }
 
-#[test]
-fn scram_password_missing() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=scram_user dbname=postgres");
-    runtime.block_on(handshake).err().unwrap();
+#[tokio::test]
+async fn scram_password_missing() {
+    connect("user=scram_user dbname=postgres")
+        .await
+        .err()
+        .unwrap();
 }
 
-#[test]
-fn scram_password_wrong() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let handshake = connect("user=scram_user password=foo dbname=postgres");
-    match runtime.block_on(handshake) {
+#[tokio::test]
+async fn scram_password_wrong() {
+    match connect("user=scram_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
     }
 }
 
-#[test]
-fn scram_password_ok() {
-    smoke_test("user=scram_user password=password dbname=postgres");
+#[tokio::test]
+async fn scram_password_ok() {
+    connect("user=scram_user password=password dbname=postgres")
+        .await
+        .unwrap();
 }
 
+/*
 #[test]
 fn pipelined_prepare() {
     let _ = env_logger::try_init();
@@ -927,3 +886,4 @@ fn poll_idle_new() {
     };
     runtime.block_on(future).unwrap();
 }
+*/

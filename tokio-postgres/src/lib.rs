@@ -112,5 +112,19 @@
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 #![feature(async_await)]
 
+pub use client::Client;
+pub use config::Config;
+pub use connection::Connection;
+pub use error::Error;
+
+mod client;
+mod codec;
+pub mod config;
+mod connect;
+mod connect_raw;
+mod connect_tls;
+mod connection;
 pub mod error;
+mod maybe_tls_stream;
+pub mod tls;
 pub mod types;

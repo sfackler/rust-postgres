@@ -21,7 +21,7 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 default = ["runtime"]
-runtime = ["tokio-tcp", "tokio-timer", "tokio-uds", "tokio-threadpool", "lazy_static"]
+runtime = ["tokio/rt-full", "tokio/tcp", "tokio/uds", "tokio-threadpool", "lazy_static"]
 
 "with-bit-vec-0_5" = ["bit-vec-05"]
 "with-chrono-0_4" = ["chrono-04"]
@@ -34,17 +34,15 @@ with-serde_json-1 = ["serde-1", "serde_json-1"]
 antidote = "1.0"
 bytes = "0.4"
 fallible-iterator = "0.2"
+futures-preview = "0.3.0-alpha.17"
 log = "0.4"
 percent-encoding = "1.0"
 phf = "0.7.23"
 postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }
-tokio-codec = { git = "https://github.com/tokio-rs/tokio" }
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio = { git = "https://github.com/tokio-rs/tokio", default-features = false, features = ["io", "codec"] }
 
-tokio-tcp = { git = "https://github.com/tokio-rs/tokio", optional = true }
 tokio-threadpool = { git = "https://github.com/tokio-rs/tokio", optional = true }
 lazy_static = { version = "1.0", optional = true }
-tokio-timer = { git = "https://github.com/tokio-rs/tokio", optional = true }
 
 bit-vec-05 = { version = "0.5", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }
@@ -53,9 +51,6 @@ geo-types-04 = { version = "0.4", package = "geo-types", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
 uuid-07 = { version = "0.7", package = "uuid", optional = true }
-
-[target.'cfg(unix)'.dependencies]
-tokio-uds = { git = "https://github.com/tokio-rs/tokio", optional = true }
 
 [dev-dependencies]
 tokio = { git = "https://github.com/tokio-rs/tokio" }
