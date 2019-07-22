@@ -3,9 +3,9 @@ use crate::error::Error;
 use crate::responses::{self, Responses};
 use crate::statement::Statement;
 use crate::types::Type;
+use crate::connection::RequestMessages;
 
 use futures::channel::mpsc;
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn next_statement() -> String {
@@ -13,8 +13,6 @@ fn next_statement() -> String {
     format!("s{}", ID.fetch_add(1, Ordering::SeqCst))
 }
 
-// #TODO Refactor me
-use crate::connection::RequestMessages;
 pub struct PendingRequest(Result<RequestMessages, Error>);
 
 pub struct Client {
