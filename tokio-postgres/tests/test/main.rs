@@ -6,6 +6,9 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::{Client, Config, Connection, Error};
 
+use futures::future;
+use futures::FutureExt;
+
 mod parse;
 /*
 #[cfg(feature = "runtime")]
@@ -93,25 +96,31 @@ async fn scram_password_ok() {
         .unwrap();
 }
 
-/*
-#[test]
-fn pipelined_prepare() {
+#[tokio::test]
+async fn pipelined_prepare() {
     let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
 
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
+    let (mut client, connection) = connect("user=postgres").await.unwrap();
+
+    let connection = connection.map(|e| {
+        if let Err(e) = e {
+            panic!("{}", e);
+        }
+    });
+
+    tokio::spawn(connection);
 
     let prepare1 = client.prepare("SELECT $1::HSTORE[]");
     let prepare2 = client.prepare("SELECT $1::HSTORE[]");
-    let prepare = prepare1.join(prepare2);
-    runtime.block_on(prepare).unwrap();
+
+    let prepare = future::join(prepare1, prepare2);
+
+    prepare.await;
 
     drop(client);
-    runtime.run().unwrap();
 }
 
+/*
 #[test]
 fn insert_select() {
     let _ = env_logger::try_init();

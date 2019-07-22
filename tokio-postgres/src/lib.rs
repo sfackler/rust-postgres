@@ -119,6 +119,7 @@ pub use error::Error;
 
 mod client;
 mod codec;
+pub mod column;
 pub mod config;
 mod connect;
 mod connect_raw;
@@ -126,5 +127,7 @@ mod connect_tls;
 mod connection;
 pub mod error;
 mod maybe_tls_stream;
+mod responses;
+pub mod statement;
 pub mod tls;
 pub mod types;
