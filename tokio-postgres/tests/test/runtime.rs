@@ -1,4 +1,4 @@
-use futures::{Future, Stream};
+use futures::{Future, FutureExt, Stream};
 use std::time::{Duration, Instant};
 use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
@@ -7,10 +7,10 @@ use tokio_postgres::NoTls;
 
 async fn smoke_test(s: &str) {
     let (mut client, connection) = tokio_postgres::connect(s, NoTls).await.unwrap();
-    /*
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.spawn(connection);
+    let connection = connection.map(|e| e.unwrap());
+    tokio::spawn(connection);
 
+    /*
     let execute = client.simple_query("SELECT 1").for_each(|_| Ok(()));
     runtime.block_on(execute).unwrap();
     */

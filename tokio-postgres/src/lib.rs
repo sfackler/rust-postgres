@@ -115,6 +115,7 @@
 pub use crate::client::Client;
 pub use crate::config::Config;
 pub use crate::connection::Connection;
+use crate::error::DbError;
 pub use crate::error::Error;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
@@ -156,4 +157,44 @@ where
 {
     let config = config.parse::<Config>()?;
     config.connect(tls).await
+}
+
+/// An asynchronous notification.
+#[derive(Clone, Debug)]
+pub struct Notification {
+    process_id: i32,
+    channel: String,
+    payload: String,
+}
+
+/// An asynchronous message from the server.
+#[allow(clippy::large_enum_variant)]
+pub enum AsyncMessage {
+    /// A notice.
+    ///
+    /// Notices use the same format as errors, but aren't "errors" per-se.
+    Notice(DbError),
+    /// A notification.
+    ///
+    /// Connections can subscribe to notifications with the `LISTEN` command.
+    Notification(Notification),
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+impl Notification {
+    /// The process ID of the notifying backend process.
+    pub fn process_id(&self) -> i32 {
+        self.process_id
+    }
+
+    /// The name of the channel that the notify has been raised on.
+    pub fn channel(&self) -> &str {
+        &self.channel
+    }
+
+    /// The "payload" string passed from the notifying process.
+    pub fn payload(&self) -> &str {
+        &self.payload
+    }
 }
