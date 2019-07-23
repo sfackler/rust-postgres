@@ -55,7 +55,7 @@ impl Client {
     }
 
     pub(crate) fn send(&self, request: PendingRequest) -> Result<Responses, Error> {
-        let (messages) = request.0?;
+        let messages = request.0?;
 
         let (sender, receiver) = responses::channel();
         self.sender

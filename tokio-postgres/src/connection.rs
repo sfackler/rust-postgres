@@ -3,7 +3,7 @@ use crate::error::{DbError, Error};
 use crate::maybe_tls_stream::MaybeTlsStream;
 use futures::channel::mpsc;
 use futures::task::Context;
-use futures::{ready, Future, Poll};
+use futures::{ready, Future, Poll, Stream, StreamExt};
 use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;
@@ -42,7 +42,11 @@ pub struct Request {
     pub sender: mpsc::Sender<BackendMessages>,
 }
 
-pub struct Connection<S, T> {
+pub struct Connection<S, T>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
@@ -50,7 +54,11 @@ pub struct Connection<S, T> {
     pending_response: Option<BackendMessage>,
 }
 
-impl<S, T> Connection<S, T> {
+impl<S, T> Connection<S, T>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     pub(crate) fn new(
         stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
         parameters: HashMap<String, String>,
@@ -64,38 +72,36 @@ impl<S, T> Connection<S, T> {
             pending_response: None,
         }
     }
-}
 
-impl<S, T> Connection<S, T>
-where
-    S: AsyncRead + AsyncWrite,
-{
     // #TODO
     // Original source:
     // https://github.com/sfackler/rust-postgres/blob/master/tokio-postgres/src/proto/connection.rs#L87
 
-    fn poll_response(&self, cx: &mut Context) -> Poll<Result<Option<BackendMessage>, io::Error>> {
-        /*if let Some(message) = self.pending_response.take() {
-            trace!("retrying pending response");
-            return Ok(Async::Ready(Some(message)));
+    fn poll_response(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<BackendMessage, io::Error>>> {
+        if let Some(message) = self.pending_response.take() {
+            //trace!("retrying pending response");
+            return Poll::Ready(Some(Ok(message)));
         }
 
-        self.stream.poll_next(cx)*/
-        unimplemented!()
+        self.stream.poll_next_unpin(cx)
     }
 
-    pub fn poll_message(&self, cx: &mut Context) -> Poll<Result<Option<AsyncMessage>, Error>> {
+    pub fn poll_message(&self, cx: &mut Context<'_>) -> Poll<Result<Option<AsyncMessage>, Error>> {
         unimplemented!()
     }
 }
 
 impl<S, T> Future for Connection<S, T>
 where
-    S: AsyncRead + AsyncWrite,
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     type Output = Result<(), Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         while let Ok(Some(_)) = ready!(self.poll_message(cx)) {}
         Poll::Ready(Ok(()))
     }

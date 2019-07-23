@@ -4,7 +4,7 @@ use futures::{ready, task::Context, Poll, Stream, StreamExt};
 use postgres_protocol::message::backend;
 use std::pin::Pin;
 
-use crate::codec::{BackendMessage, BackendMessages, FrontendMessage};
+use crate::codec::BackendMessages;
 use crate::Error;
 
 pub fn channel() -> (mpsc::Sender<BackendMessages>, Responses) {
@@ -27,7 +27,7 @@ pub struct Responses {
 impl Stream for Responses {
     type Item = Result<backend::Message, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(message) = self.cur.next().map_err(Error::parse)? {
                 return Poll::Ready(Some(Ok(message)));
