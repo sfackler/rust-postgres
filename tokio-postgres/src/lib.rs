@@ -112,22 +112,92 @@
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 #![feature(async_await)]
 
-pub use client::Client;
-pub use config::Config;
-pub use connection::Connection;
-pub use error::Error;
+pub use crate::client::Client;
+pub use crate::config::Config;
+pub use crate::connection::Connection;
+use crate::error::DbError;
+pub use crate::error::Error;
+#[cfg(feature = "runtime")]
+pub use crate::socket::Socket;
+#[cfg(feature = "runtime")]
+use crate::tls::MakeTlsConnect;
+pub use crate::tls::NoTls;
 
 mod client;
 mod codec;
 pub mod column;
 pub mod config;
+#[cfg(feature = "runtime")]
 mod connect;
 mod connect_raw;
+#[cfg(feature = "runtime")]
+mod connect_socket;
 mod connect_tls;
 mod connection;
 pub mod error;
 mod maybe_tls_stream;
 mod responses;
 pub mod statement;
+#[cfg(feature = "runtime")]
+mod socket;
 pub mod tls;
 pub mod types;
+
+/// A convenience function which parses a connection string and connects to the database.
+///
+/// See the documentation for [`Config`] for details on the connection string format.
+///
+/// Requires the `runtime` Cargo feature (enabled by default).
+///
+/// [`Config`]: ./Config.t.html
+#[cfg(feature = "runtime")]
+pub async fn connect<T>(
+    config: &str,
+    tls: T,
+) -> Result<(Client, Connection<Socket, T::Stream>), Error>
+where
+    T: MakeTlsConnect<Socket>,
+{
+    let config = config.parse::<Config>()?;
+    config.connect(tls).await
+}
+
+/// An asynchronous notification.
+#[derive(Clone, Debug)]
+pub struct Notification {
+    process_id: i32,
+    channel: String,
+    payload: String,
+}
+
+/// An asynchronous message from the server.
+#[allow(clippy::large_enum_variant)]
+pub enum AsyncMessage {
+    /// A notice.
+    ///
+    /// Notices use the same format as errors, but aren't "errors" per-se.
+    Notice(DbError),
+    /// A notification.
+    ///
+    /// Connections can subscribe to notifications with the `LISTEN` command.
+    Notification(Notification),
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+impl Notification {
+    /// The process ID of the notifying backend process.
+    pub fn process_id(&self) -> i32 {
+        self.process_id
+    }
+
+    /// The name of the channel that the notify has been raised on.
+    pub fn channel(&self) -> &str {
+        &self.channel
+    }
+
+    /// The "payload" string passed from the notifying process.
+    pub fn payload(&self) -> &str {
+        &self.payload
+    }
+}

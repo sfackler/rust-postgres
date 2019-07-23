@@ -1,22 +1,21 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
+use futures::FutureExt;
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::{Client, Config, Connection, Error};
-
 use futures::future;
-use futures::FutureExt;
 
 mod parse;
-/*
 #[cfg(feature = "runtime")]
 mod runtime;
+/*
 mod types;
 */
 
-async fn connect(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
+async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .await
         .unwrap();
@@ -24,9 +23,16 @@ async fn connect(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>)
     config.connect_raw(socket, NoTls).await
 }
 
+async fn connect(s: &str) -> Client {
+    let (client, connection) = connect_raw(s).await.unwrap();
+    let connection = connection.map(|r| r.unwrap());
+    tokio::spawn(connection);
+    client
+}
+
 #[tokio::test]
 async fn plain_password_missing() {
-    connect("user=pass_user dbname=postgres")
+    connect_raw("user=pass_user dbname=postgres")
         .await
         .err()
         .unwrap();
@@ -34,7 +40,7 @@ async fn plain_password_missing() {
 
 #[tokio::test]
 async fn plain_password_wrong() {
-    match connect("user=pass_user password=foo dbname=postgres").await {
+    match connect_raw("user=pass_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
@@ -43,14 +49,12 @@ async fn plain_password_wrong() {
 
 #[tokio::test]
 async fn plain_password_ok() {
-    connect("user=pass_user password=password dbname=postgres")
-        .await
-        .unwrap();
+    connect("user=pass_user password=password dbname=postgres").await;
 }
 
 #[tokio::test]
 async fn md5_password_missing() {
-    connect("user=md5_user dbname=postgres")
+    connect_raw("user=md5_user dbname=postgres")
         .await
         .err()
         .unwrap();
@@ -58,7 +62,7 @@ async fn md5_password_missing() {
 
 #[tokio::test]
 async fn md5_password_wrong() {
-    match connect("user=md5_user password=foo dbname=postgres").await {
+    match connect_raw("user=md5_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
@@ -67,14 +71,12 @@ async fn md5_password_wrong() {
 
 #[tokio::test]
 async fn md5_password_ok() {
-    connect("user=md5_user password=password dbname=postgres")
-        .await
-        .unwrap();
+    connect("user=md5_user password=password dbname=postgres").await;
 }
 
 #[tokio::test]
 async fn scram_password_missing() {
-    connect("user=scram_user dbname=postgres")
+    connect_raw("user=scram_user dbname=postgres")
         .await
         .err()
         .unwrap();
@@ -82,7 +84,7 @@ async fn scram_password_missing() {
 
 #[tokio::test]
 async fn scram_password_wrong() {
-    match connect("user=scram_user password=foo dbname=postgres").await {
+    match connect_raw("user=scram_user password=foo dbname=postgres").await {
         Ok(_) => panic!("unexpected success"),
         Err(ref e) if e.code() == Some(&SqlState::INVALID_PASSWORD) => {}
         Err(e) => panic!("{}", e),
@@ -91,31 +93,21 @@ async fn scram_password_wrong() {
 
 #[tokio::test]
 async fn scram_password_ok() {
-    connect("user=scram_user password=password dbname=postgres")
-        .await
-        .unwrap();
+    connect("user=scram_user password=password dbname=postgres").await;
 }
 
 #[tokio::test]
 async fn pipelined_prepare() {
     let _ = env_logger::try_init();
 
-    let (mut client, connection) = connect("user=postgres").await.unwrap();
-
-    let connection = connection.map(|e| {
-        if let Err(e) = e {
-            panic!("{}", e);
-        }
-    });
-
-    tokio::spawn(connection);
+    let client = connect("user=postgres").await;
 
     let prepare1 = client.prepare("SELECT $1::HSTORE[]");
     let prepare2 = client.prepare("SELECT $1::HSTORE[]");
 
-    let prepare = future::join(prepare1, prepare2);
+    let prepare = future::try_join(prepare1, prepare2);
 
-    prepare.await;
+    prepare.await.unwrap();
 
     drop(client);
 }

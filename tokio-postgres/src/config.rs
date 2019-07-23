@@ -1,7 +1,13 @@
 //! Connection configuration.
 
+#[cfg(feature = "runtime")]
+use crate::connect::connect;
 use crate::connect_raw::connect_raw;
+#[cfg(feature = "runtime")]
+use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
+#[cfg(feature = "runtime")]
+use crate::Socket;
 use crate::{Client, Connection, Error};
 use std::borrow::Cow;
 #[cfg(unix)]
@@ -365,6 +371,17 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Opens a connection to a PostgreSQL database.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
+    #[cfg(feature = "runtime")]
+    pub async fn connect<T>(&self, tls: T) -> Result<(Client, Connection<Socket, T::Stream>), Error>
+    where
+        T: MakeTlsConnect<Socket>,
+    {
+        connect(tls, self).await
     }
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
