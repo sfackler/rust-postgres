@@ -42,11 +42,7 @@ pub struct Request {
     pub sender: mpsc::Sender<BackendMessages>,
 }
 
-pub struct Connection<S, T>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-    T: AsyncRead + AsyncWrite + Unpin,
-{
+pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
@@ -87,6 +83,18 @@ where
         }
 
         self.stream.poll_next_unpin(cx)
+    }
+
+    fn poll_read(&mut self) -> Result<Option<AsyncMessage>, Error> {
+        unimplemented!()
+    }
+
+    fn poll_write(&mut self) -> Result<bool, Error> {
+        unimplemented!()
+    }
+
+    fn poll_request(&self) -> Poll<Option<Result<BackendMessage, Error>>> {
+        unimplemented!()
     }
 
     pub fn poll_message(&self, cx: &mut Context<'_>) -> Poll<Result<Option<AsyncMessage>, Error>> {
