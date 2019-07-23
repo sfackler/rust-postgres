@@ -41,7 +41,7 @@ pub trait MakeTlsConnect<S> {
     type Stream: AsyncRead + AsyncWrite + Unpin;
     /// The `TlsConnect` implementation created by this type.
     type TlsConnect: TlsConnect<S, Stream = Self::Stream>;
-    /// The error type retured by the `TlsConnect` implementation.
+    /// The error type returned by the `TlsConnect` implementation.
     type Error: Into<Box<dyn Error + Sync + Send>>;
 
     /// Creates a new `TlsConnect`or.
@@ -72,6 +72,17 @@ pub trait TlsConnect<S> {
 ///
 /// This can be used when `sslmode` is `none` or `prefer`.
 pub struct NoTls;
+
+#[cfg(feature = "runtime")]
+impl<S> MakeTlsConnect<S> for NoTls {
+    type Stream = NoTlsStream;
+    type TlsConnect = NoTls;
+    type Error = NoTlsError;
+
+    fn make_tls_connect(&mut self, _: &str) -> Result<NoTls, NoTlsError> {
+        Ok(NoTls)
+    }
+}
 
 impl<S> TlsConnect<S> for NoTls {
     type Stream = NoTlsStream;
