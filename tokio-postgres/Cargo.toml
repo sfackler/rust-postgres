@@ -31,11 +31,11 @@ with-serde_json-1 = ["serde-1", "serde_json-1"]
 "with-uuid-0_7" = ["uuid-07"]
 
 [dependencies]
-antidote = "1.0"
 bytes = "0.4"
 fallible-iterator = "0.2"
 futures-preview = { version = "0.3.0-alpha.17", features = ["nightly", "async-await"] }
 log = "0.4"
+parking_lot = "0.9"
 percent-encoding = "1.0"
 phf = "0.7.23"
 postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }

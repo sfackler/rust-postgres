@@ -5,8 +5,8 @@ use futures::{try_join, FutureExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
-use tokio_postgres::{Client, Config, Connection, Error};
 use tokio_postgres::types::Type;
+use tokio_postgres::{Client, Config, Connection, Error};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -113,24 +113,6 @@ async fn pipelined_prepare() {
 }
 
 /*
-#[test]
-fn pipelined_prepare() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let prepare1 = client.prepare("SELECT $1::HSTORE[]");
-    let prepare2 = client.prepare("SELECT $1::HSTORE[]");
-    let prepare = prepare1.join(prepare2);
-    runtime.block_on(prepare).unwrap();
-
-    drop(client);
-    runtime.run().unwrap();
-}
-
 #[test]
 fn insert_select() {
     let _ = env_logger::try_init();

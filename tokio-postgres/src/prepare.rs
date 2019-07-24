@@ -62,8 +62,12 @@ pub async fn prepare(
     Ok(Statement::new(&client, name, parameters, columns))
 }
 
-async fn get_type(client: &InnerClient, oid: Oid) -> Result<Type, Error> {
+async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
     if let Some(type_) = Type::from_oid(oid) {
+        return Ok(type_);
+    }
+
+    if let Some(type_) = client.type_(oid) {
         return Ok(type_);
     }
 
