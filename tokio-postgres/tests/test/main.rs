@@ -1,11 +1,12 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::FutureExt;
+use futures::{try_join, FutureExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::{Client, Config, Connection, Error};
+use tokio_postgres::types::Type;
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -93,6 +94,22 @@ async fn scram_password_wrong() {
 #[tokio::test]
 async fn scram_password_ok() {
     connect("user=scram_user password=password dbname=postgres").await;
+}
+
+#[tokio::test]
+async fn pipelined_prepare() {
+    let mut client = connect("user=postgres").await;
+
+    let prepare1 = client.prepare("SELECT $1::TEXT");
+    let prepare2 = client.prepare("SELECT $1::BIGINT");
+
+    let (statement1, statement2) = try_join!(prepare1, prepare2).unwrap();
+
+    assert_eq!(statement1.params()[0], Type::TEXT);
+    assert_eq!(statement1.columns()[0].type_(), &Type::TEXT);
+
+    assert_eq!(statement2.params()[0], Type::INT8);
+    assert_eq!(statement2.columns()[0].type_(), &Type::INT8);
 }
 
 /*

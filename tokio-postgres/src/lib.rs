@@ -122,6 +122,7 @@ pub use crate::socket::Socket;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
+pub use statement::{Column, Statement};
 
 mod client;
 mod codec;
@@ -135,8 +136,10 @@ mod connect_tls;
 mod connection;
 pub mod error;
 mod maybe_tls_stream;
+mod prepare;
 #[cfg(feature = "runtime")]
 mod socket;
+mod statement;
 pub mod tls;
 pub mod types;
 
