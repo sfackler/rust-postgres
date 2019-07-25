@@ -31,7 +31,16 @@ pub async fn connect_socket(idx: usize, config: &Config) -> Result<Socket, Error
             let mut error = None;
             for addr in addrs {
                 let new_error = match connect_timeout(TcpStream::connect(&addr), config).await {
-                    Ok(socket) => return Ok(Socket::new_tcp(socket)),
+                    Ok(socket) => {
+                        socket.set_nodelay(true).map_err(Error::connect)?;
+                        if config.keepalives {
+                            socket
+                                .set_keepalive(Some(config.keepalives_idle))
+                                .map_err(Error::connect)?;
+                        }
+
+                        return Ok(Socket::new_tcp(socket));
+                    }
                     Err(e) => e,
                 };
                 error = Some(new_error);

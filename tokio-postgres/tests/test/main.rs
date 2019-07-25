@@ -142,42 +142,6 @@ async fn insert_select() {
 
 /*
 #[test]
-fn insert_select() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
-    let select = client.prepare("SELECT id, name FROM foo ORDER BY id");
-    let prepare = insert.join(select);
-    let (insert, select) = runtime.block_on(prepare).unwrap();
-
-    let insert = client
-        .execute(&insert, &[&"alice", &"bob"])
-        .map(|n| assert_eq!(n, 2));
-    let select = client.query(&select, &[]).collect().map(|rows| {
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].get::<_, i32>(0), 1);
-        assert_eq!(rows[0].get::<_, &str>(1), "alice");
-        assert_eq!(rows[1].get::<_, i32>(0), 2);
-        assert_eq!(rows[1].get::<_, &str>(1), "bob");
-    });
-    let tests = insert.join(select);
-    runtime.block_on(tests).unwrap();
-}
-
-#[test]
 fn query_portal() {
     let _ = env_logger::try_init();
     let mut runtime = Runtime::new().unwrap();
