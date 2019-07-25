@@ -58,11 +58,9 @@ where
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        unsafe {
-            match &mut *self {
-                MaybeTlsStream::Raw(s) => Pin::new(s).poll_write(cx, buf),
-                MaybeTlsStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
-            }
+        match &mut *self {
+            MaybeTlsStream::Raw(s) => Pin::new(s).poll_write(cx, buf),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
 

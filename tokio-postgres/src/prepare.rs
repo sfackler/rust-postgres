@@ -1,10 +1,9 @@
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
-use crate::connection::{Request, RequestMessages};
+use crate::connection::RequestMessages;
 use crate::types::{Oid, Type};
 use crate::{Column, Error, Statement};
 use fallible_iterator::FallibleIterator;
-use futures::StreamExt;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::sync::atomic::{AtomicUsize, Ordering};

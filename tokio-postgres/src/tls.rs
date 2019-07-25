@@ -104,7 +104,7 @@ pub struct NoTlsFuture(());
 impl Future for NoTlsFuture {
     type Output = Result<(NoTlsStream, ChannelBinding), NoTlsError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(Err(NoTlsError(())))
     }
 }
@@ -117,27 +117,23 @@ pub enum NoTlsStream {}
 impl AsyncRead for NoTlsStream {
     fn poll_read(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
+        _: &mut Context<'_>,
+        _: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         match *self {}
     }
 }
 
 impl AsyncWrite for NoTlsStream {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
+    fn poll_write(self: Pin<&mut Self>, _: &mut Context<'_>, _: &[u8]) -> Poll<io::Result<usize>> {
         match *self {}
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         match *self {}
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         match *self {}
     }
 }

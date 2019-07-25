@@ -543,7 +543,7 @@ pub enum IsNull {
 ///
 /// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
 /// and corresponds to one-dimensional Postgres arrays with an index offset of 1.
-pub trait ToSql: fmt::Debug {
+pub trait ToSql: fmt::Debug + Sync + Send {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
     ///
@@ -744,7 +744,7 @@ simple_to!(f64, float8_to_sql, FLOAT8);
 
 impl<H> ToSql for HashMap<String, Option<String>, H>
 where
-    H: BuildHasher,
+    H: BuildHasher + Sync + Send,
 {
     fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::hstore_to_sql(

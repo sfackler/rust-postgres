@@ -33,7 +33,7 @@ where
 
 impl<T> ToSql for Json<T>
 where
-    T: Serialize + Debug,
+    T: Serialize + Debug + Sync + Send,
 {
     fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         if *ty == Type::JSONB {

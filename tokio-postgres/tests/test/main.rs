@@ -1,7 +1,7 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::{try_join, FutureExt};
+use futures::{try_join, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
@@ -110,6 +110,34 @@ async fn pipelined_prepare() {
 
     assert_eq!(statement2.params()[0], Type::INT8);
     assert_eq!(statement2.columns()[0].type_(), &Type::INT8);
+}
+
+#[tokio::test]
+async fn insert_select() {
+    let mut client = connect("user=postgres").await;
+
+    let setup = client
+        .prepare("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
+        .await
+        .unwrap();
+    client.execute(&setup, &[]).await.unwrap();
+    drop(setup);
+
+    let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
+    let select = client.prepare("SELECT id, name FROM foo ORDER BY id");
+    let (insert, select) = try_join!(insert, select).unwrap();
+
+    let insert = client.execute(&insert, &[&"alice", &"bob"]);
+    let select = client
+        .query(&select, &[])
+        .and_then(|q| q.try_collect::<Vec<_>>());
+    let (_, rows) = try_join!(insert, select).unwrap();
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[0].get::<_, &str>(1), "alice");
+    assert_eq!(rows[1].get::<_, i32>(0), 2);
+    assert_eq!(rows[1].get::<_, &str>(1), "bob");
 }
 
 /*

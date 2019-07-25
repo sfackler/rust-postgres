@@ -117,6 +117,7 @@ pub use crate::config::Config;
 pub use crate::connection::Connection;
 use crate::error::DbError;
 pub use crate::error::Error;
+pub use crate::row::{Row, SimpleQueryRow};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 #[cfg(feature = "runtime")]
@@ -137,6 +138,8 @@ mod connection;
 pub mod error;
 mod maybe_tls_stream;
 mod prepare;
+mod query;
+pub mod row;
 #[cfg(feature = "runtime")]
 mod socket;
 mod statement;
