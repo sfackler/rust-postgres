@@ -11,33 +11,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub async fn query<'a, I>(
+pub async fn query(
     client: Arc<InnerClient>,
-    statement: &Statement,
-    params: I,
-) -> Result<Query, Error>
-where
-    I: IntoIterator<Item = &'a dyn ToSql>,
-    I::IntoIter: ExactSizeIterator,
-{
-    let responses = start(&client, &statement, params).await?;
+    statement: Statement,
+    buf: Result<Vec<u8>, Error>,
+) -> Result<Query, Error> {
+    let responses = start(client, buf).await?;
 
     Ok(Query {
-        statement: statement.clone(),
+        statement,
         responses,
     })
 }
 
-pub async fn execute<'a, I>(
-    client: Arc<InnerClient>,
-    statement: &Statement,
-    params: I,
-) -> Result<u64, Error>
-where
-    I: IntoIterator<Item = &'a dyn ToSql>,
-    I::IntoIter: ExactSizeIterator,
-{
-    let mut responses = start(&client, &statement, params).await?;
+pub async fn execute(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
+    let mut responses = start(client, buf).await?;
 
     loop {
         match responses.next().await? {
@@ -59,11 +47,19 @@ where
     }
 }
 
-async fn start<'a, I>(
-    client: &Arc<InnerClient>,
-    statement: &Statement,
-    params: I,
-) -> Result<Responses, Error>
+async fn start(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<Responses, Error> {
+    let buf = buf?;
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    match responses.next().await? {
+        Message::BindComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+
+    Ok(responses)
+}
+
+pub fn encode<'a, I>(statement: &Statement, params: I) -> Result<Vec<u8>, Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
@@ -105,14 +101,7 @@ where
     frontend::execute("", 0, &mut buf).map_err(Error::encode)?;
     frontend::sync(&mut buf);
 
-    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
-
-    match responses.next().await? {
-        Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
-    }
-
-    Ok(responses)
+    Ok(buf)
 }
 
 pub struct Query {

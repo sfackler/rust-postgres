@@ -107,7 +107,7 @@ impl fmt::Display for Type {
 }
 
 impl Type {
-    pub(crate) fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
+    pub(crate) fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
         Type(Inner::Other(Arc::new(Other {
             name,
             oid,
@@ -175,6 +175,10 @@ pub struct Field {
 }
 
 impl Field {
+    pub(crate) fn new(name: String, type_: Type) -> Field {
+        Field { name, type_ }
+    }
+
     /// Returns the name of the field.
     pub fn name(&self) -> &str {
         &self.name
@@ -183,12 +187,6 @@ impl Field {
     /// Returns the type of the field.
     pub fn type_(&self) -> &Type {
         &self.type_
-    }
-}
-
-impl Field {
-    pub(crate) fn new(name: String, type_: Type) -> Field {
-        Field { name, type_ }
     }
 }
 
@@ -543,7 +541,7 @@ pub enum IsNull {
 ///
 /// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
 /// and corresponds to one-dimensional Postgres arrays with an index offset of 1.
-pub trait ToSql: fmt::Debug + Sync + Send {
+pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
     ///
@@ -744,7 +742,7 @@ simple_to!(f64, float8_to_sql, FLOAT8);
 
 impl<H> ToSql for HashMap<String, Option<String>, H>
 where
-    H: BuildHasher + Sync + Send,
+    H: BuildHasher,
 {
     fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::hstore_to_sql(

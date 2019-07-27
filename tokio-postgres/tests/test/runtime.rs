@@ -1,6 +1,5 @@
-use futures::{Future, FutureExt, Stream};
+use futures::{FutureExt, TryStreamExt};
 use std::time::{Duration, Instant};
-use tokio::runtime::current_thread::Runtime;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::NoTls;
@@ -10,10 +9,9 @@ async fn smoke_test(s: &str) {
     let connection = connection.map(|e| e.unwrap());
     tokio::spawn(connection);
 
-    /*
-    let execute = client.simple_query("SELECT 1").for_each(|_| Ok(()));
-    runtime.block_on(execute).unwrap();
-    */
+    let stmt = client.prepare("SELECT $1::INT").await.unwrap();
+    let rows = client.query(&stmt, &[&1i32]).await.unwrap().try_collect::<Vec<_>>().await.unwrap();
+    assert_eq!(rows[0].get::<_, i32>(0), 1i32);
 }
 
 #[tokio::test]

@@ -1,19 +1,17 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::{try_join, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{try_join, FutureExt, TryFutureExt, TryStreamExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
-use tokio_postgres::types::Type;
+use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{Client, Config, Connection, Error};
 
 mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;
-/*
 mod types;
-*/
 
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
@@ -100,13 +98,13 @@ async fn scram_password_ok() {
 async fn pipelined_prepare() {
     let mut client = connect("user=postgres").await;
 
-    let prepare1 = client.prepare("SELECT $1::TEXT");
+    let prepare1 = client.prepare("SELECT $1::HSTORE[]");
     let prepare2 = client.prepare("SELECT $1::BIGINT");
 
     let (statement1, statement2) = try_join!(prepare1, prepare2).unwrap();
 
-    assert_eq!(statement1.params()[0], Type::TEXT);
-    assert_eq!(statement1.columns()[0].type_(), &Type::TEXT);
+    assert_eq!(statement1.params()[0].name(), "_hstore");
+    assert_eq!(statement1.columns()[0].type_().name(), "_hstore");
 
     assert_eq!(statement2.params()[0], Type::INT8);
     assert_eq!(statement2.columns()[0].type_(), &Type::INT8);
@@ -138,6 +136,125 @@ async fn insert_select() {
     assert_eq!(rows[0].get::<_, &str>(1), "alice");
     assert_eq!(rows[1].get::<_, i32>(0), 2);
     assert_eq!(rows[1].get::<_, &str>(1), "bob");
+}
+
+#[tokio::test]
+async fn custom_enum() {
+    let mut client = connect("user=postgres").await;
+
+    let create = client
+        .prepare(
+            "CREATE TYPE pg_temp.mood AS ENUM (
+                'sad',
+                'ok',
+                'happy'
+            )",
+        )
+        .await
+        .unwrap();
+    client.execute(&create, &[]).await.unwrap();
+
+    let select = client.prepare("SELECT $1::mood").await.unwrap();
+
+    let ty = &select.params()[0];
+    assert_eq!("mood", ty.name());
+    assert_eq!(
+        &Kind::Enum(vec![
+            "sad".to_string(),
+            "ok".to_string(),
+            "happy".to_string(),
+        ]),
+        ty.kind(),
+    );
+}
+
+#[tokio::test]
+async fn custom_domain() {
+    let mut client = connect("user=postgres").await;
+
+    let create = client
+        .prepare("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)")
+        .await
+        .unwrap();
+    client.execute(&create, &[]).await.unwrap();
+
+    let select = client.prepare("SELECT $1::session_id").await.unwrap();
+
+    let ty = &select.params()[0];
+    assert_eq!("session_id", ty.name());
+    assert_eq!(&Kind::Domain(Type::BYTEA), ty.kind());
+}
+
+#[tokio::test]
+async fn custom_array() {
+    let mut client = connect("user=postgres").await;
+
+    let select = client.prepare("SELECT $1::HSTORE[]").await.unwrap();
+
+    let ty = &select.params()[0];
+    assert_eq!("_hstore", ty.name());
+    match ty.kind() {
+        Kind::Array(ty) => {
+            assert_eq!("hstore", ty.name());
+            assert_eq!(&Kind::Simple, ty.kind());
+        }
+        _ => panic!("unexpected kind"),
+    }
+}
+
+#[tokio::test]
+async fn custom_composite() {
+    let mut client = connect("user=postgres").await;
+
+    let create = client
+        .prepare(
+            "CREATE TYPE pg_temp.inventory_item AS (
+            name TEXT,
+            supplier INTEGER,
+            price NUMERIC
+        )",
+        )
+        .await
+        .unwrap();
+    client.execute(&create, &[]).await.unwrap();
+
+    let select = client.prepare("SELECT $1::inventory_item").await.unwrap();
+
+    let ty = &select.params()[0];
+    assert_eq!(ty.name(), "inventory_item");
+    match ty.kind() {
+        Kind::Composite(fields) => {
+            assert_eq!(fields[0].name(), "name");
+            assert_eq!(fields[0].type_(), &Type::TEXT);
+            assert_eq!(fields[1].name(), "supplier");
+            assert_eq!(fields[1].type_(), &Type::INT4);
+            assert_eq!(fields[2].name(), "price");
+            assert_eq!(fields[2].type_(), &Type::NUMERIC);
+        }
+        _ => panic!("unexpected kind"),
+    }
+}
+
+#[tokio::test]
+async fn custom_range() {
+    let mut client = connect("user=postgres").await;
+
+    let create = client
+        .prepare(
+            "CREATE TYPE pg_temp.floatrange AS RANGE (
+            subtype = float8,
+            subtype_diff = float8mi
+        )",
+        )
+        .await
+        .unwrap();
+    client.execute(&create, &[]).await.unwrap();
+
+    let select = client.prepare("SELECT $1::floatrange").await.unwrap();
+
+    let ty = &select.params()[0];
+    assert_eq!("floatrange", ty.name());
+    assert_eq!(&Kind::Range(Type::FLOAT8), ty.kind());
 }
 
 /*
@@ -217,182 +334,6 @@ fn cancel_query_raw() {
         });
 
     let ((), ()) = runtime.block_on(sleep.join(cancel)).unwrap();
-}
-
-#[test]
-fn custom_enum() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TYPE pg_temp.mood AS ENUM (
-                        'sad',
-                        'ok',
-                        'happy'
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let select = client.prepare("SELECT $1::mood");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!("mood", ty.name());
-    assert_eq!(
-        &Kind::Enum(vec![
-            "sad".to_string(),
-            "ok".to_string(),
-            "happy".to_string(),
-        ]),
-        ty.kind()
-    );
-}
-
-#[test]
-fn custom_domain() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let select = client.prepare("SELECT $1::session_id");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!("session_id", ty.name());
-    assert_eq!(&Kind::Domain(Type::BYTEA), ty.kind());
-}
-
-#[test]
-fn custom_array() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let select = client.prepare("SELECT $1::HSTORE[]");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!("_hstore", ty.name());
-    match *ty.kind() {
-        Kind::Array(ref ty) => {
-            assert_eq!("hstore", ty.name());
-            assert_eq!(&Kind::Simple, ty.kind());
-        }
-        _ => panic!("unexpected kind"),
-    }
-}
-
-#[test]
-fn custom_composite() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TYPE pg_temp.inventory_item AS (
-                        name TEXT,
-                        supplier INTEGER,
-                        price NUMERIC
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let select = client.prepare("SELECT $1::inventory_item");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!(ty.name(), "inventory_item");
-    match *ty.kind() {
-        Kind::Composite(ref fields) => {
-            assert_eq!(fields[0].name(), "name");
-            assert_eq!(fields[0].type_(), &Type::TEXT);
-            assert_eq!(fields[1].name(), "supplier");
-            assert_eq!(fields[1].type_(), &Type::INT4);
-            assert_eq!(fields[2].name(), "price");
-            assert_eq!(fields[2].type_(), &Type::NUMERIC);
-        }
-        ref t => panic!("bad type {:?}", t),
-    }
-}
-
-#[test]
-fn custom_range() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TYPE pg_temp.floatrange AS RANGE (
-                        subtype = float8,
-                        subtype_diff = float8mi
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let select = client.prepare("SELECT $1::floatrange");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!("floatrange", ty.name());
-    assert_eq!(&Kind::Range(Type::FLOAT8), ty.kind());
-}
-
-#[test]
-fn custom_simple() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let select = client.prepare("SELECT $1::HSTORE");
-    let select = runtime.block_on(select).unwrap();
-
-    let ty = &select.params()[0];
-    assert_eq!("hstore", ty.name());
-    assert_eq!(&Kind::Simple, ty.kind());
 }
 
 #[test]

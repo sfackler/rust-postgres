@@ -1,7 +1,7 @@
 use crate::codec::BackendMessages;
 use crate::connection::{Request, RequestMessages};
 use crate::prepare::prepare;
-use crate::query::{execute, query, Query};
+use crate::query::{self, Query};
 use crate::types::{Oid, ToSql, Type};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
@@ -42,9 +42,9 @@ impl Responses {
 }
 
 struct State {
-    has_typeinfo: bool,
-    has_typeinfo_composite: bool,
-    has_typeinfo_enum: bool,
+    typeinfo: Option<Statement>,
+    typeinfo_composite: Option<Statement>,
+    typeinfo_enum: Option<Statement>,
     types: HashMap<Oid, Type>,
 }
 
@@ -67,36 +67,36 @@ impl InnerClient {
         })
     }
 
-    pub fn has_typeinfo(&self) -> bool {
-        self.state.lock().has_typeinfo
+    pub fn typeinfo(&self) -> Option<Statement> {
+        self.state.lock().typeinfo.clone()
     }
 
-    pub fn set_has_typeinfo(&self) {
-        self.state.lock().has_typeinfo = true;
+    pub fn set_typeinfo(&self, statement: &Statement) {
+        self.state.lock().typeinfo = Some(statement.clone());
     }
 
-    pub fn has_typeinfo_composite(&self) -> bool {
-        self.state.lock().has_typeinfo_composite
+    pub fn typeinfo_composite(&self) -> Option<Statement> {
+        self.state.lock().typeinfo_composite.clone()
     }
 
-    pub fn set_has_typeinfo_composite(&self) {
-        self.state.lock().has_typeinfo_composite = true;
+    pub fn set_typeinfo_composite(&self, statement: &Statement) {
+        self.state.lock().typeinfo_composite = Some(statement.clone());
     }
 
-    pub fn has_typeinfo_enum(&self) -> bool {
-        self.state.lock().has_typeinfo_enum
+    pub fn typeinfo_enum(&self) -> Option<Statement> {
+        self.state.lock().typeinfo_enum.clone()
     }
 
-    pub fn set_has_typeinfo_enum(&self) {
-        self.state.lock().has_typeinfo_enum = true;
+    pub fn set_typeinfo_enum(&self, statement: &Statement) {
+        self.state.lock().typeinfo_enum = Some(statement.clone());
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
         self.state.lock().types.get(&oid).cloned()
     }
 
-    pub fn set_type(&self, oid: Oid, type_: Type) {
-        self.state.lock().types.insert(oid, type_);
+    pub fn set_type(&self, oid: Oid, type_: &Type) {
+        self.state.lock().types.insert(oid, type_.clone());
     }
 }
 
@@ -116,9 +116,9 @@ impl Client {
             inner: Arc::new(InnerClient {
                 sender,
                 state: Mutex::new(State {
-                    has_typeinfo: false,
-                    has_typeinfo_composite: false,
-                    has_typeinfo_enum: false,
+                    typeinfo: None,
+                    typeinfo_composite: None,
+                    typeinfo_enum: None,
                     types: HashMap::new(),
                 }),
             }),
@@ -131,58 +131,59 @@ impl Client {
         self.inner.clone()
     }
 
-    pub fn prepare<'a>(
-        &mut self,
-        query: &'a str,
-    ) -> impl Future<Output = Result<Statement, Error>> + 'a {
+    pub fn prepare(&mut self, query: &str) -> impl Future<Output = Result<Statement, Error>> {
         self.prepare_typed(query, &[])
     }
 
-    pub fn prepare_typed<'a>(
+    pub fn prepare_typed(
         &mut self,
-        query: &'a str,
-        parameter_types: &'a [Type],
-    ) -> impl Future<Output = Result<Statement, Error>> + 'a {
+        query: &str,
+        parameter_types: &[Type],
+    ) -> impl Future<Output = Result<Statement, Error>> {
         prepare(self.inner(), query, parameter_types)
     }
 
-    pub fn query<'a>(
+    pub fn query(
         &mut self,
-        statement: &'a Statement,
-        params: &'a [&dyn ToSql],
-    ) -> impl Future<Output = Result<Query, Error>> + 'a {
-        self.query_iter(statement, params.iter().cloned())
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> impl Future<Output = Result<Query, Error>> {
+        let buf = query::encode(statement, params.iter().cloned());
+        query::query(self.inner(), statement.clone(), buf)
     }
 
     pub fn query_iter<'a, I>(
         &mut self,
-        statement: &'a Statement,
+        statement: &Statement,
         params: I,
-    ) -> impl Future<Output = Result<Query, Error>> + 'a
+    ) -> impl Future<Output = Result<Query, Error>>
     where
-        I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+        I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        query(self.inner(), statement, params)
+        let buf = query::encode(statement, params);
+        query::query(self.inner(), statement.clone(), buf)
     }
 
-    pub fn execute<'a>(
+    pub fn execute(
         &mut self,
-        statement: &'a Statement,
-        params: &'a [&dyn ToSql],
-    ) -> impl Future<Output = Result<u64, Error>> + 'a {
-        self.execute_iter(statement, params.iter().cloned())
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> impl Future<Output = Result<u64, Error>> {
+        let buf = query::encode(statement, params.iter().cloned());
+        query::execute(self.inner(), buf)
     }
 
     pub fn execute_iter<'a, I>(
         &mut self,
-        statement: &'a Statement,
+        statement: &Statement,
         params: I,
-    ) -> impl Future<Output = Result<u64, Error>> + 'a
+    ) -> impl Future<Output = Result<u64, Error>>
     where
-        I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+        I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        execute(self.inner(), statement, params)
+        let buf = query::encode(statement, params);
+        query::execute(self.inner(), buf)
     }
 }
