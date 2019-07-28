@@ -3,11 +3,10 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use fallible_iterator::FallibleIterator;
-use futures::{ready, Stream};
+use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
-use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -17,7 +16,18 @@ pub fn simple_query(
     query: &str,
 ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
     let buf = encode(query);
-    SimpleQuery::Start { client, buf }
+
+    let start = async move {
+        let buf = buf?;
+        let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+        Ok(SimpleQuery {
+            responses,
+            columns: None,
+        })
+    };
+
+    start.try_flatten_stream()
 }
 
 pub fn batch_execute(
@@ -49,16 +59,9 @@ fn encode(query: &str) -> Result<Vec<u8>, Error> {
     Ok(buf)
 }
 
-enum SimpleQuery {
-    Start {
-        client: Arc<InnerClient>,
-        buf: Result<Vec<u8>, Error>,
-    },
-    Reading {
-        responses: Responses,
-        columns: Option<Arc<[String]>>,
-    },
-    Done,
+struct SimpleQuery {
+    responses: Responses,
+    columns: Option<Arc<[String]>>
 }
 
 impl Stream for SimpleQuery {
@@ -66,67 +69,39 @@ impl Stream for SimpleQuery {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            match mem::replace(&mut *self, SimpleQuery::Done) {
-                SimpleQuery::Start { client, buf } => {
-                    let buf = buf?;
-                    let responses =
-                        client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
-
-                    *self = SimpleQuery::Reading {
-                        responses,
-                        columns: None,
-                    };
+            match ready!(self.responses.poll_next(cx)?) {
+                Message::CommandComplete(body) => {
+                    let rows = body
+                        .tag()
+                        .map_err(Error::parse)?
+                        .rsplit(' ')
+                        .next()
+                        .unwrap()
+                        .parse()
+                        .unwrap_or(0);
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))));
                 }
-                SimpleQuery::Reading {
-                    mut responses,
-                    columns,
-                } => match ready!(responses.poll_next(cx)?) {
-                    Message::CommandComplete(body) => {
-                        let rows = body
-                            .tag()
-                            .map_err(Error::parse)?
-                            .rsplit(' ')
-                            .next()
-                            .unwrap()
-                            .parse()
-                            .unwrap_or(0);
-                        *self = SimpleQuery::Reading {
-                            responses,
-                            columns: None,
-                        };
-                        return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))));
-                    }
-                    Message::EmptyQueryResponse => {
-                        *self = SimpleQuery::Reading {
-                            responses,
-                            columns: None,
-                        };
-                        return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))));
-                    }
-                    Message::RowDescription(body) => {
-                        let columns = body
-                            .fields()
-                            .map(|f| Ok(f.name().to_string()))
-                            .collect::<Vec<_>>()
-                            .map_err(Error::parse)?
-                            .into();
-                        *self = SimpleQuery::Reading {
-                            responses,
-                            columns: Some(columns),
-                        };
-                    }
-                    Message::DataRow(body) => {
-                        let row = match &columns {
-                            Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
-                            None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
-                        };
-                        *self = SimpleQuery::Reading { responses, columns };
-                        return Poll::Ready(Some(Ok(SimpleQueryMessage::Row(row))));
-                    }
-                    Message::ReadyForQuery(_) => return Poll::Ready(None),
-                    _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
-                },
-                SimpleQuery::Done => return Poll::Ready(None),
+                Message::EmptyQueryResponse => {
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))));
+                }
+                Message::RowDescription(body) => {
+                    let columns = body
+                        .fields()
+                        .map(|f| Ok(f.name().to_string()))
+                        .collect::<Vec<_>>()
+                        .map_err(Error::parse)?
+                        .into();
+                    self.columns = Some(columns);
+                }
+                Message::DataRow(body) => {
+                    let row = match &self.columns {
+                        Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
+                        None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+                    };
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::Row(row))));
+                }
+                Message::ReadyForQuery(_) => return Poll::Ready(None),
+                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
         }
     }

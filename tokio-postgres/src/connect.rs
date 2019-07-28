@@ -1,4 +1,5 @@
 use crate::config::{Host, TargetSessionAttrs};
+use pin_utils::pin_mut;
 use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
@@ -55,7 +56,8 @@ where
     let (mut client, connection) = connect_raw(socket, tls, config, Some(idx)).await?;
 
     if let TargetSessionAttrs::ReadWrite = config.target_session_attrs {
-        let mut rows = client.simple_query("SHOW transaction_read_only");
+        let rows = client.simple_query("SHOW transaction_read_only");
+        pin_mut!(rows);
 
         loop {
             match rows.try_next().await? {

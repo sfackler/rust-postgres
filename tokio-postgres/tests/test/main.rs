@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{Client, Config, Connection, Error};
+use tokio_postgres::{Client, Config, Connection, Error, SimpleQueryMessage};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -114,12 +114,10 @@ async fn pipelined_prepare() {
 async fn insert_select() {
     let mut client = connect("user=postgres").await;
 
-    let setup = client
-        .prepare("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
+    client
+        .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
         .await
         .unwrap();
-    client.execute(&setup, &[]).await.unwrap();
-    drop(setup);
 
     let insert = client.prepare("INSERT INTO foo (name) VALUES ($1), ($2)");
     let select = client.prepare("SELECT id, name FROM foo ORDER BY id");
@@ -142,8 +140,8 @@ async fn insert_select() {
 async fn custom_enum() {
     let mut client = connect("user=postgres").await;
 
-    let create = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TYPE pg_temp.mood AS ENUM (
                 'sad',
                 'ok',
@@ -152,7 +150,6 @@ async fn custom_enum() {
         )
         .await
         .unwrap();
-    client.execute(&create, &[]).await.unwrap();
 
     let select = client.prepare("SELECT $1::mood").await.unwrap();
 
@@ -172,11 +169,10 @@ async fn custom_enum() {
 async fn custom_domain() {
     let mut client = connect("user=postgres").await;
 
-    let create = client
-        .prepare("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)")
+    client
+        .batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)")
         .await
         .unwrap();
-    client.execute(&create, &[]).await.unwrap();
 
     let select = client.prepare("SELECT $1::session_id").await.unwrap();
 
@@ -206,17 +202,16 @@ async fn custom_array() {
 async fn custom_composite() {
     let mut client = connect("user=postgres").await;
 
-    let create = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TYPE pg_temp.inventory_item AS (
-            name TEXT,
-            supplier INTEGER,
-            price NUMERIC
-        )",
+                name TEXT,
+                supplier INTEGER,
+                price NUMERIC
+            )",
         )
         .await
         .unwrap();
-    client.execute(&create, &[]).await.unwrap();
 
     let select = client.prepare("SELECT $1::inventory_item").await.unwrap();
 
@@ -239,22 +234,67 @@ async fn custom_composite() {
 async fn custom_range() {
     let mut client = connect("user=postgres").await;
 
-    let create = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TYPE pg_temp.floatrange AS RANGE (
-            subtype = float8,
-            subtype_diff = float8mi
-        )",
+                subtype = float8,
+                subtype_diff = float8mi
+            )",
         )
         .await
         .unwrap();
-    client.execute(&create, &[]).await.unwrap();
 
     let select = client.prepare("SELECT $1::floatrange").await.unwrap();
 
     let ty = &select.params()[0];
     assert_eq!("floatrange", ty.name());
     assert_eq!(&Kind::Range(Type::FLOAT8), ty.kind());
+}
+
+#[tokio::test]
+async fn simple_query() {
+    let mut client = connect("user=postgres").await;
+
+    let messages = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            );
+            INSERT INTO foo (name) VALUES ('steven'), ('joe');
+            SELECT * FROM foo ORDER BY id;",
+        )
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
+
+    match messages[0] {
+        SimpleQueryMessage::CommandComplete(0) => {}
+        _ => panic!("unexpected message"),
+    }
+    match messages[1] {
+        SimpleQueryMessage::CommandComplete(2) => {}
+        _ => panic!("unexpected message"),
+    }
+    match &messages[2] {
+        SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.get(0), Some("1"));
+            assert_eq!(row.get(1), Some("steven"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[3] {
+        SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.get(0), Some("2"));
+            assert_eq!(row.get(1), Some("joe"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match messages[4] {
+        SimpleQueryMessage::CommandComplete(2) => {}
+        _ => panic!("unexpected message"),
+    }
+    assert_eq!(messages.len(), 5);
 }
 
 /*
@@ -673,56 +713,6 @@ fn transaction_builder_around_moved_client() {
 
     drop(client);
     runtime.run().unwrap();
-}
-
-#[test]
-fn simple_query() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let f = client
-        .simple_query(
-            "CREATE TEMPORARY TABLE foo (
-                id SERIAL,
-                name TEXT
-            );
-            INSERT INTO foo (name) VALUES ('steven'), ('joe');
-            SELECT * FROM foo ORDER BY id;",
-        )
-        .collect();
-    let messages = runtime.block_on(f).unwrap();
-
-    match messages[0] {
-        SimpleQueryMessage::CommandComplete(0) => {}
-        _ => panic!("unexpected message"),
-    }
-    match messages[1] {
-        SimpleQueryMessage::CommandComplete(2) => {}
-        _ => panic!("unexpected message"),
-    }
-    match &messages[2] {
-        SimpleQueryMessage::Row(row) => {
-            assert_eq!(row.get(0), Some("1"));
-            assert_eq!(row.get(1), Some("steven"));
-        }
-        _ => panic!("unexpected message"),
-    }
-    match &messages[3] {
-        SimpleQueryMessage::Row(row) => {
-            assert_eq!(row.get(0), Some("2"));
-            assert_eq!(row.get(1), Some("joe"));
-        }
-        _ => panic!("unexpected message"),
-    }
-    match messages[4] {
-        SimpleQueryMessage::CommandComplete(2) => {}
-        _ => panic!("unexpected message"),
-    }
-    assert_eq!(messages.len(), 5);
 }
 
 #[test]
