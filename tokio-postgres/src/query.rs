@@ -6,7 +6,6 @@ use crate::{Error, Row, Statement};
 use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};

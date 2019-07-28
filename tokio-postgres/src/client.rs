@@ -1,12 +1,13 @@
 use crate::codec::BackendMessages;
 use crate::connection::{Request, RequestMessages};
-use crate::prepare::prepare;
 use crate::query::{self, Query};
+use crate::simple_query;
 use crate::types::{Oid, ToSql, Type};
+use crate::{prepare, SimpleQueryMessage};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::future;
+use futures::{future, Stream};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
@@ -131,18 +132,31 @@ impl Client {
         self.inner.clone()
     }
 
+    /// Creates a new prepared statement.
+    ///
+    /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
+    /// which are set when executed. Prepared statements can only be used with the connection that created them.
     pub fn prepare(&mut self, query: &str) -> impl Future<Output = Result<Statement, Error>> {
         self.prepare_typed(query, &[])
     }
 
+    /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
+    ///
+    /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
+    /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
     pub fn prepare_typed(
         &mut self,
         query: &str,
         parameter_types: &[Type],
     ) -> impl Future<Output = Result<Statement, Error>> {
-        prepare(self.inner(), query, parameter_types)
+        prepare::prepare(self.inner(), query, parameter_types)
     }
 
+    /// Executes a statement, returning a stream of the resulting rows.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     pub fn query(
         &mut self,
         statement: &Statement,
@@ -152,6 +166,9 @@ impl Client {
         query::query(self.inner(), statement.clone(), buf)
     }
 
+    /// Like [`query`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`query`]: #method.query
     pub fn query_iter<'a, I>(
         &mut self,
         statement: &Statement,
@@ -165,6 +182,13 @@ impl Client {
         query::query(self.inner(), statement.clone(), buf)
     }
 
+    /// Executes a statement, returning the number of rows modified.
+    ///
+    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     pub fn execute(
         &mut self,
         statement: &Statement,
@@ -174,6 +198,9 @@ impl Client {
         query::execute(self.inner(), buf)
     }
 
+    /// Like [`execute`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`execute`]: #method.execute
     pub fn execute_iter<'a, I>(
         &mut self,
         statement: &Statement,
@@ -185,5 +212,39 @@ impl Client {
     {
         let buf = query::encode(statement, params);
         query::execute(self.inner(), buf)
+    }
+
+    /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.
+    ///
+    /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
+    /// point. The simple query protocol returns the values in rows as strings rather than in their binary encodings,
+    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning a stream over the
+    /// rows, this method returns a stream over an enum which indicates either the completion of one of the commands,
+    /// or a row of data. This preserves the framing between the separate statements in the request.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
+    /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
+    /// them to this method!
+    pub fn simple_query(
+        &mut self,
+        query: &str,
+    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
+        simple_query::simple_query(self.inner(), query)
+    }
+
+    /// Executes a sequence of SQL statements using the simple query protocol.
+    ///
+    /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
+    /// point. This is intended for use when, for example, initializing a database schema.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
+    /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
+    /// them to this method!
+    pub fn batch_execute(&mut self, query: &str) -> impl Future<Output = Result<(), Error>> {
+        simple_query::batch_execute(self.inner(), query)
     }
 }

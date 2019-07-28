@@ -140,6 +140,7 @@ mod maybe_tls_stream;
 mod prepare;
 mod query;
 pub mod row;
+mod simple_query;
 #[cfg(feature = "runtime")]
 mod socket;
 mod statement;
@@ -184,6 +185,18 @@ pub enum AsyncMessage {
     ///
     /// Connections can subscribe to notifications with the `LISTEN` command.
     Notification(Notification),
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+/// Message returned by the `SimpleQuery` stream.
+pub enum SimpleQueryMessage {
+    /// A row of data.
+    Row(SimpleQueryRow),
+    /// A statement in the query has completed.
+    ///
+    /// The number of rows modified or selected is returned.
+    CommandComplete(u64),
     #[doc(hidden)]
     __NonExhaustive,
 }

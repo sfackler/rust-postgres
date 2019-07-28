@@ -1,4 +1,4 @@
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::error::Error;
 use std::f32;
@@ -225,8 +225,8 @@ async fn test_borrowed_text() {
 async fn test_bpchar_params() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TEMPORARY TABLE foo (
                 id SERIAL PRIMARY KEY,
                 b CHAR(5)
@@ -234,7 +234,6 @@ async fn test_bpchar_params() {
         )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client
         .prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)")
@@ -268,8 +267,8 @@ async fn test_bpchar_params() {
 async fn test_citext_params() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TEMPORARY TABLE foo (
                 id SERIAL PRIMARY KEY,
                 b CITEXT
@@ -277,7 +276,6 @@ async fn test_citext_params() {
         )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client
         .prepare("INSERT INTO foo (b) VALUES ($1), ($2), ($3)")
@@ -427,22 +425,16 @@ async fn test_pg_database_datname() {
 async fn test_slice() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY,
-            f TEXT
-        )",
+                id SERIAL PRIMARY KEY,
+                f TEXT
+            );
+            INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
         )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
-
-    let stmt = client
-        .prepare("INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d')")
-        .await
-        .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client
         .prepare("SELECT f FROM foo WHERE id = ANY($1)")
@@ -464,15 +456,14 @@ async fn test_slice() {
 async fn test_slice_wrong_type() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TEMPORARY TABLE foo (
-            id SERIAL PRIMARY KEY
-        )",
+                id SERIAL PRIMARY KEY
+            )",
         )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client
         .prepare("SELECT * FROM foo WHERE id = ANY($1)")
@@ -539,17 +530,15 @@ async fn domain() {
 
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)")
+    client
+        .batch_execute(
+            "
+            CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16);
+            CREATE TABLE pg_temp.foo (id pg_temp.session_id);
+            ",
+        )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
-
-    let stmt = client
-        .prepare("CREATE TABLE pg_temp.foo (id pg_temp.session_id)")
-        .await
-        .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let id = SessionId(b"0123456789abcdef".to_vec());
 
@@ -574,17 +563,16 @@ async fn domain() {
 async fn composite() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare(
+    client
+        .batch_execute(
             "CREATE TYPE pg_temp.inventory_item AS (
-            name TEXT,
-            supplier INTEGER,
-            price NUMERIC
-        )",
+                name TEXT,
+                supplier INTEGER,
+                price NUMERIC
+            )",
         )
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client.prepare("SELECT $1::inventory_item").await.unwrap();
     let type_ = &stmt.params()[0];
@@ -606,11 +594,10 @@ async fn composite() {
 async fn enum_() {
     let mut client = connect("user=postgres").await;
 
-    let stmt = client
-        .prepare("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy')")
+    client
+        .batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy')")
         .await
         .unwrap();
-    client.execute(&stmt, &[]).await.unwrap();
 
     let stmt = client.prepare("SELECT $1::mood").await.unwrap();
     let type_ = &stmt.params()[0];

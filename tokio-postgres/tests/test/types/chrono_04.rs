@@ -19,7 +19,8 @@ async fn test_naive_date_time_params() {
             make_check("'2010-02-09 23:11:45.120200000'"),
             (None, "NULL"),
         ],
-    ).await;
+    )
+    .await;
 }
 
 #[tokio::test]
