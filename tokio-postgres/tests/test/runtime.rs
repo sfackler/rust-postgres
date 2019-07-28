@@ -49,7 +49,6 @@ async fn wrong_port_count() {
         .unwrap();
 }
 
-/*
 #[tokio::test]
 async fn target_session_attrs_ok() {
     tokio_postgres::connect(
@@ -67,9 +66,13 @@ async fn target_session_attrs_err() {
         "host=localhost port=5433 user=postgres target_session_attrs=read-write
          options='-c default_transaction_read_only=on'",
         NoTls,
-    ).await.err().unwrap();
+    )
+    .await
+    .err()
+    .unwrap();
 }
 
+/*
 #[test]
 fn cancel_query() {
     let mut runtime = Runtime::new().unwrap();
