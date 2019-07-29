@@ -10,6 +10,7 @@ use tokio::net::UnixStream;
 #[derive(Debug)]
 enum Inner {
     Tcp(TcpStream),
+    #[cfg(unix)]
     Unix(UnixStream),
 }
 
