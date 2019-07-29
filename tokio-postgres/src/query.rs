@@ -3,24 +3,24 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
 use crate::{Error, Row, Statement};
-use futures::{ready, Stream};
+use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub async fn query(
+pub fn query(
     client: Arc<InnerClient>,
     statement: Statement,
     buf: Result<Vec<u8>, Error>,
-) -> Result<Query, Error> {
-    let responses = start(client, buf).await?;
-
-    Ok(Query {
-        statement,
-        responses,
-    })
+) -> impl Stream<Item = Result<Row, Error>> {
+    start(client, buf)
+        .map_ok(|responses| Query {
+            statement,
+            responses,
+        })
+        .try_flatten_stream()
 }
 
 pub async fn execute(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
@@ -103,7 +103,7 @@ where
     Ok(buf)
 }
 
-pub struct Query {
+struct Query {
     statement: Statement,
     responses: Responses,
 }

@@ -1,7 +1,7 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::{try_join, FutureExt, TryFutureExt, TryStreamExt};
+use futures::{try_join, FutureExt, TryStreamExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
@@ -124,9 +124,7 @@ async fn insert_select() {
     let (insert, select) = try_join!(insert, select).unwrap();
 
     let insert = client.execute(&insert, &[&"alice", &"bob"]);
-    let select = client
-        .query(&select, &[])
-        .and_then(|q| q.try_collect::<Vec<_>>());
+    let select = client.query(&select, &[]).try_collect::<Vec<_>>();
     let (_, rows) = try_join!(insert, select).unwrap();
 
     assert_eq!(rows.len(), 2);

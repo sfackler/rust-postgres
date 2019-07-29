@@ -39,8 +39,6 @@ where
             .unwrap();
         let rows = client
             .query(&stmt, &[])
-            .await
-            .unwrap()
             .try_collect::<Vec<_>>()
             .await
             .unwrap();
@@ -53,8 +51,6 @@ where
             .unwrap();
         let rows = client
             .query(&stmt, &[&val])
-            .await
-            .unwrap()
             .try_collect::<Vec<_>>()
             .await
             .unwrap();
@@ -212,8 +208,6 @@ async fn test_borrowed_text() {
     let stmt = client.prepare("SELECT 'foo'").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -250,8 +244,6 @@ async fn test_bpchar_params() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .map_ok(|row| row.get(0))
         .try_collect::<Vec<Option<String>>>()
         .await
@@ -292,8 +284,6 @@ async fn test_citext_params() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .map_ok(|row| row.get(0))
         .try_collect::<Vec<String>>()
         .await
@@ -320,8 +310,6 @@ async fn test_borrowed_bytea() {
     let stmt = client.prepare("SELECT 'foo'::BYTEA").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -385,8 +373,6 @@ where
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -413,8 +399,6 @@ async fn test_pg_database_datname() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -442,8 +426,6 @@ async fn test_slice() {
         .unwrap();
     let rows = client
         .query(&stmt, &[&&[1i32, 3, 4][..]])
-        .await
-        .unwrap()
         .map_ok(|r| r.get(0))
         .try_collect::<Vec<String>>()
         .await
@@ -469,7 +451,12 @@ async fn test_slice_wrong_type() {
         .prepare("SELECT * FROM foo WHERE id = ANY($1)")
         .await
         .unwrap();
-    let err = client.query(&stmt, &[&&[&"hi"][..]]).await.err().unwrap();
+    let err = client
+        .query(&stmt, &[&&[&"hi"][..]])
+        .try_collect::<Vec<_>>()
+        .await
+        .err()
+        .unwrap();
     match err.source() {
         Some(e) if e.is::<WrongType>() => {}
         _ => panic!("Unexpected error {:?}", err),
@@ -481,7 +468,12 @@ async fn test_slice_range() {
     let mut client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
-    let err = client.query(&stmt, &[&&[&1i64][..]]).await.err().unwrap();
+    let err = client
+        .query(&stmt, &[&&[&1i64][..]])
+        .try_collect::<Vec<_>>()
+        .await
+        .err()
+        .unwrap();
     match err.source() {
         Some(e) if e.is::<WrongType>() => {}
         _ => panic!("Unexpected error {:?}", err),
@@ -551,8 +543,6 @@ async fn domain() {
     let stmt = client.prepare("SELECT id FROM pg_temp.foo").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();

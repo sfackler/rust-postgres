@@ -12,8 +12,6 @@ async fn smoke_test(s: &str) {
     let stmt = client.prepare("SELECT $1::INT").await.unwrap();
     let rows = client
         .query(&stmt, &[&1i32])
-        .await
-        .unwrap()
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -51,12 +49,11 @@ async fn wrong_port_count() {
 
 #[tokio::test]
 async fn target_session_attrs_ok() {
-    tokio_postgres::connect(
+    let _ = tokio_postgres::connect(
         "host=localhost port=5433 user=postgres target_session_attrs=read-write",
         NoTls,
     )
     .await
-    .err()
     .unwrap();
 }
 

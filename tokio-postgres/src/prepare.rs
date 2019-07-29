@@ -1,4 +1,5 @@
 use crate::client::InnerClient;
+use pin_utils::pin_mut;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
@@ -127,7 +128,8 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let params: &[&dyn ToSql] = &[&oid];
     let buf = query::encode(&stmt, params.iter().cloned());
-    let mut rows = query::query(client.clone(), stmt, buf).await?;
+    let rows = query::query(client.clone(), stmt, buf);
+    pin_mut!(rows);
 
     let row = match rows.try_next().await? {
         Some(row) => row,
@@ -199,7 +201,6 @@ async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<St
     let params: &[&dyn ToSql] = &[&oid];
     let buf = query::encode(&stmt, params.iter().cloned());
     query::query(client.clone(), stmt, buf)
-        .await?
         .and_then(|row| future::ready(row.try_get(0)))
         .try_collect()
         .await
@@ -228,7 +229,6 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     let params: &[&dyn ToSql] = &[&oid];
     let buf = query::encode(&stmt, params.iter().cloned());
     let rows = query::query(client.clone(), stmt, buf)
-        .await?
         .try_collect::<Vec<_>>()
         .await?;
 

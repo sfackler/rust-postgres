@@ -61,7 +61,7 @@ fn encode(query: &str) -> Result<Vec<u8>, Error> {
 
 struct SimpleQuery {
     responses: Responses,
-    columns: Option<Arc<[String]>>
+    columns: Option<Arc<[String]>>,
 }
 
 impl Stream for SimpleQuery {

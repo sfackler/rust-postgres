@@ -1,9 +1,9 @@
 use crate::codec::BackendMessages;
 use crate::connection::{Request, RequestMessages};
-use crate::query::{self, Query};
-use crate::simple_query;
+use crate::query;
 use crate::types::{Oid, ToSql, Type};
 use crate::{prepare, SimpleQueryMessage};
+use crate::{simple_query, Row};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
@@ -161,7 +161,7 @@ impl Client {
         &mut self,
         statement: &Statement,
         params: &[&dyn ToSql],
-    ) -> impl Future<Output = Result<Query, Error>> {
+    ) -> impl Stream<Item = Result<Row, Error>> {
         let buf = query::encode(statement, params.iter().cloned());
         query::query(self.inner(), statement.clone(), buf)
     }
@@ -173,7 +173,7 @@ impl Client {
         &mut self,
         statement: &Statement,
         params: I,
-    ) -> impl Future<Output = Result<Query, Error>>
+    ) -> impl Stream<Item = Result<Row, Error>>
     where
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,

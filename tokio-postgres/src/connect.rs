@@ -1,11 +1,15 @@
 use crate::config::{Host, TargetSessionAttrs};
-use pin_utils::pin_mut;
 use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
-use futures::TryStreamExt;
+use futures::{Stream, FutureExt};
+use futures::future;
+use pin_utils::pin_mut;
 use std::io;
+use std::future::Future;
+use std::task::Poll;
+use std::pin::Pin;
 
 pub async fn connect<T>(
     mut tls: T,
@@ -53,14 +57,22 @@ where
     T: TlsConnect<Socket>,
 {
     let socket = connect_socket(idx, config).await?;
-    let (mut client, connection) = connect_raw(socket, tls, config, Some(idx)).await?;
+    let (mut client, mut connection) = connect_raw(socket, tls, config, Some(idx)).await?;
 
     if let TargetSessionAttrs::ReadWrite = config.target_session_attrs {
         let rows = client.simple_query("SHOW transaction_read_only");
         pin_mut!(rows);
 
         loop {
-            match rows.try_next().await? {
+            let next = future::poll_fn(|cx| {
+                if connection.poll_unpin(cx)?.is_ready() {
+                    return Poll::Ready(Some(Err(Error::closed())));
+                }
+
+                rows.as_mut().poll_next(cx)
+            });
+
+            match next.await.transpose()? {
                 Some(SimpleQueryMessage::Row(row)) => {
                     if row.try_get(0)? == Some("on") {
                         return Err(Error::connect(io::Error::new(
