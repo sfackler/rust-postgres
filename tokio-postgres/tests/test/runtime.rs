@@ -49,12 +49,7 @@ async fn wrong_port_count() {
 
 #[tokio::test]
 async fn target_session_attrs_ok() {
-    let _ = tokio_postgres::connect(
-        "host=localhost port=5433 user=postgres target_session_attrs=read-write",
-        NoTls,
-    )
-    .await
-    .unwrap();
+    smoke_test("host=localhost port=5433 user=postgres target_session_attrs=read-write").await;
 }
 
 #[tokio::test]
