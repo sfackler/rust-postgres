@@ -3,50 +3,41 @@
 //! # Example
 //!
 //! ```no_run
-//! use futures::{Future, Stream};
-//! use tokio_postgres::NoTls;
+//! #![feature(async_await)]
 //!
-//! # #[cfg(not(feature = "runtime"))]
-//! # let fut = futures::future::ok(());
+//! use futures::{FutureExt, TryStreamExt};
+//! use tokio_postgres::{NoTls, Error, Row};
+//!
 //! # #[cfg(feature = "runtime")]
-//! let fut =
-//!     // Connect to the database
-//!     tokio_postgres::connect("host=localhost user=postgres", NoTls)
+//! #[tokio::main]
+//! async fn main() -> Result<(), Error> {
+//!     // Connect to the database.
+//!     let (mut client, connection) = tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
 //!
-//!     .map(|(client, connection)| {
-//!         // The connection object performs the actual communication with the database,
-//!         // so spawn it off to run on its own.
-//!         let connection = connection.map_err(|e| eprintln!("connection error: {}", e));
-//!         tokio::spawn(connection);
+//!     // The connection object performs the actual communication with the database,
+//!     // so spawn it off to run on its own.
+//!     let connection = connection.map(|r| {
+//!         if let Err(e) = r {
+//!             eprintln!("connection error: {}", e);
+//!         }
+//!     });
+//!     tokio::spawn(connection);
 //!
-//!         // The client is what you use to make requests.
-//!         client
-//!     })
+//!     // Now we can prepare a simple statement that just returns its parameter.
+//!     let stmt = client.prepare("SELECT $1::TEXT").await?;
 //!
-//!     .and_then(|mut client| {
-//!         // Now we can prepare a simple statement that just returns its parameter.
-//!         client.prepare("SELECT $1::TEXT")
-//!             .map(|statement| (client, statement))
-//!     })
-//!
-//!     .and_then(|(mut client, statement)| {
-//!         // And then execute it, returning a Stream of Rows which we collect into a Vec
-//!         client.query(&statement, &[&"hello world"]).collect()
-//!     })
+//!     // And then execute it, returning a Stream of Rows which we collect into a Vec.
+//!     let rows: Vec<Row> = client
+//!         .query(&stmt, &[&"hello world"])
+//!         .try_collect()
+//!         .await?;
 //!
 //!     // Now we can check that we got back the same string we sent over.
-//!     .map(|rows| {
-//!         let value: &str = rows[0].get(0);
-//!         assert_eq!(value, "hello world");
-//!     })
+//!     let value: &str = rows[0].get(0);
+//!     assert_eq!(value, "hello world");
 //!
-//!     // And report any errors that happened.
-//!     .map_err(|e| {
-//!         eprintln!("error: {}", e);
-//!     });
-//!
-//! // By default, tokio_postgres uses the tokio crate as its runtime.
-//! tokio::run(fut);
+//!     Ok(())
+//! }
 //! ```
 //!
 //! # Behavior
@@ -84,15 +75,18 @@
 //! combinator):
 //!
 //! ```rust
-//! use futures::Future;
+//! use futures::future;
+//! use std::future::Future;
 //! use tokio_postgres::{Client, Error, Statement};
 //!
 //! fn pipelined_prepare(
 //!     client: &mut Client,
-//! ) -> impl Future<Item = (Statement, Statement), Error = Error>
+//! ) -> impl Future<Output = Result<(Statement, Statement), Error>>
 //! {
-//!     client.prepare("SELECT * FROM foo")
-//!         .join(client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)"))
+//!     future::try_join(
+//!         client.prepare("SELECT * FROM foo"),
+//!         client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)")
+//!     )
 //! }
 //! ```
 //!
