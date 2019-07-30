@@ -1,12 +1,14 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::{try_join, FutureExt, TryStreamExt};
+use futures::{join, try_join, FutureExt, TryStreamExt};
 use tokio::net::TcpStream;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{Client, Config, Connection, Error, SimpleQueryMessage};
+use tokio::timer::Delay;
+use std::time::{Duration, Instant};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -295,6 +297,22 @@ async fn simple_query() {
     assert_eq!(messages.len(), 5);
 }
 
+#[tokio::test]
+async fn cancel_query_raw() {
+    let mut client = connect("user=postgres").await;
+
+    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap()).await.unwrap();
+    let cancel = client.cancel_query_raw(socket, NoTls);
+    let cancel = Delay::new(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
+
+    let sleep = client.batch_execute("SELECT pg_sleep(100)");
+
+    match join!(sleep, cancel) {
+        (Err(ref e), Ok(())) if e.code() == Some(&SqlState::QUERY_CANCELED) => {}
+        t => panic!("unexpected return: {:?}", t),
+    }
+}
+
 /*
 #[test]
 fn query_portal() {
@@ -338,40 +356,6 @@ fn query_portal() {
     assert_eq!(r2[0].get::<_, &str>(1), "charlie");
 
     assert_eq!(r3.len(), 0);
-}
-
-#[test]
-fn cancel_query_raw() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let sleep = client
-        .simple_query("SELECT pg_sleep(100)")
-        .for_each(|_| Ok(()))
-        .then(|r| match r {
-            Ok(_) => panic!("unexpected success"),
-            Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
-            Err(e) => panic!("unexpected error {}", e),
-        });
-    let cancel = Delay::new(Instant::now() + Duration::from_millis(100))
-        .then(|r| {
-            r.unwrap();
-            TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        })
-        .then(|r| {
-            let s = r.unwrap();
-            client.cancel_query_raw(s, NoTls)
-        })
-        .then(|r| {
-            r.unwrap();
-            Ok::<(), ()>(())
-        });
-
-    let ((), ()) = runtime.block_on(sleep.join(cancel)).unwrap();
 }
 
 #[test]

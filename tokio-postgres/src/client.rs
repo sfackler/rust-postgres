@@ -1,7 +1,13 @@
 use crate::codec::BackendMessages;
+use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
-use crate::query;
+#[cfg(feature = "runtime")]
+use crate::tls::MakeTlsConnect;
+use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
+#[cfg(feature = "runtime")]
+use crate::Socket;
+use crate::{cancel_query, cancel_query_raw, query};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
@@ -15,6 +21,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
@@ -101,8 +109,19 @@ impl InnerClient {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct SocketConfig {
+    pub host: Host,
+    pub port: u16,
+    pub connect_timeout: Option<Duration>,
+    pub keepalives: bool,
+    pub keepalives_idle: Duration,
+}
+
 pub struct Client {
     inner: Arc<InnerClient>,
+    socket_config: Option<SocketConfig>,
+    ssl_mode: SslMode,
     process_id: i32,
     secret_key: i32,
 }
@@ -110,6 +129,7 @@ pub struct Client {
 impl Client {
     pub(crate) fn new(
         sender: mpsc::UnboundedSender<Request>,
+        ssl_mode: SslMode,
         process_id: i32,
         secret_key: i32,
     ) -> Client {
@@ -123,6 +143,8 @@ impl Client {
                     types: HashMap::new(),
                 }),
             }),
+            socket_config: None,
+            ssl_mode,
             process_id,
             secret_key,
         }
@@ -130,6 +152,10 @@ impl Client {
 
     pub(crate) fn inner(&self) -> Arc<InnerClient> {
         self.inner.clone()
+    }
+
+    pub(crate) fn set_socket_config(&mut self, socket_config: SocketConfig) {
+        self.socket_config = Some(socket_config);
     }
 
     /// Creates a new prepared statement.
@@ -246,5 +272,44 @@ impl Client {
     /// them to this method!
     pub fn batch_execute(&mut self, query: &str) -> impl Future<Output = Result<(), Error>> {
         simple_query::batch_execute(self.inner(), query)
+    }
+
+    /// Attempts to cancel an in-progress query.
+    ///
+    /// The server provides no information about whether a cancellation attempt was successful or not. An error will
+    /// only be returned if the client was unable to connect to the database.
+    ///
+    /// Requires the `runtime` Cargo feature (enabled by default).
+    pub fn cancel_query<T>(&mut self, tls: T) -> impl Future<Output = Result<(), Error>>
+    where
+        T: MakeTlsConnect<Socket>,
+    {
+        cancel_query::cancel_query(
+            self.socket_config.clone(),
+            self.ssl_mode,
+            tls,
+            self.process_id,
+            self.secret_key,
+        )
+    }
+
+    /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
+    /// connection itself.
+    pub fn cancel_query_raw<S, T>(
+        &mut self,
+        stream: S,
+        tls: T,
+    ) -> impl Future<Output = Result<(), Error>>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+        T: TlsConnect<S>,
+    {
+        cancel_query_raw::cancel_query_raw(
+            stream,
+            self.ssl_mode,
+            tls,
+            self.process_id,
+            self.secret_key,
+        )
     }
 }

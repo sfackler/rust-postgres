@@ -1,5 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::config::Config;
+use crate::config::{Config, SslMode};
 use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{ChannelBinding, TlsConnect};
@@ -80,7 +80,6 @@ pub async fn connect_raw<S, T>(
     stream: S,
     tls: T,
     config: &Config,
-    idx: Option<usize>,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -98,7 +97,7 @@ where
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
-    let client = Client::new(sender, process_id, secret_key);
+    let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
     let connection = Connection::new(stream.inner, parameters, receiver);
 
     Ok((client, connection))

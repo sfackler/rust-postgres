@@ -1,5 +1,4 @@
 use crate::client::InnerClient;
-use pin_utils::pin_mut;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
@@ -8,6 +7,7 @@ use crate::types::{Field, Kind, Oid, ToSql, Type};
 use crate::{Column, Error, Statement};
 use fallible_iterator::FallibleIterator;
 use futures::{future, TryStreamExt};
+use pin_utils::pin_mut;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;

@@ -119,6 +119,9 @@ use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
 pub use statement::{Column, Statement};
 
+#[cfg(feature = "runtime")]
+mod cancel_query;
+mod cancel_query_raw;
 mod client;
 mod codec;
 pub mod config;

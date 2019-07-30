@@ -1,13 +1,19 @@
-use futures::{FutureExt, TryStreamExt};
+use futures::{FutureExt, TryStreamExt, join};
 use std::time::{Duration, Instant};
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::NoTls;
+use tokio_postgres::{NoTls, Client};
 
-async fn smoke_test(s: &str) {
-    let (mut client, connection) = tokio_postgres::connect(s, NoTls).await.unwrap();
+async fn connect(s: &str) -> Client {
+    let (client, connection) = tokio_postgres::connect(s, NoTls).await.unwrap();
     let connection = connection.map(|e| e.unwrap());
     tokio::spawn(connection);
+
+    client
+}
+
+async fn smoke_test(s: &str) {
+    let mut client = connect(s).await;
 
     let stmt = client.prepare("SELECT $1::INT").await.unwrap();
     let rows = client
@@ -64,34 +70,17 @@ async fn target_session_attrs_err() {
     .unwrap();
 }
 
-/*
-#[test]
-fn cancel_query() {
-    let mut runtime = Runtime::new().unwrap();
+#[tokio::test]
+async fn cancel_query() {
+    let mut client = connect("host=localhost port=5433 user=postgres").await;
 
-    let connect = tokio_postgres::connect("host=localhost port=5433 user=postgres", NoTls);
-    let (mut client, connection) = runtime.block_on(connect).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.spawn(connection);
+    let cancel = client.cancel_query(NoTls);
+    let cancel = Delay::new(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
 
-    let sleep = client
-        .simple_query("SELECT pg_sleep(100)")
-        .for_each(|_| Ok(()))
-        .then(|r| match r {
-            Ok(_) => panic!("unexpected success"),
-            Err(ref e) if e.code() == Some(&SqlState::QUERY_CANCELED) => Ok::<(), ()>(()),
-            Err(e) => panic!("unexpected error {}", e),
-        });
-    let cancel = Delay::new(Instant::now() + Duration::from_millis(100))
-        .then(|r| {
-            r.unwrap();
-            client.cancel_query(NoTls)
-        })
-        .then(|r| {
-            r.unwrap();
-            Ok::<(), ()>(())
-        });
+    let sleep = client.batch_execute("SELECT pg_sleep(100)");
 
-    let ((), ()) = runtime.block_on(sleep.join(cancel)).unwrap();
+    match join!(sleep, cancel) {
+        (Err(ref e), Ok(())) if e.code() == Some(&SqlState::QUERY_CANCELED) => {}
+        t => panic!("unexpected return: {:?}", t),
+    }
 }
-*/
