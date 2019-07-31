@@ -7,7 +7,7 @@ use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query, cancel_query_raw, query};
+use crate::{cancel_query, cancel_query_raw, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
@@ -274,12 +274,21 @@ impl Client {
         simple_query::batch_execute(self.inner(), query)
     }
 
+    /// Begins a new database transaction.
+    ///
+    /// The transaction will roll back by default - use the `commit` method to commit it.
+    pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.batch_execute("BEGIN").await?;
+        Ok(Transaction::new(self))
+    }
+
     /// Attempts to cancel an in-progress query.
     ///
     /// The server provides no information about whether a cancellation attempt was successful or not. An error will
     /// only be returned if the client was unable to connect to the database.
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
+    #[cfg(feature = "runtime")]
     pub fn cancel_query<T>(&mut self, tls: T) -> impl Future<Output = Result<(), Error>>
     where
         T: MakeTlsConnect<Socket>,

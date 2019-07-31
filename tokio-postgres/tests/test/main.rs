@@ -313,6 +313,70 @@ async fn cancel_query_raw() {
     }
 }
 
+#[tokio::test]
+async fn transaction_commit() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo(
+            id SERIAL,
+            name TEXT
+          )",
+    ).await.unwrap();
+
+    let mut transaction = client.transaction().await.unwrap();
+    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    transaction.commit().await.unwrap();
+
+    let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
+    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, &str>(0), "steven");
+}
+
+#[tokio::test]
+async fn transaction_rollback() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo(
+            id SERIAL,
+            name TEXT
+          )",
+    ).await.unwrap();
+
+    let mut transaction = client.transaction().await.unwrap();
+    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    transaction.rollback().await.unwrap();
+
+    let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
+    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+
+    assert_eq!(rows.len(), 0);
+}
+
+#[tokio::test]
+async fn transaction_rollback_drop() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo(
+            id SERIAL,
+            name TEXT
+          )",
+    ).await.unwrap();
+
+    let mut transaction = client.transaction().await.unwrap();
+    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    drop(transaction);
+
+    let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
+    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+
+    assert_eq!(rows.len(), 0);
+}
+
 /*
 #[test]
 fn query_portal() {
@@ -400,89 +464,6 @@ fn notifications() {
     assert_eq!(notifications[0].payload(), "hello");
     assert_eq!(notifications[1].channel(), "test_notifications");
     assert_eq!(notifications[1].payload(), "world");
-}
-
-#[test]
-fn transaction_commit() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id SERIAL,
-                        name TEXT
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let f = client
-        .simple_query("INSERT INTO foo (name) VALUES ('steven')")
-        .for_each(|_| Ok(()));
-    runtime
-        .block_on(client.build_transaction().build(f))
-        .unwrap();
-
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("SELECT name FROM foo")
-                .and_then(|s| client.query(&s, &[]).collect()),
-        )
-        .unwrap();
-
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].get::<_, &str>(0), "steven");
-}
-
-#[test]
-fn transaction_abort() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id SERIAL,
-                        name TEXT
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let f = client
-        .simple_query("INSERT INTO foo (name) VALUES ('steven')")
-        .for_each(|_| Ok(()))
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
-        .and_then(|_| Err::<(), _>(Box::<dyn Error>::from("")));
-    runtime
-        .block_on(client.build_transaction().build(f))
-        .unwrap_err();
-
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("SELECT name FROM foo")
-                .and_then(|s| client.query(&s, &[]).collect()),
-        )
-        .unwrap();
-
-    assert_eq!(rows.len(), 0);
 }
 
 #[test]
@@ -649,52 +630,6 @@ fn copy_out() {
         )
         .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
-}
-
-#[test]
-fn transaction_builder_around_moved_client() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let transaction_builder = client.build_transaction();
-    let work = client
-        .simple_query(
-            "CREATE TEMPORARY TABLE transaction_foo (
-                id SERIAL,
-                name TEXT
-            )",
-        )
-        .for_each(|_| Ok(()))
-        .and_then(move |_| {
-            client
-                .prepare("INSERT INTO transaction_foo (name) VALUES ($1), ($2)")
-                .map(|statement| (client, statement))
-        })
-        .and_then(|(mut client, statement)| {
-            client
-                .query(&statement, &[&"jim", &"joe"])
-                .collect()
-                .map(|_res| client)
-        });
-
-    let transaction = transaction_builder.build(work);
-    let mut client = runtime.block_on(transaction).unwrap();
-
-    let data = runtime
-        .block_on(
-            client
-                .prepare("COPY transaction_foo TO STDOUT")
-                .and_then(|s| client.copy_out(&s, &[]).concat2()),
-        )
-        .unwrap();
-    assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
-
-    drop(client);
-    runtime.run().unwrap();
 }
 
 #[test]

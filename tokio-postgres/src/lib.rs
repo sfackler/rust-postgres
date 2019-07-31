@@ -108,6 +108,7 @@
 
 pub use crate::client::Client;
 pub use crate::config::Config;
+pub use crate::transaction::Transaction;
 pub use crate::connection::Connection;
 use crate::error::DbError;
 pub use crate::error::Error;
@@ -141,6 +142,7 @@ mod simple_query;
 #[cfg(feature = "runtime")]
 mod socket;
 mod statement;
+mod transaction;
 pub mod tls;
 pub mod types;
 
