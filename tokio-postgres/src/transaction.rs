@@ -7,8 +7,10 @@ use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{query, Client, Error, Row, SimpleQueryMessage, Statement};
-use futures::Stream;
+use bytes::IntoBuf;
+use futures::{Stream, TryStream};
 use postgres_protocol::message::frontend;
+use std::error;
 use std::future::Future;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -118,6 +120,22 @@ impl<'a> Transaction<'a> {
         // https://github.com/rust-lang/rust/issues/63032
         let buf = query::encode(statement, params);
         query::execute(self.client.inner(), buf)
+    }
+
+    /// Like `Client::copy_in`.
+    pub fn copy_in<S>(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+        stream: S,
+    ) -> impl Future<Output = Result<u64, Error>>
+    where
+        S: TryStream,
+        S::Ok: IntoBuf,
+        <S::Ok as IntoBuf>::Buf: 'static + Send,
+        S::Error: Into<Box<dyn error::Error + Sync + Send>>,
+    {
+        self.client.copy_in(statement, params, stream)
     }
 
     /// Like `Client::simple_query`.

@@ -1,8 +1,8 @@
 use crate::client::SocketConfig;
-use crate::config::{SslMode, Host};
+use crate::config::{Host, SslMode};
+use crate::tls::MakeTlsConnect;
 use crate::{cancel_query_raw, connect_socket, connect_tls, Error, Socket};
 use std::io;
-use crate::tls::MakeTlsConnect;
 
 pub(crate) async fn cancel_query<T>(
     config: Option<SocketConfig>,
@@ -10,7 +10,10 @@ pub(crate) async fn cancel_query<T>(
     mut tls: T,
     process_id: i32,
     secret_key: i32,
-) -> Result<(), Error> where T: MakeTlsConnect<Socket> {
+) -> Result<(), Error>
+where
+    T: MakeTlsConnect<Socket>,
+{
     let config = match config {
         Some(config) => config,
         None => {
@@ -27,7 +30,9 @@ pub(crate) async fn cancel_query<T>(
         #[cfg(unix)]
         Host::Unix(_) => "",
     };
-    let tls = tls.make_tls_connect(hostname).map_err(|e| Error::tls(e.into()))?;
+    let tls = tls
+        .make_tls_connect(hostname)
+        .map_err(|e| Error::tls(e.into()))?;
 
     let socket = connect_socket::connect_socket(
         &config.host,

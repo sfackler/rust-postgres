@@ -7,17 +7,19 @@ use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query, cancel_query_raw, query, Transaction};
+use crate::{cancel_query, cancel_query_raw, copy_in, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
+use bytes::IntoBuf;
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, Stream};
+use futures::{future, Stream, TryStream};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use std::collections::HashMap;
+use std::error;
 use std::future::Future;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -238,6 +240,30 @@ impl Client {
     {
         let buf = query::encode(statement, params);
         query::execute(self.inner(), buf)
+    }
+
+    /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
+    ///
+    /// The data in the provided stream is passed along to the server verbatim; it is the caller's responsibility to
+    /// ensure it uses the proper format.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub fn copy_in<S>(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+        stream: S,
+    ) -> impl Future<Output = Result<u64, Error>>
+    where
+        S: TryStream,
+        S::Ok: IntoBuf,
+        <S::Ok as IntoBuf>::Buf: 'static + Send,
+        S::Error: Into<Box<dyn error::Error + Sync + Send>>,
+    {
+        let buf = query::encode(statement, params.iter().cloned());
+        copy_in::copy_in(self.inner(), buf, stream)
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.

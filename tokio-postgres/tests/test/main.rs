@@ -2,13 +2,15 @@
 #![feature(async_await)]
 
 use futures::{join, try_join, FutureExt, TryStreamExt};
+use std::fmt::Write;
+use std::time::{Duration, Instant};
+use futures::stream;
 use tokio::net::TcpStream;
+use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{Client, Config, Connection, Error, SimpleQueryMessage};
-use tokio::timer::Delay;
-use std::time::{Duration, Instant};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -301,7 +303,9 @@ async fn simple_query() {
 async fn cancel_query_raw() {
     let mut client = connect("user=postgres").await;
 
-    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap()).await.unwrap();
+    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
+        .await
+        .unwrap();
     let cancel = client.cancel_query_raw(socket, NoTls);
     let cancel = Delay::new(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
 
@@ -317,19 +321,29 @@ async fn cancel_query_raw() {
 async fn transaction_commit() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo(
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo(
             id SERIAL,
             name TEXT
           )",
-    ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
     let mut transaction = client.transaction().await.unwrap();
-    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    transaction
+        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .await
+        .unwrap();
     transaction.commit().await.unwrap();
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
-    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+    let rows = client
+        .query(&stmt, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "steven");
@@ -339,19 +353,29 @@ async fn transaction_commit() {
 async fn transaction_rollback() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo(
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo(
             id SERIAL,
             name TEXT
           )",
-    ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
     let mut transaction = client.transaction().await.unwrap();
-    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    transaction
+        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .await
+        .unwrap();
     transaction.rollback().await.unwrap();
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
-    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+    let rows = client
+        .query(&stmt, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
 
     assert_eq!(rows.len(), 0);
 }
@@ -360,20 +384,105 @@ async fn transaction_rollback() {
 async fn transaction_rollback_drop() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo(
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo(
             id SERIAL,
             name TEXT
           )",
-    ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
     let mut transaction = client.transaction().await.unwrap();
-    transaction.batch_execute("INSERT INTO foo (name) VALUES ('steven')").await.unwrap();
+    transaction
+        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .await
+        .unwrap();
     drop(transaction);
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
+    let rows = client
+        .query(&stmt, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
+
+    assert_eq!(rows.len(), 0);
+}
+
+#[tokio::test]
+async fn copy_in() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo (
+            id INTEGER,\
+            name TEXT\
+        )"
+    ).await.unwrap();
+
+    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
+    let stream = stream::iter(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()].into_iter().map(Ok::<_, String>));
+    let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
+    assert_eq!(rows, 2);
+
+    let stmt = client.prepare("SELECT id, name FROM foo ORDER BY id").await.unwrap();
     let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
 
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[0].get::<_, &str>(1), "jim");
+    assert_eq!(rows[1].get::<_, i32>(0), 2);
+    assert_eq!(rows[1].get::<_, &str>(1), "joe");
+}
+
+#[tokio::test]
+async fn copy_in_large() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo (
+            id INTEGER,\
+            name TEXT\
+        )"
+    ).await.unwrap();
+
+    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
+
+    let a = "0\tname0\n".to_string();
+    let mut b = String::new();
+    for i in 1..5_000 {
+        writeln!(b, "{0}\tname{0}", i).unwrap();
+    }
+    let mut c = String::new();
+    for i in 5_000..10_000 {
+        writeln!(c, "{0}\tname{0}", i).unwrap();
+    }
+    let stream = stream::iter(vec![a, b, c].into_iter().map(Ok::<_, String>));
+
+    let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
+    assert_eq!(rows, 10_000);
+}
+
+#[tokio::test]
+async fn copy_in_error() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo (
+            id INTEGER,\
+            name TEXT\
+        )"
+    ).await.unwrap();
+
+    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
+    let stream = stream::iter(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
+    let error = client.copy_in(&stmt, &[], stream).await.unwrap_err();
+    assert!(error.to_string().contains("asdf"));
+
+    let stmt = client.prepare("SELECT id, name FROM foo ORDER BY id").await.unwrap();
+    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -464,139 +573,6 @@ fn notifications() {
     assert_eq!(notifications[0].payload(), "hello");
     assert_eq!(notifications[1].channel(), "test_notifications");
     assert_eq!(notifications[1].payload(), "world");
-}
-
-#[test]
-fn copy_in() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id INTEGER,
-                        name TEXT
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let stream = stream::iter_ok::<_, String>(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]);
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("COPY foo FROM STDIN")
-                .and_then(|s| client.copy_in(&s, &[], stream)),
-        )
-        .unwrap();
-    assert_eq!(rows, 2);
-
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("SELECT id, name FROM foo ORDER BY id")
-                .and_then(|s| client.query(&s, &[]).collect()),
-        )
-        .unwrap();
-
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].get::<_, i32>(0), 1);
-    assert_eq!(rows[0].get::<_, &str>(1), "jim");
-    assert_eq!(rows[1].get::<_, i32>(0), 2);
-    assert_eq!(rows[1].get::<_, &str>(1), "joe");
-}
-
-#[test]
-fn copy_in_large() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id INTEGER,
-                        name TEXT
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let a = "0\tname0\n".to_string();
-    let mut b = String::new();
-    for i in 1..5_000 {
-        writeln!(b, "{0}\tname{0}", i).unwrap();
-    }
-    let mut c = String::new();
-    for i in 5_000..10_000 {
-        writeln!(c, "{0}\tname{0}", i).unwrap();
-    }
-
-    let stream = stream::iter_ok::<_, String>(vec![a, b, c]);
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("COPY foo FROM STDIN")
-                .and_then(|s| client.copy_in(&s, &[], stream)),
-        )
-        .unwrap();
-    assert_eq!(rows, 10_000);
-}
-
-#[test]
-fn copy_in_error() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id INTEGER,
-                        name TEXT
-                    )",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let stream = stream::iter_result(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
-    let error = runtime
-        .block_on(
-            client
-                .prepare("COPY foo FROM STDIN")
-                .and_then(|s| client.copy_in(&s, &[], stream)),
-        )
-        .unwrap_err();
-    assert!(error.to_string().contains("asdf"));
-
-    let rows = runtime
-        .block_on(
-            client
-                .prepare("SELECT id, name FROM foo ORDER BY id")
-                .and_then(|s| client.query(&s, &[]).collect()),
-        )
-        .unwrap();
-
-    assert_eq!(rows.len(), 0);
 }
 
 #[test]

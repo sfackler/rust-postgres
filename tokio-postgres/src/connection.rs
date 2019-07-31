@@ -1,4 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
+use crate::copy_in::CopyInReceiver;
 use crate::error::DbError;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::{AsyncMessage, Error, Notification};
@@ -17,6 +18,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 pub enum RequestMessages {
     Single(FrontendMessage),
+    CopyIn(CopyInReceiver),
 }
 
 pub struct Request {
@@ -236,6 +238,24 @@ where
                         trace!("poll_write: sent eof, closing");
                         self.state = State::Closing;
                     }
+                }
+                RequestMessages::CopyIn(mut receiver) => {
+                    let message = match receiver.poll_next_unpin(cx) {
+                        Poll::Ready(Some(message)) => message,
+                        Poll::Ready(None) => {
+                            trace!("poll_write: finished copy_in request");
+                            continue;
+                        }
+                        Poll::Pending => {
+                            trace!("poll_write: waiting on copy_in stream");
+                            self.pending_request = Some(RequestMessages::CopyIn(receiver));
+                            return Ok(true);
+                        }
+                    };
+                    Pin::new(&mut self.stream)
+                        .start_send(message)
+                        .map_err(Error::io)?;
+                    self.pending_request = Some(RequestMessages::CopyIn(receiver));
                 }
             }
         }

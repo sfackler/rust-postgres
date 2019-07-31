@@ -1,8 +1,8 @@
-use futures::{FutureExt, TryStreamExt, join};
+use futures::{join, FutureExt, TryStreamExt};
 use std::time::{Duration, Instant};
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::{NoTls, Client};
+use tokio_postgres::{Client, NoTls};
 
 async fn connect(s: &str) -> Client {
     let (client, connection) = tokio_postgres::connect(s, NoTls).await.unwrap();

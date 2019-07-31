@@ -9,10 +9,11 @@
 //! use tokio_postgres::{NoTls, Error, Row};
 //!
 //! # #[cfg(feature = "runtime")]
-//! #[tokio::main]
+//! #[tokio::main] // By default, tokio_postgres uses the tokio crate as its runtime.
 //! async fn main() -> Result<(), Error> {
 //!     // Connect to the database.
-//!     let (mut client, connection) = tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
+//!     let (mut client, connection) =
+//!         tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
 //!
 //!     // The connection object performs the actual communication with the database,
 //!     // so spawn it off to run on its own.
@@ -108,7 +109,6 @@
 
 pub use crate::client::Client;
 pub use crate::config::Config;
-pub use crate::transaction::Transaction;
 pub use crate::connection::Connection;
 use crate::error::DbError;
 pub use crate::error::Error;
@@ -118,6 +118,7 @@ pub use crate::socket::Socket;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
+pub use crate::transaction::Transaction;
 pub use statement::{Column, Statement};
 
 #[cfg(feature = "runtime")]
@@ -133,6 +134,7 @@ mod connect_raw;
 mod connect_socket;
 mod connect_tls;
 mod connection;
+mod copy_in;
 pub mod error;
 mod maybe_tls_stream;
 mod prepare;
@@ -142,8 +144,8 @@ mod simple_query;
 #[cfg(feature = "runtime")]
 mod socket;
 mod statement;
-mod transaction;
 pub mod tls;
+mod transaction;
 pub mod types;
 
 /// A convenience function which parses a connection string and connects to the database.
