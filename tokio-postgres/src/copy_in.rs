@@ -9,11 +9,11 @@ use futures::{SinkExt, Stream, StreamExt, TryStream, TryStreamExt};
 use pin_utils::pin_mut;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use postgres_protocol::message::frontend::CopyData;
 use std::error;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use postgres_protocol::message::frontend::CopyData;
 
 enum CopyInMessage {
     Message(FrontendMessage),

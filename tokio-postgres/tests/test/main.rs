@@ -1,10 +1,10 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
+use futures::stream;
 use futures::{join, try_join, FutureExt, TryStreamExt};
 use std::fmt::Write;
 use std::time::{Duration, Instant};
-use futures::stream;
 use tokio::net::TcpStream;
 use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
@@ -324,9 +324,9 @@ async fn transaction_commit() {
     client
         .batch_execute(
             "CREATE TEMPORARY TABLE foo(
-            id SERIAL,
-            name TEXT
-          )",
+                id SERIAL,
+                name TEXT
+            )",
         )
         .await
         .unwrap();
@@ -356,9 +356,9 @@ async fn transaction_rollback() {
     client
         .batch_execute(
             "CREATE TEMPORARY TABLE foo(
-            id SERIAL,
-            name TEXT
-          )",
+                id SERIAL,
+                name TEXT
+            )",
         )
         .await
         .unwrap();
@@ -387,9 +387,9 @@ async fn transaction_rollback_drop() {
     client
         .batch_execute(
             "CREATE TEMPORARY TABLE foo(
-            id SERIAL,
-            name TEXT
-          )",
+                id SERIAL,
+                name TEXT
+            )",
         )
         .await
         .unwrap();
@@ -415,20 +415,34 @@ async fn transaction_rollback_drop() {
 async fn copy_in() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id INTEGER,\
-            name TEXT\
-        )"
-    ).await.unwrap();
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id INTEGER,
+                name TEXT
+            )",
+        )
+        .await
+        .unwrap();
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
-    let stream = stream::iter(vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()].into_iter().map(Ok::<_, String>));
+    let stream = stream::iter(
+        vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]
+            .into_iter()
+            .map(Ok::<_, String>),
+    );
     let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
     assert_eq!(rows, 2);
 
-    let stmt = client.prepare("SELECT id, name FROM foo ORDER BY id").await.unwrap();
-    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+    let stmt = client
+        .prepare("SELECT id, name FROM foo ORDER BY id")
+        .await
+        .unwrap();
+    let rows = client
+        .query(&stmt, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -441,12 +455,15 @@ async fn copy_in() {
 async fn copy_in_large() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id INTEGER,\
-            name TEXT\
-        )"
-    ).await.unwrap();
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id INTEGER,
+                name TEXT
+            )",
+        )
+        .await
+        .unwrap();
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
 
@@ -469,20 +486,30 @@ async fn copy_in_large() {
 async fn copy_in_error() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
-            id INTEGER,\
-            name TEXT\
-        )"
-    ).await.unwrap();
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id INTEGER,
+                name TEXT
+            )",
+        )
+        .await
+        .unwrap();
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
     let stream = stream::iter(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
     let error = client.copy_in(&stmt, &[], stream).await.unwrap_err();
     assert!(error.to_string().contains("asdf"));
 
-    let stmt = client.prepare("SELECT id, name FROM foo ORDER BY id").await.unwrap();
-    let rows = client.query(&stmt, &[]).try_collect::<Vec<_>>().await.unwrap();
+    let stmt = client
+        .prepare("SELECT id, name FROM foo ORDER BY id")
+        .await
+        .unwrap();
+    let rows = client
+        .query(&stmt, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 0);
 }
 
