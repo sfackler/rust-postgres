@@ -7,7 +7,7 @@ use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{query, Client, Error, Row, SimpleQueryMessage, Statement};
-use bytes::IntoBuf;
+use bytes::{Bytes, IntoBuf};
 use futures::{Stream, TryStream};
 use postgres_protocol::message::frontend;
 use std::error;
@@ -136,6 +136,15 @@ impl<'a> Transaction<'a> {
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
         self.client.copy_in(statement, params, stream)
+    }
+
+    /// Like `Client::copy_out`.
+    pub fn copy_out(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> impl Stream<Item = Result<Bytes, Error>> {
+        self.client.copy_out(statement, params)
     }
 
     /// Like `Client::simple_query`.
