@@ -126,7 +126,6 @@ mod cancel_query;
 mod cancel_query_raw;
 mod client;
 mod codec;
-mod copy_out;
 pub mod config;
 #[cfg(feature = "runtime")]
 mod connect;
@@ -136,6 +135,7 @@ mod connect_socket;
 mod connect_tls;
 mod connection;
 mod copy_in;
+mod copy_out;
 pub mod error;
 mod maybe_tls_stream;
 mod prepare;

@@ -1,13 +1,13 @@
 use crate::client::{InnerClient, Responses};
+use crate::codec::FrontendMessage;
+use crate::connection::RequestMessages;
 use crate::Error;
 use bytes::Bytes;
-use futures::{Stream, TryFutureExt, ready};
-use std::sync::Arc;
-use crate::codec::FrontendMessage;
+use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
-use crate::connection::RequestMessages;
 
 pub fn copy_out(
     client: Arc<InnerClient>,

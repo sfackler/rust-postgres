@@ -1,7 +1,8 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use futures::stream;
+use futures::channel::mpsc;
+use futures::{future, stream, StreamExt};
 use futures::{join, try_join, FutureExt, TryStreamExt};
 use std::fmt::Write;
 use std::time::{Duration, Instant};
@@ -10,7 +11,7 @@ use tokio::timer::Delay;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{Client, Config, Connection, Error, SimpleQueryMessage};
+use tokio_postgres::{AsyncMessage, Client, Config, Connection, Error, SimpleQueryMessage};
 
 mod parse;
 #[cfg(feature = "runtime")]
@@ -517,18 +518,55 @@ async fn copy_in_error() {
 async fn copy_out() {
     let mut client = connect("user=postgres").await;
 
-    client.batch_execute(
-        "CREATE TEMPORARY TABLE foo (
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
             id SERIAL,
             name TEXT
         );
 
-        INSERT INTO foo (name) VALUES ('jim'), ('joe');"
-    ).await.unwrap();
+        INSERT INTO foo (name) VALUES ('jim'), ('joe');",
+        )
+        .await
+        .unwrap();
 
     let stmt = client.prepare("COPY foo TO STDOUT").await.unwrap();
     let data = client.copy_out(&stmt, &[]).try_concat().await.unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
+}
+
+#[tokio::test]
+async fn notifications() {
+    let (mut client, mut connection) = connect_raw("user=postgres").await.unwrap();
+
+    let (tx, rx) = mpsc::unbounded();
+    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
+    let connection = stream.forward(tx).map(|r| r.unwrap());
+    tokio::spawn(connection);
+
+    client
+        .batch_execute(
+            "LISTEN test_notifications;
+             NOTIFY test_notifications, 'hello';
+             NOTIFY test_notifications, 'world';",
+        )
+        .await
+        .unwrap();
+
+    drop(client);
+
+    let notifications = rx
+        .filter_map(|m| match m {
+            AsyncMessage::Notification(n) => future::ready(Some(n)),
+            _ => future::ready(None),
+        })
+        .collect::<Vec<_>>()
+        .await;
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].channel(), "test_notifications");
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].channel(), "test_notifications");
+    assert_eq!(notifications[1].payload(), "world");
 }
 
 /*
@@ -574,50 +612,6 @@ fn query_portal() {
     assert_eq!(r2[0].get::<_, &str>(1), "charlie");
 
     assert_eq!(r3.len(), 0);
-}
-
-#[test]
-fn notifications() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, mut connection) = runtime.block_on(connect("user=postgres")).unwrap();
-
-    let (tx, rx) = mpsc::unbounded();
-    let connection = future::poll_fn(move || {
-        while let Some(message) = try_ready!(connection.poll_message().map_err(|e| panic!("{}", e)))
-        {
-            if let AsyncMessage::Notification(notification) = message {
-                debug!("received {}", notification.payload());
-                tx.unbounded_send(notification).unwrap();
-            }
-        }
-
-        Ok(Async::Ready(()))
-    });
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "LISTEN test_notifications;
-                     NOTIFY test_notifications, 'hello';
-                     NOTIFY test_notifications, 'world';",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    drop(client);
-    runtime.run().unwrap();
-
-    let notifications = rx.collect().wait().unwrap();
-    assert_eq!(notifications.len(), 2);
-    assert_eq!(notifications[0].channel(), "test_notifications");
-    assert_eq!(notifications[0].payload(), "hello");
-    assert_eq!(notifications[1].channel(), "test_notifications");
-    assert_eq!(notifications[1].payload(), "world");
 }
 
 #[test]
