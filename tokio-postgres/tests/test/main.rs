@@ -513,6 +513,24 @@ async fn copy_in_error() {
     assert_eq!(rows.len(), 0);
 }
 
+#[tokio::test]
+async fn copy_out() {
+    let mut client = connect("user=postgres").await;
+
+    client.batch_execute(
+        "CREATE TEMPORARY TABLE foo (
+            id SERIAL,
+            name TEXT
+        );
+
+        INSERT INTO foo (name) VALUES ('jim'), ('joe');"
+    ).await.unwrap();
+
+    let stmt = client.prepare("COPY foo TO STDOUT").await.unwrap();
+    let data = client.copy_out(&stmt, &[]).try_concat().await.unwrap();
+    assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
+}
+
 /*
 #[test]
 fn query_portal() {
@@ -600,39 +618,6 @@ fn notifications() {
     assert_eq!(notifications[0].payload(), "hello");
     assert_eq!(notifications[1].channel(), "test_notifications");
     assert_eq!(notifications[1].payload(), "world");
-}
-
-#[test]
-fn copy_out() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (
-                        id SERIAL,
-                        name TEXT
-                    );
-                    INSERT INTO foo (name) VALUES ('jim'), ('joe');",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let data = runtime
-        .block_on(
-            client
-                .prepare("COPY foo TO STDOUT")
-                .and_then(|s| client.copy_out(&s, &[]).concat2()),
-        )
-        .unwrap();
-    assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 }
 
 #[test]

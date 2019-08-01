@@ -7,11 +7,11 @@ use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query, cancel_query_raw, copy_in, query, Transaction};
+use crate::{cancel_query, cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
-use bytes::IntoBuf;
+use bytes::{Bytes, IntoBuf};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{future, Stream, TryStream};
@@ -264,6 +264,20 @@ impl Client {
     {
         let buf = query::encode(statement, params.iter().cloned());
         copy_in::copy_in(self.inner(), buf, stream)
+    }
+
+    /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub fn copy_out(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> impl Stream<Item = Result<Bytes, Error>> {
+        let buf = query::encode(statement, params.iter().cloned());
+        copy_out::copy_out(self.inner(), buf)
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.

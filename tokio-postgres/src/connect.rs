@@ -7,9 +7,7 @@ use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
 use futures::future;
 use futures::{FutureExt, Stream};
 use pin_utils::pin_mut;
-use std::future::Future;
 use std::io;
-use std::pin::Pin;
 use std::task::Poll;
 
 pub async fn connect<T>(

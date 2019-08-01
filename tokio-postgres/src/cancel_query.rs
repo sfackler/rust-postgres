@@ -1,7 +1,7 @@
 use crate::client::SocketConfig;
 use crate::config::{Host, SslMode};
 use crate::tls::MakeTlsConnect;
-use crate::{cancel_query_raw, connect_socket, connect_tls, Error, Socket};
+use crate::{cancel_query_raw, connect_socket, Error, Socket};
 use std::io;
 
 pub(crate) async fn cancel_query<T>(

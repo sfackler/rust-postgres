@@ -1,5 +1,5 @@
 use crate::config::Host;
-use crate::{Config, Error, Socket};
+use crate::{Error, Socket};
 use std::future::Future;
 use std::io;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};

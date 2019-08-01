@@ -126,6 +126,7 @@ mod cancel_query;
 mod cancel_query_raw;
 mod client;
 mod codec;
+mod copy_out;
 pub mod config;
 #[cfg(feature = "runtime")]
 mod connect;
