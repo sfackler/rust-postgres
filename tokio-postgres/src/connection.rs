@@ -198,6 +198,14 @@ where
                 return Ok(false);
             }
 
+            if let Poll::Pending = Pin::new(&mut self.stream)
+                .poll_ready(cx)
+                .map_err(Error::io)?
+            {
+                trace!("poll_write: waiting on socket");
+                return Ok(false);
+            }
+
             let request = match self.poll_request(cx) {
                 Poll::Ready(Some(request)) => request,
                 Poll::Ready(None) if self.responses.is_empty() && self.state == State::Active => {
@@ -219,15 +227,6 @@ where
                     return Ok(true);
                 }
             };
-
-            if let Poll::Pending = Pin::new(&mut self.stream)
-                .poll_ready(cx)
-                .map_err(Error::io)?
-            {
-                trace!("poll_write: waiting on socket");
-                self.pending_request = Some(request);
-                return Ok(false);
-            }
 
             match request {
                 RequestMessages::Single(request) => {
