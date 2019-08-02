@@ -6,7 +6,7 @@ use crate::tls::TlsConnect;
 use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{query, Client, Error, Row, SimpleQueryMessage, Statement};
+use crate::{bind, query, Client, Error, Portal, Row, SimpleQueryMessage, Statement};
 use bytes::{Bytes, IntoBuf};
 use futures::{Stream, TryStream};
 use postgres_protocol::message::frontend;
@@ -120,6 +120,52 @@ impl<'a> Transaction<'a> {
         // https://github.com/rust-lang/rust/issues/63032
         let buf = query::encode(statement, params);
         query::execute(self.client.inner(), buf)
+    }
+
+    /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
+    ///
+    /// Portals only last for the duration of the transaction in which they are created, and can only be used on the
+    /// connection that created them.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub fn bind(
+        &mut self,
+        statement: &Statement,
+        params: &[&dyn ToSql],
+    ) -> impl Future<Output = Result<Portal, Error>> {
+        // https://github.com/rust-lang/rust/issues/63032
+        let buf = bind::encode(statement, params.iter().cloned());
+        bind::bind(self.client.inner(), statement.clone(), buf)
+    }
+
+    /// Like [`bind`], but takes an iterator of parameters rather than a slice.
+    ///
+    /// [`bind`]: #method.bind
+    pub fn bind_iter<'b, I>(
+        &mut self,
+        statement: &Statement,
+        params: I,
+    ) -> impl Future<Output = Result<Portal, Error>>
+    where
+        I: IntoIterator<Item = &'b dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let buf = bind::encode(statement, params);
+        bind::bind(self.client.inner(), statement.clone(), buf)
+    }
+
+    /// Continues execution of a portal, returning a stream of the resulting rows.
+    ///
+    /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
+    /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
+    pub fn query_portal(
+        &mut self,
+        portal: &Portal,
+        max_rows: i32,
+    ) -> impl Stream<Item = Result<Row, Error>> {
+        query::query_portal(self.client.inner(), portal.clone(), max_rows)
     }
 
     /// Like `Client::copy_in`.

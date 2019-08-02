@@ -569,6 +569,49 @@ async fn notifications() {
     assert_eq!(notifications[1].payload(), "world");
 }
 
+#[tokio::test]
+async fn query_portal() {
+    let mut client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL,
+                name TEXT
+            );
+
+            INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');",
+        )
+        .await
+        .unwrap();
+
+    let stmt = client
+        .prepare("SELECT id, name FROM foo ORDER BY id")
+        .await
+        .unwrap();
+
+    let mut transaction = client.transaction().await.unwrap();
+
+    let portal = transaction.bind(&stmt, &[]).await.unwrap();
+    let f1 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
+    let f2 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
+    let f3 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
+
+    let (r1, r2, r3) = try_join!(f1, f2, f3).unwrap();
+
+    assert_eq!(r1.len(), 2);
+    assert_eq!(r1[0].get::<_, i32>(0), 1);
+    assert_eq!(r1[0].get::<_, &str>(1), "alice");
+    assert_eq!(r1[1].get::<_, i32>(0), 2);
+    assert_eq!(r1[1].get::<_, &str>(1), "bob");
+
+    assert_eq!(r2.len(), 1);
+    assert_eq!(r2[0].get::<_, i32>(0), 3);
+    assert_eq!(r2[0].get::<_, &str>(1), "charlie");
+
+    assert_eq!(r3.len(), 0);
+}
+
 /*
 #[test]
 fn query_portal() {

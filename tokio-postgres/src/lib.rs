@@ -113,6 +113,7 @@ pub use crate::config::Config;
 pub use crate::connection::Connection;
 use crate::error::DbError;
 pub use crate::error::Error;
+pub use crate::portal::Portal;
 pub use crate::row::{Row, SimpleQueryRow};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
@@ -122,6 +123,7 @@ pub use crate::tls::NoTls;
 pub use crate::transaction::Transaction;
 pub use statement::{Column, Statement};
 
+mod bind;
 #[cfg(feature = "runtime")]
 mod cancel_query;
 mod cancel_query_raw;
@@ -139,6 +141,7 @@ mod copy_in;
 mod copy_out;
 pub mod error;
 mod maybe_tls_stream;
+mod portal;
 mod prepare;
 mod query;
 pub mod row;

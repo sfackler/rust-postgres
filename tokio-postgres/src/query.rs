@@ -2,7 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
-use crate::{Error, Row, Statement};
+use crate::{Error, Portal, Row, Statement};
 use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -21,6 +21,27 @@ pub fn query(
             responses,
         })
         .try_flatten_stream()
+}
+
+pub fn query_portal(
+    client: Arc<InnerClient>,
+    portal: Portal,
+    max_rows: i32,
+) -> impl Stream<Item = Result<Row, Error>> {
+    let start = async move {
+        let mut buf = vec![];
+        frontend::execute(portal.name(), max_rows, &mut buf).map_err(Error::encode)?;
+        frontend::sync(&mut buf);
+
+        let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+        Ok(Query {
+            statement: portal.statement().clone(),
+            responses,
+        })
+    };
+
+    start.try_flatten_stream()
 }
 
 pub async fn execute(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
@@ -63,6 +84,18 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
+    let mut buf = encode_bind(statement, params, "")?;
+    frontend::execute("", 0, &mut buf).map_err(Error::encode)?;
+    frontend::sync(&mut buf);
+
+    Ok(buf)
+}
+
+pub fn encode_bind<'a, I>(statement: &Statement, params: I, portal: &str) -> Result<Vec<u8>, Error>
+where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
+{
     let params = params.into_iter();
 
     assert!(
@@ -76,7 +109,7 @@ where
 
     let mut error_idx = 0;
     let r = frontend::bind(
-        "",
+        portal,
         statement.name(),
         Some(1),
         params.zip(statement.params()).enumerate(),
@@ -92,15 +125,10 @@ where
         &mut buf,
     );
     match r {
-        Ok(()) => {}
+        Ok(()) => Ok(buf),
         Err(frontend::BindError::Conversion(e)) => return Err(Error::to_sql(e, error_idx)),
         Err(frontend::BindError::Serialization(e)) => return Err(Error::encode(e)),
     }
-
-    frontend::execute("", 0, &mut buf).map_err(Error::encode)?;
-    frontend::sync(&mut buf);
-
-    Ok(buf)
 }
 
 struct Query {
@@ -116,7 +144,9 @@ impl Stream for Query {
             Message::DataRow(body) => {
                 Poll::Ready(Some(Ok(Row::new(self.statement.clone(), body)?)))
             }
-            Message::EmptyQueryResponse | Message::CommandComplete(_) => Poll::Ready(None),
+            Message::EmptyQueryResponse
+            | Message::CommandComplete(_)
+            | Message::PortalSuspended => Poll::Ready(None),
             Message::ErrorResponse(body) => Poll::Ready(Some(Err(Error::db(body)))),
             _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
         }
