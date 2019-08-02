@@ -76,11 +76,6 @@ where
         }
     }
 
-    /// Returns the value of a runtime parameter for this connection.
-    pub fn parameter(&self, name: &str) -> Option<&str> {
-        self.parameters.get(name).map(|s| &**s)
-    }
-
     fn poll_response(
         &mut self,
         cx: &mut Context<'_>,
@@ -291,6 +286,15 @@ where
         }
     }
 
+    /// Returns the value of a runtime parameter for this connection.
+    pub fn parameter(&self, name: &str) -> Option<&str> {
+        self.parameters.get(name).map(|s| &**s)
+    }
+
+    /// Polls for asynchronous messages from the server.
+    ///
+    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
+    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
     pub fn poll_message(
         &mut self,
         cx: &mut Context<'_>,
@@ -319,7 +323,7 @@ where
     type Output = Result<(), Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        while let Some(_) = ready!(Pin::as_mut(&mut self).poll_message(cx)?) {}
+        while let Some(_) = ready!(self.poll_message(cx)?) {}
         Poll::Ready(Ok(()))
     }
 }

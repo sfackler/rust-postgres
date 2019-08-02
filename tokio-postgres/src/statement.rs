@@ -23,6 +23,9 @@ impl Drop for StatementInner {
     }
 }
 
+/// A prepared statement.
+///
+/// Prepared statements can only be used with the connection that created them.
 #[derive(Clone)]
 pub struct Statement(Arc<StatementInner>);
 
@@ -56,6 +59,7 @@ impl Statement {
     }
 }
 
+/// Information about a column of a query.
 #[derive(Debug)]
 pub struct Column {
     name: String,

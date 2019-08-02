@@ -120,6 +120,10 @@ pub(crate) struct SocketConfig {
     pub keepalives_idle: Duration,
 }
 
+/// An asynchronous PostgreSQL client.
+///
+/// The client is one half of what is returned when a connection is established. Users interact with the database
+/// through this client object.
 pub struct Client {
     inner: Arc<InnerClient>,
     socket_config: Option<SocketConfig>,
