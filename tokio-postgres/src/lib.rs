@@ -8,6 +8,7 @@
 //! use futures::{FutureExt, TryStreamExt};
 //! use tokio_postgres::{NoTls, Error, Row};
 //!
+//! # #[cfg(not(feature = "runtime"))] fn main() {}
 //! # #[cfg(feature = "runtime")]
 //! #[tokio::main] // By default, tokio_postgres uses the tokio crate as its runtime.
 //! async fn main() -> Result<(), Error> {

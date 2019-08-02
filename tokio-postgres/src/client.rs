@@ -1,3 +1,5 @@
+#[cfg(feature = "runtime")]
+use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
@@ -7,7 +9,7 @@ use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query, cancel_query_raw, copy_in, copy_out, query, Transaction};
+use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
@@ -126,6 +128,7 @@ pub(crate) struct SocketConfig {
 /// through this client object.
 pub struct Client {
     inner: Arc<InnerClient>,
+    #[cfg(feature = "runtime")]
     socket_config: Option<SocketConfig>,
     ssl_mode: SslMode,
     process_id: i32,
@@ -149,6 +152,7 @@ impl Client {
                     types: HashMap::new(),
                 }),
             }),
+            #[cfg(feature = "runtime")]
             socket_config: None,
             ssl_mode,
             process_id,
@@ -160,6 +164,7 @@ impl Client {
         self.inner.clone()
     }
 
+    #[cfg(feature = "runtime")]
     pub(crate) fn set_socket_config(&mut self, socket_config: SocketConfig) {
         self.socket_config = Some(socket_config);
     }
