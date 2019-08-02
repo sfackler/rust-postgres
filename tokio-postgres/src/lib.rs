@@ -177,6 +177,23 @@ pub struct Notification {
     payload: String,
 }
 
+impl Notification {
+    /// The process ID of the notifying backend process.
+    pub fn process_id(&self) -> i32 {
+        self.process_id
+    }
+
+    /// The name of the channel that the notify has been raised on.
+    pub fn channel(&self) -> &str {
+        &self.channel
+    }
+
+    /// The "payload" string passed from the notifying process.
+    pub fn payload(&self) -> &str {
+        &self.payload
+    }
+}
+
 /// An asynchronous message from the server.
 #[allow(clippy::large_enum_variant)]
 pub enum AsyncMessage {
@@ -202,21 +219,4 @@ pub enum SimpleQueryMessage {
     CommandComplete(u64),
     #[doc(hidden)]
     __NonExhaustive,
-}
-
-impl Notification {
-    /// The process ID of the notifying backend process.
-    pub fn process_id(&self) -> i32 {
-        self.process_id
-    }
-
-    /// The name of the channel that the notify has been raised on.
-    pub fn channel(&self) -> &str {
-        &self.channel
-    }
-
-    /// The "payload" string passed from the notifying process.
-    pub fn payload(&self) -> &str {
-        &self.payload
-    }
 }
