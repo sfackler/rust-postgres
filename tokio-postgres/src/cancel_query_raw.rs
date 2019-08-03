@@ -23,9 +23,7 @@ where
     frontend::cancel_request(process_id, secret_key, &mut buf);
 
     stream.write_all(&buf).await.map_err(Error::io)?;
-    future::poll_fn(|cx| Pin::new(&mut stream).poll_flush(cx))
-        .await
-        .map_err(Error::io)?;
+    stream.flush().await.map_err(Error::io)?;
     future::poll_fn(|cx| Pin::new(&mut stream).poll_shutdown(cx))
         .await
         .map_err(Error::io)?;
