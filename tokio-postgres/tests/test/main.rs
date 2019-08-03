@@ -614,50 +614,6 @@ async fn query_portal() {
 
 /*
 #[test]
-fn query_portal() {
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    runtime
-        .block_on(
-            client
-                .simple_query(
-                    "CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT);
-                     INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('charlie');
-                     BEGIN;",
-                )
-                .for_each(|_| Ok(())),
-        )
-        .unwrap();
-
-    let statement = runtime
-        .block_on(client.prepare("SELECT id, name FROM foo ORDER BY id"))
-        .unwrap();
-    let portal = runtime.block_on(client.bind(&statement, &[])).unwrap();
-
-    let f1 = client.query_portal(&portal, 2).collect();
-    let f2 = client.query_portal(&portal, 2).collect();
-    let f3 = client.query_portal(&portal, 2).collect();
-    let (r1, r2, r3) = runtime.block_on(f1.join3(f2, f3)).unwrap();
-
-    assert_eq!(r1.len(), 2);
-    assert_eq!(r1[0].get::<_, i32>(0), 1);
-    assert_eq!(r1[0].get::<_, &str>(1), "alice");
-    assert_eq!(r1[1].get::<_, i32>(0), 2);
-    assert_eq!(r1[1].get::<_, &str>(1), "bob");
-
-    assert_eq!(r2.len(), 1);
-    assert_eq!(r2[0].get::<_, i32>(0), 3);
-    assert_eq!(r2[0].get::<_, &str>(1), "charlie");
-
-    assert_eq!(r3.len(), 0);
-}
-
-#[test]
 fn poll_idle_running() {
     struct DelayStream(Delay);
 
