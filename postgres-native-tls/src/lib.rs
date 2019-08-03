@@ -47,13 +47,15 @@
 //! ```
 #![doc(html_root_url = "https://docs.rs/postgres-native-tls/0.2.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
+#![feature(async_await)]
 
-use futures::{try_ready, Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::tls::{ChannelBinding, TlsConnect};
-use tokio_tls::{Connect, TlsStream};
+use tokio_tls::TlsStream;
+use std::pin::Pin;
+use std::future::Future;
 
 #[cfg(test)]
 mod test;
@@ -76,7 +78,7 @@ impl MakeTlsConnector {
 #[cfg(feature = "runtime")]
 impl<S> MakeTlsConnect<S> for MakeTlsConnector
 where
-    S: AsyncRead + AsyncWrite,
+    S: AsyncRead + AsyncWrite + Unpin + 'static + Send,
 {
     type Stream = TlsStream<S>;
     type TlsConnect = TlsConnector;
@@ -105,35 +107,22 @@ impl TlsConnector {
 
 impl<S> TlsConnect<S> for TlsConnector
 where
-    S: AsyncRead + AsyncWrite,
+    S: AsyncRead + AsyncWrite + Unpin + 'static + Send,
 {
     type Stream = TlsStream<S>;
     type Error = native_tls::Error;
-    type Future = TlsConnectFuture<S>;
+    type Future = Pin<Box<dyn Future<Output = Result<(TlsStream<S>, ChannelBinding), native_tls::Error>> + Send>>;
 
-    fn connect(self, stream: S) -> TlsConnectFuture<S> {
-        TlsConnectFuture(self.connector.connect(&self.domain, stream))
-    }
-}
+    fn connect(self, stream: S) -> Self::Future {
+        let future = async move {
+            let stream = self.connector.connect(&self.domain, stream).await?;
 
-/// The future returned by `TlsConnector`.
-pub struct TlsConnectFuture<S>(Connect<S>);
+            // FIXME https://github.com/tokio-rs/tokio/issues/1383
+            let channel_binding = ChannelBinding::none();
 
-impl<S> Future for TlsConnectFuture<S>
-where
-    S: AsyncRead + AsyncWrite,
-{
-    type Item = (TlsStream<S>, ChannelBinding);
-    type Error = native_tls::Error;
-
-    fn poll(&mut self) -> Poll<(TlsStream<S>, ChannelBinding), native_tls::Error> {
-        let stream = try_ready!(self.0.poll());
-
-        let channel_binding = match stream.get_ref().tls_server_end_point().unwrap_or(None) {
-            Some(buf) => ChannelBinding::tls_server_end_point(buf),
-            None => ChannelBinding::none(),
+            Ok((stream, channel_binding))
         };
 
-        Ok(Async::Ready((stream, channel_binding)))
+        Box::pin(future)
     }
 }
