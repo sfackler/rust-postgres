@@ -41,20 +41,22 @@
 //! ```
 #![doc(html_root_url = "https://docs.rs/postgres-openssl/0.2.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
+#![feature(async_await)]
 
-use futures::{try_ready, Async, Future, Poll};
 #[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 #[cfg(feature = "runtime")]
 use openssl::ssl::SslConnector;
-use openssl::ssl::{ConnectConfiguration, HandshakeError, SslRef};
+use openssl::ssl::{ConnectConfiguration, SslRef};
 use std::fmt::Debug;
+use std::future::Future;
+use std::pin::Pin;
 #[cfg(feature = "runtime")]
 use std::sync::Arc;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_openssl::{ConnectAsync, ConnectConfigurationExt, SslStream};
+use tokio_openssl::{HandshakeError, SslStream};
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::tls::{ChannelBinding, TlsConnect};
@@ -96,7 +98,7 @@ impl MakeTlsConnector {
 #[cfg(feature = "runtime")]
 impl<S> MakeTlsConnect<S> for MakeTlsConnector
 where
-    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
+    S: AsyncRead + AsyncWrite + Unpin + Debug + 'static + Sync + Send,
 {
     type Stream = SslStream<S>;
     type TlsConnect = TlsConnector;
@@ -127,36 +129,27 @@ impl TlsConnector {
 
 impl<S> TlsConnect<S> for TlsConnector
 where
-    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
+    S: AsyncRead + AsyncWrite + Unpin + Debug + 'static + Sync + Send,
 {
     type Stream = SslStream<S>;
     type Error = HandshakeError<S>;
-    type Future = TlsConnectFuture<S>;
+    type Future = Pin<
+        Box<dyn Future<Output = Result<(SslStream<S>, ChannelBinding), HandshakeError<S>>> + Send>,
+    >;
 
-    fn connect(self, stream: S) -> TlsConnectFuture<S> {
-        TlsConnectFuture(self.ssl.connect_async(&self.domain, stream))
-    }
-}
+    fn connect(self, stream: S) -> Self::Future {
+        let future = async move {
+            let stream = tokio_openssl::connect(self.ssl, &self.domain, stream).await?;
 
-/// The future returned by `TlsConnector`.
-pub struct TlsConnectFuture<S>(ConnectAsync<S>);
+            let channel_binding = match tls_server_end_point(stream.ssl()) {
+                Some(buf) => ChannelBinding::tls_server_end_point(buf),
+                None => ChannelBinding::none(),
+            };
 
-impl<S> Future for TlsConnectFuture<S>
-where
-    S: AsyncRead + AsyncWrite + Debug + 'static + Sync + Send,
-{
-    type Item = (SslStream<S>, ChannelBinding);
-    type Error = HandshakeError<S>;
-
-    fn poll(&mut self) -> Poll<(SslStream<S>, ChannelBinding), HandshakeError<S>> {
-        let stream = try_ready!(self.0.poll());
-
-        let channel_binding = match tls_server_end_point(stream.get_ref().ssl()) {
-            Some(buf) => ChannelBinding::tls_server_end_point(buf),
-            None => ChannelBinding::none(),
+            Ok((stream, channel_binding))
         };
 
-        Ok(Async::Ready((stream, channel_binding)))
+        Box::pin(future)
     }
 }
 
