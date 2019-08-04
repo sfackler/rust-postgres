@@ -20,6 +20,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// transaction. Transactions can be nested, with inner transactions implemented via safepoints.
 pub struct Transaction<'a> {
     client: &'a mut Client,
+    depth: u32,
     done: bool,
 }
 
@@ -30,7 +31,12 @@ impl<'a> Drop for Transaction<'a> {
         }
 
         let mut buf = vec![];
-        frontend::query("ROLLBACK", &mut buf).unwrap();
+        let query = if self.depth == 0 {
+            "ROLLBACK".to_string()
+        } else {
+            format!("ROLLBACK TO sp{}", self.depth)
+        };
+        frontend::query(&query, &mut buf).unwrap();
         let _ = self
             .client
             .inner()
@@ -42,6 +48,7 @@ impl<'a> Transaction<'a> {
     pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
         Transaction {
             client,
+            depth: 0,
             done: false,
         }
     }
@@ -49,7 +56,12 @@ impl<'a> Transaction<'a> {
     /// Consumes the transaction, committing all changes made within it.
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
-        self.client.batch_execute("COMMIT").await
+        let query = if self.depth == 0 {
+            "COMMIT".to_string()
+        } else {
+            format!("RELEASE sp{}", self.depth)
+        };
+        self.client.batch_execute(&query).await
     }
 
     /// Rolls the transaction back, discarding all changes made within it.
@@ -57,7 +69,12 @@ impl<'a> Transaction<'a> {
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
     pub async fn rollback(mut self) -> Result<(), Error> {
         self.done = true;
-        self.client.batch_execute("ROLLBACK").await
+        let query = if self.depth == 0 {
+            "ROLLBACK".to_string()
+        } else {
+            format!("ROLLBACK TO sp{}", self.depth)
+        };
+        self.client.batch_execute(&query).await
     }
 
     /// Like `Client::prepare`.
@@ -226,5 +243,18 @@ impl<'a> Transaction<'a> {
         T: TlsConnect<S>,
     {
         self.client.cancel_query_raw(stream, tls)
+    }
+
+    /// Like `Client::transaction`.
+    pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        let depth = self.depth + 1;
+        let query = format!("SAVEPOINT sp{}", depth);
+        self.batch_execute(&query).await?;
+
+        Ok(Transaction {
+            client: self.client,
+            depth,
+            done: false,
+        })
     }
 }

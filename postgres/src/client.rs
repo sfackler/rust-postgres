@@ -319,6 +319,20 @@ impl Client {
         Ok(Iter::new(self.0.simple_query(query)))
     }
 
+    /// Executes a sequence of SQL statements using the simple query protocol.
+    ///
+    /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
+    /// point. This is intended for use when, for example, initializing a database schema.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
+    /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
+    /// them to this method!
+    pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
+        executor::block_on(self.0.batch_execute(query))
+    }
+
     /// Begins a new database transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.

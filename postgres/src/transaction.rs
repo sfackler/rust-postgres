@@ -150,15 +150,14 @@ impl<'a> Transaction<'a> {
         Ok(Iter::new(self.0.simple_query(query)))
     }
 
-    //    /// Like `Client::transaction`.
-    //    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-    //        let depth = self.depth + 1;
-    //        self.client
-    //            .simple_query(&format!("SAVEPOINT sp{}", depth))?;
-    //        Ok(Transaction {
-    //            client: self.client,
-    //            depth,
-    //            done: false,
-    //        })
-    //    }
+    /// Like `Client::batch_execute`.
+    pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
+        executor::block_on(self.0.batch_execute(query))
+    }
+
+    /// Like `Client::transaction`.
+    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        let transaction = executor::block_on(self.0.transaction())?;
+        Ok(Transaction(transaction))
+    }
 }

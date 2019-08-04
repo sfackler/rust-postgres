@@ -96,13 +96,12 @@ fn transaction_drop() {
     assert_eq!(rows.len(), 0);
 }
 
-/*
 #[test]
 fn nested_transactions() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
     client
-        .simple_query("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
+        .batch_execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
         .unwrap();
 
     let mut transaction = client.transaction().unwrap();
@@ -147,7 +146,6 @@ fn nested_transactions() {
     assert_eq!(rows[1].get::<_, i32>(0), 3);
     assert_eq!(rows[2].get::<_, i32>(0), 4);
 }
-*/
 
 #[test]
 fn copy_in() {
