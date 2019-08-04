@@ -1,9 +1,7 @@
 use crate::config::SslMode;
 use crate::tls::TlsConnect;
 use crate::{connect_tls, Error};
-use futures::future;
 use postgres_protocol::message::frontend;
-use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 pub async fn cancel_query_raw<S, T>(
@@ -24,9 +22,7 @@ where
 
     stream.write_all(&buf).await.map_err(Error::io)?;
     stream.flush().await.map_err(Error::io)?;
-    future::poll_fn(|cx| Pin::new(&mut stream).poll_shutdown(cx))
-        .await
-        .map_err(Error::io)?;
+    stream.shutdown().await.map_err(Error::io)?;
 
     Ok(())
 }
