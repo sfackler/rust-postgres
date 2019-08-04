@@ -54,6 +54,7 @@
 //! crates, respectively.
 #![doc(html_root_url = "https://docs.rs/postgres/0.16.0-rc.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
+#![feature(async_await)]
 
 #[cfg(feature = "runtime")]
 use lazy_static::lazy_static;
@@ -69,14 +70,10 @@ pub use tokio_postgres::{
 pub use crate::client::*;
 #[cfg(feature = "runtime")]
 pub use crate::config::Config;
-pub use crate::copy_out_reader::*;
 #[doc(no_inline)]
 pub use crate::error::Error;
-pub use crate::query_iter::*;
-pub use crate::query_portal_iter::*;
 #[doc(no_inline)]
 pub use crate::row::{Row, SimpleQueryRow};
-pub use crate::simple_query_iter::*;
 #[doc(no_inline)]
 pub use crate::tls::NoTls;
 pub use crate::to_statement::*;
@@ -85,10 +82,9 @@ pub use crate::transaction::*;
 mod client;
 #[cfg(feature = "runtime")]
 pub mod config;
+mod copy_in_stream;
 mod copy_out_reader;
-mod query_iter;
-mod query_portal_iter;
-mod simple_query_iter;
+mod iter;
 mod to_statement;
 mod transaction;
 

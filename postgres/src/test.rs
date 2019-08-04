@@ -1,4 +1,5 @@
 use std::io::Read;
+use tokio::runtime::Runtime;
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
 
@@ -95,6 +96,7 @@ fn transaction_drop() {
     assert_eq!(rows.len(), 0);
 }
 
+/*
 #[test]
 fn nested_transactions() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
@@ -145,6 +147,7 @@ fn nested_transactions() {
     assert_eq!(rows[1].get::<_, i32>(0), 3);
     assert_eq!(rows[2].get::<_, i32>(0), 4);
 }
+*/
 
 #[test]
 fn copy_in() {
@@ -221,4 +224,22 @@ fn portal() {
     let rows = transaction.query_portal(&portal, 2).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 3);
+}
+
+#[test]
+fn custom_executor() {
+    let runtime = Runtime::new().unwrap();
+    let mut config = "host=localhost port=5433 user=postgres"
+        .parse::<crate::Config>()
+        .unwrap();
+    config.executor(runtime.executor());
+
+    let mut client = config.connect(NoTls).unwrap();
+
+    let rows = client.query("SELECT $1::TEXT", &[&"hello"]).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, &str>(0), "hello");
+
+    drop(runtime);
+    assert!(client.is_closed());
 }

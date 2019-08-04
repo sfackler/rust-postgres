@@ -1,9 +1,26 @@
 use tokio_postgres::Error;
 
-use crate::{Client, Statement};
+use crate::{Client, Statement, Transaction};
 
 mod sealed {
     pub trait Sealed {}
+}
+
+#[doc(hidden)]
+pub trait Prepare {
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
+}
+
+impl Prepare for Client {
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
+}
+
+impl<'a> Prepare for Transaction<'a> {
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
 }
 
 /// A trait abstracting over prepared and unprepared statements.
@@ -14,13 +31,18 @@ mod sealed {
 /// This trait is "sealed" and cannot be implemented by anything outside this crate.
 pub trait ToStatement: sealed::Sealed {
     #[doc(hidden)]
-    fn __statement(&self, client: &mut Client) -> Result<Statement, Error>;
+    fn __statement<T>(&self, client: &mut T) -> Result<Statement, Error>
+    where
+        T: Prepare;
 }
 
 impl sealed::Sealed for str {}
 
 impl ToStatement for str {
-    fn __statement(&self, client: &mut Client) -> Result<Statement, Error> {
+    fn __statement<T>(&self, client: &mut T) -> Result<Statement, Error>
+    where
+        T: Prepare,
+    {
         client.prepare(self)
     }
 }
@@ -28,7 +50,10 @@ impl ToStatement for str {
 impl sealed::Sealed for Statement {}
 
 impl ToStatement for Statement {
-    fn __statement(&self, _: &mut Client) -> Result<Statement, Error> {
+    fn __statement<T>(&self, _: &mut T) -> Result<Statement, Error>
+    where
+        T: Prepare,
+    {
         Ok(self.clone())
     }
 }

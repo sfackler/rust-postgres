@@ -370,4 +370,11 @@ impl Client {
             self.secret_key,
         )
     }
+
+    /// Determines if the connection to the server has already closed.
+    ///
+    /// In that case, all future queries will fail.
+    pub fn is_closed(&self) -> bool {
+        self.inner.sender.is_closed()
+    }
 }

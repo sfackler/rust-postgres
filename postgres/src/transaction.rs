@@ -1,79 +1,45 @@
 use fallible_iterator::FallibleIterator;
-use futures::Future;
-use std::io::Read;
+use futures::executor;
+use std::io::{BufRead, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
-use crate::{
-    Client, CopyOutReader, Portal, QueryIter, QueryPortalIter, SimpleQueryIter, Statement,
-    ToStatement,
-};
+use crate::copy_in_stream::CopyInStream;
+use crate::copy_out_reader::CopyOutReader;
+use crate::iter::Iter;
+use crate::{Portal, Statement, ToStatement};
 
 /// A representation of a PostgreSQL database transaction.
 ///
 /// Transactions will implicitly roll back by default when dropped. Use the `commit` method to commit the changes made
 /// in the transaction. Transactions can be nested, with inner transactions implemented via safepoints.
-pub struct Transaction<'a> {
-    client: &'a mut Client,
-    depth: u32,
-    done: bool,
-}
-
-impl<'a> Drop for Transaction<'a> {
-    fn drop(&mut self) {
-        if !self.done {
-            let _ = self.rollback_inner();
-        }
-    }
-}
+pub struct Transaction<'a>(tokio_postgres::Transaction<'a>);
 
 impl<'a> Transaction<'a> {
-    pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
-        Transaction {
-            client,
-            depth: 0,
-            done: false,
-        }
+    pub(crate) fn new(transaction: tokio_postgres::Transaction<'a>) -> Transaction<'a> {
+        Transaction(transaction)
     }
 
     /// Consumes the transaction, committing all changes made within it.
-    pub fn commit(mut self) -> Result<(), Error> {
-        self.done = true;
-        if self.depth == 0 {
-            self.client.simple_query("COMMIT")?;
-        } else {
-            self.client
-                .simple_query(&format!("RELEASE sp{}", self.depth))?;
-        }
-        Ok(())
+    pub fn commit(self) -> Result<(), Error> {
+        executor::block_on(self.0.commit())
     }
 
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
-    pub fn rollback(mut self) -> Result<(), Error> {
-        self.done = true;
-        self.rollback_inner()
-    }
-
-    fn rollback_inner(&mut self) -> Result<(), Error> {
-        if self.depth == 0 {
-            self.client.simple_query("ROLLBACK")?;
-        } else {
-            self.client
-                .simple_query(&format!("ROLLBACK TO sp{}", self.depth))?;
-        }
-        Ok(())
+    pub fn rollback(self) -> Result<(), Error> {
+        executor::block_on(self.0.rollback())
     }
 
     /// Like `Client::prepare`.
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        self.client.prepare(query)
+        executor::block_on(self.0.prepare(query))
     }
 
     /// Like `Client::prepare_typed`.
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        self.client.prepare_typed(query, types)
+        executor::block_on(self.0.prepare_typed(query, types))
     }
 
     /// Like `Client::execute`.
@@ -81,7 +47,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.execute(query, params)
+        let statement = query.__statement(self)?;
+        executor::block_on(self.0.execute(&statement, params))
     }
 
     /// Like `Client::query`.
@@ -89,7 +56,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query(query, params)
+        self.query_iter(query, params)?.collect()
     }
 
     /// Like `Client::query_iter`.
@@ -97,11 +64,12 @@ impl<'a> Transaction<'a> {
         &mut self,
         query: &T,
         params: &[&dyn ToSql],
-    ) -> Result<QueryIter<'_>, Error>
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query_iter(query, params)
+        let statement = query.__statement(self)?;
+        Ok(Iter::new(self.0.query(&statement, params)))
     }
 
     /// Binds parameters to a statement, creating a "portal".
@@ -118,8 +86,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(&mut self.client)?;
-        self.client.get_mut().bind(&statement, params).wait()
+        let statement = query.__statement(self)?;
+        executor::block_on(self.0.bind(&statement, params))
     }
 
     /// Continues execution of a portal, returning the next set of rows.
@@ -136,10 +104,8 @@ impl<'a> Transaction<'a> {
         &mut self,
         portal: &Portal,
         max_rows: i32,
-    ) -> Result<QueryPortalIter<'_>, Error> {
-        Ok(QueryPortalIter::new(
-            self.client.get_mut().query_portal(&portal, max_rows),
-        ))
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error> {
+        Ok(Iter::new(self.0.query_portal(&portal, max_rows)))
     }
 
     /// Like `Client::copy_in`.
@@ -151,42 +117,48 @@ impl<'a> Transaction<'a> {
     ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        R: Read,
+        R: Read + Unpin,
     {
-        self.client.copy_in(query, params, reader)
+        let statement = query.__statement(self)?;
+        executor::block_on(self.0.copy_in(&statement, params, CopyInStream(reader)))
     }
 
     /// Like `Client::copy_out`.
-    pub fn copy_out<T>(
-        &mut self,
+    pub fn copy_out<'b, T>(
+        &'a mut self,
         query: &T,
         params: &[&dyn ToSql],
-    ) -> Result<CopyOutReader<'_>, Error>
+    ) -> Result<impl BufRead + 'b, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.client.copy_out(query, params)
+        let statement = query.__statement(self)?;
+        let stream = self.0.copy_out(&statement, params);
+        CopyOutReader::new(stream)
     }
 
     /// Like `Client::simple_query`.
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        self.client.simple_query(query)
+        self.simple_query_iter(query)?.collect()
     }
 
     /// Like `Client::simple_query_iter`.
-    pub fn simple_query_iter(&mut self, query: &str) -> Result<SimpleQueryIter<'_>, Error> {
-        self.client.simple_query_iter(query)
+    pub fn simple_query_iter<'b>(
+        &'b mut self,
+        query: &str,
+    ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'b, Error> {
+        Ok(Iter::new(self.0.simple_query(query)))
     }
 
-    /// Like `Client::transaction`.
-    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        let depth = self.depth + 1;
-        self.client
-            .simple_query(&format!("SAVEPOINT sp{}", depth))?;
-        Ok(Transaction {
-            client: self.client,
-            depth,
-            done: false,
-        })
-    }
+    //    /// Like `Client::transaction`.
+    //    pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+    //        let depth = self.depth + 1;
+    //        self.client
+    //            .simple_query(&format!("SAVEPOINT sp{}", depth))?;
+    //        Ok(Transaction {
+    //            client: self.client,
+    //            depth,
+    //            done: false,
+    //        })
+    //    }
 }

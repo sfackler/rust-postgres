@@ -126,7 +126,7 @@ pub(crate) enum Host {
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct Config {
     pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,

@@ -1,15 +1,18 @@
 use fallible_iterator::FallibleIterator;
-use futures::{Async, Future, Poll, Stream};
-use std::io::{self, Read};
+use futures::executor;
+use std::io::{BufRead, Read};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use tokio_postgres::Socket;
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
+use crate::copy_in_stream::CopyInStream;
+use crate::copy_out_reader::CopyOutReader;
+use crate::iter::Iter;
 #[cfg(feature = "runtime")]
 use crate::Config;
-use crate::{CopyOutReader, QueryIter, SimpleQueryIter, Statement, ToStatement, Transaction};
+use crate::{Statement, ToStatement, Transaction};
 
 /// A synchronous PostgreSQL client.
 ///
@@ -82,7 +85,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        self.0.execute(&statement, params).wait()
+        executor::block_on(self.0.execute(&statement, params))
     }
 
     /// Executes a statement, returning the resulting rows.
@@ -149,16 +152,16 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_iter<T>(
-        &mut self,
+    pub fn query_iter<'a, T>(
+        &'a mut self,
         query: &T,
         params: &[&dyn ToSql],
-    ) -> Result<QueryIter<'_>, Error>
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'a, Error>
     where
         T: ?Sized + ToStatement,
     {
         let statement = query.__statement(self)?;
-        Ok(QueryIter::new(self.0.query(&statement, params)))
+        Ok(Iter::new(self.0.query(&statement, params)))
     }
 
     /// Creates a new prepared statement.
@@ -185,7 +188,7 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        self.0.prepare(query).wait()
+        executor::block_on(self.0.prepare(query))
     }
 
     /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
@@ -216,7 +219,7 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        self.0.prepare_typed(query, types).wait()
+        executor::block_on(self.0.prepare_typed(query, types))
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
@@ -244,12 +247,10 @@ impl Client {
     ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        R: Read,
+        R: Read + Unpin,
     {
         let statement = query.__statement(self)?;
-        self.0
-            .copy_in(&statement, params, CopyInStream(reader))
-            .wait()
+        executor::block_on(self.0.copy_in(&statement, params, CopyInStream(reader)))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -271,11 +272,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_out<T>(
-        &mut self,
+    pub fn copy_out<'a, T>(
+        &'a mut self,
         query: &T,
         params: &[&dyn ToSql],
-    ) -> Result<CopyOutReader<'_>, Error>
+    ) -> Result<impl BufRead + 'a, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -311,8 +312,11 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query_iter(&mut self, query: &str) -> Result<SimpleQueryIter<'_>, Error> {
-        Ok(SimpleQueryIter::new(self.0.simple_query(query)))
+    pub fn simple_query_iter<'a>(
+        &'a mut self,
+        query: &str,
+    ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'a, Error> {
+        Ok(Iter::new(self.0.simple_query(query)))
     }
 
     /// Begins a new database transaction.
@@ -336,8 +340,8 @@ impl Client {
     /// # }
     /// ```
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.simple_query("BEGIN")?;
-        Ok(Transaction::new(self))
+        let transaction = executor::block_on(self.0.transaction())?;
+        Ok(Transaction::new(transaction))
     }
 
     /// Determines if the client's connection has already closed.
@@ -366,23 +370,5 @@ impl Client {
 impl From<tokio_postgres::Client> for Client {
     fn from(c: tokio_postgres::Client) -> Client {
         Client(c)
-    }
-}
-
-struct CopyInStream<R>(R);
-
-impl<R> Stream for CopyInStream<R>
-where
-    R: Read,
-{
-    type Item = Vec<u8>;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Option<Vec<u8>>, io::Error> {
-        let mut buf = vec![];
-        match self.0.by_ref().take(4096).read_to_end(&mut buf)? {
-            0 => Ok(Async::Ready(None)),
-            _ => Ok(Async::Ready(Some(buf))),
-        }
     }
 }

@@ -5,6 +5,7 @@ use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::{AsyncMessage, Error, Notification};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
+use futures::stream::FusedStream;
 use futures::{ready, Sink, Stream, StreamExt};
 use log::trace;
 use postgres_protocol::message::backend::Message;
@@ -171,6 +172,10 @@ where
         if let Some(messages) = self.pending_request.take() {
             trace!("retrying pending request");
             return Poll::Ready(Some(messages));
+        }
+
+        if self.receiver.is_terminated() {
+            return Poll::Ready(None);
         }
 
         match self.receiver.poll_next_unpin(cx) {
