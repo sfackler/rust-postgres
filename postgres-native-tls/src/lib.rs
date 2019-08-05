@@ -49,13 +49,13 @@
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 #![feature(async_await)]
 
+use std::future::Future;
+use std::pin::Pin;
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 use tokio_tls::TlsStream;
-use std::pin::Pin;
-use std::future::Future;
 
 #[cfg(test)]
 mod test;
@@ -111,7 +111,9 @@ where
 {
     type Stream = TlsStream<S>;
     type Error = native_tls::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<(TlsStream<S>, ChannelBinding), native_tls::Error>> + Send>>;
+    type Future = Pin<
+        Box<dyn Future<Output = Result<(TlsStream<S>, ChannelBinding), native_tls::Error>> + Send>,
+    >;
 
     fn connect(self, stream: S) -> Self::Future {
         let future = async move {

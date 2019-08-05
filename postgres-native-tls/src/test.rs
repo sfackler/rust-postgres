@@ -1,16 +1,16 @@
+use futures::{FutureExt, TryStreamExt};
 use native_tls::{self, Certificate};
 use tokio::net::TcpStream;
 use tokio_postgres::tls::TlsConnect;
-use futures::{FutureExt, TryStreamExt};
 
 #[cfg(feature = "runtime")]
 use crate::MakeTlsConnector;
 use crate::TlsConnector;
 
 async fn smoke_test<T>(s: &str, tls: T)
-    where
-        T: TlsConnect<TcpStream>,
-        T::Stream: 'static + Send,
+where
+    T: TlsConnect<TcpStream>,
+    T::Stream: 'static + Send,
 {
     let stream = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
         .await
@@ -44,7 +44,8 @@ async fn require() {
     smoke_test(
         "user=ssl_user dbname=postgres sslmode=require",
         TlsConnector::new(connector, "localhost"),
-    ).await;
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -58,7 +59,8 @@ async fn prefer() {
     smoke_test(
         "user=ssl_user dbname=postgres",
         TlsConnector::new(connector, "localhost"),
-    ).await;
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -72,7 +74,8 @@ async fn scram_user() {
     smoke_test(
         "user=scram_user password=password dbname=postgres sslmode=require",
         TlsConnector::new(connector, "localhost"),
-    ).await;
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -90,8 +93,8 @@ async fn runtime() {
         "host=localhost port=5433 user=postgres sslmode=require",
         connector,
     )
-        .await
-        .unwrap();
+    .await
+    .unwrap();
     let connection = connection.map(|r| r.unwrap());
     tokio::spawn(connection);
 

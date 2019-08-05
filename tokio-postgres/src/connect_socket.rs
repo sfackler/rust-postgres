@@ -1,9 +1,12 @@
 use crate::config::Host;
 use crate::{Error, Socket};
+use std::vec;
+use futures::channel::oneshot;
+use futures::future;
 use std::future::Future;
-use std::io;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::Duration;
+use std::{io, thread};
 use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
@@ -23,10 +26,7 @@ pub(crate) async fn connect_socket(
                     // avoid dealing with blocking DNS entirely if possible
                     vec![SocketAddr::new(ip, port)].into_iter()
                 }
-                Err(_) => {
-                    // FIXME what do?
-                    (&**host, port).to_socket_addrs().map_err(Error::connect)?
-                }
+                Err(_) => dns(host, port).await.map_err(Error::connect)?,
             };
 
             let mut error = None;
@@ -62,6 +62,25 @@ pub(crate) async fn connect_socket(
             Ok(Socket::new_unix(socket))
         }
     }
+}
+
+async fn dns(host: &str, port: u16) -> io::Result<vec::IntoIter<SocketAddr>> {
+    // if we're running on a threadpool, use its blocking support
+    if let Ok(r) =
+        future::poll_fn(|_| tokio_threadpool::blocking(|| (host, port).to_socket_addrs())).await
+    {
+        return r;
+    }
+
+    // FIXME what should we do here?
+    let (tx, rx) = oneshot::channel();
+    let host = host.to_string();
+    thread::spawn(move || {
+        let addrs = (&*host, port).to_socket_addrs();
+        let _ = tx.send(addrs);
+    });
+
+    rx.await.unwrap()
 }
 
 async fn connect_with_timeout<F, T>(connect: F, timeout: Option<Duration>) -> Result<T, Error>

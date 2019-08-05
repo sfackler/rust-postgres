@@ -277,8 +277,12 @@ impl Config {
         });
         match &self.executor {
             Some(executor) => {
-                executor.lock().unwrap().spawn(Box::pin(connection)).unwrap();
-            },
+                executor
+                    .lock()
+                    .unwrap()
+                    .spawn(Box::pin(connection))
+                    .unwrap();
+            }
             None => {
                 RUNTIME.spawn(connection);
             }
