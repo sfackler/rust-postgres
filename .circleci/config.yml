@@ -22,20 +22,20 @@ version: 2
 jobs:
   build:
     docker:
-      - image: rust:1.35.0
+      - image: rustlang/rust:nightly
         environment:
           RUSTFLAGS: -D warnings
       - image: sfackler/rust-postgres-test:5
     steps:
       - checkout
-      - run: rustup component add rustfmt clippy
+#      - run: rustup component add rustfmt clippy
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - *SAVE_REGISTRY
       - run: rustc --version > ~/rust-version
       - *RESTORE_DEPS
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all --all-targets --all-features
+#      - run: cargo fmt --all -- --check
+#      - run: cargo clippy --all --all-targets --all-features
       - run: cargo test --all
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --no-default-features
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --all-features

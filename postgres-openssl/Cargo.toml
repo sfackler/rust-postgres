@@ -16,12 +16,12 @@ default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
-futures-preview = "0.3.0-alpha.17"
+futures-preview = "=0.3.0-alpha.17"
 openssl = "0.10"
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio-io = "=0.2.0-alpha.1"
 tokio-openssl = { git = "https://github.com/sfackler/tokio-openssl", branch = "tokio-02" }
 tokio-postgres = { version = "0.4.0-rc.1", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
-tokio = { git = "https://github.com/tokio-rs/tokio" }
-#postgres = { version = "0.16.0-rc.1", path = "../postgres" }
+tokio = "=0.2.0-alpha.1"
+postgres = { version = "0.16.0-rc.1", path = "../postgres" }
