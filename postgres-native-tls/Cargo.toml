@@ -16,12 +16,12 @@ default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
-futures-preview = "=0.3.0-alpha.17"
+futures-preview = "=0.3.0-alpha.18"
 native-tls = "0.2"
-tokio-io = "=0.2.0-alpha.1"
-tokio-tls = "=0.3.0-alpha.1"
+tokio-io = "=0.2.0-alpha.2"
+tokio-tls = "=0.3.0-alpha.2"
 tokio-postgres = { version = "0.4.0-rc.1", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
-tokio = "=0.2.0-alpha.1"
+tokio = "=0.2.0-alpha.2"
 postgres = { version = "0.16.0-rc.1", path = "../postgres" }

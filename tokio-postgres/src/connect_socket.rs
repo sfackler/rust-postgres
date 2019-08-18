@@ -1,16 +1,17 @@
 use crate::config::Host;
 use crate::{Error, Socket};
-use std::vec;
 use futures::channel::oneshot;
 use futures::future;
 use std::future::Future;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::Duration;
+use std::vec;
 use std::{io, thread};
 use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
 use tokio::timer::Timeout;
+use tokio_executor::threadpool;
 
 pub(crate) async fn connect_socket(
     host: &Host,
@@ -67,7 +68,7 @@ pub(crate) async fn connect_socket(
 async fn dns(host: &str, port: u16) -> io::Result<vec::IntoIter<SocketAddr>> {
     // if we're running on a threadpool, use its blocking support
     if let Ok(r) =
-        future::poll_fn(|_| tokio_threadpool::blocking(|| (host, port).to_socket_addrs())).await
+        future::poll_fn(|_| threadpool::blocking(|| (host, port).to_socket_addrs())).await
     {
         return r;
     }
