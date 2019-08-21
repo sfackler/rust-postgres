@@ -54,7 +54,6 @@
 //! crates, respectively.
 #![doc(html_root_url = "https://docs.rs/postgres/0.16.0-rc.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
-#![feature(async_await)]
 
 #[cfg(feature = "runtime")]
 use lazy_static::lazy_static;

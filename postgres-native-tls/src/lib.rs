@@ -47,7 +47,6 @@
 //! ```
 #![doc(html_root_url = "https://docs.rs/postgres-native-tls/0.2.0-rc.1")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
-#![feature(async_await)]
 
 use std::future::Future;
 use std::pin::Pin;

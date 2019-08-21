@@ -106,7 +106,6 @@
 //! crates, respectively.
 #![doc(html_root_url = "https://docs.rs/tokio-postgres/0.4.0-rc.3")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
-#![feature(async_await)]
 
 pub use crate::client::Client;
 pub use crate::config::Config;
