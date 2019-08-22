@@ -116,6 +116,12 @@ for (bar, baz) in updates {
 }
 ```
 
+**Note**
+Prepared statements should be use for any query which contains user-specified
+data, as they provided the functionality to safely imbed that data in the request.
+
+More on [prepared statements] (https://en.wikipedia.org/wiki/Prepared_statement).
+
 ### Transactions
 The `transaction` method will start a new transaction. It returns a
 `Transaction` object which has the functionality of a
