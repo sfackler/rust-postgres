@@ -6,7 +6,7 @@ use futures::{join, try_join, FutureExt, TryStreamExt};
 use std::fmt::Write;
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
-use tokio::timer::Delay;
+use tokio::timer;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
@@ -18,9 +18,7 @@ mod runtime;
 mod types;
 
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
-    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        .await
-        .unwrap();
+    let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let config = s.parse::<Config>().unwrap();
     config.connect_raw(socket, NoTls).await
 }
@@ -303,11 +301,9 @@ async fn simple_query() {
 async fn cancel_query_raw() {
     let mut client = connect("user=postgres").await;
 
-    let socket = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        .await
-        .unwrap();
+    let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let cancel = client.cancel_query_raw(socket, NoTls);
-    let cancel = Delay::new(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
+    let cancel = timer::delay(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");
 

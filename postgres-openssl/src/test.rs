@@ -10,9 +10,7 @@ where
     T: TlsConnect<TcpStream>,
     T::Stream: 'static + Send,
 {
-    let stream = TcpStream::connect(&"127.0.0.1:5433".parse().unwrap())
-        .await
-        .unwrap();
+    let stream = TcpStream::connect("127.0.0.1:5433").await.unwrap();
 
     let builder = s.parse::<tokio_postgres::Config>().unwrap();
     let (mut client, connection) = builder.connect_raw(stream, tls).await.unwrap();

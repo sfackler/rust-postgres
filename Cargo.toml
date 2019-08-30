@@ -2,7 +2,7 @@
 members = [
     "codegen",
     "postgres",
-    "postgres-native-tls",
+#    "postgres-native-tls",
     "postgres-openssl",
     "postgres-protocol",
     "tokio-postgres",
