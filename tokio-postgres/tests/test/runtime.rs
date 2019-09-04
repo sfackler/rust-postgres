@@ -57,7 +57,7 @@ fn target_session_attrs_ok() {
         "host=localhost port=5433 user=postgres target_session_attrs=read-write",
         NoTls,
     );
-    runtime.block_on(f).unwrap();
+    let _ = runtime.block_on(f).unwrap();
 }
 
 #[test]

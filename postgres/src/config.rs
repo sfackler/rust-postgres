@@ -19,7 +19,7 @@ use tokio_postgres::config::{SslMode, TargetSessionAttrs};
 
 use crate::{Client, RUNTIME};
 
-type DynExecutor = dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Sync + Send;
+type DynExecutor = dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send;
 
 /// Connection configuration.
 ///
@@ -242,7 +242,7 @@ impl Config {
     /// Defaults to a postgres-specific tokio `Runtime`.
     pub fn executor<E>(&mut self, executor: E) -> &mut Config
     where
-        E: Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + 'static + Sync + Send,
+        E: Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + 'static + Send,
     {
         self.executor = Some(Arc::new(executor));
         self
