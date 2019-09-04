@@ -126,8 +126,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let stmt = typeinfo_statement(client).await?;
 
-    let params: &[&dyn ToSql] = &[&oid];
-    let buf = query::encode(&stmt, params.iter().cloned());
+    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
     let rows = query::query(client.clone(), stmt, buf);
     pin_mut!(rows);
 
@@ -174,7 +173,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 fn get_type_rec<'a>(
     client: &'a Arc<InnerClient>,
     oid: Oid,
-) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + 'a>> {
+) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + Send + 'a>> {
     Box::pin(get_type(client, oid))
 }
 
@@ -198,8 +197,7 @@ async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Erro
 async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<String>, Error> {
     let stmt = typeinfo_enum_statement(client).await?;
 
-    let params: &[&dyn ToSql] = &[&oid];
-    let buf = query::encode(&stmt, params.iter().cloned());
+    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
     query::query(client.clone(), stmt, buf)
         .and_then(|row| future::ready(row.try_get(0)))
         .try_collect()
@@ -226,8 +224,7 @@ async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement,
 async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<Field>, Error> {
     let stmt = typeinfo_composite_statement(client).await?;
 
-    let params: &[&dyn ToSql] = &[&oid];
-    let buf = query::encode(&stmt, params.iter().cloned());
+    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
     let rows = query::query(client.clone(), stmt, buf)
         .try_collect::<Vec<_>>()
         .await?;
