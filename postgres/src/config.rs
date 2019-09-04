@@ -95,7 +95,7 @@ use crate::{Client, RUNTIME};
 pub struct Config {
     config: tokio_postgres::Config,
     // this is an option since we don't want to boot up our default runtime unless we're actually going to use it.
-    executor: Option<Arc<Mutex<dyn Executor + Sync + Send>>>,
+    executor: Option<Arc<Mutex<dyn Executor + Send>>>,
 }
 
 impl fmt::Debug for Config {
@@ -239,7 +239,7 @@ impl Config {
     /// Defaults to a postgres-specific tokio `Runtime`.
     pub fn executor<E>(&mut self, executor: E) -> &mut Config
     where
-        E: Executor + 'static + Sync + Send,
+        E: Executor + 'static + Send,
     {
         self.executor = Some(Arc::new(Mutex::new(executor)));
         self
