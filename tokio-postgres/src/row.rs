@@ -164,7 +164,10 @@ impl Row {
 
         let ty = self.columns()[idx].type_();
         if !T::accepts(ty) {
-            return Err(Error::from_sql(Box::new(WrongType::new(ty.clone())), idx));
+            return Err(Error::from_sql(
+                Box::new(WrongType::new::<T>(ty.clone())),
+                idx,
+            ));
         }
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
