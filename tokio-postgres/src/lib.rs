@@ -158,7 +158,7 @@ pub mod types;
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
 ///
-/// [`Config`]: ./Config.t.html
+/// [`Config`]: config/struct.Config.html
 #[cfg(feature = "runtime")]
 pub async fn connect<T>(
     config: &str,
