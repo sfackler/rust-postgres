@@ -157,7 +157,7 @@ fn next_portal() -> String {
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
 ///
-/// [`Config`]: ./Config.t.html
+/// [`Config`]: config/struct.Config.html
 #[cfg(feature = "runtime")]
 pub fn connect<T>(config: &str, tls: T) -> impls::Connect<T>
 where
