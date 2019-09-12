@@ -106,6 +106,10 @@ pub fn prepare(
     }
 }
 
+fn prepare_rec(client: Arc<InnerClient>, query: &str, types: &[Type]) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'static + Send>> {
+    Box::pin(prepare(client, query, types))
+}
+
 fn encode(name: &str, query: &str, types: &[Type]) -> Result<Vec<u8>, Error> {
     let mut buf = vec![];
     frontend::parse(name, query, types.iter().map(Type::oid), &mut buf).map_err(Error::encode)?;
@@ -182,10 +186,10 @@ async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Erro
         return Ok(stmt);
     }
 
-    let stmt = match Box::pin(prepare(client.clone(), TYPEINFO_QUERY, &[])).await {
+    let stmt = match prepare_rec(client.clone(), TYPEINFO_QUERY, &[]).await {
         Ok(stmt) => stmt,
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-            Box::pin(prepare(client.clone(), TYPEINFO_FALLBACK_QUERY, &[])).await?
+            prepare_rec(client.clone(), TYPEINFO_FALLBACK_QUERY, &[]).await?
         }
         Err(e) => return Err(e),
     };
@@ -209,10 +213,10 @@ async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement,
         return Ok(stmt);
     }
 
-    let stmt = match Box::pin(prepare(client.clone(), TYPEINFO_ENUM_QUERY, &[])).await {
+    let stmt = match prepare_rec(client.clone(), TYPEINFO_ENUM_QUERY, &[]).await {
         Ok(stmt) => stmt,
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
-            Box::pin(prepare(client.clone(), TYPEINFO_ENUM_FALLBACK_QUERY, &[])).await?
+            prepare_rec(client.clone(), TYPEINFO_ENUM_FALLBACK_QUERY, &[]).await?
         }
         Err(e) => return Err(e),
     };
@@ -233,7 +237,7 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     for row in rows {
         let name = row.try_get(0)?;
         let oid = row.try_get(1)?;
-        let type_ = Box::pin(get_type(client, oid)).await?;
+        let type_ = get_type_rec(client, oid).await?;
         fields.push(Field::new(name, type_));
     }
 
@@ -245,7 +249,7 @@ async fn typeinfo_composite_statement(client: &Arc<InnerClient>) -> Result<State
         return Ok(stmt);
     }
 
-    let stmt = Box::pin(prepare(client.clone(), TYPEINFO_COMPOSITE_QUERY, &[])).await?;
+    let stmt = prepare_rec(client.clone(), TYPEINFO_COMPOSITE_QUERY, &[]).await?;
 
     client.set_typeinfo_composite(&stmt);
     Ok(stmt)

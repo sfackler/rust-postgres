@@ -20,7 +20,8 @@ mod types;
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let config = s.parse::<Config>().unwrap();
-    config.connect_raw(socket, NoTls).await
+    // FIXME https://github.com/rust-lang/rust/issues/64391
+    async move { config.connect_raw(socket, NoTls).await }.await
 }
 
 async fn connect(s: &str) -> Client {
