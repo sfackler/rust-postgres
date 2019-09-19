@@ -168,10 +168,7 @@ where
     T: MakeTlsConnect<Socket>,
 {
     let config = config.parse::<Config>()?;
-    // FIXME https://github.com/rust-lang/rust/issues/64391
-    async move {
-        config.connect(tls).await
-    }.await
+    return config.connect(tls).await;
 }
 
 /// An asynchronous notification.
