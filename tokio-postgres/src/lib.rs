@@ -168,7 +168,7 @@ where
     T: MakeTlsConnect<Socket>,
 {
     let config = config.parse::<Config>()?;
-    return config.connect(tls).await;
+    config.connect(tls).await
 }
 
 /// An asynchronous notification.
