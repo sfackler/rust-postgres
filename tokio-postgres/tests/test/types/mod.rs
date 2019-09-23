@@ -25,7 +25,7 @@ mod serde_json_1;
 #[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
 
-async fn test_type<T, S>(sql_type: &str, checks: Vec<(T, S)>)
+async fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
 where
     T: PartialEq + for<'a> FromSqlOwned + ToSql,
     S: fmt::Display,
@@ -43,7 +43,7 @@ where
             .await
             .unwrap();
         let result = rows[0].get(0);
-        assert_eq!(val, result);
+        assert_eq!(val, &result);
 
         let stmt = client
             .prepare(&format!("SELECT $1::{}", sql_type))
@@ -55,7 +55,7 @@ where
             .await
             .unwrap();
         let result = rows[0].get(0);
-        assert_eq!(val, result);
+        assert_eq!(val, &result);
     }
 }
 
@@ -63,21 +63,21 @@ where
 async fn test_bool_params() {
     test_type(
         "BOOL",
-        vec![(Some(true), "'t'"), (Some(false), "'f'"), (None, "NULL")],
+        &[(Some(true), "'t'"), (Some(false), "'f'"), (None, "NULL")],
     )
     .await;
 }
 
 #[tokio::test]
 async fn test_i8_params() {
-    test_type("\"char\"", vec![(Some('a' as i8), "'a'"), (None, "NULL")]).await;
+    test_type("\"char\"", &[(Some('a' as i8), "'a'"), (None, "NULL")]).await;
 }
 
 #[tokio::test]
 async fn test_name_params() {
     test_type(
         "NAME",
-        vec![
+        &[
             (Some("hello world".to_owned()), "'hello world'"),
             (
                 Some("イロハニホヘト チリヌルヲ".to_owned()),
@@ -93,7 +93,7 @@ async fn test_name_params() {
 async fn test_i16_params() {
     test_type(
         "SMALLINT",
-        vec![
+        &[
             (Some(15001i16), "15001"),
             (Some(-15001i16), "-15001"),
             (None, "NULL"),
@@ -106,7 +106,7 @@ async fn test_i16_params() {
 async fn test_i32_params() {
     test_type(
         "INT",
-        vec![
+        &[
             (Some(2_147_483_548i32), "2147483548"),
             (Some(-2_147_483_548i32), "-2147483548"),
             (None, "NULL"),
@@ -119,7 +119,7 @@ async fn test_i32_params() {
 async fn test_oid_params() {
     test_type(
         "OID",
-        vec![
+        &[
             (Some(2_147_483_548u32), "2147483548"),
             (Some(4_000_000_000), "4000000000"),
             (None, "NULL"),
@@ -132,7 +132,7 @@ async fn test_oid_params() {
 async fn test_i64_params() {
     test_type(
         "BIGINT",
-        vec![
+        &[
             (Some(9_223_372_036_854_775_708i64), "9223372036854775708"),
             (Some(-9_223_372_036_854_775_708i64), "-9223372036854775708"),
             (None, "NULL"),
@@ -145,7 +145,7 @@ async fn test_i64_params() {
 async fn test_f32_params() {
     test_type(
         "REAL",
-        vec![
+        &[
             (Some(f32::INFINITY), "'infinity'"),
             (Some(f32::NEG_INFINITY), "'-infinity'"),
             (Some(1000.55), "1000.55"),
@@ -159,7 +159,7 @@ async fn test_f32_params() {
 async fn test_f64_params() {
     test_type(
         "DOUBLE PRECISION",
-        vec![
+        &[
             (Some(f64::INFINITY), "'infinity'"),
             (Some(f64::NEG_INFINITY), "'-infinity'"),
             (Some(10000.55), "10000.55"),
@@ -173,7 +173,7 @@ async fn test_f64_params() {
 async fn test_varchar_params() {
     test_type(
         "VARCHAR",
-        vec![
+        &[
             (Some("hello world".to_owned()), "'hello world'"),
             (
                 Some("イロハニホヘト チリヌルヲ".to_owned()),
@@ -189,7 +189,7 @@ async fn test_varchar_params() {
 async fn test_text_params() {
     test_type(
         "TEXT",
-        vec![
+        &[
             (Some("hello world".to_owned()), "'hello world'"),
             (
                 Some("イロハニホヘト チリヌルヲ".to_owned()),
@@ -296,7 +296,7 @@ async fn test_citext_params() {
 async fn test_bytea_params() {
     test_type(
         "BYTEA",
-        vec![
+        &[
             (Some(vec![0u8, 1, 2, 3, 254, 255]), "'\\x00010203feff'"),
             (None, "NULL"),
         ],
@@ -329,7 +329,7 @@ macro_rules! make_map {
 async fn test_hstore_params() {
     test_type(
         "hstore",
-        vec![
+        &[
             (
                 Some(make_map!("a".to_owned() => Some("1".to_owned()))),
                 "'a=>1'",
@@ -350,7 +350,7 @@ async fn test_hstore_params() {
 async fn test_array_params() {
     test_type(
         "integer[]",
-        vec![
+        &[
             (Some(vec![1i32, 2i32]), "ARRAY[1,2]"),
             (Some(vec![1i32]), "ARRAY[1]"),
             (Some(vec![]), "ARRAY[]"),
@@ -607,7 +607,7 @@ async fn enum_() {
 async fn system_time() {
     test_type(
         "TIMESTAMP",
-        vec![
+        &[
             (
                 Some(UNIX_EPOCH + Duration::from_millis(1_010)),
                 "'1970-01-01 00:00:01.01'",
@@ -630,7 +630,7 @@ async fn system_time() {
 async fn inet() {
     test_type(
         "INET",
-        vec![
+        &[
             (Some("127.0.0.1".parse::<IpAddr>().unwrap()), "'127.0.0.1'"),
             (
                 Some("127.0.0.1".parse::<IpAddr>().unwrap()),

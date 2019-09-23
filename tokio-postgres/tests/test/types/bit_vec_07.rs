@@ -9,7 +9,7 @@ async fn test_bit_params() {
     bv.pop();
     test_type(
         "BIT(14)",
-        vec![(Some(bv), "B'01101001000001'"), (None, "NULL")],
+        &[(Some(bv), "B'01101001000001'"), (None, "NULL")],
     )
     .await
 }
@@ -21,7 +21,7 @@ async fn test_varbit_params() {
     bv.pop();
     test_type(
         "VARBIT",
-        vec![
+        &[
             (Some(bv), "B'01101001000001'"),
             (Some(BitVec::from_bytes(&[])), "B''"),
             (None, "NULL"),
