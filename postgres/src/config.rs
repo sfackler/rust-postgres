@@ -2,24 +2,21 @@
 //!
 //! Requires the `runtime` Cargo feature (enabled by default).
 
-use futures::future::Executor;
-use futures::sync::oneshot;
-use futures::Future;
+use futures::FutureExt;
 use log::error;
 use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
+use tokio_executor::Executor;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
 
 #[doc(inline)]
-use tokio_postgres::config::{SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{SslMode, TargetSessionAttrs};
 
 use crate::{Client, RUNTIME};
-
-type DynExecutor = dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send;
 
 /// Connection configuration.
 ///
@@ -98,7 +95,7 @@ type DynExecutor = dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>> +
 pub struct Config {
     config: tokio_postgres::Config,
     // this is an option since we don't want to boot up our default runtime unless we're actually going to use it.
-    executor: Option<Arc<DynExecutor>>,
+    executor: Option<Arc<Mutex<dyn Executor + Send>>>,
 }
 
 impl fmt::Debug for Config {
@@ -242,44 +239,56 @@ impl Config {
     /// Defaults to a postgres-specific tokio `Runtime`.
     pub fn executor<E>(&mut self, executor: E) -> &mut Config
     where
-        E: Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + 'static + Send,
+        E: Executor + 'static + Send,
     {
-        self.executor = Some(Arc::new(executor));
+        self.executor = Some(Arc::new(Mutex::new(executor)));
         self
     }
 
     /// Opens a connection to a PostgreSQL database.
-    pub fn connect<T>(&self, tls_mode: T) -> Result<Client, Error>
+    pub fn connect<T>(&self, tls: T) -> Result<Client, Error>
     where
         T: MakeTlsConnect<Socket> + 'static + Send,
         T::TlsConnect: Send,
         T::Stream: Send,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
-        let (tx, rx) = oneshot::channel();
-        let connect = self
-            .config
-            .connect(tls_mode)
-            .then(|r| tx.send(r).map_err(|_| ()));
-        self.with_executor(|e| e.execute(Box::new(connect)))
-            .unwrap();
-        let (client, connection) = rx.wait().unwrap()?;
+        let (client, connection) = match &self.executor {
+            Some(executor) => {
+                let (tx, rx) = mpsc::channel();
+                let config = self.config.clone();
+                let connect = async move {
+                    let r = config.connect(tls).await;
+                    let _ = tx.send(r);
+                };
+                executor.lock().unwrap().spawn(Box::pin(connect)).unwrap();
+                rx.recv().unwrap()?
+            }
+            None => {
+                let connect = self.config.connect(tls);
+                RUNTIME.block_on(connect)?
+            }
+        };
 
-        let connection = connection.map_err(|e| error!("postgres connection error: {}", e));
-        self.with_executor(|e| e.execute(Box::new(connection)))
-            .unwrap();
+        let connection = connection.map(|r| {
+            if let Err(e) = r {
+                error!("postgres connection error: {}", e)
+            }
+        });
+        match &self.executor {
+            Some(executor) => {
+                executor
+                    .lock()
+                    .unwrap()
+                    .spawn(Box::pin(connection))
+                    .unwrap();
+            }
+            None => {
+                RUNTIME.spawn(connection);
+            }
+        }
 
         Ok(Client::from(client))
-    }
-
-    fn with_executor<F, T>(&self, f: F) -> T
-    where
-        F: FnOnce(&dyn Executor<Box<dyn Future<Item = (), Error = ()> + Send>>) -> T,
-    {
-        match &self.executor {
-            Some(e) => f(&**e),
-            None => f(&RUNTIME.executor()),
-        }
     }
 }
 

@@ -68,7 +68,7 @@ where
     T: ToSql,
 {
     if !T::accepts(ty) {
-        return Err(Box::new(WrongType(ty.clone())));
+        return Err(Box::new(WrongType::new::<T>(ty.clone())));
     }
     v.to_sql(ty, out)
 }
@@ -91,6 +91,7 @@ mod type_gen;
 
 #[cfg(feature = "with-serde_json-1")]
 pub use crate::types::serde_json_1::Json;
+use std::any::type_name;
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -107,7 +108,7 @@ impl fmt::Display for Type {
 }
 
 impl Type {
-    pub(crate) fn _new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
+    pub(crate) fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
         Type(Inner::Other(Arc::new(Other {
             name,
             oid,
@@ -175,6 +176,10 @@ pub struct Field {
 }
 
 impl Field {
+    pub(crate) fn new(name: String, type_: Type) -> Field {
+        Field { name, type_ }
+    }
+
     /// Returns the name of the field.
     pub fn name(&self) -> &str {
         &self.name
@@ -183,12 +188,6 @@ impl Field {
     /// Returns the type of the field.
     pub fn type_(&self) -> &Type {
         &self.type_
-    }
-}
-
-impl Field {
-    pub(crate) fn new(name: String, type_: Type) -> Field {
-        Field { name, type_ }
     }
 }
 
@@ -208,14 +207,17 @@ impl Error for WasNull {}
 /// An error indicating that a conversion was attempted between incompatible
 /// Rust and Postgres types.
 #[derive(Debug)]
-pub struct WrongType(Type);
+pub struct WrongType {
+    postgres: Type,
+    rust: &'static str,
+}
 
 impl fmt::Display for WrongType {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             fmt,
-            "cannot convert to or from a Postgres value of type `{}`",
-            self.0
+            "cannot convert between the Rust type `{}` and the Postgres type `{}`",
+            self.rust, self.postgres,
         )
     }
 }
@@ -223,8 +225,11 @@ impl fmt::Display for WrongType {
 impl Error for WrongType {}
 
 impl WrongType {
-    pub(crate) fn new(ty: Type) -> WrongType {
-        WrongType(ty)
+    pub(crate) fn new<T>(ty: Type) -> WrongType {
+        WrongType {
+            postgres: ty,
+            rust: type_name::<T>(),
+        }
     }
 }
 

@@ -1,11 +1,11 @@
 //! TLS support.
 
-use futures::future::{self, FutureResult};
-use futures::{Future, Poll};
 use std::error::Error;
-use std::fmt;
-use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{fmt, io};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 pub(crate) mod private {
     pub struct ForcePrivateApi;
@@ -38,10 +38,10 @@ impl ChannelBinding {
 #[cfg(feature = "runtime")]
 pub trait MakeTlsConnect<S> {
     /// The stream type created by the `TlsConnect` implementation.
-    type Stream: AsyncRead + AsyncWrite;
+    type Stream: AsyncRead + AsyncWrite + Unpin;
     /// The `TlsConnect` implementation created by this type.
     type TlsConnect: TlsConnect<S, Stream = Self::Stream>;
-    /// The error type retured by the `TlsConnect` implementation.
+    /// The error type returned by the `TlsConnect` implementation.
     type Error: Into<Box<dyn Error + Sync + Send>>;
 
     /// Creates a new `TlsConnect`or.
@@ -53,11 +53,11 @@ pub trait MakeTlsConnect<S> {
 /// An asynchronous function wrapping a stream in a TLS session.
 pub trait TlsConnect<S> {
     /// The stream returned by the future.
-    type Stream: AsyncRead + AsyncWrite;
-    /// The error type returned by the future.
+    type Stream: AsyncRead + AsyncWrite + Unpin;
+    /// The error returned by the future.
     type Error: Into<Box<dyn Error + Sync + Send>>;
     /// The future returned by the connector.
-    type Future: Future<Item = (Self::Stream, ChannelBinding), Error = Self::Error>;
+    type Future: Future<Output = Result<(Self::Stream, ChannelBinding), Self::Error>>;
 
     /// Returns a future performing a TLS handshake over the stream.
     fn connect(self, stream: S) -> Self::Future;
@@ -71,11 +71,10 @@ pub trait TlsConnect<S> {
 /// A `MakeTlsConnect` and `TlsConnect` implementation which simply returns an error.
 ///
 /// This can be used when `sslmode` is `none` or `prefer`.
-#[derive(Debug, Copy, Clone)]
 pub struct NoTls;
 
 #[cfg(feature = "runtime")]
-impl<S> MakeTlsConnect<S> for NoTls where {
+impl<S> MakeTlsConnect<S> for NoTls {
     type Stream = NoTlsStream;
     type TlsConnect = NoTls;
     type Error = NoTlsError;
@@ -88,14 +87,25 @@ impl<S> MakeTlsConnect<S> for NoTls where {
 impl<S> TlsConnect<S> for NoTls {
     type Stream = NoTlsStream;
     type Error = NoTlsError;
-    type Future = FutureResult<(NoTlsStream, ChannelBinding), NoTlsError>;
+    type Future = NoTlsFuture;
 
-    fn connect(self, _: S) -> FutureResult<(NoTlsStream, ChannelBinding), NoTlsError> {
-        future::err(NoTlsError(()))
+    fn connect(self, _: S) -> NoTlsFuture {
+        NoTlsFuture(())
     }
 
     fn can_connect(&self, _: private::ForcePrivateApi) -> bool {
         false
+    }
+}
+
+/// The future returned by `NoTls`.
+pub struct NoTlsFuture(());
+
+impl Future for NoTlsFuture {
+    type Output = Result<(NoTlsStream, ChannelBinding), NoTlsError>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Err(NoTlsError(())))
     }
 }
 
@@ -104,26 +114,26 @@ impl<S> TlsConnect<S> for NoTls {
 /// Since `NoTls` doesn't support TLS, this type is uninhabited.
 pub enum NoTlsStream {}
 
-impl Read for NoTlsStream {
-    fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-        match *self {}
-    }
-}
-
-impl AsyncRead for NoTlsStream {}
-
-impl Write for NoTlsStream {
-    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
-        match *self {}
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
+impl AsyncRead for NoTlsStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        _: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         match *self {}
     }
 }
 
 impl AsyncWrite for NoTlsStream {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
+    fn poll_write(self: Pin<&mut Self>, _: &mut Context<'_>, _: &[u8]) -> Poll<io::Result<usize>> {
+        match *self {}
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match *self {}
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         match *self {}
     }
 }

@@ -1,30 +1,26 @@
 //! Connection configuration.
 
+#[cfg(feature = "runtime")]
+use crate::connect::connect;
+use crate::connect_raw::connect_raw;
+#[cfg(feature = "runtime")]
+use crate::tls::MakeTlsConnect;
+use crate::tls::TlsConnect;
+#[cfg(feature = "runtime")]
+use crate::Socket;
+use crate::{Client, Connection, Error};
 use std::borrow::Cow;
-use std::error;
 #[cfg(unix)]
 use std::ffi::OsStr;
-use std::fmt;
-use std::iter;
-use std::mem;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
 use std::path::{Path, PathBuf};
-use std::str::{self, FromStr};
-use std::sync::Arc;
+use std::str;
+use std::str::FromStr;
 use std::time::Duration;
-use tokio_io::{AsyncRead, AsyncWrite};
-
-#[cfg(feature = "runtime")]
-use crate::impls::Connect;
-use crate::impls::ConnectRaw;
-#[cfg(feature = "runtime")]
-use crate::proto::ConnectFuture;
-use crate::proto::ConnectRawFuture;
-use crate::{Error, TlsConnect};
-#[cfg(feature = "runtime")]
-use crate::{MakeTlsConnect, Socket};
+use std::{error, fmt, iter, mem};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Properties required of a session.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -55,22 +51,6 @@ pub(crate) enum Host {
     Tcp(String),
     #[cfg(unix)]
     Unix(PathBuf),
-}
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct Inner {
-    pub(crate) user: Option<String>,
-    pub(crate) password: Option<Vec<u8>>,
-    pub(crate) dbname: Option<String>,
-    pub(crate) options: Option<String>,
-    pub(crate) application_name: Option<String>,
-    pub(crate) ssl_mode: SslMode,
-    pub(crate) host: Vec<Host>,
-    pub(crate) port: Vec<u16>,
-    pub(crate) connect_timeout: Option<Duration>,
-    pub(crate) keepalives: bool,
-    pub(crate) keepalives_idle: Duration,
-    pub(crate) target_session_attrs: TargetSessionAttrs,
 }
 
 /// Connection configuration.
@@ -146,8 +126,21 @@ pub(crate) struct Inner {
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
-#[derive(Clone, PartialEq)]
-pub struct Config(pub(crate) Arc<Inner>);
+#[derive(PartialEq, Clone)]
+pub struct Config {
+    pub(crate) user: Option<String>,
+    pub(crate) password: Option<Vec<u8>>,
+    pub(crate) dbname: Option<String>,
+    pub(crate) options: Option<String>,
+    pub(crate) application_name: Option<String>,
+    pub(crate) ssl_mode: SslMode,
+    pub(crate) host: Vec<Host>,
+    pub(crate) port: Vec<u16>,
+    pub(crate) connect_timeout: Option<Duration>,
+    pub(crate) keepalives: bool,
+    pub(crate) keepalives_idle: Duration,
+    pub(crate) target_session_attrs: TargetSessionAttrs,
+}
 
 impl Default for Config {
     fn default() -> Config {
@@ -158,7 +151,7 @@ impl Default for Config {
 impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
-        Config(Arc::new(Inner {
+        Config {
             user: None,
             password: None,
             dbname: None,
@@ -171,14 +164,14 @@ impl Config {
             keepalives: true,
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
             target_session_attrs: TargetSessionAttrs::Any,
-        }))
+        }
     }
 
     /// Sets the user to authenticate with.
     ///
     /// Required.
     pub fn user(&mut self, user: &str) -> &mut Config {
-        Arc::make_mut(&mut self.0).user = Some(user.to_string());
+        self.user = Some(user.to_string());
         self
     }
 
@@ -187,7 +180,7 @@ impl Config {
     where
         T: AsRef<[u8]>,
     {
-        Arc::make_mut(&mut self.0).password = Some(password.as_ref().to_vec());
+        self.password = Some(password.as_ref().to_vec());
         self
     }
 
@@ -195,19 +188,19 @@ impl Config {
     ///
     /// Defaults to the user.
     pub fn dbname(&mut self, dbname: &str) -> &mut Config {
-        Arc::make_mut(&mut self.0).dbname = Some(dbname.to_string());
+        self.dbname = Some(dbname.to_string());
         self
     }
 
     /// Sets command line options used to configure the server.
     pub fn options(&mut self, options: &str) -> &mut Config {
-        Arc::make_mut(&mut self.0).options = Some(options.to_string());
+        self.options = Some(options.to_string());
         self
     }
 
     /// Sets the value of the `application_name` runtime parameter.
     pub fn application_name(&mut self, application_name: &str) -> &mut Config {
-        Arc::make_mut(&mut self.0).application_name = Some(application_name.to_string());
+        self.application_name = Some(application_name.to_string());
         self
     }
 
@@ -215,7 +208,7 @@ impl Config {
     ///
     /// Defaults to `prefer`.
     pub fn ssl_mode(&mut self, ssl_mode: SslMode) -> &mut Config {
-        Arc::make_mut(&mut self.0).ssl_mode = ssl_mode;
+        self.ssl_mode = ssl_mode;
         self
     }
 
@@ -231,9 +224,7 @@ impl Config {
             }
         }
 
-        Arc::make_mut(&mut self.0)
-            .host
-            .push(Host::Tcp(host.to_string()));
+        self.host.push(Host::Tcp(host.to_string()));
         self
     }
 
@@ -245,9 +236,7 @@ impl Config {
     where
         T: AsRef<Path>,
     {
-        Arc::make_mut(&mut self.0)
-            .host
-            .push(Host::Unix(host.as_ref().to_path_buf()));
+        self.host.push(Host::Unix(host.as_ref().to_path_buf()));
         self
     }
 
@@ -257,7 +246,7 @@ impl Config {
     /// case the default of 5432 is used, a single port, in which it is used for all hosts, or the same number of ports
     /// as hosts.
     pub fn port(&mut self, port: u16) -> &mut Config {
-        Arc::make_mut(&mut self.0).port.push(port);
+        self.port.push(port);
         self
     }
 
@@ -266,7 +255,7 @@ impl Config {
     /// Note that hostnames can resolve to multiple IP addresses, and this timeout will apply to each address of each
     /// host separately. Defaults to no limit.
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
-        Arc::make_mut(&mut self.0).connect_timeout = Some(connect_timeout);
+        self.connect_timeout = Some(connect_timeout);
         self
     }
 
@@ -274,7 +263,7 @@ impl Config {
     ///
     /// This is ignored for Unix domain socket connections. Defaults to `true`.
     pub fn keepalives(&mut self, keepalives: bool) -> &mut Config {
-        Arc::make_mut(&mut self.0).keepalives = keepalives;
+        self.keepalives = keepalives;
         self
     }
 
@@ -282,7 +271,7 @@ impl Config {
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
-        Arc::make_mut(&mut self.0).keepalives_idle = keepalives_idle;
+        self.keepalives_idle = keepalives_idle;
         self
     }
 
@@ -294,7 +283,7 @@ impl Config {
         &mut self,
         target_session_attrs: TargetSessionAttrs,
     ) -> &mut Config {
-        Arc::make_mut(&mut self.0).target_session_attrs = target_session_attrs;
+        self.target_session_attrs = target_session_attrs;
         self
     }
 
@@ -388,22 +377,26 @@ impl Config {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn connect<T>(&self, tls: T) -> Connect<T>
+    pub async fn connect<T>(&self, tls: T) -> Result<(Client, Connection<Socket, T::Stream>), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
-        Connect(ConnectFuture::new(tls, Ok(self.clone())))
+        connect(tls, self).await
     }
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
     /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application` name are ignored.
-    pub fn connect_raw<S, T>(&self, stream: S, tls: T) -> ConnectRaw<S, T>
+    pub async fn connect_raw<S, T>(
+        &self,
+        stream: S,
+        tls: T,
+    ) -> Result<(Client, Connection<S, T::Stream>), Error>
     where
-        S: AsyncRead + AsyncWrite,
+        S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        ConnectRaw(ConnectRawFuture::new(stream, tls, self.clone(), None))
+        connect_raw(stream, tls, self).await
     }
 }
 
@@ -429,18 +422,18 @@ impl fmt::Debug for Config {
         }
 
         f.debug_struct("Config")
-            .field("user", &self.0.user)
-            .field("password", &self.0.password.as_ref().map(|_| Redaction {}))
-            .field("dbname", &self.0.dbname)
-            .field("options", &self.0.options)
-            .field("application_name", &self.0.application_name)
-            .field("ssl_mode", &self.0.ssl_mode)
-            .field("host", &self.0.host)
-            .field("port", &self.0.port)
-            .field("connect_timeout", &self.0.connect_timeout)
-            .field("keepalives", &self.0.keepalives)
-            .field("keepalives_idle", &self.0.keepalives_idle)
-            .field("target_session_attrs", &self.0.target_session_attrs)
+            .field("user", &self.user)
+            .field("password", &self.password.as_ref().map(|_| Redaction {}))
+            .field("dbname", &self.dbname)
+            .field("options", &self.options)
+            .field("application_name", &self.application_name)
+            .field("ssl_mode", &self.ssl_mode)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("connect_timeout", &self.connect_timeout)
+            .field("keepalives", &self.keepalives)
+            .field("keepalives_idle", &self.keepalives_idle)
+            .field("target_session_attrs", &self.target_session_attrs)
             .finish()
     }
 }

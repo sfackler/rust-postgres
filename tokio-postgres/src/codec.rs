@@ -3,7 +3,7 @@ use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend::CopyData;
 use std::io;
-use tokio_codec::{Decoder, Encoder};
+use tokio::codec::{Decoder, Encoder};
 
 pub enum FrontendMessage {
     Raw(Vec<u8>),
@@ -41,7 +41,7 @@ impl Encoder for PostgresCodec {
     type Item = FrontendMessage;
     type Error = io::Error;
 
-    fn encode(&mut self, item: FrontendMessage, dst: &mut BytesMut) -> Result<(), io::Error> {
+    fn encode(&mut self, item: FrontendMessage, dst: &mut BytesMut) -> io::Result<()> {
         match item {
             FrontendMessage::Raw(buf) => dst.extend_from_slice(&buf),
             FrontendMessage::CopyData(data) => data.write(dst),

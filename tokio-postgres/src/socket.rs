@@ -1,10 +1,11 @@
 use bytes::{Buf, BufMut};
-use futures::Poll;
-use std::io::{self, Read, Write};
-use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_tcp::TcpStream;
+use std::io;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 #[cfg(unix)]
-use tokio_uds::UnixStream;
+use tokio::net::UnixStream;
 
 #[derive(Debug)]
 enum Inner {
@@ -30,16 +31,6 @@ impl Socket {
     }
 }
 
-impl Read for Socket {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match &mut self.0 {
-            Inner::Tcp(s) => s.read(buf),
-            #[cfg(unix)]
-            Inner::Unix(s) => s.read(buf),
-        }
-    }
-}
-
 impl AsyncRead for Socket {
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         match &self.0 {
@@ -49,53 +40,77 @@ impl AsyncRead for Socket {
         }
     }
 
-    fn read_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        match &mut self.0 {
+            Inner::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+            #[cfg(unix)]
+            Inner::Unix(s) => Pin::new(s).poll_read(cx, buf),
+        }
+    }
+
+    fn poll_read_buf<B>(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut B,
+    ) -> Poll<io::Result<usize>>
     where
+        Self: Sized,
         B: BufMut,
     {
         match &mut self.0 {
-            Inner::Tcp(s) => s.read_buf(buf),
+            Inner::Tcp(s) => Pin::new(s).poll_read_buf(cx, buf),
             #[cfg(unix)]
-            Inner::Unix(s) => s.read_buf(buf),
-        }
-    }
-}
-
-impl Write for Socket {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match &mut self.0 {
-            Inner::Tcp(s) => s.write(buf),
-            #[cfg(unix)]
-            Inner::Unix(s) => s.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        match &mut self.0 {
-            Inner::Tcp(s) => s.flush(),
-            #[cfg(unix)]
-            Inner::Unix(s) => s.flush(),
+            Inner::Unix(s) => Pin::new(s).poll_read_buf(cx, buf),
         }
     }
 }
 
 impl AsyncWrite for Socket {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         match &mut self.0 {
-            Inner::Tcp(s) => s.shutdown(),
+            Inner::Tcp(s) => Pin::new(s).poll_write(cx, buf),
             #[cfg(unix)]
-            Inner::Unix(s) => s.shutdown(),
+            Inner::Unix(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
 
-    fn write_buf<B>(&mut self, buf: &mut B) -> Poll<usize, io::Error>
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match &mut self.0 {
+            Inner::Tcp(s) => Pin::new(s).poll_flush(cx),
+            #[cfg(unix)]
+            Inner::Unix(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match &mut self.0 {
+            Inner::Tcp(s) => Pin::new(s).poll_shutdown(cx),
+            #[cfg(unix)]
+            Inner::Unix(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+
+    fn poll_write_buf<B>(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut B,
+    ) -> Poll<io::Result<usize>>
     where
+        Self: Sized,
         B: Buf,
     {
         match &mut self.0 {
-            Inner::Tcp(s) => s.write_buf(buf),
+            Inner::Tcp(s) => Pin::new(s).poll_write_buf(cx, buf),
             #[cfg(unix)]
-            Inner::Unix(s) => s.write_buf(buf),
+            Inner::Unix(s) => Pin::new(s).poll_write_buf(cx, buf),
         }
     }
 }
