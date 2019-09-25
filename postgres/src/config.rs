@@ -14,7 +14,7 @@ use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
 
 #[doc(inline)]
-pub use tokio_postgres::config::{SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{SslMode, TargetSessionAttrs, ChannelBinding};
 
 use crate::{Client, RUNTIME};
 
@@ -231,6 +231,14 @@ impl Config {
         target_session_attrs: TargetSessionAttrs,
     ) -> &mut Config {
         self.config.target_session_attrs(target_session_attrs);
+        self
+    }
+
+    /// Sets the channel binding behavior.
+    ///
+    /// Defaults to `prefer`.
+    pub fn channel_binding(&mut self, channel_binding: ChannelBinding) -> &mut Config {
+        self.config.channel_binding(channel_binding);
         self
     }
 

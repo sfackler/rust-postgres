@@ -20,8 +20,7 @@ mod types;
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let config = s.parse::<Config>().unwrap();
-    // FIXME https://github.com/rust-lang/rust/issues/64391
-    async move { config.connect_raw(socket, NoTls).await }.await
+    config.connect_raw(socket, NoTls).await
 }
 
 async fn connect(s: &str) -> Client {
@@ -608,100 +607,20 @@ async fn query_portal() {
     assert_eq!(r3.len(), 0);
 }
 
-/*
-#[test]
-fn poll_idle_running() {
-    struct DelayStream(Delay);
-
-    impl Stream for DelayStream {
-        type Item = Vec<u8>;
-        type Error = tokio_postgres::Error;
-
-        fn poll(&mut self) -> Poll<Option<Vec<u8>>, tokio_postgres::Error> {
-            try_ready!(self.0.poll().map_err(|e| panic!("{}", e)));
-            QUERY_DONE.store(true, Ordering::SeqCst);
-            Ok(Async::Ready(None))
-        }
-    }
-
-    struct IdleFuture(tokio_postgres::Client);
-
-    impl Future for IdleFuture {
-        type Item = ();
-        type Error = tokio_postgres::Error;
-
-        fn poll(&mut self) -> Poll<(), tokio_postgres::Error> {
-            try_ready!(self.0.poll_idle());
-            assert!(QUERY_DONE.load(Ordering::SeqCst));
-            Ok(Async::Ready(()))
-        }
-    }
-
-    static QUERY_DONE: AtomicBool = AtomicBool::new(false);
-
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let execute = client
-        .simple_query("CREATE TEMPORARY TABLE foo (id INT)")
-        .for_each(|_| Ok(()));
-    runtime.block_on(execute).unwrap();
-
-    let prepare = client.prepare("COPY foo FROM STDIN");
-    let stmt = runtime.block_on(prepare).unwrap();
-    let copy_in = client.copy_in(
-        &stmt,
-        &[],
-        DelayStream(Delay::new(Instant::now() + Duration::from_millis(10))),
-    );
-    let copy_in = copy_in.map(|_| ()).map_err(|e| panic!("{}", e));
-    runtime.spawn(copy_in);
-
-    let future = IdleFuture(client);
-    runtime.block_on(future).unwrap();
+#[tokio::test]
+async fn require_channel_binding() {
+    connect_raw("user=postgres channel_binding=require")
+        .await
+        .err()
+        .unwrap();
 }
 
-#[test]
-fn poll_idle_new() {
-    struct IdleFuture {
-        client: tokio_postgres::Client,
-        prepare: Option<impls::Prepare>,
-    }
-
-    impl Future for IdleFuture {
-        type Item = ();
-        type Error = tokio_postgres::Error;
-
-        fn poll(&mut self) -> Poll<(), tokio_postgres::Error> {
-            match self.prepare.take() {
-                Some(_future) => {
-                    assert!(!self.client.poll_idle().unwrap().is_ready());
-                    Ok(Async::NotReady)
-                }
-                None => {
-                    assert!(self.client.poll_idle().unwrap().is_ready());
-                    Ok(Async::Ready(()))
-                }
-            }
-        }
-    }
-
-    let _ = env_logger::try_init();
-    let mut runtime = Runtime::new().unwrap();
-
-    let (mut client, connection) = runtime.block_on(connect("user=postgres")).unwrap();
-    let connection = connection.map_err(|e| panic!("{}", e));
-    runtime.handle().spawn(connection).unwrap();
-
-    let prepare = client.prepare("");
-    let future = IdleFuture {
-        client,
-        prepare: Some(prepare),
-    };
-    runtime.block_on(future).unwrap();
+#[tokio::test]
+async fn prefer_channel_binding() {
+    connect("user=postgres channel_binding=prefer").await;
 }
-*/
+
+#[tokio::test]
+async fn disable_channel_binding() {
+    connect("user=postgres channel_binding=disable").await;
+}

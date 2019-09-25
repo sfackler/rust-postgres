@@ -66,6 +66,32 @@ async fn scram_user() {
 }
 
 #[tokio::test]
+async fn require_channel_binding_err() {
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
+    let ctx = builder.build();
+    let connector = TlsConnector::new(ctx.configure().unwrap(), "localhost");
+
+    let stream = TcpStream::connect("127.0.0.1:5433").await.unwrap();
+    let builder = "user=pass_user password=password dbname=postgres channel_binding=require"
+        .parse::<tokio_postgres::Config>()
+        .unwrap();
+    builder.connect_raw(stream, connector).await.err().unwrap();
+}
+
+#[tokio::test]
+async fn require_channel_binding_ok() {
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_ca_file("../test/server.crt").unwrap();
+    let ctx = builder.build();
+    smoke_test(
+        "user=scram_user password=password dbname=postgres channel_binding=require",
+        TlsConnector::new(ctx.configure().unwrap(), "localhost"),
+    )
+    .await;
+}
+
+#[tokio::test]
 #[cfg(feature = "runtime")]
 async fn runtime() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();

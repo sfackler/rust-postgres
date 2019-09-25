@@ -46,6 +46,19 @@ pub enum SslMode {
     __NonExhaustive,
 }
 
+/// Channel binding configuration.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ChannelBinding {
+    /// Do not use channel binding.
+    Disable,
+    /// Attempt to use channel binding but allow sessions without.
+    Prefer,
+    /// Require the use of channel binding.
+    Require,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Host {
     Tcp(String),
@@ -87,6 +100,9 @@ pub(crate) enum Host {
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
+/// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
+///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
+///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
 ///
 /// ## Examples
 ///
@@ -140,6 +156,7 @@ pub struct Config {
     pub(crate) keepalives: bool,
     pub(crate) keepalives_idle: Duration,
     pub(crate) target_session_attrs: TargetSessionAttrs,
+    pub(crate) channel_binding: ChannelBinding,
 }
 
 impl Default for Config {
@@ -164,6 +181,7 @@ impl Config {
             keepalives: true,
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
             target_session_attrs: TargetSessionAttrs::Any,
+            channel_binding: ChannelBinding::Prefer,
         }
     }
 
@@ -287,6 +305,14 @@ impl Config {
         self
     }
 
+    /// Sets the channel binding behavior.
+    ///
+    /// Defaults to `prefer`.
+    pub fn channel_binding(&mut self, channel_binding: ChannelBinding) -> &mut Config {
+        self.channel_binding = channel_binding;
+        self
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -363,6 +389,19 @@ impl Config {
                 };
                 self.target_session_attrs(target_session_attrs);
             }
+            "channel_binding" => {
+                let channel_binding = match value {
+                    "disable" => ChannelBinding::Disable,
+                    "prefer" => ChannelBinding::Prefer,
+                    "require" => ChannelBinding::Require,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "channel_binding",
+                        ))))
+                    }
+                };
+                self.channel_binding(channel_binding);
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -434,6 +473,7 @@ impl fmt::Debug for Config {
             .field("keepalives", &self.keepalives)
             .field("keepalives_idle", &self.keepalives_idle)
             .field("target_session_attrs", &self.target_session_attrs)
+            .field("channel_binding", &self.channel_binding)
             .finish()
     }
 }
