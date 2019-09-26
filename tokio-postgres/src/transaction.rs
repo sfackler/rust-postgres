@@ -95,7 +95,7 @@ impl<'a> Transaction<'a> {
     pub fn query(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Row, Error>> {
         self.client.query(statement, params)
     }
@@ -119,7 +119,7 @@ impl<'a> Transaction<'a> {
     pub fn execute(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Future<Output = Result<u64, Error>> {
         self.client.execute(statement, params)
     }
@@ -150,10 +150,10 @@ impl<'a> Transaction<'a> {
     pub fn bind(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Future<Output = Result<Portal, Error>> {
         // https://github.com/rust-lang/rust/issues/63032
-        let buf = bind::encode(statement, params.iter().cloned());
+        let buf = bind::encode(statement, params.iter().map(|s| *s as _));
         bind::bind(self.client.inner(), statement.clone(), buf)
     }
 
@@ -189,7 +189,7 @@ impl<'a> Transaction<'a> {
     pub fn copy_in<S>(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
         stream: S,
     ) -> impl Future<Output = Result<u64, Error>>
     where
@@ -205,7 +205,7 @@ impl<'a> Transaction<'a> {
     pub fn copy_out(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Bytes, Error>> {
         self.client.copy_out(statement, params)
     }

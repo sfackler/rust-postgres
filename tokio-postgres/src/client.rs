@@ -197,9 +197,9 @@ impl Client {
     pub fn query(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Row, Error>> {
-        let buf = query::encode(statement, params.iter().cloned());
+        let buf = query::encode(statement, params.iter().map(|s| *s as _));
         query::query(self.inner(), statement.clone(), buf)
     }
 
@@ -229,9 +229,9 @@ impl Client {
     pub fn execute(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Future<Output = Result<u64, Error>> {
-        let buf = query::encode(statement, params.iter().cloned());
+        let buf = query::encode(statement, params.iter().map(|s| *s as _));
         query::execute(self.inner(), buf)
     }
 
@@ -262,7 +262,7 @@ impl Client {
     pub fn copy_in<S>(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
         stream: S,
     ) -> impl Future<Output = Result<u64, Error>>
     where
@@ -271,7 +271,7 @@ impl Client {
         <S::Ok as IntoBuf>::Buf: 'static + Send,
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
-        let buf = query::encode(statement, params.iter().cloned());
+        let buf = query::encode(statement, params.iter().map(|s| *s as _));
         copy_in::copy_in(self.inner(), buf, stream)
     }
 
@@ -283,9 +283,9 @@ impl Client {
     pub fn copy_out(
         &mut self,
         statement: &Statement,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Bytes, Error>> {
-        let buf = query::encode(statement, params.iter().cloned());
+        let buf = query::encode(statement, params.iter().map(|s| *s as _));
         copy_out::copy_out(self.inner(), buf)
     }
 

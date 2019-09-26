@@ -27,7 +27,7 @@ mod uuid_07;
 
 async fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
 where
-    T: PartialEq + for<'a> FromSqlOwned + ToSql,
+    T: PartialEq + for<'a> FromSqlOwned + ToSql + Sync,
     S: fmt::Display,
 {
     let mut client = connect("user=postgres").await;
@@ -655,4 +655,31 @@ async fn inet() {
         ],
     )
     .await;
+}
+
+#[tokio::test]
+async fn check_send() {
+    fn is_send<T: Send>(_: &T) {}
+
+    let mut client = connect("user=postgres").await;
+
+    let f = client.prepare("SELECT $1::TEXT");
+    is_send(&f);
+    let stmt = f.await.unwrap();
+
+    let f = client.query(&stmt, &[&"hello"]);
+    is_send(&f);
+
+    let f = client.execute(&stmt, &[&"hello"]);
+    is_send(&f);
+
+    let f = client.transaction();
+    is_send(&f);
+    let mut trans = f.await.unwrap();
+
+    let f = trans.query(&stmt, &[&"hello"]);
+    is_send(&f);
+
+    let f = trans.execute(&stmt, &[&"hello"]);
+    is_send(&f);
 }
