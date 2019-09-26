@@ -661,7 +661,9 @@ async fn inet() {
 async fn check_send() {
     fn is_send<T: Send>(_: &T) {}
 
-    let mut client = connect("user=postgres").await;
+    let f = connect("user=postgres");
+    is_send(&f);
+    let mut client = f.await;
 
     let f = client.prepare("SELECT $1::TEXT");
     is_send(&f);
