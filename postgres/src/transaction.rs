@@ -43,7 +43,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
-    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -52,7 +52,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -63,7 +63,7 @@ impl<'a> Transaction<'a> {
     pub fn query_iter<T>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
     where
         T: ?Sized + ToStatement,
@@ -82,7 +82,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Portal, Error>
+    pub fn bind<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -112,7 +112,7 @@ impl<'a> Transaction<'a> {
     pub fn copy_in<T, R>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
         reader: R,
     ) -> Result<u64, Error>
     where
@@ -127,7 +127,7 @@ impl<'a> Transaction<'a> {
     pub fn copy_out<'b, T>(
         &'a mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> Result<impl BufRead + 'b, Error>
     where
         T: ?Sized + ToStatement,

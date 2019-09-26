@@ -80,7 +80,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn execute<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<u64, Error>
+    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -119,7 +119,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&mut self, query: &T, params: &[&dyn ToSql]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -155,7 +155,7 @@ impl Client {
     pub fn query_iter<'a, T>(
         &'a mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'a, Error>
     where
         T: ?Sized + ToStatement,
@@ -242,7 +242,7 @@ impl Client {
     pub fn copy_in<T, R>(
         &mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
         reader: R,
     ) -> Result<u64, Error>
     where
@@ -275,7 +275,7 @@ impl Client {
     pub fn copy_out<'a, T>(
         &'a mut self,
         query: &T,
-        params: &[&dyn ToSql],
+        params: &[&(dyn ToSql + Sync)],
     ) -> Result<impl BufRead + 'a, Error>
     where
         T: ?Sized + ToStatement,
