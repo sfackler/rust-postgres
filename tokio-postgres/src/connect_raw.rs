@@ -142,11 +142,11 @@ where
 {
     match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationOk) => {
-            no_channel_binding(config)?;
+            can_skip_channel_binding(config)?;
             return Ok(());
         }
         Some(Message::AuthenticationCleartextPassword) => {
-            no_channel_binding(config)?;
+            can_skip_channel_binding(config)?;
 
             let pass = config
                 .password
@@ -156,7 +156,7 @@ where
             authenticate_password(stream, pass).await?;
         }
         Some(Message::AuthenticationMd5Password(body)) => {
-            no_channel_binding(config)?;
+            can_skip_channel_binding(config)?;
 
             let user = config
                 .user
@@ -194,7 +194,7 @@ where
     }
 }
 
-fn no_channel_binding(config: &Config) -> Result<(), Error> {
+fn can_skip_channel_binding(config: &Config) -> Result<(), Error> {
     match config.channel_binding {
         config::ChannelBinding::Disable | config::ChannelBinding::Prefer => Ok(()),
         config::ChannelBinding::Require => Err(Error::authentication(
@@ -258,7 +258,7 @@ where
             None => (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
         }
     } else if has_scram {
-        no_channel_binding(config)?;
+        can_skip_channel_binding(config)?;
 
         match channel_binding {
             Some(_) => (sasl::ChannelBinding::unrequested(), sasl::SCRAM_SHA_256),
