@@ -1,5 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{ChannelBinding, TlsConnect};
@@ -141,8 +141,13 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     match stream.try_next().await.map_err(Error::io)? {
-        Some(Message::AuthenticationOk) => return Ok(()),
+        Some(Message::AuthenticationOk) => {
+            can_skip_channel_binding(config)?;
+            return Ok(());
+        }
         Some(Message::AuthenticationCleartextPassword) => {
+            can_skip_channel_binding(config)?;
+
             let pass = config
                 .password
                 .as_ref()
@@ -151,6 +156,8 @@ where
             authenticate_password(stream, pass).await?;
         }
         Some(Message::AuthenticationMd5Password(body)) => {
+            can_skip_channel_binding(config)?;
+
             let user = config
                 .user
                 .as_ref()
@@ -164,12 +171,7 @@ where
             authenticate_password(stream, output.as_bytes()).await?;
         }
         Some(Message::AuthenticationSasl(body)) => {
-            let pass = config
-                .password
-                .as_ref()
-                .ok_or_else(|| Error::config("password missing".into()))?;
-
-            authenticate_sasl(stream, body, channel_binding, pass).await?;
+            authenticate_sasl(stream, body, channel_binding, config).await?;
         }
         Some(Message::AuthenticationKerberosV5)
         | Some(Message::AuthenticationScmCredential)
@@ -189,6 +191,16 @@ where
         Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
         Some(_) => Err(Error::unexpected_message()),
         None => Err(Error::closed()),
+    }
+}
+
+fn can_skip_channel_binding(config: &Config) -> Result<(), Error> {
+    match config.channel_binding {
+        config::ChannelBinding::Disable | config::ChannelBinding::Prefer => Ok(()),
+        config::ChannelBinding::Require => Err(Error::authentication(
+            "server did not use channel binding".into(),
+        )),
+        config::ChannelBinding::__NonExhaustive => unreachable!(),
     }
 }
 
@@ -213,12 +225,17 @@ async fn authenticate_sasl<S, T>(
     stream: &mut StartupStream<S, T>,
     body: AuthenticationSaslBody,
     channel_binding: ChannelBinding,
-    password: &[u8],
+    config: &Config,
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    let password = config
+        .password
+        .as_ref()
+        .ok_or_else(|| Error::config("password missing".into()))?;
+
     let mut has_scram = false;
     let mut has_scram_plus = false;
     let mut mechanisms = body.mechanisms();
@@ -232,12 +249,15 @@ where
 
     let channel_binding = channel_binding
         .tls_server_end_point
+        .filter(|_| config.channel_binding != config::ChannelBinding::Disable)
         .map(sasl::ChannelBinding::tls_server_end_point);
 
     let (channel_binding, mechanism) = if has_scram_plus {
         match channel_binding {
             Some(channel_binding) => (channel_binding, sasl::SCRAM_SHA_256_PLUS),
-            None => (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+            None => {
+                (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256)
+            },
         }
     } else if has_scram {
         match channel_binding {
@@ -247,6 +267,10 @@ where
     } else {
         return Err(Error::authentication("unsupported SASL mechanism".into()));
     };
+
+    if mechanism != sasl::SCRAM_SHA_256_PLUS {
+        can_skip_channel_binding(config)?;
+    }
 
     let mut scram = ScramSha256::new(password, channel_binding);
 

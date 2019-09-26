@@ -106,7 +106,11 @@ pub fn prepare(
     }
 }
 
-fn prepare_rec(client: Arc<InnerClient>, query: &str, types: &[Type]) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'static + Send>> {
+fn prepare_rec(
+    client: Arc<InnerClient>,
+    query: &str,
+    types: &[Type],
+) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'static + Send>> {
     Box::pin(prepare(client, query, types))
 }
 
