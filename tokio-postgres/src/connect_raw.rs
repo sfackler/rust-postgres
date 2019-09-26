@@ -255,7 +255,11 @@ where
     let (channel_binding, mechanism) = if has_scram_plus {
         match channel_binding {
             Some(channel_binding) => (channel_binding, sasl::SCRAM_SHA_256_PLUS),
-            None => (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
+            None => {
+                can_skip_channel_binding(config)?;
+
+                (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256)
+            },
         }
     } else if has_scram {
         can_skip_channel_binding(config)?;
