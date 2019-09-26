@@ -256,14 +256,10 @@ where
         match channel_binding {
             Some(channel_binding) => (channel_binding, sasl::SCRAM_SHA_256_PLUS),
             None => {
-                can_skip_channel_binding(config)?;
-
                 (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256)
             },
         }
     } else if has_scram {
-        can_skip_channel_binding(config)?;
-
         match channel_binding {
             Some(_) => (sasl::ChannelBinding::unrequested(), sasl::SCRAM_SHA_256),
             None => (sasl::ChannelBinding::unsupported(), sasl::SCRAM_SHA_256),
@@ -271,6 +267,10 @@ where
     } else {
         return Err(Error::authentication("unsupported SASL mechanism".into()));
     };
+
+    if mechanism != sasl::SCRAM_SHA_256_PLUS {
+        can_skip_channel_binding(config)?;
+    }
 
     let mut scram = ScramSha256::new(password, channel_binding);
 
