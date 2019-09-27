@@ -1,4 +1,4 @@
-use bit_vec_07::BitVec;
+use bit_vec_06::BitVec;
 
 use crate::types::test_type;
 

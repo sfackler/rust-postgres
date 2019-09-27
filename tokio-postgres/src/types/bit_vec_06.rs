@@ -1,4 +1,4 @@
-use bit_vec_05::BitVec;
+use bit_vec_06::BitVec;
 use postgres_protocol::types;
 use std::error::Error;
 

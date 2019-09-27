@@ -12,8 +12,8 @@ use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, Wr
 
 use crate::connect;
 
-#[cfg(feature = "with-bit-vec-0_7")]
-mod bit_vec_07;
+#[cfg(feature = "with-bit-vec-0_6")]
+mod bit_vec_06;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
 #[cfg(feature = "with-eui48-0_4")]
