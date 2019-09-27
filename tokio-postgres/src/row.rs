@@ -1,17 +1,15 @@
 //! Rows.
 
+use crate::row::sealed::{AsName, Sealed};
+use crate::statement::Column;
+use crate::types::{FromSql, Type, WrongType};
+use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
-
-use crate::proto;
-use crate::row::sealed::{AsName, Sealed};
-use crate::stmt::Column;
-use crate::types::{FromSql, Type, WrongType};
-use crate::Error;
 
 mod sealed {
     pub trait Sealed {}
@@ -97,14 +95,13 @@ where
 
 /// A row of data returned from the database by a query.
 pub struct Row {
-    statement: proto::Statement,
+    statement: Statement,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
 
 impl Row {
-    #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(statement: proto::Statement, body: DataRowBody) -> Result<Row, Error> {
+    pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(Row {
             statement,
@@ -167,7 +164,10 @@ impl Row {
 
         let ty = self.columns()[idx].type_();
         if !T::accepts(ty) {
-            return Err(Error::from_sql(Box::new(WrongType::new(ty.clone())), idx));
+            return Err(Error::from_sql(
+                Box::new(WrongType::new::<T>(ty.clone())),
+                idx,
+            ));
         }
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);

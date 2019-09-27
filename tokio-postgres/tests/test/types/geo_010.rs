@@ -2,8 +2,8 @@ use geo_010::{Coordinate, LineString, Point, Rect};
 
 use crate::types::test_type;
 
-#[test]
-fn test_point_params() {
+#[tokio::test]
+async fn test_point_params() {
     test_type(
         "POINT",
         &[
@@ -11,11 +11,12 @@ fn test_point_params() {
             (Some(Point::new(-3.14, 1.618)), "POINT(-3.14, 1.618)"),
             (None, "NULL"),
         ],
-    );
+    )
+    .await;
 }
 
-#[test]
-fn test_box_params() {
+#[tokio::test]
+async fn test_box_params() {
     test_type(
         "BOX",
         &[
@@ -31,11 +32,12 @@ fn test_box_params() {
             ),
             (None, "NULL"),
         ],
-    );
+    )
+    .await;
 }
 
-#[test]
-fn test_path_params() {
+#[tokio::test]
+async fn test_path_params() {
     let points = vec![
         Coordinate { x: 0., y: 0. },
         Coordinate { x: -3.14, y: 1.618 },
@@ -53,5 +55,6 @@ fn test_path_params() {
             ),
             (None, "NULL"),
         ],
-    );
+    )
+    .await;
 }

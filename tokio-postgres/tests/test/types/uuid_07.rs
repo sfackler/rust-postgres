@@ -2,8 +2,8 @@ use uuid_07::Uuid;
 
 use crate::types::test_type;
 
-#[test]
-fn test_uuid_params() {
+#[tokio::test]
+async fn test_uuid_params() {
     test_type(
         "UUID",
         &[
@@ -14,4 +14,5 @@ fn test_uuid_params() {
             (None, "NULL"),
         ],
     )
+    .await
 }

@@ -2,8 +2,8 @@ use eui48_04::MacAddress;
 
 use crate::types::test_type;
 
-#[test]
-fn test_eui48_params() {
+#[tokio::test]
+async fn test_eui48_params() {
     test_type(
         "MACADDR",
         &[
@@ -14,4 +14,5 @@ fn test_eui48_params() {
             (None, "NULL"),
         ],
     )
+    .await
 }

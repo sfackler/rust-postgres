@@ -285,14 +285,17 @@ struct Buffer {
 }
 
 impl Buffer {
+    #[inline]
     fn slice(&self) -> &[u8] {
         &self.bytes[self.idx..]
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.slice().is_empty()
     }
 
+    #[inline]
     fn read_cstr(&mut self) -> io::Result<Bytes> {
         match memchr(0, self.slice()) {
             Some(pos) => {
@@ -309,6 +312,7 @@ impl Buffer {
         }
     }
 
+    #[inline]
     fn read_all(&mut self) -> Bytes {
         let buf = self.bytes.slice_from(self.idx);
         self.idx = self.bytes.len();
@@ -317,6 +321,7 @@ impl Buffer {
 }
 
 impl Read for Buffer {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let len = {
             let slice = self.slice();

@@ -2,8 +2,8 @@ use serde_json_1::Value;
 
 use crate::types::test_type;
 
-#[test]
-fn test_json_params() {
+#[tokio::test]
+async fn test_json_params() {
     test_type(
         "JSON",
         &[
@@ -18,10 +18,11 @@ fn test_json_params() {
             (None, "NULL"),
         ],
     )
+    .await
 }
 
-#[test]
-fn test_jsonb_params() {
+#[tokio::test]
+async fn test_jsonb_params() {
     test_type(
         "JSONB",
         &[
@@ -36,4 +37,5 @@ fn test_jsonb_params() {
             (None, "NULL"),
         ],
     )
+    .await
 }
