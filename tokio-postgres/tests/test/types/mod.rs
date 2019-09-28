@@ -671,9 +671,11 @@ async fn check_send() {
 
     let f = client.query(&stmt, &[&"hello"]);
     is_send(&f);
+    drop(f);
 
     let f = client.execute(&stmt, &[&"hello"]);
     is_send(&f);
+    drop(f);
 
     let f = client.transaction();
     is_send(&f);
@@ -681,7 +683,9 @@ async fn check_send() {
 
     let f = trans.query(&stmt, &[&"hello"]);
     is_send(&f);
+    drop(f);
 
     let f = trans.execute(&stmt, &[&"hello"]);
     is_send(&f);
+    drop(f);
 }

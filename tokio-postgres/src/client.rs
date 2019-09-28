@@ -173,20 +173,20 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
-    pub fn prepare(&mut self, query: &str) -> impl Future<Output = Result<Statement, Error>> {
-        self.prepare_typed(query, &[])
+    pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
+        self.prepare_typed(query, &[]).await
     }
 
     /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
-    pub fn prepare_typed(
-        &mut self,
+    pub async fn prepare_typed(
+        &self,
         query: &str,
         parameter_types: &[Type],
-    ) -> impl Future<Output = Result<Statement, Error>> {
-        prepare::prepare(self.inner(), query, parameter_types)
+    ) -> Result<Statement, Error> {
+        prepare::prepare(&self.inner, query, parameter_types).await
     }
 
     /// Executes a statement, returning a stream of the resulting rows.
@@ -194,29 +194,29 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query(
-        &mut self,
-        statement: &Statement,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> {
+    pub fn query<'a>(
+        &'a self,
+        statement: &'a Statement,
+        params: &'a [&'a (dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Row, Error>> + 'a {
         let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        query::query(self.inner(), statement.clone(), buf)
+        query::query(&self.inner, statement, buf)
     }
 
     /// Like [`query`], but takes an iterator of parameters rather than a slice.
     ///
     /// [`query`]: #method.query
     pub fn query_iter<'a, I>(
-        &mut self,
-        statement: &Statement,
+        &'a self,
+        statement: &'a Statement,
         params: I,
-    ) -> impl Stream<Item = Result<Row, Error>>
+    ) -> impl Stream<Item = Result<Row, Error>> + 'a
     where
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        I: IntoIterator<Item = &'a dyn ToSql> + 'a,
         I::IntoIter: ExactSizeIterator,
     {
         let buf = query::encode(statement, params);
-        query::query(self.inner(), statement.clone(), buf)
+        query::query(&self.inner, statement, buf)
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -226,29 +226,29 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn execute(
-        &mut self,
+    pub async fn execute(
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
-    ) -> impl Future<Output = Result<u64, Error>> {
+    ) -> Result<u64, Error> {
         let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        query::execute(self.inner(), buf)
+        query::execute(&self.inner, buf).await
     }
 
     /// Like [`execute`], but takes an iterator of parameters rather than a slice.
     ///
     /// [`execute`]: #method.execute
-    pub fn execute_iter<'a, I>(
-        &mut self,
+    pub async fn execute_iter<'a, I>(
+        &self,
         statement: &Statement,
         params: I,
-    ) -> impl Future<Output = Result<u64, Error>>
+    ) -> Result<u64, Error>
     where
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
         let buf = query::encode(statement, params);
-        query::execute(self.inner(), buf)
+        query::execute(&self.inner, buf).await
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
@@ -260,7 +260,7 @@ impl Client {
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn copy_in<S>(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
         stream: S,
@@ -281,7 +281,7 @@ impl Client {
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn copy_out(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Bytes, Error>> {
@@ -303,7 +303,7 @@ impl Client {
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn simple_query(
-        &mut self,
+        &self,
         query: &str,
     ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
         simple_query::simple_query(self.inner(), query)
@@ -319,7 +319,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn batch_execute(&mut self, query: &str) -> impl Future<Output = Result<(), Error>> {
+    pub fn batch_execute(&self, query: &str) -> impl Future<Output = Result<(), Error>> {
         simple_query::batch_execute(self.inner(), query)
     }
 
@@ -338,7 +338,7 @@ impl Client {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&mut self, tls: T) -> impl Future<Output = Result<(), Error>>
+    pub fn cancel_query<T>(&self, tls: T) -> impl Future<Output = Result<(), Error>>
     where
         T: MakeTlsConnect<Socket>,
     {
@@ -354,7 +354,7 @@ impl Client {
     /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
     /// connection itself.
     pub fn cancel_query_raw<S, T>(
-        &mut self,
+        &self,
         stream: S,
         tls: T,
     ) -> impl Future<Output = Result<(), Error>>

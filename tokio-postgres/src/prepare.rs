@@ -57,15 +57,14 @@ ORDER BY attnum
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
-pub fn prepare(
-    client: Arc<InnerClient>,
+pub async fn prepare(
+    client: &Arc<InnerClient>,
     query: &str,
     types: &[Type],
-) -> impl Future<Output = Result<Statement, Error>> + 'static {
+) -> Result<Statement, Error> {
     let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
     let buf = encode(&name, query, types);
 
-    async move {
         let buf = buf?;
         let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
@@ -103,14 +102,13 @@ pub fn prepare(
         }
 
         Ok(Statement::new(&client, name, parameters, columns))
-    }
 }
 
-fn prepare_rec(
-    client: Arc<InnerClient>,
-    query: &str,
-    types: &[Type],
-) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'static + Send>> {
+fn prepare_rec<'a>(
+    client: &'a Arc<InnerClient>,
+    query: &'a str,
+    types: &'a [Type],
+) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
     Box::pin(prepare(client, query, types))
 }
 
@@ -135,7 +133,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
     let stmt = typeinfo_statement(client).await?;
 
     let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    let rows = query::query(client.clone(), stmt, buf);
+    let rows = query::query(client, &stmt, buf);
     pin_mut!(rows);
 
     let row = match rows.try_next().await? {
@@ -190,10 +188,10 @@ async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Erro
         return Ok(stmt);
     }
 
-    let stmt = match prepare_rec(client.clone(), TYPEINFO_QUERY, &[]).await {
+    let stmt = match prepare_rec(client, TYPEINFO_QUERY, &[]).await {
         Ok(stmt) => stmt,
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-            prepare_rec(client.clone(), TYPEINFO_FALLBACK_QUERY, &[]).await?
+            prepare_rec(client, TYPEINFO_FALLBACK_QUERY, &[]).await?
         }
         Err(e) => return Err(e),
     };
@@ -206,7 +204,7 @@ async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<St
     let stmt = typeinfo_enum_statement(client).await?;
 
     let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    query::query(client.clone(), stmt, buf)
+    query::query(client, &stmt, buf)
         .and_then(|row| future::ready(row.try_get(0)))
         .try_collect()
         .await
@@ -217,10 +215,10 @@ async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement,
         return Ok(stmt);
     }
 
-    let stmt = match prepare_rec(client.clone(), TYPEINFO_ENUM_QUERY, &[]).await {
+    let stmt = match prepare_rec(client, TYPEINFO_ENUM_QUERY, &[]).await {
         Ok(stmt) => stmt,
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
-            prepare_rec(client.clone(), TYPEINFO_ENUM_FALLBACK_QUERY, &[]).await?
+            prepare_rec(client, TYPEINFO_ENUM_FALLBACK_QUERY, &[]).await?
         }
         Err(e) => return Err(e),
     };
@@ -233,7 +231,7 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     let stmt = typeinfo_composite_statement(client).await?;
 
     let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    let rows = query::query(client.clone(), stmt, buf)
+    let rows = query::query(client, &stmt, buf)
         .try_collect::<Vec<_>>()
         .await?;
 
@@ -253,7 +251,7 @@ async fn typeinfo_composite_statement(client: &Arc<InnerClient>) -> Result<State
         return Ok(stmt);
     }
 
-    let stmt = prepare_rec(client.clone(), TYPEINFO_COMPOSITE_QUERY, &[]).await?;
+    let stmt = prepare_rec(client, TYPEINFO_COMPOSITE_QUERY, &[]).await?;
 
     client.set_typeinfo_composite(&stmt);
     Ok(stmt)

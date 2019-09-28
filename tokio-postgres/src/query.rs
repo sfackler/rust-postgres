@@ -10,17 +10,16 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub fn query(
-    client: Arc<InnerClient>,
-    statement: Statement,
+pub fn query<'a>(
+    client: &'a Arc<InnerClient>,
+    statement: &'a Statement,
     buf: Result<Vec<u8>, Error>,
-) -> impl Stream<Item = Result<Row, Error>> {
-    start(client, buf)
-        .map_ok(|responses| Query {
-            statement,
-            responses,
-        })
-        .try_flatten_stream()
+) -> impl Stream<Item = Result<Row, Error>> + 'a {
+    let f = async move {
+        let responses = start(client, buf).await?;
+        Ok(Query { statement: statement.clone(), responses })
+    };
+    f.try_flatten_stream()
 }
 
 pub fn query_portal(
@@ -44,7 +43,7 @@ pub fn query_portal(
     start.try_flatten_stream()
 }
 
-pub async fn execute(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
+pub async fn execute(client: &InnerClient, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
     let mut responses = start(client, buf).await?;
 
     loop {
@@ -67,7 +66,7 @@ pub async fn execute(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> R
     }
 }
 
-async fn start(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<Responses, Error> {
+async fn start(client: &InnerClient, buf: Result<Vec<u8>, Error>) -> Result<Responses, Error> {
     let buf = buf?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 

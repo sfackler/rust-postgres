@@ -78,65 +78,61 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::prepare`.
-    pub fn prepare(&mut self, query: &str) -> impl Future<Output = Result<Statement, Error>> {
-        self.client.prepare(query)
+    pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
+        self.client.prepare(query).await
     }
 
     /// Like `Client::prepare_typed`.
-    pub fn prepare_typed(
-        &mut self,
+    pub async fn prepare_typed(
+        &self,
         query: &str,
         parameter_types: &[Type],
-    ) -> impl Future<Output = Result<Statement, Error>> {
-        self.client.prepare_typed(query, parameter_types)
+    ) -> Result<Statement, Error> {
+        self.client.prepare_typed(query, parameter_types).await
     }
 
     /// Like `Client::query`.
-    pub fn query(
-        &mut self,
-        statement: &Statement,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> {
+    pub fn query<'b>(
+        &'b self,
+        statement: &'b Statement,
+        params: &'b [&'b (dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Row, Error>> + 'b {
         self.client.query(statement, params)
     }
 
     /// Like `Client::query_iter`.
     pub fn query_iter<'b, I>(
-        &mut self,
-        statement: &Statement,
+        &'b self,
+        statement: &'b Statement,
         params: I,
-    ) -> impl Stream<Item = Result<Row, Error>> + 'static
+    ) -> impl Stream<Item = Result<Row, Error>> + 'b
     where
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        I: IntoIterator<Item = &'b dyn ToSql> + 'b,
         I::IntoIter: ExactSizeIterator,
     {
-        // https://github.com/rust-lang/rust/issues/63032
-        let buf = query::encode(statement, params);
-        query::query(self.client.inner(), statement.clone(), buf)
+        self.client.query_iter(statement, params)
     }
 
     /// Like `Client::execute`.
-    pub fn execute(
-        &mut self,
+    pub async fn execute(
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
-    ) -> impl Future<Output = Result<u64, Error>> {
-        self.client.execute(statement, params)
+    ) -> Result<u64, Error> {
+        self.client.execute(statement, params).await
     }
 
     /// Like `Client::execute_iter`.
-    pub fn execute_iter<'b, I>(
-        &mut self,
+    pub async fn execute_iter<'b, I>(
+        &self,
         statement: &Statement,
         params: I,
-    ) -> impl Future<Output = Result<u64, Error>>
+    ) -> Result<u64, Error>
     where
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        // https://github.com/rust-lang/rust/issues/63032
-        let buf = query::encode(statement, params);
-        query::execute(self.client.inner(), buf)
+        self.client.execute_iter(statement, params).await
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
@@ -148,7 +144,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Panics if the number of parameters provided does not match the number expected.
     pub fn bind(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
     ) -> impl Future<Output = Result<Portal, Error>> {
@@ -161,7 +157,7 @@ impl<'a> Transaction<'a> {
     ///
     /// [`bind`]: #method.bind
     pub fn bind_iter<'b, I>(
-        &mut self,
+        &self,
         statement: &Statement,
         params: I,
     ) -> impl Future<Output = Result<Portal, Error>>
@@ -178,7 +174,7 @@ impl<'a> Transaction<'a> {
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
     pub fn query_portal(
-        &mut self,
+        &self,
         portal: &Portal,
         max_rows: i32,
     ) -> impl Stream<Item = Result<Row, Error>> {
@@ -187,7 +183,7 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::copy_in`.
     pub fn copy_in<S>(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
         stream: S,
@@ -203,7 +199,7 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::copy_out`.
     pub fn copy_out(
-        &mut self,
+        &self,
         statement: &Statement,
         params: &[&(dyn ToSql + Sync)],
     ) -> impl Stream<Item = Result<Bytes, Error>> {
@@ -212,20 +208,20 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::simple_query`.
     pub fn simple_query(
-        &mut self,
+        &self,
         query: &str,
     ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
         self.client.simple_query(query)
     }
 
     /// Like `Client::batch_execute`.
-    pub fn batch_execute(&mut self, query: &str) -> impl Future<Output = Result<(), Error>> {
+    pub fn batch_execute(&self, query: &str) -> impl Future<Output = Result<(), Error>> {
         self.client.batch_execute(query)
     }
 
     /// Like `Client::cancel_query`.
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&mut self, tls: T) -> impl Future<Output = Result<(), Error>>
+    pub fn cancel_query<T>(&self, tls: T) -> impl Future<Output = Result<(), Error>>
     where
         T: MakeTlsConnect<Socket>,
     {
@@ -234,7 +230,7 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::cancel_query_raw`.
     pub fn cancel_query_raw<S, T>(
-        &mut self,
+        &self,
         stream: S,
         tls: T,
     ) -> impl Future<Output = Result<(), Error>>

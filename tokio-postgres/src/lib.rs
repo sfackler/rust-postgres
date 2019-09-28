@@ -79,14 +79,14 @@
 //! use std::future::Future;
 //! use tokio_postgres::{Client, Error, Statement};
 //!
-//! fn pipelined_prepare(
-//!     client: &mut Client,
-//! ) -> impl Future<Output = Result<(Statement, Statement), Error>>
+//! async fn pipelined_prepare(
+//!     client: &Client,
+//! ) -> Result<(Statement, Statement), Error>
 //! {
 //!     future::try_join(
 //!         client.prepare("SELECT * FROM foo"),
 //!         client.prepare("INSERT INTO bar (id, name) VALUES ($1, $2)")
-//!     )
+//!     ).await
 //! }
 //! ```
 //!
