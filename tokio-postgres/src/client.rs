@@ -3,9 +3,11 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
+use crate::slice_iter;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
+use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
@@ -16,13 +18,12 @@ use crate::{Error, Statement};
 use bytes::{Bytes, IntoBuf};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, Stream, TryStream};
+use futures::{future, Stream, TryFutureExt, TryStream};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use std::collections::HashMap;
 use std::error;
-use std::future::Future;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -160,8 +161,8 @@ impl Client {
         }
     }
 
-    pub(crate) fn inner(&self) -> Arc<InnerClient> {
-        self.inner.clone()
+    pub(crate) fn inner(&self) -> &Arc<InnerClient> {
+        &self.inner
     }
 
     #[cfg(feature = "runtime")]
@@ -194,29 +195,35 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query<'a>(
+    pub fn query<'a, T>(
         &'a self,
-        statement: &'a Statement,
-        params: &'a [&'a (dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> + 'a {
-        let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        query::query(&self.inner, statement, buf)
+        statement: &'a T,
+        params: &'a [&(dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Row, Error>> + 'a
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query_iter(statement, slice_iter(params))
     }
 
     /// Like [`query`], but takes an iterator of parameters rather than a slice.
     ///
     /// [`query`]: #method.query
-    pub fn query_iter<'a, I>(
+    pub fn query_iter<'a, T, I>(
         &'a self,
-        statement: &'a Statement,
+        statement: &'a T,
         params: I,
     ) -> impl Stream<Item = Result<Row, Error>> + 'a
     where
+        T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'a dyn ToSql> + 'a,
         I::IntoIter: ExactSizeIterator,
     {
-        let buf = query::encode(statement, params);
-        query::query(&self.inner, statement, buf)
+        let f = async move {
+            let statement = statement.__convert().into_statement(self).await?;
+            Ok(query::query(&self.inner, statement, params))
+        };
+        f.try_flatten_stream()
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -226,29 +233,28 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub async fn execute(
+    pub async fn execute<T>(
         &self,
-        statement: &Statement,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<u64, Error> {
-        let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        query::execute(&self.inner, buf).await
+    ) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.execute_iter(statement, slice_iter(params)).await
     }
 
     /// Like [`execute`], but takes an iterator of parameters rather than a slice.
     ///
     /// [`execute`]: #method.execute
-    pub async fn execute_iter<'a, I>(
-        &self,
-        statement: &Statement,
-        params: I,
-    ) -> Result<u64, Error>
+    pub async fn execute_iter<'a, T, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
+        T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let buf = query::encode(statement, params);
-        query::execute(&self.inner, buf).await
+        let statement = statement.__convert().into_statement(self).await?;
+        query::execute(self.inner(), statement, params).await
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
@@ -259,20 +265,22 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn copy_in<S>(
+    pub async fn copy_in<T, S>(
         &self,
-        statement: &Statement,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
         stream: S,
-    ) -> impl Future<Output = Result<u64, Error>>
+    ) -> Result<u64, Error>
     where
+        T: ?Sized + ToStatement,
         S: TryStream,
         S::Ok: IntoBuf,
         <S::Ok as IntoBuf>::Buf: 'static + Send,
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
-        let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        copy_in::copy_in(self.inner(), buf, stream)
+        let statement = statement.__convert().into_statement(self).await?;
+        let params = slice_iter(params);
+        copy_in::copy_in(self.inner(), statement, params, stream).await
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
@@ -280,13 +288,20 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn copy_out(
-        &self,
-        statement: &Statement,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Bytes, Error>> {
-        let buf = query::encode(statement, params.iter().map(|s| *s as _));
-        copy_out::copy_out(self.inner(), buf)
+    pub fn copy_out<'a, T>(
+        &'a self,
+        statement: &'a T,
+        params: &'a [&(dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Bytes, Error>> + 'a
+    where
+        T: ?Sized + ToStatement,
+    {
+        let f = async move {
+            let statement = statement.__convert().into_statement(self).await?;
+            let params = slice_iter(params);
+            Ok(copy_out::copy_out(self.inner(), statement, params))
+        };
+        f.try_flatten_stream()
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.
@@ -302,10 +317,10 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query(
-        &self,
-        query: &str,
-    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
+    pub fn simple_query<'a>(
+        &'a self,
+        query: &'a str,
+    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'a {
         simple_query::simple_query(self.inner(), query)
     }
 
@@ -319,8 +334,8 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn batch_execute(&self, query: &str) -> impl Future<Output = Result<(), Error>> {
-        simple_query::batch_execute(self.inner(), query)
+    pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+        simple_query::batch_execute(self.inner(), query).await
     }
 
     /// Begins a new database transaction.
@@ -338,7 +353,7 @@ impl Client {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&self, tls: T) -> impl Future<Output = Result<(), Error>>
+    pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
@@ -349,15 +364,12 @@ impl Client {
             self.process_id,
             self.secret_key,
         )
+        .await
     }
 
     /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
     /// connection itself.
-    pub fn cancel_query_raw<S, T>(
-        &self,
-        stream: S,
-        tls: T,
-    ) -> impl Future<Output = Result<(), Error>>
+    pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
@@ -369,6 +381,7 @@ impl Client {
             self.process_id,
             self.secret_key,
         )
+        .await
     }
 
     /// Determines if the connection to the server has already closed.

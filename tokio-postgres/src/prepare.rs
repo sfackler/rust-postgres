@@ -2,8 +2,8 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
-use crate::query;
-use crate::types::{Field, Kind, Oid, ToSql, Type};
+use crate::types::{Field, Kind, Oid, Type};
+use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
 use fallible_iterator::FallibleIterator;
 use futures::{future, TryStreamExt};
@@ -65,43 +65,43 @@ pub async fn prepare(
     let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
     let buf = encode(&name, query, types);
 
-        let buf = buf?;
-        let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+    let buf = buf?;
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-        match responses.next().await? {
-            Message::ParseComplete => {}
-            _ => return Err(Error::unexpected_message()),
+    match responses.next().await? {
+        Message::ParseComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+
+    let parameter_description = match responses.next().await? {
+        Message::ParameterDescription(body) => body,
+        _ => return Err(Error::unexpected_message()),
+    };
+
+    let row_description = match responses.next().await? {
+        Message::RowDescription(body) => Some(body),
+        Message::NoData => None,
+        _ => return Err(Error::unexpected_message()),
+    };
+
+    let mut parameters = vec![];
+    let mut it = parameter_description.parameters();
+    while let Some(oid) = it.next().map_err(Error::parse)? {
+        let type_ = get_type(&client, oid).await?;
+        parameters.push(type_);
+    }
+
+    let mut columns = vec![];
+    if let Some(row_description) = row_description {
+        let mut it = row_description.fields();
+        while let Some(field) = it.next().map_err(Error::parse)? {
+            let type_ = get_type(&client, field.type_oid()).await?;
+            let column = Column::new(field.name().to_string(), type_);
+            columns.push(column);
         }
+    }
 
-        let parameter_description = match responses.next().await? {
-            Message::ParameterDescription(body) => body,
-            _ => return Err(Error::unexpected_message()),
-        };
-
-        let row_description = match responses.next().await? {
-            Message::RowDescription(body) => Some(body),
-            Message::NoData => None,
-            _ => return Err(Error::unexpected_message()),
-        };
-
-        let mut parameters = vec![];
-        let mut it = parameter_description.parameters();
-        while let Some(oid) = it.next().map_err(Error::parse)? {
-            let type_ = get_type(&client, oid).await?;
-            parameters.push(type_);
-        }
-
-        let mut columns = vec![];
-        if let Some(row_description) = row_description {
-            let mut it = row_description.fields();
-            while let Some(field) = it.next().map_err(Error::parse)? {
-                let type_ = get_type(&client, field.type_oid()).await?;
-                let column = Column::new(field.name().to_string(), type_);
-                columns.push(column);
-            }
-        }
-
-        Ok(Statement::new(&client, name, parameters, columns))
+    Ok(Statement::new(&client, name, parameters, columns))
 }
 
 fn prepare_rec<'a>(
@@ -132,8 +132,8 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let stmt = typeinfo_statement(client).await?;
 
-    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    let rows = query::query(client, &stmt, buf);
+    let params = &[&oid as _];
+    let rows = query::query(client, stmt, slice_iter(params));
     pin_mut!(rows);
 
     let row = match rows.try_next().await? {
@@ -203,8 +203,7 @@ async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Erro
 async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<String>, Error> {
     let stmt = typeinfo_enum_statement(client).await?;
 
-    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    query::query(client, &stmt, buf)
+    query::query(client, stmt, slice_iter(&[&oid]))
         .and_then(|row| future::ready(row.try_get(0)))
         .try_collect()
         .await
@@ -230,8 +229,7 @@ async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement,
 async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<Field>, Error> {
     let stmt = typeinfo_composite_statement(client).await?;
 
-    let buf = query::encode(&stmt, (&[&oid as &dyn ToSql]).iter().cloned());
-    let rows = query::query(client, &stmt, buf)
+    let rows = query::query(client, stmt, slice_iter(&[&oid]))
         .try_collect::<Vec<_>>()
         .await?;
 

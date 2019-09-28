@@ -7,26 +7,33 @@ use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub fn query<'a>(
-    client: &'a Arc<InnerClient>,
-    statement: &'a Statement,
-    buf: Result<Vec<u8>, Error>,
-) -> impl Stream<Item = Result<Row, Error>> + 'a {
+pub fn query<'a, I>(
+    client: &'a InnerClient,
+    statement: Statement,
+    params: I,
+) -> impl Stream<Item = Result<Row, Error>> + 'a
+where
+    I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+    I::IntoIter: ExactSizeIterator,
+{
     let f = async move {
+        let buf = encode(&statement, params)?;
         let responses = start(client, buf).await?;
-        Ok(Query { statement: statement.clone(), responses })
+        Ok(Query {
+            statement,
+            responses,
+        })
     };
     f.try_flatten_stream()
 }
 
-pub fn query_portal(
-    client: Arc<InnerClient>,
-    portal: Portal,
+pub fn query_portal<'a>(
+    client: &'a InnerClient,
+    portal: &'a Portal,
     max_rows: i32,
-) -> impl Stream<Item = Result<Row, Error>> {
+) -> impl Stream<Item = Result<Row, Error>> + 'a {
     let start = async move {
         let mut buf = vec![];
         frontend::execute(portal.name(), max_rows, &mut buf).map_err(Error::encode)?;
@@ -43,7 +50,16 @@ pub fn query_portal(
     start.try_flatten_stream()
 }
 
-pub async fn execute(client: &InnerClient, buf: Result<Vec<u8>, Error>) -> Result<u64, Error> {
+pub async fn execute<'a, I>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
+) -> Result<u64, Error>
+where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let buf = encode(&statement, params)?;
     let mut responses = start(client, buf).await?;
 
     loop {
@@ -66,8 +82,7 @@ pub async fn execute(client: &InnerClient, buf: Result<Vec<u8>, Error>) -> Resul
     }
 }
 
-async fn start(client: &InnerClient, buf: Result<Vec<u8>, Error>) -> Result<Responses, Error> {
-    let buf = buf?;
+async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {

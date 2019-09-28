@@ -114,11 +114,13 @@ pub use crate::portal::Portal;
 pub use crate::row::{Row, SimpleQueryRow};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
+pub use crate::statement::{Column, Statement};
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
+pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
-pub use statement::{Column, Statement};
+use crate::types::ToSql;
 
 mod bind;
 #[cfg(feature = "runtime")]
@@ -147,6 +149,7 @@ mod simple_query;
 mod socket;
 mod statement;
 pub mod tls;
+mod to_statement;
 mod transaction;
 pub mod types;
 
@@ -219,4 +222,10 @@ pub enum SimpleQueryMessage {
     CommandComplete(u64),
     #[doc(hidden)]
     __NonExhaustive,
+}
+
+fn slice_iter<'a>(
+    s: &'a [&'a (dyn ToSql + Sync)],
+) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {
+    s.iter().map(|s| *s as _)
 }

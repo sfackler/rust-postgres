@@ -62,7 +62,9 @@ use tokio::runtime::{self, Runtime};
 
 #[cfg(feature = "runtime")]
 pub use tokio_postgres::Socket;
-pub use tokio_postgres::{error, row, tls, types, Column, Portal, SimpleQueryMessage, Statement};
+pub use tokio_postgres::{
+    error, row, tls, types, Column, Portal, SimpleQueryMessage, Statement, ToStatement,
+};
 
 pub use crate::client::*;
 #[cfg(feature = "runtime")]
@@ -73,7 +75,6 @@ pub use crate::error::Error;
 pub use crate::row::{Row, SimpleQueryRow};
 #[doc(no_inline)]
 pub use crate::tls::NoTls;
-pub use crate::to_statement::*;
 pub use crate::transaction::*;
 
 mod client;
@@ -82,7 +83,6 @@ pub mod config;
 mod copy_in_stream;
 mod copy_out_reader;
 mod iter;
-mod to_statement;
 mod transaction;
 
 #[cfg(feature = "runtime")]

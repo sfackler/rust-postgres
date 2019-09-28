@@ -47,8 +47,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        executor::block_on(self.0.execute(&statement, params))
+        executor::block_on(self.0.execute(query, params))
     }
 
     /// Like `Client::query`.
@@ -60,16 +59,15 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_iter`.
-    pub fn query_iter<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
+    pub fn query_iter<'b, T>(
+        &'b mut self,
+        query: &'b T,
+        params: &'b [&(dyn ToSql + Sync)],
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'b, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        Ok(Iter::new(self.0.query(&statement, params)))
+        Ok(Iter::new(self.0.query(query, params)))
     }
 
     /// Binds parameters to a statement, creating a "portal".
@@ -86,8 +84,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        executor::block_on(self.0.bind(&statement, params))
+        executor::block_on(self.0.bind(query, params))
     }
 
     /// Continues execution of a portal, returning the next set of rows.
@@ -100,11 +97,11 @@ impl<'a> Transaction<'a> {
 
     /// Like `query_portal`, except that it returns a fallible iterator over the resulting rows rather than buffering
     /// the entire response in memory.
-    pub fn query_portal_iter(
-        &mut self,
-        portal: &Portal,
+    pub fn query_portal_iter<'b>(
+        &'b mut self,
+        portal: &'b Portal,
         max_rows: i32,
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error> {
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'b, Error> {
         Ok(Iter::new(self.0.query_portal(&portal, max_rows)))
     }
 
@@ -119,21 +116,19 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
         R: Read + Unpin,
     {
-        let statement = query.__statement(self)?;
-        executor::block_on(self.0.copy_in(&statement, params, CopyInStream(reader)))
+        executor::block_on(self.0.copy_in(query, params, CopyInStream(reader)))
     }
 
     /// Like `Client::copy_out`.
     pub fn copy_out<'b, T>(
-        &'a mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        &'b mut self,
+        query: &'b T,
+        params: &'b [&(dyn ToSql + Sync)],
     ) -> Result<impl BufRead + 'b, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        let stream = self.0.copy_out(&statement, params);
+        let stream = self.0.copy_out(query, params);
         CopyOutReader::new(stream)
     }
 
@@ -145,7 +140,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::simple_query_iter`.
     pub fn simple_query_iter<'b>(
         &'b mut self,
-        query: &str,
+        query: &'b str,
     ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'b, Error> {
         Ok(Iter::new(self.0.simple_query(query)))
     }

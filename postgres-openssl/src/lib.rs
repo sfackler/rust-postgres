@@ -30,7 +30,7 @@
 //! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
 //!
-//! let mut client = postgres::Client::connect(
+//! let client = postgres::Client::connect(
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! )?;

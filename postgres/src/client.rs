@@ -84,8 +84,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        executor::block_on(self.0.execute(&statement, params))
+        executor::block_on(self.0.execute(query, params))
     }
 
     /// Executes a statement, returning the resulting rows.
@@ -154,14 +153,13 @@ impl Client {
     /// ```
     pub fn query_iter<'a, T>(
         &'a mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        query: &'a T,
+        params: &'a [&(dyn ToSql + Sync)],
     ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'a, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        Ok(Iter::new(self.0.query(&statement, params)))
+        Ok(Iter::new(self.0.query(query, params)))
     }
 
     /// Creates a new prepared statement.
@@ -249,8 +247,7 @@ impl Client {
         T: ?Sized + ToStatement,
         R: Read + Unpin,
     {
-        let statement = query.__statement(self)?;
-        executor::block_on(self.0.copy_in(&statement, params, CopyInStream(reader)))
+        executor::block_on(self.0.copy_in(query, params, CopyInStream(reader)))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -274,14 +271,13 @@ impl Client {
     /// ```
     pub fn copy_out<'a, T>(
         &'a mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        query: &'a T,
+        params: &'a [&(dyn ToSql + Sync)],
     ) -> Result<impl BufRead + 'a, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let statement = query.__statement(self)?;
-        let stream = self.0.copy_out(&statement, params);
+        let stream = self.0.copy_out(query, params);
         CopyOutReader::new(stream)
     }
 
@@ -314,7 +310,7 @@ impl Client {
     /// them to this method!
     pub fn simple_query_iter<'a>(
         &'a mut self,
-        query: &str,
+        query: &'a str,
     ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'a, Error> {
         Ok(Iter::new(self.0.simple_query(query)))
     }

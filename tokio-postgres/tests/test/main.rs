@@ -98,7 +98,7 @@ async fn scram_password_ok() {
 
 #[tokio::test]
 async fn pipelined_prepare() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let prepare1 = client.prepare("SELECT $1::HSTORE[]");
     let prepare2 = client.prepare("SELECT $1::BIGINT");
@@ -114,7 +114,7 @@ async fn pipelined_prepare() {
 
 #[tokio::test]
 async fn insert_select() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
@@ -138,7 +138,7 @@ async fn insert_select() {
 
 #[tokio::test]
 async fn custom_enum() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -167,7 +167,7 @@ async fn custom_enum() {
 
 #[tokio::test]
 async fn custom_domain() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE DOMAIN pg_temp.session_id AS bytea CHECK(octet_length(VALUE) = 16)")
@@ -183,7 +183,7 @@ async fn custom_domain() {
 
 #[tokio::test]
 async fn custom_array() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let select = client.prepare("SELECT $1::HSTORE[]").await.unwrap();
 
@@ -200,7 +200,7 @@ async fn custom_array() {
 
 #[tokio::test]
 async fn custom_composite() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -232,7 +232,7 @@ async fn custom_composite() {
 
 #[tokio::test]
 async fn custom_range() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -253,7 +253,7 @@ async fn custom_range() {
 
 #[tokio::test]
 async fn simple_query() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let messages = client
         .simple_query(
@@ -299,7 +299,7 @@ async fn simple_query() {
 
 #[tokio::test]
 async fn cancel_query_raw() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let cancel = client.cancel_query_raw(socket, NoTls);
@@ -327,7 +327,7 @@ async fn transaction_commit() {
         .await
         .unwrap();
 
-    let mut transaction = client.transaction().await.unwrap();
+    let transaction = client.transaction().await.unwrap();
     transaction
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
         .await
@@ -359,7 +359,7 @@ async fn transaction_rollback() {
         .await
         .unwrap();
 
-    let mut transaction = client.transaction().await.unwrap();
+    let transaction = client.transaction().await.unwrap();
     transaction
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
         .await
@@ -390,7 +390,7 @@ async fn transaction_rollback_drop() {
         .await
         .unwrap();
 
-    let mut transaction = client.transaction().await.unwrap();
+    let transaction = client.transaction().await.unwrap();
     transaction
         .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
         .await
@@ -409,7 +409,7 @@ async fn transaction_rollback_drop() {
 
 #[tokio::test]
 async fn copy_in() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -449,7 +449,7 @@ async fn copy_in() {
 
 #[tokio::test]
 async fn copy_in_large() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -480,7 +480,7 @@ async fn copy_in_large() {
 
 #[tokio::test]
 async fn copy_in_error() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -511,7 +511,7 @@ async fn copy_in_error() {
 
 #[tokio::test]
 async fn copy_out() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -532,7 +532,7 @@ async fn copy_out() {
 
 #[tokio::test]
 async fn notifications() {
-    let (mut client, mut connection) = connect_raw("user=postgres").await.unwrap();
+    let (client, mut connection) = connect_raw("user=postgres").await.unwrap();
 
     let (tx, rx) = mpsc::unbounded();
     let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
@@ -585,7 +585,7 @@ async fn query_portal() {
         .await
         .unwrap();
 
-    let mut transaction = client.transaction().await.unwrap();
+    let transaction = client.transaction().await.unwrap();
 
     let portal = transaction.bind(&stmt, &[]).await.unwrap();
     let f1 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
@@ -623,4 +623,37 @@ async fn prefer_channel_binding() {
 #[tokio::test]
 async fn disable_channel_binding() {
     connect("user=postgres channel_binding=disable").await;
+}
+
+#[tokio::test]
+async fn check_send() {
+    fn is_send<T: Send>(_: &T) {}
+
+    let f = connect("user=postgres");
+    is_send(&f);
+    let mut client = f.await;
+
+    let f = client.prepare("SELECT $1::TEXT");
+    is_send(&f);
+    let stmt = f.await.unwrap();
+
+    let f = client.query(&stmt, &[&"hello"]);
+    is_send(&f);
+    drop(f);
+
+    let f = client.execute(&stmt, &[&"hello"]);
+    is_send(&f);
+    drop(f);
+
+    let f = client.transaction();
+    is_send(&f);
+    let trans = f.await.unwrap();
+
+    let f = trans.query(&stmt, &[&"hello"]);
+    is_send(&f);
+    drop(f);
+
+    let f = trans.execute(&stmt, &[&"hello"]);
+    is_send(&f);
+    drop(f);
 }

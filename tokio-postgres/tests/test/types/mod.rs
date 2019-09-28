@@ -1,4 +1,5 @@
 use futures::TryStreamExt;
+use postgres_types::to_sql_checked;
 use std::collections::HashMap;
 use std::error::Error;
 use std::f32;
@@ -7,7 +8,6 @@ use std::fmt;
 use std::net::IpAddr;
 use std::result;
 use std::time::{Duration, UNIX_EPOCH};
-use postgres_types::to_sql_checked;
 use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 
 use crate::connect;
@@ -30,27 +30,19 @@ where
     T: PartialEq + for<'a> FromSqlOwned + ToSql + Sync,
     S: fmt::Display,
 {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     for (val, repr) in checks {
-        let stmt = client
-            .prepare(&format!("SELECT {}::{}", repr, sql_type))
-            .await
-            .unwrap();
         let rows = client
-            .query(&stmt, &[])
+            .query(&*format!("SELECT {}::{}", repr, sql_type), &[])
             .try_collect::<Vec<_>>()
             .await
             .unwrap();
         let result = rows[0].get(0);
         assert_eq!(val, &result);
 
-        let stmt = client
-            .prepare(&format!("SELECT $1::{}", sql_type))
-            .await
-            .unwrap();
         let rows = client
-            .query(&stmt, &[&val])
+            .query(&*format!("SELECT $1::{}", sql_type), &[&val])
             .try_collect::<Vec<_>>()
             .await
             .unwrap();
@@ -203,7 +195,7 @@ async fn test_text_params() {
 
 #[tokio::test]
 async fn test_borrowed_text() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT 'foo'").await.unwrap();
     let rows = client
@@ -217,7 +209,7 @@ async fn test_borrowed_text() {
 
 #[tokio::test]
 async fn test_bpchar_params() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -257,7 +249,7 @@ async fn test_bpchar_params() {
 
 #[tokio::test]
 async fn test_citext_params() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -306,7 +298,7 @@ async fn test_bytea_params() {
 
 #[tokio::test]
 async fn test_borrowed_bytea() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
     let stmt = client.prepare("SELECT 'foo'::BYTEA").await.unwrap();
     let rows = client
         .query(&stmt, &[])
@@ -365,7 +357,7 @@ async fn test_nan_param<T>(sql_type: &str)
 where
     T: PartialEq + ToSql + FromSqlOwned,
 {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let stmt = client
         .prepare(&format!("SELECT 'NaN'::{}", sql_type))
@@ -392,7 +384,7 @@ async fn test_f64_nan_param() {
 
 #[tokio::test]
 async fn test_pg_database_datname() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
     let stmt = client
         .prepare("SELECT datname FROM pg_database")
         .await
@@ -407,7 +399,7 @@ async fn test_pg_database_datname() {
 
 #[tokio::test]
 async fn test_slice() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -436,7 +428,7 @@ async fn test_slice() {
 
 #[tokio::test]
 async fn test_slice_wrong_type() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -465,7 +457,7 @@ async fn test_slice_wrong_type() {
 
 #[tokio::test]
 async fn test_slice_range() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
     let err = client
@@ -520,7 +512,7 @@ async fn domain() {
         }
     }
 
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -551,7 +543,7 @@ async fn domain() {
 
 #[tokio::test]
 async fn composite() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -582,7 +574,7 @@ async fn composite() {
 
 #[tokio::test]
 async fn enum_() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TYPE pg_temp.mood AS ENUM ('sad', 'ok', 'happy')")
@@ -655,37 +647,4 @@ async fn inet() {
         ],
     )
     .await;
-}
-
-#[tokio::test]
-async fn check_send() {
-    fn is_send<T: Send>(_: &T) {}
-
-    let f = connect("user=postgres");
-    is_send(&f);
-    let mut client = f.await;
-
-    let f = client.prepare("SELECT $1::TEXT");
-    is_send(&f);
-    let stmt = f.await.unwrap();
-
-    let f = client.query(&stmt, &[&"hello"]);
-    is_send(&f);
-    drop(f);
-
-    let f = client.execute(&stmt, &[&"hello"]);
-    is_send(&f);
-    drop(f);
-
-    let f = client.transaction();
-    is_send(&f);
-    let mut trans = f.await.unwrap();
-
-    let f = trans.query(&stmt, &[&"hello"]);
-    is_send(&f);
-    drop(f);
-
-    let f = trans.execute(&stmt, &[&"hello"]);
-    is_send(&f);
-    drop(f);
 }

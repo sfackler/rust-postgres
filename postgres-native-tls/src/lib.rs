@@ -38,7 +38,7 @@
 //!     .build()?;
 //! let connector = MakeTlsConnector::new(connector);
 //!
-//! let mut client = postgres::Client::connect(
+//! let client = postgres::Client::connect(
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! )?;

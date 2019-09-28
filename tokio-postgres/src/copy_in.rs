@@ -1,7 +1,8 @@
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::Error;
+use crate::types::ToSql;
+use crate::{query, Error, Statement};
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use futures::channel::mpsc;
 use futures::ready;
@@ -12,7 +13,6 @@ use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
 use std::error;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 enum CopyInMessage {
@@ -62,18 +62,21 @@ impl Stream for CopyInReceiver {
     }
 }
 
-pub async fn copy_in<S>(
-    client: Arc<InnerClient>,
-    buf: Result<Vec<u8>, Error>,
+pub async fn copy_in<'a, I, S>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
     stream: S,
 ) -> Result<u64, Error>
 where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
     S: TryStream,
     S::Ok: IntoBuf,
     <S::Ok as IntoBuf>::Buf: 'static + Send,
     S::Error: Into<Box<dyn error::Error + Sync + Send>>,
 {
-    let buf = buf?;
+    let buf = query::encode(&statement, params)?;
 
     let (mut sender, receiver) = mpsc::channel(1);
     let receiver = CopyInReceiver::new(receiver);

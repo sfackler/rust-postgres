@@ -6,12 +6,13 @@ use crate::tls::TlsConnect;
 use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{bind, query, Client, Error, Portal, Row, SimpleQueryMessage, Statement};
+use crate::{
+    bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
+};
 use bytes::{Bytes, IntoBuf};
 use futures::{Stream, TryStream};
 use postgres_protocol::message::frontend;
 use std::error;
-use std::future::Future;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
@@ -92,21 +93,25 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
-    pub fn query<'b>(
+    pub fn query<'b, T>(
         &'b self,
-        statement: &'b Statement,
-        params: &'b [&'b (dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> + 'b {
+        statement: &'b T,
+        params: &'b [&(dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Row, Error>> + 'b
+    where
+        T: ?Sized + ToStatement,
+    {
         self.client.query(statement, params)
     }
 
     /// Like `Client::query_iter`.
-    pub fn query_iter<'b, I>(
+    pub fn query_iter<'b, T, I>(
         &'b self,
-        statement: &'b Statement,
+        statement: &'b T,
         params: I,
     ) -> impl Stream<Item = Result<Row, Error>> + 'b
     where
+        T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql> + 'b,
         I::IntoIter: ExactSizeIterator,
     {
@@ -114,21 +119,25 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
-    pub async fn execute(
+    pub async fn execute<T>(
         &self,
-        statement: &Statement,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
         self.client.execute(statement, params).await
     }
 
     /// Like `Client::execute_iter`.
-    pub async fn execute_iter<'b, I>(
+    pub async fn execute_iter<'b, I, T>(
         &self,
         statement: &Statement,
         params: I,
     ) -> Result<u64, Error>
     where
+        T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -143,102 +152,100 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind(
+    pub async fn bind<T>(
         &self,
-        statement: &Statement,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> impl Future<Output = Result<Portal, Error>> {
-        // https://github.com/rust-lang/rust/issues/63032
-        let buf = bind::encode(statement, params.iter().map(|s| *s as _));
-        bind::bind(self.client.inner(), statement.clone(), buf)
+    ) -> Result<Portal, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.bind_iter(statement, slice_iter(params)).await
     }
 
     /// Like [`bind`], but takes an iterator of parameters rather than a slice.
     ///
     /// [`bind`]: #method.bind
-    pub fn bind_iter<'b, I>(
-        &self,
-        statement: &Statement,
-        params: I,
-    ) -> impl Future<Output = Result<Portal, Error>>
+    pub async fn bind_iter<'b, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
+        T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let buf = bind::encode(statement, params);
-        bind::bind(self.client.inner(), statement.clone(), buf)
+        let statement = statement.__convert().into_statement(&self.client).await?;
+        bind::bind(self.client.inner(), statement, params).await
     }
 
     /// Continues execution of a portal, returning a stream of the resulting rows.
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
-    pub fn query_portal(
-        &self,
-        portal: &Portal,
+    pub fn query_portal<'b>(
+        &'b self,
+        portal: &'b Portal,
         max_rows: i32,
-    ) -> impl Stream<Item = Result<Row, Error>> {
-        query::query_portal(self.client.inner(), portal.clone(), max_rows)
+    ) -> impl Stream<Item = Result<Row, Error>> + 'b {
+        query::query_portal(self.client.inner(), portal, max_rows)
     }
 
     /// Like `Client::copy_in`.
-    pub fn copy_in<S>(
+    pub async fn copy_in<T, S>(
         &self,
-        statement: &Statement,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
         stream: S,
-    ) -> impl Future<Output = Result<u64, Error>>
+    ) -> Result<u64, Error>
     where
+        T: ?Sized + ToStatement,
         S: TryStream,
         S::Ok: IntoBuf,
         <S::Ok as IntoBuf>::Buf: 'static + Send,
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
-        self.client.copy_in(statement, params, stream)
+        self.client.copy_in(statement, params, stream).await
     }
 
     /// Like `Client::copy_out`.
-    pub fn copy_out(
-        &self,
-        statement: &Statement,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Bytes, Error>> {
+    pub fn copy_out<'b, T>(
+        &'b self,
+        statement: &'b T,
+        params: &'b [&(dyn ToSql + Sync)],
+    ) -> impl Stream<Item = Result<Bytes, Error>> + 'b
+    where
+        T: ?Sized + ToStatement,
+    {
         self.client.copy_out(statement, params)
     }
 
     /// Like `Client::simple_query`.
-    pub fn simple_query(
-        &self,
-        query: &str,
-    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
+    pub fn simple_query<'b>(
+        &'b self,
+        query: &'b str,
+    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'b {
         self.client.simple_query(query)
     }
 
     /// Like `Client::batch_execute`.
-    pub fn batch_execute(&self, query: &str) -> impl Future<Output = Result<(), Error>> {
-        self.client.batch_execute(query)
+    pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+        self.client.batch_execute(query).await
     }
 
     /// Like `Client::cancel_query`.
     #[cfg(feature = "runtime")]
-    pub fn cancel_query<T>(&self, tls: T) -> impl Future<Output = Result<(), Error>>
+    pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
-        self.client.cancel_query(tls)
+        self.client.cancel_query(tls).await
     }
 
     /// Like `Client::cancel_query_raw`.
-    pub fn cancel_query_raw<S, T>(
-        &self,
-        stream: S,
-        tls: T,
-    ) -> impl Future<Output = Result<(), Error>>
+    pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        self.client.cancel_query_raw(stream, tls)
+        self.client.cancel_query_raw(stream, tls).await
     }
 
     /// Like `Client::transaction`.

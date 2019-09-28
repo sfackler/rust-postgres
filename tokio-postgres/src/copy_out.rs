@@ -1,25 +1,32 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::Error;
+use crate::types::ToSql;
+use crate::{query, Error, Statement};
 use bytes::Bytes;
 use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub fn copy_out(
-    client: Arc<InnerClient>,
-    buf: Result<Vec<u8>, Error>,
-) -> impl Stream<Item = Result<Bytes, Error>> {
-    start(client, buf)
-        .map_ok(|responses| CopyOut { responses })
-        .try_flatten_stream()
+pub fn copy_out<'a, I>(
+    client: &'a InnerClient,
+    statement: Statement,
+    params: I,
+) -> impl Stream<Item = Result<Bytes, Error>> + 'a
+where
+    I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+    I::IntoIter: ExactSizeIterator,
+{
+    let f = async move {
+        let buf = query::encode(&statement, params)?;
+        let responses = start(client, buf).await?;
+        Ok(CopyOut { responses })
+    };
+    f.try_flatten_stream()
 }
 
-async fn start(client: Arc<InnerClient>, buf: Result<Vec<u8>, Error>) -> Result<Responses, Error> {
-    let buf = buf?;
+async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {

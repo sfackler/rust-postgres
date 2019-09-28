@@ -13,7 +13,7 @@ async fn connect(s: &str) -> Client {
 }
 
 async fn smoke_test(s: &str) {
-    let mut client = connect(s).await;
+    let client = connect(s).await;
 
     let stmt = client.prepare("SELECT $1::INT").await.unwrap();
     let rows = client
@@ -72,7 +72,7 @@ async fn target_session_attrs_err() {
 
 #[tokio::test]
 async fn cancel_query() {
-    let mut client = connect("host=localhost port=5433 user=postgres").await;
+    let client = connect("host=localhost port=5433 user=postgres").await;
 
     let cancel = client.cancel_query(NoTls);
     let cancel = timer::delay(Instant::now() + Duration::from_millis(100)).then(|()| cancel);

@@ -6,19 +6,16 @@ use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream, TryFutureExt};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub fn simple_query(
-    client: Arc<InnerClient>,
-    query: &str,
-) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> {
-    let buf = encode(query);
-
-    let start = async move {
-        let buf = buf?;
+pub fn simple_query<'a>(
+    client: &'a InnerClient,
+    query: &'a str,
+) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'a {
+    let f = async move {
+        let buf = encode(query)?;
         let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
         Ok(SimpleQuery {
@@ -26,29 +23,21 @@ pub fn simple_query(
             columns: None,
         })
     };
-
-    start.try_flatten_stream()
+    f.try_flatten_stream()
 }
 
-pub fn batch_execute(
-    client: Arc<InnerClient>,
-    query: &str,
-) -> impl Future<Output = Result<(), Error>> {
-    let buf = encode(query);
+pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
+    let buf = encode(query)?;
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-    async move {
-        let buf = buf?;
-        let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
-
-        loop {
-            match responses.next().await? {
-                Message::ReadyForQuery(_) => return Ok(()),
-                Message::CommandComplete(_)
-                | Message::EmptyQueryResponse
-                | Message::RowDescription(_)
-                | Message::DataRow(_) => {}
-                _ => return Err(Error::unexpected_message()),
-            }
+    loop {
+        match responses.next().await? {
+            Message::ReadyForQuery(_) => return Ok(()),
+            Message::CommandComplete(_)
+            | Message::EmptyQueryResponse
+            | Message::RowDescription(_)
+            | Message::DataRow(_) => {}
+            _ => return Err(Error::unexpected_message()),
         }
     }
 }
