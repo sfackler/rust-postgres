@@ -2,7 +2,7 @@
 # errcodes.txt
 #      PostgreSQL error codes
 #
-# Copyright (c) 2003-2017, PostgreSQL Global Development Group
+# Copyright (c) 2003-2019, PostgreSQL Global Development Group
 #
 # This list serves as the basis for generating source files containing error
 # codes. It is kept in a common format to make sure all these source files have
@@ -18,7 +18,7 @@
 #   src/pl/tcl/pltclerrcodes.h
 #      the same, for PL/Tcl
 #
-#   doc/src/sgml/errcodes-list.sgml
+#   doc/src/sgml/errcodes-table.sgml
 #      a SGML table of error codes for inclusion in the documentation
 #
 # The format of this file is one error code per line, with the following
@@ -177,6 +177,7 @@ Section: Class 22 - Data Exception
 22P06    E    ERRCODE_NONSTANDARD_USE_OF_ESCAPE_CHARACTER                    nonstandard_use_of_escape_character
 22010    E    ERRCODE_INVALID_INDICATOR_PARAMETER_VALUE                      invalid_indicator_parameter_value
 22023    E    ERRCODE_INVALID_PARAMETER_VALUE                                invalid_parameter_value
+22013    E    ERRCODE_INVALID_PRECEDING_OR_FOLLOWING_SIZE                    invalid_preceding_or_following_size
 2201B    E    ERRCODE_INVALID_REGULAR_EXPRESSION                             invalid_regular_expression
 2201W    E    ERRCODE_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE                      invalid_row_count_in_limit_clause
 2201X    E    ERRCODE_INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE              invalid_row_count_in_result_offset_clause
@@ -205,6 +206,21 @@ Section: Class 22 - Data Exception
 2200N    E    ERRCODE_INVALID_XML_CONTENT                                    invalid_xml_content
 2200S    E    ERRCODE_INVALID_XML_COMMENT                                    invalid_xml_comment
 2200T    E    ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION                     invalid_xml_processing_instruction
+22030    E    ERRCODE_DUPLICATE_JSON_OBJECT_KEY_VALUE                        duplicate_json_object_key_value
+22032    E    ERRCODE_INVALID_JSON_TEXT                                      invalid_json_text
+22033    E    ERRCODE_INVALID_SQL_JSON_SUBSCRIPT                             invalid_sql_json_subscript
+22034    E    ERRCODE_MORE_THAN_ONE_SQL_JSON_ITEM                            more_than_one_sql_json_item
+22035    E    ERRCODE_NO_SQL_JSON_ITEM                                       no_sql_json_item
+22036    E    ERRCODE_NON_NUMERIC_SQL_JSON_ITEM                              non_numeric_sql_json_item
+22037    E    ERRCODE_NON_UNIQUE_KEYS_IN_A_JSON_OBJECT                       non_unique_keys_in_a_json_object
+22038    E    ERRCODE_SINGLETON_SQL_JSON_ITEM_REQUIRED                       singleton_sql_json_item_required
+22039    E    ERRCODE_SQL_JSON_ARRAY_NOT_FOUND                               sql_json_array_not_found
+2203A    E    ERRCODE_SQL_JSON_MEMBER_NOT_FOUND                              sql_json_member_not_found
+2203B    E    ERRCODE_SQL_JSON_NUMBER_NOT_FOUND                              sql_json_number_not_found
+2203C    E    ERRCODE_SQL_JSON_OBJECT_NOT_FOUND                              sql_json_object_not_found
+2203D    E    ERRCODE_TOO_MANY_JSON_ARRAY_ELEMENTS                           too_many_json_array_elements
+2203E    E    ERRCODE_TOO_MANY_JSON_OBJECT_MEMBERS                           too_many_json_object_members
+2203F    E    ERRCODE_SQL_JSON_SCALAR_REQUIRED                               sql_json_scalar_required
 
 Section: Class 23 - Integrity Constraint Violation
 

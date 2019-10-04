@@ -14,7 +14,7 @@ use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
 
 #[doc(inline)]
-pub use tokio_postgres::config::{SslMode, TargetSessionAttrs, ChannelBinding};
+pub use tokio_postgres::config::{ChannelBinding, SslMode, TargetSessionAttrs};
 
 use crate::{Client, RUNTIME};
 
