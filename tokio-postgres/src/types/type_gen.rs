@@ -34,7 +34,7 @@ pub enum Inner {
     XmlArray,
     PgNodeTree,
     JsonArray,
-    Smgr,
+    TableAmHandler,
     IndexAmHandler,
     Point,
     Lseg,
@@ -47,9 +47,6 @@ pub enum Inner {
     CidrArray,
     Float4,
     Float8,
-    Abstime,
-    Reltime,
-    Tinterval,
     Unknown,
     Circle,
     CircleArray,
@@ -81,9 +78,6 @@ pub enum Inner {
     BoxArray,
     Float4Array,
     Float8Array,
-    AbstimeArray,
-    ReltimeArray,
-    TintervalArray,
     PolygonArray,
     OidArray,
     Aclitem,
@@ -172,10 +166,13 @@ pub enum Inner {
     DateRangeArray,
     Int8Range,
     Int8RangeArray,
+    Jsonpath,
+    JsonpathArray,
     Regnamespace,
     RegnamespaceArray,
     Regrole,
     RegroleArray,
+    PgMcvList,
     Other(Arc<Other>),
 }
 
@@ -203,7 +200,7 @@ impl Inner {
             143 => Some(Inner::XmlArray),
             194 => Some(Inner::PgNodeTree),
             199 => Some(Inner::JsonArray),
-            210 => Some(Inner::Smgr),
+            269 => Some(Inner::TableAmHandler),
             325 => Some(Inner::IndexAmHandler),
             600 => Some(Inner::Point),
             601 => Some(Inner::Lseg),
@@ -216,9 +213,6 @@ impl Inner {
             651 => Some(Inner::CidrArray),
             700 => Some(Inner::Float4),
             701 => Some(Inner::Float8),
-            702 => Some(Inner::Abstime),
-            703 => Some(Inner::Reltime),
-            704 => Some(Inner::Tinterval),
             705 => Some(Inner::Unknown),
             718 => Some(Inner::Circle),
             719 => Some(Inner::CircleArray),
@@ -250,9 +244,6 @@ impl Inner {
             1020 => Some(Inner::BoxArray),
             1021 => Some(Inner::Float4Array),
             1022 => Some(Inner::Float8Array),
-            1023 => Some(Inner::AbstimeArray),
-            1024 => Some(Inner::ReltimeArray),
-            1025 => Some(Inner::TintervalArray),
             1027 => Some(Inner::PolygonArray),
             1028 => Some(Inner::OidArray),
             1033 => Some(Inner::Aclitem),
@@ -341,10 +332,13 @@ impl Inner {
             3913 => Some(Inner::DateRangeArray),
             3926 => Some(Inner::Int8Range),
             3927 => Some(Inner::Int8RangeArray),
+            4072 => Some(Inner::Jsonpath),
+            4073 => Some(Inner::JsonpathArray),
             4089 => Some(Inner::Regnamespace),
             4090 => Some(Inner::RegnamespaceArray),
             4096 => Some(Inner::Regrole),
             4097 => Some(Inner::RegroleArray),
+            5017 => Some(Inner::PgMcvList),
             _ => None,
         }
     }
@@ -372,7 +366,7 @@ impl Inner {
             Inner::XmlArray => 143,
             Inner::PgNodeTree => 194,
             Inner::JsonArray => 199,
-            Inner::Smgr => 210,
+            Inner::TableAmHandler => 269,
             Inner::IndexAmHandler => 325,
             Inner::Point => 600,
             Inner::Lseg => 601,
@@ -385,9 +379,6 @@ impl Inner {
             Inner::CidrArray => 651,
             Inner::Float4 => 700,
             Inner::Float8 => 701,
-            Inner::Abstime => 702,
-            Inner::Reltime => 703,
-            Inner::Tinterval => 704,
             Inner::Unknown => 705,
             Inner::Circle => 718,
             Inner::CircleArray => 719,
@@ -419,9 +410,6 @@ impl Inner {
             Inner::BoxArray => 1020,
             Inner::Float4Array => 1021,
             Inner::Float8Array => 1022,
-            Inner::AbstimeArray => 1023,
-            Inner::ReltimeArray => 1024,
-            Inner::TintervalArray => 1025,
             Inner::PolygonArray => 1027,
             Inner::OidArray => 1028,
             Inner::Aclitem => 1033,
@@ -510,10 +498,13 @@ impl Inner {
             Inner::DateRangeArray => 3913,
             Inner::Int8Range => 3926,
             Inner::Int8RangeArray => 3927,
+            Inner::Jsonpath => 4072,
+            Inner::JsonpathArray => 4073,
             Inner::Regnamespace => 4089,
             Inner::RegnamespaceArray => 4090,
             Inner::Regrole => 4096,
             Inner::RegroleArray => 4097,
+            Inner::PgMcvList => 5017,
             Inner::Other(ref u) => u.oid,
         }
     }
@@ -541,7 +532,7 @@ impl Inner {
             Inner::XmlArray => &Kind::Array(Type(Inner::Xml)),
             Inner::PgNodeTree => &Kind::Simple,
             Inner::JsonArray => &Kind::Array(Type(Inner::Json)),
-            Inner::Smgr => &Kind::Simple,
+            Inner::TableAmHandler => &Kind::Pseudo,
             Inner::IndexAmHandler => &Kind::Pseudo,
             Inner::Point => &Kind::Simple,
             Inner::Lseg => &Kind::Simple,
@@ -554,9 +545,6 @@ impl Inner {
             Inner::CidrArray => &Kind::Array(Type(Inner::Cidr)),
             Inner::Float4 => &Kind::Simple,
             Inner::Float8 => &Kind::Simple,
-            Inner::Abstime => &Kind::Simple,
-            Inner::Reltime => &Kind::Simple,
-            Inner::Tinterval => &Kind::Simple,
             Inner::Unknown => &Kind::Simple,
             Inner::Circle => &Kind::Simple,
             Inner::CircleArray => &Kind::Array(Type(Inner::Circle)),
@@ -588,9 +576,6 @@ impl Inner {
             Inner::BoxArray => &Kind::Array(Type(Inner::Box)),
             Inner::Float4Array => &Kind::Array(Type(Inner::Float4)),
             Inner::Float8Array => &Kind::Array(Type(Inner::Float8)),
-            Inner::AbstimeArray => &Kind::Array(Type(Inner::Abstime)),
-            Inner::ReltimeArray => &Kind::Array(Type(Inner::Reltime)),
-            Inner::TintervalArray => &Kind::Array(Type(Inner::Tinterval)),
             Inner::PolygonArray => &Kind::Array(Type(Inner::Polygon)),
             Inner::OidArray => &Kind::Array(Type(Inner::Oid)),
             Inner::Aclitem => &Kind::Simple,
@@ -679,10 +664,13 @@ impl Inner {
             Inner::DateRangeArray => &Kind::Array(Type(Inner::DateRange)),
             Inner::Int8Range => &Kind::Range(Type(Inner::Int8)),
             Inner::Int8RangeArray => &Kind::Array(Type(Inner::Int8Range)),
+            Inner::Jsonpath => &Kind::Simple,
+            Inner::JsonpathArray => &Kind::Array(Type(Inner::Jsonpath)),
             Inner::Regnamespace => &Kind::Simple,
             Inner::RegnamespaceArray => &Kind::Array(Type(Inner::Regnamespace)),
             Inner::Regrole => &Kind::Simple,
             Inner::RegroleArray => &Kind::Array(Type(Inner::Regrole)),
+            Inner::PgMcvList => &Kind::Simple,
             Inner::Other(ref u) => &u.kind,
         }
     }
@@ -710,7 +698,7 @@ impl Inner {
             Inner::XmlArray => "_xml",
             Inner::PgNodeTree => "pg_node_tree",
             Inner::JsonArray => "_json",
-            Inner::Smgr => "smgr",
+            Inner::TableAmHandler => "table_am_handler",
             Inner::IndexAmHandler => "index_am_handler",
             Inner::Point => "point",
             Inner::Lseg => "lseg",
@@ -723,9 +711,6 @@ impl Inner {
             Inner::CidrArray => "_cidr",
             Inner::Float4 => "float4",
             Inner::Float8 => "float8",
-            Inner::Abstime => "abstime",
-            Inner::Reltime => "reltime",
-            Inner::Tinterval => "tinterval",
             Inner::Unknown => "unknown",
             Inner::Circle => "circle",
             Inner::CircleArray => "_circle",
@@ -757,9 +742,6 @@ impl Inner {
             Inner::BoxArray => "_box",
             Inner::Float4Array => "_float4",
             Inner::Float8Array => "_float8",
-            Inner::AbstimeArray => "_abstime",
-            Inner::ReltimeArray => "_reltime",
-            Inner::TintervalArray => "_tinterval",
             Inner::PolygonArray => "_polygon",
             Inner::OidArray => "_oid",
             Inner::Aclitem => "aclitem",
@@ -848,10 +830,13 @@ impl Inner {
             Inner::DateRangeArray => "_daterange",
             Inner::Int8Range => "int8range",
             Inner::Int8RangeArray => "_int8range",
+            Inner::Jsonpath => "jsonpath",
+            Inner::JsonpathArray => "_jsonpath",
             Inner::Regnamespace => "regnamespace",
             Inner::RegnamespaceArray => "_regnamespace",
             Inner::Regrole => "regrole",
             Inner::RegroleArray => "_regrole",
+            Inner::PgMcvList => "pg_mcv_list",
             Inner::Other(ref u) => &u.name,
         }
     }
@@ -905,7 +890,7 @@ impl Type {
     /// PG_DDL_COMMAND - internal type for passing CollectedCommand
     pub const PG_DDL_COMMAND: Type = Type(Inner::PgDdlCommand);
 
-    /// JSON
+    /// JSON - JSON stored as text
     pub const JSON: Type = Type(Inner::Json);
 
     /// XML - XML content
@@ -920,10 +905,10 @@ impl Type {
     /// JSON&#91;&#93;
     pub const JSON_ARRAY: Type = Type(Inner::JsonArray);
 
-    /// SMGR - storage manager
-    pub const SMGR: Type = Type(Inner::Smgr);
+    /// TABLE_AM_HANDLER
+    pub const TABLE_AM_HANDLER: Type = Type(Inner::TableAmHandler);
 
-    /// INDEX_AM_HANDLER
+    /// INDEX_AM_HANDLER - pseudo-type for the result of an index AM handler function
     pub const INDEX_AM_HANDLER: Type = Type(Inner::IndexAmHandler);
 
     /// POINT - geometric point &#39;&#40;x, y&#41;&#39;
@@ -959,16 +944,7 @@ impl Type {
     /// FLOAT8 - double-precision floating point number, 8-byte storage
     pub const FLOAT8: Type = Type(Inner::Float8);
 
-    /// ABSTIME - absolute, limited-range date and time &#40;Unix system time&#41;
-    pub const ABSTIME: Type = Type(Inner::Abstime);
-
-    /// RELTIME - relative, limited-range time interval &#40;Unix delta time&#41;
-    pub const RELTIME: Type = Type(Inner::Reltime);
-
-    /// TINTERVAL - &#40;abstime,abstime&#41;, time interval
-    pub const TINTERVAL: Type = Type(Inner::Tinterval);
-
-    /// UNKNOWN
+    /// UNKNOWN - pseudo-type representing an undetermined type
     pub const UNKNOWN: Type = Type(Inner::Unknown);
 
     /// CIRCLE - geometric circle &#39;&#40;center,radius&#41;&#39;
@@ -1060,15 +1036,6 @@ impl Type {
 
     /// FLOAT8&#91;&#93;
     pub const FLOAT8_ARRAY: Type = Type(Inner::Float8Array);
-
-    /// ABSTIME&#91;&#93;
-    pub const ABSTIME_ARRAY: Type = Type(Inner::AbstimeArray);
-
-    /// RELTIME&#91;&#93;
-    pub const RELTIME_ARRAY: Type = Type(Inner::ReltimeArray);
-
-    /// TINTERVAL&#91;&#93;
-    pub const TINTERVAL_ARRAY: Type = Type(Inner::TintervalArray);
 
     /// POLYGON&#91;&#93;
     pub const POLYGON_ARRAY: Type = Type(Inner::PolygonArray);
@@ -1187,40 +1154,40 @@ impl Type {
     /// REGTYPE&#91;&#93;
     pub const REGTYPE_ARRAY: Type = Type(Inner::RegtypeArray);
 
-    /// RECORD
+    /// RECORD - pseudo-type representing any composite type
     pub const RECORD: Type = Type(Inner::Record);
 
-    /// CSTRING
+    /// CSTRING - C-style string
     pub const CSTRING: Type = Type(Inner::Cstring);
 
-    /// ANY
+    /// ANY - pseudo-type representing any type
     pub const ANY: Type = Type(Inner::Any);
 
-    /// ANYARRAY
+    /// ANYARRAY - pseudo-type representing a polymorphic array type
     pub const ANYARRAY: Type = Type(Inner::Anyarray);
 
-    /// VOID
+    /// VOID - pseudo-type for the result of a function with no real result
     pub const VOID: Type = Type(Inner::Void);
 
-    /// TRIGGER
+    /// TRIGGER - pseudo-type for the result of a trigger function
     pub const TRIGGER: Type = Type(Inner::Trigger);
 
-    /// LANGUAGE_HANDLER
+    /// LANGUAGE_HANDLER - pseudo-type for the result of a language handler function
     pub const LANGUAGE_HANDLER: Type = Type(Inner::LanguageHandler);
 
-    /// INTERNAL
+    /// INTERNAL - pseudo-type representing an internal data structure
     pub const INTERNAL: Type = Type(Inner::Internal);
 
-    /// OPAQUE
+    /// OPAQUE - obsolete, deprecated pseudo-type
     pub const OPAQUE: Type = Type(Inner::Opaque);
 
-    /// ANYELEMENT
+    /// ANYELEMENT - pseudo-type representing a polymorphic base type
     pub const ANYELEMENT: Type = Type(Inner::Anyelement);
 
     /// RECORD&#91;&#93;
     pub const RECORD_ARRAY: Type = Type(Inner::RecordArray);
 
-    /// ANYNONARRAY
+    /// ANYNONARRAY - pseudo-type representing a polymorphic base type that is not an array
     pub const ANYNONARRAY: Type = Type(Inner::Anynonarray);
 
     /// TXID_SNAPSHOT&#91;&#93;
@@ -1235,7 +1202,7 @@ impl Type {
     /// TXID_SNAPSHOT - txid snapshot
     pub const TXID_SNAPSHOT: Type = Type(Inner::TxidSnapshot);
 
-    /// FDW_HANDLER
+    /// FDW_HANDLER - pseudo-type for the result of an FDW handler function
     pub const FDW_HANDLER: Type = Type(Inner::FdwHandler);
 
     /// PG_LSN - PostgreSQL LSN datatype
@@ -1244,7 +1211,7 @@ impl Type {
     /// PG_LSN&#91;&#93;
     pub const PG_LSN_ARRAY: Type = Type(Inner::PgLsnArray);
 
-    /// TSM_HANDLER
+    /// TSM_HANDLER - pseudo-type for the result of a tablesample method function
     pub const TSM_HANDLER: Type = Type(Inner::TsmHandler);
 
     /// PG_NDISTINCT - multivariate ndistinct coefficients
@@ -1253,7 +1220,7 @@ impl Type {
     /// PG_DEPENDENCIES - multivariate dependencies
     pub const PG_DEPENDENCIES: Type = Type(Inner::PgDependencies);
 
-    /// ANYENUM
+    /// ANYENUM - pseudo-type representing a polymorphic base type that is an enum
     pub const ANYENUM: Type = Type(Inner::Anyenum);
 
     /// TSVECTOR - text representation for text search
@@ -1292,10 +1259,10 @@ impl Type {
     /// JSONB&#91;&#93;
     pub const JSONB_ARRAY: Type = Type(Inner::JsonbArray);
 
-    /// ANYRANGE
+    /// ANYRANGE - pseudo-type representing a polymorphic base type that is a range
     pub const ANY_RANGE: Type = Type(Inner::AnyRange);
 
-    /// EVENT_TRIGGER
+    /// EVENT_TRIGGER - pseudo-type for the result of an event trigger function
     pub const EVENT_TRIGGER: Type = Type(Inner::EventTrigger);
 
     /// INT4RANGE - range of integers
@@ -1334,6 +1301,12 @@ impl Type {
     /// INT8RANGE&#91;&#93;
     pub const INT8_RANGE_ARRAY: Type = Type(Inner::Int8RangeArray);
 
+    /// JSONPATH - JSON path
+    pub const JSONPATH: Type = Type(Inner::Jsonpath);
+
+    /// JSONPATH&#91;&#93;
+    pub const JSONPATH_ARRAY: Type = Type(Inner::JsonpathArray);
+
     /// REGNAMESPACE - registered namespace
     pub const REGNAMESPACE: Type = Type(Inner::Regnamespace);
 
@@ -1345,4 +1318,7 @@ impl Type {
 
     /// REGROLE&#91;&#93;
     pub const REGROLE_ARRAY: Type = Type(Inner::RegroleArray);
+
+    /// PG_MCV_LIST - multivariate MCV list
+    pub const PG_MCV_LIST: Type = Type(Inner::PgMcvList);
 }
