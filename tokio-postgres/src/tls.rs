@@ -71,6 +71,7 @@ pub trait TlsConnect<S> {
 /// A `MakeTlsConnect` and `TlsConnect` implementation which simply returns an error.
 ///
 /// This can be used when `sslmode` is `none` or `prefer`.
+#[derive(Debug, Copy, Clone)]
 pub struct NoTls;
 
 #[cfg(feature = "runtime")]
