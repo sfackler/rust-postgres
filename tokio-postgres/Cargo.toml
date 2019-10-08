@@ -49,3 +49,11 @@ lazy_static = { version = "1.0", optional = true }
 [dev-dependencies]
 tokio = "=0.2.0-alpha.6"
 env_logger = "0.5"
+
+bit-vec-06 = { version = "0.6", package = "bit-vec" }
+chrono-04 = { version = "0.4", package = "chrono" }
+eui48-04 = { version = "0.4", package = "eui48" }
+geo-types-04 = { version = "0.4", package = "geo-types" }
+serde-1 = { version = "1.0", package = "serde" }
+serde_json-1 = { version = "1.0", package = "serde_json" }
+uuid-07 = { version = "0.7", package = "uuid" }

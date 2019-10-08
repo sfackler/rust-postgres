@@ -2,7 +2,7 @@ use postgres_protocol::types;
 use std::error::Error;
 use uuid_07::Uuid;
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Uuid {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Uuid, Box<dyn Error + Sync + Send>> {

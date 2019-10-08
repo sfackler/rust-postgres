@@ -17,6 +17,8 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "with-serde_json-1")]
+pub use crate::serde_json_1::Json;
 use crate::type_gen::{Inner, Other};
 
 #[doc(inline)]
@@ -93,9 +95,6 @@ mod uuid_07;
 
 mod special;
 mod type_gen;
-
-#[cfg(feature = "with-serde_json-1")]
-pub use crate::types::serde_json_1::Json;
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
