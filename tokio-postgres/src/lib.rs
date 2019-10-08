@@ -3,8 +3,6 @@
 //! # Example
 //!
 //! ```no_run
-//! #![feature(async_await)]
-//!
 //! use futures::{FutureExt, TryStreamExt};
 //! use tokio_postgres::{NoTls, Error, Row};
 //!
