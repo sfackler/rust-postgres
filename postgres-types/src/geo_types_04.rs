@@ -3,7 +3,7 @@ use geo_types_04::{Coordinate, LineString, Point, Rect};
 use postgres_protocol::types;
 use std::error::Error;
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Point<f64> {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {

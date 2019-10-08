@@ -1,8 +1,13 @@
-//! Types.
+//! Conversions to and from Postgres types.
+//!
+//! This crate is used by the `tokio-postgres` and `postgres` crates. You normally don't need to depend directly on it
+//! unless you want to define your own `ToSql` or `FromSql` definitions.
+#![warn(missing_docs)]
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
+use std::any::type_name;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error::Error;
@@ -12,12 +17,12 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::types::type_gen::{Inner, Other};
+use crate::type_gen::{Inner, Other};
 
 #[doc(inline)]
 pub use postgres_protocol::Oid;
 
-pub use crate::types::special::{Date, Timestamp};
+pub use crate::special::{Date, Timestamp};
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -29,9 +34,9 @@ const NSEC_PER_USEC: u64 = 1_000;
 #[macro_export]
 macro_rules! accepts {
     ($($expected:ident),+) => (
-        fn accepts(ty: &$crate::types::Type) -> bool {
+        fn accepts(ty: &$crate::Type) -> bool {
             match *ty {
-                $($crate::types::Type::$expected)|+ => true,
+                $($crate::Type::$expected)|+ => true,
                 _ => false
             }
         }
@@ -45,13 +50,13 @@ macro_rules! accepts {
 macro_rules! to_sql_checked {
     () => {
         fn to_sql_checked(&self,
-                          ty: &$crate::types::Type,
+                          ty: &$crate::Type,
                           out: &mut ::std::vec::Vec<u8>)
-                          -> ::std::result::Result<$crate::types::IsNull,
+                          -> ::std::result::Result<$crate::IsNull,
                                                    Box<dyn ::std::error::Error +
                                                        ::std::marker::Sync +
                                                        ::std::marker::Send>> {
-            $crate::types::__to_sql_checked(self, ty, out)
+            $crate::__to_sql_checked(self, ty, out)
         }
     }
 }
@@ -91,7 +96,6 @@ mod type_gen;
 
 #[cfg(feature = "with-serde_json-1")]
 pub use crate::types::serde_json_1::Json;
-use std::any::type_name;
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -108,7 +112,8 @@ impl fmt::Display for Type {
 }
 
 impl Type {
-    pub(crate) fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
+    /// Creates a new `Type`.
+    pub fn new(name: String, oid: Oid, kind: Kind, schema: String) -> Type {
         Type(Inner::Other(Arc::new(Other {
             name,
             oid,
@@ -176,7 +181,8 @@ pub struct Field {
 }
 
 impl Field {
-    pub(crate) fn new(name: String, type_: Type) -> Field {
+    /// Creates a new `Field`.
+    pub fn new(name: String, type_: Type) -> Field {
         Field { name, type_ }
     }
 
@@ -225,7 +231,8 @@ impl fmt::Display for WrongType {
 impl Error for WrongType {}
 
 impl WrongType {
-    pub(crate) fn new<T>(ty: Type) -> WrongType {
+    /// Creates a new `WrongType` error.
+    pub fn new<T>(ty: Type) -> WrongType {
         WrongType {
             postgres: ty,
             rust: type_name::<T>(),

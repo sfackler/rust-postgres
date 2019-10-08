@@ -2,7 +2,7 @@ use bit_vec_06::BitVec;
 use postgres_protocol::types;
 use std::error::Error;
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for BitVec {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<BitVec, Box<dyn Error + Sync + Send>> {

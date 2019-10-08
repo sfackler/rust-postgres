@@ -2,12 +2,11 @@ use linked_hash_map::LinkedHashMap;
 use phf_codegen;
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::path::Path;
 
 const ERRCODES_TXT: &str = include_str!("errcodes.txt");
 
-pub fn build(path: &Path) {
-    let mut file = BufWriter::new(File::create(path.join("error/sqlstate.rs")).unwrap());
+pub fn build() {
+    let mut file = BufWriter::new(File::create("../tokio-postgres/src/error/sqlstate.rs").unwrap());
 
     let codes = parse_codes();
 

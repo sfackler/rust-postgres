@@ -6,15 +6,12 @@ extern crate marksman_escape;
 extern crate phf_codegen;
 extern crate regex;
 
-use std::path::Path;
-
 mod sqlstate;
 mod type_gen;
 
 fn main() {
-    let path = Path::new("../tokio-postgres/src");
-    sqlstate::build(path);
-    type_gen::build(path);
+    sqlstate::build();
+    type_gen::build();
 }
 
 fn snake_to_camel(s: &str) -> String {

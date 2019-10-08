@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::io::Read;
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 /// A wrapper type to allow arbitrary `Serialize`/`Deserialize` types to convert to Postgres JSON values.
 #[derive(Debug)]

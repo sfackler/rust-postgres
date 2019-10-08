@@ -7,7 +7,7 @@ use std::fmt;
 use std::net::IpAddr;
 use std::result;
 use std::time::{Duration, UNIX_EPOCH};
-use tokio_postgres::to_sql_checked;
+use postgres_types::to_sql_checked;
 use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 
 use crate::connect;

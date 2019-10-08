@@ -2,7 +2,7 @@ use postgres_protocol::types;
 use std::error::Error;
 use std::{i32, i64};
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
 #[derive(Debug, Clone, Copy, PartialEq)]

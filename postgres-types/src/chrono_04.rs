@@ -2,7 +2,7 @@ use chrono_04::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime
 use postgres_protocol::types;
 use std::error::Error;
 
-use crate::types::{FromSql, IsNull, ToSql, Type};
+use crate::{FromSql, IsNull, ToSql, Type};
 
 fn base() -> NaiveDateTime {
     NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)

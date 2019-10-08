@@ -23,12 +23,12 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 default = ["runtime"]
 runtime = ["tokio/rt-full", "tokio/tcp", "tokio/uds", "tokio-executor", "lazy_static"]
 
-"with-bit-vec-0_6" = ["bit-vec-06"]
-"with-chrono-0_4" = ["chrono-04"]
-"with-eui48-0_4" = ["eui48-04"]
-"with-geo-types-0_4" = ["geo-types-04"]
-with-serde_json-1 = ["serde-1", "serde_json-1"]
-"with-uuid-0_7" = ["uuid-07"]
+"with-bit-vec-0_6" = ["postgres-types/with-bit-vec-0_6"]
+"with-chrono-0_4" = ["postgres-types/with-chrono-0_4"]
+"with-eui48-0_4" = ["postgres-types/with-eui48-0_4"]
+"with-geo-types-0_4" = ["postgres-types/with-geo-types-0_4"]
+with-serde_json-1 = ["postgres-types/with-serde_json-1"]
+"with-uuid-0_7" = ["postgres-types/with-uuid-0_7"]
 
 [dependencies]
 bytes = "0.4"
@@ -40,18 +40,11 @@ percent-encoding = "1.0"
 pin-utils = "=0.1.0-alpha.4"
 phf = "0.7.23"
 postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }
+postgres-types = { version = "0.1.0", path = "../postgres-types" }
 tokio = { version = "=0.2.0-alpha.6", default-features = false, features = ["io", "codec"] }
 
 tokio-executor = { version = "=0.2.0-alpha.6", optional = true }
 lazy_static = { version = "1.0", optional = true }
-
-bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
-chrono-04 = { version = "0.4", package = "chrono", optional = true }
-eui48-04 = { version = "0.4", package = "eui48", optional = true }
-geo-types-04 = { version = "0.4", package = "geo-types", optional = true }
-serde-1 = { version = "1.0", package = "serde", optional = true }
-serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
-uuid-07 = { version = "0.7", package = "uuid", optional = true }
 
 [dev-dependencies]
 tokio = "=0.2.0-alpha.6"
