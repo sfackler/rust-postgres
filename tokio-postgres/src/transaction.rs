@@ -1,5 +1,6 @@
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::copy_out::CopyStream;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -10,7 +11,7 @@ use crate::Socket;
 use crate::{
     bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
 };
-use bytes::{Bytes, IntoBuf};
+use bytes::IntoBuf;
 use futures::{Stream, TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use std::error;
@@ -211,15 +212,15 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
-    pub fn copy_out<'b, T>(
-        &'b self,
-        statement: &'b T,
-        params: &'b [&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Bytes, Error>> + 'b
+    pub async fn copy_out<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<CopyStream, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.client.copy_out(statement, params)
+        self.client.copy_out(statement, params).await
     }
 
     /// Like `Client::simple_query`.

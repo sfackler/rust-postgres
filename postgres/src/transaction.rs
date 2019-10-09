@@ -123,15 +123,15 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
-    pub fn copy_out<'b, T>(
-        &'b mut self,
-        query: &'b T,
-        params: &'b [&(dyn ToSql + Sync)],
-    ) -> Result<impl BufRead + 'b, Error>
+    pub fn copy_out<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<impl BufRead, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.0.copy_out(query, params);
+        let stream = executor::block_on(self.0.copy_out(query, params))?;
         CopyOutReader::new(stream)
     }
 

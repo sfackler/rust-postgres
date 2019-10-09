@@ -506,7 +506,13 @@ async fn copy_out() {
         .unwrap();
 
     let stmt = client.prepare("COPY foo TO STDOUT").await.unwrap();
-    let data = client.copy_out(&stmt, &[]).try_concat().await.unwrap();
+    let data = client
+        .copy_out(&stmt, &[])
+        .await
+        .unwrap()
+        .try_concat()
+        .await
+        .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");
 }
 

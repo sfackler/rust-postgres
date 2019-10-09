@@ -3,6 +3,7 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
+use crate::copy_out::CopyStream;
 use crate::query::RowStream;
 use crate::slice_iter;
 #[cfg(feature = "runtime")]
@@ -16,10 +17,10 @@ use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
-use bytes::{Bytes, IntoBuf};
+use bytes::IntoBuf;
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, Stream, TryFutureExt, TryStream, TryStreamExt};
+use futures::{future, Stream, TryStream, TryStreamExt};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
@@ -293,20 +294,17 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn copy_out<'a, T>(
-        &'a self,
-        statement: &'a T,
-        params: &'a [&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Bytes, Error>> + 'a
+    pub async fn copy_out<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<CopyStream, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let f = async move {
-            let statement = statement.__convert().into_statement(self).await?;
-            let params = slice_iter(params);
-            Ok(copy_out::copy_out(self.inner(), statement, params))
-        };
-        f.try_flatten_stream()
+        let statement = statement.__convert().into_statement(self).await?;
+        let params = slice_iter(params);
+        copy_out::copy_out(self.inner(), statement, params).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.

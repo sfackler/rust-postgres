@@ -4,26 +4,23 @@ use crate::connection::RequestMessages;
 use crate::types::ToSql;
 use crate::{query, Error, Statement};
 use bytes::Bytes;
-use futures::{ready, Stream, TryFutureExt};
+use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub fn copy_out<'a, I>(
-    client: &'a InnerClient,
+pub async fn copy_out<'a, I>(
+    client: &InnerClient,
     statement: Statement,
     params: I,
-) -> impl Stream<Item = Result<Bytes, Error>> + 'a
+) -> Result<CopyStream, Error>
 where
-    I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+    I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let f = async move {
-        let buf = query::encode(&statement, params)?;
-        let responses = start(client, buf).await?;
-        Ok(CopyOut { responses })
-    };
-    f.try_flatten_stream()
+    let buf = query::encode(&statement, params)?;
+    let responses = start(client, buf).await?;
+    Ok(CopyStream { responses })
 }
 
 async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
@@ -42,11 +39,11 @@ async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-struct CopyOut {
+pub struct CopyStream {
     responses: Responses,
 }
 
-impl Stream for CopyOut {
+impl Stream for CopyStream {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
