@@ -1,5 +1,6 @@
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
@@ -93,29 +94,25 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
-    pub fn query<'b, T>(
-        &'b self,
-        statement: &'b T,
-        params: &'b [&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> + 'b
+    pub async fn query<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query(statement, params)
+        self.client.query(statement, params).await
     }
 
-    /// Like `Client::query_iter`.
-    pub fn query_iter<'b, T, I>(
-        &'b self,
-        statement: &'b T,
-        params: I,
-    ) -> impl Stream<Item = Result<Row, Error>> + 'b
+    /// Like `Client::query_raw`.
+    pub async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'b dyn ToSql> + 'b,
+        I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.client.query_iter(statement, params)
+        self.client.query_raw(statement, params).await
     }
 
     /// Like `Client::execute`.
@@ -131,7 +128,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute_iter`.
-    pub async fn execute_iter<'b, I, T>(
+    pub async fn execute_raw<'b, I, T>(
         &self,
         statement: &Statement,
         params: I,
@@ -141,7 +138,7 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.client.execute_iter(statement, params).await
+        self.client.execute_raw(statement, params).await
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.

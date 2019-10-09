@@ -55,19 +55,22 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.query_iter(query, params)?.collect()
+        executor::block_on(self.0.query(query, params))
     }
 
-    /// Like `Client::query_iter`.
-    pub fn query_iter<'b, T>(
-        &'b mut self,
-        query: &'b T,
-        params: &'b [&(dyn ToSql + Sync)],
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'b, Error>
+    /// Like `Client::query_raw`.
+    pub fn query_raw<'b, T, I>(
+        &mut self,
+        query: &T,
+        params: I,
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
     where
         T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'b dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
     {
-        Ok(Iter::new(self.0.query(query, params)))
+        let stream = executor::block_on(self.0.query_raw(query, params))?;
+        Ok(Iter::new(stream))
     }
 
     /// Binds parameters to a statement, creating a "portal".

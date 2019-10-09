@@ -1,4 +1,4 @@
-use futures::{FutureExt, TryStreamExt};
+use futures::{FutureExt};
 use native_tls::{self, Certificate};
 use tokio::net::TcpStream;
 use tokio_postgres::tls::TlsConnect;
@@ -23,7 +23,6 @@ where
     let stmt = client.prepare("SELECT $1::INT4").await.unwrap();
     let rows = client
         .query(&stmt, &[&1i32])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 
@@ -99,7 +98,6 @@ async fn runtime() {
     let stmt = client.prepare("SELECT $1::INT4").await.unwrap();
     let rows = client
         .query(&stmt, &[&1i32])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 

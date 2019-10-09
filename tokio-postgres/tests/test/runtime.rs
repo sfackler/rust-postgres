@@ -1,4 +1,4 @@
-use futures::{join, FutureExt, TryStreamExt};
+use futures::{join, FutureExt};
 use std::time::{Duration, Instant};
 use tokio::timer;
 use tokio_postgres::error::SqlState;
@@ -18,7 +18,6 @@ async fn smoke_test(s: &str) {
     let stmt = client.prepare("SELECT $1::INT").await.unwrap();
     let rows = client
         .query(&stmt, &[&1i32])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     assert_eq!(rows[0].get::<_, i32>(0), 1i32);

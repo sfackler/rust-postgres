@@ -3,6 +3,7 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
+use crate::query::RowStream;
 use crate::slice_iter;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -18,7 +19,7 @@ use crate::{Error, Statement};
 use bytes::{Bytes, IntoBuf};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, Stream, TryFutureExt, TryStream};
+use futures::{future, Stream, TryFutureExt, TryStream, TryStreamExt};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
@@ -190,40 +191,40 @@ impl Client {
         prepare::prepare(&self.inner, query, parameter_types).await
     }
 
-    /// Executes a statement, returning a stream of the resulting rows.
+    /// Executes a statement, returning a vector of the resulting rows.
     ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn query<'a, T>(
-        &'a self,
-        statement: &'a T,
-        params: &'a [&(dyn ToSql + Sync)],
-    ) -> impl Stream<Item = Result<Row, Error>> + 'a
+    pub async fn query<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.query_iter(statement, slice_iter(params))
+        self.query_raw(statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await
     }
 
-    /// Like [`query`], but takes an iterator of parameters rather than a slice.
+    /// The maximally flexible version of [`query`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`query`]: #method.query
-    pub fn query_iter<'a, T, I>(
-        &'a self,
-        statement: &'a T,
-        params: I,
-    ) -> impl Stream<Item = Result<Row, Error>> + 'a
+    pub async fn query_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+        I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let f = async move {
-            let statement = statement.__convert().into_statement(self).await?;
-            Ok(query::query(&self.inner, statement, params))
-        };
-        f.try_flatten_stream()
+        let statement = statement.__convert().into_statement(self).await?;
+        query::query(&self.inner, statement, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -241,13 +242,17 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.execute_iter(statement, slice_iter(params)).await
+        self.execute_raw(statement, slice_iter(params)).await
     }
 
-    /// Like [`execute`], but takes an iterator of parameters rather than a slice.
+    /// The maximally flexible version of [`execute`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`execute`]: #method.execute
-    pub async fn execute_iter<'a, T, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'a dyn ToSql>,

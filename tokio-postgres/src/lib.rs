@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use futures::{FutureExt, TryStreamExt};
+//! use futures::FutureExt;
 //! use tokio_postgres::{NoTls, Error, Row};
 //!
 //! # #[cfg(not(feature = "runtime"))] fn main() {}
@@ -29,7 +29,6 @@
 //!     // And then execute it, returning a Stream of Rows which we collect into a Vec.
 //!     let rows: Vec<Row> = client
 //!         .query(&stmt, &[&"hello world"])
-//!         .try_collect()
 //!         .await?;
 //!
 //!     // Now we can check that we got back the same string we sent over.

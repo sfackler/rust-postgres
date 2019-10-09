@@ -9,24 +9,21 @@ use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub fn query<'a, I>(
-    client: &'a InnerClient,
+pub async fn query<'a, I>(
+    client: &InnerClient,
     statement: Statement,
     params: I,
-) -> impl Stream<Item = Result<Row, Error>> + 'a
+) -> Result<RowStream, Error>
 where
-    I: IntoIterator<Item = &'a dyn ToSql> + 'a,
+    I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let f = async move {
-        let buf = encode(&statement, params)?;
-        let responses = start(client, buf).await?;
-        Ok(Query {
-            statement,
-            responses,
-        })
-    };
-    f.try_flatten_stream()
+    let buf = encode(&statement, params)?;
+    let responses = start(client, buf).await?;
+    Ok(RowStream {
+        statement,
+        responses,
+    })
 }
 
 pub fn query_portal<'a>(
@@ -41,7 +38,7 @@ pub fn query_portal<'a>(
 
         let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-        Ok(Query {
+        Ok(RowStream {
             statement: portal.statement().clone(),
             responses,
         })
@@ -145,12 +142,12 @@ where
     }
 }
 
-struct Query {
+pub struct RowStream {
     statement: Statement,
     responses: Responses,
 }
 
-impl Stream for Query {
+impl Stream for RowStream {
     type Item = Result<Row, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

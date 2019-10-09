@@ -1,4 +1,3 @@
-use futures::TryStreamExt;
 use postgres_types::to_sql_checked;
 use std::collections::HashMap;
 use std::error::Error;
@@ -35,7 +34,6 @@ where
     for (val, repr) in checks {
         let rows = client
             .query(&*format!("SELECT {}::{}", repr, sql_type), &[])
-            .try_collect::<Vec<_>>()
             .await
             .unwrap();
         let result = rows[0].get(0);
@@ -43,7 +41,6 @@ where
 
         let rows = client
             .query(&*format!("SELECT $1::{}", sql_type), &[&val])
-            .try_collect::<Vec<_>>()
             .await
             .unwrap();
         let result = rows[0].get(0);
@@ -200,7 +197,6 @@ async fn test_borrowed_text() {
     let stmt = client.prepare("SELECT 'foo'").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     let s: &str = rows[0].get(0);
@@ -236,10 +232,11 @@ async fn test_bpchar_params() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .map_ok(|row| row.get(0))
-        .try_collect::<Vec<Option<String>>>()
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect::<Vec<Option<String>>>();
 
     assert_eq!(
         vec![Some("12345".to_owned()), Some("123  ".to_owned()), None],
@@ -276,10 +273,11 @@ async fn test_citext_params() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .map_ok(|row| row.get(0))
-        .try_collect::<Vec<String>>()
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect::<Vec<String>>();
 
     assert_eq!(vec!["foobar".to_string(), "FooBar".to_string()], rows,);
 }
@@ -302,7 +300,6 @@ async fn test_borrowed_bytea() {
     let stmt = client.prepare("SELECT 'foo'::BYTEA").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     let s: &[u8] = rows[0].get(0);
@@ -365,7 +362,6 @@ where
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     let val: T = rows[0].get(0);
@@ -391,7 +387,6 @@ async fn test_pg_database_datname() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     assert_eq!(rows[0].get::<_, &str>(0), "postgres");
@@ -418,10 +413,11 @@ async fn test_slice() {
         .unwrap();
     let rows = client
         .query(&stmt, &[&&[1i32, 3, 4][..]])
-        .map_ok(|r| r.get(0))
-        .try_collect::<Vec<String>>()
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|r| r.get(0))
+        .collect::<Vec<String>>();
 
     assert_eq!(vec!["a".to_owned(), "c".to_owned(), "d".to_owned()], rows);
 }
@@ -445,7 +441,6 @@ async fn test_slice_wrong_type() {
         .unwrap();
     let err = client
         .query(&stmt, &[&&[&"hi"][..]])
-        .try_collect::<Vec<_>>()
         .await
         .err()
         .unwrap();
@@ -462,7 +457,6 @@ async fn test_slice_range() {
     let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
     let err = client
         .query(&stmt, &[&&[&1i64][..]])
-        .try_collect::<Vec<_>>()
         .await
         .err()
         .unwrap();
@@ -535,7 +529,6 @@ async fn domain() {
     let stmt = client.prepare("SELECT id FROM pg_temp.foo").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     assert_eq!(id, rows[0].get(0));

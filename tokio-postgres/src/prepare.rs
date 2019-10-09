@@ -6,7 +6,7 @@ use crate::types::{Field, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
 use fallible_iterator::FallibleIterator;
-use futures::{future, TryStreamExt};
+use futures::TryStreamExt;
 use pin_utils::pin_mut;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -132,8 +132,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let stmt = typeinfo_statement(client).await?;
 
-    let params = &[&oid as _];
-    let rows = query::query(client, stmt, slice_iter(params));
+    let rows = query::query(client, stmt, slice_iter(&[&oid])).await?;
     pin_mut!(rows);
 
     let row = match rows.try_next().await? {
@@ -204,7 +203,8 @@ async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<St
     let stmt = typeinfo_enum_statement(client).await?;
 
     query::query(client, stmt, slice_iter(&[&oid]))
-        .and_then(|row| future::ready(row.try_get(0)))
+        .await?
+        .and_then(|row| async move { row.try_get(0) })
         .try_collect()
         .await
 }
@@ -230,6 +230,7 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     let stmt = typeinfo_composite_statement(client).await?;
 
     let rows = query::query(client, stmt, slice_iter(&[&oid]))
+        .await?
         .try_collect::<Vec<_>>()
         .await?;
 

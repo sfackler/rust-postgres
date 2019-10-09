@@ -126,7 +126,7 @@ async fn insert_select() {
     let (insert, select) = try_join!(insert, select).unwrap();
 
     let insert = client.execute(&insert, &[&"alice", &"bob"]);
-    let select = client.query(&select, &[]).try_collect::<Vec<_>>();
+    let select = client.query(&select, &[]);
     let (_, rows) = try_join!(insert, select).unwrap();
 
     assert_eq!(rows.len(), 2);
@@ -337,7 +337,6 @@ async fn transaction_commit() {
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 
@@ -369,7 +368,6 @@ async fn transaction_rollback() {
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 
@@ -400,7 +398,6 @@ async fn transaction_rollback_drop() {
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 
@@ -436,7 +433,6 @@ async fn copy_in() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 
@@ -503,7 +499,6 @@ async fn copy_in_error() {
         .unwrap();
     let rows = client
         .query(&stmt, &[])
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
     assert_eq!(rows.len(), 0);

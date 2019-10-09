@@ -122,11 +122,13 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.query_iter(query, params)?.collect()
+        executor::block_on(self.0.query(query, params))
     }
 
-    /// Like `query`, except that it returns a fallible iterator over the resulting rows rather than buffering the
-    /// response in memory.
+    /// A maximally-flexible version of `query`.
+    ///
+    /// It takes an iterator of parameters rather than a slice, and returns an iterator of rows rather than collecting
+    /// them into an array.
     ///
     /// # Panics
     ///
@@ -137,12 +139,13 @@ impl Client {
     /// ```no_run
     /// use postgres::{Client, NoTls};
     /// use fallible_iterator::FallibleIterator;
+    /// use std::iter;
     ///
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
     /// let baz = true;
-    /// let mut it = client.query_iter("SELECT foo FROM bar WHERE baz = $1", &[&baz])?;
+    /// let mut it = client.query_raw("SELECT foo FROM bar WHERE baz = $1", iter::once(&baz as _))?;
     ///
     /// while let Some(row) = it.next()? {
     ///     let foo: i32 = row.get("foo");
@@ -151,15 +154,18 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_iter<'a, T>(
-        &'a mut self,
-        query: &'a T,
-        params: &'a [&(dyn ToSql + Sync)],
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'a, Error>
+    pub fn query_raw<'a, T, I>(
+        &mut self,
+        query: &T,
+        params: I,
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
     where
         T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
     {
-        Ok(Iter::new(self.0.query(query, params)))
+        let stream = executor::block_on(self.0.query_raw(query, params))?;
+        Ok(Iter::new(stream))
     }
 
     /// Creates a new prepared statement.
