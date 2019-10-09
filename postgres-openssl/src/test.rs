@@ -1,4 +1,4 @@
-use futures::{FutureExt};
+use futures::FutureExt;
 use openssl::ssl::{SslConnector, SslMethod};
 use tokio::net::TcpStream;
 use tokio_postgres::tls::TlsConnect;
@@ -19,10 +19,7 @@ where
     tokio::spawn(connection);
 
     let stmt = client.prepare("SELECT $1::INT4").await.unwrap();
-    let rows = client
-        .query(&stmt, &[&1i32])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[&1i32]).await.unwrap();
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -107,10 +104,7 @@ async fn runtime() {
     tokio::spawn(connection);
 
     let stmt = client.prepare("SELECT $1::INT4").await.unwrap();
-    let rows = client
-        .query(&stmt, &[&1i32])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[&1i32]).await.unwrap();
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 1);

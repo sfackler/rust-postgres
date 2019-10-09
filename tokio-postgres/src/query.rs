@@ -3,7 +3,7 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
 use crate::{Error, Portal, Row, Statement};
-use futures::{ready, Stream, TryFutureExt};
+use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
@@ -26,25 +26,21 @@ where
     })
 }
 
-pub fn query_portal<'a>(
-    client: &'a InnerClient,
-    portal: &'a Portal,
+pub async fn query_portal(
+    client: &InnerClient,
+    portal: &Portal,
     max_rows: i32,
-) -> impl Stream<Item = Result<Row, Error>> + 'a {
-    let start = async move {
-        let mut buf = vec![];
-        frontend::execute(portal.name(), max_rows, &mut buf).map_err(Error::encode)?;
-        frontend::sync(&mut buf);
+) -> Result<RowStream, Error> {
+    let mut buf = vec![];
+    frontend::execute(portal.name(), max_rows, &mut buf).map_err(Error::encode)?;
+    frontend::sync(&mut buf);
 
-        let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+    let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-        Ok(RowStream {
-            statement: portal.statement().clone(),
-            responses,
-        })
-    };
-
-    start.try_flatten_stream()
+    Ok(RowStream {
+        statement: portal.statement().clone(),
+        responses,
+    })
 }
 
 pub async fn execute<'a, I>(

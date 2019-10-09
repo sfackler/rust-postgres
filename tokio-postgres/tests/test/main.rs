@@ -335,10 +335,7 @@ async fn transaction_commit() {
     transaction.commit().await.unwrap();
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "steven");
@@ -366,10 +363,7 @@ async fn transaction_rollback() {
     transaction.rollback().await.unwrap();
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 0);
 }
@@ -396,10 +390,7 @@ async fn transaction_rollback_drop() {
     drop(transaction);
 
     let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 0);
 }
@@ -431,10 +422,7 @@ async fn copy_in() {
         .prepare("SELECT id, name FROM foo ORDER BY id")
         .await
         .unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -497,10 +485,7 @@ async fn copy_in_error() {
         .prepare("SELECT id, name FROM foo ORDER BY id")
         .await
         .unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     assert_eq!(rows.len(), 0);
 }
 
@@ -583,9 +568,9 @@ async fn query_portal() {
     let transaction = client.transaction().await.unwrap();
 
     let portal = transaction.bind(&stmt, &[]).await.unwrap();
-    let f1 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
-    let f2 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
-    let f3 = transaction.query_portal(&portal, 2).try_collect::<Vec<_>>();
+    let f1 = transaction.query_portal(&portal, 2);
+    let f2 = transaction.query_portal(&portal, 2);
+    let f3 = transaction.query_portal(&portal, 2);
 
     let (r1, r2, r3) = try_join!(f1, f2, f3).unwrap();
 

@@ -195,10 +195,7 @@ async fn test_borrowed_text() {
     let client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT 'foo'").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     let s: &str = rows[0].get(0);
     assert_eq!(s, "foo");
 }
@@ -298,10 +295,7 @@ async fn test_bytea_params() {
 async fn test_borrowed_bytea() {
     let client = connect("user=postgres").await;
     let stmt = client.prepare("SELECT 'foo'::BYTEA").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     let s: &[u8] = rows[0].get(0);
     assert_eq!(s, b"foo");
 }
@@ -360,10 +354,7 @@ where
         .prepare(&format!("SELECT 'NaN'::{}", sql_type))
         .await
         .unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     let val: T = rows[0].get(0);
     assert!(val != val);
 }
@@ -385,10 +376,7 @@ async fn test_pg_database_datname() {
         .prepare("SELECT datname FROM pg_database")
         .await
         .unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     assert_eq!(rows[0].get::<_, &str>(0), "postgres");
 }
 
@@ -439,11 +427,7 @@ async fn test_slice_wrong_type() {
         .prepare("SELECT * FROM foo WHERE id = ANY($1)")
         .await
         .unwrap();
-    let err = client
-        .query(&stmt, &[&&[&"hi"][..]])
-        .await
-        .err()
-        .unwrap();
+    let err = client.query(&stmt, &[&&[&"hi"][..]]).await.err().unwrap();
     match err.source() {
         Some(e) if e.is::<WrongType>() => {}
         _ => panic!("Unexpected error {:?}", err),
@@ -455,11 +439,7 @@ async fn test_slice_range() {
     let client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
-    let err = client
-        .query(&stmt, &[&&[&1i64][..]])
-        .await
-        .err()
-        .unwrap();
+    let err = client.query(&stmt, &[&&[&1i64][..]]).await.err().unwrap();
     match err.source() {
         Some(e) if e.is::<WrongType>() => {}
         _ => panic!("Unexpected error {:?}", err),
@@ -527,10 +507,7 @@ async fn domain() {
     client.execute(&stmt, &[&id]).await.unwrap();
 
     let stmt = client.prepare("SELECT id FROM pg_temp.foo").await.unwrap();
-    let rows = client
-        .query(&stmt, &[])
-        .await
-        .unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
     assert_eq!(id, rows[0].get(0));
 }
 

@@ -11,7 +11,7 @@ use crate::{
     bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::{Bytes, IntoBuf};
-use futures::{Stream, TryStream};
+use futures::{Stream, TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -177,12 +177,20 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
-    pub fn query_portal<'b>(
-        &'b self,
-        portal: &'b Portal,
+    pub async fn query_portal(&self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
+        self.query_portal_raw(portal, max_rows)
+            .await?
+            .try_collect()
+            .await
+    }
+
+    /// The maximally flexible version of `query_portal`.
+    pub async fn query_portal_raw(
+        &self,
+        portal: &Portal,
         max_rows: i32,
-    ) -> impl Stream<Item = Result<Row, Error>> + 'b {
-        query::query_portal(self.client.inner(), portal, max_rows)
+    ) -> Result<RowStream, Error> {
+        query::query_portal(self.client.inner(), portal, max_rows).await
     }
 
     /// Like `Client::copy_in`.

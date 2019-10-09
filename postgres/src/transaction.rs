@@ -95,17 +95,17 @@ impl<'a> Transaction<'a> {
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all remaining rows will be returned.
     pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
-        self.query_portal_iter(portal, max_rows)?.collect()
+        executor::block_on(self.0.query_portal(portal, max_rows))
     }
 
-    /// Like `query_portal`, except that it returns a fallible iterator over the resulting rows rather than buffering
-    /// the entire response in memory.
-    pub fn query_portal_iter<'b>(
-        &'b mut self,
-        portal: &'b Portal,
+    /// The maximally flexible version of `query_portal`.
+    pub fn query_portal_raw(
+        &mut self,
+        portal: &Portal,
         max_rows: i32,
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error> + 'b, Error> {
-        Ok(Iter::new(self.0.query_portal(&portal, max_rows)))
+    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error> {
+        let stream = executor::block_on(self.0.query_portal_raw(portal, max_rows))?;
+        Ok(Iter::new(stream))
     }
 
     /// Like `Client::copy_in`.
