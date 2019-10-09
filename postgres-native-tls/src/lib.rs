@@ -110,6 +110,7 @@ where
 {
     type Stream = TlsStream<S>;
     type Error = native_tls::Error;
+    #[allow(clippy::type_complexity)]
     type Future = Pin<
         Box<dyn Future<Output = Result<(TlsStream<S>, ChannelBinding), native_tls::Error>> + Send>,
     >;

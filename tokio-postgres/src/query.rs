@@ -133,8 +133,8 @@ where
     );
     match r {
         Ok(()) => Ok(buf),
-        Err(frontend::BindError::Conversion(e)) => return Err(Error::to_sql(e, error_idx)),
-        Err(frontend::BindError::Serialization(e)) => return Err(Error::encode(e)),
+        Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
+        Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
     }
 }
 

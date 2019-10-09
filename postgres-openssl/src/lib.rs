@@ -132,6 +132,7 @@ where
 {
     type Stream = SslStream<S>;
     type Error = HandshakeError<S>;
+    #[allow(clippy::type_complexity)]
     type Future = Pin<
         Box<dyn Future<Output = Result<(SslStream<S>, ChannelBinding), HandshakeError<S>>> + Send>,
     >;

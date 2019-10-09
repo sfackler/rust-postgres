@@ -144,9 +144,8 @@ impl<'a> DatParser<'a> {
 
     fn eof(&mut self) {
         self.skip_ws();
-        match self.it.next() {
-            Some((_, ch)) => panic!("expected eof but got {}", ch),
-            None => {}
+        if let Some((_, ch)) = self.it.next() {
+            panic!("expected eof but got {}", ch);
         }
     }
 
