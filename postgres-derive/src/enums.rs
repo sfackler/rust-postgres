@@ -1,6 +1,6 @@
-use syn::{self, Error, Fields, Ident};
+use syn::{Error, Fields, Ident};
 
-use overrides::Overrides;
+use crate::overrides::Overrides;
 
 pub struct Variant {
     pub ident: Ident,

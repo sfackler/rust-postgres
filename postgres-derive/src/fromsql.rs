@@ -1,11 +1,12 @@
 use proc_macro2::{Span, TokenStream};
+use quote::quote;
 use std::iter;
-use syn::{self, Data, DataStruct, DeriveInput, Error, Fields, Ident};
+use syn::{Data, DataStruct, DeriveInput, Error, Fields, Ident};
 
-use accepts;
-use composites::Field;
-use enums::Variant;
-use overrides::Overrides;
+use crate::accepts;
+use crate::composites::Field;
+use crate::enums::Variant;
+use crate::overrides::Overrides;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs)?;

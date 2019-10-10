@@ -1,9 +1,10 @@
 use proc_macro2::{Span, TokenStream};
+use quote::quote;
 use std::iter;
 use syn::Ident;
 
-use composites::Field;
-use enums::Variant;
+use crate::composites::Field;
+use crate::enums::Variant;
 
 pub fn domain_body(name: &str, field: &syn::Field) -> TokenStream {
     let ty = &field.ty;

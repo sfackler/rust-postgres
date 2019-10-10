@@ -1,6 +1,6 @@
-use syn::{self, Error, Ident, Type};
+use syn::{Error, Ident, Type};
 
-use overrides::Overrides;
+use crate::overrides::Overrides;
 
 pub struct Field {
     pub name: String,

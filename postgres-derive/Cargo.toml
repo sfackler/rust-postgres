@@ -3,8 +3,9 @@ name = "postgres-derive"
 version = "0.3.3"
 authors = ["Steven Fackler <sfackler@palantir.com>"]
 license = "MIT/Apache-2.0"
+edition = "2018"
 description = "Deriving plugin support for Postgres enum, domain, and composite types"
-repository = "https://github.com/sfackler/rust-postgres-derive"
+repository = "https://github.com/sfackler/rust-postgres"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 
