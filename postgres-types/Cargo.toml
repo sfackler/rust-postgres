@@ -5,6 +5,7 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 
 [features]
+"derive" = ["postgres-derive"]
 "with-bit-vec-0_6" = ["bit-vec-06"]
 "with-chrono-0_4" = ["chrono-04"]
 "with-eui48-0_4" = ["eui48-04"]
@@ -15,6 +16,7 @@ with-serde_json-1 = ["serde-1", "serde_json-1"]
 [dependencies]
 fallible-iterator = "0.2"
 postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }
+postgres-derive = { version = "0.3.3", optional = true, path = "../postgres-derive" }
 
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }

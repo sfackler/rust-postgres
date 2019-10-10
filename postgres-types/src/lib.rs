@@ -17,6 +17,9 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "derive")]
+pub use postgres_derive::{FromSql, ToSql};
+
 #[cfg(feature = "with-serde_json-1")]
 pub use crate::serde_json_1::Json;
 use crate::type_gen::{Inner, Other};

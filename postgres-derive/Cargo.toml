@@ -1,0 +1,18 @@
+[package]
+name = "postgres-derive"
+version = "0.3.3"
+authors = ["Steven Fackler <sfackler@palantir.com>"]
+license = "MIT/Apache-2.0"
+description = "Deriving plugin support for Postgres enum, domain, and composite types"
+repository = "https://github.com/sfackler/rust-postgres-derive"
+readme = "README.md"
+keywords = ["database", "postgres", "postgresql", "sql"]
+
+[lib]
+proc-macro = true
+test = false
+
+[dependencies]
+syn = "1.0"
+proc-macro2 = "1.0"
+quote = "1.0"
