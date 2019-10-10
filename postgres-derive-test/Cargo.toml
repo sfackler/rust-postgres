@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 
-[dependencies]
+[dev-dependencies]
+trybuild = "1.0"
+
 postgres-types = { path = "../postgres-types", features = ["derive"] }
 postgres = { path = "../postgres" }

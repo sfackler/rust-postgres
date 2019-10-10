@@ -51,7 +51,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
         _ => {
             return Err(Error::new_spanned(
                 input,
-                "#[derive(ToSql)] may only be applied to structs, single field tuple structs, and enums",
+                "#[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums",
             ))
         }
     };

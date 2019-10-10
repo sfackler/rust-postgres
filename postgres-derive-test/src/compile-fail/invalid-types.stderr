@@ -1,0 +1,35 @@
+error: #[derive(ToSql)] may only be applied to structs, single field tuple structs, and enums
+ --> $DIR/invalid-types.rs:4:1
+  |
+4 | struct ToSqlUnit;
+  | ^^^^^^^^^^^^^^^^^
+
+error: #[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums
+ --> $DIR/invalid-types.rs:7:1
+  |
+7 | struct FromSqlUnit;
+  | ^^^^^^^^^^^^^^^^^^^
+
+error: #[derive(ToSql)] may only be applied to structs, single field tuple structs, and enums
+  --> $DIR/invalid-types.rs:10:1
+   |
+10 | struct ToSqlTuple(i32, i32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: #[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums
+  --> $DIR/invalid-types.rs:13:1
+   |
+13 | struct FromSqlTuple(i32, i32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: non-C-like enums are not supported
+  --> $DIR/invalid-types.rs:17:5
+   |
+17 |     Foo(i32),
+   |     ^^^^^^^^
+
+error: non-C-like enums are not supported
+  --> $DIR/invalid-types.rs:22:5
+   |
+22 |     Foo(i32),
+   |     ^^^^^^^^

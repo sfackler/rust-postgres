@@ -25,3 +25,8 @@ where
         assert_eq!(val, &result);
     }
 }
+
+#[test]
+fn compile_fail() {
+    trybuild::TestCases::new().compile_fail("src/compile-fail/*.rs");
+}

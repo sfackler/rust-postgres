@@ -1,0 +1,11 @@
+error: unknown override
+ --> $DIR/unknown-override.rs:4:12
+  |
+4 | #[postgres(foo = "bar")]
+  |            ^^^
+
+error: unknown override
+  --> $DIR/unknown-override.rs:10:12
+   |
+10 | #[postgres(foo = "bar")]
+   |            ^^^
