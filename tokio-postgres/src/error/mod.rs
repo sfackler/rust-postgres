@@ -345,6 +345,7 @@ enum Kind {
     Authentication,
     ConfigParse,
     Config,
+    RowCount,
     #[cfg(feature = "runtime")]
     Connect,
 }
@@ -383,6 +384,7 @@ impl fmt::Display for Error {
             Kind::Authentication => fmt.write_str("authentication error")?,
             Kind::ConfigParse => fmt.write_str("invalid connection string")?,
             Kind::Config => fmt.write_str("invalid configuration")?,
+            Kind::RowCount => fmt.write_str("query returned an unexpected number of rows")?,
             #[cfg(feature = "runtime")]
             Kind::Connect => fmt.write_str("error connecting to server")?,
         };
@@ -481,6 +483,10 @@ impl Error {
 
     pub(crate) fn config(e: Box<dyn error::Error + Sync + Send>) -> Error {
         Error::new(Kind::Config, Some(e))
+    }
+
+    pub(crate) fn row_count() -> Error {
+        Error::new(Kind::RowCount, None)
     }
 
     #[cfg(feature = "runtime")]

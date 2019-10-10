@@ -9,6 +9,7 @@ use crate::query::RowStream;
 use crate::slice_iter;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
+use pin_utils::pin_mut;
 use crate::tls::TlsConnect;
 use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
@@ -195,6 +196,13 @@ impl Client {
 
     /// Executes a statement, returning a vector of the resulting rows.
     ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
@@ -212,7 +220,51 @@ impl Client {
             .await
     }
 
+    /// Executes a statement which returns a single row, returning it.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub async fn query_one<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Row, Error>
+    where
+        T: ?Sized + ToStatement
+    {
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        pin_mut!(stream);
+
+        let row = match stream.try_next().await? {
+            Some(row) => row,
+            None => return Err(Error::row_count()),
+        };
+
+        if stream.try_next().await?.is_some() {
+            return Err(Error::row_count());
+        }
+
+        Ok(row)
+    }
+
     /// The maximally flexible version of [`query`].
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
     ///
     /// # Panics
     ///
@@ -231,6 +283,13 @@ impl Client {
 
     /// Executes a statement, returning the number of rows modified.
     ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
     /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
     ///
     /// # Panics
@@ -248,6 +307,13 @@ impl Client {
     }
 
     /// The maximally flexible version of [`execute`].
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
     ///
     /// # Panics
     ///

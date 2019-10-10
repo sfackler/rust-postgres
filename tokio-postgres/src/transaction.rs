@@ -106,6 +106,18 @@ impl<'a> Transaction<'a> {
         self.client.query(statement, params).await
     }
 
+    /// Like `Client::query_one`.
+    pub async fn query_one<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Row, Error>
+        where
+            T: ?Sized + ToStatement,
+    {
+        self.client.query_one(statement, params).await
+    }
+
     /// Like `Client::query_raw`.
     pub async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where

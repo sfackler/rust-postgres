@@ -96,8 +96,6 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// The `query_iter` method can be used to avoid buffering all rows in memory at once.
-    ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
@@ -123,6 +121,41 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         executor::block_on(self.0.query(query, params))
+    }
+
+    /// Executes a statement which returns a single row, returning it.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `query` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let baz = true;
+    /// let row = client.query_one("SELECT foo FROM bar WHERE baz = $1", &[&baz])?;
+    /// let foo: i32 = row.get("foo");
+    /// println!("foo: {}", foo);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        executor::block_on(self.0.query_one(query, params))
     }
 
     /// A maximally-flexible version of `query`.
