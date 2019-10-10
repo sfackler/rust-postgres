@@ -3,13 +3,12 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
-use crate::simple_query::SimpleQueryStream;
 use crate::copy_out::CopyStream;
 use crate::query::RowStream;
+use crate::simple_query::SimpleQueryStream;
 use crate::slice_iter;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
-use pin_utils::pin_mut;
 use crate::tls::TlsConnect;
 use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
@@ -25,6 +24,7 @@ use futures::channel::mpsc;
 use futures::{future, TryStream, TryStreamExt};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
+use pin_utils::pin_mut;
 use postgres_protocol::message::backend::Message;
 use std::collections::HashMap;
 use std::error;
@@ -240,7 +240,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement
+        T: ?Sized + ToStatement,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
@@ -387,10 +387,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub async fn simple_query(
-        &self,
-        query: &str,
-    ) -> Result<Vec<SimpleQueryMessage>, Error> {
+    pub async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.simple_query_raw(query).await?.try_collect().await
     }
 

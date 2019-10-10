@@ -96,6 +96,9 @@ mod serde_json_1;
 #[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
 
+#[cfg(feature = "derive")]
+#[doc(hidden)]
+pub mod private;
 mod special;
 mod type_gen;
 

@@ -82,7 +82,8 @@ where
             }
 
             rows.as_mut().poll(cx)
-        }).await?;
+        })
+        .await?;
         pin_mut!(rows);
 
         loop {

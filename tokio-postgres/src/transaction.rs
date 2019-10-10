@@ -112,8 +112,8 @@ impl<'a> Transaction<'a> {
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
-        where
-            T: ?Sized + ToStatement,
+    where
+        T: ?Sized + ToStatement,
     {
         self.client.query_one(statement, params).await
     }
@@ -236,10 +236,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::simple_query`.
-    pub async fn simple_query(
-        &self,
-        query: &str,
-    ) -> Result<Vec<SimpleQueryMessage>, Error> {
+    pub async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.client.simple_query(query).await
     }
 
