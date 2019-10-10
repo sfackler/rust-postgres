@@ -12,7 +12,7 @@ use crate::{
     bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::IntoBuf;
-use futures::{Stream, TryStream, TryStreamExt};
+use futures::{TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -224,11 +224,11 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::simple_query`.
-    pub fn simple_query<'b>(
-        &'b self,
-        query: &'b str,
-    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'b {
-        self.client.simple_query(query)
+    pub async fn simple_query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<SimpleQueryMessage>, Error> {
+        self.client.simple_query(query).await
     }
 
     /// Like `Client::batch_execute`.

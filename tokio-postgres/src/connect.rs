@@ -4,7 +4,7 @@ use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
-use futures::future;
+use futures::{future, Future};
 use futures::{FutureExt, Stream};
 use pin_utils::pin_mut;
 use std::io;
@@ -50,7 +50,7 @@ where
         }
     }
 
-    return Err(error.unwrap());
+    Err(error.unwrap())
 }
 
 async fn connect_once<T>(
@@ -73,7 +73,16 @@ where
     let (mut client, mut connection) = connect_raw(socket, tls, config).await?;
 
     if let TargetSessionAttrs::ReadWrite = config.target_session_attrs {
-        let rows = client.simple_query("SHOW transaction_read_only");
+        let rows = client.simple_query_raw("SHOW transaction_read_only");
+        pin_mut!(rows);
+
+        let rows = future::poll_fn(|cx| {
+            if connection.poll_unpin(cx)?.is_ready() {
+                return Poll::Ready(Err(Error::closed()));
+            }
+
+            rows.as_mut().poll(cx)
+        }).await?;
         pin_mut!(rows);
 
         loop {

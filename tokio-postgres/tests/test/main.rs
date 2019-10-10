@@ -264,7 +264,6 @@ async fn simple_query() {
             INSERT INTO foo (name) VALUES ('steven'), ('joe');
             SELECT * FROM foo ORDER BY id;",
         )
-        .try_collect::<Vec<_>>()
         .await
         .unwrap();
 

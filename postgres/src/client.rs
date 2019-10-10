@@ -303,22 +303,7 @@ impl Client {
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        self.simple_query_iter(query)?.collect()
-    }
-
-    /// Like `simple_query`, except that it returns a fallible iterator over the resulting values rather than buffering
-    /// the response in memory.
-    ///
-    /// # Warning
-    ///
-    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
-    /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
-    /// them to this method!
-    pub fn simple_query_iter<'a>(
-        &'a mut self,
-        query: &'a str,
-    ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'a, Error> {
-        Ok(Iter::new(self.0.simple_query(query)))
+        executor::block_on(self.0.simple_query(query))
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.

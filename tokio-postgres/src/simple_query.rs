@@ -3,27 +3,24 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use fallible_iterator::FallibleIterator;
-use futures::{ready, Stream, TryFutureExt};
+use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-pub fn simple_query<'a>(
-    client: &'a InnerClient,
-    query: &'a str,
-) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'a {
-    let f = async move {
-        let buf = encode(query)?;
-        let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+pub async fn simple_query(
+    client: &InnerClient,
+    query: &str,
+) -> Result<SimpleQueryStream, Error> {
+    let buf = encode(query)?;
+    let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-        Ok(SimpleQuery {
-            responses,
-            columns: None,
-        })
-    };
-    f.try_flatten_stream()
+    Ok(SimpleQueryStream {
+        responses,
+        columns: None,
+    })
 }
 
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
@@ -48,12 +45,12 @@ fn encode(query: &str) -> Result<Vec<u8>, Error> {
     Ok(buf)
 }
 
-struct SimpleQuery {
+pub struct SimpleQueryStream {
     responses: Responses,
     columns: Option<Arc<[String]>>,
 }
 
-impl Stream for SimpleQuery {
+impl Stream for SimpleQueryStream {
     type Item = Result<SimpleQueryMessage, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

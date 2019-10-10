@@ -3,6 +3,7 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
+use crate::simple_query::SimpleQueryStream;
 use crate::copy_out::CopyStream;
 use crate::query::RowStream;
 use crate::slice_iter;
@@ -20,7 +21,7 @@ use crate::{Error, Statement};
 use bytes::IntoBuf;
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, Stream, TryStream, TryStreamExt};
+use futures::{future, TryStream, TryStreamExt};
 use futures::{ready, StreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
@@ -320,11 +321,15 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    pub fn simple_query<'a>(
-        &'a self,
-        query: &'a str,
-    ) -> impl Stream<Item = Result<SimpleQueryMessage, Error>> + 'a {
-        simple_query::simple_query(self.inner(), query)
+    pub async fn simple_query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<SimpleQueryMessage>, Error> {
+        self.simple_query_raw(query).await?.try_collect().await
+    }
+
+    pub(crate) async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
+        simple_query::simple_query(self.inner(), query).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.

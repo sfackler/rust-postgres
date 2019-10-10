@@ -137,15 +137,7 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::simple_query`.
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        self.simple_query_iter(query)?.collect()
-    }
-
-    /// Like `Client::simple_query_iter`.
-    pub fn simple_query_iter<'b>(
-        &'b mut self,
-        query: &'b str,
-    ) -> Result<impl FallibleIterator<Item = SimpleQueryMessage, Error = Error> + 'b, Error> {
-        Ok(Iter::new(self.0.simple_query(query)))
+        executor::block_on(self.0.simple_query(query))
     }
 
     /// Like `Client::batch_execute`.
