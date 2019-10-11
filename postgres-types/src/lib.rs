@@ -2,6 +2,109 @@
 //!
 //! This crate is used by the `tokio-postgres` and `postgres` crates. You normally don't need to depend directly on it
 //! unless you want to define your own `ToSql` or `FromSql` definitions.
+//!
+//! # Derive
+//!
+//! If the `derive` cargo feature is enabled, you can derive `ToSql` and `FromSql` implementations for custom Postgres
+//! types.
+//!
+//! ## Enums
+//!
+//! Postgres enums correspond to C-like enums in Rust:
+//!
+//! ```sql
+//! CREATE TYPE "Mood" AS ENUM (
+//!     'Sad',
+//!     'Ok',
+//!     'Happy'
+//! );
+//! ```
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! enum Mood {
+//!     Sad,
+//!     Ok,
+//!     Happy,
+//! }
+//! ```
+//!
+//! ## Domains
+//!
+//! Postgres domains correspond to tuple structs with one member in Rust:
+//!
+//! ```sql
+//! CREATE DOMAIN "SessionId" AS BYTEA CHECK(octet_length(VALUE) = 16);
+//! ```
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! struct SessionId(Vec<u8>);
+//! ```
+//!
+//! ## Composites
+//!
+//! Postgres composite types correspond to structs in Rust:
+//!
+//! ```sql
+//! CREATE TYPE "InventoryItem" AS (
+//!     name TEXT,
+//!     supplier_id INT,
+//!     price DOUBLE PRECISION
+//! );
+//! ```
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! struct InventoryItem {
+//!     name: String,
+//!     supplier_id: i32,
+//!     price: Option<f64>,
+//! }
+//! ```
+//!
+//! ## Naming
+//!
+//! The derived implementations will enforce exact matches of type, field, and variant names between the Rust and
+//! Postgres types. The `#[postgres(name = "...")]` attribute can be used to adjust the name on a type, variant, or
+//! field:
+//!
+//! ```sql
+//! CREATE TYPE mood AS ENUM (
+//!     'sad',
+//!     'ok',
+//!     'happy'
+//! );
+//! ```
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "mood")]
+//! enum Mood {
+//!     #[postgres(name = "sad")]
+//!     Sad,
+//!     #[postgres(name = "ok")]
+//!     Ok,
+//!     #[postgres(name = "happy")]
+//!     Happy,
+//! }
+//! ```
 #![warn(missing_docs)]
 
 use fallible_iterator::FallibleIterator;
