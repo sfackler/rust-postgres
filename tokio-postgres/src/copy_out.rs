@@ -18,12 +18,12 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = query::encode(&statement, params)?;
+    let buf = query::encode(client, &statement, params)?;
     let responses = start(client, buf).await?;
     Ok(CopyStream { responses })
 }
 
-async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
+async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {

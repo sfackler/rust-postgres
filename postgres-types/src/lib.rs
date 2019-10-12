@@ -131,6 +131,7 @@ use crate::type_gen::{Inner, Other};
 pub use postgres_protocol::Oid;
 
 pub use crate::special::{Date, Timestamp};
+use bytes::{BufMut, BytesMut};
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -159,7 +160,7 @@ macro_rules! to_sql_checked {
     () => {
         fn to_sql_checked(&self,
                           ty: &$crate::Type,
-                          out: &mut ::std::vec::Vec<u8>)
+                          out: &mut $crate::private::BytesMut)
                           -> ::std::result::Result<$crate::IsNull,
                                                    Box<dyn ::std::error::Error +
                                                        ::std::marker::Sync +
@@ -175,7 +176,7 @@ macro_rules! to_sql_checked {
 pub fn __to_sql_checked<T>(
     v: &T,
     ty: &Type,
-    out: &mut Vec<u8>,
+    out: &mut BytesMut,
 ) -> Result<IsNull, Box<dyn Error + Sync + Send>>
 where
     T: ToSql,
@@ -199,11 +200,34 @@ mod serde_json_1;
 #[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
 
-#[cfg(feature = "derive")]
 #[doc(hidden)]
 pub mod private;
 mod special;
 mod type_gen;
+
+// https://github.com/tokio-rs/bytes/issues/170
+struct B<'a>(&'a mut BytesMut);
+
+impl<'a> BufMut for B<'a> {
+    #[inline]
+    fn remaining_mut(&self) -> usize {
+        usize::max_value() - self.0.len()
+    }
+
+    #[inline]
+    unsafe fn advance_mut(&mut self, cnt: usize) {
+        self.0.advance_mut(cnt);
+    }
+
+    #[inline]
+    unsafe fn bytes_mut(&mut self) -> &mut [u8] {
+        if !self.0.has_remaining_mut() {
+            self.0.reserve(64);
+        }
+
+        self.0.bytes_mut()
+    }
+}
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -625,7 +649,7 @@ pub enum IsNull {
 /// | `f32`                             | REAL                                 |
 /// | `f64`                             | DOUBLE PRECISION                     |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
-/// | `&[u8]`/Vec<u8>`                  | BYTEA                                |
+/// | `&[u8]`/`Vec<u8>`                 | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
 /// | `IpAddr`                          | INET                                 |
@@ -673,7 +697,7 @@ pub trait ToSql: fmt::Debug {
     /// The return value indicates if this value should be represented as
     /// `NULL`. If this is the case, implementations **must not** write
     /// anything to `out`.
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>>
+    fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>>
     where
         Self: Sized;
 
@@ -690,7 +714,7 @@ pub trait ToSql: fmt::Debug {
     fn to_sql_checked(
         &self,
         ty: &Type,
-        out: &mut Vec<u8>,
+        out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
 }
 
@@ -698,7 +722,11 @@ impl<'a, T> ToSql for &'a T
 where
     T: ToSql,
 {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         (*self).to_sql(ty, out)
     }
 
@@ -710,7 +738,11 @@ where
 }
 
 impl<T: ToSql> ToSql for Option<T> {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         match *self {
             Some(ref val) => val.to_sql(ty, out),
             None => Ok(IsNull::Yes),
@@ -725,7 +757,7 @@ impl<T: ToSql> ToSql for Option<T> {
 }
 
 impl<'a, T: ToSql> ToSql for &'a [T] {
-    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
             _ => panic!("expected array type"),
@@ -760,7 +792,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 }
 
 impl<'a> ToSql for &'a [u8] {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::bytea_to_sql(*self, w);
         Ok(IsNull::No)
     }
@@ -771,7 +803,7 @@ impl<'a> ToSql for &'a [u8] {
 }
 
 impl<T: ToSql> ToSql for Vec<T> {
-    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[T] as ToSql>::to_sql(&&**self, ty, w)
     }
 
@@ -783,7 +815,7 @@ impl<T: ToSql> ToSql for Vec<T> {
 }
 
 impl ToSql for Vec<u8> {
-    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[u8] as ToSql>::to_sql(&&**self, ty, w)
     }
 
@@ -795,7 +827,7 @@ impl ToSql for Vec<u8> {
 }
 
 impl<'a> ToSql for &'a str {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::text_to_sql(*self, w);
         Ok(IsNull::No)
     }
@@ -812,7 +844,7 @@ impl<'a> ToSql for &'a str {
 }
 
 impl<'a> ToSql for Cow<'a, str> {
-    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&self.as_ref(), ty, w)
     }
 
@@ -824,7 +856,7 @@ impl<'a> ToSql for Cow<'a, str> {
 }
 
 impl ToSql for String {
-    fn to_sql(&self, ty: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&**self, ty, w)
     }
 
@@ -840,7 +872,7 @@ macro_rules! simple_to {
         impl ToSql for $t {
             fn to_sql(&self,
                       _: &Type,
-                      w: &mut Vec<u8>)
+                      w: &mut BytesMut)
                       -> Result<IsNull, Box<dyn Error + Sync + Send>> {
                 types::$f(*self, w);
                 Ok(IsNull::No)
@@ -866,7 +898,7 @@ impl<H> ToSql for HashMap<String, Option<String>, H>
 where
     H: BuildHasher,
 {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::hstore_to_sql(
             self.iter().map(|(k, v)| (&**k, v.as_ref().map(|v| &**v))),
             w,
@@ -882,7 +914,7 @@ where
 }
 
 impl ToSql for SystemTime {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
 
         let to_usec =
@@ -903,7 +935,7 @@ impl ToSql for SystemTime {
 }
 
 impl ToSql for IpAddr {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let netmask = match self {
             IpAddr::V4(_) => 32,
             IpAddr::V6(_) => 128,

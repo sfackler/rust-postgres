@@ -20,8 +20,11 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     let name = format!("p{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
-    let mut buf = query::encode_bind(&statement, params, &name)?;
-    frontend::sync(&mut buf);
+    let buf = client.with_buf(|buf| {
+        query::encode_bind(&statement, params, &name, buf)?;
+        frontend::sync(buf);
+        Ok(buf.take().freeze())
+    })?;
 
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 

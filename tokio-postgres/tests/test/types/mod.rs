@@ -10,6 +10,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
 
 use crate::connect;
+use bytes::BytesMut;
 
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
@@ -455,7 +456,7 @@ async fn domain() {
         fn to_sql(
             &self,
             ty: &Type,
-            out: &mut Vec<u8>,
+            out: &mut BytesMut,
         ) -> result::Result<IsNull, Box<dyn Error + Sync + Send>> {
             let inner = match *ty.kind() {
                 Kind::Domain(ref inner) => inner,

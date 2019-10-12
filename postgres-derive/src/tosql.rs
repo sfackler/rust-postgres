@@ -59,7 +59,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
         impl postgres_types::ToSql for #ident {
             fn to_sql(&self,
                       _type: &postgres_types::Type,
-                      buf: &mut std::vec::Vec<u8>)
+                      buf: &mut postgres_types::private::BytesMut)
                       -> std::result::Result<postgres_types::IsNull,
                                              std::boxed::Box<std::error::Error +
                                                              std::marker::Sync +

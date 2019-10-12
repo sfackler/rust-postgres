@@ -1,4 +1,5 @@
 use bit_vec_06::BitVec;
+use bytes::BytesMut;
 use postgres_protocol::types;
 use std::error::Error;
 
@@ -19,7 +20,7 @@ impl<'a> FromSql<'a> for BitVec {
 }
 
 impl ToSql for BitVec {
-    fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::varbit_to_sql(self.len(), self.to_bytes().into_iter(), out)?;
         Ok(IsNull::No)
     }

@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use serde_1::{Deserialize, Serialize};
 use serde_json_1::Value;
 use std::error::Error;
@@ -35,7 +36,11 @@ impl<T> ToSql for Json<T>
 where
     T: Serialize + Debug,
 {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         if *ty == Type::JSONB {
             out.push(1);
         }
@@ -56,7 +61,11 @@ impl<'a> FromSql<'a> for Value {
 }
 
 impl ToSql for Value {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         Json(self).to_sql(ty, out)
     }
 

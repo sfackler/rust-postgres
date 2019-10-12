@@ -14,6 +14,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use bytes::Bytes;
 
 const TYPEINFO_QUERY: &str = "\
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -63,9 +64,7 @@ pub async fn prepare(
     types: &[Type],
 ) -> Result<Statement, Error> {
     let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
-    let buf = encode(&name, query, types);
-
-    let buf = buf?;
+    let buf = encode(client, &name, query, types)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
@@ -112,13 +111,13 @@ fn prepare_rec<'a>(
     Box::pin(prepare(client, query, types))
 }
 
-fn encode(name: &str, query: &str, types: &[Type]) -> Result<Vec<u8>, Error> {
-    let mut buf = vec![];
-    frontend::parse(name, query, types.iter().map(Type::oid), &mut buf).map_err(Error::encode)?;
-    frontend::describe(b'S', &name, &mut buf).map_err(Error::encode)?;
-    frontend::sync(&mut buf);
-
-    Ok(buf)
+fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
+    client.with_buf(|buf| {
+        frontend::parse(name, query, types.iter().map(Type::oid), buf).map_err(Error::encode)?;
+        frontend::describe(b'S', &name, buf).map_err(Error::encode)?;
+        frontend::sync(buf);
+        Ok(buf.take().freeze())
+    })
 }
 
 async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {

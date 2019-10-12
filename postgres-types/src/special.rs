@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use postgres_protocol::types;
 use std::error::Error;
 use std::{i32, i64};
@@ -30,7 +31,11 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Date<T> {
 }
 
 impl<T: ToSql> ToSql for Date<T> {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let value = match *self {
             Date::PosInfinity => i32::MAX,
             Date::NegInfinity => i32::MIN,
@@ -78,7 +83,11 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
 }
 
 impl<T: ToSql> ToSql for Timestamp<T> {
-    fn to_sql(&self, ty: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let value = match *self {
             Timestamp::PosInfinity => i64::MAX,
             Timestamp::NegInfinity => i64::MIN,

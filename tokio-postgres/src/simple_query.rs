@@ -9,9 +9,10 @@ use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use bytes::Bytes;
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
-    let buf = encode(query)?;
+    let buf = encode(client, query)?;
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     Ok(SimpleQueryStream {
@@ -21,7 +22,7 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
 }
 
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
-    let buf = encode(query)?;
+    let buf = encode(client, query)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     loop {
@@ -36,10 +37,11 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
     }
 }
 
-fn encode(query: &str) -> Result<Vec<u8>, Error> {
-    let mut buf = vec![];
-    frontend::query(query, &mut buf).map_err(Error::encode)?;
-    Ok(buf)
+fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
+    client.with_buf(|buf| {
+        frontend::query(query, buf).map_err(Error::encode)?;
+        Ok(buf.take().freeze())
+    })
 }
 
 pub struct SimpleQueryStream {

@@ -8,6 +8,7 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use bytes::{Bytes, BytesMut};
 
 pub async fn query<'a, I>(
     client: &InnerClient,
@@ -18,7 +19,7 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = encode(&statement, params)?;
+    let buf = encode(client, &statement, params)?;
     let responses = start(client, buf).await?;
     Ok(RowStream {
         statement,
@@ -31,9 +32,11 @@ pub async fn query_portal(
     portal: &Portal,
     max_rows: i32,
 ) -> Result<RowStream, Error> {
-    let mut buf = vec![];
-    frontend::execute(portal.name(), max_rows, &mut buf).map_err(Error::encode)?;
-    frontend::sync(&mut buf);
+    let buf = client.with_buf(|buf| {
+        frontend::execute(portal.name(), max_rows, buf).map_err(Error::encode)?;
+        frontend::sync(buf);
+        Ok(buf.take().freeze())
+    })?;
 
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
@@ -52,7 +55,7 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = encode(&statement, params)?;
+    let buf = encode(client, &statement, params)?;
     let mut responses = start(client, buf).await?;
 
     loop {
@@ -75,7 +78,7 @@ where
     }
 }
 
-async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
+async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
@@ -86,19 +89,20 @@ async fn start(client: &InnerClient, buf: Vec<u8>) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-pub fn encode<'a, I>(statement: &Statement, params: I) -> Result<Vec<u8>, Error>
+pub fn encode<'a, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let mut buf = encode_bind(statement, params, "")?;
-    frontend::execute("", 0, &mut buf).map_err(Error::encode)?;
-    frontend::sync(&mut buf);
-
-    Ok(buf)
+    client.with_buf(|buf| {
+        encode_bind(statement, params, "", buf)?;
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+        frontend::sync(buf);
+        Ok(buf.take().freeze())
+    })
 }
 
-pub fn encode_bind<'a, I>(statement: &Statement, params: I, portal: &str) -> Result<Vec<u8>, Error>
+pub fn encode_bind<'a, I>(statement: &Statement, params: I, portal: &str, buf: &mut BytesMut) -> Result<(), Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
@@ -111,8 +115,6 @@ where
         statement.params().len(),
         params.len()
     );
-
-    let mut buf = vec![];
 
     let mut error_idx = 0;
     let r = frontend::bind(
@@ -129,10 +131,10 @@ where
             }
         },
         Some(1),
-        &mut buf,
+        buf,
     );
     match r {
-        Ok(()) => Ok(buf),
+        Ok(()) => Ok(()),
         Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
         Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
     }

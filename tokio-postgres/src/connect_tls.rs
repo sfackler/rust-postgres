@@ -5,6 +5,7 @@ use crate::tls::{ChannelBinding, TlsConnect};
 use crate::Error;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use bytes::BytesMut;
 
 pub async fn connect_tls<S, T>(
     mut stream: S,
@@ -24,7 +25,7 @@ where
         SslMode::__NonExhaustive => unreachable!(),
     }
 
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::ssl_request(&mut buf);
     stream.write_all(&buf).await.map_err(Error::io)?;
 

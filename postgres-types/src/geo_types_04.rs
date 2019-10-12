@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use geo_types_04::{Coordinate, LineString, Point, Rect};
 use postgres_protocol::types;
@@ -15,7 +16,7 @@ impl<'a> FromSql<'a> for Point<f64> {
 }
 
 impl ToSql for Point<f64> {
-    fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::point_to_sql(self.x(), self.y(), out);
         Ok(IsNull::No)
     }
@@ -43,7 +44,7 @@ impl<'a> FromSql<'a> for Rect<f64> {
 }
 
 impl ToSql for Rect<f64> {
-    fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::box_to_sql(self.min.x, self.min.y, self.max.x, self.max.y, out);
         Ok(IsNull::No)
     }
@@ -66,7 +67,7 @@ impl<'a> FromSql<'a> for LineString<f64> {
 }
 
 impl ToSql for LineString<f64> {
-    fn to_sql(&self, _: &Type, out: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let closed = false; // always encode an open path from LineString
         types::path_to_sql(closed, self.0.iter().map(|p| (p.x, p.y)), out)?;
         Ok(IsNull::No)

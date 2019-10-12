@@ -46,17 +46,17 @@ impl Stream for CopyInReceiver {
             Some(CopyInMessage::Message(message)) => Poll::Ready(Some(message)),
             Some(CopyInMessage::Done) => {
                 self.done = true;
-                let mut buf = vec![];
+                let mut buf = BytesMut::new();
                 frontend::copy_done(&mut buf);
                 frontend::sync(&mut buf);
-                Poll::Ready(Some(FrontendMessage::Raw(buf)))
+                Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())))
             }
             None => {
                 self.done = true;
-                let mut buf = vec![];
+                let mut buf = BytesMut::new();
                 frontend::copy_fail("", &mut buf).unwrap();
                 frontend::sync(&mut buf);
-                Poll::Ready(Some(FrontendMessage::Raw(buf)))
+                Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())))
             }
         }
     }
@@ -76,7 +76,7 @@ where
     <S::Ok as IntoBuf>::Buf: 'static + Send,
     S::Error: Into<Box<dyn error::Error + Sync + Send>>,
 {
-    let buf = query::encode(&statement, params)?;
+    let buf = query::encode(client, &statement, params)?;
 
     let (mut sender, receiver) = mpsc::channel(1);
     let receiver = CopyInReceiver::new(receiver);

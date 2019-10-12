@@ -18,7 +18,7 @@ use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
-use bytes::IntoBuf;
+use bytes::{IntoBuf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{future, TryStream, TryStreamExt};
@@ -64,6 +64,7 @@ struct State {
     typeinfo_composite: Option<Statement>,
     typeinfo_enum: Option<Statement>,
     types: HashMap<Oid, Type>,
+    buf: BytesMut,
 }
 
 pub struct InnerClient {
@@ -116,6 +117,13 @@ impl InnerClient {
     pub fn set_type(&self, oid: Oid, type_: &Type) {
         self.state.lock().types.insert(oid, type_.clone());
     }
+
+    pub fn with_buf<F, R>(&self, f: F) -> R where F: FnOnce(&mut BytesMut) -> R {
+        let mut state = self.state.lock();
+        let r = f(&mut state.buf);
+        state.buf.clear();
+        r
+    }
 }
 
 #[derive(Clone)]
@@ -155,6 +163,7 @@ impl Client {
                     typeinfo_composite: None,
                     typeinfo_enum: None,
                     types: HashMap::new(),
+                    buf: BytesMut::new(),
                 }),
             }),
             #[cfg(feature = "runtime")]

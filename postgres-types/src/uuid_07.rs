@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use postgres_protocol::types;
 use std::error::Error;
 use uuid_07::Uuid;
@@ -14,7 +15,7 @@ impl<'a> FromSql<'a> for Uuid {
 }
 
 impl ToSql for Uuid {
-    fn to_sql(&self, _: &Type, w: &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::uuid_to_sql(*self.as_bytes(), w);
         Ok(IsNull::No)
     }

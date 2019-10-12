@@ -3,6 +3,7 @@ use crate::copy_in::CopyInReceiver;
 use crate::error::DbError;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::{AsyncMessage, Error, Notification};
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::stream::FusedStream;
@@ -211,9 +212,9 @@ where
                 Poll::Ready(None) if self.responses.is_empty() && self.state == State::Active => {
                     trace!("poll_write: at eof, terminating");
                     self.state = State::Terminating;
-                    let mut request = vec![];
+                    let mut request = BytesMut::new();
                     frontend::terminate(&mut request);
-                    RequestMessages::Single(FrontendMessage::Raw(request))
+                    RequestMessages::Single(FrontendMessage::Raw(request.freeze()))
                 }
                 Poll::Ready(None) => {
                     trace!(

@@ -1,157 +1,19 @@
 //! Frontend message serialization.
 #![allow(missing_docs)]
 
-use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
+use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io;
 use std::marker;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid};
-
-pub enum Message<'a> {
-    Bind {
-        portal: &'a str,
-        statement: &'a str,
-        formats: &'a [i16],
-        values: &'a [Option<Vec<u8>>],
-        result_formats: &'a [i16],
-    },
-    CancelRequest {
-        process_id: i32,
-        secret_key: i32,
-    },
-    Close {
-        variant: u8,
-        name: &'a str,
-    },
-    CopyData {
-        data: &'a [u8],
-    },
-    CopyDone,
-    CopyFail {
-        message: &'a str,
-    },
-    Describe {
-        variant: u8,
-        name: &'a str,
-    },
-    Execute {
-        portal: &'a str,
-        max_rows: i32,
-    },
-    Parse {
-        name: &'a str,
-        query: &'a str,
-        param_types: &'a [Oid],
-    },
-    PasswordMessage {
-        password: &'a [u8],
-    },
-    Query {
-        query: &'a str,
-    },
-    SaslInitialResponse {
-        mechanism: &'a str,
-        data: &'a [u8],
-    },
-    SaslResponse {
-        data: &'a [u8],
-    },
-    SslRequest,
-    StartupMessage {
-        parameters: &'a [(String, String)],
-    },
-    Sync,
-    Terminate,
-    #[doc(hidden)]
-    __ForExtensibility,
-}
-
-impl<'a> Message<'a> {
-    #[inline]
-    pub fn serialize(&self, buf: &mut Vec<u8>) -> io::Result<()> {
-        match *self {
-            Message::Bind {
-                portal,
-                statement,
-                formats,
-                values,
-                result_formats,
-            } => {
-                let r = bind(
-                    portal,
-                    statement,
-                    formats.iter().cloned(),
-                    values,
-                    |v, buf| match *v {
-                        Some(ref v) => {
-                            buf.extend_from_slice(v);
-                            Ok(IsNull::No)
-                        }
-                        None => Ok(IsNull::Yes),
-                    },
-                    result_formats.iter().cloned(),
-                    buf,
-                );
-                match r {
-                    Ok(()) => Ok(()),
-                    Err(BindError::Conversion(_)) => unreachable!(),
-                    Err(BindError::Serialization(e)) => Err(e),
-                }
-            }
-            Message::CancelRequest {
-                process_id,
-                secret_key,
-            } => {
-                cancel_request(process_id, secret_key, buf);
-                Ok(())
-            }
-            Message::Close { variant, name } => close(variant, name, buf),
-            Message::CopyData { data } => copy_data(data, buf),
-            Message::CopyDone => {
-                copy_done(buf);
-                Ok(())
-            }
-            Message::CopyFail { message } => copy_fail(message, buf),
-            Message::Describe { variant, name } => describe(variant, name, buf),
-            Message::Execute { portal, max_rows } => execute(portal, max_rows, buf),
-            Message::Parse {
-                name,
-                query,
-                param_types,
-            } => parse(name, query, param_types.iter().cloned(), buf),
-            Message::PasswordMessage { password } => password_message(password, buf),
-            Message::Query { query: q } => query(q, buf),
-            Message::SaslInitialResponse { mechanism, data } => {
-                sasl_initial_response(mechanism, data, buf)
-            }
-            Message::SaslResponse { data } => sasl_response(data, buf),
-            Message::SslRequest => {
-                ssl_request(buf);
-                Ok(())
-            }
-            Message::StartupMessage { parameters } => {
-                startup_message(parameters.iter().map(|&(ref k, ref v)| (&**k, &**v)), buf)
-            }
-            Message::Sync => {
-                sync(buf);
-                Ok(())
-            }
-            Message::Terminate => {
-                terminate(buf);
-                Ok(())
-            }
-            Message::__ForExtensibility => unreachable!(),
-        }
-    }
-}
+use crate::{write_nullable, FromUsize, IsNull, Oid, B};
 
 #[inline]
-fn write_body<F, E>(buf: &mut Vec<u8>, f: F) -> Result<(), E>
+fn write_body<F, E>(buf: &mut BytesMut, f: F) -> Result<(), E>
 where
-    F: FnOnce(&mut Vec<u8>) -> Result<(), E>,
+    F: FnOnce(&mut BytesMut) -> Result<(), E>,
     E: From<io::Error>,
 {
     let base = buf.len();
@@ -191,36 +53,50 @@ pub fn bind<I, J, F, T, K>(
     values: J,
     mut serializer: F,
     result_formats: K,
-    buf: &mut Vec<u8>,
+    buf: &mut BytesMut,
 ) -> Result<(), BindError>
 where
     I: IntoIterator<Item = i16>,
     J: IntoIterator<Item = T>,
-    F: FnMut(T, &mut Vec<u8>) -> Result<IsNull, Box<dyn Error + marker::Sync + Send>>,
+    F: FnMut(T, &mut BytesMut) -> Result<IsNull, Box<dyn Error + marker::Sync + Send>>,
     K: IntoIterator<Item = i16>,
 {
-    buf.push(b'B');
+    B(buf).put_u8(b'B');
 
     write_body(buf, |buf| {
-        buf.write_cstr(portal.as_bytes())?;
-        buf.write_cstr(statement.as_bytes())?;
-        write_counted(formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
+        write_cstr(portal.as_bytes(), buf)?;
+        write_cstr(statement.as_bytes(), buf)?;
+        write_counted(
+            formats,
+            |f, buf| {
+                B(buf).put_i16_be(f);
+                Ok::<_, io::Error>(())
+            },
+            buf,
+        )?;
         write_counted(
             values,
             |v, buf| write_nullable(|buf| serializer(v, buf), buf),
             buf,
         )?;
-        write_counted(result_formats, |f, buf| buf.write_i16::<BigEndian>(f), buf)?;
+        write_counted(
+            result_formats,
+            |f, buf| {
+                B(buf).put_i16_be(f);
+                Ok::<_, io::Error>(())
+            },
+            buf,
+        )?;
 
         Ok(())
     })
 }
 
 #[inline]
-fn write_counted<I, T, F, E>(items: I, mut serializer: F, buf: &mut Vec<u8>) -> Result<(), E>
+fn write_counted<I, T, F, E>(items: I, mut serializer: F, buf: &mut BytesMut) -> Result<(), E>
 where
     I: IntoIterator<Item = T>,
-    F: FnMut(T, &mut Vec<u8>) -> Result<(), E>,
+    F: FnMut(T, &mut BytesMut) -> Result<(), E>,
     E: From<io::Error>,
 {
     let base = buf.len();
@@ -237,31 +113,22 @@ where
 }
 
 #[inline]
-pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut Vec<u8>) {
+pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut BytesMut) {
     write_body(buf, |buf| {
-        buf.write_i32::<BigEndian>(80_877_102).unwrap();
-        buf.write_i32::<BigEndian>(process_id).unwrap();
-        buf.write_i32::<BigEndian>(secret_key)
+        B(buf).put_i32_be(80_877_102);
+        B(buf).put_i32_be(process_id);
+        B(buf).put_i32_be(secret_key);
+        Ok::<_, io::Error>(())
     })
     .unwrap();
 }
 
 #[inline]
-pub fn close(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'C');
+pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'C');
     write_body(buf, |buf| {
-        buf.push(variant);
-        buf.write_cstr(name.as_bytes())
-    })
-}
-
-// FIXME ideally this'd take a Read but it's unclear what to do at EOF
-#[inline]
-pub fn copy_data(data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'd');
-    write_body(buf, |buf| {
-        buf.extend_from_slice(data);
-        Ok(())
+        B(buf).put_u8(variant);
+        write_cstr(name.as_bytes(), buf)
     })
 }
 
@@ -292,139 +159,143 @@ where
     }
 
     pub fn write(self, out: &mut BytesMut) {
-        out.reserve(self.len as usize + 1);
-        out.put_u8(b'd');
-        out.put_i32_be(self.len);
-        out.put(self.buf);
+        B(out).put_u8(b'd');
+        B(out).put_i32_be(self.len);
+        B(out).put(self.buf);
     }
 }
 
 #[inline]
-pub fn copy_done(buf: &mut Vec<u8>) {
-    buf.push(b'c');
+pub fn copy_done(buf: &mut BytesMut) {
+    B(buf).put_u8(b'c');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
 #[inline]
-pub fn copy_fail(message: &str, buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'f');
-    write_body(buf, |buf| buf.write_cstr(message.as_bytes()))
+pub fn copy_fail(message: &str, buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'f');
+    write_body(buf, |buf| write_cstr(message.as_bytes(), buf))
 }
 
 #[inline]
-pub fn describe(variant: u8, name: &str, buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'D');
+pub fn describe(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'D');
     write_body(buf, |buf| {
-        buf.push(variant);
-        buf.write_cstr(name.as_bytes())
+        B(buf).put_u8(variant);
+        write_cstr(name.as_bytes(), buf)
     })
 }
 
 #[inline]
-pub fn execute(portal: &str, max_rows: i32, buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'E');
+pub fn execute(portal: &str, max_rows: i32, buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'E');
     write_body(buf, |buf| {
-        buf.write_cstr(portal.as_bytes())?;
-        buf.write_i32::<BigEndian>(max_rows).unwrap();
+        write_cstr(portal.as_bytes(), buf)?;
+        B(buf).put_i32_be(max_rows);
         Ok(())
     })
 }
 
 #[inline]
-pub fn parse<I>(name: &str, query: &str, param_types: I, buf: &mut Vec<u8>) -> io::Result<()>
+pub fn parse<I>(name: &str, query: &str, param_types: I, buf: &mut BytesMut) -> io::Result<()>
 where
     I: IntoIterator<Item = Oid>,
 {
-    buf.push(b'P');
+    B(buf).put_u8(b'P');
     write_body(buf, |buf| {
-        buf.write_cstr(name.as_bytes())?;
-        buf.write_cstr(query.as_bytes())?;
-        write_counted(param_types, |t, buf| buf.write_u32::<BigEndian>(t), buf)?;
+        write_cstr(name.as_bytes(), buf)?;
+        write_cstr(query.as_bytes(), buf)?;
+        write_counted(
+            param_types,
+            |t, buf| {
+                B(buf).put_u32_be(t);
+                Ok::<_, io::Error>(())
+            },
+            buf,
+        )?;
         Ok(())
     })
 }
 
 #[inline]
-pub fn password_message(password: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'p');
-    write_body(buf, |buf| buf.write_cstr(password))
+pub fn password_message(password: &[u8], buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'p');
+    write_body(buf, |buf| write_cstr(password, buf))
 }
 
 #[inline]
-pub fn query(query: &str, buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'Q');
-    write_body(buf, |buf| buf.write_cstr(query.as_bytes()))
+pub fn query(query: &str, buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'Q');
+    write_body(buf, |buf| write_cstr(query.as_bytes(), buf))
 }
 
 #[inline]
-pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'p');
+pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'p');
     write_body(buf, |buf| {
-        buf.write_cstr(mechanism.as_bytes())?;
+        write_cstr(mechanism.as_bytes(), buf)?;
         let len = i32::from_usize(data.len())?;
-        buf.write_i32::<BigEndian>(len)?;
-        buf.extend_from_slice(data);
+        B(buf).put_i32_be(len);
+        B(buf).put_slice(data);
         Ok(())
     })
 }
 
 #[inline]
-pub fn sasl_response(data: &[u8], buf: &mut Vec<u8>) -> io::Result<()> {
-    buf.push(b'p');
+pub fn sasl_response(data: &[u8], buf: &mut BytesMut) -> io::Result<()> {
+    B(buf).put_u8(b'p');
     write_body(buf, |buf| {
-        buf.extend_from_slice(data);
+        B(buf).put_slice(data);
         Ok(())
     })
 }
 
 #[inline]
-pub fn ssl_request(buf: &mut Vec<u8>) {
-    write_body(buf, |buf| buf.write_i32::<BigEndian>(80_877_103)).unwrap();
+pub fn ssl_request(buf: &mut BytesMut) {
+    write_body(buf, |buf| {
+        B(buf).put_i32_be(80_877_103);
+        Ok::<_, io::Error>(())
+    })
+    .unwrap();
 }
 
 #[inline]
-pub fn startup_message<'a, I>(parameters: I, buf: &mut Vec<u8>) -> io::Result<()>
+pub fn startup_message<'a, I>(parameters: I, buf: &mut BytesMut) -> io::Result<()>
 where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
     write_body(buf, |buf| {
-        buf.write_i32::<BigEndian>(196_608).unwrap();
+        B(buf).put_i32_be(196_608);
         for (key, value) in parameters {
-            buf.write_cstr(key.as_bytes())?;
-            buf.write_cstr(value.as_bytes())?;
+            write_cstr(key.as_bytes(), buf)?;
+            write_cstr(value.as_bytes(), buf)?;
         }
-        buf.push(0);
+        B(buf).put_u8(0);
         Ok(())
     })
 }
 
 #[inline]
-pub fn sync(buf: &mut Vec<u8>) {
-    buf.push(b'S');
+pub fn sync(buf: &mut BytesMut) {
+    B(buf).put_u8(b'S');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
 #[inline]
-pub fn terminate(buf: &mut Vec<u8>) {
-    buf.push(b'X');
+pub fn terminate(buf: &mut BytesMut) {
+    B(buf).put_u8(b'X');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
-trait WriteCStr {
-    fn write_cstr(&mut self, s: &[u8]) -> Result<(), io::Error>;
-}
-
-impl WriteCStr for Vec<u8> {
-    #[inline]
-    fn write_cstr(&mut self, s: &[u8]) -> Result<(), io::Error> {
-        if s.contains(&0) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "string contains embedded null",
-            ));
-        }
-        self.extend_from_slice(s);
-        self.push(0);
-        Ok(())
+#[inline]
+fn write_cstr(s: &[u8], buf: &mut BytesMut) -> Result<(), io::Error> {
+    if s.contains(&0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "string contains embedded null",
+        ));
     }
+    B(buf).put_slice(s);
+    B(buf).put_u8(0);
+    Ok(())
 }

@@ -3,6 +3,7 @@ use crate::tls::TlsConnect;
 use crate::{connect_tls, Error};
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use bytes::BytesMut;
 
 pub async fn cancel_query_raw<S, T>(
     stream: S,
@@ -17,7 +18,7 @@ where
 {
     let (mut stream, _) = connect_tls::connect_tls(stream, mode, tls).await?;
 
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::cancel_request(process_id, secret_key, &mut buf);
 
     stream.write_all(&buf).await.map_err(Error::io)?;

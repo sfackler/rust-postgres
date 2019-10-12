@@ -16,6 +16,7 @@ use futures::{TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
+use postgres_types::private::BytesMut;
 
 /// A representation of a PostgreSQL database transaction.
 ///
@@ -33,7 +34,7 @@ impl<'a> Drop for Transaction<'a> {
             return;
         }
 
-        let mut buf = vec![];
+        let mut buf = BytesMut::new();
         let query = if self.depth == 0 {
             "ROLLBACK".to_string()
         } else {
@@ -43,7 +44,7 @@ impl<'a> Drop for Transaction<'a> {
         let _ = self
             .client
             .inner()
-            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+            .send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())));
     }
 }
 

@@ -18,6 +18,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::codec::Framed;
 use tokio::io::{AsyncRead, AsyncWrite};
+use bytes::BytesMut;
 
 pub struct StartupStream<S, T> {
     inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
@@ -122,11 +123,11 @@ where
         params.push(("application_name", &**application_name));
     }
 
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send(FrontendMessage::Raw(buf))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)
 }
@@ -212,11 +213,11 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::password_message(password, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send(FrontendMessage::Raw(buf))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)
 }
@@ -272,10 +273,10 @@ where
 
     let mut scram = ScramSha256::new(password, channel_binding);
 
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::sasl_initial_response(mechanism, scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send(FrontendMessage::Raw(buf))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)?;
 
@@ -290,10 +291,10 @@ where
         .update(body.data())
         .map_err(|e| Error::authentication(e.into()))?;
 
-    let mut buf = vec![];
+    let mut buf = BytesMut::new();
     frontend::sasl_response(scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send(FrontendMessage::Raw(buf))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)?;
 

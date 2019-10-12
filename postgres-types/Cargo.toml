@@ -14,6 +14,7 @@ with-serde_json-1 = ["serde-1", "serde_json-1"]
 "with-uuid-0_7" = ["uuid-07"]
 
 [dependencies]
+bytes = "0.4"
 fallible-iterator = "0.2"
 postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }
 postgres-derive = { version = "0.3.3", optional = true, path = "../postgres-derive" }
