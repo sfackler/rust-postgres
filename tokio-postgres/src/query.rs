@@ -3,12 +3,12 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
 use crate::{Error, Portal, Row, Statement};
+use bytes::{Bytes, BytesMut};
 use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use bytes::{Bytes, BytesMut};
 
 pub async fn query<'a, I>(
     client: &InnerClient,
@@ -102,7 +102,12 @@ where
     })
 }
 
-pub fn encode_bind<'a, I>(statement: &Statement, params: I, portal: &str, buf: &mut BytesMut) -> Result<(), Error>
+pub fn encode_bind<'a, I>(
+    statement: &Statement,
+    params: I,
+    portal: &str,
+    buf: &mut BytesMut,
+) -> Result<(), Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,

@@ -3,9 +3,9 @@ use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::private::ForcePrivateApi;
 use crate::tls::{ChannelBinding, TlsConnect};
 use crate::Error;
+use bytes::BytesMut;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use bytes::BytesMut;
 
 pub async fn connect_tls<S, T>(
     mut stream: S,

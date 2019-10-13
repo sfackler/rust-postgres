@@ -5,6 +5,7 @@ use crate::error::SqlState;
 use crate::types::{Field, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
+use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::TryStreamExt;
 use pin_utils::pin_mut;
@@ -14,7 +15,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use bytes::Bytes;
 
 const TYPEINFO_QUERY: &str = "\
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid

@@ -1,9 +1,9 @@
 use crate::config::SslMode;
 use crate::tls::TlsConnect;
 use crate::{connect_tls, Error};
+use bytes::BytesMut;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use bytes::BytesMut;
 
 pub async fn cancel_query_raw<S, T>(
     stream: S,

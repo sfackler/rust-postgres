@@ -4,6 +4,7 @@ use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{ChannelBinding, TlsConnect};
 use crate::{Client, Connection, Error};
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{ready, Sink, SinkExt, Stream, TryStreamExt};
@@ -18,7 +19,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::codec::Framed;
 use tokio::io::{AsyncRead, AsyncWrite};
-use bytes::BytesMut;
 
 pub struct StartupStream<S, T> {
     inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,

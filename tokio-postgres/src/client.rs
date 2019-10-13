@@ -18,7 +18,7 @@ use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
-use bytes::{IntoBuf, BytesMut};
+use bytes::{BytesMut, IntoBuf};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{future, TryStream, TryStreamExt};
@@ -118,7 +118,10 @@ impl InnerClient {
         self.state.lock().types.insert(oid, type_.clone());
     }
 
-    pub fn with_buf<F, R>(&self, f: F) -> R where F: FnOnce(&mut BytesMut) -> R {
+    pub fn with_buf<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut BytesMut) -> R,
+    {
         let mut state = self.state.lock();
         let r = f(&mut state.buf);
         state.buf.clear();

@@ -14,9 +14,9 @@ use crate::{
 use bytes::IntoBuf;
 use futures::{TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
+use postgres_types::private::BytesMut;
 use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
-use postgres_types::private::BytesMut;
 
 /// A representation of a PostgreSQL database transaction.
 ///

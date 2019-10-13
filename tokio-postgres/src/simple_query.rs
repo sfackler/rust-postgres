@@ -2,6 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
+use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
@@ -9,7 +10,6 @@ use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use bytes::Bytes;
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
     let buf = encode(client, query)?;
