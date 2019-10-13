@@ -14,7 +14,6 @@ use crate::{
 use bytes::IntoBuf;
 use futures::{TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
-use postgres_types::private::BytesMut;
 use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -34,17 +33,19 @@ impl<'a> Drop for Transaction<'a> {
             return;
         }
 
-        let mut buf = BytesMut::new();
         let query = if self.depth == 0 {
             "ROLLBACK".to_string()
         } else {
             format!("ROLLBACK TO sp{}", self.depth)
         };
-        frontend::query(&query, &mut buf).unwrap();
+        let buf = self.client.inner().with_buf(|buf| {
+            frontend::query(&query, buf).unwrap();
+            buf.take().freeze()
+        });
         let _ = self
             .client
             .inner()
-            .send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())));
+            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
     }
 }
 
