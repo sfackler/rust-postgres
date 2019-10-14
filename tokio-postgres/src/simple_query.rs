@@ -10,6 +10,8 @@ use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::marker::PhantomPinned;
+use pin_project::pin_project;
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
     let buf = encode(client, query)?;
@@ -18,6 +20,7 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
     Ok(SimpleQueryStream {
         responses,
         columns: None,
+        _p: PhantomPinned,
     })
 }
 
@@ -44,17 +47,22 @@ fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
     })
 }
 
+/// A stream of simple query results.
+#[pin_project]
 pub struct SimpleQueryStream {
     responses: Responses,
     columns: Option<Arc<[String]>>,
+    #[pin]
+    _p: PhantomPinned,
 }
 
 impl Stream for SimpleQueryStream {
     type Item = Result<SimpleQueryMessage, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
         loop {
-            match ready!(self.responses.poll_next(cx)?) {
+            match ready!(this.responses.poll_next(cx)?) {
                 Message::CommandComplete(body) => {
                     let rows = body
                         .tag()
@@ -76,10 +84,10 @@ impl Stream for SimpleQueryStream {
                         .collect::<Vec<_>>()
                         .map_err(Error::parse)?
                         .into();
-                    self.columns = Some(columns);
+                    *this.columns = Some(columns);
                 }
                 Message::DataRow(body) => {
-                    let row = match &self.columns {
+                    let row = match &this.columns {
                         Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
                         None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
                     };

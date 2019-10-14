@@ -1,4 +1,5 @@
 use crate::client::{InnerClient, Responses};
+use pin_project::pin_project;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
@@ -9,6 +10,7 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::marker::PhantomPinned;
 
 pub async fn query<'a, I>(
     client: &InnerClient,
@@ -24,6 +26,7 @@ where
     Ok(RowStream {
         statement,
         responses,
+        _p: PhantomPinned,
     })
 }
 
@@ -43,6 +46,7 @@ pub async fn query_portal(
     Ok(RowStream {
         statement: portal.statement().clone(),
         responses,
+        _p: PhantomPinned,
     })
 }
 
@@ -145,18 +149,23 @@ where
     }
 }
 
+/// A stream of table rows.
+#[pin_project]
 pub struct RowStream {
     statement: Statement,
     responses: Responses,
+    #[pin]
+    _p: PhantomPinned,
 }
 
 impl Stream for RowStream {
     type Item = Result<Row, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match ready!(self.responses.poll_next(cx)?) {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        match ready!(this.responses.poll_next(cx)?) {
             Message::DataRow(body) => {
-                Poll::Ready(Some(Ok(Row::new(self.statement.clone(), body)?)))
+                Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
             }
             Message::EmptyQueryResponse
             | Message::CommandComplete(_)
