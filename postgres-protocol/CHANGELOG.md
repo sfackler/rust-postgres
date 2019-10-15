@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.0-alpha.1 - 2019-10-14
+
+### Changed
+
+* Frontend messages and types now serialize to `BytesMut` rather than `Vec<u8>`.
+
 ## v0.4.1 - 2019-06-29
 
 ### Added

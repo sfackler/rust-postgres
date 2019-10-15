@@ -40,7 +40,7 @@ percent-encoding = "1.0"
 pin-utils = "=0.1.0-alpha.4"
 pin-project = "0.4"
 phf = "0.7.23"
-postgres-protocol = { version = "0.4.1", path = "../postgres-protocol" }
+postgres-protocol = { version = "=0.5.0-alpha.1", path = "../postgres-protocol" }
 postgres-types = { version = "0.1.0", path = "../postgres-types" }
 tokio = { version = "=0.2.0-alpha.6", default-features = false, features = ["io", "codec"] }
 
