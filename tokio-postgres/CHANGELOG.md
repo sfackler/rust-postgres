@@ -1,5 +1,25 @@
 # Change Log
 
+## v0.5.0-alpha.1 - 2019-10-14
+
+### Changed
+
+* The library now uses `std::futures::Future` and async/await syntax.
+* Most methods now take `&self` rather than `&mut self`.
+* The transaction API has changed to more closely resemble the synchronous API and is significantly more ergonomic.
+* Methods now take `&[&(dyn ToSql + Sync)]` rather than `&[&dyn ToSql]` to allow futures to be `Send`.
+* Methods are now "normal" async functions that no longer do work up-front.
+* Statements are no longer required to be prepared explicitly before use. Methods taking `&Statement` can now also take
+    `&str`, and will internally prepare the statement.
+* `ToSql` now serializes its value into a `BytesMut` rather than `Vec<u8>`.
+* Methods that previously returned `Stream`s now return `Vec<T>`. New `*_raw` methods still provide a `Stream`
+    interface.
+
+### Added
+
+* Added the `channel_binding=disable/allow/require` configuration to control use of channel binding.
+* Added the `Client::query_one` method to cover the common case of a query that returns exactly one row.
+
 ## v0.4.0-rc.3 - 2019-06-29
 
 ### Fixed
