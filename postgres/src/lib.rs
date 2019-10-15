@@ -52,7 +52,7 @@
 //! as an argument. The `NoTls` type in this crate can be used when TLS is not required. Otherwise, the
 //! `postgres-openssl` and `postgres-native-tls` crates provide implementations backed by the `openssl` and `native-tls`
 //! crates, respectively.
-#![doc(html_root_url = "https://docs.rs/postgres/0.16.0-rc.2")]
+#![doc(html_root_url = "https://docs.rs/postgres/0.17")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
 #[cfg(feature = "runtime")]

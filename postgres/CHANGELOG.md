@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.17.0-alpha.1 - 2019-10-14
+
+### Changed
+
+* Updated `tokio-postgres` to 0.5.0-alpha.1.
+
 ## v0.16.0-rc.2 - 2019-06-29
 
 ### Fixed
