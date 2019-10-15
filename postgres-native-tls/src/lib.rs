@@ -45,7 +45,7 @@
 //! # Ok(())
 //! # }
 //! ```
-#![doc(html_root_url = "https://docs.rs/postgres-native-tls/0.2.0-rc.1")]
+#![doc(html_root_url = "https://docs.rs/postgres-native-tls/0.3")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 use std::future::Future;
