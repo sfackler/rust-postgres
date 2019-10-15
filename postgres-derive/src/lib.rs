@@ -1,3 +1,5 @@
+//! An internal crate for `postgres-types`.
+
 #![recursion_limit = "256"]
 extern crate proc_macro;
 
