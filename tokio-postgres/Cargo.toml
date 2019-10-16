@@ -13,6 +13,10 @@ categories = ["database"]
 [lib]
 test = false
 
+[[bench]]
+name = "bench"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 
@@ -47,6 +51,7 @@ tokio = { version = "=0.2.0-alpha.6", default-features = false, features = ["io"
 [dev-dependencies]
 tokio = "=0.2.0-alpha.6"
 env_logger = "0.5"
+criterion = "0.3"
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono" }

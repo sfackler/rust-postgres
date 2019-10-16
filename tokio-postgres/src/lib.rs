@@ -110,12 +110,12 @@ pub use crate::connection::Connection;
 use crate::error::DbError;
 pub use crate::error::Error;
 pub use crate::portal::Portal;
+pub use crate::query::RowStream;
 pub use crate::row::{Row, SimpleQueryRow};
+pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
-pub use crate::query::RowStream;
-pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;

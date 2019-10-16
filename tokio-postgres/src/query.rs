@@ -1,16 +1,16 @@
 use crate::client::{InnerClient, Responses};
-use pin_project::pin_project;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{IsNull, ToSql};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures::{ready, Stream};
+use pin_project::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::marker::PhantomPinned;
 
 pub async fn query<'a, I>(
     client: &InnerClient,

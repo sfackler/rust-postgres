@@ -5,13 +5,13 @@ use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
+use pin_project::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::marker::PhantomPinned;
-use pin_project::pin_project;
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
     let buf = encode(client, query)?;
