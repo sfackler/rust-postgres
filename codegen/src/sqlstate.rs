@@ -82,17 +82,15 @@ fn make_consts(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<
 }
 
 fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<File>) {
-    write!(
-        file,
-        "
-#[rustfmt::skip]
-static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = "
-    )
-    .unwrap();
     let mut builder = phf_codegen::Map::new();
     for (code, names) in codes {
         builder.entry(&**code, &format!("SqlState::{}", &names[0]));
     }
-    builder.build(file).unwrap();
-    writeln!(file, ";").unwrap();
+    write!(
+        file,
+        "
+#[rustfmt::skip]
+static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = \n{};\n",
+        builder.build()
+    ).unwrap();
 }
