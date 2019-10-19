@@ -24,6 +24,8 @@ mod geo_010;
 mod serde_json_1;
 #[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
+#[cfg(feature = "with-uuid-0_8")]
+mod uuid_08;
 
 async fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
 where
