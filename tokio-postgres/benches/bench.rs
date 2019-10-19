@@ -32,9 +32,7 @@ fn query_prepared(c: &mut Criterion) {
     let (client, runtime) = setup();
     let statement = runtime.block_on(client.prepare("SELECT $1::INT8")).unwrap();
     c.bench_function("executor_block_on", move |b| {
-        b.iter(|| {
-            executor::block_on(client.query(&statement, &[&1i64])).unwrap()
-        })
+        b.iter(|| executor::block_on(client.query(&statement, &[&1i64])).unwrap())
     });
 
     let (client, runtime) = setup();
