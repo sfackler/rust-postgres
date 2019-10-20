@@ -200,6 +200,8 @@ mod geo_types_04;
 mod serde_json_1;
 #[cfg(feature = "with-uuid-0_7")]
 mod uuid_07;
+#[cfg(feature = "with-uuid-0_8")]
+mod uuid_08;
 
 #[doc(hidden)]
 pub mod private;

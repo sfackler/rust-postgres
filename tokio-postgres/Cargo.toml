@@ -33,6 +33,7 @@ with-eui48-0_4 = ["postgres-types/with-eui48-0_4"]
 with-geo-types-0_4 = ["postgres-types/with-geo-types-0_4"]
 with-serde_json-1 = ["postgres-types/with-serde_json-1"]
 with-uuid-0_7 = ["postgres-types/with-uuid-0_7"]
+with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 
 [dependencies]
 bytes = "0.4"
@@ -40,16 +41,16 @@ fallible-iterator = "0.2"
 futures-preview = { version = "=0.3.0-alpha.19", features = ["async-await"] }
 log = "0.4"
 parking_lot = "0.9"
-percent-encoding = "1.0"
+percent-encoding = "2.0"
 pin-project = "0.4"
-phf = "0.7.23"
+phf = "0.8"
 postgres-protocol = { version = "=0.5.0-alpha.1", path = "../postgres-protocol" }
 postgres-types = { version = "=0.1.0-alpha.1", path = "../postgres-types" }
 tokio = { version = "=0.2.0-alpha.6", default-features = false, features = ["io", "codec"] }
 
 [dev-dependencies]
 tokio = "=0.2.0-alpha.6"
-env_logger = "0.5"
+env_logger = "0.7"
 criterion = "0.3"
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
@@ -59,3 +60,5 @@ geo-types-04 = { version = "0.4", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 uuid-07 = { version = "0.7", package = "uuid" }
+uuid-08 = { version = "0.8", package = "uuid" }
+

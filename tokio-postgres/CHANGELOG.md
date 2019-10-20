@@ -1,5 +1,10 @@
 # Change Log
 
+## Unreleased
+
+### Added
+* Added support for converting to and from `uuid` crate v0.8
+
 ## v0.5.0-alpha.1 - 2019-10-14
 
 ### Changed
