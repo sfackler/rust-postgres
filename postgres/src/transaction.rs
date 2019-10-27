@@ -58,6 +58,14 @@ impl<'a> Transaction<'a> {
         executor::block_on(self.0.query(query, params))
     }
 
+    /// Like `Client::query_one`.
+    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        executor::block_on(self.0.query_one(query, params))
+    }
+
     /// Like `Client::query_raw`.
     pub fn query_raw<'b, T, I>(
         &mut self,
