@@ -92,5 +92,6 @@ fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<Fil
 #[rustfmt::skip]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = \n{};\n",
         builder.build()
-    ).unwrap();
+    )
+    .unwrap();
 }

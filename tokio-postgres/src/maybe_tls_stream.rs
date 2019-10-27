@@ -1,3 +1,4 @@
+use crate::tls::{ChannelBinding, TlsStream};
 use bytes::{Buf, BufMut};
 use std::io;
 use std::pin::Pin;
@@ -90,6 +91,19 @@ where
         match &mut *self {
             MaybeTlsStream::Raw(s) => Pin::new(s).poll_write_buf(cx, buf),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_write_buf(cx, buf),
+        }
+    }
+}
+
+impl<S, T> TlsStream for MaybeTlsStream<S, T>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
+{
+    fn channel_binding(&self) -> ChannelBinding {
+        match self {
+            MaybeTlsStream::Raw(_) => ChannelBinding::none(),
+            MaybeTlsStream::Tls(s) => s.channel_binding(),
         }
     }
 }

@@ -14,5 +14,5 @@ async fn test_uuid_params() {
             (None, "NULL"),
         ],
     )
-        .await
+    .await
 }

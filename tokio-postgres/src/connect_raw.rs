@@ -2,7 +2,7 @@ use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCod
 use crate::config::{self, Config};
 use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
-use crate::tls::{ChannelBinding, TlsConnect};
+use crate::tls::{TlsConnect, TlsStream};
 use crate::{Client, Connection, Error};
 use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
@@ -86,7 +86,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
-    let (stream, channel_binding) = connect_tls(stream, config.ssl_mode, tls).await?;
+    let stream = connect_tls(stream, config.ssl_mode, tls).await?;
 
     let mut stream = StartupStream {
         inner: Framed::new(stream, PostgresCodec),
@@ -94,7 +94,7 @@ where
     };
 
     startup(&mut stream, config).await?;
-    authenticate(&mut stream, channel_binding, config).await?;
+    authenticate(&mut stream, config).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -132,14 +132,10 @@ where
         .map_err(Error::io)
 }
 
-async fn authenticate<S, T>(
-    stream: &mut StartupStream<S, T>,
-    channel_binding: ChannelBinding,
-    config: &Config,
-) -> Result<(), Error>
+async fn authenticate<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
 {
     match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationOk) => {
@@ -172,7 +168,7 @@ where
             authenticate_password(stream, output.as_bytes()).await?;
         }
         Some(Message::AuthenticationSasl(body)) => {
-            authenticate_sasl(stream, body, channel_binding, config).await?;
+            authenticate_sasl(stream, body, config).await?;
         }
         Some(Message::AuthenticationKerberosV5)
         | Some(Message::AuthenticationScmCredential)
@@ -225,12 +221,11 @@ where
 async fn authenticate_sasl<S, T>(
     stream: &mut StartupStream<S, T>,
     body: AuthenticationSaslBody,
-    channel_binding: ChannelBinding,
     config: &Config,
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
 {
     let password = config
         .password
@@ -248,7 +243,10 @@ where
         }
     }
 
-    let channel_binding = channel_binding
+    let channel_binding = stream
+        .inner
+        .get_ref()
+        .channel_binding()
         .tls_server_end_point
         .filter(|_| config.channel_binding != config::ChannelBinding::Disable)
         .map(sasl::ChannelBinding::tls_server_end_point);

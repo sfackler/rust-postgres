@@ -16,7 +16,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
-    let (mut stream, _) = connect_tls::connect_tls(stream, mode, tls).await?;
+    let mut stream = connect_tls::connect_tls(stream, mode, tls).await?;
 
     let mut buf = BytesMut::new();
     frontend::cancel_request(process_id, secret_key, &mut buf);

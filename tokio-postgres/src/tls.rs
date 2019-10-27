@@ -38,7 +38,7 @@ impl ChannelBinding {
 #[cfg(feature = "runtime")]
 pub trait MakeTlsConnect<S> {
     /// The stream type created by the `TlsConnect` implementation.
-    type Stream: AsyncRead + AsyncWrite + Unpin;
+    type Stream: TlsStream + Unpin;
     /// The `TlsConnect` implementation created by this type.
     type TlsConnect: TlsConnect<S, Stream = Self::Stream>;
     /// The error type returned by the `TlsConnect` implementation.
@@ -53,11 +53,11 @@ pub trait MakeTlsConnect<S> {
 /// An asynchronous function wrapping a stream in a TLS session.
 pub trait TlsConnect<S> {
     /// The stream returned by the future.
-    type Stream: AsyncRead + AsyncWrite + Unpin;
+    type Stream: TlsStream + Unpin;
     /// The error returned by the future.
     type Error: Into<Box<dyn Error + Sync + Send>>;
     /// The future returned by the connector.
-    type Future: Future<Output = Result<(Self::Stream, ChannelBinding), Self::Error>>;
+    type Future: Future<Output = Result<Self::Stream, Self::Error>>;
 
     /// Returns a future performing a TLS handshake over the stream.
     fn connect(self, stream: S) -> Self::Future;
@@ -66,6 +66,12 @@ pub trait TlsConnect<S> {
     fn can_connect(&self, _: private::ForcePrivateApi) -> bool {
         true
     }
+}
+
+/// A TLS-wrapped connection to a PostgreSQL database.
+pub trait TlsStream: AsyncRead + AsyncWrite {
+    /// Returns channel binding information for the session.
+    fn channel_binding(&self) -> ChannelBinding;
 }
 
 /// A `MakeTlsConnect` and `TlsConnect` implementation which simply returns an error.
@@ -103,7 +109,7 @@ impl<S> TlsConnect<S> for NoTls {
 pub struct NoTlsFuture(());
 
 impl Future for NoTlsFuture {
-    type Output = Result<(NoTlsStream, ChannelBinding), NoTlsError>;
+    type Output = Result<NoTlsStream, NoTlsError>;
 
     fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(Err(NoTlsError(())))
@@ -135,6 +141,12 @@ impl AsyncWrite for NoTlsStream {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match *self {}
+    }
+}
+
+impl TlsStream for NoTlsStream {
+    fn channel_binding(&self) -> ChannelBinding {
         match *self {}
     }
 }
