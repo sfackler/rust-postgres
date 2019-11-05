@@ -3,14 +3,14 @@
 //! # Example
 //!
 //! ```no_run
-//! use tokio_postgres::{NoTls, Error, Row};
+//! use tokio_postgres::{NoTls, Error};
 //!
 //! # #[cfg(not(feature = "runtime"))] fn main() {}
 //! # #[cfg(feature = "runtime")]
 //! #[tokio::main] // By default, tokio_postgres uses the tokio crate as its runtime.
 //! async fn main() -> Result<(), Error> {
 //!     // Connect to the database.
-//!     let (mut client, connection) =
+//!     let (client, connection) =
 //!         tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
 //!
 //!     // The connection object performs the actual communication with the database,
