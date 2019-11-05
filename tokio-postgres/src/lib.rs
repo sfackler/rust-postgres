@@ -3,7 +3,6 @@
 //! # Example
 //!
 //! ```no_run
-//! use futures::FutureExt;
 //! use tokio_postgres::{NoTls, Error, Row};
 //!
 //! # #[cfg(not(feature = "runtime"))] fn main() {}
@@ -16,18 +15,17 @@
 //!
 //!     // The connection object performs the actual communication with the database,
 //!     // so spawn it off to run on its own.
-//!     let connection = connection.map(|r| {
-//!         if let Err(e) = r {
+//!     tokio::spawn(async move {
+//!         if let Err(e) = connection.await {
 //!             eprintln!("connection error: {}", e);
 //!         }
 //!     });
-//!     tokio::spawn(connection);
 //!
 //!     // Now we can prepare a simple statement that just returns its parameter.
 //!     let stmt = client.prepare("SELECT $1::TEXT").await?;
 //!
-//!     // And then execute it, returning a Stream of Rows which we collect into a Vec.
-//!     let rows: Vec<Row> = client
+//!     // And then execute it, returning a list of the resulting rows.
+//!     let rows = client
 //!         .query(&stmt, &[&"hello world"])
 //!         .await?;
 //!
