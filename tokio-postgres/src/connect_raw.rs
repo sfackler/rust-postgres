@@ -109,7 +109,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    let mut params = vec![("client_encoding", "UTF8"), ("timezone", "GMT")];
+    let mut params = vec![("client_encoding", "UTF8"), ("timezone", "UTC")];
     if let Some(user) = &config.user {
         params.push(("user", &**user));
     }
