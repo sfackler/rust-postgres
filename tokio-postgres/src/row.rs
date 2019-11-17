@@ -146,7 +146,7 @@ impl Row {
     /// Like `Row::get`, but returns a `Result` rather than panicking.
     pub fn try_get<'a, I, T>(&'a self, idx: I) -> Result<T, Error>
     where
-        I: RowIndex,
+        I: RowIndex + fmt::Display,
         T: FromSql<'a>,
     {
         self.get_inner(&idx)
@@ -154,12 +154,12 @@ impl Row {
 
     fn get_inner<'a, I, T>(&'a self, idx: &I) -> Result<T, Error>
     where
-        I: RowIndex,
+        I: RowIndex + fmt::Display,
         T: FromSql<'a>,
     {
         let idx = match idx.__idx(self.columns()) {
             Some(idx) => idx,
-            None => return Err(Error::column()),
+            None => return Err(Error::column(idx.to_string())),
         };
 
         let ty = self.columns()[idx].type_();
@@ -223,18 +223,18 @@ impl SimpleQueryRow {
     /// Like `SimpleQueryRow::get`, but returns a `Result` rather than panicking.
     pub fn try_get<I>(&self, idx: I) -> Result<Option<&str>, Error>
     where
-        I: RowIndex,
+        I: RowIndex + fmt::Display,
     {
         self.get_inner(&idx)
     }
 
     fn get_inner<I>(&self, idx: &I) -> Result<Option<&str>, Error>
     where
-        I: RowIndex,
+        I: RowIndex + fmt::Display,
     {
         let idx = match idx.__idx(&self.columns) {
             Some(idx) => idx,
-            None => return Err(Error::column()),
+            None => return Err(Error::column(idx.to_string())),
         };
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
