@@ -1,0 +1,17 @@
+[package]
+name = "tokio-postgres-binary-copy"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+bytes = "0.4"
+futures-preview = "=0.3.0-alpha.19"
+parking_lot = "0.9"
+pin-project-lite = "0.1"
+tokio-postgres = { version = "=0.5.0-alpha.1", default-features = false, path = "../tokio-postgres" }
+
+[dev-dependencies]
+tokio = "=0.2.0-alpha.6"
+tokio-postgres = { version = "=0.5.0-alpha.1", path = "../tokio-postgres" }
+
