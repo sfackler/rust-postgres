@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{Kind, Oid, Type};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 pub struct Other {
     pub name: String,
     pub oid: Oid,
@@ -11,7 +11,7 @@ pub struct Other {
     pub schema: String,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum Inner {
     Bool,
     Bytea,
