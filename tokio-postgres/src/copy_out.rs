@@ -39,6 +39,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
+/// A stream of `COPY ... TO STDOUT` query data.
 pub struct CopyStream {
     responses: Responses,
 }

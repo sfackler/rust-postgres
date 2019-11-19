@@ -114,6 +114,7 @@ pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
+pub use crate::copy_out::CopyStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
