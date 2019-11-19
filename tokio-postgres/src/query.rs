@@ -5,7 +5,7 @@ use crate::types::{IsNull, ToSql};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures::{ready, Stream};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
@@ -149,13 +149,14 @@ where
     }
 }
 
-/// A stream of table rows.
-#[pin_project]
-pub struct RowStream {
-    statement: Statement,
-    responses: Responses,
-    #[pin]
-    _p: PhantomPinned,
+pin_project! {
+    /// A stream of table rows.
+    pub struct RowStream {
+        statement: Statement,
+        responses: Responses,
+        #[pin]
+        _p: PhantomPinned,
+    }
 }
 
 impl Stream for RowStream {

@@ -5,7 +5,7 @@ use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
@@ -47,13 +47,14 @@ fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
     })
 }
 
-/// A stream of simple query results.
-#[pin_project]
-pub struct SimpleQueryStream {
-    responses: Responses,
-    columns: Option<Arc<[String]>>,
-    #[pin]
-    _p: PhantomPinned,
+pin_project! {
+    /// A stream of simple query results.
+    pub struct SimpleQueryStream {
+        responses: Responses,
+        columns: Option<Arc<[String]>>,
+        #[pin]
+        _p: PhantomPinned,
+    }
 }
 
 impl Stream for SimpleQueryStream {

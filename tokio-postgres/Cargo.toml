@@ -42,7 +42,7 @@ futures-preview = { version = "=0.3.0-alpha.19", features = ["async-await"] }
 log = "0.4"
 parking_lot = "0.9"
 percent-encoding = "2.0"
-pin-project = "0.4"
+pin-project-lite = "0.1"
 phf = "0.8"
 postgres-protocol = { version = "=0.5.0-alpha.1", path = "../postgres-protocol" }
 postgres-types = { version = "=0.1.0-alpha.1", path = "../postgres-types" }
