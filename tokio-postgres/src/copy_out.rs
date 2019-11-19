@@ -1,4 +1,5 @@
 use crate::client::{InnerClient, Responses};
+use pin_project_lite::pin_project;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::ToSql;
@@ -8,6 +9,7 @@ use futures::{ready, Stream};
 use postgres_protocol::message::backend::Message;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::marker::PhantomPinned;
 
 pub async fn copy_out<'a, I>(
     client: &InnerClient,
@@ -20,7 +22,7 @@ where
 {
     let buf = query::encode(client, &statement, params)?;
     let responses = start(client, buf).await?;
-    Ok(CopyStream { responses })
+    Ok(CopyStream { responses, _p: PhantomPinned })
 }
 
 async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
@@ -39,16 +41,22 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-/// A stream of `COPY ... TO STDOUT` query data.
-pub struct CopyStream {
-    responses: Responses,
+pin_project! {
+    /// A stream of `COPY ... TO STDOUT` query data.
+    pub struct CopyStream {
+        responses: Responses,
+        #[pin]
+        _p: PhantomPinned,
+    }
 }
 
 impl Stream for CopyStream {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match ready!(self.responses.poll_next(cx)?) {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+
+        match ready!(this.responses.poll_next(cx)?) {
             Message::CopyData(body) => Poll::Ready(Some(Ok(body.into_bytes()))),
             Message::CopyDone => Poll::Ready(None),
             _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
