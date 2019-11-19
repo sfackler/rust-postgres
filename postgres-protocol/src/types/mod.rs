@@ -308,11 +308,11 @@ pub fn varbit_from_sql<'a>(
 ) -> Result<Varbit<'a>, StdBox<dyn Error + Sync + Send>> {
     let len = buf.read_i32::<BigEndian>()?;
     if len < 0 {
-        return Err("invalid varbit length".into());
+        return Err("invalid varbit length: varbit < 0".into());
     }
     let bytes = (len as usize + 7) / 8;
     if buf.len() != bytes {
-        return Err("invalid message length".into());
+        return Err("invalid message length: varbit mismatch".into());
     }
 
     Ok(Varbit {
@@ -362,7 +362,7 @@ pub fn timestamp_to_sql(v: i64, buf: &mut BytesMut) {
 pub fn timestamp_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Send>> {
     let v = buf.read_i64::<BigEndian>()?;
     if !buf.is_empty() {
-        return Err("invalid message length".into());
+        return Err("invalid message length: timestamp not drained".into());
     }
     Ok(v)
 }
@@ -382,7 +382,7 @@ pub fn date_to_sql(v: i32, buf: &mut BytesMut) {
 pub fn date_from_sql(mut buf: &[u8]) -> Result<i32, StdBox<dyn Error + Sync + Send>> {
     let v = buf.read_i32::<BigEndian>()?;
     if !buf.is_empty() {
-        return Err("invalid message length".into());
+        return Err("invalid message length: date not drained".into());
     }
     Ok(v)
 }
@@ -402,7 +402,7 @@ pub fn time_to_sql(v: i64, buf: &mut BytesMut) {
 pub fn time_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Send>> {
     let v = buf.read_i64::<BigEndian>()?;
     if !buf.is_empty() {
-        return Err("invalid message length".into());
+        return Err("invalid message length: time not drained".into());
     }
     Ok(v)
 }
@@ -417,7 +417,7 @@ pub fn macaddr_to_sql(v: [u8; 6], buf: &mut BytesMut) {
 #[inline]
 pub fn macaddr_from_sql(buf: &[u8]) -> Result<[u8; 6], StdBox<dyn Error + Sync + Send>> {
     if buf.len() != 6 {
-        return Err("invalid message length".into());
+        return Err("invalid message length: macaddr length mismatch".into());
     }
     let mut out = [0; 6];
     out.copy_from_slice(buf);
@@ -434,7 +434,7 @@ pub fn uuid_to_sql(v: [u8; 16], buf: &mut BytesMut) {
 #[inline]
 pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<dyn Error + Sync + Send>> {
     if buf.len() != 16 {
-        return Err("invalid message length".into());
+        return Err("invalid message length: uuid size mismatch".into());
     }
     let mut out = [0; 16];
     out.copy_from_slice(buf);
@@ -615,7 +615,7 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
     fn next(&mut self) -> Result<Option<Option<&'a [u8]>>, StdBox<dyn Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
-                return Err("invalid message length".into());
+                return Err("invalid message length: arrayvalue not drained".into());
             }
             return Ok(None);
         }
@@ -944,7 +944,7 @@ impl<'a> FallibleIterator for PathPoints<'a> {
     fn next(&mut self) -> Result<Option<Point>, StdBox<dyn Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
-                return Err("invalid message length".into());
+                return Err("invalid message length: path points not drained".into());
             }
             return Ok(None);
         }

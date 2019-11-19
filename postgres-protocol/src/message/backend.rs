@@ -53,7 +53,7 @@ impl Header {
         if len < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "invalid message length",
+                "invalid message length: header length < 4",
             ));
         }
 
@@ -123,7 +123,7 @@ impl Message {
         if len < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "invalid message length",
+                "invalid message length: parsing u32",
             ));
         }
 
@@ -271,7 +271,7 @@ impl Message {
         if !buf.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "invalid message length",
+                "invalid message length: expected buffer to be empty",
             ));
         }
 
@@ -376,7 +376,7 @@ impl<'a> FallibleIterator for SaslMechanisms<'a> {
             if self.0.len() != 1 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "invalid message length",
+                    "invalid message length: expected to be at end of iterator for sasl",
                 ));
             }
             Ok(None)
@@ -488,7 +488,7 @@ impl<'a> FallibleIterator for ColumnFormats<'a> {
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid message length",
+                    "invalid message length: wrong column formats",
                 ));
             }
         }
@@ -564,7 +564,7 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid message length",
+                    "invalid message length: datarowrange is not empty",
                 ));
             }
         }
@@ -622,7 +622,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid message length",
+                    "invalid message length: error fields is not drained",
                 ));
             }
         }
@@ -718,7 +718,7 @@ impl<'a> FallibleIterator for Parameters<'a> {
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid message length",
+                    "invalid message length: parameters is not drained",
                 ));
             }
         }
@@ -794,7 +794,7 @@ impl<'a> FallibleIterator for Fields<'a> {
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid message length",
+                    "invalid message length: field is not drained",
                 ));
             }
         }
