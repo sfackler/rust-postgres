@@ -42,7 +42,6 @@ where
         let writer = BinaryCopyWriter {
             buf: buf.clone(),
             types: types.to_vec(),
-            idx: 0,
         };
 
         BinaryCopyStream {
@@ -85,14 +84,29 @@ where
 pub struct BinaryCopyWriter {
     buf: Arc<Mutex<BytesMut>>,
     types: Vec<Type>,
-    idx: usize,
 }
 
 impl BinaryCopyWriter {
     pub async fn write(
         &mut self,
-        value: &(dyn ToSql + Send),
+        values: &[&(dyn ToSql + Send)],
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
+        self.write_raw(values.iter().cloned()).await
+    }
+
+    pub async fn write_raw<'a, I>(&mut self, values: I) -> Result<(), Box<dyn Error + Sync + Send>>
+    where
+        I: IntoIterator<Item = &'a (dyn ToSql + Send)>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let values = values.into_iter();
+        assert!(
+            values.len() == self.types.len(),
+            "expected {} values but got {}",
+            self.types.len(),
+            values.len(),
+        );
+
         future::poll_fn(|_| {
             if self.buf.lock().len() > BLOCK_SIZE {
                 Poll::Pending
@@ -103,20 +117,20 @@ impl BinaryCopyWriter {
         .await;
 
         let mut buf = self.buf.lock();
-        if self.idx == 0 {
-            buf.reserve(2);
-            buf.put_i16_be(self.types.len() as i16);
-        }
-        let idx = buf.len();
-        buf.reserve(4);
-        buf.put_i32_be(0);
-        let len = match value.to_sql_checked(&self.types[self.idx], &mut buf)? {
-            IsNull::Yes => -1,
-            IsNull::No => i32::try_from(buf.len() - idx - 4)?,
-        };
-        BigEndian::write_i32(&mut buf[idx..], len);
 
-        self.idx = (self.idx + 1) % self.types.len();
+        buf.reserve(2);
+        buf.put_i16_be(self.types.len() as i16);
+
+        for (value, type_) in values.zip(&self.types) {
+            let idx = buf.len();
+            buf.reserve(4);
+            buf.put_i32_be(0);
+            let len = match value.to_sql_checked(type_, &mut buf)? {
+                IsNull::Yes => -1,
+                IsNull::No => i32::try_from(buf.len() - idx - 4)?,
+            };
+            BigEndian::write_i32(&mut buf[idx..], len);
+        }
 
         Ok(())
     }
