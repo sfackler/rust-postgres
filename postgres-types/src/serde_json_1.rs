@@ -1,35 +1,11 @@
+use crate::{FromSql, IsNull, ToSql, Type};
+use bytes::buf::BufMutExt;
 use bytes::{BufMut, BytesMut};
 use serde_1::{Deserialize, Serialize};
 use serde_json_1::Value;
 use std::error::Error;
 use std::fmt::Debug;
 use std::io::Read;
-
-use crate::{FromSql, IsNull, ToSql, Type};
-
-// https://github.com/tokio-rs/bytes/issues/170
-struct B<'a>(&'a mut BytesMut);
-
-impl<'a> BufMut for B<'a> {
-    #[inline]
-    fn remaining_mut(&self) -> usize {
-        usize::max_value() - self.0.len()
-    }
-
-    #[inline]
-    unsafe fn advance_mut(&mut self, cnt: usize) {
-        self.0.advance_mut(cnt);
-    }
-
-    #[inline]
-    unsafe fn bytes_mut(&mut self) -> &mut [u8] {
-        if !self.0.has_remaining_mut() {
-            self.0.reserve(64);
-        }
-
-        self.0.bytes_mut()
-    }
-}
 
 /// A wrapper type to allow arbitrary `Serialize`/`Deserialize` types to convert to Postgres JSON values.
 #[derive(Debug)]
@@ -66,9 +42,9 @@ where
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         if *ty == Type::JSONB {
-            B(out).put_u8(1);
+            out.put_u8(1);
         }
-        serde_json_1::ser::to_writer(B(out).writer(), &self.0)?;
+        serde_json_1::ser::to_writer(out.writer(), &self.0)?;
         Ok(IsNull::No)
     }
 
