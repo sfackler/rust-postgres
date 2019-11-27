@@ -301,7 +301,7 @@ impl Buffer {
             Some(pos) => {
                 let start = self.idx;
                 let end = start + pos;
-                let cstr = self.bytes.slice(start, end);
+                let cstr = self.bytes.slice(start..end);
                 self.idx = end + 1;
                 Ok(cstr)
             }
@@ -314,7 +314,7 @@ impl Buffer {
 
     #[inline]
     fn read_all(&mut self) -> Bytes {
-        let buf = self.bytes.slice_from(self.idx);
+        let buf = self.bytes.slice(self.idx..);
         self.idx = self.bytes.len();
         buf
     }

@@ -38,7 +38,7 @@ pub async fn query_portal(
     let buf = client.with_buf(|buf| {
         frontend::execute(portal.name(), max_rows, buf).map_err(Error::encode)?;
         frontend::sync(buf);
-        Ok(buf.take().freeze())
+        Ok(buf.split().freeze())
     })?;
 
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
@@ -102,7 +102,7 @@ where
         encode_bind(statement, params, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
-        Ok(buf.take().freeze())
+        Ok(buf.split().freeze())
     })
 }
 

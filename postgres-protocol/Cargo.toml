@@ -11,7 +11,7 @@ readme = "../README.md"
 [dependencies]
 base64 = "0.10"
 byteorder = "1.0"
-bytes = "0.4"
+bytes = "0.5"
 fallible-iterator = "0.2"
 generic-array = "0.13"
 hmac = "0.7"

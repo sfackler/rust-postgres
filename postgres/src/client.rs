@@ -299,7 +299,7 @@ impl Client {
     /// use postgres::{Client, NoTls};
     /// use std::io::Read;
     ///
-    /// # fn main() -> Result<(), Box<std::error::Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
     /// let mut reader = client.copy_out("COPY people TO stdout", &[])?;

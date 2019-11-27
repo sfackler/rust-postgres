@@ -1,4 +1,4 @@
-use bytes::{BigEndian, BufMut, ByteOrder, Bytes, BytesMut, Buf};
+use bytes::{BufMut, Bytes, BytesMut, Buf};
 use futures::{future, ready, Stream};
 use parking_lot::Mutex;
 use pin_project_lite::pin_project;
@@ -12,6 +12,7 @@ use std::task::{Context, Poll};
 use tokio_postgres::types::{IsNull, ToSql, Type, FromSql, WrongType};
 use tokio_postgres::CopyStream;
 use std::io::Cursor;
+use byteorder::{ByteOrder, BigEndian};
 
 #[cfg(test)]
 mod test;
@@ -40,8 +41,8 @@ where
         let mut buf = BytesMut::new();
         buf.reserve(HEADER_LEN);
         buf.put_slice(MAGIC); // magic
-        buf.put_i32_be(0); // flags
-        buf.put_i32_be(0); // header extension
+        buf.put_i32(0); // flags
+        buf.put_i32(0); // header extension
 
         let buf = Arc::new(Mutex::new(buf));
         let writer = BinaryCopyInWriter {
@@ -75,10 +76,10 @@ where
         let mut buf = this.buf.lock();
         if *this.done {
             buf.reserve(2);
-            buf.put_i16_be(-1);
-            Poll::Ready(Some(Ok(buf.take().freeze())))
+            buf.put_i16(-1);
+            Poll::Ready(Some(Ok(buf.split().freeze())))
         } else if buf.len() > BLOCK_SIZE {
-            Poll::Ready(Some(Ok(buf.take().freeze())))
+            Poll::Ready(Some(Ok(buf.split().freeze())))
         } else {
             Poll::Pending
         }
@@ -124,12 +125,12 @@ impl BinaryCopyInWriter {
         let mut buf = self.buf.lock();
 
         buf.reserve(2);
-        buf.put_u16_be(self.types.len() as u16);
+        buf.put_u16(self.types.len() as u16);
 
         for (value, type_) in values.zip(&self.types) {
             let idx = buf.len();
             buf.reserve(4);
-            buf.put_i32_be(0);
+            buf.put_i32(0);
             let len = match value.to_sql_checked(type_, &mut buf)? {
                 IsNull::Yes => -1,
                 IsNull::No => i32::try_from(buf.len() - idx - 4)?,
@@ -186,10 +187,10 @@ impl Stream for BinaryCopyOutStream {
                 }
                 chunk.advance(MAGIC.len());
 
-                let flags = chunk.get_i32_be();
+                let flags = chunk.get_i32();
                 let has_oids = (flags & (1 << 16)) != 0;
 
-                let header_extension = chunk.get_u32_be() as usize;
+                let header_extension = chunk.get_u32() as usize;
                 check_remaining(&chunk, header_extension)?;
                 chunk.advance(header_extension);
 
@@ -199,7 +200,7 @@ impl Stream for BinaryCopyOutStream {
         };
 
         check_remaining(&chunk, 2)?;
-        let mut len = chunk.get_i16_be();
+        let mut len = chunk.get_i16();
         if len == -1 {
             return Poll::Ready(None);
         }
@@ -214,7 +215,7 @@ impl Stream for BinaryCopyOutStream {
         let mut ranges = vec![];
         for _ in 0..len {
             check_remaining(&chunk, 4)?;
-            let len = chunk.get_i32_be();
+            let len = chunk.get_i32();
             if len == -1 {
                 ranges.push(None);
             } else {

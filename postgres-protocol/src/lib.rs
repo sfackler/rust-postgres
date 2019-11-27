@@ -31,37 +31,13 @@ pub enum IsNull {
     No,
 }
 
-// https://github.com/tokio-rs/bytes/issues/170
-struct B<'a>(&'a mut BytesMut);
-
-impl<'a> BufMut for B<'a> {
-    #[inline]
-    fn remaining_mut(&self) -> usize {
-        usize::max_value() - self.0.len()
-    }
-
-    #[inline]
-    unsafe fn advance_mut(&mut self, cnt: usize) {
-        self.0.advance_mut(cnt);
-    }
-
-    #[inline]
-    unsafe fn bytes_mut(&mut self) -> &mut [u8] {
-        if !self.0.has_remaining_mut() {
-            self.0.reserve(64);
-        }
-
-        self.0.bytes_mut()
-    }
-}
-
 fn write_nullable<F, E>(serializer: F, buf: &mut BytesMut) -> Result<(), E>
 where
     F: FnOnce(&mut BytesMut) -> Result<IsNull, E>,
     E: From<io::Error>,
 {
     let base = buf.len();
-    B(buf).put_i32_be(0);
+    buf.put_i32(0);
     let size = match serializer(buf)? {
         IsNull::No => i32::from_usize(buf.len() - base - 4)?,
         IsNull::Yes => -1,

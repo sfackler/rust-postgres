@@ -18,7 +18,7 @@ use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
-use bytes::{BytesMut, IntoBuf};
+use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{future, pin_mut, ready, StreamExt, TryStream, TryStreamExt};
@@ -357,8 +357,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
         S: TryStream,
-        S::Ok: IntoBuf,
-        <S::Ok as IntoBuf>::Buf: 'static + Send,
+        S::Ok: Buf + 'static + Send,
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
         let statement = statement.__convert().into_statement(self).await?;

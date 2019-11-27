@@ -1,12 +1,13 @@
 #![warn(rust_2018_idioms)]
 
+use bytes::{Bytes, BytesMut};
 use futures::channel::mpsc;
 use futures::{future, stream, StreamExt};
 use futures::{join, try_join, FutureExt, TryStreamExt};
 use std::fmt::Write;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::timer;
+use tokio::time;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
@@ -302,7 +303,7 @@ async fn cancel_query_raw() {
 
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let cancel = client.cancel_query_raw(socket, NoTls);
-    let cancel = timer::delay(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
+    let cancel = time::delay_for(Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");
 
@@ -410,9 +411,12 @@ async fn copy_in() {
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
     let stream = stream::iter(
-        vec![b"1\tjim\n".to_vec(), b"2\tjoe\n".to_vec()]
-            .into_iter()
-            .map(Ok::<_, String>),
+        vec![
+            Bytes::from_static(b"1\tjim\n"),
+            Bytes::from_static(b"2\tjoe\n"),
+        ]
+        .into_iter()
+        .map(Ok::<_, String>),
     );
     let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
     assert_eq!(rows, 2);
@@ -446,16 +450,20 @@ async fn copy_in_large() {
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
 
-    let a = "0\tname0\n".to_string();
-    let mut b = String::new();
+    let a = Bytes::from_static(b"0\tname0\n");
+    let mut b = BytesMut::new();
     for i in 1..5_000 {
         writeln!(b, "{0}\tname{0}", i).unwrap();
     }
-    let mut c = String::new();
+    let mut c = BytesMut::new();
     for i in 5_000..10_000 {
         writeln!(c, "{0}\tname{0}", i).unwrap();
     }
-    let stream = stream::iter(vec![a, b, c].into_iter().map(Ok::<_, String>));
+    let stream = stream::iter(
+        vec![a, b.freeze(), c.freeze()]
+            .into_iter()
+            .map(Ok::<_, String>),
+    );
 
     let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
     assert_eq!(rows, 10_000);
@@ -476,7 +484,7 @@ async fn copy_in_error() {
         .unwrap();
 
     let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
-    let stream = stream::iter(vec![Ok(b"1\tjim\n".to_vec()), Err("asdf")]);
+    let stream = stream::iter(vec![Ok(Bytes::from_static(b"1\tjim\n")), Err("asdf")]);
     let error = client.copy_in(&stmt, &[], stream).await.unwrap_err();
     assert!(error.to_string().contains("asdf"));
 
@@ -509,7 +517,12 @@ async fn copy_out() {
         .copy_out(&stmt, &[])
         .await
         .unwrap()
-        .try_concat()
+        .try_fold(BytesMut::new(), |mut buf, chunk| {
+            async move {
+                buf.extend_from_slice(&chunk);
+                Ok(buf)
+            }
+        })
         .await
         .unwrap();
     assert_eq!(&data[..], b"1\tjim\n2\tjoe\n");

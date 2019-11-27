@@ -21,7 +21,7 @@ with-uuid-0_7 = ["uuid-07"]
 with-uuid-0_8 = ["uuid-08"]
 
 [dependencies]
-bytes = "0.4"
+bytes = "0.5"
 fallible-iterator = "0.2"
 postgres-protocol = { version = "=0.5.0-alpha.1", path = "../postgres-protocol" }
 postgres-derive = { version = "=0.4.0-alpha.1", optional = true, path = "../postgres-derive" }

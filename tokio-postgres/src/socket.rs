@@ -1,5 +1,6 @@
 use bytes::{Buf, BufMut};
 use std::io;
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -32,7 +33,7 @@ impl Socket {
 }
 
 impl AsyncRead for Socket {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [MaybeUninit<u8>]) -> bool {
         match &self.0 {
             Inner::Tcp(s) => s.prepare_uninitialized_buffer(buf),
             #[cfg(unix)]

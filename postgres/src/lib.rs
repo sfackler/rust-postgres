@@ -92,7 +92,9 @@ mod test;
 #[cfg(feature = "runtime")]
 lazy_static! {
     static ref RUNTIME: Runtime = runtime::Builder::new()
-        .name_prefix("postgres-")
+        .thread_name("postgres")
+        .threaded_scheduler()
+        .enable_all()
         .build()
         .unwrap();
 }

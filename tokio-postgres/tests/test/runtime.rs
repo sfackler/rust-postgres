@@ -1,6 +1,6 @@
 use futures::{join, FutureExt};
-use std::time::{Duration, Instant};
-use tokio::timer;
+use std::time::Duration;
+use tokio::time;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::{Client, NoTls};
 
@@ -71,7 +71,7 @@ async fn cancel_query() {
     let client = connect("host=localhost port=5433 user=postgres").await;
 
     let cancel = client.cancel_query(NoTls);
-    let cancel = timer::delay(Instant::now() + Duration::from_millis(100)).then(|()| cancel);
+    let cancel = time::delay_for(Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");
 

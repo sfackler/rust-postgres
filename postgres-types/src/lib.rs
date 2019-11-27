@@ -132,7 +132,7 @@ use crate::type_gen::{Inner, Other};
 pub use postgres_protocol::Oid;
 
 pub use crate::special::{Date, Timestamp};
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -207,30 +207,6 @@ mod uuid_08;
 pub mod private;
 mod special;
 mod type_gen;
-
-// https://github.com/tokio-rs/bytes/issues/170
-struct B<'a>(&'a mut BytesMut);
-
-impl<'a> BufMut for B<'a> {
-    #[inline]
-    fn remaining_mut(&self) -> usize {
-        usize::max_value() - self.0.len()
-    }
-
-    #[inline]
-    unsafe fn advance_mut(&mut self, cnt: usize) {
-        self.0.advance_mut(cnt);
-    }
-
-    #[inline]
-    unsafe fn bytes_mut(&mut self) -> &mut [u8] {
-        if !self.0.has_remaining_mut() {
-            self.0.reserve(64);
-        }
-
-        self.0.bytes_mut()
-    }
-}
 
 /// A Postgres type.
 #[derive(PartialEq, Eq, Clone, Debug)]

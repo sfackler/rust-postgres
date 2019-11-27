@@ -3,7 +3,7 @@ use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend::CopyData;
 use std::io;
-use tokio::codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 pub enum FrontendMessage {
     Raw(Bytes),

@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
-use tokio::timer::Timeout;
+use tokio::time;
 
 pub(crate) async fn connect_socket(
     host: &Host,
@@ -42,7 +42,7 @@ where
     F: Future<Output = io::Result<T>>,
 {
     match timeout {
-        Some(timeout) => match Timeout::new(connect, timeout).await {
+        Some(timeout) => match time::timeout(timeout, connect).await {
             Ok(Ok(socket)) => Ok(socket),
             Ok(Err(e)) => Err(Error::connect(e)),
             Err(_) => Err(Error::connect(io::Error::new(

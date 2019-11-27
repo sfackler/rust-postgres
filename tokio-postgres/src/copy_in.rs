@@ -3,7 +3,8 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::ToSql;
 use crate::{query, Error, Statement};
-use bytes::{Buf, BufMut, BytesMut, IntoBuf};
+use bytes::buf::BufExt;
+use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
 use futures::{pin_mut, ready, SinkExt, Stream, StreamExt, TryStream, TryStreamExt};
 use postgres_protocol::message::backend::Message;
@@ -70,8 +71,7 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
     S: TryStream,
-    S::Ok: IntoBuf,
-    <S::Ok as IntoBuf>::Buf: 'static + Send,
+    S::Ok: Buf + 'static + Send,
     S::Error: Into<Box<dyn error::Error + Sync + Send>>,
 {
     let buf = query::encode(client, &statement, params)?;
@@ -100,19 +100,17 @@ where
     pin_mut!(stream);
 
     while let Some(buf) = stream.try_next().await.map_err(Error::copy_in_stream)? {
-        let buf = buf.into_buf();
-
         let data: Box<dyn Buf + Send> = if buf.remaining() > 4096 {
             if bytes.is_empty() {
                 Box::new(buf)
             } else {
-                Box::new(bytes.take().freeze().into_buf().chain(buf))
+                Box::new(bytes.split().freeze().chain(buf))
             }
         } else {
             bytes.reserve(buf.remaining());
             bytes.put(buf);
             if bytes.len() > 4096 {
-                Box::new(bytes.take().freeze().into_buf())
+                Box::new(bytes.split().freeze())
             } else {
                 continue;
             }
@@ -126,7 +124,7 @@ where
     }
 
     if !bytes.is_empty() {
-        let data: Box<dyn Buf + Send> = Box::new(bytes.freeze().into_buf());
+        let data: Box<dyn Buf + Send> = Box::new(bytes.freeze());
         let data = CopyData::new(data).map_err(Error::encode)?;
         sender
             .send(CopyInMessage::Message(FrontendMessage::CopyData(data)))

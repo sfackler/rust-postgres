@@ -23,7 +23,7 @@ where
     let buf = client.with_buf(|buf| {
         query::encode_bind(&statement, params, &name, buf)?;
         frontend::sync(buf);
-        Ok(buf.take().freeze())
+        Ok(buf.split().freeze())
     })?;
 
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;

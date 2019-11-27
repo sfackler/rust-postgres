@@ -8,7 +8,7 @@ use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid, B};
+use crate::{write_nullable, FromUsize, IsNull, Oid};
 
 #[cfg(test)]
 mod test;
@@ -25,7 +25,7 @@ const PGSQL_AF_INET6: u8 = 3;
 /// Serializes a `BOOL` value.
 #[inline]
 pub fn bool_to_sql(v: bool, buf: &mut BytesMut) {
-    B(buf).put_u8(v as u8);
+    buf.put_u8(v as u8);
 }
 
 /// Deserializes a `BOOL` value.
@@ -41,7 +41,7 @@ pub fn bool_from_sql(buf: &[u8]) -> Result<bool, StdBox<dyn Error + Sync + Send>
 /// Serializes a `BYTEA` value.
 #[inline]
 pub fn bytea_to_sql(v: &[u8], buf: &mut BytesMut) {
-    B(buf).put_slice(v);
+    buf.put_slice(v);
 }
 
 /// Deserializes a `BYTEA value.
@@ -53,7 +53,7 @@ pub fn bytea_from_sql(buf: &[u8]) -> &[u8] {
 /// Serializes a `TEXT`, `VARCHAR`, `CHAR(n)`, `NAME`, or `CITEXT` value.
 #[inline]
 pub fn text_to_sql(v: &str, buf: &mut BytesMut) {
-    B(buf).put_slice(v.as_bytes());
+    buf.put_slice(v.as_bytes());
 }
 
 /// Deserializes a `TEXT`, `VARCHAR`, `CHAR(n)`, `NAME`, or `CITEXT` value.
@@ -65,7 +65,7 @@ pub fn text_from_sql(buf: &[u8]) -> Result<&str, StdBox<dyn Error + Sync + Send>
 /// Serializes a `"char"` value.
 #[inline]
 pub fn char_to_sql(v: i8, buf: &mut BytesMut) {
-    B(buf).put_i8(v);
+    buf.put_i8(v);
 }
 
 /// Deserializes a `"char"` value.
@@ -81,7 +81,7 @@ pub fn char_from_sql(mut buf: &[u8]) -> Result<i8, StdBox<dyn Error + Sync + Sen
 /// Serializes an `INT2` value.
 #[inline]
 pub fn int2_to_sql(v: i16, buf: &mut BytesMut) {
-    B(buf).put_i16_be(v);
+    buf.put_i16(v);
 }
 
 /// Deserializes an `INT2` value.
@@ -97,7 +97,7 @@ pub fn int2_from_sql(mut buf: &[u8]) -> Result<i16, StdBox<dyn Error + Sync + Se
 /// Serializes an `INT4` value.
 #[inline]
 pub fn int4_to_sql(v: i32, buf: &mut BytesMut) {
-    B(buf).put_i32_be(v);
+    buf.put_i32(v);
 }
 
 /// Deserializes an `INT4` value.
@@ -113,7 +113,7 @@ pub fn int4_from_sql(mut buf: &[u8]) -> Result<i32, StdBox<dyn Error + Sync + Se
 /// Serializes an `OID` value.
 #[inline]
 pub fn oid_to_sql(v: Oid, buf: &mut BytesMut) {
-    B(buf).put_u32_be(v);
+    buf.put_u32(v);
 }
 
 /// Deserializes an `OID` value.
@@ -129,7 +129,7 @@ pub fn oid_from_sql(mut buf: &[u8]) -> Result<Oid, StdBox<dyn Error + Sync + Sen
 /// Serializes an `INT8` value.
 #[inline]
 pub fn int8_to_sql(v: i64, buf: &mut BytesMut) {
-    B(buf).put_i64_be(v);
+    buf.put_i64(v);
 }
 
 /// Deserializes an `INT8` value.
@@ -145,7 +145,7 @@ pub fn int8_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Se
 /// Serializes a `FLOAT4` value.
 #[inline]
 pub fn float4_to_sql(v: f32, buf: &mut BytesMut) {
-    B(buf).put_f32_be(v);
+    buf.put_f32(v);
 }
 
 /// Deserializes a `FLOAT4` value.
@@ -161,7 +161,7 @@ pub fn float4_from_sql(mut buf: &[u8]) -> Result<f32, StdBox<dyn Error + Sync + 
 /// Serializes a `FLOAT8` value.
 #[inline]
 pub fn float8_to_sql(v: f64, buf: &mut BytesMut) {
-    B(buf).put_f64_be(v);
+    buf.put_f64(v);
 }
 
 /// Deserializes a `FLOAT8` value.
@@ -184,7 +184,7 @@ where
     I: IntoIterator<Item = (&'a str, Option<&'a str>)>,
 {
     let base = buf.len();
-    B(buf).put_i32_be(0);
+    buf.put_i32(0);
 
     let mut count = 0;
     for (key, value) in values {
@@ -196,7 +196,7 @@ where
             Some(value) => {
                 write_pascal_string(value, buf)?;
             }
-            None => B(buf).put_i32_be(-1),
+            None => buf.put_i32(-1),
         }
     }
 
@@ -208,8 +208,8 @@ where
 
 fn write_pascal_string(s: &str, buf: &mut BytesMut) -> Result<(), StdBox<dyn Error + Sync + Send>> {
     let size = i32::from_usize(s.len())?;
-    B(buf).put_i32_be(size);
-    B(buf).put_slice(s.as_bytes());
+    buf.put_i32(size);
+    buf.put_slice(s.as_bytes());
     Ok(())
 }
 
@@ -292,10 +292,10 @@ where
     I: Iterator<Item = u8>,
 {
     let len = i32::from_usize(len)?;
-    B(buf).put_i32_be(len);
+    buf.put_i32(len);
 
     for byte in v {
-        B(buf).put_u8(byte);
+        buf.put_u8(byte);
     }
 
     Ok(())
@@ -352,7 +352,7 @@ impl<'a> Varbit<'a> {
 /// The value should represent the number of microseconds since midnight, January 1st, 2000.
 #[inline]
 pub fn timestamp_to_sql(v: i64, buf: &mut BytesMut) {
-    B(buf).put_i64_be(v);
+    buf.put_i64(v);
 }
 
 /// Deserializes a `TIMESTAMP` or `TIMESTAMPTZ` value.
@@ -372,7 +372,7 @@ pub fn timestamp_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync
 /// The value should represent the number of days since January 1st, 2000.
 #[inline]
 pub fn date_to_sql(v: i32, buf: &mut BytesMut) {
-    B(buf).put_i32_be(v);
+    buf.put_i32(v);
 }
 
 /// Deserializes a `DATE` value.
@@ -392,7 +392,7 @@ pub fn date_from_sql(mut buf: &[u8]) -> Result<i32, StdBox<dyn Error + Sync + Se
 /// The value should represent the number of microseconds since midnight.
 #[inline]
 pub fn time_to_sql(v: i64, buf: &mut BytesMut) {
-    B(buf).put_i64_be(v);
+    buf.put_i64(v);
 }
 
 /// Deserializes a `TIME` or `TIMETZ` value.
@@ -410,7 +410,7 @@ pub fn time_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Se
 /// Serializes a `MACADDR` value.
 #[inline]
 pub fn macaddr_to_sql(v: [u8; 6], buf: &mut BytesMut) {
-    B(buf).put_slice(&v);
+    buf.put_slice(&v);
 }
 
 /// Deserializes a `MACADDR` value.
@@ -427,7 +427,7 @@ pub fn macaddr_from_sql(buf: &[u8]) -> Result<[u8; 6], StdBox<dyn Error + Sync +
 /// Serializes a `UUID` value.
 #[inline]
 pub fn uuid_to_sql(v: [u8; 16], buf: &mut BytesMut) {
-    B(buf).put_slice(&v);
+    buf.put_slice(&v);
 }
 
 /// Deserializes a `UUID` value.
@@ -456,16 +456,16 @@ where
     F: FnMut(T, &mut BytesMut) -> Result<IsNull, StdBox<dyn Error + Sync + Send>>,
 {
     let dimensions_idx = buf.len();
-    B(buf).put_i32_be(0);
+    buf.put_i32(0);
     let flags_idx = buf.len();
-    B(buf).put_i32_be(0);
-    B(buf).put_u32_be(element_type);
+    buf.put_i32(0);
+    buf.put_u32(element_type);
 
     let mut num_dimensions = 0;
     for dimension in dimensions {
         num_dimensions += 1;
-        B(buf).put_i32_be(dimension.len);
-        B(buf).put_i32_be(dimension.lower_bound);
+        buf.put_i32(dimension.len);
+        buf.put_i32(dimension.lower_bound);
     }
 
     let num_dimensions = i32::from_usize(num_dimensions)?;
@@ -646,7 +646,7 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
 /// Serializes an empty range.
 #[inline]
 pub fn empty_range_to_sql(buf: &mut BytesMut) {
-    B(buf).put_u8(RANGE_EMPTY);
+    buf.put_u8(RANGE_EMPTY);
 }
 
 /// Serializes a range value.
@@ -660,7 +660,7 @@ where
     G: FnOnce(&mut BytesMut) -> Result<RangeBound<IsNull>, StdBox<dyn Error + Sync + Send>>,
 {
     let tag_idx = buf.len();
-    B(buf).put_u8(0);
+    buf.put_u8(0);
     let mut tag = 0;
 
     match write_bound(lower, buf)? {
@@ -688,7 +688,7 @@ where
     F: FnOnce(&mut BytesMut) -> Result<RangeBound<IsNull>, StdBox<dyn Error + Sync + Send>>,
 {
     let base = buf.len();
-    B(buf).put_i32_be(0);
+    buf.put_i32(0);
 
     let (null, ret) = match bound(buf)? {
         RangeBound::Inclusive(null) => (Some(null), RangeBound::Inclusive(())),
@@ -784,8 +784,8 @@ pub enum Range<'a> {
 /// Serializes a point value.
 #[inline]
 pub fn point_to_sql(x: f64, y: f64, buf: &mut BytesMut) {
-    B(buf).put_f64_be(x);
-    B(buf).put_f64_be(y);
+    buf.put_f64(x);
+    buf.put_f64(y);
 }
 
 /// Deserializes a point value.
@@ -823,10 +823,10 @@ impl Point {
 /// Serializes a box value.
 #[inline]
 pub fn box_to_sql(x1: f64, y1: f64, x2: f64, y2: f64, buf: &mut BytesMut) {
-    B(buf).put_f64_be(x1);
-    B(buf).put_f64_be(y1);
-    B(buf).put_f64_be(x2);
-    B(buf).put_f64_be(y2);
+    buf.put_f64(x1);
+    buf.put_f64(y1);
+    buf.put_f64(x2);
+    buf.put_f64(y2);
 }
 
 /// Deserializes a box value.
@@ -876,15 +876,15 @@ pub fn path_to_sql<I>(
 where
     I: IntoIterator<Item = (f64, f64)>,
 {
-    B(buf).put_u8(closed as u8);
+    buf.put_u8(closed as u8);
     let points_idx = buf.len();
-    B(buf).put_i32_be(0);
+    buf.put_i32(0);
 
     let mut num_points = 0;
     for (x, y) in points {
         num_points += 1;
-        B(buf).put_f64_be(x);
-        B(buf).put_f64_be(y);
+        buf.put_f64(x);
+        buf.put_f64(y);
     }
 
     let num_points = i32::from_usize(num_points)?;
@@ -970,17 +970,17 @@ pub fn inet_to_sql(addr: IpAddr, netmask: u8, buf: &mut BytesMut) {
         IpAddr::V4(_) => PGSQL_AF_INET,
         IpAddr::V6(_) => PGSQL_AF_INET6,
     };
-    B(buf).put_u8(family);
-    B(buf).put_u8(netmask);
-    B(buf).put_u8(0); // is_cidr
+    buf.put_u8(family);
+    buf.put_u8(netmask);
+    buf.put_u8(0); // is_cidr
     match addr {
         IpAddr::V4(addr) => {
-            B(buf).put_u8(4);
-            B(buf).put_slice(&addr.octets());
+            buf.put_u8(4);
+            buf.put_slice(&addr.octets());
         }
         IpAddr::V6(addr) => {
-            B(buf).put_u8(16);
-            B(buf).put_slice(&addr.octets());
+            buf.put_u8(16);
+            buf.put_slice(&addr.octets());
         }
     }
 }

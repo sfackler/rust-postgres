@@ -2,13 +2,13 @@
 #![allow(missing_docs)]
 
 use byteorder::{BigEndian, ByteOrder};
-use bytes::{Buf, BufMut, BytesMut, IntoBuf};
+use bytes::{Buf, BufMut, BytesMut};
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io;
 use std::marker;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid, B};
+use crate::{write_nullable, FromUsize, IsNull, Oid};
 
 #[inline]
 fn write_body<F, E>(buf: &mut BytesMut, f: F) -> Result<(), E>
@@ -61,7 +61,7 @@ where
     F: FnMut(T, &mut BytesMut) -> Result<IsNull, Box<dyn Error + marker::Sync + Send>>,
     K: IntoIterator<Item = i16>,
 {
-    B(buf).put_u8(b'B');
+    buf.put_u8(b'B');
 
     write_body(buf, |buf| {
         write_cstr(portal.as_bytes(), buf)?;
@@ -69,7 +69,7 @@ where
         write_counted(
             formats,
             |f, buf| {
-                B(buf).put_i16_be(f);
+                buf.put_i16(f);
                 Ok::<_, io::Error>(())
             },
             buf,
@@ -82,7 +82,7 @@ where
         write_counted(
             result_formats,
             |f, buf| {
-                B(buf).put_i16_be(f);
+                buf.put_i16(f);
                 Ok::<_, io::Error>(())
             },
             buf,
@@ -115,9 +115,9 @@ where
 #[inline]
 pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut BytesMut) {
     write_body(buf, |buf| {
-        B(buf).put_i32_be(80_877_102);
-        B(buf).put_i32_be(process_id);
-        B(buf).put_i32_be(secret_key);
+        buf.put_i32(80_877_102);
+        buf.put_i32(process_id);
+        buf.put_i32(secret_key);
         Ok::<_, io::Error>(())
     })
     .unwrap();
@@ -125,9 +125,9 @@ pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut BytesMut) {
 
 #[inline]
 pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'C');
+    buf.put_u8(b'C');
     write_body(buf, |buf| {
-        B(buf).put_u8(variant);
+        buf.put_u8(variant);
         write_cstr(name.as_bytes(), buf)
     })
 }
@@ -141,12 +141,7 @@ impl<T> CopyData<T>
 where
     T: Buf,
 {
-    pub fn new<U>(buf: U) -> io::Result<CopyData<T>>
-    where
-        U: IntoBuf<Buf = T>,
-    {
-        let buf = buf.into_buf();
-
+    pub fn new(buf: T) -> io::Result<CopyData<T>> {
         let len = buf
             .remaining()
             .checked_add(4)
@@ -159,39 +154,39 @@ where
     }
 
     pub fn write(self, out: &mut BytesMut) {
-        B(out).put_u8(b'd');
-        B(out).put_i32_be(self.len);
-        B(out).put(self.buf);
+        out.put_u8(b'd');
+        out.put_i32(self.len);
+        out.put(self.buf);
     }
 }
 
 #[inline]
 pub fn copy_done(buf: &mut BytesMut) {
-    B(buf).put_u8(b'c');
+    buf.put_u8(b'c');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
 #[inline]
 pub fn copy_fail(message: &str, buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'f');
+    buf.put_u8(b'f');
     write_body(buf, |buf| write_cstr(message.as_bytes(), buf))
 }
 
 #[inline]
 pub fn describe(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'D');
+    buf.put_u8(b'D');
     write_body(buf, |buf| {
-        B(buf).put_u8(variant);
+        buf.put_u8(variant);
         write_cstr(name.as_bytes(), buf)
     })
 }
 
 #[inline]
 pub fn execute(portal: &str, max_rows: i32, buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'E');
+    buf.put_u8(b'E');
     write_body(buf, |buf| {
         write_cstr(portal.as_bytes(), buf)?;
-        B(buf).put_i32_be(max_rows);
+        buf.put_i32(max_rows);
         Ok(())
     })
 }
@@ -201,14 +196,14 @@ pub fn parse<I>(name: &str, query: &str, param_types: I, buf: &mut BytesMut) -> 
 where
     I: IntoIterator<Item = Oid>,
 {
-    B(buf).put_u8(b'P');
+    buf.put_u8(b'P');
     write_body(buf, |buf| {
         write_cstr(name.as_bytes(), buf)?;
         write_cstr(query.as_bytes(), buf)?;
         write_counted(
             param_types,
             |t, buf| {
-                B(buf).put_u32_be(t);
+                buf.put_u32(t);
                 Ok::<_, io::Error>(())
             },
             buf,
@@ -219,33 +214,33 @@ where
 
 #[inline]
 pub fn password_message(password: &[u8], buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'p');
+    buf.put_u8(b'p');
     write_body(buf, |buf| write_cstr(password, buf))
 }
 
 #[inline]
 pub fn query(query: &str, buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'Q');
+    buf.put_u8(b'Q');
     write_body(buf, |buf| write_cstr(query.as_bytes(), buf))
 }
 
 #[inline]
 pub fn sasl_initial_response(mechanism: &str, data: &[u8], buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'p');
+    buf.put_u8(b'p');
     write_body(buf, |buf| {
         write_cstr(mechanism.as_bytes(), buf)?;
         let len = i32::from_usize(data.len())?;
-        B(buf).put_i32_be(len);
-        B(buf).put_slice(data);
+        buf.put_i32(len);
+        buf.put_slice(data);
         Ok(())
     })
 }
 
 #[inline]
 pub fn sasl_response(data: &[u8], buf: &mut BytesMut) -> io::Result<()> {
-    B(buf).put_u8(b'p');
+    buf.put_u8(b'p');
     write_body(buf, |buf| {
-        B(buf).put_slice(data);
+        buf.put_slice(data);
         Ok(())
     })
 }
@@ -253,7 +248,7 @@ pub fn sasl_response(data: &[u8], buf: &mut BytesMut) -> io::Result<()> {
 #[inline]
 pub fn ssl_request(buf: &mut BytesMut) {
     write_body(buf, |buf| {
-        B(buf).put_i32_be(80_877_103);
+        buf.put_i32(80_877_103);
         Ok::<_, io::Error>(())
     })
     .unwrap();
@@ -265,25 +260,25 @@ where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
     write_body(buf, |buf| {
-        B(buf).put_i32_be(196_608);
+        buf.put_i32(196_608);
         for (key, value) in parameters {
             write_cstr(key.as_bytes(), buf)?;
             write_cstr(value.as_bytes(), buf)?;
         }
-        B(buf).put_u8(0);
+        buf.put_u8(0);
         Ok(())
     })
 }
 
 #[inline]
 pub fn sync(buf: &mut BytesMut) {
-    B(buf).put_u8(b'S');
+    buf.put_u8(b'S');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
 #[inline]
 pub fn terminate(buf: &mut BytesMut) {
-    B(buf).put_u8(b'X');
+    buf.put_u8(b'X');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
 }
 
@@ -295,7 +290,7 @@ fn write_cstr(s: &[u8], buf: &mut BytesMut) -> Result<(), io::Error> {
             "string contains embedded null",
         ));
     }
-    B(buf).put_slice(s);
-    B(buf).put_u8(0);
+    buf.put_slice(s);
+    buf.put_u8(0);
     Ok(())
 }

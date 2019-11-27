@@ -11,7 +11,7 @@ use crate::Socket;
 use crate::{
     bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
 };
-use bytes::IntoBuf;
+use bytes::Buf;
 use futures::{TryStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use std::error;
@@ -40,7 +40,7 @@ impl<'a> Drop for Transaction<'a> {
         };
         let buf = self.client.inner().with_buf(|buf| {
             frontend::query(&query, buf).unwrap();
-            buf.take().freeze()
+            buf.split().freeze()
         });
         let _ = self
             .client
@@ -218,8 +218,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
         S: TryStream,
-        S::Ok: IntoBuf,
-        <S::Ok as IntoBuf>::Buf: 'static + Send,
+        S::Ok: Buf + 'static + Send,
         S::Error: Into<Box<dyn error::Error + Sync + Send>>,
     {
         self.client.copy_in(statement, params, stream).await

@@ -105,6 +105,7 @@
 pub use crate::client::Client;
 pub use crate::config::Config;
 pub use crate::connection::Connection;
+pub use crate::copy_out::CopyStream;
 use crate::error::DbError;
 pub use crate::error::Error;
 pub use crate::portal::Portal;
@@ -114,7 +115,6 @@ pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
-pub use crate::copy_out::CopyStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;

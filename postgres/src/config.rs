@@ -2,7 +2,7 @@
 //!
 //! Requires the `runtime` Cargo feature (enabled by default).
 
-use futures::FutureExt;
+use futures::{FutureExt, executor};
 use log::error;
 use std::fmt;
 use std::path::Path;
@@ -274,7 +274,9 @@ impl Config {
             }
             None => {
                 let connect = self.config.connect(tls);
-                RUNTIME.block_on(connect)?
+                RUNTIME.handle().enter(|| {
+                    executor::block_on(connect)
+                })?
             }
         };
 

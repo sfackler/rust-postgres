@@ -1,6 +1,7 @@
 use crate::tls::{ChannelBinding, TlsStream};
 use bytes::{Buf, BufMut};
 use std::io;
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -15,7 +16,7 @@ where
     S: AsyncRead + Unpin,
     T: AsyncRead + Unpin,
 {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [MaybeUninit<u8>]) -> bool {
         match self {
             MaybeTlsStream::Raw(s) => s.prepare_uninitialized_buffer(buf),
             MaybeTlsStream::Tls(s) => s.prepare_uninitialized_buffer(buf),

@@ -18,7 +18,7 @@ impl Drop for StatementInner {
             let buf = client.with_buf(|buf| {
                 frontend::close(b'S', &self.name, buf).unwrap();
                 frontend::sync(buf);
-                buf.take().freeze()
+                buf.split().freeze()
             });
             let _ = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)));
         }

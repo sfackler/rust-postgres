@@ -1,15 +1,15 @@
 use crate::client::{InnerClient, Responses};
-use pin_project_lite::pin_project;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::ToSql;
 use crate::{query, Error, Statement};
 use bytes::Bytes;
 use futures::{ready, Stream};
+use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
+use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::marker::PhantomPinned;
 
 pub async fn copy_out<'a, I>(
     client: &InnerClient,
@@ -22,7 +22,10 @@ where
 {
     let buf = query::encode(client, &statement, params)?;
     let responses = start(client, buf).await?;
-    Ok(CopyStream { responses, _p: PhantomPinned })
+    Ok(CopyStream {
+        responses,
+        _p: PhantomPinned,
+    })
 }
 
 async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
