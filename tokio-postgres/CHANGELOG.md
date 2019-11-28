@@ -1,9 +1,19 @@
 # Change Log
 
-## Unreleased
+## v0.5.0-alpha.2 - 2019-11-27
+
+### Changed
+
+* Upgraded `bytes` to 0.5.
+* Upgraded `tokio` to 0.2.
+* The TLS interface uses a trait to obtain channel binding information rather than returning it after the handshake.
+* Changed the value of the `timezone` property from `GMT` to `UTC`.
+* Returned `Stream` implementations are now `!Unpin`.
 
 ### Added
-* Added support for converting to and from `uuid` crate v0.8
+
+* Added support for `uuid` 0.8.
+* Added the column to `Row::try_get` errors.
 
 ## v0.5.0-alpha.1 - 2019-10-14
 
