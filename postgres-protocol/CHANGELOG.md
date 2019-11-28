@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.0-alpha.2 - 2019-11-27
+
+### Changed
+
+* Upgraded `bytes` to 0.5.
+
 ## v0.5.0-alpha.1 - 2019-10-14
 
 ### Changed

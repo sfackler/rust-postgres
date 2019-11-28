@@ -44,7 +44,7 @@ parking_lot = "0.9"
 percent-encoding = "2.0"
 pin-project-lite = "0.1"
 phf = "0.8"
-postgres-protocol = { version = "=0.5.0-alpha.1", path = "../postgres-protocol" }
+postgres-protocol = { version = "=0.5.0-alpha.2", path = "../postgres-protocol" }
 postgres-types = { version = "=0.1.0-alpha.1", path = "../postgres-types" }
 tokio = { version = "0.2", features = ["io-util"] }
 tokio-util = { version = "0.2", features = ["codec"] }
