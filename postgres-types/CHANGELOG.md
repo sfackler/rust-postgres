@@ -1,0 +1,12 @@
+# Change Log
+
+## v0.1.0-alpha.2 - 2019-11-27
+
+### Changed
+
+* Upgraded `bytes` to 0.5.
+* Upgraded `uuid` to 0.8.
+
+## v0.1.0-alpha.1 - 2019-10-14
+
+Initial release
