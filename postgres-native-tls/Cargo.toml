@@ -25,4 +25,4 @@ tokio-postgres = { version = "=0.5.0-alpha.2", path = "../tokio-postgres", defau
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
-postgres = { version = "=0.17.0-alpha.1", path = "../postgres" }
+postgres = { version = "=0.17.0-alpha.2", path = "../postgres" }

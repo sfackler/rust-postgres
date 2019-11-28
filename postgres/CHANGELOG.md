@@ -1,9 +1,15 @@
 # Change Log
 
-## Unreleased
+## v0.17.0-alpha.2 - 2019-11-27
+
+### Changed
+
+* Changed `Config::executor` to `Config::spawner`.
 
 ### Added
-* Added support for converting to and from `uuid` crate v0.8
+
+* Added support for `uuid` 0.8.
+* Added `Transaction::query_one`.
 
 ## v0.17.0-alpha.1 - 2019-10-14
 
