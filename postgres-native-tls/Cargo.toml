@@ -1,6 +1,6 @@
 [package]
 name = "postgres-native-tls"
-version = "0.3.0-alpha.1"
+version = "0.3.0-alpha.2"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -17,7 +17,7 @@ runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
 bytes = "0.5"
-futures-preview = "=0.3.0-alpha.19"
+futures = "0.3"
 native-tls = "0.2"
 tokio = "0.2"
 tokio-tls = "0.3"
