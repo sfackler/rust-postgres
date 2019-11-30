@@ -1,7 +1,7 @@
 use crate::{BinaryCopyInWriter, BinaryCopyOutStream};
+use futures::{pin_mut, TryStreamExt};
 use tokio_postgres::types::Type;
 use tokio_postgres::{Client, NoTls};
-use futures::{TryStreamExt, pin_mut};
 
 async fn connect() -> Client {
     let (client, connection) =
@@ -23,11 +23,18 @@ async fn write_basic() {
         .await
         .unwrap();
 
-    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let sink = client
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .await
+        .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
     pin_mut!(writer);
     writer.as_mut().write(&[&1i32, &"foobar"]).await.unwrap();
-    writer.as_mut().write(&[&2i32, &None::<&str>]).await.unwrap();
+    writer
+        .as_mut()
+        .write(&[&2i32, &None::<&str>])
+        .await
+        .unwrap();
     writer.finish().await.unwrap();
 
     let rows = client
@@ -50,12 +57,19 @@ async fn write_many_rows() {
         .await
         .unwrap();
 
-    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let sink = client
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .await
+        .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
     pin_mut!(writer);
 
     for i in 0..10_000i32 {
-        writer.as_mut().write(&[&i, &format!("the value for {}", i)]).await.unwrap();
+        writer
+            .as_mut()
+            .write(&[&i, &format!("the value for {}", i)])
+            .await
+            .unwrap();
     }
 
     writer.finish().await.unwrap();
@@ -79,12 +93,19 @@ async fn write_big_rows() {
         .await
         .unwrap();
 
-    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let sink = client
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .await
+        .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::BYTEA]);
     pin_mut!(writer);
 
     for i in 0..2i32 {
-        writer.as_mut().write(&[&i, &vec![i as u8; 128 * 1024]]).await.unwrap();
+        writer
+            .as_mut()
+            .write(&[&i, &vec![i as u8; 128 * 1024]])
+            .await
+            .unwrap();
     }
 
     writer.finish().await.unwrap();
@@ -108,13 +129,19 @@ async fn read_basic() {
             "
             CREATE TEMPORARY TABLE foo (id INT, bar TEXT);
             INSERT INTO foo (id, bar) VALUES (1, 'foobar'), (2, NULL);
-            "
+            ",
         )
         .await
         .unwrap();
 
-    let stream = client.copy_out("COPY foo (id, bar) TO STDIN BINARY", &[]).await.unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream).try_collect::<Vec<_>>().await.unwrap();
+    let stream = client
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .await
+        .unwrap();
+    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 2);
 
     assert_eq!(rows[0].get::<i32>(0), 1);
@@ -136,8 +163,14 @@ async fn read_many_rows() {
         .await
         .unwrap();
 
-    let stream = client.copy_out("COPY foo (id, bar) TO STDIN BINARY", &[]).await.unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream).try_collect::<Vec<_>>().await.unwrap();
+    let stream = client
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .await
+        .unwrap();
+    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 10_000);
 
     for (i, row) in rows.iter().enumerate() {
@@ -155,11 +188,23 @@ async fn read_big_rows() {
         .await
         .unwrap();
     for i in 0..2i32 {
-        client.execute("INSERT INTO foo (id, bar) VALUES ($1, $2)", &[&i, &vec![i as u8; 128 * 1024]]).await.unwrap();
+        client
+            .execute(
+                "INSERT INTO foo (id, bar) VALUES ($1, $2)",
+                &[&i, &vec![i as u8; 128 * 1024]],
+            )
+            .await
+            .unwrap();
     }
 
-    let stream = client.copy_out("COPY foo (id, bar) TO STDIN BINARY", &[]).await.unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::BYTEA], stream).try_collect::<Vec<_>>().await.unwrap();
+    let stream = client
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .await
+        .unwrap();
+    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::BYTEA], stream)
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 2);
 
     for (i, row) in rows.iter().enumerate() {

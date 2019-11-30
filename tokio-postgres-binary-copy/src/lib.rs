@@ -1,16 +1,16 @@
-use bytes::{BufMut, Bytes, BytesMut, Buf};
-use futures::{ready, Stream, SinkExt};
+use byteorder::{BigEndian, ByteOrder};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use futures::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::io::Cursor;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio_postgres::types::{IsNull, ToSql, Type, FromSql, WrongType};
-use tokio_postgres::{CopyOutStream, CopyInSink};
-use std::io::Cursor;
-use byteorder::{ByteOrder, BigEndian};
+use tokio_postgres::types::{FromSql, IsNull, ToSql, Type, WrongType};
+use tokio_postgres::{CopyInSink, CopyOutStream};
 
 #[cfg(test)]
 mod test;
@@ -49,10 +49,13 @@ impl BinaryCopyInWriter {
         self.write_raw(values.iter().cloned()).await
     }
 
-    pub async fn write_raw<'a, I>(self: Pin<&mut Self>, values: I) -> Result<(), Box<dyn Error + Sync + Send>>
-        where
-            I: IntoIterator<Item = &'a (dyn ToSql + Send)>,
-            I::IntoIter: ExactSizeIterator,
+    pub async fn write_raw<'a, I>(
+        self: Pin<&mut Self>,
+        values: I,
+    ) -> Result<(), Box<dyn Error + Sync + Send>>
+    where
+        I: IntoIterator<Item = &'a (dyn ToSql + Send)>,
+        I::IntoIter: ExactSizeIterator,
     {
         let mut this = self.project();
 
@@ -126,7 +129,7 @@ impl Stream for BinaryCopyOutStream {
             Some(Err(e)) => return Poll::Ready(Some(Err(e.into()))),
             None => return Poll::Ready(Some(Err("unexpected EOF".into()))),
         };
-        let mut chunk= Cursor::new(chunk);
+        let mut chunk = Cursor::new(chunk);
 
         let has_oids = match &this.header {
             Some(header) => header.has_oids,
@@ -200,7 +203,10 @@ pub struct BinaryCopyOutRow {
 }
 
 impl BinaryCopyOutRow {
-    pub fn try_get<'a, T>(&'a self, idx: usize) -> Result<T, Box<dyn Error + Sync + Send>> where T: FromSql<'a> {
+    pub fn try_get<'a, T>(&'a self, idx: usize) -> Result<T, Box<dyn Error + Sync + Send>>
+    where
+        T: FromSql<'a>,
+    {
         let type_ = &self.types[idx];
         if !T::accepts(type_) {
             return Err(WrongType::new::<T>(type_.clone()).into());
@@ -208,11 +214,14 @@ impl BinaryCopyOutRow {
 
         match &self.ranges[idx] {
             Some(range) => T::from_sql(type_, &self.buf[range.clone()]).map_err(Into::into),
-            None => T::from_sql_null(type_).map_err(Into::into)
+            None => T::from_sql_null(type_).map_err(Into::into),
         }
     }
 
-    pub fn get<'a, T>(&'a self, idx: usize) -> T where T: FromSql<'a> {
+    pub fn get<'a, T>(&'a self, idx: usize) -> T
+    where
+        T: FromSql<'a>,
+    {
         match self.try_get(idx) {
             Ok(value) => value,
             Err(e) => panic!("error retrieving column {}: {}", idx, e),

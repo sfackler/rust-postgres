@@ -13,7 +13,7 @@ use crate::{
     ToStatement,
 };
 use bytes::Buf;
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -118,6 +118,18 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         self.client.query_one(statement, params).await
+    }
+
+    /// Like `Client::query_opt`.
+    pub async fn query_opt<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.client.query_opt(statement, params).await
     }
 
     /// Like `Client::query_raw`.

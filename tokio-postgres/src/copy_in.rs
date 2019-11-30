@@ -6,13 +6,13 @@ use crate::{query, Error, Statement};
 use bytes::buf::BufExt;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
-use futures::{ready, Sink, SinkExt, Stream, StreamExt};
 use futures::future;
+use futures::{ready, Sink, SinkExt, Stream, StreamExt};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
-use std::marker::{PhantomPinned, PhantomData};
+use std::marker::{PhantomData, PhantomPinned};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

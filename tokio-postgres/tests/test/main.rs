@@ -2,7 +2,9 @@
 
 use bytes::{Bytes, BytesMut};
 use futures::channel::mpsc;
-use futures::{future, stream, StreamExt, SinkExt, pin_mut, join, try_join, FutureExt, TryStreamExt};
+use futures::{
+    future, join, pin_mut, stream, try_join, FutureExt, SinkExt, StreamExt, TryStreamExt,
+};
 use std::fmt::Write;
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -422,7 +424,10 @@ async fn copy_in() {
     let rows = sink.finish().await.unwrap();
     assert_eq!(rows, 2);
 
-    let rows = client.query("SELECT id, name FROM foo ORDER BY id", &[]).await.unwrap();
+    let rows = client
+        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .await
+        .unwrap();
 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -487,7 +492,10 @@ async fn copy_in_error() {
         sink.send(Bytes::from_static(b"1\tsteven")).await.unwrap();
     }
 
-    let rows = client.query("SELECT id, name FROM foo ORDER BY id", &[]).await.unwrap();
+    let rows = client
+        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 0);
 }
 

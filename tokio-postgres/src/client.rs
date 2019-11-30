@@ -231,14 +231,14 @@ impl Client {
 
     /// Executes a statement which returns a single row, returning it.
     ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
     /// provided, 1-indexed.
     ///
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// Returns an error if the query does not return exactly one row.
     ///
     /// # Panics
     ///
@@ -264,6 +264,43 @@ impl Client {
         }
 
         Ok(row)
+    }
+
+    /// Executes a statements which returns zero or one rows, returning it.
+    ///
+    /// Returns an error if the query returns more than one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub async fn query_opt<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        pin_mut!(stream);
+
+        let row = match stream.try_next().await? {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+
+        if stream.try_next().await?.is_some() {
+            return Err(Error::row_count());
+        }
+
+        Ok(Some(row))
     }
 
     /// The maximally flexible version of [`query`].

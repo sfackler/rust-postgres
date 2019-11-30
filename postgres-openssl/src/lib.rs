@@ -42,7 +42,7 @@
 #![doc(html_root_url = "https://docs.rs/postgres-openssl/0.3")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
-use std::task::{Poll, Context};
+use bytes::{Buf, BufMut};
 #[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
@@ -53,17 +53,17 @@ use openssl::ssl::{ConnectConfiguration, SslRef};
 use std::fmt::Debug;
 use std::future::Future;
 use std::io;
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 #[cfg(feature = "runtime")]
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
-use bytes::{Buf, BufMut};
 use tokio_openssl::{HandshakeError, SslStream};
 use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::tls::{ChannelBinding, TlsConnect};
-use std::mem::MaybeUninit;
 
 #[cfg(test)]
 mod test;

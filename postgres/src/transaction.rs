@@ -60,6 +60,18 @@ impl<'a> Transaction<'a> {
         executor::block_on(self.0.query_one(query, params))
     }
 
+    /// Like `Client::query_opt`.
+    pub fn query_opt<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        executor::block_on(self.0.query_opt(query, params))
+    }
+
     /// Like `Client::query_raw`.
     pub fn query_raw<'b, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where

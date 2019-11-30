@@ -119,6 +119,8 @@ impl Client {
 
     /// Executes a statement which returns a single row, returning it.
     ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
     /// provided, 1-indexed.
     ///
@@ -150,6 +152,52 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         executor::block_on(self.0.query_one(query, params))
+    }
+
+    /// Executes a statement which returns zero or one rows, returning it.
+    ///
+    /// Returns an error if the query returns more than one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `query` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let baz = true;
+    /// let row = client.query_opt("SELECT foo FROM bar WHERE baz = $1", &[&baz])?;
+    /// match row {
+    ///     Some(row) => {
+    ///         let foo: i32 = row.get("foo");
+    ///         println!("foo: {}", foo);
+    ///     }
+    ///     None => println!("no matching foo"),
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn query_opt<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        executor::block_on(self.0.query_opt(query, params))
     }
 
     /// A maximally-flexible version of `query`.
