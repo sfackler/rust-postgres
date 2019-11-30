@@ -3,7 +3,7 @@ use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
-use crate::copy_out::CopyStream;
+use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
 use crate::slice_iter;
@@ -370,7 +370,7 @@ impl Client {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyStream, Error>
+    ) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {

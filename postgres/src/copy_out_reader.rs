@@ -3,11 +3,11 @@ use futures::executor;
 use std::io::{self, BufRead, Cursor, Read};
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tokio_postgres::{CopyStream, Error};
+use tokio_postgres::{CopyOutStream, Error};
 
 /// The reader returned by the `copy_out` method.
 pub struct CopyOutReader<'a> {
-    it: executor::BlockingStream<Pin<Box<CopyStream>>>,
+    it: executor::BlockingStream<Pin<Box<CopyOutStream>>>,
     cur: Cursor<Bytes>,
     _p: PhantomData<&'a mut ()>,
 }
@@ -18,7 +18,7 @@ impl Drop for CopyOutReader<'_> {
 }
 
 impl<'a> CopyOutReader<'a> {
-    pub(crate) fn new(stream: CopyStream) -> Result<CopyOutReader<'a>, Error> {
+    pub(crate) fn new(stream: CopyOutStream) -> Result<CopyOutReader<'a>, Error> {
         let mut it = executor::block_on_stream(Box::pin(stream));
         let cur = match it.next() {
             Some(Ok(cur)) => cur,

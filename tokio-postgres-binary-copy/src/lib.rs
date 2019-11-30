@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio_postgres::types::{IsNull, ToSql, Type, FromSql, WrongType};
-use tokio_postgres::{CopyStream, CopyInSink};
+use tokio_postgres::{CopyOutStream, CopyInSink};
 use std::io::Cursor;
 use byteorder::{ByteOrder, BigEndian};
 
@@ -99,14 +99,14 @@ struct Header {
 pin_project! {
     pub struct BinaryCopyOutStream {
         #[pin]
-        stream: CopyStream,
+        stream: CopyOutStream,
         types: Arc<Vec<Type>>,
         header: Option<Header>,
     }
 }
 
 impl BinaryCopyOutStream {
-    pub fn new(types: &[Type], stream: CopyStream) -> BinaryCopyOutStream {
+    pub fn new(types: &[Type], stream: CopyOutStream) -> BinaryCopyOutStream {
         BinaryCopyOutStream {
             stream,
             types: Arc::new(types.to_vec()),

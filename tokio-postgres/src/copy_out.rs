@@ -15,14 +15,14 @@ pub async fn copy_out<'a, I>(
     client: &InnerClient,
     statement: Statement,
     params: I,
-) -> Result<CopyStream, Error>
+) -> Result<CopyOutStream, Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
     let buf = query::encode(client, &statement, params)?;
     let responses = start(client, buf).await?;
-    Ok(CopyStream {
+    Ok(CopyOutStream {
         responses,
         _p: PhantomPinned,
     })
@@ -46,14 +46,14 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 
 pin_project! {
     /// A stream of `COPY ... TO STDOUT` query data.
-    pub struct CopyStream {
+    pub struct CopyOutStream {
         responses: Responses,
         #[pin]
         _p: PhantomPinned,
     }
 }
 
-impl Stream for CopyStream {
+impl Stream for CopyOutStream {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

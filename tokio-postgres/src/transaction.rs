@@ -1,6 +1,6 @@
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::copy_out::CopyStream;
+use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -226,7 +226,7 @@ impl<'a> Transaction<'a> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyStream, Error>
+    ) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {
