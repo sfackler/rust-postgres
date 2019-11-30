@@ -1,6 +1,4 @@
-use crate::iter::Iter;
-use crate::{CopyInWriter, CopyOutReader, Portal, Statement, ToStatement};
-use fallible_iterator::FallibleIterator;
+use crate::{CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
 use futures::executor;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
@@ -63,18 +61,14 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
-    pub fn query_raw<'b, T, I>(
-        &mut self,
-        query: &T,
-        params: I,
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
+    pub fn query_raw<'b, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
         let stream = executor::block_on(self.0.query_raw(query, params))?;
-        Ok(Iter::new(stream))
+        Ok(RowIter::new(stream))
     }
 
     /// Binds parameters to a statement, creating a "portal".
@@ -107,9 +101,9 @@ impl<'a> Transaction<'a> {
         &mut self,
         portal: &Portal,
         max_rows: i32,
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error> {
+    ) -> Result<RowIter<'_>, Error> {
         let stream = executor::block_on(self.0.query_portal_raw(portal, max_rows))?;
-        Ok(Iter::new(stream))
+        Ok(RowIter::new(stream))
     }
 
     /// Like `Client::copy_in`.

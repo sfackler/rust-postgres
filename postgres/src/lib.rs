@@ -75,6 +75,7 @@ pub use crate::copy_out_reader::CopyOutReader;
 pub use crate::error::Error;
 #[doc(no_inline)]
 pub use crate::row::{Row, SimpleQueryRow};
+pub use crate::row_iter::RowIter;
 #[doc(no_inline)]
 pub use crate::tls::NoTls;
 pub use crate::transaction::*;
@@ -84,7 +85,7 @@ mod client;
 pub mod config;
 mod copy_in_writer;
 mod copy_out_reader;
-mod iter;
+mod row_iter;
 mod transaction;
 
 #[cfg(feature = "runtime")]

@@ -1,8 +1,6 @@
-use crate::iter::Iter;
 #[cfg(feature = "runtime")]
 use crate::Config;
-use crate::{CopyInWriter, CopyOutReader, Statement, ToStatement, Transaction};
-use fallible_iterator::FallibleIterator;
+use crate::{CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction};
 use futures::executor;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
@@ -183,18 +181,14 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_raw<'a, T, I>(
-        &mut self,
-        query: &T,
-        params: I,
-    ) -> Result<impl FallibleIterator<Item = Row, Error = Error>, Error>
+    pub fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
         let stream = executor::block_on(self.0.query_raw(query, params))?;
-        Ok(Iter::new(stream))
+        Ok(RowIter::new(stream))
     }
 
     /// Creates a new prepared statement.
