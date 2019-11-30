@@ -383,8 +383,8 @@ impl Client {
     ///
     /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
     /// point. The simple query protocol returns the values in rows as strings rather than in their binary encodings,
-    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning a stream over the
-    /// rows, this method returns a stream over an enum which indicates either the completion of one of the commands,
+    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning a list of the
+    /// rows, this method returns a list of an enum which indicates either the completion of one of the commands,
     /// or a row of data. This preserves the framing between the separate statements in the request.
     ///
     /// # Warning
