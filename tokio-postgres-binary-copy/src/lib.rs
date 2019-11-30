@@ -1,144 +1,94 @@
 use bytes::{BufMut, Bytes, BytesMut, Buf};
-use futures::{future, ready, Stream};
-use parking_lot::Mutex;
+use futures::{ready, Stream, SinkExt};
 use pin_project_lite::pin_project;
 use std::convert::TryFrom;
 use std::error::Error;
-use std::future::Future;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio_postgres::types::{IsNull, ToSql, Type, FromSql, WrongType};
-use tokio_postgres::CopyStream;
+use tokio_postgres::{CopyStream, CopyInSink};
 use std::io::Cursor;
 use byteorder::{ByteOrder, BigEndian};
 
 #[cfg(test)]
 mod test;
 
-const BLOCK_SIZE: usize = 4096;
 const MAGIC: &[u8] = b"PGCOPY\n\xff\r\n\0";
 const HEADER_LEN: usize = MAGIC.len() + 4 + 4;
 
 pin_project! {
-    pub struct BinaryCopyInStream<F> {
+    pub struct BinaryCopyInWriter {
         #[pin]
-        future: F,
-        buf: Arc<Mutex<BytesMut>>,
-        done: bool,
+        sink: CopyInSink<Bytes>,
+        types: Vec<Type>,
+        buf: BytesMut,
     }
 }
 
-impl<F> BinaryCopyInStream<F>
-where
-    F: Future<Output = Result<(), Box<dyn Error + Sync + Send>>>,
-{
-    pub fn new<M>(types: &[Type], write_values: M) -> BinaryCopyInStream<F>
-    where
-        M: FnOnce(BinaryCopyInWriter) -> F,
-    {
+impl BinaryCopyInWriter {
+    pub fn new(sink: CopyInSink<Bytes>, types: &[Type]) -> BinaryCopyInWriter {
         let mut buf = BytesMut::new();
         buf.reserve(HEADER_LEN);
         buf.put_slice(MAGIC); // magic
         buf.put_i32(0); // flags
         buf.put_i32(0); // header extension
 
-        let buf = Arc::new(Mutex::new(buf));
-        let writer = BinaryCopyInWriter {
-            buf: buf.clone(),
+        BinaryCopyInWriter {
+            sink,
             types: types.to_vec(),
-        };
-
-        BinaryCopyInStream {
-            future: write_values(writer),
             buf,
-            done: false,
         }
     }
-}
 
-impl<F> Stream for BinaryCopyInStream<F>
-where
-    F: Future<Output = Result<(), Box<dyn Error + Sync + Send>>>,
-{
-    type Item = Result<Bytes, Box<dyn Error + Sync + Send>>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-
-        if *this.done {
-            return Poll::Ready(None);
-        }
-
-        *this.done = this.future.poll(cx)?.is_ready();
-
-        let mut buf = this.buf.lock();
-        if *this.done {
-            buf.reserve(2);
-            buf.put_i16(-1);
-            Poll::Ready(Some(Ok(buf.split().freeze())))
-        } else if buf.len() > BLOCK_SIZE {
-            Poll::Ready(Some(Ok(buf.split().freeze())))
-        } else {
-            Poll::Pending
-        }
-    }
-}
-
-// FIXME this should really just take a reference to the buffer, but that requires HKT :(
-pub struct BinaryCopyInWriter {
-    buf: Arc<Mutex<BytesMut>>,
-    types: Vec<Type>,
-}
-
-impl BinaryCopyInWriter {
     pub async fn write(
-        &mut self,
+        self: Pin<&mut Self>,
         values: &[&(dyn ToSql + Send)],
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         self.write_raw(values.iter().cloned()).await
     }
 
-    pub async fn write_raw<'a, I>(&mut self, values: I) -> Result<(), Box<dyn Error + Sync + Send>>
-    where
-        I: IntoIterator<Item = &'a (dyn ToSql + Send)>,
-        I::IntoIter: ExactSizeIterator,
+    pub async fn write_raw<'a, I>(self: Pin<&mut Self>, values: I) -> Result<(), Box<dyn Error + Sync + Send>>
+        where
+            I: IntoIterator<Item = &'a (dyn ToSql + Send)>,
+            I::IntoIter: ExactSizeIterator,
     {
+        let mut this = self.project();
+
         let values = values.into_iter();
         assert!(
-            values.len() == self.types.len(),
+            values.len() == this.types.len(),
             "expected {} values but got {}",
-            self.types.len(),
+            this.types.len(),
             values.len(),
         );
 
-        future::poll_fn(|_| {
-            if self.buf.lock().len() > BLOCK_SIZE {
-                Poll::Pending
-            } else {
-                Poll::Ready(())
-            }
-        })
-        .await;
+        this.buf.put_i16(this.types.len() as i16);
 
-        let mut buf = self.buf.lock();
-
-        buf.reserve(2);
-        buf.put_u16(self.types.len() as u16);
-
-        for (value, type_) in values.zip(&self.types) {
-            let idx = buf.len();
-            buf.reserve(4);
-            buf.put_i32(0);
-            let len = match value.to_sql_checked(type_, &mut buf)? {
+        for (value, type_) in values.zip(this.types) {
+            let idx = this.buf.len();
+            this.buf.put_i32(0);
+            let len = match value.to_sql_checked(type_, this.buf)? {
                 IsNull::Yes => -1,
-                IsNull::No => i32::try_from(buf.len() - idx - 4)?,
+                IsNull::No => i32::try_from(this.buf.len() - idx - 4)?,
             };
-            BigEndian::write_i32(&mut buf[idx..], len);
+            BigEndian::write_i32(&mut this.buf[idx..], len);
+        }
+
+        if this.buf.len() > 4096 {
+            this.sink.send(this.buf.split().freeze()).await?;
         }
 
         Ok(())
+    }
+
+    pub async fn finish(self: Pin<&mut Self>) -> Result<u64, tokio_postgres::Error> {
+        let mut this = self.project();
+
+        this.buf.put_i16(-1);
+        this.sink.send(this.buf.split().freeze()).await?;
+        this.sink.finish().await
     }
 }
 

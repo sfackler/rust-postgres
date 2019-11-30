@@ -1,13 +1,9 @@
+use crate::iter::Iter;
+use crate::{CopyInWriter, CopyOutReader, Portal, Statement, ToStatement};
 use fallible_iterator::FallibleIterator;
 use futures::executor;
-use std::io::{BufRead, Read};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
-
-use crate::copy_in_stream::CopyInStream;
-use crate::copy_out_reader::CopyOutReader;
-use crate::iter::Iter;
-use crate::{Portal, Statement, ToStatement};
 
 /// A representation of a PostgreSQL database transaction.
 ///
@@ -117,17 +113,16 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
-    pub fn copy_in<T, R>(
+    pub fn copy_in<T>(
         &mut self,
         query: &T,
         params: &[&(dyn ToSql + Sync)],
-        reader: R,
-    ) -> Result<u64, Error>
+    ) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        R: Read + Unpin,
     {
-        executor::block_on(self.0.copy_in(query, params, CopyInStream(reader)))
+        let sink = executor::block_on(self.0.copy_in(query, params))?;
+        Ok(CopyInWriter::new(sink))
     }
 
     /// Like `Client::copy_out`.
@@ -135,7 +130,7 @@ impl<'a> Transaction<'a> {
         &mut self,
         query: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<impl BufRead, Error>
+    ) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {

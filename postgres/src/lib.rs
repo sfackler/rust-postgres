@@ -69,6 +69,8 @@ pub use tokio_postgres::{
 pub use crate::client::*;
 #[cfg(feature = "runtime")]
 pub use crate::config::Config;
+pub use crate::copy_in_writer::CopyInWriter;
+pub use crate::copy_out_reader::CopyOutReader;
 #[doc(no_inline)]
 pub use crate::error::Error;
 #[doc(no_inline)]
@@ -80,7 +82,7 @@ pub use crate::transaction::*;
 mod client;
 #[cfg(feature = "runtime")]
 pub mod config;
-mod copy_in_stream;
+mod copy_in_writer;
 mod copy_out_reader;
 mod iter;
 mod transaction;

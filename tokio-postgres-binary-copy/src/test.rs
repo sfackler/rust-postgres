@@ -1,7 +1,7 @@
-use crate::{BinaryCopyInStream, BinaryCopyOutStream};
+use crate::{BinaryCopyInWriter, BinaryCopyOutStream};
 use tokio_postgres::types::Type;
 use tokio_postgres::{Client, NoTls};
-use futures::TryStreamExt;
+use futures::{TryStreamExt, pin_mut};
 
 async fn connect() -> Client {
     let (client, connection) =
@@ -23,19 +23,12 @@ async fn write_basic() {
         .await
         .unwrap();
 
-    let stream = BinaryCopyInStream::new(&[Type::INT4, Type::TEXT], |mut w| {
-        async move {
-            w.write(&[&1i32, &"foobar"]).await?;
-            w.write(&[&2i32, &None::<&str>]).await?;
-
-            Ok(())
-        }
-    });
-
-    client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[], stream)
-        .await
-        .unwrap();
+    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
+    pin_mut!(writer);
+    writer.as_mut().write(&[&1i32, &"foobar"]).await.unwrap();
+    writer.as_mut().write(&[&2i32, &None::<&str>]).await.unwrap();
+    writer.finish().await.unwrap();
 
     let rows = client
         .query("SELECT id, bar FROM foo ORDER BY id", &[])
@@ -57,20 +50,15 @@ async fn write_many_rows() {
         .await
         .unwrap();
 
-    let stream = BinaryCopyInStream::new(&[Type::INT4, Type::TEXT], |mut w| {
-        async move {
-            for i in 0..10_000i32 {
-                w.write(&[&i, &format!("the value for {}", i)]).await?;
-            }
+    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
+    pin_mut!(writer);
 
-            Ok(())
-        }
-    });
+    for i in 0..10_000i32 {
+        writer.as_mut().write(&[&i, &format!("the value for {}", i)]).await.unwrap();
+    }
 
-    client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[], stream)
-        .await
-        .unwrap();
+    writer.finish().await.unwrap();
 
     let rows = client
         .query("SELECT id, bar FROM foo ORDER BY id", &[])
@@ -91,20 +79,15 @@ async fn write_big_rows() {
         .await
         .unwrap();
 
-    let stream = BinaryCopyInStream::new(&[Type::INT4, Type::BYTEA], |mut w| {
-        async move {
-            for i in 0..2i32 {
-                w.write(&[&i, &vec![i as u8; 128 * 1024]]).await?;
-            }
+    let sink = client.copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[]).await.unwrap();
+    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::BYTEA]);
+    pin_mut!(writer);
 
-            Ok(())
-        }
-    });
+    for i in 0..2i32 {
+        writer.as_mut().write(&[&i, &vec![i as u8; 128 * 1024]]).await.unwrap();
+    }
 
-    client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[], stream)
-        .await
-        .unwrap();
+    writer.finish().await.unwrap();
 
     let rows = client
         .query("SELECT id, bar FROM foo ORDER BY id", &[])

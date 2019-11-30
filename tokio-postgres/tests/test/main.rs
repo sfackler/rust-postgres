@@ -2,8 +2,7 @@
 
 use bytes::{Bytes, BytesMut};
 use futures::channel::mpsc;
-use futures::{future, stream, StreamExt};
-use futures::{join, try_join, FutureExt, TryStreamExt};
+use futures::{future, stream, StreamExt, SinkExt, pin_mut, join, try_join, FutureExt, TryStreamExt};
 use std::fmt::Write;
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -409,23 +408,21 @@ async fn copy_in() {
         .await
         .unwrap();
 
-    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
-    let stream = stream::iter(
+    let mut stream = stream::iter(
         vec![
             Bytes::from_static(b"1\tjim\n"),
             Bytes::from_static(b"2\tjoe\n"),
         ]
         .into_iter()
-        .map(Ok::<_, String>),
+        .map(Ok::<_, Error>),
     );
-    let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
+    let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+    pin_mut!(sink);
+    sink.send_all(&mut stream).await.unwrap();
+    let rows = sink.finish().await.unwrap();
     assert_eq!(rows, 2);
 
-    let stmt = client
-        .prepare("SELECT id, name FROM foo ORDER BY id")
-        .await
-        .unwrap();
-    let rows = client.query(&stmt, &[]).await.unwrap();
+    let rows = client.query("SELECT id, name FROM foo ORDER BY id", &[]).await.unwrap();
 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<_, i32>(0), 1);
@@ -448,8 +445,6 @@ async fn copy_in_large() {
         .await
         .unwrap();
 
-    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
-
     let a = Bytes::from_static(b"0\tname0\n");
     let mut b = BytesMut::new();
     for i in 1..5_000 {
@@ -459,13 +454,16 @@ async fn copy_in_large() {
     for i in 5_000..10_000 {
         writeln!(c, "{0}\tname{0}", i).unwrap();
     }
-    let stream = stream::iter(
+    let mut stream = stream::iter(
         vec![a, b.freeze(), c.freeze()]
             .into_iter()
-            .map(Ok::<_, String>),
+            .map(Ok::<_, Error>),
     );
 
-    let rows = client.copy_in(&stmt, &[], stream).await.unwrap();
+    let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+    pin_mut!(sink);
+    sink.send_all(&mut stream).await.unwrap();
+    let rows = sink.finish().await.unwrap();
     assert_eq!(rows, 10_000);
 }
 
@@ -483,16 +481,13 @@ async fn copy_in_error() {
         .await
         .unwrap();
 
-    let stmt = client.prepare("COPY foo FROM STDIN").await.unwrap();
-    let stream = stream::iter(vec![Ok(Bytes::from_static(b"1\tjim\n")), Err("asdf")]);
-    let error = client.copy_in(&stmt, &[], stream).await.unwrap_err();
-    assert!(error.to_string().contains("asdf"));
+    {
+        let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+        pin_mut!(sink);
+        sink.send(Bytes::from_static(b"1\tsteven")).await.unwrap();
+    }
 
-    let stmt = client
-        .prepare("SELECT id, name FROM foo ORDER BY id")
-        .await
-        .unwrap();
-    let rows = client.query(&stmt, &[]).await.unwrap();
+    let rows = client.query("SELECT id, name FROM foo ORDER BY id", &[]).await.unwrap();
     assert_eq!(rows.len(), 0);
 }
 

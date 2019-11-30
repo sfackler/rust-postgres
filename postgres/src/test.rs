@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
 
@@ -154,13 +154,9 @@ fn copy_in() {
         .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
         .unwrap();
 
-    client
-        .copy_in(
-            "COPY foo FROM stdin",
-            &[],
-            &mut &b"1\tsteven\n2\ttimothy"[..],
-        )
-        .unwrap();
+    let mut writer = client.copy_in("COPY foo FROM stdin", &[]).unwrap();
+    writer.write_all(b"1\tsteven\n2\ttimothy").unwrap();
+    writer.finish().unwrap();
 
     let rows = client
         .query("SELECT id, name FROM foo ORDER BY id", &[])
@@ -171,6 +167,25 @@ fn copy_in() {
     assert_eq!(rows[0].get::<_, &str>(1), "steven");
     assert_eq!(rows[1].get::<_, i32>(0), 2);
     assert_eq!(rows[1].get::<_, &str>(1), "timothy");
+}
+
+#[test]
+fn copy_in_abort() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
+        .unwrap();
+
+    let mut writer = client.copy_in("COPY foo FROM stdin", &[]).unwrap();
+    writer.write_all(b"1\tsteven\n2\ttimothy").unwrap();
+    drop(writer);
+
+    let rows = client
+        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .unwrap();
+
+    assert_eq!(rows.len(), 0);
 }
 
 #[test]

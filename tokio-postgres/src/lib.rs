@@ -105,6 +105,7 @@
 pub use crate::client::Client;
 pub use crate::config::Config;
 pub use crate::connection::Connection;
+pub use crate::copy_in::CopyInSink;
 pub use crate::copy_out::CopyStream;
 use crate::error::DbError;
 pub use crate::error::Error;

@@ -1,18 +1,14 @@
+use crate::iter::Iter;
+#[cfg(feature = "runtime")]
+use crate::Config;
+use crate::{CopyInWriter, CopyOutReader, Statement, ToStatement, Transaction};
 use fallible_iterator::FallibleIterator;
 use futures::executor;
-use std::io::{BufRead, Read};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use tokio_postgres::Socket;
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
-
-use crate::copy_in_stream::CopyInStream;
-use crate::copy_out_reader::CopyOutReader;
-use crate::iter::Iter;
-#[cfg(feature = "runtime")]
-use crate::Config;
-use crate::{Statement, ToStatement, Transaction};
 
 /// A synchronous PostgreSQL client.
 ///
@@ -264,29 +260,33 @@ impl Client {
     /// The `query` argument can either be a `Statement`, or a raw query string. The data in the provided reader is
     /// passed along to the server verbatim; it is the caller's responsibility to ensure it uses the proper format.
     ///
+    /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
+    ///
     /// # Examples
     ///
     /// ```no_run
     /// use postgres::{Client, NoTls};
+    /// use std::io::Write;
     ///
-    /// # fn main() -> Result<(), postgres::Error> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
-    /// client.copy_in("COPY people FROM stdin", &[], &mut "1\tjohn\n2\tjane\n".as_bytes())?;
+    /// let mut writer = client.copy_in("COPY people FROM stdin", &[])?;
+    /// writer.write_all(b"1\tjohn\n2\tjane\n")?;
+    /// writer.finish()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_in<T, R>(
+    pub fn copy_in<T>(
         &mut self,
         query: &T,
         params: &[&(dyn ToSql + Sync)],
-        reader: R,
-    ) -> Result<u64, Error>
+    ) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        R: Read + Unpin,
     {
-        executor::block_on(self.0.copy_in(query, params, CopyInStream(reader)))
+        let sink = executor::block_on(self.0.copy_in(query, params))?;
+        Ok(CopyInWriter::new(sink))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -312,7 +312,7 @@ impl Client {
         &mut self,
         query: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<impl BufRead, Error>
+    ) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {

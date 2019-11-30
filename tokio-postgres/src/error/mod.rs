@@ -337,7 +337,6 @@ enum Kind {
     ToSql(usize),
     FromSql(usize),
     Column(String),
-    CopyInStream,
     Closed,
     Db,
     Parse,
@@ -376,7 +375,6 @@ impl fmt::Display for Error {
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {}", idx)?,
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {}", idx)?,
             Kind::Column(column) => write!(fmt, "invalid column `{}`", column)?,
-            Kind::CopyInStream => fmt.write_str("error from a copy_in stream")?,
             Kind::Closed => fmt.write_str("connection closed")?,
             Kind::Db => fmt.write_str("db error")?,
             Kind::Parse => fmt.write_str("error parsing response from server")?,
@@ -456,13 +454,6 @@ impl Error {
 
     pub(crate) fn column(column: String) -> Error {
         Error::new(Kind::Column(column), None)
-    }
-
-    pub(crate) fn copy_in_stream<E>(e: E) -> Error
-    where
-        E: Into<Box<dyn error::Error + Sync + Send>>,
-    {
-        Error::new(Kind::CopyInStream, Some(e.into()))
     }
 
     pub(crate) fn tls(e: Box<dyn error::Error + Sync + Send>) -> Error {

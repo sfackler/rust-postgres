@@ -9,12 +9,12 @@ use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, Client, Error, Portal, Row, SimpleQueryMessage, Statement, ToStatement,
+    bind, query, slice_iter, Client, CopyInSink, Error, Portal, Row, SimpleQueryMessage, Statement,
+    ToStatement,
 };
 use bytes::Buf;
-use futures::{TryStream, TryStreamExt};
+use futures::{TryStreamExt};
 use postgres_protocol::message::frontend;
-use std::error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
@@ -209,19 +209,16 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
-    pub async fn copy_in<T, S>(
+    pub async fn copy_in<T, U>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-        stream: S,
-    ) -> Result<u64, Error>
+    ) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
-        S: TryStream,
-        S::Ok: Buf + 'static + Send,
-        S::Error: Into<Box<dyn error::Error + Sync + Send>>,
+        U: Buf + 'static + Send,
     {
-        self.client.copy_in(statement, params, stream).await
+        self.client.copy_in(statement, params).await
     }
 
     /// Like `Client::copy_out`.

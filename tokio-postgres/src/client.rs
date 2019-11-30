@@ -14,18 +14,17 @@ use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query_raw, copy_in, copy_out, query, Transaction};
+use crate::{cancel_query_raw, copy_in, copy_out, query, CopyInSink, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
-use futures::{future, pin_mut, ready, StreamExt, TryStream, TryStreamExt};
+use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use std::collections::HashMap;
-use std::error;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -340,29 +339,26 @@ impl Client {
         query::execute(self.inner(), statement, params).await
     }
 
-    /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
+    /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.
     ///
-    /// The data in the provided stream is passed along to the server verbatim; it is the caller's responsibility to
-    /// ensure it uses the proper format.
+    /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
+    /// not, the copy will be aborted.
     ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub async fn copy_in<T, S>(
+    pub async fn copy_in<T, U>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-        stream: S,
-    ) -> Result<u64, Error>
+    ) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
-        S: TryStream,
-        S::Ok: Buf + 'static + Send,
-        S::Error: Into<Box<dyn error::Error + Sync + Send>>,
+        U: Buf + 'static + Send,
     {
         let statement = statement.__convert().into_statement(self).await?;
         let params = slice_iter(params);
-        copy_in::copy_in(self.inner(), statement, params, stream).await
+        copy_in::copy_in(self.inner(), statement, params).await
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.

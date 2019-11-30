@@ -1,4 +1,4 @@
-use crate::client::InnerClient;
+use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::ToSql;
@@ -6,11 +6,13 @@ use crate::{query, Error, Statement};
 use bytes::buf::BufExt;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
-use futures::{pin_mut, ready, SinkExt, Stream, StreamExt, TryStream, TryStreamExt};
+use futures::{ready, Sink, SinkExt, Stream, StreamExt};
+use futures::future;
+use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
-use std::error;
+use std::marker::{PhantomPinned, PhantomData};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -61,18 +63,148 @@ impl Stream for CopyInReceiver {
     }
 }
 
-pub async fn copy_in<'a, I, S>(
+enum SinkState {
+    Active,
+    Closing,
+    Reading,
+}
+
+pin_project! {
+    /// A sink for `COPY ... FROM STDIN` query data.
+    ///
+    /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
+    /// not, the copy will be aborted.
+    pub struct CopyInSink<T> {
+        #[pin]
+        sender: mpsc::Sender<CopyInMessage>,
+        responses: Responses,
+        buf: BytesMut,
+        state: SinkState,
+        #[pin]
+        _p: PhantomPinned,
+        _p2: PhantomData<T>,
+    }
+}
+
+impl<T> CopyInSink<T>
+where
+    T: Buf + 'static + Send,
+{
+    /// A poll-based version of `finish`.
+    pub fn poll_finish(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<u64, Error>> {
+        loop {
+            match self.state {
+                SinkState::Active => {
+                    ready!(self.as_mut().poll_flush(cx))?;
+                    let mut this = self.as_mut().project();
+                    ready!(this.sender.as_mut().poll_ready(cx)).map_err(|_| Error::closed())?;
+                    this.sender
+                        .start_send(CopyInMessage::Done)
+                        .map_err(|_| Error::closed())?;
+                    *this.state = SinkState::Closing;
+                }
+                SinkState::Closing => {
+                    let this = self.as_mut().project();
+                    ready!(this.sender.poll_close(cx)).map_err(|_| Error::closed())?;
+                    *this.state = SinkState::Reading;
+                }
+                SinkState::Reading => {
+                    let this = self.as_mut().project();
+                    match ready!(this.responses.poll_next(cx))? {
+                        Message::CommandComplete(body) => {
+                            let rows = body
+                                .tag()
+                                .map_err(Error::parse)?
+                                .rsplit(' ')
+                                .next()
+                                .unwrap()
+                                .parse()
+                                .unwrap_or(0);
+                            return Poll::Ready(Ok(rows));
+                        }
+                        _ => return Poll::Ready(Err(Error::unexpected_message())),
+                    }
+                }
+            }
+        }
+    }
+
+    /// Completes the copy, returning the number of rows inserted.
+    ///
+    /// The `Sink::close` method is equivalent to `finish`, except that it does not return the
+    /// number of rows.
+    pub async fn finish(mut self: Pin<&mut Self>) -> Result<u64, Error> {
+        future::poll_fn(|cx| self.as_mut().poll_finish(cx)).await
+    }
+}
+
+impl<T> Sink<T> for CopyInSink<T>
+where
+    T: Buf + 'static + Send,
+{
+    type Error = Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.project()
+            .sender
+            .poll_ready(cx)
+            .map_err(|_| Error::closed())
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Error> {
+        let this = self.project();
+
+        let data: Box<dyn Buf + Send> = if item.remaining() > 4096 {
+            if this.buf.is_empty() {
+                Box::new(item)
+            } else {
+                Box::new(this.buf.split().freeze().chain(item))
+            }
+        } else {
+            this.buf.put(item);
+            if this.buf.len() > 4096 {
+                Box::new(this.buf.split().freeze())
+            } else {
+                return Ok(());
+            }
+        };
+
+        let data = CopyData::new(data).map_err(Error::encode)?;
+        this.sender
+            .start_send(CopyInMessage::Message(FrontendMessage::CopyData(data)))
+            .map_err(|_| Error::closed())
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        let mut this = self.project();
+
+        if !this.buf.is_empty() {
+            ready!(this.sender.as_mut().poll_ready(cx)).map_err(|_| Error::closed())?;
+            let data: Box<dyn Buf + Send> = Box::new(this.buf.split().freeze());
+            let data = CopyData::new(data).map_err(Error::encode)?;
+            this.sender
+                .as_mut()
+                .start_send(CopyInMessage::Message(FrontendMessage::CopyData(data)))
+                .map_err(|_| Error::closed())?;
+        }
+
+        this.sender.poll_flush(cx).map_err(|_| Error::closed())
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.poll_finish(cx).map_ok(|_| ())
+    }
+}
+
+pub async fn copy_in<'a, I, T>(
     client: &InnerClient,
     statement: Statement,
     params: I,
-    stream: S,
-) -> Result<u64, Error>
+) -> Result<CopyInSink<T>, Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
-    S: TryStream,
-    S::Ok: Buf + 'static + Send,
-    S::Error: Into<Box<dyn error::Error + Sync + Send>>,
+    T: Buf + 'static + Send,
 {
     let buf = query::encode(client, &statement, params)?;
 
@@ -95,60 +227,12 @@ where
         _ => return Err(Error::unexpected_message()),
     }
 
-    let mut bytes = BytesMut::new();
-    let stream = stream.into_stream();
-    pin_mut!(stream);
-
-    while let Some(buf) = stream.try_next().await.map_err(Error::copy_in_stream)? {
-        let data: Box<dyn Buf + Send> = if buf.remaining() > 4096 {
-            if bytes.is_empty() {
-                Box::new(buf)
-            } else {
-                Box::new(bytes.split().freeze().chain(buf))
-            }
-        } else {
-            bytes.reserve(buf.remaining());
-            bytes.put(buf);
-            if bytes.len() > 4096 {
-                Box::new(bytes.split().freeze())
-            } else {
-                continue;
-            }
-        };
-
-        let data = CopyData::new(data).map_err(Error::encode)?;
-        sender
-            .send(CopyInMessage::Message(FrontendMessage::CopyData(data)))
-            .await
-            .map_err(|_| Error::closed())?;
-    }
-
-    if !bytes.is_empty() {
-        let data: Box<dyn Buf + Send> = Box::new(bytes.freeze());
-        let data = CopyData::new(data).map_err(Error::encode)?;
-        sender
-            .send(CopyInMessage::Message(FrontendMessage::CopyData(data)))
-            .await
-            .map_err(|_| Error::closed())?;
-    }
-
-    sender
-        .send(CopyInMessage::Done)
-        .await
-        .map_err(|_| Error::closed())?;
-
-    match responses.next().await? {
-        Message::CommandComplete(body) => {
-            let rows = body
-                .tag()
-                .map_err(Error::parse)?
-                .rsplit(' ')
-                .next()
-                .unwrap()
-                .parse()
-                .unwrap_or(0);
-            Ok(rows)
-        }
-        _ => Err(Error::unexpected_message()),
-    }
+    Ok(CopyInSink {
+        sender,
+        responses,
+        buf: BytesMut::new(),
+        state: SinkState::Active,
+        _p: PhantomPinned,
+        _p2: PhantomData,
+    })
 }
