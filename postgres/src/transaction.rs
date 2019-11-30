@@ -8,7 +8,7 @@ use tokio_postgres::{Error, Row, SimpleQueryMessage};
 /// A representation of a PostgreSQL database transaction.
 ///
 /// Transactions will implicitly roll back by default when dropped. Use the `commit` method to commit the changes made
-/// in the transaction. Transactions can be nested, with inner transactions implemented via safepoints.
+/// in the transaction. Transactions can be nested, with inner transactions implemented via savepoints.
 pub struct Transaction<'a>(tokio_postgres::Transaction<'a>);
 
 impl<'a> Transaction<'a> {
