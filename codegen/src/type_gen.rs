@@ -266,7 +266,7 @@ use std::sync::Arc;
 
 use crate::{{Type, Oid, Kind}};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 pub struct Other {{
     pub name: String,
     pub oid: Oid,
@@ -282,7 +282,7 @@ fn make_enum(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     write!(
         w,
         "
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum Inner {{"
     )
     .unwrap();

@@ -209,7 +209,7 @@ mod special;
 mod type_gen;
 
 /// A Postgres type.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct Type(Inner);
 
 impl fmt::Display for Type {
@@ -264,7 +264,7 @@ impl Type {
 }
 
 /// Represents the kind of a Postgres type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Kind {
     /// A simple type like `VARCHAR` or `INTEGER`.
     Simple,
@@ -285,7 +285,7 @@ pub enum Kind {
 }
 
 /// Information about a field of a composite type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Field {
     name: String,
     type_: Type,
