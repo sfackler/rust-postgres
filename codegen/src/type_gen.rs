@@ -200,7 +200,7 @@ fn parse_types() -> BTreeMap<u32, Type> {
         let name = raw_type["typname"].clone();
 
         let ident = range_vector_re.replace(&name, "_$1");
-        let ident = array_re.replace(&ident, "$1_array");
+        let ident = array_re.replace(&ident, "${1}_array");
         let variant = snake_to_camel(&ident);
         let ident = ident.to_ascii_uppercase();
 
