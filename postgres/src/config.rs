@@ -17,6 +17,8 @@ pub use tokio_postgres::config::{ChannelBinding, SslMode, TargetSessionAttrs};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
 
+type Spawn = dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Sync + Send;
+
 /// Connection configuration.
 ///
 /// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
@@ -93,7 +95,7 @@ use tokio_postgres::{Error, Socket};
 #[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
-    spawner: Option<Arc<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Sync + Send>>,
+    spawner: Option<Arc<Spawn>>,
 }
 
 impl fmt::Debug for Config {
