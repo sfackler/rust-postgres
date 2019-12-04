@@ -1,8 +1,8 @@
 use fallible_iterator::FallibleIterator;
+use futures::StreamExt;
 use std::pin::Pin;
 use tokio::runtime::Runtime;
 use tokio_postgres::{Error, Row, RowStream};
-use futures::StreamExt;
 
 /// The iterator returned by `query_raw`.
 pub struct RowIter<'a> {
