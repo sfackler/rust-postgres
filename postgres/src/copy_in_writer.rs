@@ -1,18 +1,18 @@
 use bytes::{Bytes, BytesMut};
-use futures::{executor, SinkExt};
+use futures::SinkExt;
 use std::io;
 use std::io::Write;
-use std::marker::PhantomData;
 use std::pin::Pin;
+use tokio::runtime::Runtime;
 use tokio_postgres::{CopyInSink, Error};
 
 /// The writer returned by the `copy_in` method.
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
 pub struct CopyInWriter<'a> {
+    runtime: &'a mut Runtime,
     sink: Pin<Box<CopyInSink<Bytes>>>,
     buf: BytesMut,
-    _p: PhantomData<&'a mut ()>,
 }
 
 // no-op impl to extend borrow until drop
@@ -21,11 +21,11 @@ impl Drop for CopyInWriter<'_> {
 }
 
 impl<'a> CopyInWriter<'a> {
-    pub(crate) fn new(sink: CopyInSink<Bytes>) -> CopyInWriter<'a> {
+    pub(crate) fn new(runtime: &'a mut Runtime, sink: CopyInSink<Bytes>) -> CopyInWriter<'a> {
         CopyInWriter {
+            runtime,
             sink: Box::pin(sink),
             buf: BytesMut::new(),
-            _p: PhantomData,
         }
     }
 
@@ -34,7 +34,7 @@ impl<'a> CopyInWriter<'a> {
     /// If this is not called, the copy will be aborted.
     pub fn finish(mut self) -> Result<u64, Error> {
         self.flush_inner()?;
-        executor::block_on(self.sink.as_mut().finish())
+        self.runtime.block_on(self.sink.as_mut().finish())
     }
 
     fn flush_inner(&mut self) -> Result<(), Error> {
@@ -42,7 +42,8 @@ impl<'a> CopyInWriter<'a> {
             return Ok(());
         }
 
-        executor::block_on(self.sink.as_mut().send(self.buf.split().freeze()))
+        self.runtime
+            .block_on(self.sink.as_mut().send(self.buf.split().freeze()))
     }
 }
 

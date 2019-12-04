@@ -55,19 +55,11 @@
 #![doc(html_root_url = "https://docs.rs/postgres/0.17")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
-#[cfg(feature = "runtime")]
-use lazy_static::lazy_static;
-#[cfg(feature = "runtime")]
-use tokio::runtime::{self, Runtime};
-
-#[cfg(feature = "runtime")]
-pub use tokio_postgres::Socket;
 pub use tokio_postgres::{
-    error, row, tls, types, Column, Portal, SimpleQueryMessage, Statement, ToStatement,
+    error, row, tls, types, Column, Portal, SimpleQueryMessage, Socket, Statement, ToStatement,
 };
 
 pub use crate::client::*;
-#[cfg(feature = "runtime")]
 pub use crate::config::Config;
 pub use crate::copy_in_writer::CopyInWriter;
 pub use crate::copy_out_reader::CopyOutReader;
@@ -81,23 +73,11 @@ pub use crate::tls::NoTls;
 pub use crate::transaction::*;
 
 mod client;
-#[cfg(feature = "runtime")]
 pub mod config;
 mod copy_in_writer;
 mod copy_out_reader;
 mod row_iter;
 mod transaction;
 
-#[cfg(feature = "runtime")]
 #[cfg(test)]
 mod test;
-
-#[cfg(feature = "runtime")]
-lazy_static! {
-    static ref RUNTIME: Runtime = runtime::Builder::new()
-        .thread_name("postgres")
-        .threaded_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
-}

@@ -10,6 +10,10 @@ readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
 
+[[bench]]
+name = "bench"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 
@@ -17,9 +21,6 @@ all-features = true
 circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
-default = ["runtime"]
-runtime = ["tokio-postgres/runtime", "tokio", "lazy_static", "log"]
-
 with-bit-vec-0_6 = ["tokio-postgres/with-bit-vec-0_6"]
 with-chrono-0_4 = ["tokio-postgres/with-chrono-0_4"]
 with-eui48-0_4 = ["tokio-postgres/with-eui48-0_4"]
@@ -32,11 +33,11 @@ with-uuid-0_8 = ["tokio-postgres/with-uuid-0_8"]
 bytes = "0.5"
 fallible-iterator = "0.2"
 futures = "0.3"
-tokio-postgres = { version = "=0.5.0-alpha.2", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "=0.5.0-alpha.2", path = "../tokio-postgres" }
 
-tokio = { version = "0.2", optional = true, features = ["rt-threaded"] }
-lazy_static = { version = "1.0", optional = true }
-log = { version = "0.4", optional = true }
+tokio = { version = "0.2", features = ["rt-core"] }
+log = "0.4"
 
 [dev-dependencies]
+criterion = "0.3"
 tokio = "0.2"

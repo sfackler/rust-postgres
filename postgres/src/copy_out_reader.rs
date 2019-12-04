@@ -1,15 +1,15 @@
 use bytes::{Buf, Bytes};
-use futures::executor;
+use futures::StreamExt;
 use std::io::{self, BufRead, Cursor, Read};
-use std::marker::PhantomData;
 use std::pin::Pin;
+use tokio::runtime::Runtime;
 use tokio_postgres::{CopyOutStream, Error};
 
 /// The reader returned by the `copy_out` method.
 pub struct CopyOutReader<'a> {
-    it: executor::BlockingStream<Pin<Box<CopyOutStream>>>,
+    runtime: &'a mut Runtime,
+    stream: Pin<Box<CopyOutStream>>,
     cur: Cursor<Bytes>,
-    _p: PhantomData<&'a mut ()>,
 }
 
 // no-op impl to extend borrow until drop
@@ -18,18 +18,21 @@ impl Drop for CopyOutReader<'_> {
 }
 
 impl<'a> CopyOutReader<'a> {
-    pub(crate) fn new(stream: CopyOutStream) -> Result<CopyOutReader<'a>, Error> {
-        let mut it = executor::block_on_stream(Box::pin(stream));
-        let cur = match it.next() {
+    pub(crate) fn new(
+        runtime: &'a mut Runtime,
+        stream: CopyOutStream,
+    ) -> Result<CopyOutReader<'a>, Error> {
+        let mut stream = Box::pin(stream);
+        let cur = match runtime.block_on(stream.next()) {
             Some(Ok(cur)) => cur,
             Some(Err(e)) => return Err(e),
             None => Bytes::new(),
         };
 
         Ok(CopyOutReader {
-            it,
+            runtime,
+            stream,
             cur: Cursor::new(cur),
-            _p: PhantomData,
         })
     }
 }
@@ -47,7 +50,7 @@ impl Read for CopyOutReader<'_> {
 impl BufRead for CopyOutReader<'_> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         if self.cur.remaining() == 0 {
-            match self.it.next() {
+            match self.runtime.block_on(self.stream.next()) {
                 Some(Ok(cur)) => self.cur = Cursor::new(cur),
                 Some(Err(e)) => return Err(io::Error::new(io::ErrorKind::Other, e)),
                 None => {}

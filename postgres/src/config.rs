@@ -2,22 +2,18 @@
 //!
 //! Requires the `runtime` Cargo feature (enabled by default).
 
-use crate::{Client, RUNTIME};
-use futures::{executor, FutureExt};
+use crate::Client;
+use futures::FutureExt;
 use log::error;
 use std::fmt;
-use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::{mpsc, Arc};
 use std::time::Duration;
+use tokio::runtime;
 #[doc(inline)]
 pub use tokio_postgres::config::{ChannelBinding, SslMode, TargetSessionAttrs};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
-
-type Spawn = dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Sync + Send;
 
 /// Connection configuration.
 ///
@@ -95,7 +91,6 @@ type Spawn = dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Sync + Send;
 #[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
-    spawner: Option<Arc<Spawn>>,
 }
 
 impl fmt::Debug for Config {
@@ -117,7 +112,6 @@ impl Config {
     pub fn new() -> Config {
         Config {
             config: tokio_postgres::Config::new(),
-            spawner: None,
         }
     }
 
@@ -242,17 +236,6 @@ impl Config {
         self
     }
 
-    /// Sets the spawner used to run the connection futures.
-    ///
-    /// Defaults to a postgres-specific tokio `Runtime`.
-    pub fn spawner<F>(&mut self, spawn: F) -> &mut Config
-    where
-        F: Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + 'static + Sync + Send,
-    {
-        self.spawner = Some(Arc::new(spawn));
-        self
-    }
-
     /// Opens a connection to a PostgreSQL database.
     pub fn connect<T>(&self, tls: T) -> Result<Client, Error>
     where
@@ -261,38 +244,23 @@ impl Config {
         T::Stream: Send,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
-        let (client, connection) = match &self.spawner {
-            Some(spawn) => {
-                let (tx, rx) = mpsc::channel();
-                let config = self.config.clone();
-                let connect = async move {
-                    let r = config.connect(tls).await;
-                    let _ = tx.send(r);
-                };
-                spawn(Box::pin(connect));
-                rx.recv().unwrap()?
-            }
-            None => {
-                let connect = self.config.connect(tls);
-                RUNTIME.handle().enter(|| executor::block_on(connect))?
-            }
-        };
+        let mut runtime = runtime::Builder::new()
+            .enable_all()
+            .basic_scheduler()
+            .build()
+            .unwrap(); // FIXME don't unwrap
 
+        let (client, connection) = runtime.block_on(self.config.connect(tls))?;
+
+        // FIXME don't spawn this so error reporting is less weird.
         let connection = connection.map(|r| {
             if let Err(e) = r {
                 error!("postgres connection error: {}", e)
             }
         });
-        match &self.spawner {
-            Some(spawn) => {
-                spawn(Box::pin(connection));
-            }
-            None => {
-                RUNTIME.spawn(connection);
-            }
-        }
+        runtime.spawn(connection);
 
-        Ok(Client::from(client))
+        Ok(Client::new(runtime, client))
     }
 }
 
@@ -306,9 +274,6 @@ impl FromStr for Config {
 
 impl From<tokio_postgres::Config> for Config {
     fn from(config: tokio_postgres::Config) -> Config {
-        Config {
-            config,
-            spawner: None,
-        }
+        Config { config }
     }
 }

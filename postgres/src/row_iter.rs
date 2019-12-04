@@ -1,13 +1,13 @@
 use fallible_iterator::FallibleIterator;
-use futures::executor::{self, BlockingStream};
-use std::marker::PhantomData;
 use std::pin::Pin;
+use tokio::runtime::Runtime;
 use tokio_postgres::{Error, Row, RowStream};
+use futures::StreamExt;
 
 /// The iterator returned by `query_raw`.
 pub struct RowIter<'a> {
-    it: BlockingStream<Pin<Box<RowStream>>>,
-    _p: PhantomData<&'a mut ()>,
+    runtime: &'a mut Runtime,
+    it: Pin<Box<RowStream>>,
 }
 
 // no-op impl to extend the borrow until drop
@@ -16,10 +16,10 @@ impl Drop for RowIter<'_> {
 }
 
 impl<'a> RowIter<'a> {
-    pub(crate) fn new(stream: RowStream) -> RowIter<'a> {
+    pub(crate) fn new(runtime: &'a mut Runtime, stream: RowStream) -> RowIter<'a> {
         RowIter {
-            it: executor::block_on_stream(Box::pin(stream)),
-            _p: PhantomData,
+            runtime,
+            it: Box::pin(stream),
         }
     }
 }
@@ -29,6 +29,6 @@ impl FallibleIterator for RowIter<'_> {
     type Error = Error;
 
     fn next(&mut self) -> Result<Option<Row>, Error> {
-        self.it.next().transpose()
+        self.runtime.block_on(self.it.next()).transpose()
     }
 }

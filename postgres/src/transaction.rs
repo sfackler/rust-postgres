@@ -1,5 +1,5 @@
 use crate::{CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
-use futures::executor;
+use tokio::runtime::Runtime;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
@@ -7,33 +7,43 @@ use tokio_postgres::{Error, Row, SimpleQueryMessage};
 ///
 /// Transactions will implicitly roll back by default when dropped. Use the `commit` method to commit the changes made
 /// in the transaction. Transactions can be nested, with inner transactions implemented via savepoints.
-pub struct Transaction<'a>(tokio_postgres::Transaction<'a>);
+pub struct Transaction<'a> {
+    runtime: &'a mut Runtime,
+    transaction: tokio_postgres::Transaction<'a>,
+}
 
 impl<'a> Transaction<'a> {
-    pub(crate) fn new(transaction: tokio_postgres::Transaction<'a>) -> Transaction<'a> {
-        Transaction(transaction)
+    pub(crate) fn new(
+        runtime: &'a mut Runtime,
+        transaction: tokio_postgres::Transaction<'a>,
+    ) -> Transaction<'a> {
+        Transaction {
+            runtime,
+            transaction,
+        }
     }
 
     /// Consumes the transaction, committing all changes made within it.
     pub fn commit(self) -> Result<(), Error> {
-        executor::block_on(self.0.commit())
+        self.runtime.block_on(self.transaction.commit())
     }
 
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
     pub fn rollback(self) -> Result<(), Error> {
-        executor::block_on(self.0.rollback())
+        self.runtime.block_on(self.transaction.rollback())
     }
 
     /// Like `Client::prepare`.
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        executor::block_on(self.0.prepare(query))
+        self.runtime.block_on(self.transaction.prepare(query))
     }
 
     /// Like `Client::prepare_typed`.
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        executor::block_on(self.0.prepare_typed(query, types))
+        self.runtime
+            .block_on(self.transaction.prepare_typed(query, types))
     }
 
     /// Like `Client::execute`.
@@ -41,7 +51,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.execute(query, params))
+        self.runtime
+            .block_on(self.transaction.execute(query, params))
     }
 
     /// Like `Client::query`.
@@ -49,7 +60,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query(query, params))
+        self.runtime.block_on(self.transaction.query(query, params))
     }
 
     /// Like `Client::query_one`.
@@ -57,7 +68,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query_one(query, params))
+        self.runtime
+            .block_on(self.transaction.query_one(query, params))
     }
 
     /// Like `Client::query_opt`.
@@ -69,7 +81,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query_opt(query, params))
+        self.runtime
+            .block_on(self.transaction.query_opt(query, params))
     }
 
     /// Like `Client::query_raw`.
@@ -79,8 +92,10 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let stream = executor::block_on(self.0.query_raw(query, params))?;
-        Ok(RowIter::new(stream))
+        let stream = self
+            .runtime
+            .block_on(self.transaction.query_raw(query, params))?;
+        Ok(RowIter::new(self.runtime, stream))
     }
 
     /// Binds parameters to a statement, creating a "portal".
@@ -97,7 +112,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.bind(query, params))
+        self.runtime.block_on(self.transaction.bind(query, params))
     }
 
     /// Continues execution of a portal, returning the next set of rows.
@@ -105,7 +120,8 @@ impl<'a> Transaction<'a> {
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all remaining rows will be returned.
     pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
-        executor::block_on(self.0.query_portal(portal, max_rows))
+        self.runtime
+            .block_on(self.transaction.query_portal(portal, max_rows))
     }
 
     /// The maximally flexible version of `query_portal`.
@@ -114,8 +130,10 @@ impl<'a> Transaction<'a> {
         portal: &Portal,
         max_rows: i32,
     ) -> Result<RowIter<'_>, Error> {
-        let stream = executor::block_on(self.0.query_portal_raw(portal, max_rows))?;
-        Ok(RowIter::new(stream))
+        let stream = self
+            .runtime
+            .block_on(self.transaction.query_portal_raw(portal, max_rows))?;
+        Ok(RowIter::new(self.runtime, stream))
     }
 
     /// Like `Client::copy_in`.
@@ -127,8 +145,10 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        let sink = executor::block_on(self.0.copy_in(query, params))?;
-        Ok(CopyInWriter::new(sink))
+        let sink = self
+            .runtime
+            .block_on(self.transaction.copy_in(query, params))?;
+        Ok(CopyInWriter::new(self.runtime, sink))
     }
 
     /// Like `Client::copy_out`.
@@ -140,23 +160,28 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = executor::block_on(self.0.copy_out(query, params))?;
-        CopyOutReader::new(stream)
+        let stream = self
+            .runtime
+            .block_on(self.transaction.copy_out(query, params))?;
+        CopyOutReader::new(self.runtime, stream)
     }
 
     /// Like `Client::simple_query`.
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        executor::block_on(self.0.simple_query(query))
+        self.runtime.block_on(self.transaction.simple_query(query))
     }
 
     /// Like `Client::batch_execute`.
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
-        executor::block_on(self.0.batch_execute(query))
+        self.runtime.block_on(self.transaction.batch_execute(query))
     }
 
     /// Like `Client::transaction`.
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        let transaction = executor::block_on(self.0.transaction())?;
-        Ok(Transaction(transaction))
+        let transaction = self.runtime.block_on(self.transaction.transaction())?;
+        Ok(Transaction {
+            runtime: self.runtime,
+            transaction,
+        })
     }
 }

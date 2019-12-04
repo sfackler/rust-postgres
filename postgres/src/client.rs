@@ -1,27 +1,25 @@
-#[cfg(feature = "runtime")]
-use crate::Config;
-use crate::{CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction};
-use futures::executor;
+use crate::{Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction};
+use tokio::runtime::Runtime;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
-#[cfg(feature = "runtime")]
-use tokio_postgres::Socket;
-use tokio_postgres::{Error, Row, SimpleQueryMessage};
+use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
-///
-/// This is a lightweight wrapper over the asynchronous tokio_postgres `Client`.
-pub struct Client(tokio_postgres::Client);
+pub struct Client {
+    runtime: Runtime,
+    client: tokio_postgres::Client,
+}
 
 impl Client {
+    pub(crate) fn new(runtime: Runtime, client: tokio_postgres::Client) -> Client {
+        Client { runtime, client }
+    }
+
     /// A convenience function which parses a configuration string into a `Config` and then connects to the database.
     ///
     /// See the documentation for [`Config`] for information about the connection syntax.
     ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    ///
     /// [`Config`]: config/struct.Config.html
-    #[cfg(feature = "runtime")]
     pub fn connect<T>(params: &str, tls_mode: T) -> Result<Client, Error>
     where
         T: MakeTlsConnect<Socket> + 'static + Send,
@@ -78,7 +76,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.execute(query, params))
+        self.runtime.block_on(self.client.execute(query, params))
     }
 
     /// Executes a statement, returning the resulting rows.
@@ -114,7 +112,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query(query, params))
+        self.runtime.block_on(self.client.query(query, params))
     }
 
     /// Executes a statement which returns a single row, returning it.
@@ -151,7 +149,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query_one(query, params))
+        self.runtime.block_on(self.client.query_one(query, params))
     }
 
     /// Executes a statement which returns zero or one rows, returning it.
@@ -197,7 +195,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        executor::block_on(self.0.query_opt(query, params))
+        self.runtime.block_on(self.client.query_opt(query, params))
     }
 
     /// A maximally-flexible version of `query`.
@@ -235,8 +233,10 @@ impl Client {
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let stream = executor::block_on(self.0.query_raw(query, params))?;
-        Ok(RowIter::new(stream))
+        let stream = self
+            .runtime
+            .block_on(self.client.query_raw(query, params))?;
+        Ok(RowIter::new(&mut self.runtime, stream))
     }
 
     /// Creates a new prepared statement.
@@ -263,7 +263,7 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        executor::block_on(self.0.prepare(query))
+        self.runtime.block_on(self.client.prepare(query))
     }
 
     /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
@@ -294,7 +294,8 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        executor::block_on(self.0.prepare_typed(query, types))
+        self.runtime
+            .block_on(self.client.prepare_typed(query, types))
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning the number of rows created.
@@ -327,8 +328,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let sink = executor::block_on(self.0.copy_in(query, params))?;
-        Ok(CopyInWriter::new(sink))
+        let sink = self.runtime.block_on(self.client.copy_in(query, params))?;
+        Ok(CopyInWriter::new(&mut self.runtime, sink))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -358,8 +359,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = executor::block_on(self.0.copy_out(query, params))?;
-        CopyOutReader::new(stream)
+        let stream = self.runtime.block_on(self.client.copy_out(query, params))?;
+        CopyOutReader::new(&mut self.runtime, stream)
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.
@@ -378,7 +379,7 @@ impl Client {
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        executor::block_on(self.0.simple_query(query))
+        self.runtime.block_on(self.client.simple_query(query))
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.
@@ -392,7 +393,7 @@ impl Client {
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
-        executor::block_on(self.0.batch_execute(query))
+        self.runtime.block_on(self.client.batch_execute(query))
     }
 
     /// Begins a new database transaction.
@@ -416,35 +417,14 @@ impl Client {
     /// # }
     /// ```
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        let transaction = executor::block_on(self.0.transaction())?;
-        Ok(Transaction::new(transaction))
+        let transaction = self.runtime.block_on(self.client.transaction())?;
+        Ok(Transaction::new(&mut self.runtime, transaction))
     }
 
     /// Determines if the client's connection has already closed.
     ///
     /// If this returns `true`, the client is no longer usable.
     pub fn is_closed(&self) -> bool {
-        self.0.is_closed()
-    }
-
-    /// Returns a shared reference to the inner nonblocking client.
-    pub fn get_ref(&self) -> &tokio_postgres::Client {
-        &self.0
-    }
-
-    /// Returns a mutable reference to the inner nonblocking client.
-    pub fn get_mut(&mut self) -> &mut tokio_postgres::Client {
-        &mut self.0
-    }
-
-    /// Consumes the client, returning the inner nonblocking client.
-    pub fn into_inner(self) -> tokio_postgres::Client {
-        self.0
-    }
-}
-
-impl From<tokio_postgres::Client> for Client {
-    fn from(c: tokio_postgres::Client) -> Client {
-        Client(c)
+        self.client.is_closed()
     }
 }
