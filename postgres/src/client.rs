@@ -302,6 +302,7 @@ impl Client {
     ///
     /// The `query` argument can either be a `Statement`, or a raw query string. The data in the provided reader is
     /// passed along to the server verbatim; it is the caller's responsibility to ensure it uses the proper format.
+    /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
     ///
     /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
     ///
@@ -314,27 +315,24 @@ impl Client {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
-    /// let mut writer = client.copy_in("COPY people FROM stdin", &[])?;
+    /// let mut writer = client.copy_in("COPY people FROM stdin")?;
     /// writer.write_all(b"1\tjohn\n2\tjane\n")?;
     /// writer.finish()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_in<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyInWriter<'_>, Error>
+    pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let sink = self.runtime.block_on(self.client.copy_in(query, params))?;
+        let sink = self.runtime.block_on(self.client.copy_in(query))?;
         Ok(CopyInWriter::new(&mut self.runtime, sink))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
     ///
-    /// The `query` argument can either be a `Statement`, or a raw query string.
+    /// The `query` argument can either be a `Statement`, or a raw query string. PostgreSQL does not support parameters
+    /// in `COPY` statements, so this method does not take any.
     ///
     /// # Examples
     ///
@@ -345,21 +343,17 @@ impl Client {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
-    /// let mut reader = client.copy_out("COPY people TO stdout", &[])?;
+    /// let mut reader = client.copy_out("COPY people TO stdout")?;
     /// let mut buf = vec![];
     /// reader.read_to_end(&mut buf)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_out<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyOutReader<'_>, Error>
+    pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.runtime.block_on(self.client.copy_out(query, params))?;
+        let stream = self.runtime.block_on(self.client.copy_out(query))?;
         CopyOutReader::new(&mut self.runtime, stream)
     }
 

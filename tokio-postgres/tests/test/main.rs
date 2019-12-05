@@ -418,7 +418,7 @@ async fn copy_in() {
         .into_iter()
         .map(Ok::<_, Error>),
     );
-    let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+    let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
     pin_mut!(sink);
     sink.send_all(&mut stream).await.unwrap();
     let rows = sink.finish().await.unwrap();
@@ -465,7 +465,7 @@ async fn copy_in_large() {
             .map(Ok::<_, Error>),
     );
 
-    let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+    let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
     pin_mut!(sink);
     sink.send_all(&mut stream).await.unwrap();
     let rows = sink.finish().await.unwrap();
@@ -487,7 +487,7 @@ async fn copy_in_error() {
         .unwrap();
 
     {
-        let sink = client.copy_in("COPY foo FROM STDIN", &[]).await.unwrap();
+        let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
         pin_mut!(sink);
         sink.send(Bytes::from_static(b"1\tsteven")).await.unwrap();
     }
@@ -517,7 +517,7 @@ async fn copy_out() {
 
     let stmt = client.prepare("COPY foo TO STDOUT").await.unwrap();
     let data = client
-        .copy_out(&stmt, &[])
+        .copy_out(&stmt)
         .await
         .unwrap()
         .try_fold(BytesMut::new(), |mut buf, chunk| {

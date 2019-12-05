@@ -224,25 +224,23 @@ impl<'a> Transaction<'a> {
     pub async fn copy_in<T, U>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
     ) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
-        self.client.copy_in(statement, params).await
+        self.client.copy_in(statement).await
     }
 
     /// Like `Client::copy_out`.
     pub async fn copy_out<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
     ) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {
-        self.client.copy_out(statement, params).await
+        self.client.copy_out(statement).await
     }
 
     /// Like `Client::simple_query`.

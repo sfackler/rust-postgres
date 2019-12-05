@@ -154,7 +154,7 @@ fn copy_in() {
         .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
         .unwrap();
 
-    let mut writer = client.copy_in("COPY foo FROM stdin", &[]).unwrap();
+    let mut writer = client.copy_in("COPY foo FROM stdin").unwrap();
     writer.write_all(b"1\tsteven\n2\ttimothy").unwrap();
     writer.finish().unwrap();
 
@@ -177,7 +177,7 @@ fn copy_in_abort() {
         .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
         .unwrap();
 
-    let mut writer = client.copy_in("COPY foo FROM stdin", &[]).unwrap();
+    let mut writer = client.copy_in("COPY foo FROM stdin").unwrap();
     writer.write_all(b"1\tsteven\n2\ttimothy").unwrap();
     drop(writer);
 
@@ -199,9 +199,7 @@ fn copy_out() {
         )
         .unwrap();
 
-    let mut reader = client
-        .copy_out("COPY foo (id, name) TO STDOUT", &[])
-        .unwrap();
+    let mut reader = client.copy_out("COPY foo (id, name) TO STDOUT").unwrap();
     let mut s = String::new();
     reader.read_to_string(&mut s).unwrap();
     drop(reader);

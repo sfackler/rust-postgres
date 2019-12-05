@@ -24,7 +24,7 @@ async fn write_basic() {
         .unwrap();
 
     let sink = client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
@@ -58,7 +58,7 @@ async fn write_many_rows() {
         .unwrap();
 
     let sink = client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
@@ -94,7 +94,7 @@ async fn write_big_rows() {
         .unwrap();
 
     let sink = client
-        .copy_in("COPY foo (id, bar) FROM STDIN BINARY", &[])
+        .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::BYTEA]);
@@ -135,7 +135,7 @@ async fn read_basic() {
         .unwrap();
 
     let stream = client
-        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
     let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
@@ -164,7 +164,7 @@ async fn read_many_rows() {
         .unwrap();
 
     let stream = client
-        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
     let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
@@ -198,7 +198,7 @@ async fn read_big_rows() {
     }
 
     let stream = client
-        .copy_out("COPY foo (id, bar) TO STDIN BINARY", &[])
+        .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
     let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::BYTEA], stream)

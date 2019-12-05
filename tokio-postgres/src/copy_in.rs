@@ -1,8 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::ToSql;
-use crate::{query, Error, Statement};
+use crate::{query, Error, Statement, slice_iter};
 use bytes::buf::BufExt;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
@@ -196,17 +195,14 @@ where
     }
 }
 
-pub async fn copy_in<'a, I, T>(
+pub async fn copy_in<T>(
     client: &InnerClient,
     statement: Statement,
-    params: I,
 ) -> Result<CopyInSink<T>, Error>
 where
-    I: IntoIterator<Item = &'a dyn ToSql>,
-    I::IntoIter: ExactSizeIterator,
     T: Buf + 'static + Send,
 {
-    let buf = query::encode(client, &statement, params)?;
+    let buf = query::encode(client, &statement, slice_iter(&[]))?;
 
     let (mut sender, receiver) = mpsc::channel(1);
     let receiver = CopyInReceiver::new(receiver);

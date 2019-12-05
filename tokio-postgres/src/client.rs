@@ -378,42 +378,40 @@ impl Client {
 
     /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.
     ///
-    /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
-    /// not, the copy will be aborted.
+    /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
+    /// be explicitly completed via the `Sink::close` or `finish` methods. If it is not, the copy will be aborted.
     ///
     /// # Panics
     ///
-    /// Panics if the number of parameters provided does not match the number expected.
+    /// Panics if the statement contains parameters.
     pub async fn copy_in<T, U>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
     ) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        let params = slice_iter(params);
-        copy_in::copy_in(self.inner(), statement, params).await
+        copy_in::copy_in(self.inner(), statement).await
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
     ///
+    /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
+    ///
     /// # Panics
     ///
-    /// Panics if the number of parameters provided does not match the number expected.
+    /// Panics if the statement contains parameters.
     pub async fn copy_out<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
     ) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        let params = slice_iter(params);
-        copy_out::copy_out(self.inner(), statement, params).await
+        copy_out::copy_out(self.inner(), statement).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.

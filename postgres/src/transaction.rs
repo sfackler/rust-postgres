@@ -137,32 +137,20 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
-    pub fn copy_in<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyInWriter<'_>, Error>
+    pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let sink = self
-            .runtime
-            .block_on(self.transaction.copy_in(query, params))?;
+        let sink = self.runtime.block_on(self.transaction.copy_in(query))?;
         Ok(CopyInWriter::new(self.runtime, sink))
     }
 
     /// Like `Client::copy_out`.
-    pub fn copy_out<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<CopyOutReader<'_>, Error>
+    pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self
-            .runtime
-            .block_on(self.transaction.copy_out(query, params))?;
+        let stream = self.runtime.block_on(self.transaction.copy_out(query))?;
         CopyOutReader::new(self.runtime, stream)
     }
 

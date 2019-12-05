@@ -1,8 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::ToSql;
-use crate::{query, Error, Statement};
+use crate::{query, Error, Statement, slice_iter};
 use bytes::Bytes;
 use futures::{ready, Stream};
 use pin_project_lite::pin_project;
@@ -11,16 +10,11 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub async fn copy_out<'a, I>(
+pub async fn copy_out(
     client: &InnerClient,
     statement: Statement,
-    params: I,
-) -> Result<CopyOutStream, Error>
-where
-    I: IntoIterator<Item = &'a dyn ToSql>,
-    I::IntoIter: ExactSizeIterator,
-{
-    let buf = query::encode(client, &statement, params)?;
+) -> Result<CopyOutStream, Error> {
+    let buf = query::encode(client, &statement, slice_iter(&[]))?;
     let responses = start(client, buf).await?;
     Ok(CopyOutStream {
         responses,
