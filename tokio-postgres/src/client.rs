@@ -384,10 +384,7 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the statement contains parameters.
-    pub async fn copy_in<T, U>(
-        &self,
-        statement: &T,
-    ) -> Result<CopyInSink<U>, Error>
+    pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
@@ -403,10 +400,7 @@ impl Client {
     /// # Panics
     ///
     /// Panics if the statement contains parameters.
-    pub async fn copy_out<T>(
-        &self,
-        statement: &T,
-    ) -> Result<CopyOutStream, Error>
+    pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {

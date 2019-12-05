@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{query, Error, Statement, slice_iter};
+use crate::{query, slice_iter, Error, Statement};
 use bytes::Bytes;
 use futures::{ready, Stream};
 use pin_project_lite::pin_project;
@@ -10,10 +10,7 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub async fn copy_out(
-    client: &InnerClient,
-    statement: Statement,
-) -> Result<CopyOutStream, Error> {
+pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
     let buf = query::encode(client, &statement, slice_iter(&[]))?;
     let responses = start(client, buf).await?;
     Ok(CopyOutStream {

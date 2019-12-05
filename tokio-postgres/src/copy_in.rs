@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{query, Error, Statement, slice_iter};
+use crate::{query, slice_iter, Error, Statement};
 use bytes::buf::BufExt;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
@@ -195,10 +195,7 @@ where
     }
 }
 
-pub async fn copy_in<T>(
-    client: &InnerClient,
-    statement: Statement,
-) -> Result<CopyInSink<T>, Error>
+pub async fn copy_in<T>(client: &InnerClient, statement: Statement) -> Result<CopyInSink<T>, Error>
 where
     T: Buf + 'static + Send,
 {

@@ -221,10 +221,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
-    pub async fn copy_in<T, U>(
-        &self,
-        statement: &T,
-    ) -> Result<CopyInSink<U>, Error>
+    pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
@@ -233,10 +230,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
-    pub async fn copy_out<T>(
-        &self,
-        statement: &T,
-    ) -> Result<CopyOutStream, Error>
+    pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
     {
