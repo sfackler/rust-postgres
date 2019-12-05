@@ -25,7 +25,7 @@ jobs:
       - image: rust:1.39.0
         environment:
           RUSTFLAGS: -D warnings
-      - image: sfackler/rust-postgres-test:5
+      - image: sfackler/rust-postgres-test:6
     steps:
       - checkout
       - run: rustup component add rustfmt clippy
