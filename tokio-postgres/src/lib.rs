@@ -123,6 +123,7 @@ pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 use crate::types::ToSql;
 
+pub mod binary_copy;
 mod bind;
 #[cfg(feature = "runtime")]
 mod cancel_query;

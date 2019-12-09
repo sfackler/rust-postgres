@@ -9,7 +9,6 @@ members = [
     "postgres-protocol",
     "postgres-types",
     "tokio-postgres",
-    "tokio-postgres-binary-copy",
 ]
 
 [profile.release]

@@ -14,6 +14,7 @@ use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{AsyncMessage, Client, Config, Connection, Error, SimpleQueryMessage};
 
+mod binary_copy;
 mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;

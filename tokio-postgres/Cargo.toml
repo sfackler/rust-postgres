@@ -37,6 +37,7 @@ with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 
 [dependencies]
 bytes = "0.5"
+byteorder = "1.0"
 fallible-iterator = "0.2"
 futures = "0.3"
 log = "0.4"

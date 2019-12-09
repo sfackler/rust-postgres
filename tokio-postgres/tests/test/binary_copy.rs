@@ -1,22 +1,11 @@
-use crate::{BinaryCopyInWriter, BinaryCopyOutStream};
+use crate::connect;
 use futures::{pin_mut, TryStreamExt};
+use tokio_postgres::binary_copy::{BinaryCopyInWriter, BinaryCopyOutStream};
 use tokio_postgres::types::Type;
-use tokio_postgres::{Client, NoTls};
-
-async fn connect() -> Client {
-    let (client, connection) =
-        tokio_postgres::connect("host=localhost port=5433 user=postgres", NoTls)
-            .await
-            .unwrap();
-    tokio::spawn(async {
-        connection.await.unwrap();
-    });
-    client
-}
 
 #[tokio::test]
 async fn write_basic() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TEMPORARY TABLE foo (id INT, bar TEXT)")
@@ -50,7 +39,7 @@ async fn write_basic() {
 
 #[tokio::test]
 async fn write_many_rows() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TEMPORARY TABLE foo (id INT, bar TEXT)")
@@ -86,7 +75,7 @@ async fn write_many_rows() {
 
 #[tokio::test]
 async fn write_big_rows() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TEMPORARY TABLE foo (id INT, bar BYTEA)")
@@ -122,7 +111,7 @@ async fn write_big_rows() {
 
 #[tokio::test]
 async fn read_basic() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -138,7 +127,7 @@ async fn read_basic() {
         .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
+    let rows = BinaryCopyOutStream::new(stream, &[Type::INT4, Type::TEXT])
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -152,7 +141,7 @@ async fn read_basic() {
 
 #[tokio::test]
 async fn read_many_rows() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -167,7 +156,7 @@ async fn read_many_rows() {
         .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::TEXT], stream)
+    let rows = BinaryCopyOutStream::new(stream, &[Type::INT4, Type::TEXT])
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
@@ -181,7 +170,7 @@ async fn read_many_rows() {
 
 #[tokio::test]
 async fn read_big_rows() {
-    let client = connect().await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute("CREATE TEMPORARY TABLE foo (id INT, bar BYTEA)")
@@ -201,7 +190,7 @@ async fn read_big_rows() {
         .copy_out("COPY foo (id, bar) TO STDIN BINARY")
         .await
         .unwrap();
-    let rows = BinaryCopyOutStream::new(&[Type::INT4, Type::BYTEA], stream)
+    let rows = BinaryCopyOutStream::new(stream, &[Type::INT4, Type::BYTEA])
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
