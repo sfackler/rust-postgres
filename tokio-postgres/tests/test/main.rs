@@ -667,11 +667,11 @@ async fn query_one() {
     client
         .batch_execute(
             "
-        CREATE TEMPORARY TABLE foo (
-            name TEXT
-        );
-        INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('carol');
-    ",
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT
+                );
+                INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('carol');
+            ",
         )
         .await
         .unwrap();
@@ -684,6 +684,39 @@ async fn query_one() {
     client
         .query_one("SELECT * FROM foo WHERE name = 'alice'", &[])
         .await
+        .unwrap();
+    client
+        .query_one("SELECT * FROM foo", &[])
+        .await
+        .err()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn query_opt() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT
+                );
+                INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('carol');
+            ",
+        )
+        .await
+        .unwrap();
+
+    assert!(client
+        .query_opt("SELECT * FROM foo WHERE name = 'dave'", &[])
+        .await
+        .unwrap()
+        .is_none());
+    client
+        .query_opt("SELECT * FROM foo WHERE name = 'alice'", &[])
+        .await
+        .unwrap()
         .unwrap();
     client
         .query_one("SELECT * FROM foo", &[])
