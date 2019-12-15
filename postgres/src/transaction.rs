@@ -1,4 +1,4 @@
-use crate::{CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
+use crate::{CopyInWriter, CopyOutReader, Portal, RowIter, Rt, Statement, ToStatement};
 use tokio::runtime::Runtime;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
@@ -21,6 +21,10 @@ impl<'a> Transaction<'a> {
             runtime,
             transaction,
         }
+    }
+
+    fn rt(&mut self) -> Rt<'_> {
+        Rt(self.runtime)
     }
 
     /// Consumes the transaction, committing all changes made within it.
@@ -95,7 +99,7 @@ impl<'a> Transaction<'a> {
         let stream = self
             .runtime
             .block_on(self.transaction.query_raw(query, params))?;
-        Ok(RowIter::new(self.runtime, stream))
+        Ok(RowIter::new(self.rt(), stream))
     }
 
     /// Binds parameters to a statement, creating a "portal".
@@ -133,7 +137,7 @@ impl<'a> Transaction<'a> {
         let stream = self
             .runtime
             .block_on(self.transaction.query_portal_raw(portal, max_rows))?;
-        Ok(RowIter::new(self.runtime, stream))
+        Ok(RowIter::new(self.rt(), stream))
     }
 
     /// Like `Client::copy_in`.
@@ -142,7 +146,7 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         let sink = self.runtime.block_on(self.transaction.copy_in(query))?;
-        Ok(CopyInWriter::new(self.runtime, sink))
+        Ok(CopyInWriter::new(self.rt(), sink))
     }
 
     /// Like `Client::copy_out`.
@@ -151,7 +155,7 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         let stream = self.runtime.block_on(self.transaction.copy_out(query))?;
-        CopyOutReader::new(self.runtime, stream)
+        CopyOutReader::new(self.rt(), stream)
     }
 
     /// Like `Client::simple_query`.

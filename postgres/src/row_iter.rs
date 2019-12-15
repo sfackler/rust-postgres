@@ -1,12 +1,12 @@
+use crate::Rt;
 use fallible_iterator::FallibleIterator;
 use futures::StreamExt;
 use std::pin::Pin;
-use tokio::runtime::Runtime;
 use tokio_postgres::{Error, Row, RowStream};
 
 /// The iterator returned by `query_raw`.
 pub struct RowIter<'a> {
-    runtime: &'a mut Runtime,
+    runtime: Rt<'a>,
     it: Pin<Box<RowStream>>,
 }
 
@@ -16,7 +16,7 @@ impl Drop for RowIter<'_> {
 }
 
 impl<'a> RowIter<'a> {
-    pub(crate) fn new(runtime: &'a mut Runtime, stream: RowStream) -> RowIter<'a> {
+    pub(crate) fn new(runtime: Rt<'a>, stream: RowStream) -> RowIter<'a> {
         RowIter {
             runtime,
             it: Box::pin(stream),

@@ -1,8 +1,32 @@
 use crate::{Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction};
+use std::ops::{Deref, DerefMut};
 use tokio::runtime::Runtime;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
+
+pub(crate) struct Rt<'a>(pub &'a mut Runtime);
+
+// no-op impl to extend the borrow until drop
+impl Drop for Rt<'_> {
+    fn drop(&mut self) {}
+}
+
+impl Deref for Rt<'_> {
+    type Target = Runtime;
+
+    #[inline]
+    fn deref(&self) -> &Runtime {
+        self.0
+    }
+}
+
+impl DerefMut for Rt<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Runtime {
+        self.0
+    }
+}
 
 /// A synchronous PostgreSQL client.
 pub struct Client {
@@ -36,6 +60,10 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub fn configure() -> Config {
         Config::new()
+    }
+
+    fn rt(&mut self) -> Rt<'_> {
+        Rt(&mut self.runtime)
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -236,7 +264,7 @@ impl Client {
         let stream = self
             .runtime
             .block_on(self.client.query_raw(query, params))?;
-        Ok(RowIter::new(&mut self.runtime, stream))
+        Ok(RowIter::new(self.rt(), stream))
     }
 
     /// Creates a new prepared statement.
@@ -326,7 +354,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let sink = self.runtime.block_on(self.client.copy_in(query))?;
-        Ok(CopyInWriter::new(&mut self.runtime, sink))
+        Ok(CopyInWriter::new(self.rt(), sink))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -354,7 +382,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let stream = self.runtime.block_on(self.client.copy_out(query))?;
-        CopyOutReader::new(&mut self.runtime, stream)
+        CopyOutReader::new(self.rt(), stream)
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.

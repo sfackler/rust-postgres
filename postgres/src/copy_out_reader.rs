@@ -1,25 +1,20 @@
+use crate::Rt;
 use bytes::{Buf, Bytes};
 use futures::StreamExt;
 use std::io::{self, BufRead, Cursor, Read};
 use std::pin::Pin;
-use tokio::runtime::Runtime;
 use tokio_postgres::{CopyOutStream, Error};
 
 /// The reader returned by the `copy_out` method.
 pub struct CopyOutReader<'a> {
-    runtime: &'a mut Runtime,
+    runtime: Rt<'a>,
     stream: Pin<Box<CopyOutStream>>,
     cur: Cursor<Bytes>,
 }
 
-// no-op impl to extend borrow until drop
-impl Drop for CopyOutReader<'_> {
-    fn drop(&mut self) {}
-}
-
 impl<'a> CopyOutReader<'a> {
     pub(crate) fn new(
-        runtime: &'a mut Runtime,
+        mut runtime: Rt<'a>,
         stream: CopyOutStream,
     ) -> Result<CopyOutReader<'a>, Error> {
         let mut stream = Box::pin(stream);

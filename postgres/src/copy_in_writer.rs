@@ -1,27 +1,22 @@
+use crate::Rt;
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
 use std::io;
 use std::io::Write;
 use std::pin::Pin;
-use tokio::runtime::Runtime;
 use tokio_postgres::{CopyInSink, Error};
 
 /// The writer returned by the `copy_in` method.
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
 pub struct CopyInWriter<'a> {
-    runtime: &'a mut Runtime,
+    runtime: Rt<'a>,
     sink: Pin<Box<CopyInSink<Bytes>>>,
     buf: BytesMut,
 }
 
-// no-op impl to extend borrow until drop
-impl Drop for CopyInWriter<'_> {
-    fn drop(&mut self) {}
-}
-
 impl<'a> CopyInWriter<'a> {
-    pub(crate) fn new(runtime: &'a mut Runtime, sink: CopyInSink<Bytes>) -> CopyInWriter<'a> {
+    pub(crate) fn new(runtime: Rt<'a>, sink: CopyInSink<Bytes>) -> CopyInWriter<'a> {
         CopyInWriter {
             runtime,
             sink: Box::pin(sink),
