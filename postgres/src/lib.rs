@@ -49,6 +49,7 @@
 #![doc(html_root_url = "https://docs.rs/postgres/0.17")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
+pub use fallible_iterator;
 pub use tokio_postgres::{
     error, row, tls, types, Column, Portal, SimpleQueryMessage, Socket, Statement, ToStatement,
 };
