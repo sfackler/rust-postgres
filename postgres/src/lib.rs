@@ -36,15 +36,9 @@
 //!
 //! # Implementation
 //!
-//! This crate is a lightweight wrapper over tokio-postgres. The `tokio_postgres::Connection` is spawned onto an
-//! executor, and the `tokio_postgres::Client` is wrapped in the `postgres::Client`, which simply waits on the futures
-//! the nonblocking client creates.
-//!
-//! # Runtime
-//!
-//! A client can be constructed directly from a `tokio-postgres` client via a `From` implementation, but the `runtime`
-//! Cargo feature (enabled by default) provides a more convenient interface. By default, connections will be spawned
-//! onto a static tokio `Runtime`, but a custom `Executor` can also be used instead.
+//! This crate is a lightweight wrapper over tokio-postgres. The `postgres::Client` is simply a wrapper around a
+//! `tokio_postgres::Client` along side a tokio `Runtime`. The client simply blocks on the futures provided by the async
+//! client.
 //!
 //! # SSL/TLS support
 //!
