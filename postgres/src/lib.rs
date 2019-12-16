@@ -72,12 +72,12 @@ pub use crate::row_iter::RowIter;
 pub use crate::tls::NoTls;
 pub use crate::transaction::*;
 
+pub mod binary_copy;
 mod client;
 pub mod config;
 mod copy_in_writer;
 mod copy_out_reader;
 mod lazy_pin;
-pub mod binary_copy;
 mod row_iter;
 mod transaction;
 
