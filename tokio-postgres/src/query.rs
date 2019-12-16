@@ -21,7 +21,17 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = encode(client, &statement, params)?;
+    let buf = if log::log_enabled!(log::Level::Debug) {
+        let params = params.into_iter().collect::<Vec<_>>();
+        log::debug!(
+            "executing statement {} with parameters: {:?}",
+            statement.name(),
+            params,
+        );
+        encode(client, &statement, params)?
+    } else {
+        encode(client, &statement, params)?
+    };
     let responses = start(client, buf).await?;
     Ok(RowStream {
         statement,
@@ -59,7 +69,17 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = encode(client, &statement, params)?;
+    let buf = if log::log_enabled!(log::Level::Debug) {
+        let params = params.into_iter().collect::<Vec<_>>();
+        log::debug!(
+            "executing statement {} with parameters: {:?}",
+            statement.name(),
+            params,
+        );
+        encode(client, &statement, params)?
+    } else {
+        encode(client, &statement, params)?
+    };
     let mut responses = start(client, buf).await?;
 
     loop {
