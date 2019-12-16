@@ -155,7 +155,7 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         let stream = self.runtime.block_on(self.transaction.copy_out(query))?;
-        CopyOutReader::new(self.rt(), stream)
+        Ok(CopyOutReader::new(self.rt(), stream))
     }
 
     /// Like `Client::simple_query`.

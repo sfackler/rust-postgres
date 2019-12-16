@@ -76,6 +76,8 @@ mod client;
 pub mod config;
 mod copy_in_writer;
 mod copy_out_reader;
+mod lazy_pin;
+pub mod binary_copy;
 mod row_iter;
 mod transaction;
 

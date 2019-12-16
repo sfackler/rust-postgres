@@ -1,17 +1,17 @@
+use crate::lazy_pin::LazyPin;
 use crate::Rt;
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
 use std::io;
 use std::io::Write;
-use std::pin::Pin;
 use tokio_postgres::{CopyInSink, Error};
 
 /// The writer returned by the `copy_in` method.
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
 pub struct CopyInWriter<'a> {
-    runtime: Rt<'a>,
-    sink: Pin<Box<CopyInSink<Bytes>>>,
+    pub(crate) runtime: Rt<'a>,
+    pub(crate) sink: LazyPin<CopyInSink<Bytes>>,
     buf: BytesMut,
 }
 
@@ -19,7 +19,7 @@ impl<'a> CopyInWriter<'a> {
     pub(crate) fn new(runtime: Rt<'a>, sink: CopyInSink<Bytes>) -> CopyInWriter<'a> {
         CopyInWriter {
             runtime,
-            sink: Box::pin(sink),
+            sink: LazyPin::new(sink),
             buf: BytesMut::new(),
         }
     }
@@ -29,7 +29,7 @@ impl<'a> CopyInWriter<'a> {
     /// If this is not called, the copy will be aborted.
     pub fn finish(mut self) -> Result<u64, Error> {
         self.flush_inner()?;
-        self.runtime.block_on(self.sink.as_mut().finish())
+        self.runtime.block_on(self.sink.pinned().finish())
     }
 
     fn flush_inner(&mut self) -> Result<(), Error> {
@@ -38,7 +38,7 @@ impl<'a> CopyInWriter<'a> {
         }
 
         self.runtime
-            .block_on(self.sink.as_mut().send(self.buf.split().freeze()))
+            .block_on(self.sink.pinned().send(self.buf.split().freeze()))
     }
 }
 

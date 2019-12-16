@@ -3,6 +3,8 @@ use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
 
 use super::*;
+use crate::binary_copy::{BinaryCopyInWriter, BinaryCopyOutIter};
+use fallible_iterator::FallibleIterator;
 
 #[test]
 fn prepare() {
@@ -189,6 +191,31 @@ fn copy_in_abort() {
 }
 
 #[test]
+fn binary_copy_in() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .simple_query("CREATE TEMPORARY TABLE foo (id INT, name TEXT)")
+        .unwrap();
+
+    let writer = client.copy_in("COPY foo FROM stdin BINARY").unwrap();
+    let mut writer = BinaryCopyInWriter::new(writer, &[Type::INT4, Type::TEXT]);
+    writer.write(&[&1i32, &"steven"]).unwrap();
+    writer.write(&[&2i32, &"timothy"]).unwrap();
+    writer.finish().unwrap();
+
+    let rows = client
+        .query("SELECT id, name FROM foo ORDER BY id", &[])
+        .unwrap();
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[0].get::<_, &str>(1), "steven");
+    assert_eq!(rows[1].get::<_, i32>(0), 2);
+    assert_eq!(rows[1].get::<_, &str>(1), "timothy");
+}
+
+#[test]
 fn copy_out() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
@@ -205,6 +232,32 @@ fn copy_out() {
     drop(reader);
 
     assert_eq!(s, "1\tsteven\n2\ttimothy\n");
+
+    client.simple_query("SELECT 1").unwrap();
+}
+
+#[test]
+fn binary_copy_out() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .simple_query(
+            "CREATE TEMPORARY TABLE foo (id INT, name TEXT);
+             INSERT INTO foo (id, name) VALUES (1, 'steven'), (2, 'timothy');",
+        )
+        .unwrap();
+
+    let reader = client
+        .copy_out("COPY foo (id, name) TO STDOUT BINARY")
+        .unwrap();
+    let rows = BinaryCopyOutIter::new(reader, &[Type::INT4, Type::TEXT])
+        .collect::<Vec<_>>()
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<i32>(0), 1);
+    assert_eq!(rows[0].get::<&str>(1), "steven");
+    assert_eq!(rows[1].get::<i32>(0), 2);
+    assert_eq!(rows[1].get::<&str>(1), "timothy");
 
     client.simple_query("SELECT 1").unwrap();
 }

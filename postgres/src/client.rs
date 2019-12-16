@@ -382,7 +382,7 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let stream = self.runtime.block_on(self.client.copy_out(query))?;
-        CopyOutReader::new(self.rt(), stream)
+        Ok(CopyOutReader::new(self.rt(), stream))
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.

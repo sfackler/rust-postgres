@@ -22,11 +22,13 @@ pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<Copy
 async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
+    println!("a");
     match responses.next().await? {
         Message::BindComplete => {}
         _ => return Err(Error::unexpected_message()),
     }
 
+    println!("b");
     match responses.next().await? {
         Message::CopyOutResponse(_) => {}
         _ => return Err(Error::unexpected_message()),
@@ -50,6 +52,7 @@ impl Stream for CopyOutStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
 
+        println!("c");
         match ready!(this.responses.poll_next(cx)?) {
             Message::CopyData(body) => Poll::Ready(Some(Ok(body.into_bytes()))),
             Message::CopyDone => Poll::Ready(None),
