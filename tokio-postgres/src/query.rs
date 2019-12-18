@@ -5,6 +5,7 @@ use crate::types::{IsNull, ToSql};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures::{ready, Stream};
+use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -21,9 +22,9 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log::log_enabled!(log::Level::Debug) {
+    let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
-        log::debug!(
+        debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
             params,
@@ -69,9 +70,9 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log::log_enabled!(log::Level::Debug) {
+    let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
-        log::debug!(
+        debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
             params,

@@ -8,6 +8,7 @@ use crate::{Column, Error, Statement};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{pin_mut, TryStreamExt};
+use log::debug;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
@@ -111,6 +112,12 @@ fn prepare_rec<'a>(
 }
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
+    if types.is_empty() {
+        debug!("preparing query {}: {}", name, query);
+    } else {
+        debug!("preparing query {} with types {:?}: {}", name, types, query);
+    }
+
     client.with_buf(|buf| {
         frontend::parse(name, query, types.iter().map(Type::oid), buf).map_err(Error::encode)?;
         frontend::describe(b'S', &name, buf).map_err(Error::encode)?;
