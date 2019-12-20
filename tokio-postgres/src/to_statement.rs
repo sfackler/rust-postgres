@@ -27,7 +27,7 @@ mod private {
 /// was prepared previously.
 ///
 /// This trait is "sealed" and cannot be implemented by anything outside this crate.
-pub trait ToStatement: private::Sealed {
+pub trait ToStatement: Sealed {
     #[doc(hidden)]
     fn __convert(&self) -> ToStatementType<'_>;
 }

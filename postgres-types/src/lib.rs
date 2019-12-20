@@ -198,8 +198,6 @@ mod eui48_04;
 mod geo_types_04;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
-#[cfg(feature = "with-uuid-0_7")]
-mod uuid_07;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 
