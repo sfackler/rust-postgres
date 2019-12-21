@@ -1,4 +1,4 @@
-use crate::{Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction};
+use crate::{Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement, ToStatement, Transaction};
 use std::ops::{Deref, DerefMut};
 use tokio::runtime::Runtime;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -448,5 +448,20 @@ impl Client {
     /// If this returns `true`, the client is no longer usable.
     pub fn is_closed(&self) -> bool {
         self.client.is_closed()
+    }
+}
+
+impl GenericConnection for Client {
+    fn execute(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error> {
+        self.execute(query, params)
+    }
+    fn query(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error> {
+        self.query(query, params)
+    }
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
+    fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.transaction()
     }
 }

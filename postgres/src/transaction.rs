@@ -1,4 +1,4 @@
-use crate::{CopyInWriter, CopyOutReader, Portal, RowIter, Rt, Statement, ToStatement};
+use crate::{CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement, ToStatement};
 use tokio::runtime::Runtime;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
@@ -175,5 +175,20 @@ impl<'a> Transaction<'a> {
             runtime: self.runtime,
             transaction,
         })
+    }
+}
+
+impl<'a> GenericConnection for Transaction<'a> {
+    fn execute(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error> {
+        self.execute(query, params)
+    }
+    fn query(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error> {
+        self.query(query, params)
+    }
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
+    fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.transaction()
     }
 }
