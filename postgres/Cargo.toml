@@ -39,4 +39,3 @@ log = "0.4"
 
 [dev-dependencies]
 criterion = "0.3"
-tokio = "0.2"
