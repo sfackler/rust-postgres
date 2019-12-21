@@ -1,4 +1,6 @@
-use crate::{CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement, ToStatement};
+use crate::{
+    CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement, ToStatement,
+};
 use tokio::runtime::Runtime;
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};

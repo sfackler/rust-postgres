@@ -1,4 +1,7 @@
-use crate::{Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement, ToStatement, Transaction};
+use crate::{
+    Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement, ToStatement,
+    Transaction,
+};
 use std::ops::{Deref, DerefMut};
 use tokio::runtime::Runtime;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
