@@ -184,13 +184,13 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.bind_iter(statement, slice_iter(params)).await
+        self.bind_raw(statement, slice_iter(params)).await
     }
 
-    /// Like [`bind`], but takes an iterator of parameters rather than a slice.
+    /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
-    pub async fn bind_iter<'b, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
+    pub async fn bind_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql>,
@@ -211,7 +211,9 @@ impl<'a> Transaction<'a> {
             .await
     }
 
-    /// The maximally flexible version of `query_portal`.
+    /// The maximally flexible version of [`query_portal`].
+    ///
+    /// [`query_portal`]: #method.query_portal
     pub async fn query_portal_raw(
         &self,
         portal: &Portal,

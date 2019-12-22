@@ -263,6 +263,7 @@ impl Type {
 
 /// Represents the kind of a Postgres type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Kind {
     /// A simple type like `VARCHAR` or `INTEGER`.
     Simple,
@@ -278,8 +279,6 @@ pub enum Kind {
     Domain(Type),
     /// A composite type along with information about its fields.
     Composite(Vec<Field>),
-    #[doc(hidden)]
-    __ForExtensibility,
 }
 
 /// Information about a field of a composite type.

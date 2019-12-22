@@ -24,17 +24,17 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Properties required of a session.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum TargetSessionAttrs {
     /// No special properties are required.
     Any,
     /// The session must allow writes.
     ReadWrite,
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 /// TLS configuration.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum SslMode {
     /// Do not use TLS.
     Disable,
@@ -42,12 +42,11 @@ pub enum SslMode {
     Prefer,
     /// Require the use of TLS.
     Require,
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 /// Channel binding configuration.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ChannelBinding {
     /// Do not use channel binding.
     Disable,
@@ -55,8 +54,6 @@ pub enum ChannelBinding {
     Prefer,
     /// Require the use of channel binding.
     Require,
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -121,7 +118,7 @@ pub(crate) enum Host {
 /// # Url
 ///
 /// This format resembles a URL with a scheme of either `postgres://` or `postgresql://`. All components are optional,
-/// and the format accept query parameters for all of the key-value pairs described in the section above. Multiple
+/// and the format accepts query parameters for all of the key-value pairs described in the section above. Multiple
 /// host/port pairs can be comma-separated. Unix socket paths in the host section of the URL should be percent-encoded,
 /// as the path component of the URL specifies the database name.
 ///
@@ -425,7 +422,7 @@ impl Config {
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
-    /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application` name are ignored.
+    /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application_name` name are ignored.
     pub async fn connect_raw<S, T>(
         &self,
         stream: S,

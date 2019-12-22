@@ -22,7 +22,6 @@ where
             return Ok(MaybeTlsStream::Raw(stream))
         }
         SslMode::Prefer | SslMode::Require => {}
-        SslMode::__NonExhaustive => unreachable!(),
     }
 
     let mut buf = BytesMut::new();

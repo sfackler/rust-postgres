@@ -72,6 +72,7 @@ impl Header {
 }
 
 /// An enum representing Postgres backend messages.
+#[non_exhaustive]
 pub enum Message {
     AuthenticationCleartextPassword,
     AuthenticationGss,
@@ -104,8 +105,6 @@ pub enum Message {
     PortalSuspended,
     ReadyForQuery(ReadyForQueryBody),
     RowDescription(RowDescriptionBody),
-    #[doc(hidden)]
-    __ForExtensibility,
 }
 
 impl Message {

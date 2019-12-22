@@ -21,15 +21,12 @@
 //!         }
 //!     });
 //!
-//!     // Now we can prepare a simple statement that just returns its parameter.
-//!     let stmt = client.prepare("SELECT $1::TEXT").await?;
-//!
-//!     // And then execute it, returning a list of the resulting rows.
+//!     // Now we can execute a simple statement that just returns its parameter.
 //!     let rows = client
-//!         .query(&stmt, &[&"hello world"])
+//!         .query("SELECT $1::TEXT", &[&"hello world"])
 //!         .await?;
 //!
-//!     // Now we can check that we got back the same string we sent over.
+//!     // And then check that we got back the same string we sent over.
 //!     let value: &str = rows[0].get(0);
 //!     assert_eq!(value, "hello world");
 //!
@@ -201,6 +198,7 @@ impl Notification {
 
 /// An asynchronous message from the server.
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum AsyncMessage {
     /// A notice.
     ///
@@ -210,11 +208,10 @@ pub enum AsyncMessage {
     ///
     /// Connections can subscribe to notifications with the `LISTEN` command.
     Notification(Notification),
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 /// Message returned by the `SimpleQuery` stream.
+#[non_exhaustive]
 pub enum SimpleQueryMessage {
     /// A row of data.
     Row(SimpleQueryRow),
@@ -222,8 +219,6 @@ pub enum SimpleQueryMessage {
     ///
     /// The number of rows modified or selected is returned.
     CommandComplete(u64),
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 fn slice_iter<'a>(
