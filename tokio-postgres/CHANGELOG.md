@@ -1,5 +1,25 @@
 # Change Log
 
+## v0.5.0 - 2019-12-23
+
+### Changed
+
+* `Client::copy_in` now returns a `Sink` rather than taking in a `Stream`.
+* `CopyStream` has been renamed to `CopyOutStream`.
+* `Client::copy_in` and `Client::copy_out` no longer take query parameters as PostgreSQL doesn't support parameters in
+    COPY queries.
+* `TargetSessionAttrs`, `SslMode`, and `ChannelBinding` are now true non-exhaustive enums.
+
+### Added
+
+* Added `Client::query_opt` for queries expected to return zero or one rows.
+* Added binary copy format support to the `binary_copy` module.
+* Added back query logging.
+
+### Removed
+
+* Removed `uuid` 0.7 support.
+
 ## v0.5.0-alpha.2 - 2019-11-27
 
 ### Changed
