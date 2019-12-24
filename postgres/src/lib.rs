@@ -8,7 +8,7 @@
 //! # fn main() -> Result<(), postgres::Error> {
 //! let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
 //!
-//! client.simple_query("
+//! client.batch_execute("
 //!     CREATE TABLE person (
 //!         id      SERIAL PRIMARY KEY,
 //!         name    TEXT NOT NULL,
