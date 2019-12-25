@@ -99,6 +99,7 @@
 #![doc(html_root_url = "https://docs.rs/tokio-postgres/0.5")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
 pub use crate::connection::Connection;
@@ -125,6 +126,7 @@ mod bind;
 #[cfg(feature = "runtime")]
 mod cancel_query;
 mod cancel_query_raw;
+mod cancel_token;
 mod client;
 mod codec;
 pub mod config;

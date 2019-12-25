@@ -1,4 +1,7 @@
 use std::io::{Read, Write};
+use std::thread;
+use std::time::Duration;
+use tokio_postgres::error::SqlState;
 use tokio_postgres::types::Type;
 use tokio_postgres::NoTls;
 
@@ -287,4 +290,22 @@ fn portal() {
     let rows = transaction.query_portal(&portal, 2).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, i32>(0), 3);
+}
+
+#[test]
+fn cancel_query() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    let cancel_token = client.cancel_token();
+    let cancel_thread = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(100));
+        cancel_token.cancel_query(NoTls).unwrap();
+    });
+
+    match client.batch_execute("SELECT pg_sleep(100)") {
+        Err(e) if e.code() == Some(&SqlState::QUERY_CANCELED) => {}
+        t => panic!("unexpected return: {:?}", t),
+    }
+
+    cancel_thread.join().unwrap();
 }

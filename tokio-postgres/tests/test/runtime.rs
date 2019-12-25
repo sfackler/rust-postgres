@@ -70,7 +70,8 @@ async fn target_session_attrs_err() {
 async fn cancel_query() {
     let client = connect("host=localhost port=5433 user=postgres").await;
 
-    let cancel = client.cancel_query(NoTls);
+    let cancel_token = client.cancel_token();
+    let cancel = cancel_token.cancel_query(NoTls);
     let cancel = time::delay_for(Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");

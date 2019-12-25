@@ -304,7 +304,8 @@ async fn cancel_query_raw() {
     let client = connect("user=postgres").await;
 
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
-    let cancel = client.cancel_query_raw(socket, NoTls);
+    let cancel_token = client.cancel_token();
+    let cancel = cancel_token.cancel_query_raw(socket, NoTls);
     let cancel = time::delay_for(Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");
