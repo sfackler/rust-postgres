@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.1 - 2019-12-25
+
+### Fixed
+
+* Removed some stray `println!`s from `copy_out` internals.
+
 ## v0.5.0 - 2019-12-23
 
 ### Changed
