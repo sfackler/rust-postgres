@@ -10,6 +10,7 @@ readme = "README.md"
 [dependencies]
 bytes = "0.5.3"
 futures = "0.3.1"
+ring = "0.16.9"
 rustls = "0.16.0"
 tokio = "0.2.6"
 tokio-postgres = "0.5.1"

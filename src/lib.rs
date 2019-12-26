@@ -1,5 +1,3 @@
-#![feature(type_alias_impl_trait)]
-
 use std::{
     io,
     future::Future,
@@ -10,8 +8,9 @@ use std::{
 };
 
 use bytes::{Buf, BufMut};
-use futures::future::TryFutureExt;
-use rustls::ClientConfig;
+use futures::future::{FutureExt, TryFutureExt};
+use ring::digest;
+use rustls::{ClientConfig, Session};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
 use tokio_rustls::{client::TlsStream, TlsConnector};
@@ -30,13 +29,13 @@ impl MakeRustlsConnect {
 
 impl<S> MakeTlsConnect<S> for MakeRustlsConnect
 where
-    S: AsyncRead + AsyncWrite + Unpin,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Stream = RustlsStream<S>;
     type TlsConnect = RustlsConnect;
-    type Error = std::io::Error;
+    type Error = io::Error;
 
-    fn make_tls_connect(&mut self, hostname: &str) -> std::io::Result<RustlsConnect> {
+    fn make_tls_connect(&mut self, hostname: &str) -> io::Result<RustlsConnect> {
         DNSNameRef::try_from_ascii_str(hostname)
             .map(|dns_name| RustlsConnect {
                 hostname: dns_name.to_owned(),
@@ -53,15 +52,16 @@ pub struct RustlsConnect {
 
 impl<S> TlsConnect<S> for RustlsConnect
 where
-    S: AsyncRead + AsyncWrite + Unpin,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Stream = RustlsStream<S>;
-    type Error = std::io::Error;
-    type Future = impl Future<Output = std::io::Result<RustlsStream<S>>>;
+    type Error = io::Error;
+    type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>>>>;
 
     fn connect(self, stream: S) -> Self::Future {
         self.connector.connect(self.hostname.as_ref(), stream)
             .map_ok(|s| RustlsStream(Box::pin(s)))
+            .boxed()
     }
 }
 
@@ -72,7 +72,14 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     fn channel_binding(&self) -> ChannelBinding {
-        ChannelBinding::none() // TODO
+        let (_, session) = self.0.get_ref();
+        match session.get_peer_certificates() {
+            Some(certs) if certs.len() > 0 => {
+                let sha256 = digest::digest(&digest::SHA256, certs[0].as_ref());
+                ChannelBinding::tls_server_end_point(sha256.as_ref().into())
+            },
+            _ => ChannelBinding::none(),
+        }
     }
 }
 
