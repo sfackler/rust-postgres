@@ -3,6 +3,7 @@ name = "tokio-postgres-rustls"
 description = "Rustls integration for tokio-postgres"
 version = "0.3.0"
 authors = ["jbg <jbg@dtmf.io>"]
+repository = "https://github.com/jbg/tokio-postgres-rustls"
 edition = "2018"
 license = "MIT"
 readme = "README.md"
