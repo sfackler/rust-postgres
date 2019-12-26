@@ -1,6 +1,6 @@
 use std::{
-    io,
     future::Future,
+    io,
     mem::MaybeUninit,
     pin::Pin,
     sync::Arc,
@@ -16,14 +16,15 @@ use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use webpki::{DNSName, DNSNameRef};
 
-
 pub struct MakeRustlsConnect {
     config: Arc<ClientConfig>,
 }
 
 impl MakeRustlsConnect {
     pub fn new(config: ClientConfig) -> Self {
-        Self { config: Arc::new(config) }
+        Self {
+            config: Arc::new(config),
+        }
     }
 }
 
@@ -59,7 +60,8 @@ where
     type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>>>>;
 
     fn connect(self, stream: S) -> Self::Future {
-        self.connector.connect(self.hostname.as_ref(), stream)
+        self.connector
+            .connect(self.hostname.as_ref(), stream)
             .map_ok(|s| RustlsStream(Box::pin(s)))
             .boxed()
     }
@@ -77,7 +79,7 @@ where
             Some(certs) if certs.len() > 0 => {
                 let sha256 = digest::digest(&digest::SHA256, certs[0].as_ref());
                 ChannelBinding::tls_server_end_point(sha256.as_ref().into())
-            },
+            }
             _ => ChannelBinding::none(),
         }
     }
@@ -87,7 +89,11 @@ impl<S> AsyncRead for RustlsStream<S>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<tokio::io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<tokio::io::Result<usize>> {
         self.0.as_mut().poll_read(cx, buf)
     }
 
@@ -95,7 +101,11 @@ where
         self.0.prepare_uninitialized_buffer(buf)
     }
 
-    fn poll_read_buf<B: BufMut>(mut self: Pin<&mut Self>, cx: &mut Context, buf: &mut B) -> Poll<tokio::io::Result<usize>>
+    fn poll_read_buf<B: BufMut>(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut B,
+    ) -> Poll<tokio::io::Result<usize>>
     where
         Self: Sized,
     {
@@ -107,7 +117,11 @@ impl<S> AsyncWrite for RustlsStream<S>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<tokio::io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8],
+    ) -> Poll<tokio::io::Result<usize>> {
         self.0.as_mut().poll_write(cx, buf)
     }
 
@@ -119,7 +133,11 @@ where
         self.0.as_mut().poll_shutdown(cx)
     }
 
-    fn poll_write_buf<B: Buf>(mut self: Pin<&mut Self>, cx: &mut Context, buf: &mut B) -> Poll<tokio::io::Result<usize>>
+    fn poll_write_buf<B: Buf>(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut B,
+    ) -> Poll<tokio::io::Result<usize>>
     where
         Self: Sized,
     {
@@ -133,11 +151,16 @@ mod tests {
 
     #[tokio::test]
     async fn it_works() {
+        env_logger::builder().is_test(true).try_init().unwrap();
+
         let config = rustls::ClientConfig::new();
         let tls = super::MakeRustlsConnect::new(config);
-        let (client, conn) = tokio_postgres::connect("sslmode=require host=localhost user=postgres", tls).await.unwrap();
+        let (client, conn) =
+            tokio_postgres::connect("sslmode=require host=localhost user=postgres", tls)
+                .await
+                .expect("connect");
         tokio::spawn(conn.map_err(|e| panic!("{:?}", e)));
-        let stmt = client.prepare("SELECT 1").await.unwrap();
-        let _ = client.query(&stmt, &[]).await.unwrap();
+        let stmt = client.prepare("SELECT 1").await.expect("prepare");
+        let _ = client.query(&stmt, &[]).await.expect("query");
     }
 }
