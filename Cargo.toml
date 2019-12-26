@@ -1,19 +1,20 @@
 [package]
 name = "tokio-postgres-rustls"
 description = "Rustls integration for tokio-postgres"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["jbg <jbg@dtmf.io>"]
 edition = "2018"
 license = "MIT"
 readme = "README.md"
 
 [dependencies]
-futures = "0.1.28"
-rustls = "0.15.2"
-tokio-io = "0.1.12"
-tokio-postgres = "0.4.0-rc.3"
-tokio-rustls = "0.10.0-alpha.3"
-webpki = "0.19.1"
+bytes = "0.5.3"
+futures = "0.3.1"
+rustls = "0.16.0"
+tokio = "0.2.6"
+tokio-postgres = "0.5.1"
+tokio-rustls = "0.12.1"
+webpki = "0.21.0"
 
 [dev-dependencies]
-tokio = "0.1.21"
+tokio = { version = "0.2.6", features = ["macros"] }
