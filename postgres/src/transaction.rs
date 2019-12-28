@@ -184,7 +184,10 @@ impl<'a> GenericConnection for Transaction<'a> {
     fn execute(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error> {
         self.execute(query, params)
     }
-    fn query(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error> {
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
         self.query(query, params)
     }
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {

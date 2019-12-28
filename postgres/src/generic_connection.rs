@@ -1,4 +1,4 @@
-use crate::{Statement, Transaction};
+use crate::{Statement, ToStatement, Transaction};
 use tokio_postgres::types::ToSql;
 use tokio_postgres::{Error, Row};
 
@@ -8,7 +8,9 @@ pub trait GenericConnection {
     fn execute(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>;
 
     /// Like `Client::query`.
-    fn query(&mut self, query: &str, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>;
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement;
 
     /// Like `Client::prepare`.
     fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
