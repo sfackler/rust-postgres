@@ -155,11 +155,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute_iter`.
-    pub async fn execute_raw<'b, I, T>(
-        &self,
-        statement: &Statement,
-        params: I,
-    ) -> Result<u64, Error>
+    pub async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
         I: IntoIterator<Item = &'b dyn ToSql>,
