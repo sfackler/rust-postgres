@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::runtime;
 #[doc(inline)]
-pub use tokio_postgres::config::{ChannelBinding, SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{ChannelBinding, Host, SslMode, TargetSessionAttrs};
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
 
@@ -123,6 +123,12 @@ impl Config {
         self
     }
 
+    /// Gets the user to authenticate with, if one has been configured with
+    /// the `user` method.
+    pub fn get_user(&self) -> Option<&str> {
+        self.config.get_user()
+    }
+
     /// Sets the password to authenticate with.
     pub fn password<T>(&mut self, password: T) -> &mut Config
     where
@@ -130,6 +136,12 @@ impl Config {
     {
         self.config.password(password);
         self
+    }
+
+    /// Gets the password to authenticate with, if one has been configured with
+    /// the `password` method.
+    pub fn get_password(&self) -> Option<&[u8]> {
+        self.config.get_password()
     }
 
     /// Sets the name of the database to connect to.
@@ -140,16 +152,34 @@ impl Config {
         self
     }
 
+    /// Gets the name of the database to connect to, if one has been configured
+    /// with the `dbname` method.
+    pub fn get_dbname(&self) -> Option<&str> {
+        self.config.get_dbname()
+    }
+
     /// Sets command line options used to configure the server.
     pub fn options(&mut self, options: &str) -> &mut Config {
         self.config.options(options);
         self
     }
 
+    /// Gets the command line options used to configure the server, if the
+    /// options have been set with the `options` method.
+    pub fn get_options(&self) -> Option<&str> {
+        self.config.get_options()
+    }
+
     /// Sets the value of the `application_name` runtime parameter.
     pub fn application_name(&mut self, application_name: &str) -> &mut Config {
         self.config.application_name(application_name);
         self
+    }
+
+    /// Gets the value of the `application_name` runtime parameter, if it has
+    /// been set with the `application_name` method.
+    pub fn get_application_name(&self) -> Option<&str> {
+        self.config.get_application_name()
     }
 
     /// Sets the SSL configuration.
@@ -160,6 +190,11 @@ impl Config {
         self
     }
 
+    /// Gets the SSL configuration.
+    pub fn get_ssl_mode(&self) -> SslMode {
+        self.config.get_ssl_mode()
+    }
+
     /// Adds a host to the configuration.
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
@@ -167,6 +202,11 @@ impl Config {
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.config.host(host);
         self
+    }
+
+    /// Gets the hosts that have been added to the configuration with `host`.
+    pub fn get_hosts(&self) -> &[Host] {
+        self.config.get_hosts()
     }
 
     /// Adds a Unix socket host to the configuration.
@@ -191,6 +231,11 @@ impl Config {
         self
     }
 
+    /// Gets the ports that have been added to the configuration with `port`.
+    pub fn get_ports(&self) -> &[u16] {
+        self.config.get_ports()
+    }
+
     /// Sets the timeout applied to socket-level connection attempts.
     ///
     /// Note that hostnames can resolve to multiple IP addresses, and this timeout will apply to each address of each
@@ -198,6 +243,12 @@ impl Config {
     pub fn connect_timeout(&mut self, connect_timeout: Duration) -> &mut Config {
         self.config.connect_timeout(connect_timeout);
         self
+    }
+
+    /// Gets the connection timeout, if one has been set with the
+    /// `connect_timeout` method.
+    pub fn get_connect_timeout(&self) -> Option<&Duration> {
+        self.config.get_connect_timeout()
     }
 
     /// Controls the use of TCP keepalive.
@@ -208,12 +259,23 @@ impl Config {
         self
     }
 
+    /// Reports whether TCP keepalives will be used.
+    pub fn get_keepalives(&self) -> bool {
+        self.config.get_keepalives()
+    }
+
     /// Sets the amount of idle time before a keepalive packet is sent on the connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         self.config.keepalives_idle(keepalives_idle);
         self
+    }
+
+    /// Gets the configured amount of idle time before a keepalive packet will
+    /// be sent on the connection.
+    pub fn get_keepalives_idle(&self) -> Duration {
+        self.config.get_keepalives_idle()
     }
 
     /// Sets the requirements of the session.
@@ -228,12 +290,22 @@ impl Config {
         self
     }
 
+    /// Gets the requirements of the session.
+    pub fn get_target_session_attrs(&self) -> TargetSessionAttrs {
+        self.config.get_target_session_attrs()
+    }
+
     /// Sets the channel binding behavior.
     ///
     /// Defaults to `prefer`.
     pub fn channel_binding(&mut self, channel_binding: ChannelBinding) -> &mut Config {
         self.config.channel_binding(channel_binding);
         self
+    }
+
+    /// Gets the channel binding behavior.
+    pub fn get_channel_binding(&self) -> ChannelBinding {
+        self.config.get_channel_binding()
     }
 
     /// Opens a connection to a PostgreSQL database.
