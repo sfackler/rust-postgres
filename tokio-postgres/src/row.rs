@@ -124,6 +124,7 @@ impl fmt::Debug for Row {
         struct RowData<'a>(&'a Row);
 
         impl fmt::Debug for RowData<'_> {
+            #[allow(clippy::match_ref_pats)]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let mut map = f.debug_map();
                 for (idx, col) in self.0.columns().iter().enumerate() {
