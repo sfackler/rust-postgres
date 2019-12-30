@@ -21,6 +21,7 @@ use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -527,5 +528,11 @@ impl Client {
     /// In that case, all future queries will fail.
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
+    }
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client").finish()
     }
 }
