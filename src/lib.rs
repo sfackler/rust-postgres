@@ -16,6 +16,7 @@ use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use webpki::{DNSName, DNSNameRef};
 
+#[derive(Clone)]
 pub struct MakeRustlsConnect {
     config: Arc<ClientConfig>,
 }

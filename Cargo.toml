@@ -1,7 +1,7 @@
 [package]
 name = "tokio-postgres-rustls"
 description = "Rustls integration for tokio-postgres"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["jbg <jbg@dtmf.io>"]
 repository = "https://github.com/jbg/tokio-postgres-rustls"
 edition = "2018"
