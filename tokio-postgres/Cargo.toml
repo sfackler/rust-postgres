@@ -60,6 +60,5 @@ eui48-04 = { version = "0.4", package = "eui48" }
 geo-types-04 = { version = "0.4", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
-uuid-07 = { version = "0.7", package = "uuid" }
 uuid-08 = { version = "0.8", package = "uuid" }
 
