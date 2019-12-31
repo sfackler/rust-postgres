@@ -1,5 +1,3 @@
-#[cfg(feature = "runtime")]
-use crate::cancel_query;
 use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
@@ -14,7 +12,7 @@ use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{cancel_query_raw, copy_in, copy_out, query, CopyInSink, Transaction};
+use crate::{copy_in, copy_out, query, CancelToken, CopyInSink, Transaction};
 use crate::{prepare, SimpleQueryMessage};
 use crate::{simple_query, Row};
 use crate::{Error, Statement};
@@ -451,6 +449,19 @@ impl Client {
         Ok(Transaction::new(self))
     }
 
+    /// Constructs a cancellation token that can later be used to request
+    /// cancellation of a query running on the connection associated with
+    /// this client.
+    pub fn cancel_token(&self) -> CancelToken {
+        CancelToken {
+            #[cfg(feature = "runtime")]
+            socket_config: self.socket_config.clone(),
+            ssl_mode: self.ssl_mode,
+            process_id: self.process_id,
+            secret_key: self.secret_key,
+        }
+    }
+
     /// Attempts to cancel an in-progress query.
     ///
     /// The server provides no information about whether a cancellation attempt was successful or not. An error will
@@ -458,35 +469,23 @@ impl Client {
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
+    #[deprecated(since = "0.6.0", note = "use Client::cancel_token() instead")]
     pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
-        cancel_query::cancel_query(
-            self.socket_config.clone(),
-            self.ssl_mode,
-            tls,
-            self.process_id,
-            self.secret_key,
-        )
-        .await
+        self.cancel_token().cancel_query(tls).await
     }
 
     /// Like `cancel_query`, but uses a stream which is already connected to the server rather than opening a new
     /// connection itself.
+    #[deprecated(since = "0.6.0", note = "use Client::cancel_token() instead")]
     pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        cancel_query_raw::cancel_query_raw(
-            stream,
-            self.ssl_mode,
-            tls,
-            self.process_id,
-            self.secret_key,
-        )
-        .await
+        self.cancel_token().cancel_query_raw(stream, tls).await
     }
 
     /// Determines if the connection to the server has already closed.

@@ -9,8 +9,8 @@ use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, Client, CopyInSink, Error, Portal, Row, SimpleQueryMessage, Statement,
-    ToStatement,
+    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
+    SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
 use futures::TryStreamExt;
@@ -245,21 +245,30 @@ impl<'a> Transaction<'a> {
         self.client.batch_execute(query).await
     }
 
+    /// Like `Client::cancel_token`.
+    pub fn cancel_token(&self) -> CancelToken {
+        self.client.cancel_token()
+    }
+
     /// Like `Client::cancel_query`.
     #[cfg(feature = "runtime")]
+    #[deprecated(since = "0.6.0", note = "use Transaction::cancel_token() instead")]
     pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
+        #[allow(deprecated)]
         self.client.cancel_query(tls).await
     }
 
     /// Like `Client::cancel_query_raw`.
+    #[deprecated(since = "0.6.0", note = "use Transaction::cancel_token() instead")]
     pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
+        #[allow(deprecated)]
         self.client.cancel_query_raw(stream, tls).await
     }
 
