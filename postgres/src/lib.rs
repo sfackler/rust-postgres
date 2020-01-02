@@ -8,7 +8,7 @@
 //! # fn main() -> Result<(), postgres::Error> {
 //! let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
 //!
-//! client.simple_query("
+//! client.batch_execute("
 //!     CREATE TABLE person (
 //!         id      SERIAL PRIMARY KEY,
 //!         name    TEXT NOT NULL,
@@ -54,6 +54,7 @@ pub use tokio_postgres::{
     error, row, tls, types, Column, Portal, SimpleQueryMessage, Socket, Statement, ToStatement,
 };
 
+pub use crate::cancel_token::CancelToken;
 pub use crate::client::*;
 pub use crate::config::Config;
 pub use crate::copy_in_writer::CopyInWriter;
@@ -69,6 +70,7 @@ pub use crate::tls::NoTls;
 pub use crate::transaction::*;
 
 pub mod binary_copy;
+mod cancel_token;
 mod client;
 pub mod config;
 mod copy_in_writer;

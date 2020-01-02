@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.3.0 - 2019-12-23
+
+### Changed
+
+* Upgraded to `tokio-postgres` 0.5.
+
 ## v0.3.0-alpha.2 - 2019-11-27
 
 ### Changed

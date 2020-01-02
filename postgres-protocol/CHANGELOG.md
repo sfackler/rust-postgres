@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.0 - 2019-12-23
+
+### Changed
+
+* `frontend::Message` is now a true non-exhaustive enum.
+
 ## v0.5.0-alpha.2 - 2019-11-27
 
 ### Changed

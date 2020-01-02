@@ -1,5 +1,26 @@
 # Change Log
 
+## v0.17.0 - 2019-12-23
+
+### Changed
+
+* Each `Client` now has its own non-threaded tokio `Runtime` rather than sharing a global threaded `Runtime`. This
+    significantly improves performance by minimizing context switches and cross-thread synchronization.
+* `Client::copy_in` now returns a writer rather than taking in a reader.
+* `Client::query_raw` now returns a named type.
+* `Client::copy_in` and `Client::copy_out` no longer take query parameters as PostgreSQL doesn't support them in COPY
+    queries.
+    
+### Removed
+
+* Removed support for `uuid` 0.7.
+
+### Added
+
+* Added `Client::query_opt` for queries that are expected to return zero or one rows.
+* Added binary copy support in the `binary_copy` module.
+* The `fallible-iterator` crate is now publicly reexported.
+
 ## v0.17.0-alpha.2 - 2019-11-27
 
 ### Changed

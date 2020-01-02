@@ -1,7 +1,5 @@
 //! SASL-based authentication support.
 
-use generic_array::typenum::U32;
-use generic_array::GenericArray;
 use hmac::{Hmac, Mac};
 use rand::{self, Rng};
 use sha2::{Digest, Sha256};
@@ -33,13 +31,13 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
     }
 }
 
-fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
+fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("HMAC is able to accept all key sizes");
     hmac.input(salt);
     hmac.input(&[0, 0, 0, 1]);
     let mut prev = hmac.result().code();
 
-    let mut hi = GenericArray::<u8, U32>::clone_from_slice(&prev);
+    let mut hi = prev;
 
     for _ in 1..i {
         let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("already checked above");
@@ -51,7 +49,7 @@ fn hi(str: &[u8], salt: &[u8], i: u32) -> GenericArray<u8, U32> {
         }
     }
 
-    hi
+    hi.into()
 }
 
 enum ChannelBindingInner {
@@ -103,7 +101,7 @@ enum State {
         channel_binding: ChannelBinding,
     },
     Finish {
-        salted_password: GenericArray<u8, U32>,
+        salted_password: [u8; 32],
         auth_message: String,
     },
     Done,
@@ -220,7 +218,7 @@ impl ScramSha256 {
         hmac.input(auth_message.as_bytes());
         let client_signature = hmac.result();
 
-        let mut client_proof = GenericArray::<u8, U32>::clone_from_slice(&client_key);
+        let mut client_proof = client_key;
         for (proof, signature) in client_proof.iter_mut().zip(client_signature.code()) {
             *proof ^= signature;
         }

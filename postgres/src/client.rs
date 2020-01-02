@@ -1,6 +1,6 @@
 use crate::{
-    Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement, ToStatement,
-    Transaction,
+    CancelToken, Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement,
+    ToStatement, Transaction,
 };
 use std::ops::{Deref, DerefMut};
 use tokio::runtime::Runtime;
@@ -444,6 +444,46 @@ impl Client {
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         let transaction = self.runtime.block_on(self.client.transaction())?;
         Ok(Transaction::new(&mut self.runtime, transaction))
+    }
+
+    /// Constructs a cancellation token that can later be used to request
+    /// cancellation of a query running on this connection.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls};
+    /// use postgres::error::SqlState;
+    /// use std::thread;
+    /// use std::time::Duration;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let cancel_token = client.cancel_token();
+    ///
+    /// thread::spawn(move || {
+    ///     // Abort the query after 5s.
+    ///     thread::sleep(Duration::from_secs(5));
+    ///     cancel_token.cancel_query(NoTls);
+    /// });
+    ///
+    /// match client.simple_query("SELECT long_running_query()") {
+    ///     Err(e) if e.code() == Some(&SqlState::QUERY_CANCELED) => {
+    ///         // Handle canceled query.
+    ///     }
+    ///     Err(err) => return Err(err.into()),
+    ///     Ok(rows) => {
+    ///         // ...
+    ///     }
+    /// }
+    /// // ...
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn cancel_token(&self) -> CancelToken {
+        CancelToken::new(self.client.cancel_token())
     }
 
     /// Determines if the client's connection has already closed.

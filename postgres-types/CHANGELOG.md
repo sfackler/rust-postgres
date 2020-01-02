@@ -1,5 +1,19 @@
 # Change Log
 
+## v0.1.0 - 2019-12-23
+
+### Changed
+
+* `Kind` is now a true non-exhaustive enum.
+
+### Removed
+
+* Removed `uuid` 0.7 support.
+
+### Added
+
+* Added a `Hash` implementation for `Type`.
+
 ## v0.1.0-alpha.2 - 2019-11-27
 
 ### Changed

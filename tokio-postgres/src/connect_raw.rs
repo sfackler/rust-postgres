@@ -197,7 +197,6 @@ fn can_skip_channel_binding(config: &Config) -> Result<(), Error> {
         config::ChannelBinding::Require => Err(Error::authentication(
             "server did not use channel binding".into(),
         )),
-        config::ChannelBinding::__NonExhaustive => unreachable!(),
     }
 }
 

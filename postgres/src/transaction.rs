@@ -1,5 +1,6 @@
 use crate::{
-    CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement, ToStatement,
+    CancelToken, CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement,
+    ToStatement,
 };
 use tokio::runtime::Runtime;
 use tokio_postgres::types::{ToSql, Type};
@@ -168,6 +169,11 @@ impl<'a> Transaction<'a> {
     /// Like `Client::batch_execute`.
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.runtime.block_on(self.transaction.batch_execute(query))
+    }
+
+    /// Like `Client::cancel_token`.
+    pub fn cancel_token(&self) -> CancelToken {
+        CancelToken::new(self.transaction.cancel_token())
     }
 
     /// Like `Client::transaction`.

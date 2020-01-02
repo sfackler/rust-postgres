@@ -1,6 +1,6 @@
 [package]
 name = "tokio-postgres"
-version = "0.5.0-alpha.2"
+version = "0.5.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -44,8 +44,8 @@ parking_lot = "0.10"
 percent-encoding = "2.0"
 pin-project-lite = "0.1"
 phf = "0.8"
-postgres-protocol = { version = "=0.5.0-alpha.2", path = "../postgres-protocol" }
-postgres-types = { version = "=0.1.0-alpha.2", path = "../postgres-types" }
+postgres-protocol = { version = "0.5.0", path = "../postgres-protocol" }
+postgres-types = { version = "0.1.0", path = "../postgres-types" }
 tokio = { version = "0.2", features = ["io-util"] }
 tokio-util = { version = "0.2", features = ["codec"] }
 
@@ -60,6 +60,5 @@ eui48-04 = { version = "0.4", package = "eui48" }
 geo-types-04 = { version = "0.4", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
-uuid-07 = { version = "0.7", package = "uuid" }
 uuid-08 = { version = "0.8", package = "uuid" }
 

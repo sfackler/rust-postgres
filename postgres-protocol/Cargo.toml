@@ -1,21 +1,20 @@
 [package]
 name = "postgres-protocol"
-version = "0.5.0-alpha.2"
+version = "0.5.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 description = "Low level Postgres protocol APIs"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/sfackler/rust-postgres-protocol"
+repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 
 [dependencies]
-base64 = "0.10"
+base64 = "0.11"
 byteorder = "1.0"
 bytes = "0.5"
 fallible-iterator = "0.2"
-generic-array = "0.13"
 hmac = "0.7"
-md5 = "0.6"
+md5 = "0.7"
 memchr = "2.0"
 rand = "0.7"
 sha2 = "0.8"
