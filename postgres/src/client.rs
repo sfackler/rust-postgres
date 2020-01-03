@@ -1,5 +1,6 @@
 use crate::{
-    CancelToken, Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction,
+    CancelToken, Config, CopyInWriter, CopyOutReader, GenericConnection, RowIter, Statement,
+    ToStatement, Transaction,
 };
 use std::ops::{Deref, DerefMut};
 use tokio::runtime::Runtime;
@@ -490,5 +491,26 @@ impl Client {
     /// If this returns `true`, the client is no longer usable.
     pub fn is_closed(&self) -> bool {
         self.client.is_closed()
+    }
+}
+
+impl GenericConnection for Client {
+    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.execute(query, params)
+    }
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query(query, params)
+    }
+    fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query)
+    }
+    fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.transaction()
     }
 }
