@@ -1,8 +1,7 @@
-use crate::{Statement, ToStatement, Transaction};
-use tokio_postgres::types::ToSql;
-use tokio_postgres::{Error, Row};
+use crate::types::ToSql;
+use crate::{Error, Row, Statement, ToStatement, Transaction};
 
-/// A trait allowing abstraction over connections and transactions
+/// A trait allowing abstraction over connections and transactions.
 pub trait GenericClient {
     /// Like `Client::execute`.
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
