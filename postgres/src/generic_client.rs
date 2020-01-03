@@ -3,7 +3,7 @@ use tokio_postgres::types::ToSql;
 use tokio_postgres::{Error, Row};
 
 /// A trait allowing abstraction over connections and transactions
-pub trait GenericConnection {
+pub trait GenericClient {
     /// Like `Client::execute`.
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where

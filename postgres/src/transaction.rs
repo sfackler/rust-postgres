@@ -1,5 +1,5 @@
 use crate::{
-    CancelToken, CopyInWriter, CopyOutReader, GenericConnection, Portal, RowIter, Rt, Statement,
+    CancelToken, CopyInWriter, CopyOutReader, GenericClient, Portal, RowIter, Rt, Statement,
     ToStatement,
 };
 use tokio::runtime::Runtime;
@@ -186,22 +186,25 @@ impl<'a> Transaction<'a> {
     }
 }
 
-impl<'a> GenericConnection for Transaction<'a> {
+impl<'a> GenericClient for Transaction<'a> {
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.execute(query, params)
     }
+
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.query(query, params)
     }
+
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.prepare(query)
     }
+
     fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction()
     }
