@@ -4,18 +4,17 @@ use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
-use crate::slice_iter;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::to_statement::ToStatement;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
-use crate::{copy_in, copy_out, query, CancelToken, CopyInSink, Transaction};
-use crate::{prepare, SimpleQueryMessage};
-use crate::{simple_query, Row};
-use crate::{Error, Statement};
+use crate::{
+    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
+    GenericClient, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+};
+use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
@@ -493,5 +492,34 @@ impl Client {
     /// In that case, all future queries will fail.
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
+    }
+}
+
+#[async_trait]
+impl GenericClient for Client {
+    async fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.execute(query, params).await
+    }
+
+    async fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.query(query, params).await
+    }
+
+    async fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query).await
+    }
+
+    async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.transaction().await
     }
 }

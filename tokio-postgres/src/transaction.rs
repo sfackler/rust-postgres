@@ -12,6 +12,7 @@ use crate::{
     bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
+use async_trait::async_trait;
 use bytes::Buf;
 use futures::TryStreamExt;
 use postgres_protocol::message::frontend;
@@ -283,5 +284,35 @@ impl<'a> Transaction<'a> {
             depth,
             done: false,
         })
+    }
+}
+
+#[async_trait]
+impl crate::GenericClient for Transaction<'_> {
+    async fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.execute(query, params).await
+    }
+
+    async fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.query(query, params).await
+    }
+
+    async fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+        self.prepare(query).await
+    }
+
+    #[allow(clippy::needless_lifetimes)]
+    async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
+        self.transaction().await
     }
 }
