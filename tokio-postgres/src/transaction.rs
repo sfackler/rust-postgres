@@ -311,6 +311,7 @@ impl crate::GenericClient for Transaction<'_> {
         self.prepare(query).await
     }
 
+    #[allow(clippy::needless_lifetimes)]
     async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
         self.transaction().await
     }
