@@ -12,7 +12,9 @@ use tokio::time;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
-use tokio_postgres::{AsyncMessage, Client, Config, Connection, Error, SimpleQueryMessage};
+use tokio_postgres::{
+    AsyncMessage, Client, Config, Connection, Error, IsolationLevel, SimpleQueryMessage,
+};
 
 mod binary_copy;
 mod parse;
@@ -396,6 +398,41 @@ async fn transaction_rollback_drop() {
     let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 0);
+}
+
+#[tokio::test]
+async fn transaction_builder() {
+    let mut client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo(
+                id SERIAL,
+                name TEXT
+            )",
+        )
+        .await
+        .unwrap();
+
+    let transaction = client
+        .build_transaction()
+        .isolation_level(IsolationLevel::Serializable)
+        .read_only()
+        .deferrable()
+        .start()
+        .await
+        .unwrap();
+    transaction
+        .batch_execute("INSERT INTO foo (name) VALUES ('steven')")
+        .await
+        .unwrap();
+    transaction.commit().await.unwrap();
+
+    let stmt = client.prepare("SELECT name FROM foo").await.unwrap();
+    let rows = client.query(&stmt, &[]).await.unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, &str>(0), "steven");
 }
 
 #[tokio::test]

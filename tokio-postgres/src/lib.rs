@@ -120,6 +120,7 @@ use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
 pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
+pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 use crate::types::ToSql;
 
 pub mod binary_copy;
@@ -154,6 +155,7 @@ mod statement;
 pub mod tls;
 mod to_statement;
 mod transaction;
+mod transaction_builder;
 pub mod types;
 
 /// A convenience function which parses a connection string and connects to the database.

@@ -13,6 +13,7 @@ use crate::Socket;
 use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
     GenericClient, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
@@ -459,6 +460,14 @@ impl Client {
             process_id: self.process_id,
             secret_key: self.secret_key,
         }
+    }
+
+    /// Returns a builder for a transaction with custom settings.
+    ///
+    /// Unlike the `transaction` method, the builder can be used to control the transaction's isolation level and other
+    /// attributes.
+    pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
+        TransactionBuilder::new(self)
     }
 
     /// Attempts to cancel an in-progress query.

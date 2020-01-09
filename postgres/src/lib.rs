@@ -51,7 +51,8 @@
 
 pub use fallible_iterator;
 pub use tokio_postgres::{
-    error, row, tls, types, Column, Portal, SimpleQueryMessage, Socket, Statement, ToStatement,
+    error, row, tls, types, Column, IsolationLevel, Portal, SimpleQueryMessage, Socket, Statement,
+    ToStatement,
 };
 
 pub use crate::cancel_token::CancelToken;
@@ -68,6 +69,7 @@ pub use crate::row_iter::RowIter;
 #[doc(no_inline)]
 pub use crate::tls::NoTls;
 pub use crate::transaction::*;
+pub use crate::transaction_builder::TransactionBuilder;
 
 pub mod binary_copy;
 mod cancel_token;
@@ -79,6 +81,7 @@ mod generic_client;
 mod lazy_pin;
 mod row_iter;
 mod transaction;
+mod transaction_builder;
 
 #[cfg(test)]
 mod test;
