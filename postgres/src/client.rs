@@ -58,9 +58,6 @@ impl Client {
     }
 
     /// Returns a new `Config` object which can be used to configure and connect to a database.
-    ///
-    /// Requires the `runtime` Cargo feature (enabled by default).
-    #[cfg(feature = "runtime")]
     pub fn configure() -> Config {
         Config::new()
     }
