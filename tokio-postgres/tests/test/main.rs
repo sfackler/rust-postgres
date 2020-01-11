@@ -417,8 +417,8 @@ async fn transaction_builder() {
     let transaction = client
         .build_transaction()
         .isolation_level(IsolationLevel::Serializable)
-        .read_only()
-        .deferrable()
+        .read_only(true)
+        .deferrable(true)
         .start()
         .await
         .unwrap();

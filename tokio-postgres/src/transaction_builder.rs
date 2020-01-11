@@ -23,8 +23,8 @@ pub enum IsolationLevel {
 pub struct TransactionBuilder<'a> {
     client: &'a mut Client,
     isolation_level: Option<IsolationLevel>,
-    read_only: bool,
-    deferrable: bool,
+    read_only: Option<bool>,
+    deferrable: Option<bool>,
 }
 
 impl<'a> TransactionBuilder<'a> {
@@ -32,8 +32,8 @@ impl<'a> TransactionBuilder<'a> {
         TransactionBuilder {
             client,
             isolation_level: None,
-            read_only: false,
-            deferrable: false,
+            read_only: None,
+            deferrable: None,
         }
     }
 
@@ -43,19 +43,19 @@ impl<'a> TransactionBuilder<'a> {
         self
     }
 
-    /// Sets the transaction to read-only.
-    pub fn read_only(mut self) -> Self {
-        self.read_only = true;
+    /// Sets the access mode of the transaction.
+    pub fn read_only(mut self, read_only: bool) -> Self {
+        self.read_only = Some(read_only);
         self
     }
 
-    /// Sets the transaction to be deferrable.
+    /// Sets the deferrability of the transaction.
     ///
     /// If the transaction is also serializable and read only, creation of the transaction may block, but when it
     /// completes the transaction is able to run with less overhead and a guarantee that it will not be aborted due to
     /// serialization failure.
-    pub fn deferrable(mut self) -> Self {
-        self.deferrable = true;
+    pub fn deferrable(mut self, deferrable: bool) -> Self {
+        self.deferrable = Some(deferrable);
         self
     }
 
@@ -79,21 +79,31 @@ impl<'a> TransactionBuilder<'a> {
             query.push_str(level);
         }
 
-        if self.read_only {
+        if let Some(read_only) = self.read_only {
             if !first {
                 query.push(',');
             }
             first = false;
 
-            query.push_str(" READ ONLY");
+            let s = if read_only {
+                " READ ONLY"
+            } else {
+                " READ WRITE"
+            };
+            query.push_str(s);
         }
 
-        if self.deferrable {
+        if let Some(deferrable) = self.deferrable {
             if !first {
                 query.push(',');
             }
 
-            query.push_str(" DEFERRABLE");
+            let s = if deferrable {
+                " DEFERRABLE"
+            } else {
+                " NOT DEFERRABLE"
+            };
+            query.push_str(s);
         }
 
         self.client.batch_execute(&query).await?;

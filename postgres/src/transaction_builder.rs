@@ -21,19 +21,19 @@ impl<'a> TransactionBuilder<'a> {
         self
     }
 
-    /// Sets the transaction to read-only.
-    pub fn read_only(mut self) -> Self {
-        self.builder = self.builder.read_only();
+    /// Sets the access mode of the transaction.
+    pub fn read_only(mut self, read_only: bool) -> Self {
+        self.builder = self.builder.read_only(read_only);
         self
     }
 
-    /// Sets the transaction to be deferrable.
+    /// Sets the deferrability of the transaction.
     ///
     /// If the transaction is also serializable and read only, creation of the transaction may block, but when it
     /// completes the transaction is able to run with less overhead and a guarantee that it will not be aborted due to
     /// serialization failure.
-    pub fn deferrable(mut self) -> Self {
-        self.builder = self.builder.deferrable();
+    pub fn deferrable(mut self, deferrable: bool) -> Self {
+        self.builder = self.builder.deferrable(deferrable);
         self
     }
 
