@@ -100,59 +100,10 @@ pub struct Row {
     ranges: Vec<Option<Range<usize>>>,
 }
 
-/// A macro to map pg types to rust types, for debug display.
-macro_rules! debug_row_type {
-    ($this:expr; $map:expr; $idx:expr; $name:expr; $type:expr; $($pg_ty:tt => $ty:ty),*) => {
-        match $type {
-            $(
-                &Type::$pg_ty => match <$ty as FromSql>::from_sql_nullable(
-                    &Type::$pg_ty,
-                    $this.0.col_buffer($idx),
-                ) {
-                    Ok(val) => $map.entry(&$name, &val),
-                    Err(_) => $map.entry(&$name, &"<error>"),
-                },
-            )*
-            _ => $map.entry(&$name, &"<opaque type>"),
-        }
-    }
-}
-
 impl fmt::Debug for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Provides debug impl for row contents.
-        struct RowData<'a>(&'a Row);
-
-        impl fmt::Debug for RowData<'_> {
-            #[allow(clippy::match_ref_pats)]
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let mut map = f.debug_map();
-                for (idx, col) in self.0.columns().iter().enumerate() {
-                    debug_row_type!(self; map; idx; col.name(); col.type_();
-                        BOOL => bool,
-                        INT2 => i16,
-                        INT4 => i32,
-                        INT8 => i64,
-                        FLOAT4 => f32,
-                        FLOAT8 => f64,
-                        VARCHAR => String,
-                        BPCHAR => String,
-                        TEXT => String,
-                        JSON => String,
-                        XML => String,
-                        TIMESTAMPTZ => std::time::SystemTime,
-                        TIMESTAMP => std::time::SystemTime,
-                        BYTEA => Vec<u8>
-                        // More types could be added here.
-                    );
-                }
-                map.finish()
-            }
-        }
-
         f.debug_struct("Row")
             .field("columns", &self.columns())
-            .field("data", &RowData(self))
             .finish()
     }
 }
