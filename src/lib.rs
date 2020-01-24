@@ -58,7 +58,7 @@ where
 {
     type Stream = RustlsStream<S>;
     type Error = io::Error;
-    type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>>>>;
+    type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>> + Send>>;
 
     fn connect(self, stream: S) -> Self::Future {
         self.connector
