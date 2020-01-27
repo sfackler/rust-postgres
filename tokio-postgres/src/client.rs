@@ -506,7 +506,6 @@ impl Client {
 
 #[async_trait]
 impl GenericClient for Client {
-    /// Like `Client::execute`.
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -514,7 +513,6 @@ impl GenericClient for Client {
         self.execute(query, params).await
     }
 
-    /// Like `Client::execute_raw`.
     async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -524,7 +522,6 @@ impl GenericClient for Client {
         self.execute_raw(statement, params).await
     }
 
-    /// Like `Client::query`.
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -532,7 +529,6 @@ impl GenericClient for Client {
         self.query(query, params).await
     }
 
-    /// Like `Client::query_one`.
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -544,7 +540,6 @@ impl GenericClient for Client {
         self.query_one(statement, params).await
     }
 
-    /// Like `Client::query_opt`.
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -556,7 +551,6 @@ impl GenericClient for Client {
         self.query_opt(statement, params).await
     }
 
-    /// Like `Client::query_raw`.
     async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -566,12 +560,10 @@ impl GenericClient for Client {
         self.query_raw(statement, params).await
     }
 
-    /// Like `Client::prepare`.
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare(query).await
     }
 
-    /// Like `Client::prepare_typed`.
     async fn prepare_typed(
         &self,
         query: &str,
@@ -580,7 +572,6 @@ impl GenericClient for Client {
         self.prepare_typed(query, parameter_types).await
     }
 
-    /// Like `Client::transaction`.
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction().await
     }
