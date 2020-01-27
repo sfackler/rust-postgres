@@ -289,6 +289,7 @@ impl<'a> Transaction<'a> {
 
 #[async_trait]
 impl crate::GenericClient for Transaction<'_> {
+    /// Like `Transaction::execute`.
     async fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -296,6 +297,17 @@ impl crate::GenericClient for Transaction<'_> {
         self.execute(query, params).await
     }
 
+    /// Like `Transaction::execute_raw`.
+    async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.execute_raw(statement, params).await
+    }
+
+    /// Like `Transaction::query`.
     async fn query<T>(
         &mut self,
         query: &T,
@@ -307,10 +319,55 @@ impl crate::GenericClient for Transaction<'_> {
         self.query(query, params).await
     }
 
+    /// Like `Transaction::query_one`.
+    async fn query_one<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Row, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.query_one(statement, params).await
+    }
+
+    /// Like `Transaction::query_opt`.
+    async fn query_opt<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+    {
+        self.query_opt(statement, params).await
+    }
+
+    /// Like `Transaction::query_raw`.
+    async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    where
+        T: ?Sized + ToStatement + Sync + Send,
+        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.query_raw(statement, params).await
+    }
+
+    /// Like `Transaction::prepare`.
     async fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.prepare(query).await
     }
 
+    /// Like `Transaction::prepare_typed`.
+    async fn prepare_typed(
+        &self,
+        query: &str,
+        parameter_types: &[Type],
+    ) -> Result<Statement, Error> {
+        self.prepare_typed(query, parameter_types).await
+    }
+
+    /// Like `Transaction::transaction`.
     #[allow(clippy::needless_lifetimes)]
     async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
         self.transaction().await
