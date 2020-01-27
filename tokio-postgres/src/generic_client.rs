@@ -4,24 +4,24 @@ use crate::{Error, Row, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
 /// A trait allowing abstraction over connections and transactions.
-#[async_trait]
+#[async_trait(?Send)]
 pub trait GenericClient {
     /// Like `Client::execute`.
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send;
+        T: ?Sized + ToStatement;
 
     /// Like `Client::execute_raw`.
     async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::query`.
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send;
+        T: ?Sized + ToStatement;
 
     /// Like `Client::query_one`.
     async fn query_one<T>(
@@ -30,7 +30,7 @@ pub trait GenericClient {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send;
+        T: ?Sized + ToStatement;
 
     /// Like `Client::query_opt`.
     async fn query_opt<T>(
@@ -39,13 +39,13 @@ pub trait GenericClient {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send;
+        T: ?Sized + ToStatement;
 
     /// Like `Client::query_raw`.
     async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::prepare`.

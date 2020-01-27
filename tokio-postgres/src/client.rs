@@ -504,19 +504,19 @@ impl Client {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl GenericClient for Client {
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
+        T: ?Sized + ToStatement,
     {
         self.execute(query, params).await
     }
 
     async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
         self.execute_raw(statement, params).await
@@ -524,7 +524,7 @@ impl GenericClient for Client {
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
+        T: ?Sized + ToStatement,
     {
         self.query(query, params).await
     }
@@ -535,7 +535,7 @@ impl GenericClient for Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
+        T: ?Sized + ToStatement,
     {
         self.query_one(statement, params).await
     }
@@ -546,15 +546,15 @@ impl GenericClient for Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
+        T: ?Sized + ToStatement,
     {
         self.query_opt(statement, params).await
     }
 
     async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
+        T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
         self.query_raw(statement, params).await
