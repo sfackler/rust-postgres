@@ -507,7 +507,7 @@ impl Client {
 #[async_trait]
 impl GenericClient for Client {
     /// Like `Client::execute`.
-    async fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
@@ -525,11 +525,7 @@ impl GenericClient for Client {
     }
 
     /// Like `Client::query`.
-    async fn query<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
+    async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
@@ -571,7 +567,7 @@ impl GenericClient for Client {
     }
 
     /// Like `Client::prepare`.
-    async fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
+    async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare(query).await
     }
 

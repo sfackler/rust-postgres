@@ -7,7 +7,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait GenericClient {
     /// Like `Client::execute`.
-    async fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
@@ -19,11 +19,7 @@ pub trait GenericClient {
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::query`.
-    async fn query<T>(
-        &mut self,
-        query: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
+    async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
@@ -53,7 +49,7 @@ pub trait GenericClient {
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::prepare`.
-    async fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
+    async fn prepare(&self, query: &str) -> Result<Statement, Error>;
 
     /// Like `Client::prepare_typed`.
     async fn prepare_typed(
