@@ -12,10 +12,8 @@ use crate::types::{Oid, ToSql, Type};
 use crate::Socket;
 use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    GenericClient, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
-    TransactionBuilder,
+    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
-use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
@@ -501,78 +499,5 @@ impl Client {
     /// In that case, all future queries will fail.
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
-    }
-}
-
-#[async_trait]
-impl GenericClient for Client {
-    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-    {
-        self.execute(query, params).await
-    }
-
-    async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        self.execute_raw(statement, params).await
-    }
-
-    async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-    {
-        self.query(query, params).await
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-    {
-        self.query_one(statement, params).await
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-    {
-        self.query_opt(statement, params).await
-    }
-
-    async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + ToStatement + Sync + Send,
-        I: IntoIterator<Item = &'b dyn ToSql> + Sync + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        self.query_raw(statement, params).await
-    }
-
-    async fn prepare(&self, query: &str) -> Result<Statement, Error> {
-        self.prepare(query).await
-    }
-
-    async fn prepare_typed(
-        &self,
-        query: &str,
-        parameter_types: &[Type],
-    ) -> Result<Statement, Error> {
-        self.prepare_typed(query, parameter_types).await
-    }
-
-    async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.transaction().await
     }
 }
