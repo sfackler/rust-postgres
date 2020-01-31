@@ -6,6 +6,7 @@ use fallible_iterator::FallibleIterator;
 use memchr::memchr;
 use std::cmp;
 use std::io::{self, Read};
+use std::marker::PhantomData;
 use std::ops::Range;
 use std::str;
 
@@ -531,11 +532,12 @@ pub struct DataRowBody {
 
 impl DataRowBody {
     #[inline]
-    pub fn ranges(&self) -> DataRowRanges<'_> {
+    pub fn ranges(&self) -> DataRowRanges<'_, DataRow> {
         DataRowRanges {
             buf: &self.storage,
             len: self.storage.len(),
             remaining: self.len,
+            phantom: PhantomData,
         }
     }
 
@@ -545,13 +547,48 @@ impl DataRowBody {
     }
 }
 
-pub struct DataRowRanges<'a> {
+pub struct DataRowRanges<'a, T: RowType> {
     buf: &'a [u8],
     len: usize,
     remaining: u16,
+    phantom: PhantomData<T>,
 }
 
-impl<'a> FallibleIterator for DataRowRanges<'a> {
+pub struct DataRow;
+pub struct CompositeType;
+
+pub trait RowType {
+    fn is_composite_type() -> bool;
+}
+
+impl RowType for DataRow {
+    fn is_composite_type() -> bool {
+        false
+    }
+}
+
+impl RowType for CompositeType {
+    fn is_composite_type() -> bool {
+        true
+    }
+}
+
+impl<'a> DataRowRanges<'a, CompositeType> {
+    pub fn composite_type_ranges(
+        buf: &'a [u8],
+        len: usize,
+        remaining: u16,
+    ) -> DataRowRanges<'a, CompositeType> {
+        DataRowRanges {
+            buf,
+            len,
+            remaining,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: RowType> FallibleIterator for DataRowRanges<'a, T> {
     type Item = Option<Range<usize>>;
     type Error = io::Error;
 
@@ -569,6 +606,21 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
         }
 
         self.remaining -= 1;
+        if <T as RowType>::is_composite_type() {
+            // Binary format of a composite type:
+            // [for each field]
+            //     <OID of field's type: 4 bytes>
+            //     [if value is NULL]
+            //         <-1: 4 bytes>
+            //     [else]
+            //         <length of value: 4 bytes>
+            //         <value: <length> bytes>
+            //     [end if]
+            // [end for]
+            // https://www.postgresql.org/message-id/16CCB2D3-197E-4D9F-BC6F-9B123EA0D40D%40phlo.org
+            // https://github.com/postgres/postgres/blob/29e321cdd63ea48fd0223447d58f4742ad729eb0/src/backend/utils/adt/rowtypes.c#L736
+            let _oid = self.buf.read_i32::<BigEndian>()?;
+        }
         let len = self.buf.read_i32::<BigEndian>()?;
         if len < 0 {
             Ok(Some(None))
