@@ -52,7 +52,7 @@ pub struct Connection<S, T> {
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
     pending_request: Option<RequestMessages>,
-    pending_response: Option<BackendMessage>,
+    pending_responses: VecDeque<BackendMessage>,
     responses: VecDeque<Response>,
     state: State,
 }
@@ -64,6 +64,7 @@ where
 {
     pub(crate) fn new(
         stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
+        pending_responses: VecDeque<BackendMessage>,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
     ) -> Connection<S, T> {
@@ -72,7 +73,7 @@ where
             parameters,
             receiver,
             pending_request: None,
-            pending_response: None,
+            pending_responses,
             responses: VecDeque::new(),
             state: State::Active,
         }
@@ -82,7 +83,7 @@ where
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<BackendMessage, Error>>> {
-        if let Some(message) = self.pending_response.take() {
+        if let Some(message) = self.pending_responses.pop_front() {
             trace!("retrying pending response");
             return Poll::Ready(Some(Ok(message)));
         }
@@ -158,7 +159,7 @@ where
                 }
                 Poll::Pending => {
                     self.responses.push_front(response);
-                    self.pending_response = Some(BackendMessage::Normal {
+                    self.pending_responses.push_back(BackendMessage::Normal {
                         messages,
                         request_complete,
                     });

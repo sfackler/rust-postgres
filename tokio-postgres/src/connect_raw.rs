@@ -13,7 +13,7 @@ use postgres_protocol::authentication::sasl;
 use postgres_protocol::authentication::sasl::ScramSha256;
 use postgres_protocol::message::backend::{AuthenticationSaslBody, Message};
 use postgres_protocol::message::frontend;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -23,6 +23,7 @@ use tokio_util::codec::Framed;
 pub struct StartupStream<S, T> {
     inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     buf: BackendMessages,
+    delayed: VecDeque<BackendMessage>,
 }
 
 impl<S, T> Sink<FrontendMessage> for StartupStream<S, T>
@@ -91,6 +92,7 @@ where
     let mut stream = StartupStream {
         inner: Framed::new(stream, PostgresCodec),
         buf: BackendMessages::empty(),
+        delayed: VecDeque::new(),
     };
 
     startup(&mut stream, config).await?;
@@ -99,7 +101,7 @@ where
 
     let (sender, receiver) = mpsc::unbounded();
     let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
-    let connection = Connection::new(stream.inner, parameters, receiver);
+    let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
     Ok((client, connection))
 }
@@ -332,7 +334,9 @@ where
                     body.value().map_err(Error::parse)?.to_string(),
                 );
             }
-            Some(Message::NoticeResponse(_)) => {}
+            Some(msg @ Message::NoticeResponse(_)) => {
+                stream.delayed.push_back(BackendMessage::Async(msg))
+            }
             Some(Message::ReadyForQuery(_)) => return Ok((process_id, secret_key, parameters)),
             Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
             Some(_) => return Err(Error::unexpected_message()),

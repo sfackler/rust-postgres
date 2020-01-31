@@ -571,6 +571,45 @@ async fn copy_out() {
 }
 
 #[tokio::test]
+async fn notices() {
+    let long_name = "x".repeat(65);
+    let (client, mut connection) =
+        connect_raw(&format!("user=postgres application_name={}", long_name,))
+            .await
+            .unwrap();
+
+    let (tx, rx) = mpsc::unbounded();
+    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
+    let connection = stream.forward(tx).map(|r| r.unwrap());
+    tokio::spawn(connection);
+
+    client
+        .batch_execute("DROP DATABASE IF EXISTS noexistdb")
+        .await
+        .unwrap();
+
+    drop(client);
+
+    let notices = rx
+        .filter_map(|m| match m {
+            AsyncMessage::Notice(n) => future::ready(Some(n)),
+            _ => future::ready(None),
+        })
+        .collect::<Vec<_>>()
+        .await;
+    assert_eq!(notices.len(), 2);
+    assert_eq!(
+        notices[0].message(),
+        "identifier \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" \
+         will be truncated to \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+    );
+    assert_eq!(
+        notices[1].message(),
+        "database \"noexistdb\" does not exist, skipping"
+    );
+}
+
+#[tokio::test]
 async fn notifications() {
     let (client, mut connection) = connect_raw("user=postgres").await.unwrap();
 
