@@ -198,9 +198,9 @@ impl<'a> FromSql<'a> for CompositeType<'a> {
         match *type_.kind() {
             Kind::Composite(_) => {
                 let composite_type = CompositeType::new(type_.clone(), raw)?;
-                return Ok(composite_type);
+                Ok(composite_type)
             }
-            _ => return Err(format!("expected composite type, got {}", type_).into()),
+            _ => Err(format!("expected composite type, got {}", type_).into()),
         }
     }
     fn accepts(ty: &Type) -> bool {
