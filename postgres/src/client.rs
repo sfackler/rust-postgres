@@ -443,6 +443,33 @@ impl Client {
         Ok(Transaction::new(&mut self.runtime, transaction))
     }
 
+    /// Returns a builder for a transaction with custom settings.
+    ///
+    /// Unlike the `transaction` method, the builder can be used to control the transaction's isolation level and other
+    /// attributes.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use postgres::{Client, IsolationLevel, NoTls};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let mut transaction = client.build_transaction()
+    ///     .isolation_level(IsolationLevel::RepeatableRead)
+    ///     .start()?;
+    /// transaction.execute("UPDATE foo SET bar = 10", &[])?;
+    /// // ...
+    ///
+    /// transaction.commit()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
+        TransactionBuilder::new(&mut self.runtime, self.client.build_transaction())
+    }
+
     /// Constructs a cancellation token that can later be used to request
     /// cancellation of a query running on this connection.
     ///
@@ -481,33 +508,6 @@ impl Client {
     /// ```
     pub fn cancel_token(&self) -> CancelToken {
         CancelToken::new(self.client.cancel_token())
-    }
-
-    /// Returns a builder for a transaction with custom settings.
-    ///
-    /// Unlike the `transaction` method, the builder can be used to control the transaction's isolation level and other
-    /// attributes.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use postgres::{Client, IsolationLevel, NoTls};
-    ///
-    /// # fn main() -> Result<(), postgres::Error> {
-    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
-    ///
-    /// let mut transaction = client.build_transaction()
-    ///     .isolation_level(IsolationLevel::RepeatableRead)
-    ///     .start()?;
-    /// transaction.execute("UPDATE foo SET bar = 10", &[])?;
-    /// // ...
-    ///
-    /// transaction.commit()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
-        TransactionBuilder::new(&mut self.runtime, self.client.build_transaction())
     }
 
     /// Determines if the client's connection has already closed.

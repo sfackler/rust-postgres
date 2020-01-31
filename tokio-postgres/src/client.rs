@@ -447,6 +447,14 @@ impl Client {
         Ok(Transaction::new(self))
     }
 
+    /// Returns a builder for a transaction with custom settings.
+    ///
+    /// Unlike the `transaction` method, the builder can be used to control the transaction's isolation level and other
+    /// attributes.
+    pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
+        TransactionBuilder::new(self)
+    }
+
     /// Constructs a cancellation token that can later be used to request
     /// cancellation of a query running on the connection associated with
     /// this client.
@@ -458,14 +466,6 @@ impl Client {
             process_id: self.process_id,
             secret_key: self.secret_key,
         }
-    }
-
-    /// Returns a builder for a transaction with custom settings.
-    ///
-    /// Unlike the `transaction` method, the builder can be used to control the transaction's isolation level and other
-    /// attributes.
-    pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
-        TransactionBuilder::new(self)
     }
 
     /// Attempts to cancel an in-progress query.
