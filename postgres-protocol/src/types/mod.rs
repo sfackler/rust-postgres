@@ -1045,3 +1045,79 @@ impl Inet {
         self.netmask
     }
 }
+
+/// A fallible iterator over the fields of a composite type.
+pub struct CompositeTypeRanges<'a> {
+    buf: &'a [u8],
+    len: usize,
+    remaining: u16,
+}
+
+impl<'a> CompositeTypeRanges<'a> {
+    /// Returns a fallible iterator over the fields of the composite type.
+    #[inline]
+    pub fn new(buf: &'a [u8], len: usize, remaining: u16) -> CompositeTypeRanges<'a> {
+        CompositeTypeRanges {
+            buf,
+            len,
+            remaining,
+        }
+    }
+}
+
+impl<'a> FallibleIterator for CompositeTypeRanges<'a> {
+    type Item = Option<std::ops::Range<usize>>;
+    type Error = std::io::Error;
+
+    #[inline]
+    fn next(&mut self) -> std::io::Result<Option<Option<std::ops::Range<usize>>>> {
+        if self.remaining == 0 {
+            if self.buf.is_empty() {
+                return Ok(None);
+            } else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "invalid buffer length: compositetyperanges is not empty",
+                ));
+            }
+        }
+
+        self.remaining -= 1;
+
+        // Binary format of a composite type:
+        // [for each field]
+        //     <OID of field's type: 4 bytes>
+        //     [if value is NULL]
+        //         <-1: 4 bytes>
+        //     [else]
+        //         <length of value: 4 bytes>
+        //         <value: <length> bytes>
+        //     [end if]
+        // [end for]
+        // https://www.postgresql.org/message-id/16CCB2D3-197E-4D9F-BC6F-9B123EA0D40D%40phlo.org
+        // https://github.com/postgres/postgres/blob/29e321cdd63ea48fd0223447d58f4742ad729eb0/src/backend/utils/adt/rowtypes.c#L736
+
+        let _oid = self.buf.read_i32::<BigEndian>()?;
+        let len = self.buf.read_i32::<BigEndian>()?;
+        if len < 0 {
+            Ok(Some(None))
+        } else {
+            let len = len as usize;
+            if self.buf.len() < len {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "unexpected EOF",
+                ));
+            }
+            let base = self.len - self.buf.len();
+            self.buf = &self.buf[len as usize..];
+            Ok(Some(Some(base..base + len)))
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.remaining as usize;
+        (len, Some(len))
+    }
+}

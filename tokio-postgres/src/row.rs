@@ -6,7 +6,8 @@ use crate::types::{Field, FromSql, Kind, Type, WrongType};
 use crate::{Error, Statement};
 use byteorder::{BigEndian, ByteOrder};
 use fallible_iterator::FallibleIterator;
-use postgres_protocol::message::backend::{DataRowBody, DataRowRanges};
+use postgres_protocol::message::backend::DataRowBody;
+use postgres_protocol::types::CompositeTypeRanges;
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -182,7 +183,7 @@ impl Row {
     }
 }
 
-/// PostgreSQL composite type.
+/// A PostgreSQL composite type.
 /// Fields of a type can be accessed using `CompositeType::get` and `CompositeType::try_get` methods.
 pub struct CompositeType<'a> {
     type_: Type,
@@ -193,12 +194,29 @@ pub struct CompositeType<'a> {
 impl<'a> FromSql<'a> for CompositeType<'a> {
     fn from_sql(
         type_: &Type,
-        raw: &'a [u8],
+        body: &'a [u8],
     ) -> Result<CompositeType<'a>, Box<dyn std::error::Error + Sync + Send>> {
         match *type_.kind() {
             Kind::Composite(_) => {
-                let composite_type = CompositeType::new(type_.clone(), raw)?;
-                Ok(composite_type)
+                let fields: &[Field] = composite_type_fields(&type_);
+                if body.len() < 4 {
+                    let message = format!("invalid composite type body length: {}", body.len());
+                    return Err(message.into());
+                }
+                let num_fields: i32 = BigEndian::read_i32(&body[0..4]);
+                if num_fields as usize != fields.len() {
+                    let message =
+                        format!("invalid field count: {} vs {}", num_fields, fields.len());
+                    return Err(message.into());
+                }
+                let ranges = CompositeTypeRanges::new(&body[4..], body.len(), num_fields as u16)
+                    .collect()
+                    .map_err(Error::parse)?;
+                Ok(CompositeType {
+                    type_: type_.clone(),
+                    body,
+                    ranges,
+                })
             }
             _ => Err(format!("expected composite type, got {}", type_).into()),
         }
@@ -219,32 +237,6 @@ fn composite_type_fields(type_: &Type) -> &[Field] {
 }
 
 impl<'a> CompositeType<'a> {
-    pub(crate) fn new(
-        type_: Type,
-        body: &'a [u8],
-    ) -> Result<CompositeType<'a>, Box<dyn std::error::Error + Sync + Send>> {
-        let fields: &[Field] = composite_type_fields(&type_);
-        if body.len() < 4 {
-            let message = format!("invalid composite type body length: {}", body.len());
-            return Err(message.into());
-        }
-        let num_fields: i32 = BigEndian::read_i32(&body[0..4]);
-        if num_fields as usize != fields.len() {
-            let message = format!("invalid field count: {} vs {}", num_fields, fields.len());
-            return Err(message.into());
-        }
-        let ranges =
-            DataRowRanges::composite_type_ranges(&body[4..], body.len(), num_fields as u16)
-                .collect()
-                .map_err(Error::parse)?;
-
-        Ok(CompositeType {
-            type_,
-            body,
-            ranges,
-        })
-    }
-
     /// Returns information about the fields of the composite type.
     pub fn fields(&self) -> &[Field] {
         composite_type_fields(&self.type_)
