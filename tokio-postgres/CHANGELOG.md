@@ -1,5 +1,23 @@
 # Change Log
 
+## v0.5.2 - 2020-01-31
+
+### Fixed
+
+* Notice messages sent during the initial connection process are now collected and returned first from
+    `Connection::poll_message`.
+
+### Deprecated
+
+* Deprecated `Client::cancel_query` and `Client::cancel_query_raw` in favor of `Client::cancel_token`.
+
+### Added
+
+* Added `Client::build_transaction` to allow configuration of various transaction options.
+* Added `Client::cancel_token`, which returns a separate owned object that can be used to cancel queries.
+* Added accessors for `Client` fields.
+* Added a `GenericClient` trait implemented for `Client` and `Transaction` and covering shared functionality.
+
 ## v0.5.1 - 2019-12-25
 
 ### Fixed
