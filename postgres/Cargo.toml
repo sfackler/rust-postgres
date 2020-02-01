@@ -1,6 +1,6 @@
 [package]
 name = "postgres"
-version = "0.17.0"
+version = "0.17.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -32,7 +32,7 @@ with-uuid-0_8 = ["tokio-postgres/with-uuid-0_8"]
 bytes = "0.5"
 fallible-iterator = "0.2"
 futures = "0.3"
-tokio-postgres = { version = "0.5.0", path = "../tokio-postgres" }
+tokio-postgres = { version = "0.5.2", path = "../tokio-postgres" }
 
 tokio = { version = "0.2", features = ["rt-core"] }
 log = "0.4"

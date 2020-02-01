@@ -1,5 +1,14 @@
 # Change Log
 
+## v0.17.1 - 2020-01-31
+
+### Added
+
+* Added `Client::build_transaction` to allow configuration of various transaction options.
+* Added `Client::cancel_token`, which returns a separate owned object that can be used to cancel queries.
+* Added accessors for `Config` fields.
+* Added a `GenericClient` trait implemented for `Client` and `Transaction` and covering shared functionality.
+
 ## v0.17.0 - 2019-12-23
 
 ### Changed

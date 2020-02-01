@@ -15,7 +15,7 @@
 
 * Added `Client::build_transaction` to allow configuration of various transaction options.
 * Added `Client::cancel_token`, which returns a separate owned object that can be used to cancel queries.
-* Added accessors for `Client` fields.
+* Added accessors for `Config` fields.
 * Added a `GenericClient` trait implemented for `Client` and `Transaction` and covering shared functionality.
 
 ## v0.5.1 - 2019-12-25
