@@ -2,8 +2,9 @@
 //!
 //! Requires the `runtime` Cargo feature (enabled by default).
 
-use crate::Client;
-use futures::FutureExt;
+use crate::{AsyncMessage, Client};
+use futures::future;
+use futures::stream::{self, StreamExt};
 use log::error;
 use std::fmt;
 use std::path::Path;
@@ -88,9 +89,9 @@ use tokio_postgres::{Error, Socket};
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
-#[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
+    notification_callback: Box<dyn NotificationCallback>,
 }
 
 impl fmt::Debug for Config {
@@ -98,6 +99,15 @@ impl fmt::Debug for Config {
         fmt.debug_struct("Config")
             .field("config", &self.config)
             .finish()
+    }
+}
+
+impl Clone for Config {
+    fn clone(&self) -> Config {
+        Config {
+            config: self.config.clone(),
+            notification_callback: self.notification_callback.box_clone(),
+        }
     }
 }
 
@@ -112,6 +122,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             config: tokio_postgres::Config::new(),
+            notification_callback: Box::new(|_| ()),
         }
     }
 
@@ -308,6 +319,23 @@ impl Config {
         self.config.get_channel_binding()
     }
 
+    /// Sets the notification callback.
+    ///
+    /// This callback will be invoked with every [`AsyncMessage`]s that is
+    /// received over the connection.
+    pub fn notification_callback<F>(&mut self, f: F) -> &mut Config
+    where
+        F: Fn(AsyncMessage) + Clone + Send + 'static,
+    {
+        self.notification_callback = Box::new(f);
+        self
+    }
+
+    /// Gets the current notification callback.
+    pub fn get_notification_callback(&self) -> &(dyn FnMut(AsyncMessage) + Send) {
+        self.notification_callback.as_inner()
+    }
+
     /// Opens a connection to a PostgreSQL database.
     pub fn connect<T>(&self, tls: T) -> Result<Client, Error>
     where
@@ -322,15 +350,19 @@ impl Config {
             .build()
             .unwrap(); // FIXME don't unwrap
 
-        let (client, connection) = runtime.block_on(self.config.connect(tls))?;
+        let (client, mut connection) = runtime.block_on(self.config.connect(tls))?;
+
+        let mut notification_callback = self.notification_callback.box_clone();
 
         // FIXME don't spawn this so error reporting is less weird.
-        let connection = connection.map(|r| {
-            if let Err(e) = r {
-                error!("postgres connection error: {}", e)
+        let connection = stream::poll_fn(move |cx| connection.poll_message(cx));
+        runtime.spawn(connection.for_each(move |r| {
+            match r {
+                Ok(m) => notification_callback(m),
+                Err(e) => error!("postgres connection error: {}", e),
             }
-        });
-        runtime.spawn(connection);
+            future::ready(())
+        }));
 
         Ok(Client::new(runtime, client))
     }
@@ -346,6 +378,27 @@ impl FromStr for Config {
 
 impl From<tokio_postgres::Config> for Config {
     fn from(config: tokio_postgres::Config) -> Config {
-        Config { config }
+        Config {
+            config,
+            notification_callback: Box::new(|_| ()),
+        }
+    }
+}
+
+trait NotificationCallback: FnMut(AsyncMessage) + Send {
+    fn box_clone(&self) -> Box<dyn NotificationCallback>;
+    fn as_inner(&self) -> &(dyn FnMut(AsyncMessage) + Send);
+}
+
+impl<F> NotificationCallback for F
+where
+    F: Fn(AsyncMessage) + Clone + Send + 'static,
+{
+    fn box_clone(&self) -> Box<dyn NotificationCallback> {
+        Box::new(self.clone())
+    }
+
+    fn as_inner(&self) -> &(dyn FnMut(AsyncMessage) + Send) {
+        self
     }
 }

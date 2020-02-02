@@ -51,8 +51,8 @@
 
 pub use fallible_iterator;
 pub use tokio_postgres::{
-    error, row, tls, types, Column, IsolationLevel, Portal, SimpleQueryMessage, Socket, Statement,
-    ToStatement,
+    error, row, tls, types, AsyncMessage, Column, IsolationLevel, Portal, SimpleQueryMessage,
+    Socket, Statement, ToStatement,
 };
 
 pub use crate::cancel_token::CancelToken;

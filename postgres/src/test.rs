@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use tokio_postgres::error::SqlState;
@@ -308,4 +309,39 @@ fn cancel_query() {
     }
 
     cancel_thread.join().unwrap();
+}
+
+#[test]
+fn notifications() {
+    let (tx, rx) = mpsc::channel();
+
+    let mut client = "host=localhost port=5433 user=postgres"
+        .parse::<Config>()
+        .unwrap()
+        .notification_callback(move |res| tx.send(res).unwrap())
+        .connect(NoTls)
+        .unwrap();
+
+    client
+        .batch_execute(
+            "LISTEN test_notifications;
+             NOTIFY test_notifications, 'hello';
+             NOTIFY test_notifications, 'world';",
+        )
+        .unwrap();
+
+    drop(client);
+
+    let notifications = rx
+        .iter()
+        .filter_map(|m| match m {
+            AsyncMessage::Notification(n) => Some(n),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].channel(), "test_notifications");
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].channel(), "test_notifications");
+    assert_eq!(notifications[1].payload(), "world");
 }
