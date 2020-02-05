@@ -255,6 +255,33 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// If you have a type like `Vec<T>` where `T: ToSql` Rust will not know how to use it as params. To get around
+    /// this the type must explicitly be converted to `&dyn ToSql`.
+    ///
+    /// ```no_run
+    /// # use postgres::{Client, NoTls};
+    /// use postgres::types::ToSql;
+    /// use fallible_iterator::FallibleIterator;
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// # let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let params: Vec<String> = vec![
+    ///     "first param".into(),
+    ///     "second param".into(),
+    /// ];
+    /// let mut it = client.query_raw(
+    ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
+    ///     params.iter().map(|p| p as &dyn ToSql),
+    /// )?;
+    ///
+    /// while let Some(row) = it.next()? {
+    ///     let foo: i32 = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
