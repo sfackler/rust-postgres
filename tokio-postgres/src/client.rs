@@ -313,6 +313,34 @@ impl Client {
     /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`query`]: #method.query
+    ///
+    /// # Examples
+    ///
+    /// If you have a type like `Vec<T>` where `T: ToSql` Rust will not know how to use it as params. To get around
+    /// this the type must explicitly be converted to `&dyn ToSql`.
+    ///
+    /// ```no_run
+    /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
+    /// use tokio_postgres::types::ToSql;
+    /// use futures::{pin_mut, StreamExt};
+    ///
+    /// let params: Vec<String> = vec![
+    ///     "first param".into(),
+    ///     "second param".into(),
+    /// ];
+    /// let mut it = client.query_raw(
+    ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
+    ///     params.iter().map(|p| p as &dyn ToSql),
+    /// ).await?;
+    ///
+    /// pin_mut!(it);
+    /// while let Some(row) = it.next().await.transpose()? {
+    ///     let foo: i32 = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn query_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
