@@ -322,7 +322,7 @@ impl Client {
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
     /// use tokio_postgres::types::ToSql;
-    /// use futures::{pin_mut, StreamExt};
+    /// use futures::{pin_mut, TryStreamExt};
     ///
     /// let params: Vec<String> = vec![
     ///     "first param".into(),
@@ -334,7 +334,7 @@ impl Client {
     /// ).await?;
     ///
     /// pin_mut!(it);
-    /// while let Some(row) = it.next().await.transpose()? {
+    /// while let Some(row) = it.try_next().await? {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
     /// }
