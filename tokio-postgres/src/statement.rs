@@ -3,7 +3,10 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
 use postgres_protocol::message::frontend;
-use std::sync::{Arc, Weak};
+use std::{
+    fmt,
+    sync::{Arc, Weak},
+};
 
 struct StatementInner {
     client: Weak<InnerClient>,
@@ -62,7 +65,6 @@ impl Statement {
 }
 
 /// Information about a column of a query.
-#[derive(Debug)]
 pub struct Column {
     name: String,
     type_: Type,
@@ -81,5 +83,14 @@ impl Column {
     /// Returns the type of the column.
     pub fn type_(&self) -> &Type {
         &self.type_
+    }
+}
+
+impl fmt::Debug for Column {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Column")
+            .field("name", &self.name)
+            .field("type", &self.type_)
+            .finish()
     }
 }
