@@ -253,4 +253,9 @@ impl SimpleQueryRow {
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
     }
+
+    /// Returns information about the columns returned.
+    pub fn columns(&self) -> &[String] {
+        &self.columns
+    }
 }
