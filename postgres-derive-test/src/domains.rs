@@ -119,3 +119,23 @@ fn domain_in_composite() {
         )],
     );
 }
+
+#[test]
+fn struct_with_reference() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    struct SessionId<'b>(&'b [u8]);
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute(
+        "CREATE DOMAIN pg_temp.\"SessionId\" AS bytea CHECK(octet_length(VALUE) = 16);",
+        &[],
+    )
+    .unwrap();
+
+    let session_id = b"0123456789abcdef";
+    let row = conn
+        .query_one("SELECT $1::\"SessionId\"", &[&SessionId(session_id)])
+        .unwrap();
+    let result: SessionId<'_> = row.get(0);
+    assert_eq!(session_id, result.0);
+}
