@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
+use crate::{Error, SimpleColumn, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
@@ -56,7 +56,7 @@ pin_project! {
     /// A stream of simple query results.
     pub struct SimpleQueryStream {
         responses: Responses,
-        columns: Option<Arc<[String]>>,
+        columns: Option<Arc<[SimpleColumn]>>,
         #[pin]
         _p: PhantomPinned,
     }
@@ -86,7 +86,7 @@ impl Stream for SimpleQueryStream {
                 Message::RowDescription(body) => {
                     let columns = body
                         .fields()
-                        .map(|f| Ok(f.name().to_string()))
+                        .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
                         .collect::<Vec<_>>()
                         .map_err(Error::parse)?
                         .into();

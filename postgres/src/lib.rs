@@ -64,7 +64,7 @@ pub use crate::copy_out_reader::CopyOutReader;
 pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 #[doc(no_inline)]
-pub use crate::row::{Row, SimpleQueryRow};
+pub use crate::row::{Row, SimpleColumn, SimpleQueryRow};
 pub use crate::row_iter::RowIter;
 #[doc(no_inline)]
 pub use crate::tls::NoTls;
