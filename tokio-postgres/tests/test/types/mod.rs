@@ -22,6 +22,8 @@ mod eui48_04;
 mod geo_010;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
+#[cfg(feature = "with-time-0_2")]
+mod time_02;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 
