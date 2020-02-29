@@ -40,7 +40,7 @@ impl<'a> FromSql<'a> for OffsetDateTime {
         Ok(primitive.assume_utc())
     }
 
-    accepts!(TIMESTAMP, TIMESTAMPTZ);
+    accepts!(TIMESTAMPTZ);
 }
 
 impl ToSql for OffsetDateTime {
@@ -56,7 +56,7 @@ impl ToSql for OffsetDateTime {
         primitive.to_sql(type_, w)
     }
 
-    accepts!(TIMESTAMP, TIMESTAMPTZ);
+    accepts!(TIMESTAMPTZ);
     to_sql_checked!();
 }
 

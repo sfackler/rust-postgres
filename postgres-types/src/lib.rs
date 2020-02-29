@@ -398,7 +398,7 @@ impl WrongType {
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
-/// | `time::OffsetDateTime`          | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
@@ -661,7 +661,7 @@ pub enum IsNull {
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
-/// | `time::OffsetDateTime`          | TIMESTAMP, TIMESTAMP WITH TIME ZONE |
+/// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
