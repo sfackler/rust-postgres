@@ -33,6 +33,7 @@ with-eui48-0_4 = ["postgres-types/with-eui48-0_4"]
 with-geo-types-0_4 = ["postgres-types/with-geo-types-0_4"]
 with-serde_json-1 = ["postgres-types/with-serde_json-1"]
 with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
+with-time-0_2 = ["postgres-types/with-time-0_2"]
 
 [dependencies]
 async-trait = "0.1"
@@ -62,4 +63,5 @@ geo-types-04 = { version = "0.4", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 uuid-08 = { version = "0.8", package = "uuid" }
+time-02 = { version = "0.2", package = "time" }
 

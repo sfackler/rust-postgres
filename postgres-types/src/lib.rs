@@ -198,8 +198,14 @@ mod eui48_04;
 mod geo_types_04;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
+#[cfg(feature = "with-time-0_2")]
+mod time_02;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
+
+// The time::{date, time} macros produce compile errors if the crate package is renamed.
+#[cfg(feature = "with-time-0_2")]
+extern crate time_02 as time;
 
 #[doc(hidden)]
 pub mod private;
@@ -391,6 +397,10 @@ impl WrongType {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
+/// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
+/// | `time::Date`                    | DATE                                |
+/// | `time::Time`                    | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
@@ -650,6 +660,10 @@ pub enum IsNull {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
+/// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
+/// | `time::Date`                    | DATE                                |
+/// | `time::Time`                    | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
