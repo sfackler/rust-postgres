@@ -8,7 +8,7 @@ use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::stream::FusedStream;
 use futures::{ready, Sink, Stream, StreamExt};
-use log::trace;
+use log::{info, trace};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
@@ -330,7 +330,11 @@ where
     type Output = Result<(), Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        while let Some(_) = ready!(self.poll_message(cx)?) {}
+        while let Some(message) = ready!(self.poll_message(cx)?) {
+            if let AsyncMessage::Notice(notice) = message {
+                info!("{}: {}", notice.severity(), notice.message());
+            }
+        }
         Poll::Ready(Ok(()))
     }
 }
