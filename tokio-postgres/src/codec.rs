@@ -37,8 +37,7 @@ impl FallibleIterator for BackendMessages {
 
 pub struct PostgresCodec;
 
-impl Encoder for PostgresCodec {
-    type Item = FrontendMessage;
+impl Encoder<FrontendMessage> for PostgresCodec {
     type Error = io::Error;
 
     fn encode(&mut self, item: FrontendMessage, dst: &mut BytesMut) -> io::Result<()> {
