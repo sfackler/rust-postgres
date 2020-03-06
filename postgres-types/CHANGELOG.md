@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.1.1 - 2020-03-05
+
+### Added
+
+* Added support for `time` 0.2.
+
 ## v0.1.0 - 2019-12-23
 
 ### Changed
