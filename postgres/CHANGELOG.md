@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.17.2 - 2020-03-05
+
+### Added
+
+* Added `Debug` implementations for `Client`, `Row`, and `Column`.
+* Added `time` 0.2 support.
+
 ## v0.17.1 - 2020-01-31
 
 ### Added
