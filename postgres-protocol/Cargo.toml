@@ -9,7 +9,7 @@ repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 
 [dependencies]
-base64 = "0.11"
+base64 = "0.12"
 byteorder = "1.0"
 bytes = "0.5"
 fallible-iterator = "0.2"
