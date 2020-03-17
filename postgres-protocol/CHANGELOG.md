@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.1 - 2020-03-17
+
+### Changed
+
+* Upgraded `base64` to 0.12.
+
 ## v0.5.0 - 2019-12-23
 
 ### Changed
