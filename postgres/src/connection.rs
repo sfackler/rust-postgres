@@ -34,16 +34,30 @@ impl Connection {
         ConnectionRef { connection: self }
     }
 
+    pub fn enter<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        self.runtime.enter(f)
+    }
+
     pub fn block_on<F, T>(&mut self, future: F) -> Result<T, Error>
     where
         F: Future<Output = Result<T, Error>>,
     {
         pin_mut!(future);
+        self.poll_block_on(|cx, _, _| future.as_mut().poll(cx))
+    }
+
+    pub fn poll_block_on<F, T>(&mut self, mut f: F) -> Result<T, Error>
+    where
+        F: FnMut(&mut Context<'_>, &mut VecDeque<Notification>, bool) -> Poll<Result<T, Error>>,
+    {
         let connection = &mut self.connection;
         let notifications = &mut self.notifications;
         self.runtime.block_on({
             future::poll_fn(|cx| {
-                loop {
+                let done = loop {
                     match connection.as_mut().poll_next(cx) {
                         Poll::Ready(Some(Ok(AsyncMessage::Notification(notification)))) => {
                             notifications.push_back(notification);
@@ -53,13 +67,22 @@ impl Connection {
                         }
                         Poll::Ready(Some(Ok(_))) => {}
                         Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
-                        Poll::Ready(None) | Poll::Pending => break,
+                        Poll::Ready(None) => break true,
+                        Poll::Pending => break false,
                     }
-                }
+                };
 
-                future.as_mut().poll(cx)
+                f(cx, notifications, done)
             })
         })
+    }
+
+    pub fn notifications(&self) -> &VecDeque<Notification> {
+        &self.notifications
+    }
+
+    pub fn notifications_mut(&mut self) -> &mut VecDeque<Notification> {
+        &mut self.notifications
     }
 }
 

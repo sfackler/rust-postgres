@@ -77,6 +77,8 @@ pub use crate::copy_out_reader::CopyOutReader;
 #[doc(no_inline)]
 pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
+#[doc(inline)]
+pub use crate::notifications::Notifications;
 #[doc(no_inline)]
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::row_iter::RowIter;
@@ -94,6 +96,7 @@ mod copy_in_writer;
 mod copy_out_reader;
 mod generic_client;
 mod lazy_pin;
+pub mod notifications;
 mod row_iter;
 mod transaction;
 mod transaction_builder;

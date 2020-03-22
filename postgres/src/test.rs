@@ -309,3 +309,93 @@ fn cancel_query() {
 
     cancel_thread.join().unwrap();
 }
+
+#[test]
+fn notifications_iter() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute(
+            "\
+        LISTEN notifications_iter;
+        NOTIFY notifications_iter, 'hello';
+        NOTIFY notifications_iter, 'world';
+    ",
+        )
+        .unwrap();
+
+    let notifications = client.notifications().iter().collect::<Vec<_>>().unwrap();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].payload(), "world");
+}
+
+#[test]
+fn notifications_blocking_iter() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute(
+            "\
+        LISTEN notifications_blocking_iter;
+        NOTIFY notifications_blocking_iter, 'hello';
+    ",
+        )
+        .unwrap();
+
+    thread::spawn(|| {
+        let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+        thread::sleep(Duration::from_secs(1));
+        client
+            .batch_execute("NOTIFY notifications_blocking_iter, 'world'")
+            .unwrap();
+    });
+
+    let notifications = client
+        .notifications()
+        .blocking_iter()
+        .take(2)
+        .collect::<Vec<_>>()
+        .unwrap();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].payload(), "world");
+}
+
+#[test]
+fn notifications_timeout_iter() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute(
+            "\
+        LISTEN notifications_timeout_iter;
+        NOTIFY notifications_timeout_iter, 'hello';
+    ",
+        )
+        .unwrap();
+
+    thread::spawn(|| {
+        let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+        thread::sleep(Duration::from_secs(1));
+        client
+            .batch_execute("NOTIFY notifications_timeout_iter, 'world'")
+            .unwrap();
+
+        thread::sleep(Duration::from_secs(10));
+        client
+            .batch_execute("NOTIFY notifications_timeout_iter, '!'")
+            .unwrap();
+    });
+
+    let notifications = client
+        .notifications()
+        .timeout_iter(Duration::from_secs(2))
+        .collect::<Vec<_>>()
+        .unwrap();
+    assert_eq!(notifications.len(), 2);
+    assert_eq!(notifications[0].payload(), "hello");
+    assert_eq!(notifications[1].payload(), "world");
+}

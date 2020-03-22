@@ -1,7 +1,7 @@
 use crate::connection::Connection;
 use crate::{
-    CancelToken, Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction,
-    TransactionBuilder,
+    CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
+    ToStatement, Transaction, TransactionBuilder,
 };
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
@@ -471,6 +471,13 @@ impl Client {
         TransactionBuilder::new(self.connection.as_ref(), self.client.build_transaction())
     }
 
+    /// Returns a structure providing access to asynchronous notifications.
+    ///
+    /// Use the `LISTEN` command to register this connection for notifications.
+    pub fn notifications(&mut self) -> Notifications<'_> {
+        Notifications::new(self.connection.as_ref())
+    }
+
     /// Constructs a cancellation token that can later be used to request
     /// cancellation of a query running on this connection.
     ///
@@ -490,7 +497,7 @@ impl Client {
     /// thread::spawn(move || {
     ///     // Abort the query after 5s.
     ///     thread::sleep(Duration::from_secs(5));
-    ///     cancel_token.cancel_query(NoTls);
+    ///     let _ = cancel_token.cancel_query(NoTls);
     /// });
     ///
     /// match client.simple_query("SELECT long_running_query()") {
