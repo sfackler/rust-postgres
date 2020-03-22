@@ -1,18 +1,21 @@
+use crate::connection::ConnectionRef;
 use crate::{Error, IsolationLevel, Transaction};
-use tokio::runtime::Runtime;
 
 /// A builder for database transactions.
 pub struct TransactionBuilder<'a> {
-    runtime: &'a mut Runtime,
+    connection: ConnectionRef<'a>,
     builder: tokio_postgres::TransactionBuilder<'a>,
 }
 
 impl<'a> TransactionBuilder<'a> {
     pub(crate) fn new(
-        runtime: &'a mut Runtime,
+        connection: ConnectionRef<'a>,
         builder: tokio_postgres::TransactionBuilder<'a>,
     ) -> TransactionBuilder<'a> {
-        TransactionBuilder { runtime, builder }
+        TransactionBuilder {
+            connection,
+            builder,
+        }
     }
 
     /// Sets the isolation level of the transaction.
@@ -40,8 +43,8 @@ impl<'a> TransactionBuilder<'a> {
     /// Begins the transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
-    pub fn start(self) -> Result<Transaction<'a>, Error> {
-        let transaction = self.runtime.block_on(self.builder.start())?;
-        Ok(Transaction::new(self.runtime, transaction))
+    pub fn start(mut self) -> Result<Transaction<'a>, Error> {
+        let transaction = self.connection.block_on(self.builder.start())?;
+        Ok(Transaction::new(self.connection, transaction))
     }
 }

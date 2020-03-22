@@ -1,5 +1,5 @@
+use crate::connection::ConnectionRef;
 use crate::lazy_pin::LazyPin;
-use crate::Rt;
 use bytes::{Buf, Bytes};
 use futures::StreamExt;
 use std::io::{self, BufRead, Read};
@@ -7,15 +7,15 @@ use tokio_postgres::CopyOutStream;
 
 /// The reader returned by the `copy_out` method.
 pub struct CopyOutReader<'a> {
-    pub(crate) runtime: Rt<'a>,
+    pub(crate) connection: ConnectionRef<'a>,
     pub(crate) stream: LazyPin<CopyOutStream>,
     cur: Bytes,
 }
 
 impl<'a> CopyOutReader<'a> {
-    pub(crate) fn new(runtime: Rt<'a>, stream: CopyOutStream) -> CopyOutReader<'a> {
+    pub(crate) fn new(connection: ConnectionRef<'a>, stream: CopyOutStream) -> CopyOutReader<'a> {
         CopyOutReader {
-            runtime,
+            connection,
             stream: LazyPin::new(stream),
             cur: Bytes::new(),
         }
@@ -35,10 +35,14 @@ impl Read for CopyOutReader<'_> {
 impl BufRead for CopyOutReader<'_> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         if !self.cur.has_remaining() {
-            match self.runtime.block_on(self.stream.pinned().next()) {
-                Some(Ok(cur)) => self.cur = cur,
-                Some(Err(e)) => return Err(io::Error::new(io::ErrorKind::Other, e)),
-                None => {}
+            let mut stream = self.stream.pinned();
+            match self
+                .connection
+                .block_on({ async { stream.next().await.transpose() } })
+            {
+                Ok(Some(cur)) => self.cur = cur,
+                Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+                Ok(None) => {}
             };
         }
 

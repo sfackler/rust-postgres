@@ -2,9 +2,8 @@
 //!
 //! Requires the `runtime` Cargo feature (enabled by default).
 
+use crate::connection::Connection;
 use crate::Client;
-use futures::FutureExt;
-use log::error;
 use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
@@ -324,15 +323,8 @@ impl Config {
 
         let (client, connection) = runtime.block_on(self.config.connect(tls))?;
 
-        // FIXME don't spawn this so error reporting is less weird.
-        let connection = connection.map(|r| {
-            if let Err(e) = r {
-                error!("postgres connection error: {}", e)
-            }
-        });
-        runtime.spawn(connection);
-
-        Ok(Client::new(runtime, client))
+        let connection = Connection::new(runtime, connection);
+        Ok(Client::new(connection, client))
     }
 }
 
