@@ -1,45 +1,21 @@
+use crate::connection::Connection;
 use crate::{
-    CancelToken, Config, CopyInWriter, CopyOutReader, RowIter, Statement, ToStatement, Transaction,
-    TransactionBuilder,
+    CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
+    ToStatement, Transaction, TransactionBuilder,
 };
-use std::ops::{Deref, DerefMut};
-use tokio::runtime::Runtime;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
-pub(crate) struct Rt<'a>(pub &'a mut Runtime);
-
-// no-op impl to extend the borrow until drop
-impl Drop for Rt<'_> {
-    fn drop(&mut self) {}
-}
-
-impl Deref for Rt<'_> {
-    type Target = Runtime;
-
-    #[inline]
-    fn deref(&self) -> &Runtime {
-        self.0
-    }
-}
-
-impl DerefMut for Rt<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Runtime {
-        self.0
-    }
-}
-
 /// A synchronous PostgreSQL client.
 pub struct Client {
-    runtime: Runtime,
+    connection: Connection,
     client: tokio_postgres::Client,
 }
 
 impl Client {
-    pub(crate) fn new(runtime: Runtime, client: tokio_postgres::Client) -> Client {
-        Client { runtime, client }
+    pub(crate) fn new(connection: Connection, client: tokio_postgres::Client) -> Client {
+        Client { connection, client }
     }
 
     /// A convenience function which parses a configuration string into a `Config` and then connects to the database.
@@ -60,10 +36,6 @@ impl Client {
     /// Returns a new `Config` object which can be used to configure and connect to a database.
     pub fn configure() -> Config {
         Config::new()
-    }
-
-    fn rt(&mut self) -> Rt<'_> {
-        Rt(&mut self.runtime)
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -104,7 +76,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.runtime.block_on(self.client.execute(query, params))
+        self.connection.block_on(self.client.execute(query, params))
     }
 
     /// Executes a statement, returning the resulting rows.
@@ -140,7 +112,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.runtime.block_on(self.client.query(query, params))
+        self.connection.block_on(self.client.query(query, params))
     }
 
     /// Executes a statement which returns a single row, returning it.
@@ -177,7 +149,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.runtime.block_on(self.client.query_one(query, params))
+        self.connection
+            .block_on(self.client.query_one(query, params))
     }
 
     /// Executes a statement which returns zero or one rows, returning it.
@@ -223,7 +196,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.runtime.block_on(self.client.query_opt(query, params))
+        self.connection
+            .block_on(self.client.query_opt(query, params))
     }
 
     /// A maximally-flexible version of `query`.
@@ -289,9 +263,9 @@ impl Client {
         I::IntoIter: ExactSizeIterator,
     {
         let stream = self
-            .runtime
+            .connection
             .block_on(self.client.query_raw(query, params))?;
-        Ok(RowIter::new(self.rt(), stream))
+        Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 
     /// Creates a new prepared statement.
@@ -318,7 +292,7 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
-        self.runtime.block_on(self.client.prepare(query))
+        self.connection.block_on(self.client.prepare(query))
     }
 
     /// Like `prepare`, but allows the types of query parameters to be explicitly specified.
@@ -349,7 +323,7 @@ impl Client {
     /// # }
     /// ```
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
-        self.runtime
+        self.connection
             .block_on(self.client.prepare_typed(query, types))
     }
 
@@ -380,8 +354,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let sink = self.runtime.block_on(self.client.copy_in(query))?;
-        Ok(CopyInWriter::new(self.rt(), sink))
+        let sink = self.connection.block_on(self.client.copy_in(query))?;
+        Ok(CopyInWriter::new(self.connection.as_ref(), sink))
     }
 
     /// Executes a `COPY TO STDOUT` statement, returning a reader of the resulting data.
@@ -408,8 +382,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.runtime.block_on(self.client.copy_out(query))?;
-        Ok(CopyOutReader::new(self.rt(), stream))
+        let stream = self.connection.block_on(self.client.copy_out(query))?;
+        Ok(CopyOutReader::new(self.connection.as_ref(), stream))
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.
@@ -428,7 +402,7 @@ impl Client {
     /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
-        self.runtime.block_on(self.client.simple_query(query))
+        self.connection.block_on(self.client.simple_query(query))
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.
@@ -442,7 +416,7 @@ impl Client {
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
-        self.runtime.block_on(self.client.batch_execute(query))
+        self.connection.block_on(self.client.batch_execute(query))
     }
 
     /// Begins a new database transaction.
@@ -466,8 +440,8 @@ impl Client {
     /// # }
     /// ```
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        let transaction = self.runtime.block_on(self.client.transaction())?;
-        Ok(Transaction::new(&mut self.runtime, transaction))
+        let transaction = self.connection.block_on(self.client.transaction())?;
+        Ok(Transaction::new(self.connection.as_ref(), transaction))
     }
 
     /// Returns a builder for a transaction with custom settings.
@@ -494,7 +468,14 @@ impl Client {
     /// # }
     /// ```
     pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
-        TransactionBuilder::new(&mut self.runtime, self.client.build_transaction())
+        TransactionBuilder::new(self.connection.as_ref(), self.client.build_transaction())
+    }
+
+    /// Returns a structure providing access to asynchronous notifications.
+    ///
+    /// Use the `LISTEN` command to register this connection for notifications.
+    pub fn notifications(&mut self) -> Notifications<'_> {
+        Notifications::new(self.connection.as_ref())
     }
 
     /// Constructs a cancellation token that can later be used to request
@@ -516,7 +497,7 @@ impl Client {
     /// thread::spawn(move || {
     ///     // Abort the query after 5s.
     ///     thread::sleep(Duration::from_secs(5));
-    ///     cancel_token.cancel_query(NoTls);
+    ///     let _ = cancel_token.cancel_query(NoTls);
     /// });
     ///
     /// match client.simple_query("SELECT long_running_query()") {

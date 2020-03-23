@@ -559,11 +559,9 @@ async fn copy_out() {
         .copy_out(&stmt)
         .await
         .unwrap()
-        .try_fold(BytesMut::new(), |mut buf, chunk| {
-            async move {
-                buf.extend_from_slice(&chunk);
-                Ok(buf)
-            }
+        .try_fold(BytesMut::new(), |mut buf, chunk| async move {
+            buf.extend_from_slice(&chunk);
+            Ok(buf)
         })
         .await
         .unwrap();

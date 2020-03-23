@@ -1,7 +1,8 @@
 //! Utilities for working with the PostgreSQL binary copy format.
 
+use crate::connection::ConnectionRef;
 use crate::types::{ToSql, Type};
-use crate::{CopyInWriter, CopyOutReader, Error, Rt};
+use crate::{CopyInWriter, CopyOutReader, Error};
 use fallible_iterator::FallibleIterator;
 use futures::StreamExt;
 use std::pin::Pin;
@@ -13,7 +14,7 @@ use tokio_postgres::binary_copy::{self, BinaryCopyOutStream};
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
 pub struct BinaryCopyInWriter<'a> {
-    runtime: Rt<'a>,
+    connection: ConnectionRef<'a>,
     sink: Pin<Box<binary_copy::BinaryCopyInWriter>>,
 }
 
@@ -26,7 +27,7 @@ impl<'a> BinaryCopyInWriter<'a> {
             .expect("writer has already been written to");
 
         BinaryCopyInWriter {
-            runtime: writer.runtime,
+            connection: writer.connection,
             sink: Box::pin(binary_copy::BinaryCopyInWriter::new(stream, types)),
         }
     }
@@ -37,7 +38,7 @@ impl<'a> BinaryCopyInWriter<'a> {
     ///
     /// Panics if the number of values provided does not match the number expected.
     pub fn write(&mut self, values: &[&(dyn ToSql + Sync)]) -> Result<(), Error> {
-        self.runtime.block_on(self.sink.as_mut().write(values))
+        self.connection.block_on(self.sink.as_mut().write(values))
     }
 
     /// A maximally-flexible version of `write`.
@@ -50,20 +51,21 @@ impl<'a> BinaryCopyInWriter<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.runtime.block_on(self.sink.as_mut().write_raw(values))
+        self.connection
+            .block_on(self.sink.as_mut().write_raw(values))
     }
 
     /// Completes the copy, returning the number of rows added.
     ///
     /// This method *must* be used to complete the copy process. If it is not, the copy will be aborted.
     pub fn finish(mut self) -> Result<u64, Error> {
-        self.runtime.block_on(self.sink.as_mut().finish())
+        self.connection.block_on(self.sink.as_mut().finish())
     }
 }
 
 /// An iterator of rows deserialized from the PostgreSQL binary copy format.
 pub struct BinaryCopyOutIter<'a> {
-    runtime: Rt<'a>,
+    connection: ConnectionRef<'a>,
     stream: Pin<Box<BinaryCopyOutStream>>,
 }
 
@@ -76,7 +78,7 @@ impl<'a> BinaryCopyOutIter<'a> {
             .expect("reader has already been read from");
 
         BinaryCopyOutIter {
-            runtime: reader.runtime,
+            connection: reader.connection,
             stream: Box::pin(BinaryCopyOutStream::new(stream, types)),
         }
     }
@@ -87,6 +89,8 @@ impl FallibleIterator for BinaryCopyOutIter<'_> {
     type Error = Error;
 
     fn next(&mut self) -> Result<Option<BinaryCopyOutRow>, Error> {
-        self.runtime.block_on(self.stream.next()).transpose()
+        let stream = &mut self.stream;
+        self.connection
+            .block_on(async { stream.next().await.transpose() })
     }
 }
