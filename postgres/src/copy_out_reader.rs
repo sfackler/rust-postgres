@@ -34,7 +34,7 @@ impl Read for CopyOutReader<'_> {
 
 impl BufRead for CopyOutReader<'_> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        if !self.cur.has_remaining() {
+        while !self.cur.has_remaining() {
             let mut stream = self.stream.pinned();
             match self
                 .connection
@@ -42,7 +42,7 @@ impl BufRead for CopyOutReader<'_> {
             {
                 Ok(Some(cur)) => self.cur = cur,
                 Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
-                Ok(None) => {}
+                Ok(None) => break,
             };
         }
 
