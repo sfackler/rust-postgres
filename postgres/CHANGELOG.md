@@ -1,5 +1,16 @@
 # Change Log
 
+## v0.17.3 - 2020-05-01
+
+### Fixed
+
+* Errors sent by the server will now be returned from `Client` methods rather than just being logs.
+
+### Added
+
+* Added `Transaction::savepoint`, which can be used to create a savepoint with a custom name.
+* Added `Client::notifications`, which returns an interface to the notifications sent by the server.
+
 ## v0.17.2 - 2020-03-05
 
 ### Added
