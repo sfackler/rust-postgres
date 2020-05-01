@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.4- 2020-05-01
+
+### Added
+
+* Added `Transaction::savepoint`, which can be used to create a savepoint with a custom name.
+
 ## v0.5.3 - 2020-03-05
 
 ### Added
