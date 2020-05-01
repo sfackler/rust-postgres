@@ -23,8 +23,14 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// transaction. Transactions can be nested, with inner transactions implemented via safepoints.
 pub struct Transaction<'a> {
     client: &'a mut Client,
-    depth: u32,
+    savepoint: Option<Savepoint>,
     done: bool,
+}
+
+/// A representation of a PostgreSQL database savepoint.
+struct Savepoint {
+    name: String,
+    depth: u32,
 }
 
 impl<'a> Drop for Transaction<'a> {
@@ -33,10 +39,10 @@ impl<'a> Drop for Transaction<'a> {
             return;
         }
 
-        let query = if self.depth == 0 {
-            "ROLLBACK".to_string()
+        let query = if let Some(sp) = self.savepoint.as_ref() {
+            format!("ROLLBACK TO {}", sp.name)
         } else {
-            format!("ROLLBACK TO sp{}", self.depth)
+            "ROLLBACK".to_string()
         };
         let buf = self.client.inner().with_buf(|buf| {
             frontend::query(&query, buf).unwrap();
@@ -53,7 +59,7 @@ impl<'a> Transaction<'a> {
     pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
         Transaction {
             client,
-            depth: 0,
+            savepoint: None,
             done: false,
         }
     }
@@ -61,10 +67,10 @@ impl<'a> Transaction<'a> {
     /// Consumes the transaction, committing all changes made within it.
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
-        let query = if self.depth == 0 {
-            "COMMIT".to_string()
+        let query = if let Some(sp) = self.savepoint.as_ref() {
+            format!("RELEASE {}", sp.name)
         } else {
-            format!("RELEASE sp{}", self.depth)
+            "COMMIT".to_string()
         };
         self.client.batch_execute(&query).await
     }
@@ -74,10 +80,10 @@ impl<'a> Transaction<'a> {
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
     pub async fn rollback(mut self) -> Result<(), Error> {
         self.done = true;
-        let query = if self.depth == 0 {
-            "ROLLBACK".to_string()
+        let query = if let Some(sp) = self.savepoint.as_ref() {
+            format!("ROLLBACK TO {}", sp.name)
         } else {
-            format!("ROLLBACK TO sp{}", self.depth)
+            "ROLLBACK".to_string()
         };
         self.client.batch_execute(&query).await
     }
@@ -272,15 +278,28 @@ impl<'a> Transaction<'a> {
         self.client.cancel_query_raw(stream, tls).await
     }
 
-    /// Like `Client::transaction`.
+    /// Like `Client::transaction`, but creates a nested transaction via a savepoint.
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        let depth = self.depth + 1;
-        let query = format!("SAVEPOINT sp{}", depth);
+        self._savepoint(None).await
+    }
+
+    /// Like `Client::transaction`, but creates a nested transaction via a savepoint with the specified name.
+    pub async fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
+    where
+        I: Into<String>,
+    {
+        self._savepoint(Some(name.into())).await
+    }
+
+    async fn _savepoint(&mut self, name: Option<String>) -> Result<Transaction<'_>, Error> {
+        let depth = self.savepoint.as_ref().map_or(0, |sp| sp.depth) + 1;
+        let name = name.unwrap_or_else(|| format!("sp_{}", depth));
+        let query = format!("SAVEPOINT {}", name);
         self.batch_execute(&query).await?;
 
         Ok(Transaction {
             client: self.client,
-            depth,
+            savepoint: Some(Savepoint { name, depth }),
             done: false,
         })
     }
