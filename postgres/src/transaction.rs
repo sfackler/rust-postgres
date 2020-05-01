@@ -173,9 +173,20 @@ impl<'a> Transaction<'a> {
         CancelToken::new(self.transaction.cancel_token())
     }
 
-    /// Like `Client::transaction`.
+    /// Like `Client::transaction`, but creates a nested transaction via a savepoint.
     pub fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         let transaction = self.connection.block_on(self.transaction.transaction())?;
+        Ok(Transaction {
+            connection: self.connection.as_ref(),
+            transaction,
+        })
+    }
+    /// Like `Client::transaction`, but creates a nested transaction via a savepoint with the specified name.
+    pub fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
+    where
+        I: Into<String>,
+    {
+        let transaction = self.connection.block_on(self.transaction.savepoint(name))?;
         Ok(Transaction {
             connection: self.connection.as_ref(),
             transaction,

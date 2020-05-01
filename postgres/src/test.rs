@@ -152,6 +152,57 @@ fn nested_transactions() {
 }
 
 #[test]
+fn savepoints() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .batch_execute("CREATE TEMPORARY TABLE foo (id INT PRIMARY KEY)")
+        .unwrap();
+
+    let mut transaction = client.transaction().unwrap();
+
+    transaction
+        .execute("INSERT INTO foo (id) VALUES (1)", &[])
+        .unwrap();
+
+    let mut savepoint1 = transaction.savepoint("savepoint1").unwrap();
+
+    savepoint1
+        .execute("INSERT INTO foo (id) VALUES (2)", &[])
+        .unwrap();
+
+    savepoint1.rollback().unwrap();
+
+    let rows = transaction
+        .query("SELECT id FROM foo ORDER BY id", &[])
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+
+    let mut savepoint2 = transaction.savepoint("savepoint2").unwrap();
+
+    savepoint2
+        .execute("INSERT INTO foo (id) VALUES(3)", &[])
+        .unwrap();
+
+    let mut savepoint3 = savepoint2.savepoint("savepoint3").unwrap();
+
+    savepoint3
+        .execute("INSERT INTO foo (id) VALUES(4)", &[])
+        .unwrap();
+
+    savepoint3.commit().unwrap();
+    savepoint2.commit().unwrap();
+    transaction.commit().unwrap();
+
+    let rows = client.query("SELECT id FROM foo ORDER BY id", &[]).unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0].get::<_, i32>(0), 1);
+    assert_eq!(rows[1].get::<_, i32>(0), 3);
+    assert_eq!(rows[2].get::<_, i32>(0), 4);
+}
+
+#[test]
 fn copy_in() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
