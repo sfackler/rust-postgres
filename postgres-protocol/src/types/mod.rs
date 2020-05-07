@@ -441,6 +441,22 @@ pub fn uuid_from_sql(buf: &[u8]) -> Result<[u8; 16], StdBox<dyn Error + Sync + S
     Ok(out)
 }
 
+/// Serializes a `Money` value.
+#[inline]
+pub fn money_to_sql(v: i64, buf: &mut BytesMut) {
+    buf.put_i64(v);
+}
+
+/// Deserializes a `Money` value.
+#[inline]
+pub fn money_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Send>> {
+    let v = buf.read_i64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(v)
+}
+
 /// Serializes an array value.
 #[inline]
 pub fn array_to_sql<T, I, J, F>(
