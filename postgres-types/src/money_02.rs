@@ -1,7 +1,7 @@
 use bytes::BytesMut;
-use std::error::Error;
+use money_02::Money;
 use postgres_protocol::types;
-use money_01::Money;
+use std::error::Error;
 
 use crate::{FromSql, IsNull, ToSql, Type};
 

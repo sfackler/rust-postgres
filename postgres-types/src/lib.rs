@@ -196,8 +196,8 @@ mod chrono_04;
 mod eui48_04;
 #[cfg(feature = "with-geo-types-0_4")]
 mod geo_types_04;
-#[cfg(feature = "with-money-0_1")]
-mod money_01;
+#[cfg(feature = "with-money-0_2")]
+mod money_02;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-time-0_2")]
