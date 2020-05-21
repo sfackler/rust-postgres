@@ -10,8 +10,7 @@ use crate::overrides::Overrides;
 
 pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs)?;
-
-    let name = overrides.name.unwrap_or_else(|| input.ident.to_string());
+    let name = overrides.name.unwrap_or_else(|| input.ident.to_string().to_lowercase());
 
     let (accepts_body, to_sql_body) = match input.data {
         Data::Enum(ref data) => {
