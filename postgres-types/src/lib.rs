@@ -106,7 +106,7 @@
 //! }
 //! ```
 #![doc(html_root_url = "https://docs.rs/postgres-types/0.1")]
-#![warn(clippy::all, rust_2018_idioms, missing_docs)]
+#![warn(clippy::all, future_incompatible, rust_2018_idioms, missing_docs)]
 
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
@@ -144,8 +144,8 @@ const NSEC_PER_USEC: u64 = 1_000;
 macro_rules! accepts {
     ($($expected:ident),+) => (
         fn accepts(ty: &$crate::Type) -> bool {
-            match *ty {
-                $($crate::Type::$expected)|+ => true,
+            match ty {
+                $(typ if *typ == $crate::Type::$expected => true,)*
                 _ => false
             }
         }
