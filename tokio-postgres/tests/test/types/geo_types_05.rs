@@ -8,7 +8,7 @@ async fn test_point_params() {
         "POINT",
         &[
             (Some(Point::new(0.0, 0.0)), "POINT(0, 0)"),
-            (Some(Point::new(-3.14, 1.618)), "POINT(-3.14, 1.618)"),
+            (Some(Point::new(-3.2, 1.618)), "POINT(-3.2, 1.618)"),
             (None, "NULL"),
         ],
     )
@@ -22,13 +22,13 @@ async fn test_box_params() {
         &[
             (
                 Some(Rect::new(
-                    Coordinate { x: -3.14, y: 1.618 },
+                    Coordinate { x: -3.2, y: 1.618 },
                     Coordinate {
                         x: 160.0,
                         y: 69701.5615,
                     },
                 )),
-                "BOX(POINT(160.0, 69701.5615), POINT(-3.14, 1.618))",
+                "BOX(POINT(160.0, 69701.5615), POINT(-3.2, 1.618))",
             ),
             (None, "NULL"),
         ],
@@ -40,7 +40,7 @@ async fn test_box_params() {
 async fn test_path_params() {
     let points = vec![
         Coordinate { x: 0., y: 0. },
-        Coordinate { x: -3.14, y: 1.618 },
+        Coordinate { x: -3.2, y: 1.618 },
         Coordinate {
             x: 160.0,
             y: 69701.5615,
@@ -51,7 +51,7 @@ async fn test_path_params() {
         &[
             (
                 Some(LineString(points)),
-                "path '((0, 0), (-3.14, 1.618), (160.0, 69701.5615))'",
+                "path '((0, 0), (-3.2, 1.618), (160.0, 69701.5615))'",
             ),
             (None, "NULL"),
         ],

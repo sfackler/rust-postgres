@@ -109,7 +109,6 @@
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
 use fallible_iterator::FallibleIterator;
-use postgres_protocol;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::any::type_name;
 use std::borrow::Cow;
