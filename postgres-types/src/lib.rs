@@ -536,8 +536,8 @@ impl<'a> FromSql<'a> for &'a str {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
+        match ty {
+            typ if *typ == Type::VARCHAR || *typ == Type::TEXT || *typ == Type::BPCHAR || *typ == Type::NAME || *typ == Type::UNKNOWN => true,
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
@@ -830,8 +830,8 @@ impl<'a> ToSql for &'a str {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
+        match ty {
+            typ if *typ == Type::VARCHAR || *typ == Type::TEXT || *typ == Type::BPCHAR || *typ == Type::NAME || *typ == Type::UNKNOWN => true,
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
