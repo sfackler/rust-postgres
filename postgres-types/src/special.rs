@@ -76,7 +76,9 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
 
     fn accepts(ty: &Type) -> bool {
         match ty {
-            typ if (*typ == Type::TIMESTAMP || *typ == Type::TIMESTAMPTZ) && T::accepts(&ty) => true,
+            typ if (*typ == Type::TIMESTAMP || *typ == Type::TIMESTAMPTZ) && T::accepts(&ty) => {
+                true
+            }
             _ => false,
         }
     }
@@ -100,7 +102,9 @@ impl<T: ToSql> ToSql for Timestamp<T> {
 
     fn accepts(ty: &Type) -> bool {
         match ty {
-            typ if (*typ == Type::TIMESTAMP || *typ == Type::TIMESTAMPTZ) && T::accepts(&ty) => true,
+            typ if (*typ == Type::TIMESTAMP || *typ == Type::TIMESTAMPTZ) && T::accepts(&ty) => {
+                true
+            }
             _ => false,
         }
     }
