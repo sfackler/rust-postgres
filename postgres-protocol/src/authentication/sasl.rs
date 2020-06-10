@@ -2,8 +2,8 @@
 
 use hmac::{Hmac, Mac, NewMac};
 use rand::{self, Rng};
-use sha2::{Digest, Sha256};
 use sha2::digest::FixedOutput;
+use sha2::{Digest, Sha256};
 use std::fmt::Write;
 use std::io;
 use std::iter;
@@ -271,8 +271,8 @@ impl ScramSha256 {
         hmac.update(b"Server Key");
         let server_key = hmac.finalize().into_bytes();
 
-        let mut hmac = Hmac::<Sha256>::new_varkey(&server_key)
-            .expect("HMAC is able to accept all key sizes");
+        let mut hmac =
+            Hmac::<Sha256>::new_varkey(&server_key).expect("HMAC is able to accept all key sizes");
         hmac.update(auth_message.as_bytes());
         hmac.verify(&verifier)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
