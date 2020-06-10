@@ -319,12 +319,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     .unwrap();
 
     for (oid, type_) in types {
-        writeln!(
-            w,
-            "            {} => Some(Inner::{}),",
-            oid, type_.variant
-        )
-        .unwrap();
+        writeln!(w, "            {} => Some(Inner::{}),", oid, type_.variant).unwrap();
     }
 
     writeln!(
@@ -339,12 +334,7 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
     .unwrap();
 
     for (oid, type_) in types {
-        writeln!(
-            w,
-            "            Inner::{} => {},",
-            type_.variant, oid
-        )
-        .unwrap();
+        writeln!(w, "            Inner::{} => {},", type_.variant, oid).unwrap();
     }
 
     writeln!(
