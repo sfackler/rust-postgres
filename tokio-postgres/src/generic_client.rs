@@ -146,6 +146,7 @@ impl GenericClient for Client {
 impl private::Sealed for Transaction<'_> {}
 
 #[async_trait]
+#[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where

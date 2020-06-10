@@ -224,7 +224,7 @@ impl DbError {
     ///
     /// Might run to multiple lines.
     pub fn detail(&self) -> Option<&str> {
-        self.detail.as_ref().map(|s| &**s)
+        self.detail.as_deref()
     }
 
     /// An optional suggestion what to do about the problem.
@@ -233,7 +233,7 @@ impl DbError {
     /// (potentially inappropriate) rather than hard facts. Might run to
     /// multiple lines.
     pub fn hint(&self) -> Option<&str> {
-        self.hint.as_ref().map(|s| &**s)
+        self.hint.as_deref()
     }
 
     /// An optional error cursor position into either the original query string
@@ -248,20 +248,20 @@ impl DbError {
     /// language functions and internally-generated queries. The trace is one
     /// entry per line, most recent first.
     pub fn where_(&self) -> Option<&str> {
-        self.where_.as_ref().map(|s| &**s)
+        self.where_.as_deref()
     }
 
     /// If the error was associated with a specific database object, the name
     /// of the schema containing that object, if any. (PostgreSQL 9.3+)
     pub fn schema(&self) -> Option<&str> {
-        self.schema.as_ref().map(|s| &**s)
+        self.schema.as_deref()
     }
 
     /// If the error was associated with a specific table, the name of the
     /// table. (Refer to the schema name field for the name of the table's
     /// schema.) (PostgreSQL 9.3+)
     pub fn table(&self) -> Option<&str> {
-        self.table.as_ref().map(|s| &**s)
+        self.table.as_deref()
     }
 
     /// If the error was associated with a specific table column, the name of
@@ -270,14 +270,14 @@ impl DbError {
     /// (Refer to the schema and table name fields to identify the table.)
     /// (PostgreSQL 9.3+)
     pub fn column(&self) -> Option<&str> {
-        self.column.as_ref().map(|s| &**s)
+        self.column.as_deref()
     }
 
     /// If the error was associated with a specific data type, the name of the
     /// data type. (Refer to the schema name field for the name of the data
     /// type's schema.) (PostgreSQL 9.3+)
     pub fn datatype(&self) -> Option<&str> {
-        self.datatype.as_ref().map(|s| &**s)
+        self.datatype.as_deref()
     }
 
     /// If the error was associated with a specific constraint, the name of the
@@ -287,12 +287,12 @@ impl DbError {
     /// (For this purpose, indexes are treated as constraints, even if they
     /// weren't created with constraint syntax.) (PostgreSQL 9.3+)
     pub fn constraint(&self) -> Option<&str> {
-        self.constraint.as_ref().map(|s| &**s)
+        self.constraint.as_deref()
     }
 
     /// The file name of the source-code location where the error was reported.
     pub fn file(&self) -> Option<&str> {
-        self.file.as_ref().map(|s| &**s)
+        self.file.as_deref()
     }
 
     /// The line number of the source-code location where the error was
@@ -303,7 +303,7 @@ impl DbError {
 
     /// The name of the source-code routine reporting the error.
     pub fn routine(&self) -> Option<&str> {
-        self.routine.as_ref().map(|s| &**s)
+        self.routine.as_deref()
     }
 }
 
