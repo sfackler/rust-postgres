@@ -1,8 +1,9 @@
 //! SASL-based authentication support.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, NewMac};
 use rand::{self, Rng};
 use sha2::{Digest, Sha256};
+use sha2::digest::FixedOutput;
 use std::fmt::Write;
 use std::io;
 use std::iter;
@@ -33,16 +34,16 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
 
 fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("HMAC is able to accept all key sizes");
-    hmac.input(salt);
-    hmac.input(&[0, 0, 0, 1]);
-    let mut prev = hmac.result().code();
+    hmac.update(salt);
+    hmac.update(&[0, 0, 0, 1]);
+    let mut prev = hmac.finalize().into_bytes();
 
     let mut hi = prev;
 
     for _ in 1..i {
         let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("already checked above");
-        hmac.input(prev.as_slice());
-        prev = hmac.result().code();
+        hmac.update(&prev);
+        prev = hmac.finalize().into_bytes();
 
         for (hi, prev) in hi.iter_mut().zip(prev) {
             *hi ^= prev;
@@ -196,12 +197,12 @@ impl ScramSha256 {
 
         let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
             .expect("HMAC is able to accept all key sizes");
-        hmac.input(b"Client Key");
-        let client_key = hmac.result().code();
+        hmac.update(b"Client Key");
+        let client_key = hmac.finalize().into_bytes();
 
         let mut hash = Sha256::default();
-        hash.input(client_key.as_slice());
-        let stored_key = hash.result();
+        hash.update(client_key.as_slice());
+        let stored_key = hash.finalize_fixed();
 
         let mut cbind_input = vec![];
         cbind_input.extend(channel_binding.gs2_header().as_bytes());
@@ -215,11 +216,11 @@ impl ScramSha256 {
 
         let mut hmac =
             Hmac::<Sha256>::new_varkey(&stored_key).expect("HMAC is able to accept all key sizes");
-        hmac.input(auth_message.as_bytes());
-        let client_signature = hmac.result();
+        hmac.update(auth_message.as_bytes());
+        let client_signature = hmac.finalize().into_bytes();
 
         let mut client_proof = client_key;
-        for (proof, signature) in client_proof.iter_mut().zip(client_signature.code()) {
+        for (proof, signature) in client_proof.iter_mut().zip(client_signature) {
             *proof ^= signature;
         }
 
@@ -267,12 +268,12 @@ impl ScramSha256 {
 
         let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
             .expect("HMAC is able to accept all key sizes");
-        hmac.input(b"Server Key");
-        let server_key = hmac.result();
+        hmac.update(b"Server Key");
+        let server_key = hmac.finalize().into_bytes();
 
-        let mut hmac = Hmac::<Sha256>::new_varkey(&server_key.code())
+        let mut hmac = Hmac::<Sha256>::new_varkey(&server_key)
             .expect("HMAC is able to accept all key sizes");
-        hmac.input(auth_message.as_bytes());
+        hmac.update(auth_message.as_bytes());
         hmac.verify(&verifier)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
     }
