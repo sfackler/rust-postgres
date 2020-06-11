@@ -158,16 +158,17 @@ macro_rules! accepts {
 #[macro_export]
 macro_rules! to_sql_checked {
     () => {
-        fn to_sql_checked(&self,
-                          ty: &$crate::Type,
-                          out: &mut $crate::private::BytesMut)
-                          -> ::std::result::Result<$crate::IsNull,
-                                                   Box<dyn ::std::error::Error +
-                                                       ::std::marker::Sync +
-                                                       ::std::marker::Send>> {
+        fn to_sql_checked(
+            &self,
+            ty: &$crate::Type,
+            out: &mut $crate::private::BytesMut,
+        ) -> ::std::result::Result<
+            $crate::IsNull,
+            Box<dyn ::std::error::Error + ::std::marker::Sync + ::std::marker::Send>,
+        > {
             $crate::__to_sql_checked(self, ty, out)
         }
-    }
+    };
 }
 
 // WARNING: this function is not considered part of this crate's public API.

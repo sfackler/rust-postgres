@@ -38,7 +38,7 @@ impl BufRead for CopyOutReader<'_> {
             let mut stream = self.stream.pinned();
             match self
                 .connection
-                .block_on({ async { stream.next().await.transpose() } })
+                .block_on(async { stream.next().await.transpose() })
             {
                 Ok(Some(cur)) => self.cur = cur,
                 Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
