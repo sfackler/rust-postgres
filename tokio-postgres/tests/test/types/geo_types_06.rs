@@ -1,4 +1,4 @@
-use geo_types_05::{Coordinate, LineString, Point, Rect};
+use geo_types_06::{Coordinate, LineString, Point, Rect};
 
 use crate::types::test_type;
 
