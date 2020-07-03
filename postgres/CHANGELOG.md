@@ -1,10 +1,16 @@
 # Change Log
 
+## v0.17.4 - 2020-07-03
+
+### Added
+
+* Added support for `geo-types` 0.6.
+
 ## v0.17.3 - 2020-05-01
 
 ### Fixed
 
-* Errors sent by the server will now be returned from `Client` methods rather than just being logs.
+* Errors sent by the server will now be returned from `Client` methods rather than just being logged.
 
 ### Added
 
