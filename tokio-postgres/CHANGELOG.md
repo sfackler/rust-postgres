@@ -1,6 +1,12 @@
 # Change Log
 
-## v0.5.4- 2020-05-01
+## v0.5.5 - 2020-07-03
+
+### Added
+
+* Added support for `geo-types` 0.6.
+
+## v0.5.4 - 2020-05-01
 
 ### Added
 
