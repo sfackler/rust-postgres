@@ -16,7 +16,7 @@ with-bit-vec-0_6 = ["bit-vec-06"]
 with-chrono-0_4 = ["chrono-04"]
 with-eui48-0_4 = ["eui48-04"]
 with-geo-types-0_4 = ["geo-types-04"]
-with-geo-types-0_5 = ["geo-types-05"]
+with-geo-types-0_6 = ["geo-types-06"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 with-uuid-0_8 = ["uuid-08"]
 with-time-0_2 = ["time-02"]
@@ -31,7 +31,7 @@ bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4", package = "chrono", optional = true }
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
 geo-types-04 = { version = "0.4", package = "geo-types", optional = true }
-geo-types-05 = { version = "0.5", package = "geo-types", optional = true }
+geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
 uuid-08 = { version = "0.8", package = "uuid", optional = true }
