@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.2 - 2020-07-06
+
+### Changed
+
+* Upgraded `hmac` and `sha2`.
+
 ## v0.5.1 - 2020-03-17
 
 ### Changed
