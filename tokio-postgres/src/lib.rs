@@ -220,6 +220,7 @@ impl Notification {
 
 /// An asynchronous message from the server.
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum AsyncMessage {
     /// A notice.
