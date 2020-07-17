@@ -93,6 +93,7 @@ where
 }
 
 /// A `TlsConnect` implementation using the `native-tls` crate.
+#[derive(Debug, Clone)]
 pub struct TlsConnector {
     connector: tokio_tls::TlsConnector,
     domain: String,
@@ -129,6 +130,7 @@ where
 }
 
 /// The stream returned by `TlsConnector`.
+#[derive(Debug)]
 pub struct TlsStream<S>(tokio_tls::TlsStream<S>);
 
 impl<S> AsyncRead for TlsStream<S>
