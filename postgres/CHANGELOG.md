@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.17.5 - 2020-07-19
+
+### Fixed
+
+* Fixed transactions to roll back immediately on drop.
+
 ## v0.17.4 - 2020-07-03
 
 ### Added
