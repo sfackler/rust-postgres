@@ -101,6 +101,31 @@ fn transaction_drop() {
 }
 
 #[test]
+fn transaction_drop_immediate_rollback() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    let mut client2 = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+
+    client
+        .simple_query("CREATE TABLE IF NOT EXISTS foo (id SERIAL PRIMARY KEY)")
+        .unwrap();
+
+    client
+        .execute("INSERT INTO foo VALUES (1) ON CONFLICT DO NOTHING", &[])
+        .unwrap();
+
+    let mut transaction = client.transaction().unwrap();
+
+    transaction
+        .execute("SELECT * FROM foo FOR UPDATE", &[])
+        .unwrap();
+
+    drop(transaction);
+
+    let rows = client2.query("SELECT * FROM foo FOR UPDATE", &[]).unwrap();
+    assert_eq!(rows.len(), 1);
+}
+
+#[test]
 fn nested_transactions() {
     let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
 
