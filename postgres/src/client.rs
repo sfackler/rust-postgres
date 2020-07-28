@@ -3,6 +3,7 @@ use crate::{
     CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
     ToStatement, Transaction, TransactionBuilder,
 };
+use std::task::Poll;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
@@ -11,6 +12,12 @@ use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 pub struct Client {
     connection: Connection,
     client: tokio_postgres::Client,
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        let _ = self.close_inner();
+    }
 }
 
 impl Client {
@@ -523,5 +530,25 @@ impl Client {
     /// If this returns `true`, the client is no longer usable.
     pub fn is_closed(&self) -> bool {
         self.client.is_closed()
+    }
+
+    /// Closes the client's connection to the server.
+    ///
+    /// This is equivalent to `Client`'s `Drop` implementation, except that it returns any error encountered to the
+    /// caller.
+    pub fn close(mut self) -> Result<(), Error> {
+        self.close_inner()
+    }
+
+    fn close_inner(&mut self) -> Result<(), Error> {
+        self.client.__private_api_close();
+
+        self.connection.poll_block_on(|_, _, done| {
+            if done {
+                Poll::Ready(Ok(()))
+            } else {
+                Poll::Pending
+            }
+        })
     }
 }

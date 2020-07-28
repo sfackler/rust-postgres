@@ -475,3 +475,9 @@ fn notifications_timeout_iter() {
     assert_eq!(notifications[0].payload(), "hello");
     assert_eq!(notifications[1].payload(), "world");
 }
+
+#[test]
+fn explicit_close() {
+    let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    client.close().unwrap();
+}

@@ -529,6 +529,11 @@ impl Client {
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
     }
+
+    #[doc(hidden)]
+    pub fn __private_api_close(&mut self) {
+        self.inner.sender.close_channel()
+    }
 }
 
 impl fmt::Debug for Client {
