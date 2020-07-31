@@ -12,7 +12,9 @@ fn base() -> NaiveDateTime {
 impl<'a> FromSql<'a> for NaiveDateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDateTime, Box<dyn Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
-        Ok(base() + Duration::microseconds(t))
+        base()
+            .checked_add_signed(Duration::microseconds(t))
+            .ok_or_else(|| "value too large to decode".into())
     }
 
     accepts!(TIMESTAMP);
@@ -104,7 +106,10 @@ impl ToSql for DateTime<FixedOffset> {
 impl<'a> FromSql<'a> for NaiveDate {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDate, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
-        Ok(base().date() + Duration::days(i64::from(jd)))
+        base()
+            .date()
+            .checked_add_signed(Duration::days(i64::from(jd)))
+            .ok_or_else(|| "value too large to decode".into())
     }
 
     accepts!(DATE);
