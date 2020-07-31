@@ -1,6 +1,9 @@
 use chrono_04::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
-use tokio_postgres::types::{Date, Timestamp};
+use std::fmt;
+use tokio_postgres::types::{Date, FromSqlOwned, Timestamp};
+use tokio_postgres::Client;
 
+use crate::connect;
 use crate::types::test_type;
 
 #[tokio::test]
@@ -152,4 +155,34 @@ async fn test_time_params() {
         ],
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_special_params_without_wrapper() {
+    async fn assert_overflows<T>(client: &mut Client, val: &str, sql_type: &str)
+    where
+        T: FromSqlOwned + fmt::Debug,
+    {
+        let err = client
+            .query_one(&*format!("SELECT {}::{}", val, sql_type), &[])
+            .await
+            .unwrap()
+            .try_get::<_, T>(0)
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "error deserializing column 0: value too large to decode"
+        );
+    }
+
+    let mut client = connect("user=postgres").await;
+
+    assert_overflows::<DateTime<Utc>>(&mut client, "'-infinity'", "timestamptz").await;
+    assert_overflows::<DateTime<Utc>>(&mut client, "'infinity'", "timestamptz").await;
+
+    assert_overflows::<NaiveDateTime>(&mut client, "'-infinity'", "timestamp").await;
+    assert_overflows::<NaiveDateTime>(&mut client, "'infinity'", "timestamp").await;
+
+    assert_overflows::<NaiveDate>(&mut client, "'-infinity'", "date").await;
+    assert_overflows::<NaiveDate>(&mut client, "'infinity'", "date").await;
 }
