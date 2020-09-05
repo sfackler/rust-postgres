@@ -21,7 +21,8 @@ mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;
 mod types;
-
+use std::thread;
+use std::sync::{Arc, Mutex};
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let config = s.parse::<Config>().unwrap();
@@ -799,3 +800,50 @@ async fn query_opt() {
         .err()
         .unwrap();
 }
+
+#[tokio::test]
+async fn replication_start() {
+    let client = connect("user=postgres").await;
+    let r_client = connect("user=postgres replication=database").await;
+
+    client.batch_execute(
+        "CREATE TABLE foo (
+            id SERIAL,
+            name TEXT
+        );
+        DROP PUBLICATION IF EXISTS rust;
+        CREATE PUBLICATION rust FOR ALL TABLES;
+        "
+    ).await.unwrap();
+    let _ = r_client.simple_query("DROP_REPLICATION_SLOT rust_slot").await;
+    let _ = r_client.simple_query("CREATE_REPLICATION_SLOT rust_slot LOGICAL pgoutput NOEXPORT_SNAPSHOT").await;
+
+    let stream = r_client
+        .start_replication("START_REPLICATION SLOT rust_slot LOGICAL 0/0 (proto_version '1',  publication_names 'rust')")
+        .await
+        .unwrap();
+    
+    let total_events = Arc::new(Mutex::new(0));
+    let total_events_1 = Arc::clone(&total_events);
+    let t = tokio::spawn(async move {
+        let events = stream
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        let mut num = total_events_1.lock().unwrap();
+        *num = events.len();
+    });
+    
+    client.batch_execute(
+        "
+            INSERT INTO foo (name) VALUES ('jim'), ('joe');
+            INSERT INTO foo (name) VALUES ('ann');
+            DROP TABLE foo;
+        "
+    ).await.unwrap();
+    thread::sleep(time::Duration::from_secs(1)); //give a chance to pg to send the events
+    let _ = r_client.stop_replication().await;
+    let _ = t.await;
+    assert_eq!(*total_events.lock().unwrap(), 7);
+}
+

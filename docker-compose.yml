@@ -3,4 +3,7 @@ services:
   postgres:
     image: "sfackler/rust-postgres-test:6"
     ports:
-    - 5433:5433
+      - 5433:5433
+    environment:
+      - POSTGRES_PASSWORD=pass
+

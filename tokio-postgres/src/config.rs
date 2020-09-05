@@ -159,6 +159,7 @@ pub struct Config {
     pub(crate) keepalives_idle: Duration,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) replication: Option<String>,
 }
 
 impl Default for Config {
@@ -184,6 +185,7 @@ impl Config {
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            replication: None
         }
     }
 
@@ -387,6 +389,17 @@ impl Config {
         self.channel_binding
     }
 
+    /// TODO!
+    pub fn replication(&mut self, replication: &str) -> &mut Config {
+        self.replication = Some(replication.to_string());
+        self
+    }
+
+    /// TODO!
+    pub fn get_replication(&self) -> Option<&str> {
+        self.replication.as_deref()
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -476,6 +489,9 @@ impl Config {
                 };
                 self.channel_binding(channel_binding);
             }
+            "replication" => {
+                self.replication(&value);
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -548,6 +564,7 @@ impl fmt::Debug for Config {
             .field("keepalives_idle", &self.keepalives_idle)
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
+            .field("replication", &self.replication)
             .finish()
     }
 }
