@@ -25,11 +25,12 @@ where
 
     let mut error = None;
     for (i, host) in config.host.iter().enumerate() {
-        let port = *config
+        let port = config
             .port
             .get(i)
             .or_else(|| config.port.get(0))
-            .unwrap_or(&5432);
+            .copied()
+            .unwrap_or(5432);
 
         let hostname = match host {
             Host::Tcp(host) => &**host,
