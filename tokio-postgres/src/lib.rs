@@ -121,12 +121,12 @@ pub use crate::config::Config;
 pub use crate::connection::Connection;
 pub use crate::copy_in::CopyInSink;
 pub use crate::copy_out::CopyOutStream;
-pub use crate::replication::ReplicationStream;
 use crate::error::DbError;
 pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
+pub use crate::replication::ReplicationStream;
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
@@ -158,13 +158,13 @@ mod connect_tls;
 mod connection;
 mod copy_in;
 mod copy_out;
-mod replication;
 pub mod error;
 mod generic_client;
 mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
+mod replication;
 pub mod row;
 mod simple_query;
 #[cfg(feature = "runtime")]

@@ -2,8 +2,8 @@ use crate::codec::BackendMessages;
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
-use crate::replication::ReplicationStream;
 use crate::query::RowStream;
+use crate::replication::ReplicationStream;
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -12,8 +12,9 @@ use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, replication, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_in, copy_out, prepare, query, replication, simple_query, slice_iter, CancelToken,
+    CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -435,14 +436,12 @@ impl Client {
     }
 
     /// TODO!
-    pub async fn start_replication(&self, query: &str) -> Result<ReplicationStream, Error>
-    {
+    pub async fn start_replication(&self, query: &str) -> Result<ReplicationStream, Error> {
         replication::start_replication(self.inner(), query).await
     }
 
     /// TODO!
-    pub async fn stop_replication(&self) -> Result<(), Error>
-    {
+    pub async fn stop_replication(&self) -> Result<(), Error> {
         replication::stop_replication(self.inner()).await
     }
 

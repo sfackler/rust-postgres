@@ -185,7 +185,7 @@ impl Config {
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
-            replication: None
+            replication: None,
         }
     }
 
