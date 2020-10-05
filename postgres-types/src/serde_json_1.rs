@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use std::io::Read;
 
 /// A wrapper type to allow arbitrary `Serialize`/`Deserialize` types to convert to Postgres JSON values.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Json<T>(pub T);
 
 impl<'a, T> FromSql<'a> for Json<T>
