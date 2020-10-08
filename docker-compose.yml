@@ -6,4 +6,6 @@ services:
       - 5433:5433
     environment:
       - POSTGRES_PASSWORD=pass
+    volumes:
+      - "./docker/sql_setup.sh:/docker-entrypoint-initdb.d/sql_setup.sh"
 

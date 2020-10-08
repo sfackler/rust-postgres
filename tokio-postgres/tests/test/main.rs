@@ -5,6 +5,7 @@ use futures::channel::mpsc;
 use futures::{
     future, join, pin_mut, stream, try_join, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
+use std::convert::TryInto;
 use std::fmt::Write;
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -21,7 +22,6 @@ mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;
 mod types;
-use std::sync::{Arc, Mutex};
 use std::thread;
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
@@ -808,70 +808,77 @@ async fn replication_start() {
 
     client
         .batch_execute(
-            "CREATE TABLE IF NOT EXISTS foo (
+            "CREATE TABLE IF NOT EXISTS replication (
             id SERIAL,
             name TEXT
         );
-        DROP PUBLICATION IF EXISTS rust;
-        CREATE PUBLICATION rust FOR ALL TABLES;
         ",
         )
         .await
         .unwrap();
     let _ = r_client
-        .simple_query("DROP_REPLICATION_SLOT rust_slot")
-        .await;
-    // let _ = r_client.simple_query("CREATE_REPLICATION_SLOT rust_slot LOGICAL pgoutput NOEXPORT_SNAPSHOT").await;
-    let _ = r_client
-        .simple_query("CREATE_REPLICATION_SLOT rust_slot LOGICAL wal2json NOEXPORT_SNAPSHOT")
+        .simple_query(
+            "CREATE_REPLICATION_SLOT rust_slot TEMPORARY LOGICAL test_decoding NOEXPORT_SNAPSHOT",
+        )
         .await;
 
     let stream = r_client
-        //.start_replication("START_REPLICATION SLOT rust_slot LOGICAL 0/0 (proto_version '1',  publication_names 'rust')")
-        .start_replication("START_REPLICATION SLOT rust_slot LOGICAL 0/0 (\"pretty-print\" '1', \"format-version\" '2')")
+        .start_replication(
+            "START_REPLICATION SLOT rust_slot  LOGICAL 0/0 (\"skip-empty-xacts\" '1')",
+        )
         .await
         .unwrap();
 
-    let events = Arc::new(Mutex::new(vec![]));
-    let total_events = Arc::new(Mutex::new(0));
-    let total_events_1 = Arc::clone(&total_events);
-    let events_1 = Arc::clone(&events);
-    let t = tokio::spawn(async move {
-        let events = stream.try_collect::<Vec<_>>().await.unwrap();
-        let mut num = total_events_1.lock().unwrap();
-        *num = events.len();
-        let mut ev = events_1.lock().unwrap();
-        *ev = events;
-    });
-
     client
-        .query("INSERT INTO foo (name) VALUES ('ann')", &[])
+        .query("INSERT INTO replication (name) VALUES ('ann')", &[])
         .await
         .unwrap();
-    client
-        .query("INSERT INTO foo (name) VALUES ('jim'), ('joe')", &[])
-        .await
-        .unwrap();
-    client.query("DROP TABLE foo", &[]).await.unwrap();
 
     thread::sleep(time::Duration::from_secs(1)); //give a chance to pg to send the events
     let _ = r_client.stop_replication().await;
-    let _ = t.await;
-    println!("events {:?}", *events.lock().unwrap());
-    //assert_eq!(*total_events.lock().unwrap(), 2);
-    for e in &*events.lock().unwrap() {
+    let events = stream.try_collect::<Vec<_>>().await.unwrap();
+    client.query("DROP TABLE replication", &[]).await.unwrap();
+
+    let mut total_events = 0;
+    for e in &events {
         match e[0].into() {
             'k' => {
-                // let message_type = "keepalive";
-                // println!("type: ({}), {}", message_type, e.len());
+                //keepalive message
+                let current_wal_end =
+                    i64::from_be_bytes(e.slice(1..9).as_ref().try_into().unwrap());
+                let timestamp = i64::from_be_bytes(e.slice(9..17).as_ref().try_into().unwrap());
+                let reply: char = e[17].into();
+                println!(
+                    "keepalive tiemstamp: {} current_wal_end: {:X}/{:X} reply: {}",
+                    timestamp,
+                    (current_wal_end >> 32) as i32,
+                    current_wal_end as i32,
+                    reply as i8
+                );
             }
             'w' => {
-                let message_type = "dataframe";
-                let slice = e.slice(25..);
-                let data = std::str::from_utf8(slice.as_ref()).unwrap();
-                println!("type: ({}), {}, {}", message_type, e.len(), data);
+                // WAL message
+                let current_wal = i64::from_be_bytes(e.slice(1..9).as_ref().try_into().unwrap());
+                let current_wal_end =
+                    i64::from_be_bytes(e.slice(9..17).as_ref().try_into().unwrap());
+                let timestamp = i64::from_be_bytes(e.slice(17..25).as_ref().try_into().unwrap());
+                let _data = e.slice(25..); //the format of these bytes depends on the logical decoder
+                println!(
+                    "WAL timestamp: {} current_wal: {:X}/{:X} current_wal_end: {:X}/{:X} {:?}",
+                    timestamp,
+                    (current_wal >> 32) as i32,
+                    current_wal as i32,
+                    (current_wal_end >> 32) as i32,
+                    current_wal_end as i32,
+                    _data
+                );
+                total_events += 1;
+                //while in replication state, one needs to send updates from time to time like this
+                //let _ = r_pg_client.standby_status_update(current_wal, current_wal, current_wal).await.unwrap();
             }
             _ => {}
         };
     }
+    // in this case we receive 3 events (BEGIN,INSERT,COMMIT)
+    assert_eq!(total_events, 3);
 }

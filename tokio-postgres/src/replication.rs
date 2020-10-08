@@ -11,7 +11,8 @@ use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
+use std::time::{SystemTime, UNIX_EPOCH};
+const J2000_EPOCH_GAP: u128 = 946_684_800_000_000;
 pub async fn start_replication(
     client: &InnerClient,
     query: &str,
@@ -30,6 +31,24 @@ pub async fn stop_replication(client: &InnerClient) -> Result<(), Error> {
     trace!("executing stop replication");
     let mut buf = BytesMut::new();
     frontend::copy_done(&mut buf);
+    let _ = client.send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
+    Ok(())
+}
+
+pub async fn standby_status_update(
+    client: &InnerClient,
+    write_lsn: i64,
+    flush_lsn: i64,
+    apply_lsn: i64,
+) -> Result<(), Error> {
+    trace!("executing standby_status_update");
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_micros()
+        - J2000_EPOCH_GAP;
+    let mut buf = BytesMut::new();
+    let _ = frontend::standby_status_update(write_lsn, flush_lsn, apply_lsn, now as i64, &mut buf);
     let _ = client.send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
     Ok(())
 }
