@@ -122,6 +122,23 @@ impl Client {
         self.connection.block_on(self.client.query(query, params))
     }
 
+    /// Same as `query` but returns text results instead of binary
+    ///
+    /// We introduce an additional method rather than parameters not to break all
+    /// the conversions and marshalling supplied by `postgres-types` and feature crates and
+    /// inasmuch as this allows us to maintain API compatibility with upstream
+    pub fn query_with_text_results<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.connection
+            .block_on(self.client.query_with_text_results(query, params))
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.

@@ -226,6 +226,25 @@ impl Client {
             .await
     }
 
+    /// Same as `query` but returns text results instead of binary
+    ///
+    /// We introduce an additional method rather than parameters not to break all
+    /// the conversions and marshalling supplied by `postgres-types` and feature crates and
+    /// inasmuch as this allows us to maintain API compatibility with upstream
+    pub async fn query_with_text_results<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query_raw_common(statement, slice_iter(params), false)
+            .await?
+            .try_collect()
+            .await
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.
@@ -348,8 +367,22 @@ impl Client {
         I: IntoIterator<Item = &'a dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
+        self.query_raw_common(statement, params, true).await
+    }
+
+    async fn query_raw_common<'a, T, I>(
+        &self,
+        statement: &T,
+        params: I,
+        binary_results: bool,
+    ) -> Result<RowStream, Error>
+    where
+        T: ?Sized + ToStatement,
+        I: IntoIterator<Item = &'a dyn ToSql>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let statement = statement.__convert().into_statement(self).await?;
-        query::query(&self.inner, statement, params).await
+        query::query_common(&self.inner, statement, params, binary_results).await
     }
 
     /// Executes a statement, returning the number of rows modified.

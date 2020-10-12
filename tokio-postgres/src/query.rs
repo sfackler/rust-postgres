@@ -22,6 +22,19 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
+    query_common(client, statement, params, true).await
+}
+
+pub async fn query_common<'a, I>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
+    binary_results: bool,
+) -> Result<RowStream, Error>
+where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
+{
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
@@ -29,9 +42,9 @@ where
             statement.name(),
             params,
         );
-        encode(client, &statement, params)?
+        encode_common(client, &statement, params, binary_results)?
     } else {
-        encode(client, &statement, params)?
+        encode_common(client, &statement, params, binary_results)?
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
@@ -119,19 +132,33 @@ where
     I: IntoIterator<Item = &'a dyn ToSql>,
     I::IntoIter: ExactSizeIterator,
 {
+    encode_common(client, statement, params, true)
+}
+
+pub fn encode_common<'a, I>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+    binary_results: bool,
+) -> Result<Bytes, Error>
+where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
+{
     client.with_buf(|buf| {
-        encode_bind(statement, params, "", buf)?;
+        encode_bind_common(statement, params, "", buf, binary_results)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })
 }
 
-pub fn encode_bind<'a, I>(
+pub fn encode_bind_common<'a, I>(
     statement: &Statement,
     params: I,
     portal: &str,
     buf: &mut BytesMut,
+    binary_results: bool,
 ) -> Result<(), Error>
 where
     I: IntoIterator<Item = &'a dyn ToSql>,
@@ -145,6 +172,7 @@ where
         statement.params().len(),
         params.len()
     );
+    let binary_results = if binary_results { 1 } else { 0 };
 
     let mut error_idx = 0;
     let r = frontend::bind(
@@ -160,7 +188,7 @@ where
                 Err(e)
             }
         },
-        Some(1),
+        Some(binary_results),
         buf,
     );
     match r {
@@ -168,6 +196,19 @@ where
         Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
         Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
     }
+}
+
+pub fn encode_bind<'a, I>(
+    statement: &Statement,
+    params: I,
+    portal: &str,
+    buf: &mut BytesMut,
+) -> Result<(), Error>
+where
+    I: IntoIterator<Item = &'a dyn ToSql>,
+    I::IntoIter: ExactSizeIterator,
+{
+    encode_bind_common(statement, params, portal, buf, true)
 }
 
 pin_project! {

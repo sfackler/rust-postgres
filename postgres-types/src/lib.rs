@@ -132,6 +132,7 @@ pub use postgres_protocol::Oid;
 
 pub use crate::special::{Date, Timestamp};
 use bytes::BytesMut;
+use std::fmt::{Display, Formatter};
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -539,6 +540,35 @@ impl<'a> FromSql<'a> for &'a str {
             ref ty if ty.name() == "citext" => true,
             _ => false,
         }
+    }
+}
+
+/// A newtype for String that accepts postgres textual data as
+/// opposed to `String` that accepts only a limited set of types (TEXT, VARCHAR...)
+///
+pub struct AcceptEverythingString(String);
+
+impl<'a> FromSql<'a> for AcceptEverythingString {
+    fn from_sql(_ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        types::text_from_sql(raw)
+            .map(ToString::to_string)
+            .map(Into::into)
+    }
+
+    fn accepts(_ty: &Type) -> bool {
+        true
+    }
+}
+
+impl From<String> for AcceptEverythingString {
+    fn from(value: String) -> Self {
+        AcceptEverythingString(value)
+    }
+}
+
+impl Display for AcceptEverythingString {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, formatter)
     }
 }
 
