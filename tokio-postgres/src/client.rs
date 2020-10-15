@@ -53,12 +53,24 @@ impl Responses {
     }
 }
 
-struct State {
+pub(crate) struct State {
     typeinfo: Option<Statement>,
     typeinfo_composite: Option<Statement>,
     typeinfo_enum: Option<Statement>,
     types: HashMap<Oid, Type>,
     buf: BytesMut,
+}
+
+impl State {
+    pub(crate) fn new() -> Self {
+         State {
+             typeinfo: None,
+             typeinfo_composite: None,
+             typeinfo_enum: None,
+             types: HashMap::new(),
+             buf: BytesMut::new(),
+         }
+    }
 }
 
 pub struct InnerClient {
@@ -67,6 +79,14 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
+
+    pub fn new(sender: mpsc::UnboundedSender<Request>) -> Self {
+        InnerClient {
+            sender,
+            state: Mutex::new(State::new()),
+        }
+    }
+
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
         let request = Request { messages, sender };
@@ -153,16 +173,7 @@ impl Client {
         secret_key: i32,
     ) -> Client {
         Client {
-            inner: Arc::new(InnerClient {
-                sender,
-                state: Mutex::new(State {
-                    typeinfo: None,
-                    typeinfo_composite: None,
-                    typeinfo_enum: None,
-                    types: HashMap::new(),
-                    buf: BytesMut::new(),
-                }),
-            }),
+            inner: Arc::new(InnerClient::new(sender)),
             #[cfg(feature = "runtime")]
             socket_config: None,
             ssl_mode,
@@ -471,9 +482,10 @@ impl Client {
     /// Begins a new database transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
-    pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.batch_execute("BEGIN").await?;
-        Ok(Transaction::new(self))
+    pub async fn transaction(&self) -> Result<Transaction<'_>, Error> {
+        let t = Transaction::new(self)?;
+        t.batch_execute("BEGIN").await?;
+        Ok(t)
     }
 
     /// Returns a builder for a transaction with custom settings.

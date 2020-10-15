@@ -108,6 +108,6 @@ impl<'a> TransactionBuilder<'a> {
 
         self.client.batch_execute(&query).await?;
 
-        Ok(Transaction::new(self.client))
+        Transaction::new(self.client)
     }
 }

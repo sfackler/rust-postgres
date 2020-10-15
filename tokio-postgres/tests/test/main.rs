@@ -320,7 +320,7 @@ async fn cancel_query_raw() {
 
 #[tokio::test]
 async fn transaction_commit() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -348,7 +348,7 @@ async fn transaction_commit() {
 
 #[tokio::test]
 async fn transaction_rollback() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -375,7 +375,7 @@ async fn transaction_rollback() {
 
 #[tokio::test]
 async fn transaction_rollback_drop() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -643,7 +643,7 @@ async fn notifications() {
 
 #[tokio::test]
 async fn query_portal() {
-    let mut client = connect("user=postgres").await;
+    let client = connect("user=postgres").await;
 
     client
         .batch_execute(
@@ -708,7 +708,7 @@ async fn check_send() {
 
     let f = connect("user=postgres");
     is_send(&f);
-    let mut client = f.await;
+    let client = f.await;
 
     let f = client.prepare("SELECT $1::TEXT");
     is_send(&f);

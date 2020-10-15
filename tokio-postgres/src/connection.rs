@@ -20,6 +20,7 @@ use tokio_util::codec::Framed;
 
 pub enum RequestMessages {
     Single(FrontendMessage),
+    Transaction(mpsc::UnboundedReceiver<super::connection::Request>),
     CopyIn(CopyInReceiver),
 }
 
@@ -51,6 +52,7 @@ pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
+    transaction_receiver: Option<mpsc::UnboundedReceiver<Request>>,
     pending_request: Option<RequestMessages>,
     pending_responses: VecDeque<BackendMessage>,
     responses: VecDeque<Response>,
@@ -72,6 +74,7 @@ where
             stream,
             parameters,
             receiver,
+            transaction_receiver: None,
             pending_request: None,
             pending_responses,
             responses: VecDeque::new(),
@@ -176,21 +179,19 @@ where
             return Poll::Ready(Some(messages));
         }
 
+        if let Some(mut r) = self.transaction_receiver.take() {
+            if !r.is_terminated() {
+                let poll = poll_request(cx, &mut r, &mut self.responses);
+                self.transaction_receiver = Some(r);
+                return poll;
+            }
+        }
+
         if self.receiver.is_terminated() {
             return Poll::Ready(None);
         }
 
-        match self.receiver.poll_next_unpin(cx) {
-            Poll::Ready(Some(request)) => {
-                trace!("polled new request");
-                self.responses.push_back(Response {
-                    sender: request.sender,
-                });
-                Poll::Ready(Some(request.messages))
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
+        poll_request(cx, &mut self.receiver, &mut self.responses)
     }
 
     fn poll_write(&mut self, cx: &mut Context<'_>) -> Result<bool, Error> {
@@ -239,6 +240,10 @@ where
                         trace!("poll_write: sent eof, closing");
                         self.state = State::Closing;
                     }
+                }
+                RequestMessages::Transaction(txn) => {
+                    assert!(self.transaction_receiver.is_none());
+                    self.transaction_receiver = Some(txn)
                 }
                 RequestMessages::CopyIn(mut receiver) => {
                     let message = match receiver.poll_next_unpin(cx) {
@@ -319,6 +324,24 @@ where
                 Poll::Pending => Poll::Pending,
             },
         }
+    }
+}
+
+fn poll_request(
+    cx: &mut Context<'_>,
+    r: &mut mpsc::UnboundedReceiver<Request>,
+    responses: &mut VecDeque<Response>,
+) -> Poll<Option<RequestMessages>> {
+    match r.poll_next_unpin(cx) {
+        Poll::Ready(Some(request)) => {
+            trace!("polled new request");
+            responses.push_back(Response {
+                sender: request.sender,
+            });
+            Poll::Ready(Some(request.messages))
+        }
+        Poll::Ready(None) => Poll::Ready(None),
+        Poll::Pending => Poll::Pending,
     }
 }
 

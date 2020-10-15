@@ -9,20 +9,22 @@ use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
+    bind, copy_in, copy_out, prepare, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
-use futures::TryStreamExt;
+use futures::{TryStreamExt, pin_mut};
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite};
+use std::sync::Arc;
 
 /// A representation of a PostgreSQL database transaction.
 ///
 /// Transactions will implicitly roll back when dropped. Use the `commit` method to commit the changes made in the
 /// transaction. Transactions can be nested, with inner transactions implemented via safepoints.
 pub struct Transaction<'a> {
-    client: &'a mut Client,
+    client: &'a Client,
+    inner: Arc<crate::client::InnerClient>,
     savepoint: Option<Savepoint>,
     done: bool,
 }
@@ -44,7 +46,7 @@ impl<'a> Drop for Transaction<'a> {
         } else {
             "ROLLBACK".to_string()
         };
-        let buf = self.client.inner().with_buf(|buf| {
+        let buf = self.inner.with_buf(|buf| {
             frontend::query(&query, buf).unwrap();
             buf.split().freeze()
         });
@@ -56,12 +58,15 @@ impl<'a> Drop for Transaction<'a> {
 }
 
 impl<'a> Transaction<'a> {
-    pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
-        Transaction {
+    pub(crate) fn new(client: &'a Client) -> Result<Transaction<'a>, Error> {
+        let (sender, receiver) = futures::channel::mpsc::unbounded();
+        client.inner().send(RequestMessages::Transaction(receiver))?;
+        Ok(Transaction {
             client,
+            inner: Arc::new(crate::client::InnerClient::new(sender)),
             savepoint: None,
             done: false,
-        }
+        })
     }
 
     /// Consumes the transaction, committing all changes made within it.
@@ -72,7 +77,7 @@ impl<'a> Transaction<'a> {
         } else {
             "COMMIT".to_string()
         };
-        self.client.batch_execute(&query).await
+        self.batch_execute(&query).await
     }
 
     /// Rolls the transaction back, discarding all changes made within it.
@@ -85,12 +90,12 @@ impl<'a> Transaction<'a> {
         } else {
             "ROLLBACK".to_string()
         };
-        self.client.batch_execute(&query).await
+        self.batch_execute(&query).await
     }
 
     /// Like `Client::prepare`.
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
-        self.client.prepare(query).await
+        self.prepare_typed(query, &[]).await
     }
 
     /// Like `Client::prepare_typed`.
@@ -99,7 +104,7 @@ impl<'a> Transaction<'a> {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        self.client.prepare_typed(query, parameter_types).await
+        prepare::prepare(&self.inner, query, parameter_types).await
     }
 
     /// Like `Client::query`.
@@ -111,7 +116,10 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query(statement, params).await
+        self.query_raw(statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await
     }
 
     /// Like `Client::query_one`.
@@ -123,7 +131,19 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query_one(statement, params).await
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        pin_mut!(stream);
+
+        let row = match stream.try_next().await? {
+            Some(row) => row,
+            None => return Err(Error::row_count()),
+        };
+
+        if stream.try_next().await?.is_some() {
+            return Err(Error::row_count());
+        }
+
+        Ok(row)
     }
 
     /// Like `Client::query_opt`.
@@ -135,7 +155,19 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.query_opt(statement, params).await
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        pin_mut!(stream);
+
+        let row = match stream.try_next().await? {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+
+        if stream.try_next().await?.is_some() {
+            return Err(Error::row_count());
+        }
+
+        Ok(Some(row))
     }
 
     /// Like `Client::query_raw`.
@@ -145,7 +177,8 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.client.query_raw(statement, params).await
+        let statement = statement.__convert().into_statement(self).await?;
+        query::query(&self.inner, statement, params).await
     }
 
     /// Like `Client::execute`.
@@ -157,7 +190,7 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.execute(statement, params).await
+        self.execute_raw(statement, slice_iter(params)).await
     }
 
     /// Like `Client::execute_iter`.
@@ -167,7 +200,8 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.client.execute_raw(statement, params).await
+        let statement = statement.__convert().into_statement(self).await?;
+        query::execute(&self.inner, statement, params).await
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
@@ -198,8 +232,8 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = &'b dyn ToSql>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(&self.client).await?;
-        bind::bind(self.client.inner(), statement, params).await
+        let statement = statement.__convert().into_statement(self).await?;
+        bind::bind(&self.inner, statement, params).await
     }
 
     /// Continues execution of a portal, returning a stream of the resulting rows.
@@ -221,7 +255,7 @@ impl<'a> Transaction<'a> {
         portal: &Portal,
         max_rows: i32,
     ) -> Result<RowStream, Error> {
-        query::query_portal(self.client.inner(), portal, max_rows).await
+        query::query_portal(&self.inner, portal, max_rows).await
     }
 
     /// Like `Client::copy_in`.
@@ -230,7 +264,8 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
-        self.client.copy_in(statement).await
+        let statement = statement.__convert().into_statement(self).await?;
+        copy_in::copy_in(&self.inner, statement).await
     }
 
     /// Like `Client::copy_out`.
@@ -238,7 +273,8 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.client.copy_out(statement).await
+        let statement = statement.__convert().into_statement(self).await?;
+        copy_out::copy_out(&self.inner, statement).await
     }
 
     /// Like `Client::simple_query`.
@@ -248,7 +284,7 @@ impl<'a> Transaction<'a> {
 
     /// Like `Client::batch_execute`.
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
-        self.client.batch_execute(query).await
+        crate::simple_query::batch_execute(&self.inner, query).await
     }
 
     /// Like `Client::cancel_token`.
@@ -299,6 +335,7 @@ impl<'a> Transaction<'a> {
 
         Ok(Transaction {
             client: self.client,
+            inner: self.inner.clone(),
             savepoint: Some(Savepoint { name, depth }),
             done: false,
         })

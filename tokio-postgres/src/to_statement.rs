@@ -2,7 +2,7 @@ use crate::to_statement::private::{Sealed, ToStatementType};
 use crate::Statement;
 
 mod private {
-    use crate::{Client, Error, Statement};
+    use crate::{GenericClient, Error, Statement};
 
     pub trait Sealed {}
 
@@ -12,7 +12,7 @@ mod private {
     }
 
     impl<'a> ToStatementType<'a> {
-        pub async fn into_statement(self, client: &Client) -> Result<Statement, Error> {
+        pub async fn into_statement<C: GenericClient>(self, client: &C) -> Result<Statement, Error> {
             match self {
                 ToStatementType::Statement(s) => Ok(s.clone()),
                 ToStatementType::Query(s) => client.prepare(s).await,
