@@ -19,10 +19,10 @@ runtime = ["tokio-postgres/runtime"]
 bytes = "0.5"
 futures = "0.3"
 native-tls = "0.2"
-tokio = "0.2"
+tokio = "0.3"
 tokio-tls = "0.3"
 tokio-postgres = { version = "0.5.0", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.3", features = ["full"] }
 postgres = { version = "0.17.0", path = "../postgres" }
