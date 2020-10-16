@@ -330,10 +330,7 @@ impl<'a> Parser<'a> {
     }
 
     fn printable(&mut self) -> io::Result<&'a str> {
-        self.take_while(|c| match c {
-            '\x21'..='\x2b' | '\x2d'..='\x7e' => true,
-            _ => false,
-        })
+        self.take_while(|c| matches!(c, '\x21'..='\x2b' | '\x2d'..='\x7e'))
     }
 
     fn nonce(&mut self) -> io::Result<&'a str> {
@@ -343,10 +340,7 @@ impl<'a> Parser<'a> {
     }
 
     fn base64(&mut self) -> io::Result<&'a str> {
-        self.take_while(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '+' | '=' => true,
-            _ => false,
-        })
+        self.take_while(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '+' | '='))
     }
 
     fn salt(&mut self) -> io::Result<&'a str> {
@@ -356,10 +350,7 @@ impl<'a> Parser<'a> {
     }
 
     fn posit_number(&mut self) -> io::Result<u32> {
-        let n = self.take_while(|c| match c {
-            '0'..='9' => true,
-            _ => false,
-        })?;
+        let n = self.take_while(|c| matches!(c, '0'..='9'))?;
         n.parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
     }
@@ -396,10 +387,7 @@ impl<'a> Parser<'a> {
     }
 
     fn value(&mut self) -> io::Result<&'a str> {
-        self.take_while(|c| match c {
-            '\0' | '=' | ',' => false,
-            _ => true,
-        })
+        self.take_while(|c| matches!(c, '\0' | '=' | ','))
     }
 
     fn server_error(&mut self) -> io::Result<Option<&'a str>> {

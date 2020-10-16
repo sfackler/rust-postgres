@@ -136,10 +136,7 @@ impl<'a> DatParser<'a> {
     fn peek(&mut self, target: char) -> bool {
         self.skip_ws();
 
-        match self.it.peek() {
-            Some((_, ch)) if *ch == target => true,
-            _ => false,
-        }
+        matches!(self.it.peek(), Some((_, ch)) if *ch == target)
     }
 
     fn eof(&mut self) {

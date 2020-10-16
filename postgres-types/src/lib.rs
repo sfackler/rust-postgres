@@ -144,10 +144,7 @@ const NSEC_PER_USEC: u64 = 1_000;
 macro_rules! accepts {
     ($($expected:ident),+) => (
         fn accepts(ty: &$crate::Type) -> bool {
-            match *ty {
-                $($crate::Type::$expected)|+ => true,
-                _ => false
-            }
+            matches!(*ty, $($crate::Type::$expected)|+)
         }
     )
 }

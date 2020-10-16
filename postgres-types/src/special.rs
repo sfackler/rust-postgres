@@ -75,10 +75,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::TIMESTAMP | Type::TIMESTAMPTZ if T::accepts(ty) => true,
-            _ => false,
-        }
+        matches!(*ty, Type::TIMESTAMP | Type::TIMESTAMPTZ if T::accepts(ty))
     }
 }
 
@@ -99,10 +96,7 @@ impl<T: ToSql> ToSql for Timestamp<T> {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::TIMESTAMP | Type::TIMESTAMPTZ if T::accepts(ty) => true,
-            _ => false,
-        }
+        matches!(*ty, Type::TIMESTAMP | Type::TIMESTAMPTZ if T::accepts(ty))
     }
 
     to_sql_checked!();
