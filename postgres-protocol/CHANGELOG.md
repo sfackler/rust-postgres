@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.3 - 2020-10-17
+
+### Changed
+
+* Upgraded `base64` and `hmac`.
+
 ## v0.5.2 - 2020-07-06
 
 ### Changed
