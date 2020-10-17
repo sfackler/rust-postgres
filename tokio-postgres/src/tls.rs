@@ -5,7 +5,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub(crate) mod private {
     pub struct ForcePrivateApi;
@@ -125,8 +125,8 @@ impl AsyncRead for NoTlsStream {
     fn poll_read(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-        _: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        _: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         match *self {}
     }
 }

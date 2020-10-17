@@ -336,9 +336,8 @@ impl Config {
         T::Stream: Send,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
-        let mut runtime = runtime::Builder::new()
+        let runtime = runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap(); // FIXME don't unwrap
 

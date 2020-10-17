@@ -6,7 +6,7 @@ use fallible_iterator::FallibleIterator;
 use futures::{ready, FutureExt};
 use std::task::Poll;
 use std::time::Duration;
-use tokio::time::{self, Delay, Instant};
+use tokio::time::{self, Instant, Sleep};
 
 /// Notifications from a PostgreSQL backend.
 pub struct Notifications<'a> {
@@ -64,7 +64,7 @@ impl<'a> Notifications<'a> {
     /// This iterator may start returning `Some` after previously returning `None` if more notifications are received.
     pub fn timeout_iter(&mut self, timeout: Duration) -> TimeoutIter<'_> {
         TimeoutIter {
-            delay: self.connection.enter(|| time::delay_for(timeout)),
+            delay: self.connection.enter(|| time::sleep(timeout)),
             timeout,
             connection: self.connection.as_ref(),
         }
@@ -124,7 +124,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
 /// A time-limited blocking iterator over pending notifications.
 pub struct TimeoutIter<'a> {
     connection: ConnectionRef<'a>,
-    delay: Delay,
+    delay: Sleep,
     timeout: Duration,
 }
 

@@ -12,19 +12,15 @@ pub(crate) async fn connect_socket(
     host: &Host,
     port: u16,
     connect_timeout: Option<Duration>,
-    keepalives: bool,
-    keepalives_idle: Duration,
+    _keepalives: bool,
+    _keepalives_idle: Duration,
 ) -> Result<Socket, Error> {
     match host {
         Host::Tcp(host) => {
             let socket =
                 connect_with_timeout(TcpStream::connect((&**host, port)), connect_timeout).await?;
             socket.set_nodelay(true).map_err(Error::connect)?;
-            if keepalives {
-                socket
-                    .set_keepalive(Some(keepalives_idle))
-                    .map_err(Error::connect)?;
-            }
+            // FIXME support keepalives?
 
             Ok(Socket::new_tcp(socket))
         }
