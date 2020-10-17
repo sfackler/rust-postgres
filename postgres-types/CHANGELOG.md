@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.1.3 - 2020-10-17
+
+### Added
+
+* Implemented `Clone`, `PartialEq`, and `Eq` for `Json`.
+
+### Fixed
+
+* Checked for overflow in `NaiveDate` and `NaiveDateTime` conversions.
+
 ## v0.1.2 - 2020-07-03
 
 ### Added
