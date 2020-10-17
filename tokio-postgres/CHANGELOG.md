@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.6.0 - 2020-10-17
+
+### Changed
+
+* Upgraded to tokio `0.3`.
+* Added the detail and hint fields to `DbError`'s `Display` implementation.
+
 ## v0.5.5 - 2020-07-03
 
 ### Added

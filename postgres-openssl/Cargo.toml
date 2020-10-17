@@ -20,7 +20,7 @@ futures = "0.3"
 openssl = "0.10"
 tokio = "0.3"
 tokio-openssl = "0.5"
-tokio-postgres = { version = "0.5.0", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "0.6.0", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "0.3", features = ["full"] }
