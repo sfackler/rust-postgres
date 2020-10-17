@@ -1,5 +1,19 @@
 # Change Log
 
+## v0.18.0 - 2020-10-17
+
+### Changed
+
+* Upgraded to `tokio-postgres` 0.6.
+
+### Added
+
+* Added `Config::notice_callback`, which can be used to provide a custom callback for notices.
+
+### Fixed
+
+* Fixed client shutdown to explicitly terminate the database session.
+
 ## v0.17.5 - 2020-07-19
 
 ### Fixed
