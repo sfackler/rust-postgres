@@ -7,7 +7,7 @@ use tokio::runtime::Runtime;
 use tokio_postgres::{Client, NoTls};
 
 fn setup() -> (Client, Runtime) {
-    let mut runtime = Runtime::new().unwrap();
+    let runtime = Runtime::new().unwrap();
     let (client, conn) = runtime
         .block_on(tokio_postgres::connect(
             "host=localhost port=5433 user=postgres",
@@ -19,7 +19,7 @@ fn setup() -> (Client, Runtime) {
 }
 
 fn query_prepared(c: &mut Criterion) {
-    let (client, mut runtime) = setup();
+    let (client, runtime) = setup();
     let statement = runtime.block_on(client.prepare("SELECT $1::INT8")).unwrap();
     c.bench_function("runtime_block_on", move |b| {
         b.iter(|| {
@@ -29,13 +29,13 @@ fn query_prepared(c: &mut Criterion) {
         })
     });
 
-    let (client, mut runtime) = setup();
+    let (client, runtime) = setup();
     let statement = runtime.block_on(client.prepare("SELECT $1::INT8")).unwrap();
     c.bench_function("executor_block_on", move |b| {
         b.iter(|| executor::block_on(client.query(&statement, &[&1i64])).unwrap())
     });
 
-    let (client, mut runtime) = setup();
+    let (client, runtime) = setup();
     let client = Arc::new(client);
     let statement = runtime.block_on(client.prepare("SELECT $1::INT8")).unwrap();
     c.bench_function("spawned", move |b| {

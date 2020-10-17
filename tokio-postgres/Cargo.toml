@@ -25,7 +25,7 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 default = ["runtime"]
-runtime = ["tokio/dns", "tokio/net", "tokio/time"]
+runtime = ["tokio/net", "tokio/time"]
 
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
 with-chrono-0_4 = ["postgres-types/with-chrono-0_4"]
@@ -49,11 +49,11 @@ pin-project-lite = "0.1"
 phf = "0.8"
 postgres-protocol = { version = "0.5.0", path = "../postgres-protocol" }
 postgres-types = { version = "0.1.2", path = "../postgres-types" }
-tokio = { version = "0.2", features = ["io-util"] }
-tokio-util = { version = "0.3", features = ["codec"] }
+tokio = { version = "0.3", features = ["io-util"] }
+tokio-util = { version = "0.4", features = ["codec"] }
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.3", features = ["full"] }
 env_logger = "0.7"
 criterion = "0.3"
 

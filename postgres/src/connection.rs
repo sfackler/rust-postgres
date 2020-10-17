@@ -45,7 +45,8 @@ impl Connection {
     where
         F: FnOnce() -> T,
     {
-        self.runtime.enter(f)
+        let _guard = self.runtime.enter();
+        f()
     }
 
     pub fn block_on<F, T>(&mut self, future: F) -> Result<T, Error>

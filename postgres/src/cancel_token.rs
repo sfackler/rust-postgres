@@ -26,9 +26,8 @@ impl CancelToken {
     where
         T: MakeTlsConnect<Socket>,
     {
-        runtime::Builder::new()
+        runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap() // FIXME don't unwrap
             .block_on(self.0.cancel_query(tls))

@@ -42,7 +42,6 @@
 #![doc(html_root_url = "https://docs.rs/postgres-openssl/0.3")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
-use bytes::{Buf, BufMut};
 #[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
@@ -53,12 +52,11 @@ use openssl::ssl::{ConnectConfiguration, SslRef};
 use std::fmt::Debug;
 use std::future::Future;
 use std::io;
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 #[cfg(feature = "runtime")]
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_openssl::{HandshakeError, SslStream};
 use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
@@ -157,27 +155,12 @@ impl<S> AsyncRead for TlsStream<S>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [MaybeUninit<u8>]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.0).poll_read(cx, buf)
-    }
-
-    fn poll_read_buf<B: BufMut>(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>>
-    where
-        Self: Sized,
-    {
-        Pin::new(&mut self.0).poll_read_buf(cx, buf)
     }
 }
 
@@ -199,17 +182,6 @@ where
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.0).poll_shutdown(cx)
-    }
-
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>>
-    where
-        Self: Sized,
-    {
-        Pin::new(&mut self.0).poll_write_buf(cx, buf)
     }
 }
 

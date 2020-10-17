@@ -72,7 +72,7 @@ async fn cancel_query() {
 
     let cancel_token = client.cancel_token();
     let cancel = cancel_token.cancel_query(NoTls);
-    let cancel = time::delay_for(Duration::from_millis(100)).then(|()| cancel);
+    let cancel = time::sleep(Duration::from_millis(100)).then(|()| cancel);
 
     let sleep = client.batch_execute("SELECT pg_sleep(100)");
 
