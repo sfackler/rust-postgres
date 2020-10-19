@@ -54,7 +54,7 @@ tokio-util = { version = "0.4", features = ["codec"] }
 
 [dev-dependencies]
 tokio = { version = "0.3", features = ["full"] }
-env_logger = "0.7"
+env_logger = "0.8"
 criterion = "0.3"
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
