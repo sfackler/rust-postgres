@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.18.1 - 20201-10-19
+
+### Fixed
+
+* Restored the `Send` implementation for `Client`.
+
 ## v0.18.0 - 2020-10-17
 
 ### Changed
