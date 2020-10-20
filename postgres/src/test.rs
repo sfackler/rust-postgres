@@ -499,3 +499,12 @@ fn explicit_close() {
     let client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
     client.close().unwrap();
 }
+
+#[test]
+fn check_send() {
+    fn is_send<T: Send>() {}
+
+    is_send::<Client>();
+    is_send::<Statement>();
+    is_send::<Transaction<'_>>();
+}

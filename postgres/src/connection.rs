@@ -16,14 +16,14 @@ pub struct Connection {
     runtime: Runtime,
     connection: Pin<Box<dyn Stream<Item = Result<AsyncMessage, Error>> + Send>>,
     notifications: VecDeque<Notification>,
-    notice_callback: Arc<dyn Fn(DbError)>,
+    notice_callback: Arc<dyn Fn(DbError) + Sync + Send>,
 }
 
 impl Connection {
     pub fn new<S, T>(
         runtime: Runtime,
         connection: tokio_postgres::Connection<S, T>,
-        notice_callback: Arc<dyn Fn(DbError)>,
+        notice_callback: Arc<dyn Fn(DbError) + Sync + Send>,
     ) -> Connection
     where
         S: AsyncRead + AsyncWrite + Unpin + 'static + Send,
