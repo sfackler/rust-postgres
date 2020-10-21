@@ -22,7 +22,7 @@ with-uuid-0_8 = ["uuid-08"]
 with-time-0_2 = ["time-02"]
 
 [dependencies]
-bytes = "0.5"
+bytes = "0.6"
 fallible-iterator = "0.2"
 postgres-protocol = { version = "0.5.0", path = "../postgres-protocol" }
 postgres-derive = { version = "0.4.0", optional = true, path = "../postgres-derive" }
