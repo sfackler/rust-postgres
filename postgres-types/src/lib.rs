@@ -951,3 +951,21 @@ fn downcast(len: usize) -> Result<i32, Box<dyn Error + Sync + Send>> {
         Ok(len as i32)
     }
 }
+
+/// A helper trait to be able create a parameters iterator from `&dyn ToSql` or `T: ToSql`
+pub trait BorrowToSql {
+    /// Get a reference to a `ToSql` trait object
+    fn borrow_to_sql(&self) -> &dyn ToSql;
+}
+
+impl BorrowToSql for &dyn ToSql {
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        *self
+    }
+}
+
+impl<T: ToSql> BorrowToSql for T {
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        self
+    }
+}

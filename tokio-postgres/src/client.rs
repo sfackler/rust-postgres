@@ -20,6 +20,7 @@ use futures::channel::mpsc;
 use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
+use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -342,10 +343,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;
@@ -391,10 +393,11 @@ impl Client {
     /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`execute`]: #method.execute
-    pub async fn execute_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;

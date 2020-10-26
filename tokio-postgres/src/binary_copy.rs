@@ -6,6 +6,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
+use postgres_types::BorrowToSql;
 use std::convert::TryFrom;
 use std::io;
 use std::io::Cursor;
@@ -58,9 +59,10 @@ impl BinaryCopyInWriter {
     /// # Panics
     ///
     /// Panics if the number of values provided does not match the number expected.
-    pub async fn write_raw<'a, I>(self: Pin<&mut Self>, values: I) -> Result<(), Error>
+    pub async fn write_raw<P, I>(self: Pin<&mut Self>, values: I) -> Result<(), Error>
     where
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let mut this = self.project();
@@ -79,6 +81,7 @@ impl BinaryCopyInWriter {
             let idx = this.buf.len();
             this.buf.put_i32(0);
             let len = match value
+                .borrow_to_sql()
                 .to_sql_checked(type_, this.buf)
                 .map_err(|e| Error::to_sql(e, i))?
             {
