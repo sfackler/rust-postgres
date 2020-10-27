@@ -1,7 +1,7 @@
 //! Utilities for working with the PostgreSQL binary copy format.
 
 use crate::connection::ConnectionRef;
-use crate::types::{ToSql, Type};
+use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{CopyInWriter, CopyOutReader, Error};
 use fallible_iterator::FallibleIterator;
 use futures::StreamExt;
@@ -46,9 +46,10 @@ impl<'a> BinaryCopyInWriter<'a> {
     /// # Panics
     ///
     /// Panics if the number of values provided does not match the number expected.
-    pub fn write_raw<'b, I>(&mut self, values: I) -> Result<(), Error>
+    pub fn write_raw<P, I>(&mut self, values: I) -> Result<(), Error>
     where
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         self.connection
