@@ -1,4 +1,4 @@
-use crate::types::{ToSql, Type};
+use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{
     Client, CopyInWriter, CopyOutReader, Error, Row, RowIter, SimpleQueryMessage, Statement,
     ToStatement, Transaction,
@@ -37,10 +37,11 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_raw`.
-    fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::prepare`.
@@ -104,10 +105,11 @@ impl GenericClient for Client {
         self.query_opt(query, params)
     }
 
-    fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         self.query_raw(query, params)
@@ -183,10 +185,11 @@ impl GenericClient for Transaction<'_> {
         self.query_opt(query, params)
     }
 
-    fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         self.query_raw(query, params)

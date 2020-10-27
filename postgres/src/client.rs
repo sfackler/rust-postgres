@@ -5,7 +5,7 @@ use crate::{
 };
 use std::task::Poll;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
-use tokio_postgres::types::{ToSql, Type};
+use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
@@ -227,7 +227,7 @@ impl Client {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
     /// let baz = true;
-    /// let mut it = client.query_raw("SELECT foo FROM bar WHERE baz = $1", iter::once(&baz as _))?;
+    /// let mut it = client.query_raw("SELECT foo FROM bar WHERE baz = $1", iter::once(baz))?;
     ///
     /// while let Some(row) = it.next()? {
     ///     let foo: i32 = row.get("foo");
@@ -253,7 +253,7 @@ impl Client {
     /// ];
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
-    ///     params.iter().map(|p| p as &dyn ToSql),
+    ///     params,
     /// )?;
     ///
     /// while let Some(row) = it.next()? {
@@ -263,10 +263,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_raw<'a, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let stream = self

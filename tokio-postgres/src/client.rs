@@ -20,6 +20,7 @@ use futures::channel::mpsc;
 use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
+use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -317,9 +318,6 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// If you have a type like `Vec<T>` where `T: ToSql` Rust will not know how to use it as params. To get around
-    /// this the type must explicitly be converted to `&dyn ToSql`.
-    ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
     /// use tokio_postgres::types::ToSql;
@@ -331,7 +329,7 @@ impl Client {
     /// ];
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
-    ///     params.iter().map(|p| p as &dyn ToSql),
+    ///     params,
     /// ).await?;
     ///
     /// pin_mut!(it);
@@ -342,10 +340,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;
@@ -391,10 +390,11 @@ impl Client {
     /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`execute`]: #method.execute
-    pub async fn execute_raw<'a, T, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'a dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;

@@ -1,6 +1,6 @@
 use crate::connection::ConnectionRef;
 use crate::{CancelToken, CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
-use tokio_postgres::types::{ToSql, Type};
+use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
 /// A representation of a PostgreSQL database transaction.
@@ -102,10 +102,11 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
-    pub fn query_raw<'b, T, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let stream = self

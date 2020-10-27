@@ -5,7 +5,7 @@ use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{ToSql, Type};
+use crate::types::{BorrowToSql, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -139,10 +139,11 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
-    pub async fn query_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         self.client.query_raw(statement, params).await
@@ -161,10 +162,11 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute_iter`.
-    pub async fn execute_raw<'b, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         self.client.execute_raw(statement, params).await
@@ -192,10 +194,11 @@ impl<'a> Transaction<'a> {
     /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
-    pub async fn bind_raw<'b, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
+    pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
-        I: IntoIterator<Item = &'b dyn ToSql>,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(&self.client).await?;
