@@ -960,7 +960,7 @@ mod sealed {
 /// A helper trait used internally by Rust-Postgres
 /// to be able create a parameters iterator from `&dyn ToSql` or `T: ToSql`.
 ///
-/// /// This cannot be implemented outside of this crate.
+/// This cannot be implemented outside of this crate.
 pub trait BorrowToSql: sealed::Sealed {
     /// Get a reference to a `ToSql` trait object
     fn borrow_to_sql(&self) -> &dyn ToSql;
