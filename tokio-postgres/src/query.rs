@@ -14,8 +14,12 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-struct BorrowToSqlParamsDebug<'a, T: BorrowToSql>(&'a [T]);
-impl<'a, T: BorrowToSql> std::fmt::Debug for BorrowToSqlParamsDebug<'a, T> {
+struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
+
+impl<'a, T> fmt::Debug for BorrowToSqlParamsDebug<'a, T>
+where
+    T: BorrowToSql,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
             .entries(self.0.iter().map(|x| x.borrow_to_sql()))
