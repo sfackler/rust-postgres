@@ -108,6 +108,7 @@
 #![doc(html_root_url = "https://docs.rs/postgres-types/0.1")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
+use crate::sealed::Sealed;
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::any::type_name;
@@ -952,17 +953,28 @@ fn downcast(len: usize) -> Result<i32, Box<dyn Error + Sync + Send>> {
     }
 }
 
-/// A helper trait to be able create a parameters iterator from `&dyn ToSql` or `T: ToSql`
-pub trait BorrowToSql {
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// A helper trait used internally by Rust-Postgres
+/// to be able create a parameters iterator from `&dyn ToSql` or `T: ToSql`.
+///
+/// /// This cannot be implemented outside of this crate.
+pub trait BorrowToSql: sealed::Sealed {
     /// Get a reference to a `ToSql` trait object
     fn borrow_to_sql(&self) -> &dyn ToSql;
 }
+
+impl Sealed for &dyn ToSql {}
 
 impl BorrowToSql for &dyn ToSql {
     fn borrow_to_sql(&self) -> &dyn ToSql {
         *self
     }
 }
+
+impl<T: ToSql> Sealed for T {}
 
 impl<T: ToSql> BorrowToSql for T {
     fn borrow_to_sql(&self) -> &dyn ToSql {
