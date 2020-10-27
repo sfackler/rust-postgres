@@ -253,7 +253,7 @@ impl Client {
     /// ];
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
-    ///     params.iter().map(|p| p as &dyn ToSql),
+    ///     params,
     /// )?;
     ///
     /// while let Some(row) = it.next()? {

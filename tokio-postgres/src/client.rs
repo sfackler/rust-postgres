@@ -318,9 +318,6 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// If you have a type like `Vec<T>` where `T: ToSql` Rust will not know how to use it as params. To get around
-    /// this the type must explicitly be converted to `&dyn ToSql`.
-    ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
     /// use tokio_postgres::types::ToSql;
@@ -332,7 +329,7 @@ impl Client {
     /// ];
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
-    ///     params.iter().map(|p| p as &dyn ToSql),
+    ///     params,
     /// ).await?;
     ///
     /// pin_mut!(it);
