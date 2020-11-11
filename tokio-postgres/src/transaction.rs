@@ -55,6 +55,14 @@ impl<'a> Drop for Transaction<'a> {
     }
 }
 
+impl<'a> std::ops::Deref for Transaction<'a> {
+    type Target = Client;
+
+    fn deref(&self) -> &Self::Target {
+        self.client
+    }
+}
+
 impl<'a> Transaction<'a> {
     pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
         Transaction {
