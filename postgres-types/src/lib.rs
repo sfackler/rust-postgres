@@ -555,7 +555,7 @@ macro_rules! simple_from {
 }
 
 simple_from!(bool, bool_from_sql, BOOL);
-simple_from!(i8, char_from_sql, CHAR);
+simple_from!(i8, char_from_sql, CHAR, BPCHAR);
 simple_from!(i16, int2_from_sql, INT2);
 simple_from!(i32, int4_from_sql, INT4);
 simple_from!(u32, oid_from_sql, OID);
