@@ -17,6 +17,7 @@ use bytes::{BufMut, BytesMut};
 use std::io;
 
 pub mod authentication;
+pub mod escape;
 pub mod message;
 pub mod types;
 
