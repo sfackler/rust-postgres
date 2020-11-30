@@ -32,3 +32,16 @@ TLS support for postgres and tokio-postgres via native-tls.
 [Documentation](https://docs.rs/postgres-openssl)
 
 TLS support for postgres and tokio-postgres via openssl.
+
+# Running test suite
+
+The test suite requires postgres to be running in the correct configuration. The easiest way to do this is with docker:
+
+1. Install `docker` and `docker-compose`.
+   1. On ubuntu: `sudo apt install docker.io docker-compose`.
+1. Make sure your user has permissions for docker.
+   1. On ubuntu: ``sudo usermod -aG docker $USER``
+1. Change to top-level directory of `rust-postgres` repo.
+1. Run `docker-compose up -d`.
+1. Run `cargo test`.
+1. Run `docker-compose stop`.
