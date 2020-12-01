@@ -103,7 +103,7 @@
 //!
 //! | Feature | Description | Extra dependencies | Default |
 //! | ------- | ----------- | ------------------ | ------- |
-//! | `runtime` | Enable convenience API for the connection process based on the `tokio` crate. | [tokio](https://crates.io/crates/tokio) 0.2 with the features `dns`, `net` and `time` | yes |
+//! | `runtime` | Enable convenience API for the connection process based on the `tokio` crate. | [tokio](https://crates.io/crates/tokio) 0.3 with the features `net` and `time` | yes |
 //! | `with-bit-vec-0_6` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.6 | no |
 //! | `with-chrono-0_4` | Enable support for the `chrono` crate. | [chrono](https://crates.io/crates/chrono) 0.4 | no |
 //! | `with-eui48-0_4` | Enable support for the `eui48` crate. | [eui48](https://crates.io/crates/eui48) 0.4 | no |
@@ -112,7 +112,7 @@
 //! | `with-serde_json-1` | Enable support for the `serde_json` crate. | [serde_json](https://crates.io/crates/serde_json) 1.0 | no |
 //! | `with-uuid-0_8` | Enable support for the `uuid` crate. | [uuid](https://crates.io/crates/uuid) 0.8 | no |
 //! | `with-time-0_2` | Enable support for the `time` crate. | [time](https://crates.io/crates/time) 0.2 | no |
-#![doc(html_root_url = "https://docs.rs/tokio-postgres/0.5")]
+#![doc(html_root_url = "https://docs.rs/tokio-postgres/0.6")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 pub use crate::cancel_token::CancelToken;
