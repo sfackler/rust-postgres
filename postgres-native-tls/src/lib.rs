@@ -1,4 +1,4 @@
-//! TLS support for `tokio-postgres` and `postgres` via `native-tls.
+//! TLS support for `tokio-postgres` and `postgres` via `native-tls`.
 //!
 //! # Examples
 //!
