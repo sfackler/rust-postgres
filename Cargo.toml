@@ -9,7 +9,6 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-bytes = "0.6"
 futures = "0.3"
 ring = "0.16"
 rustls = "0.19"
