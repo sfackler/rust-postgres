@@ -17,4 +17,3 @@ let connect_fut = tokio_postgres::connect("sslmode=require host=localhost user=p
 
 # License
 tokio-postgres-rustls is distributed under the MIT license.
-

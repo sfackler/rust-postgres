@@ -1,17 +1,15 @@
 use std::{
     future::Future,
     io,
-    mem::MaybeUninit,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
 };
 
-use bytes::{Buf, BufMut};
 use futures::future::{FutureExt, TryFutureExt};
 use ring::digest;
 use rustls::{ClientConfig, Session};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use webpki::{DNSName, DNSNameRef};
@@ -93,25 +91,11 @@ where
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<tokio::io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<tokio::io::Result<()>> {
         self.0.as_mut().poll_read(cx, buf)
     }
 
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [MaybeUninit<u8>]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
-    }
-
-    fn poll_read_buf<B: BufMut>(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut B,
-    ) -> Poll<tokio::io::Result<usize>>
-    where
-        Self: Sized,
-    {
-        self.0.as_mut().poll_read_buf(cx, buf)
-    }
 }
 
 impl<S> AsyncWrite for RustlsStream<S>
@@ -134,16 +118,6 @@ where
         self.0.as_mut().poll_shutdown(cx)
     }
 
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut B,
-    ) -> Poll<tokio::io::Result<usize>>
-    where
-        Self: Sized,
-    {
-        self.0.as_mut().poll_write_buf(cx, buf)
-    }
 }
 
 #[cfg(test)]
@@ -157,7 +131,7 @@ mod tests {
         let config = rustls::ClientConfig::new();
         let tls = super::MakeRustlsConnect::new(config);
         let (client, conn) =
-            tokio_postgres::connect("sslmode=require host=localhost user=postgres", tls)
+            tokio_postgres::connect("sslmode=require host=localhost port=5432 user=postgres", tls)
                 .await
                 .expect("connect");
         tokio::spawn(conn.map_err(|e| panic!("{:?}", e)));
