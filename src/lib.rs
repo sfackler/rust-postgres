@@ -37,15 +37,17 @@ where
 
     fn make_tls_connect(&mut self, hostname: &str) -> io::Result<RustlsConnect> {
         DNSNameRef::try_from_ascii_str(hostname)
-            .map(|dns_name| RustlsConnect {
+            .map(|dns_name| RustlsConnect(Some(RustlsConnectData {
                 hostname: dns_name.to_owned(),
                 connector: Arc::clone(&self.config).into(),
-            })
-            .map_err(|_| io::ErrorKind::InvalidInput.into())
+            })))
+            .or(Ok(RustlsConnect(None)))
     }
 }
 
-pub struct RustlsConnect {
+pub struct RustlsConnect(Option<RustlsConnectData>);
+
+struct RustlsConnectData {
     hostname: DNSName,
     connector: TlsConnector,
 }
@@ -59,10 +61,13 @@ where
     type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>> + Send>>;
 
     fn connect(self, stream: S) -> Self::Future {
-        self.connector
-            .connect(self.hostname.as_ref(), stream)
-            .map_ok(|s| RustlsStream(Box::pin(s)))
-            .boxed()
+        match self.0 {
+            None => Box::pin(core::future::ready(Err(io::ErrorKind::InvalidInput.into()))),
+            Some(c) => c.connector
+                .connect(c.hostname.as_ref(), stream)
+                .map_ok(|s| RustlsStream(Box::pin(s)))
+                .boxed()
+        }
     }
 }
 
