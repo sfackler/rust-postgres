@@ -413,6 +413,11 @@ impl Client {
         self.connection.block_on(self.client.simple_query(query))
     }
 
+    /// Validates connection, timing out after specified duration.
+    pub fn is_valid(&mut self, timeout: std::time::Duration) -> Result<(), Error> {
+        self.connection.block_on(self.client.is_valid(timeout))
+    }
+
     /// Executes a sequence of SQL statements using the simple query protocol.
     ///
     /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
