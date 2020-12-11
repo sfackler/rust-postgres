@@ -114,7 +114,7 @@ where
                 return Ok(rows);
             }
             Message::EmptyQueryResponse => return Ok(0),
-            _ => return Err(Error::unexpected_message()),
+            m => return Err(Error::unexpected_message(m)),
         }
     }
 }
@@ -124,7 +124,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 
     match responses.next().await? {
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(responses)
@@ -211,7 +211,7 @@ impl Stream for RowStream {
             | Message::CommandComplete(_)
             | Message::PortalSuspended => Poll::Ready(None),
             Message::ErrorResponse(body) => Poll::Ready(Some(Err(Error::db(body)))),
-            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
+            m => Poll::Ready(Some(Err(Error::unexpected_message(m)))),
         }
     }
 }

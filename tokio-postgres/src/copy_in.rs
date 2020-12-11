@@ -122,7 +122,7 @@ where
                                 .unwrap_or(0);
                             return Poll::Ready(Ok(rows));
                         }
-                        _ => return Poll::Ready(Err(Error::unexpected_message())),
+                        m => return Poll::Ready(Err(Error::unexpected_message(m))),
                     }
                 }
             }
@@ -215,12 +215,12 @@ where
 
     match responses.next().await? {
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     match responses.next().await? {
         Message::CopyInResponse(_) => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(CopyInSink {

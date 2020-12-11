@@ -181,14 +181,14 @@ where
             ))
         }
         Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
-        Some(_) => return Err(Error::unexpected_message()),
+        Some(m) => return Err(Error::unexpected_message(m)),
         None => return Err(Error::closed()),
     }
 
     match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationOk) => Ok(()),
         Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
-        Some(_) => Err(Error::unexpected_message()),
+        Some(m) => Err(Error::unexpected_message(m)),
         None => Err(Error::closed()),
     }
 }
@@ -282,7 +282,7 @@ where
     let body = match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationSaslContinue(body)) => body,
         Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
-        Some(_) => return Err(Error::unexpected_message()),
+        Some(m) => return Err(Error::unexpected_message(m)),
         None => return Err(Error::closed()),
     };
 
@@ -300,7 +300,7 @@ where
     let body = match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationSaslFinal(body)) => body,
         Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
-        Some(_) => return Err(Error::unexpected_message()),
+        Some(m) => return Err(Error::unexpected_message(m)),
         None => return Err(Error::closed()),
     };
 
@@ -339,7 +339,7 @@ where
             }
             Some(Message::ReadyForQuery(_)) => return Ok((process_id, secret_key, parameters)),
             Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
-            Some(_) => return Err(Error::unexpected_message()),
+            Some(m) => return Err(Error::unexpected_message(m)),
             None => return Err(Error::closed()),
         }
     }

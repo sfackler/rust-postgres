@@ -106,7 +106,7 @@ where
                     }
                 }
                 Some(_) => {}
-                None => return Err(Error::unexpected_message()),
+                None => return Err(Error::expected_message()),
             }
         }
     }
