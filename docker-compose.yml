@@ -1,6 +1,9 @@
 version: '2'
 services:
   postgres:
-    image: "sfackler/rust-postgres-test:6"
+    image: "sfackler/rust-postgres-test:7"
+    build: ./docker
+    environment:
+      - POSTGRES_PASSWORD=password
     ports:
     - 5433:5433
