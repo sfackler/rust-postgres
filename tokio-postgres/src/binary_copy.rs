@@ -5,7 +5,7 @@ use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{ready, SinkExt, Stream};
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use postgres_types::BorrowToSql;
 use std::convert::TryFrom;
 use std::io;
@@ -18,16 +18,15 @@ use std::task::{Context, Poll};
 const MAGIC: &[u8] = b"PGCOPY\n\xff\r\n\0";
 const HEADER_LEN: usize = MAGIC.len() + 4 + 4;
 
-pin_project! {
-    /// A type which serializes rows into the PostgreSQL binary copy format.
-    ///
-    /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
-    pub struct BinaryCopyInWriter {
-        #[pin]
-        sink: CopyInSink<Bytes>,
-        types: Vec<Type>,
-        buf: BytesMut,
-    }
+/// A type which serializes rows into the PostgreSQL binary copy format.
+///
+/// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
+#[pin_project]
+pub struct BinaryCopyInWriter {
+    #[pin]
+    sink: CopyInSink<Bytes>,
+    types: Vec<Type>,
+    buf: BytesMut,
 }
 
 impl BinaryCopyInWriter {
@@ -115,14 +114,13 @@ struct Header {
     has_oids: bool,
 }
 
-pin_project! {
-    /// A stream of rows deserialized from the PostgreSQL binary copy format.
-    pub struct BinaryCopyOutStream {
-        #[pin]
-        stream: CopyOutStream,
-        types: Arc<Vec<Type>>,
-        header: Option<Header>,
-    }
+/// A stream of rows deserialized from the PostgreSQL binary copy format.
+#[pin_project]
+pub struct BinaryCopyOutStream {
+    #[pin]
+    stream: CopyOutStream,
+    types: Arc<Vec<Type>>,
+    header: Option<Header>,
 }
 
 impl BinaryCopyOutStream {

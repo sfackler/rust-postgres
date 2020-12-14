@@ -8,7 +8,7 @@ use futures::channel::mpsc;
 use futures::future;
 use futures::{ready, Sink, SinkExt, Stream, StreamExt};
 use log::debug;
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
@@ -69,21 +69,20 @@ enum SinkState {
     Reading,
 }
 
-pin_project! {
-    /// A sink for `COPY ... FROM STDIN` query data.
-    ///
-    /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
-    /// not, the copy will be aborted.
-    pub struct CopyInSink<T> {
-        #[pin]
-        sender: mpsc::Sender<CopyInMessage>,
-        responses: Responses,
-        buf: BytesMut,
-        state: SinkState,
-        #[pin]
-        _p: PhantomPinned,
-        _p2: PhantomData<T>,
-    }
+/// A sink for `COPY ... FROM STDIN` query data.
+///
+/// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
+/// not, the copy will be aborted.
+#[pin_project]
+pub struct CopyInSink<T> {
+    #[pin]
+    sender: mpsc::Sender<CopyInMessage>,
+    responses: Responses,
+    buf: BytesMut,
+    state: SinkState,
+    #[pin]
+    _p: PhantomPinned,
+    _p2: PhantomData<T>,
 }
 
 impl<T> CopyInSink<T>
