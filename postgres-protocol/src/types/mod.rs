@@ -8,7 +8,7 @@ use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid};
+use crate::{write_nullable, FromUsize, IsNull, Lsn, Oid};
 
 #[cfg(test)]
 mod test;
@@ -136,6 +136,22 @@ pub fn int8_to_sql(v: i64, buf: &mut BytesMut) {
 #[inline]
 pub fn int8_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Send>> {
     let v = buf.read_i64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(v)
+}
+
+/// Serializes a `PG_LSN` value.
+#[inline]
+pub fn lsn_to_sql(v: Lsn, buf: &mut BytesMut) {
+    buf.put_u64(v);
+}
+
+/// Deserializes a `PG_LSN` value.
+#[inline]
+pub fn lsn_from_sql(mut buf: &[u8]) -> Result<Lsn, StdBox<dyn Error + Sync + Send>> {
+    let v = buf.read_u64::<BigEndian>()?;
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
     }

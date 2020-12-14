@@ -6,8 +6,9 @@ use std::f64;
 use std::fmt;
 use std::net::IpAddr;
 use std::result;
+use std::str::FromStr;
 use std::time::{Duration, UNIX_EPOCH};
-use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, ToSql, Type, WrongType};
+use tokio_postgres::types::{FromSql, FromSqlOwned, IsNull, Kind, PgLsn, ToSql, Type, WrongType};
 
 use crate::connect;
 use bytes::BytesMut;
@@ -133,6 +134,18 @@ async fn test_i64_params() {
         ],
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_lsn_params() {
+    test_type(
+        "PG_LSN",
+        &[
+            (Some(PgLsn::from_str("2B/1757980").unwrap()), "'2B/1757980'"),
+            (None, "NULL"),
+        ],
+    )
+    .await
 }
 
 #[tokio::test]

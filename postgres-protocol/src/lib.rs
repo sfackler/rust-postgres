@@ -24,6 +24,9 @@ pub mod types;
 /// A Postgres OID.
 pub type Oid = u32;
 
+/// A Postgres Log Sequence Number (LSN).
+pub type Lsn = u64;
+
 /// An enum indicating if a value is `NULL` or not.
 pub enum IsNull {
     /// The value is `NULL`.
