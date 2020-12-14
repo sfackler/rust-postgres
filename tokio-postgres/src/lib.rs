@@ -159,6 +159,7 @@ mod connect_raw;
 mod connect_socket;
 mod connect_tls;
 mod connection;
+mod copy_both;
 mod copy_in;
 mod copy_out;
 pub mod error;
@@ -168,6 +169,7 @@ mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
+pub mod replication;
 pub mod row;
 mod simple_query;
 #[cfg(feature = "runtime")]

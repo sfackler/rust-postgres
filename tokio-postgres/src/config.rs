@@ -57,6 +57,16 @@ pub enum ChannelBinding {
     Require,
 }
 
+/// Replication mode configuration.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ReplicationMode {
+    /// Physical replication.
+    Physical,
+    /// Logical replication.
+    Logical,
+}
+
 /// A host specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Host {
@@ -164,6 +174,7 @@ pub struct Config {
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) replication_mode: Option<ReplicationMode>,
 }
 
 impl Default for Config {
@@ -194,6 +205,7 @@ impl Config {
             keepalive_config,
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            replication_mode: None,
         }
     }
 
@@ -424,6 +436,17 @@ impl Config {
         self.channel_binding
     }
 
+    /// Set replication mode.
+    pub fn replication_mode(&mut self, replication_mode: ReplicationMode) -> &mut Config {
+        self.replication_mode = Some(replication_mode);
+        self
+    }
+
+    /// Get replication mode.
+    pub fn get_replication_mode(&self) -> Option<ReplicationMode> {
+        self.replication_mode
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -527,6 +550,17 @@ impl Config {
                 };
                 self.channel_binding(channel_binding);
             }
+            "replication" => {
+                let mode = match value {
+                    "off" => None,
+                    "true" => Some(ReplicationMode::Physical),
+                    "database" => Some(ReplicationMode::Logical),
+                    _ => return Err(Error::config_parse(Box::new(InvalidValue("replication")))),
+                };
+                if let Some(mode) = mode {
+                    self.replication_mode(mode);
+                }
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -601,6 +635,7 @@ impl fmt::Debug for Config {
             .field("keepalives_retries", &self.keepalive_config.retries)
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
+            .field("replication", &self.replication_mode)
             .finish()
     }
 }

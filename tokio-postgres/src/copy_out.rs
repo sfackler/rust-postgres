@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{query, slice_iter, Error, Statement};
+use crate::{query, simple_query, slice_iter, Error, Statement};
 use bytes::Bytes;
 use futures_util::{ready, Stream};
 use log::debug;
@@ -11,23 +11,36 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
-    debug!("executing copy out statement {}", statement.name());
+pub async fn copy_out_simple(client: &InnerClient, query: &str) -> Result<CopyOutStream, Error> {
+    debug!("executing copy out query {}", query);
 
-    let buf = query::encode(client, &statement, slice_iter(&[]))?;
-    let responses = start(client, buf).await?;
+    let buf = simple_query::encode(client, query)?;
+    let responses = start(client, buf, true).await?;
     Ok(CopyOutStream {
         responses,
         _p: PhantomPinned,
     })
 }
 
-async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
+pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
+    debug!("executing copy out statement {}", statement.name());
+
+    let buf = query::encode(client, &statement, slice_iter(&[]))?;
+    let responses = start(client, buf, false).await?;
+    Ok(CopyOutStream {
+        responses,
+        _p: PhantomPinned,
+    })
+}
+
+async fn start(client: &InnerClient, buf: Bytes, simple: bool) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-    match responses.next().await? {
-        Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+    if !simple {
+        match responses.next().await? {
+            Message::BindComplete => {}
+            _ => return Err(Error::unexpected_message()),
+        }
     }
 
     match responses.next().await? {
