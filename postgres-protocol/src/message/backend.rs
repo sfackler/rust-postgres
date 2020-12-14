@@ -11,6 +11,7 @@ use std::str;
 
 use crate::Oid;
 
+// top-level message tags
 pub const PARSE_COMPLETE_TAG: u8 = b'1';
 pub const BIND_COMPLETE_TAG: u8 = b'2';
 pub const CLOSE_COMPLETE_TAG: u8 = b'3';
@@ -22,6 +23,7 @@ pub const DATA_ROW_TAG: u8 = b'D';
 pub const ERROR_RESPONSE_TAG: u8 = b'E';
 pub const COPY_IN_RESPONSE_TAG: u8 = b'G';
 pub const COPY_OUT_RESPONSE_TAG: u8 = b'H';
+pub const COPY_BOTH_RESPONSE_TAG: u8 = b'W';
 pub const EMPTY_QUERY_RESPONSE_TAG: u8 = b'I';
 pub const BACKEND_KEY_DATA_TAG: u8 = b'K';
 pub const NO_DATA_TAG: u8 = b'n';
@@ -32,6 +34,10 @@ pub const PARAMETER_STATUS_TAG: u8 = b'S';
 pub const PARAMETER_DESCRIPTION_TAG: u8 = b't';
 pub const ROW_DESCRIPTION_TAG: u8 = b'T';
 pub const READY_FOR_QUERY_TAG: u8 = b'Z';
+
+// replication message tags
+pub const XLOG_DATA_TAG: u8 = b'w';
+pub const PRIMARY_KEEPALIVE_TAG: u8 = b'k';
 
 #[derive(Debug, Copy, Clone)]
 pub struct Header {
@@ -93,6 +99,7 @@ pub enum Message {
     CopyDone,
     CopyInResponse(CopyInResponseBody),
     CopyOutResponse(CopyOutResponseBody),
+    CopyBothResponse(CopyBothResponseBody),
     DataRow(DataRowBody),
     EmptyQueryResponse,
     ErrorResponse(ErrorResponseBody),
@@ -190,6 +197,16 @@ impl Message {
                     storage,
                 })
             }
+            COPY_BOTH_RESPONSE_TAG => {
+                let format = buf.read_u8()?;
+                let len = buf.read_u16::<BigEndian>()?;
+                let storage = buf.read_all();
+                Message::CopyBothResponse(CopyBothResponseBody {
+                    format,
+                    len,
+                    storage,
+                })
+            }
             EMPTY_QUERY_RESPONSE_TAG => Message::EmptyQueryResponse,
             BACKEND_KEY_DATA_TAG => {
                 let process_id = buf.read_i32::<BigEndian>()?;
@@ -275,6 +292,57 @@ impl Message {
         }
 
         Ok(Some(message))
+    }
+}
+
+/// An enum representing Postgres backend replication messages.
+#[non_exhaustive]
+pub enum ReplicationMessage {
+    XLogData(XLogDataBody),
+    PrimaryKeepAlive(PrimaryKeepAliveBody),
+}
+
+impl ReplicationMessage {
+    pub fn parse(bytes: &Bytes) -> io::Result<ReplicationMessage> {
+        let mut buf = Buffer {
+            bytes: bytes.clone(),
+            idx: 0,
+        };
+
+        let tag = buf.read_u8()?;
+
+        let replication_message = match tag {
+            XLOG_DATA_TAG => {
+                let wal_start = buf.read_u64::<BigEndian>()?;
+                let wal_end = buf.read_u64::<BigEndian>()?;
+                let timestamp = buf.read_i64::<BigEndian>()?;
+                let storage = buf.read_all();
+                ReplicationMessage::XLogData(XLogDataBody {
+                    wal_start,
+                    wal_end,
+                    timestamp,
+                    storage,
+                })
+            }
+            PRIMARY_KEEPALIVE_TAG => {
+                let wal_end = buf.read_u64::<BigEndian>()?;
+                let timestamp = buf.read_i64::<BigEndian>()?;
+                let reply = buf.read_u8()?;
+                ReplicationMessage::PrimaryKeepAlive(PrimaryKeepAliveBody {
+                    wal_end,
+                    timestamp,
+                    reply,
+                })
+            }
+            tag => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("unknown replication message tag `{}`", tag),
+                ));
+            }
+        };
+
+        Ok(replication_message)
     }
 }
 
@@ -510,6 +578,27 @@ pub struct CopyOutResponseBody {
 }
 
 impl CopyOutResponseBody {
+    #[inline]
+    pub fn format(&self) -> u8 {
+        self.format
+    }
+
+    #[inline]
+    pub fn column_formats(&self) -> ColumnFormats<'_> {
+        ColumnFormats {
+            remaining: self.len,
+            buf: &self.storage,
+        }
+    }
+}
+
+pub struct CopyBothResponseBody {
+    storage: Bytes,
+    len: u16,
+    format: u8,
+}
+
+impl CopyBothResponseBody {
     #[inline]
     pub fn format(&self) -> u8 {
         self.format
@@ -773,6 +862,63 @@ impl RowDescriptionBody {
             buf: &self.storage,
             remaining: self.len,
         }
+    }
+}
+
+pub struct XLogDataBody {
+    wal_start: u64,
+    wal_end: u64,
+    timestamp: i64,
+    storage: Bytes,
+}
+
+impl XLogDataBody {
+    #[inline]
+    pub fn wal_start(&self) -> u64 {
+        self.wal_start
+    }
+
+    #[inline]
+    pub fn wal_end(&self) -> u64 {
+        self.wal_end
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        &self.storage
+    }
+
+    #[inline]
+    pub fn into_bytes(self) -> Bytes {
+        self.storage
+    }
+}
+
+pub struct PrimaryKeepAliveBody {
+    wal_end: u64,
+    timestamp: i64,
+    reply: u8,
+}
+
+impl PrimaryKeepAliveBody {
+    #[inline]
+    pub fn wal_end(&self) -> u64 {
+        self.wal_end
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    #[inline]
+    pub fn reply(&self) -> u8 {
+        self.reply
     }
 }
 
