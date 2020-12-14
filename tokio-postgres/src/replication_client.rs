@@ -1,16 +1,16 @@
-use crate::client::{InnerClient, Responses};
+use crate::client::Responses;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{Lsn, Type};
 use crate::{simple_query, Client, Error};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
 use pin_project::{pin_project, pinned_drop};
 use postgres_protocol::escape::{escape_identifier, escape_literal};
 use postgres_protocol::message::backend::{Message, ReplicationMessage};
 use postgres_protocol::message::frontend;
-use std::marker::{PhantomData, PhantomPinned};
+use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::str::from_utf8;
 use std::task::{Context, Poll};
@@ -111,7 +111,6 @@ impl ReplicationClient {
 impl ReplicationClient {
     /// IDENTIFY_SYSTEM message
     pub async fn identify_system(&mut self) -> Result<IdentifySystem, Error> {
-        let iclient = self.client.inner();
         let command = "IDENTIFY_SYSTEM";
         let mut responses = self.send(command).await?;
         let rowdesc = match responses.next().await? {
@@ -164,7 +163,6 @@ impl ReplicationClient {
 
     /// show the value of the given setting
     pub async fn show(&mut self, name: &str) -> Result<String, Error> {
-        let iclient = self.client.inner();
         let command = format!("SHOW {}", escape_identifier(name));
         let mut responses = self.send(&command).await?;
         let rowdesc = match responses.next().await? {
@@ -198,7 +196,6 @@ impl ReplicationClient {
 
     /// show the value of the given setting
     pub async fn timeline_history(&mut self, timeline_id: u32) -> Result<TimelineHistory, Error> {
-        let iclient = self.client.inner();
         let command = format!("TIMELINE_HISTORY {}", timeline_id);
         let mut responses = self.send(&command).await?;
 
@@ -247,7 +244,6 @@ impl ReplicationClient {
         temporary: bool,
         reserve_wal: bool
     ) -> Result<CreateReplicationSlotResponse, Error> {
-        let iclient = self.client.inner();
         let temporary_str = if temporary { " TEMPORARY" } else { "" };
         let reserve_wal_str = if reserve_wal { " RESERVE_WAL" } else { "" };
         let command = format!("CREATE_REPLICATION_SLOT {}{} PHYSICAL{}",
@@ -303,7 +299,6 @@ impl ReplicationClient {
         plugin_name: &str,
         snapshot_mode: Option<SnapshotMode>,
     ) -> Result<CreateReplicationSlotResponse, Error> {
-        let iclient = self.client.inner();
         let temporary_str = if temporary { " TEMPORARY" } else { "" };
         let snapshot_str =  snapshot_mode.map_or("", |mode| {
             match mode {
@@ -360,7 +355,6 @@ impl ReplicationClient {
 
     /// Drop replication slot
     pub async fn drop_replication_slot(&mut self, slot_name: &str, wait: bool) -> Result<(), Error> {
-        let iclient = self.client.inner();
         let wait_str = if wait { " WAIT" } else { "" };
         let command = format!("DROP_REPLICATION_SLOT {}{}", escape_identifier(slot_name), wait_str);
         let _ = self.send(&command).await?;
@@ -377,7 +371,6 @@ impl ReplicationClient {
         lsn: Lsn,
         timeline_id: Option<u32>,
     ) -> Result<Pin<Box<ReplicationStream<'a>>>, Error> {
-        let iclient = self.client.inner();
         let slot = match slot_name {
             Some(name) => format!(" SLOT {}", escape_identifier(name)),
             None => String::from(""),
@@ -477,7 +470,6 @@ impl ReplicationClient {
     }
 
     async fn start_replication(&mut self, command: String) -> Result<(), Error> {
-        let iclient = self.client.inner();
         let mut responses = self.send(&command).await?;
 
         match responses.next().await? {
