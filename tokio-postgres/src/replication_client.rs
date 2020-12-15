@@ -480,14 +480,15 @@ impl ReplicationClient {
         }))
     }
 
-    fn end_replication(&mut self) {
+    fn send_copydone(&mut self) -> Result<(), Error> {
         if self.replication_stream_active {
             let iclient = self.client.inner();
             let mut buf = BytesMut::new();
             frontend::copy_done(&mut buf);
-            iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze()))).unwrap();
+            iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
             self.replication_stream_active = false;
         }
+        Ok(())
     }
 }
 
@@ -505,7 +506,7 @@ impl ReplicationStream<'_> {
     pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<(), Error> {
         let this = self.as_mut().project();
 
-        this.rclient.end_replication();
+        this.rclient.send_copydone()?;
         let responses = this.responses;
 
         // drain remaining CopyData messages and CopyDone
@@ -556,6 +557,6 @@ impl Stream for ReplicationStream<'_> {
 impl PinnedDrop for ReplicationStream<'_> {
     fn drop(mut self: Pin<&mut Self>) {
         let this = self.project();
-        this.rclient.end_replication();
+        this.rclient.send_copydone().unwrap();
     }
 }
