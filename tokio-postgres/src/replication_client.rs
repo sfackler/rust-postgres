@@ -148,7 +148,62 @@ impl CreateReplicationSlotResponse {
 /// ```
 ///
 /// # Logical Replication Client Example
+///
+/// This example requires the [wal2json
+/// extension](https://github.com/eulerto/wal2json).
+///
 /// ```no_run
+/// extern crate tokio;
+///
+/// use postgres_protocol::message::backend::ReplicationMessage;
+/// use tokio::stream::StreamExt;
+/// use tokio_postgres::{connect_replication, Error, NoTls, ReplicationMode};
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Error> {
+///     let conninfo = "host=/tmp user=postgres dbname=postgres";
+///
+///     // form replication connection
+///     let (mut rclient, rconnection) =
+///         connect_replication(conninfo, NoTls, ReplicationMode::Logical).await?;
+///
+///     // spawn connection to run on its own
+///     tokio::spawn(async move {
+///         if let Err(e) = rconnection.await {
+///             eprintln!("connection error: {}", e);
+///         }
+///     });
+///
+///     let identify_system = rclient.identify_system().await?;
+///
+///     let slot = "my_slot";
+///     let plugin = "wal2json";
+///     let options = &vec![("pretty-print", "1")];
+///
+///     let _slotdesc = rclient
+///         .create_logical_replication_slot(slot, false, plugin, None)
+///         .await?;
+///
+///     let mut physical_stream = rclient
+///         .start_logical_replication(slot, identify_system.xlogpos(), options)
+///         .await?;
+///
+///     while let Some(replication_message) = physical_stream.next().await {
+///         match replication_message? {
+///             ReplicationMessage::XLogData(xlog_data) => {
+///                 eprintln!("received XLogData: {:#?}", xlog_data);
+///                 let json = std::str::from_utf8(xlog_data.data()).unwrap();
+///                 eprintln!("JSON text: {}", json);
+///             }
+///             ReplicationMessage::PrimaryKeepAlive(keepalive) => {
+///                 eprintln!("received PrimaryKeepAlive: {:#?}", keepalive);
+///             }
+///             _ => (),
+///         }
+///     }
+///
+///     Ok(())
+/// }
 /// ```
 ///
 /// # Caveats
