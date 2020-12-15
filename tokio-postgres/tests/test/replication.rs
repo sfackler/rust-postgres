@@ -1,8 +1,8 @@
 use postgres_protocol::message::backend::ReplicationMessage;
 use tokio::stream::StreamExt;
-use tokio_postgres::{connect, connect_replication, NoTls, ReplicationMode};
 use tokio_postgres::Client;
 use tokio_postgres::ReplicationClient;
+use tokio_postgres::{connect, connect_replication, NoTls, ReplicationMode};
 
 const LOGICAL_BEGIN_TAG: u8 = b'B';
 const LOGICAL_COMMIT_TAG: u8 = b'C';
@@ -21,14 +21,20 @@ const LOGICAL_INSERT_TAG: u8 = b'I';
 async fn physical_replication() {
     let (sclient, mut rclient) = setup(ReplicationMode::Physical).await;
 
+    simple_exec(&sclient, "drop table if exists test_physical_replication").await;
+    simple_exec(&sclient, "create table test_physical_replication(i int)").await;
+
     let identify_system = rclient.identify_system().await.unwrap();
     assert_eq!(identify_system.dbname(), None);
-    //let show_port = rclient.show("port").await.unwrap();
-    //assert_eq!(show_port, "5433");
+    let show_port = rclient.show("port").await.unwrap();
+    assert_eq!(show_port, "5433");
 
     let slot = "test_physical_slot";
     let _ = rclient.drop_replication_slot(slot, false).await.unwrap();
-    let slotdesc = rclient.create_physical_replication_slot(slot, false, false).await.unwrap();
+    let slotdesc = rclient
+        .create_physical_replication_slot(slot, false, false)
+        .await
+        .unwrap();
     assert_eq!(slotdesc.slot_name(), slot);
     assert_eq!(slotdesc.snapshot_name(), None);
     assert_eq!(slotdesc.output_plugin(), None);
@@ -53,10 +59,13 @@ async fn physical_replication() {
 
     assert!(got_xlogdata);
 
-    drop(physical_stream);
+    let _ = physical_stream.stop_replication().await.unwrap();
+
+    // repeat simple command after stream is ended
     let show_port = rclient.show("port").await.unwrap();
     assert_eq!(show_port, "5433");
-    cleanup(sclient).await;
+
+    simple_exec(&sclient, "drop table if exists test_physical_replication").await;
 }
 
 // test for:
@@ -67,19 +76,34 @@ async fn physical_replication() {
 async fn logical_replication() {
     let (sclient, mut rclient) = setup(ReplicationMode::Logical).await;
 
+    simple_exec(&sclient, "drop table if exists test_logical_replication").await;
+    simple_exec(&sclient, "drop publication if exists test_logical_pub").await;
+    simple_exec(&sclient, "create table test_logical_replication(i int)").await;
+    simple_exec(
+        &sclient,
+        "create publication test_logical_pub for table test_logical_replication",
+    )
+    .await;
+
     let identify_system = rclient.identify_system().await.unwrap();
     assert_eq!(identify_system.dbname().unwrap(), "postgres");
 
     let slot = "test_logical_slot";
     let plugin = "pgoutput";
     let _ = rclient.drop_replication_slot(slot, false).await.unwrap();
-    let slotdesc = rclient.create_logical_replication_slot(slot, false, plugin, None).await.unwrap();
+    let slotdesc = rclient
+        .create_logical_replication_slot(slot, false, plugin, None)
+        .await
+        .unwrap();
     assert_eq!(slotdesc.slot_name(), slot);
     assert!(slotdesc.snapshot_name().is_some());
     assert_eq!(slotdesc.output_plugin(), Some(plugin));
 
     let xlog_start = identify_system.xlogpos();
-    let options = &vec![("proto_version","1"), ("publication_names", "test_logical_pub")];
+    let options = &vec![
+        ("proto_version", "1"),
+        ("publication_names", "test_logical_pub"),
+    ];
 
     let mut logical_stream = rclient
         .start_logical_replication(slot, xlog_start, options)
@@ -116,7 +140,7 @@ async fn logical_replication() {
                     got_commit = true;
                     break;
                 }
-                _ => ()
+                _ => (),
             }
         }
     }
@@ -125,15 +149,57 @@ async fn logical_replication() {
     assert!(got_insert);
     assert!(got_commit);
 
-    cleanup(sclient).await;
+    simple_exec(&sclient, "drop table if exists test_logical_replication").await;
+    simple_exec(&sclient, "drop publication if exists test_logical_pub").await;
 }
 
 // test for base backup
 #[tokio::test]
-async fn base_backup() {
-    let (sclient, _rclient) = setup(ReplicationMode::Physical).await;
+async fn base_backup() {}
 
-    cleanup(sclient).await;
+// Test that a dropped replication stream properly returns to normal
+// command processing in the ReplicationClient.
+//
+// This test will fail on PostgreSQL server versions earlier than the
+// following patch versions: 13.2, 12.6, 11.11, 10.16, 9.6.21,
+// 9.5.25. In earlier server versions, there's a bug that prevents
+// pipelining requests after the client sends a CopyDone message, but
+// before the server replies with a CommandComplete.
+//
+// Disabled until the patch is more widely available.
+// #[tokio::test]
+#[allow(dead_code)]
+async fn drop_replication_stream() {
+    let (sclient, mut rclient) = setup(ReplicationMode::Physical).await;
+
+    simple_exec(&sclient, "drop table if exists test_drop_stream").await;
+    simple_exec(&sclient, "create table test_drop_stream(i int)").await;
+
+    let identify_system = rclient.identify_system().await.unwrap();
+    assert_eq!(identify_system.dbname(), None);
+
+    let mut physical_stream = rclient
+        .start_physical_replication(None, identify_system.xlogpos(), None)
+        .await
+        .unwrap();
+
+    let mut got_xlogdata = false;
+    while let Some(replication_message) = physical_stream.next().await {
+        if let ReplicationMessage::XLogData(_) = replication_message.unwrap() {
+            got_xlogdata = true;
+            break;
+        }
+    }
+
+    assert!(got_xlogdata);
+
+    drop(physical_stream);
+
+    // test that simple command completes after replication stream is dropped
+    let show_port = rclient.show("port").await.unwrap();
+    assert_eq!(show_port, "5433");
+
+    simple_exec(&sclient, "drop table if exists test_drop_stream").await;
 }
 
 async fn setup(mode: ReplicationMode) -> (Client, ReplicationClient) {
@@ -148,56 +214,16 @@ async fn setup(mode: ReplicationMode) -> (Client, ReplicationClient) {
     });
 
     // form replication connection
-    let (rclient, rconnection) = connect_replication(conninfo, NoTls, mode)
-        .await
-        .unwrap();
+    let (rclient, rconnection) = connect_replication(conninfo, NoTls, mode).await.unwrap();
     tokio::spawn(async move {
         if let Err(e) = rconnection.await {
             eprintln!("connection error: {}", e);
         }
     });
 
-    let _nrows = sclient
-        .execute("drop table if exists test_physical_replication", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("drop table if exists test_logical_replication", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("drop publication if exists test_logical_pub", &[])
-        .await
-        .unwrap();
-
-    // set up for new test
-    let _nrows = sclient
-        .execute("create table test_physical_replication(i int)", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("create table test_logical_replication(i int)", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("create publication test_logical_pub for table test_logical_replication", &[])
-        .await
-        .unwrap();
-
     (sclient, rclient)
 }
 
-async fn cleanup(sclient: Client) {
-    let _nrows = sclient
-        .execute("drop table test_physical_replication", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("drop table test_logical_replication", &[])
-        .await
-        .unwrap();
-    let _nrows = sclient
-        .execute("drop publication test_logical_pub", &[])
-        .await
-        .unwrap();
+async fn simple_exec(sclient: &Client, command: &str) {
+    let _nrows = sclient.execute(command, &[]).await.unwrap();
 }

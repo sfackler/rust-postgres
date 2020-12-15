@@ -1,8 +1,6 @@
-
 /// Note: it is recommended that you upgrade your server to the latest
 /// patch version to fix a protocol implementation bug. Use at least
 /// versions: 13.2, 12.6, 11.11, 10.16, 9.6.21, 9.5.25.
-
 use crate::client::Responses;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
@@ -247,14 +245,16 @@ impl ReplicationClient {
         &mut self,
         slot_name: &str,
         temporary: bool,
-        reserve_wal: bool
+        reserve_wal: bool,
     ) -> Result<CreateReplicationSlotResponse, Error> {
         let temporary_str = if temporary { " TEMPORARY" } else { "" };
         let reserve_wal_str = if reserve_wal { " RESERVE_WAL" } else { "" };
-        let command = format!("CREATE_REPLICATION_SLOT {}{} PHYSICAL{}",
-                              escape_identifier(slot_name),
-                              temporary_str,
-                              reserve_wal_str);
+        let command = format!(
+            "CREATE_REPLICATION_SLOT {}{} PHYSICAL{}",
+            escape_identifier(slot_name),
+            temporary_str,
+            reserve_wal_str
+        );
         let mut responses = self.send(&command).await?;
 
         let rowdesc = match responses.next().await? {
@@ -305,18 +305,18 @@ impl ReplicationClient {
         snapshot_mode: Option<SnapshotMode>,
     ) -> Result<CreateReplicationSlotResponse, Error> {
         let temporary_str = if temporary { " TEMPORARY" } else { "" };
-        let snapshot_str =  snapshot_mode.map_or("", |mode| {
-            match mode {
-                SnapshotMode::ExportSnapshot => " EXPORT_SNAPSHOT",
-                SnapshotMode::NoExportSnapshot => " NOEXPORT_SNAPSHOT",
-                SnapshotMode::UseSnapshot => " USE_SNAPSHOT",
-            }
+        let snapshot_str = snapshot_mode.map_or("", |mode| match mode {
+            SnapshotMode::ExportSnapshot => " EXPORT_SNAPSHOT",
+            SnapshotMode::NoExportSnapshot => " NOEXPORT_SNAPSHOT",
+            SnapshotMode::UseSnapshot => " USE_SNAPSHOT",
         });
-        let command = format!("CREATE_REPLICATION_SLOT {}{} LOGICAL {}{}",
-                              escape_identifier(slot_name),
-                              temporary_str,
-                              escape_identifier(plugin_name),
-                              snapshot_str);
+        let command = format!(
+            "CREATE_REPLICATION_SLOT {}{} LOGICAL {}{}",
+            escape_identifier(slot_name),
+            temporary_str,
+            escape_identifier(plugin_name),
+            snapshot_str
+        );
         let mut responses = self.send(&command).await?;
 
         let rowdesc = match responses.next().await? {
@@ -359,9 +359,17 @@ impl ReplicationClient {
     }
 
     /// Drop replication slot
-    pub async fn drop_replication_slot(&mut self, slot_name: &str, wait: bool) -> Result<(), Error> {
+    pub async fn drop_replication_slot(
+        &mut self,
+        slot_name: &str,
+        wait: bool,
+    ) -> Result<(), Error> {
         let wait_str = if wait { " WAIT" } else { "" };
-        let command = format!("DROP_REPLICATION_SLOT {}{}", escape_identifier(slot_name), wait_str);
+        let command = format!(
+            "DROP_REPLICATION_SLOT {}{}",
+            escape_identifier(slot_name),
+            wait_str
+        );
         let _ = self.send(&command).await?;
         Ok(())
     }
@@ -463,7 +471,7 @@ impl ReplicationClient {
 
     async fn start_replication<'a>(
         &'a mut self,
-        command: String
+        command: String,
     ) -> Result<Pin<Box<ReplicationStream<'a>>>, Error> {
         let mut responses = self.send(&command).await?;
         self.replication_stream_active = true;
@@ -485,7 +493,8 @@ impl ReplicationClient {
             let iclient = self.client.inner();
             let mut buf = BytesMut::new();
             frontend::copy_done(&mut buf);
-            iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
+            iclient
+                .unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
             self.replication_stream_active = false;
         }
         Ok(())
