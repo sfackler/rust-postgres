@@ -70,7 +70,10 @@ pub struct InnerClient {
 impl InnerClient {
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
-        let request = Request { messages: messages, sender: Some(sender) };
+        let request = Request {
+            messages: messages,
+            sender: Some(sender),
+        };
         self.sender
             .unbounded_send(request)
             .map_err(|_| Error::closed())?;
@@ -86,7 +89,10 @@ impl InnerClient {
     // mode (i.e. streaming replication), where the client may send a
     // new message that is part of the existing request.
     pub fn unpipelined_send(&self, messages: RequestMessages) -> Result<(), Error> {
-        let request = Request { messages: messages, sender: None };
+        let request = Request {
+            messages: messages,
+            sender: None,
+        };
         self.sender
             .unbounded_send(request)
             .map_err(|_| Error::closed())?;

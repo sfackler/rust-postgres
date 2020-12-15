@@ -184,9 +184,7 @@ where
             Poll::Ready(Some(request)) => {
                 trace!("polled new request");
                 if let Some(sender) = request.sender {
-                    self.responses.push_back(Response {
-                        sender: sender,
-                    });
+                    self.responses.push_back(Response { sender: sender });
                 }
                 Poll::Ready(Some(request.messages))
             }
