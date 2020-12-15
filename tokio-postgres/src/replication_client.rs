@@ -1,3 +1,8 @@
+
+/// Note: it is recommended that you upgrade your server to the latest
+/// patch version to fix a protocol implementation bug. Use at least
+/// versions: 13.2, 12.6, 11.11, 10.16, 9.6.21, 9.5.25.
+
 use crate::client::Responses;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
@@ -96,14 +101,14 @@ impl CreateReplicationSlotResponse {
 /// streaming, and send status updates to the server.
 pub struct ReplicationClient {
     client: Client,
-    replication_stream_responses: Option<Responses>,
+    replication_stream_active: bool,
 }
 
 impl ReplicationClient {
     pub fn new(client: Client) -> ReplicationClient {
         ReplicationClient {
             client: client,
-            replication_stream_responses: None,
+            replication_stream_active: false,
         }
     }
 }
@@ -386,12 +391,7 @@ impl ReplicationClient {
             timeline
         );
 
-        self.start_replication(command).await?;
-
-        Ok(Box::pin(ReplicationStream {
-            rclient: self,
-            _phantom_pinned: PhantomPinned,
-        }))
+        Ok(self.start_replication(command).await?)
     }
 
     /// Begin logical replication, consuming the replication client and producing a replication stream.
@@ -425,12 +425,7 @@ impl ReplicationClient {
             options_string
         );
 
-        self.start_replication(command).await?;
-
-        Ok(Box::pin(ReplicationStream {
-            rclient: self,
-            _phantom_pinned: PhantomPinned,
-        }))
+        Ok(self.start_replication(command).await?)
     }
 
     /// Send update to server.
@@ -460,29 +455,58 @@ impl ReplicationClient {
 
     // send command to the server, but finish any unfinished replication stream, first
     async fn send(&mut self, command: &str) -> Result<Responses, Error> {
-        if self.replication_stream_responses.is_some() {
-            self.finish_replication().await?;
-        }
         let iclient = self.client.inner();
         let buf = simple_query::encode(iclient, command)?;
         let responses = iclient.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
         Ok(responses)
     }
 
-    async fn start_replication(&mut self, command: String) -> Result<(), Error> {
+    async fn start_replication<'a>(
+        &'a mut self,
+        command: String
+    ) -> Result<Pin<Box<ReplicationStream<'a>>>, Error> {
         let mut responses = self.send(&command).await?;
+        self.replication_stream_active = true;
 
         match responses.next().await? {
             Message::CopyBothResponse(_) => {}
             m => return Err(Error::unexpected_message(m)),
         }
 
-        self.replication_stream_responses = Some(responses);
-        Ok(())
+        Ok(Box::pin(ReplicationStream {
+            rclient: self,
+            responses: responses,
+            _phantom_pinned: PhantomPinned,
+        }))
     }
 
-    async fn finish_replication(&mut self) -> Result<(), Error> {
-        let responses = self.replication_stream_responses.as_mut().unwrap();
+    fn end_replication(&mut self) {
+        if self.replication_stream_active {
+            let iclient = self.client.inner();
+            let mut buf = BytesMut::new();
+            frontend::copy_done(&mut buf);
+            iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze()))).unwrap();
+            self.replication_stream_active = false;
+        }
+    }
+}
+
+/// A stream of `START_REPLICATION` query data.
+#[pin_project(PinnedDrop)]
+pub struct ReplicationStream<'a> {
+    rclient: &'a mut ReplicationClient,
+    responses: Responses,
+    #[pin]
+    _phantom_pinned: PhantomPinned,
+}
+
+impl ReplicationStream<'_> {
+    /// Stop replication stream and return the replication client object.
+    pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<(), Error> {
+        let this = self.as_mut().project();
+
+        this.rclient.end_replication();
+        let responses = this.responses;
 
         // drain remaining CopyData messages and CopyDone
         loop {
@@ -506,34 +530,7 @@ impl ReplicationClient {
             m => return Err(Error::unexpected_message(m)),
         };
 
-        self.replication_stream_responses = None;
-
         Ok(())
-    }
-
-    fn replication_done(&mut self) {
-        let iclient = self.client.inner();
-        let mut buf = BytesMut::new();
-        frontend::copy_done(&mut buf);
-        iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze()))).unwrap();
-    }
-}
-
-/// A stream of `START_REPLICATION` query data.
-#[pin_project(PinnedDrop)]
-pub struct ReplicationStream<'a> {
-    rclient: &'a mut ReplicationClient,
-    #[pin]
-    _phantom_pinned: PhantomPinned,
-}
-
-impl ReplicationStream<'_> {
-    /// Stop replication stream and return the replication client object.
-    pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<(), Error> {
-        let this = self.as_mut().project();
-        this.rclient.replication_done();
-
-        Ok(this.rclient.finish_replication().await?)
     }
 }
 
@@ -542,9 +539,7 @@ impl Stream for ReplicationStream<'_> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-
-        // if stream is active, responses channel must exist
-        let responses = this.rclient.replication_stream_responses.as_mut().unwrap();
+        let responses = this.responses;
 
         match ready!(responses.poll_next(cx)?) {
             Message::CopyData(body) => {
@@ -559,11 +554,8 @@ impl Stream for ReplicationStream<'_> {
 
 #[pinned_drop]
 impl PinnedDrop for ReplicationStream<'_> {
-    fn drop(self: Pin<&mut Self>) {
+    fn drop(mut self: Pin<&mut Self>) {
         let this = self.project();
-        // dropped without calling ReplicationStream::stop_replication()
-        if this.rclient.replication_stream_responses.is_some() {
-            this.rclient.replication_done();
-        }
+        this.rclient.end_replication();
     }
 }
