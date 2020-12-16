@@ -126,7 +126,7 @@ pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
-pub use crate::replication_client::ReplicationClient;
+pub use crate::replication_client::{ReplicationClient, ReplicationStream};
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]

@@ -114,7 +114,7 @@ impl CreateReplicationSlotResponse {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-///     let conninfo = "host=/tmp user=postgres dbname=postgres";
+///     let conninfo = "host=localhost user=postgres dbname=postgres";
 ///
 ///     // form replication connection
 ///     let (mut rclient, rconnection) =
@@ -161,7 +161,7 @@ impl CreateReplicationSlotResponse {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-///     let conninfo = "host=/tmp user=postgres dbname=postgres";
+///     let conninfo = "host=localhost user=postgres dbname=postgres";
 ///
 ///     // form replication connection
 ///     let (mut rclient, rconnection) =
@@ -217,7 +217,7 @@ pub struct ReplicationClient {
 }
 
 impl ReplicationClient {
-    pub fn new(client: Client) -> ReplicationClient {
+    pub(crate) fn new(client: Client) -> ReplicationClient {
         ReplicationClient {
             client: client,
             replication_stream_active: false,
@@ -615,7 +615,9 @@ impl ReplicationClient {
     }
 }
 
-/// A stream of `START_REPLICATION` query data.
+/// A stream of data from a `START_REPLICATION` command.
+///
+/// Intended to be used with the [next()](tokio::stream::StreamExt::next) method.
 #[pin_project(PinnedDrop)]
 pub struct ReplicationStream<'a> {
     rclient: &'a mut ReplicationClient,
