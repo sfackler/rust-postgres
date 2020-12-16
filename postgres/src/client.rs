@@ -416,13 +416,11 @@ impl Client {
 
     /// Validates connection, timing out after specified duration.
     pub fn is_valid(&mut self, timeout: Duration) -> Result<(), Error> {
-        let is_valid = Client::is_valid_inner(&self.client, timeout);
-        self.connection.block_on(is_valid)
-    }
-
-    async fn is_valid_inner(client: &tokio_postgres::Client, timeout: Duration) -> Result<(), Error> {
-        let trivial_query = client.simple_query("");
-        tokio::time::timeout(timeout, trivial_query).await?.map(|_| ())
+        let inner_client = &self.client;
+        self.connection.block_on(async {
+            let trivial_query = inner_client.simple_query("");
+            tokio::time::timeout(timeout, trivial_query).await?.map(|_| ())
+        })
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.
