@@ -1,7 +1,7 @@
 use postgres_protocol::message::backend::ReplicationMessage;
 use tokio::stream::StreamExt;
 use tokio_postgres::Client;
-use tokio_postgres::ReplicationClient;
+use tokio_postgres::replication_client::ReplicationClient;
 use tokio_postgres::{connect, connect_replication, NoTls, ReplicationMode};
 
 const LOGICAL_BEGIN_TAG: u8 = b'B';
@@ -59,7 +59,8 @@ async fn physical_replication() {
 
     assert!(got_xlogdata);
 
-    let _ = physical_stream.stop_replication().await.unwrap();
+    let response = physical_stream.stop_replication().await.unwrap();
+    assert!(response.is_none());
 
     // repeat simple command after stream is ended
     let show_port = rclient.show("port").await.unwrap();

@@ -147,18 +147,26 @@ pub struct IdentifySystem {
 }
 
 impl IdentifySystem {
+    /// The unique system identifier identifying the cluster. This can
+    /// be used to check that the base backup used to initialize the
+    /// standby came from the same cluster.
     pub fn systemid(&self) -> &str {
         &self.systemid
     }
 
+    /// Current timeline ID. Also useful to check that the standby is
+    /// consistent with the master.
     pub fn timeline(&self) -> u32 {
         self.timeline
     }
 
+    /// Current WAL flush location. Useful to get a known location in
+    /// the write-ahead log where streaming can start.
     pub fn xlogpos(&self) -> Lsn {
         self.xlogpos
     }
 
+    /// Database connected to or None.
     pub fn dbname(&self) -> Option<&str> {
         self.dbname.as_deref()
     }
@@ -172,10 +180,13 @@ pub struct TimelineHistory {
 }
 
 impl TimelineHistory {
+    /// File name of the timeline history file, e.g.,
+    /// 00000002.history.
     pub fn filename(&self) -> &Path {
         self.filename.as_path()
     }
 
+    /// Contents of the timeline history file.
     pub fn content(&self) -> &[u8] {
         self.content.as_slice()
     }
@@ -185,8 +196,16 @@ impl TimelineHistory {
 /// [create_logical_replication_slot()](ReplicationClient::create_logical_replication_slot).
 #[derive(Debug)]
 pub enum SnapshotMode {
+    /// Export the snapshot for use in other sessions. This option
+    /// can't be used inside a transaction.
     ExportSnapshot,
+    /// Use the snapshot for logical decoding as normal but won't do
+    /// anything else with it.
     NoExportSnapshot,
+    /// Use the snapshot for the current transaction executing the
+    /// command. This option must be used in a transaction, and
+    /// CREATE_REPLICATION_SLOT must be the first command run in that
+    /// transaction.
     UseSnapshot,
 }
 
@@ -203,20 +222,50 @@ pub struct CreateReplicationSlotResponse {
 }
 
 impl CreateReplicationSlotResponse {
+    /// The name of the newly-created replication slot.
     pub fn slot_name(&self) -> &str {
         &self.slot_name
     }
 
+    /// The WAL location at which the slot became consistent. This is
+    /// the earliest location from which streaming can start on this
+    /// replication slot.
     pub fn consistent_point(&self) -> Lsn {
         self.consistent_point
     }
 
+    /// The identifier of the snapshot exported by the command. The
+    /// snapshot is valid until a new command is executed on this
+    /// connection or the replication connection is closed. Null if
+    /// the created slot is physical.
     pub fn snapshot_name(&self) -> Option<&str> {
         self.snapshot_name.as_deref()
     }
 
+    /// The name of the output plugin used by the newly-created
+    /// replication slot. Null if the created slot is physical.
     pub fn output_plugin(&self) -> Option<&str> {
         self.output_plugin.as_deref()
+    }
+}
+
+/// Response sent after streaming from a timeline that is not the
+/// current timeline.
+#[derive(Debug)]
+pub struct ReplicationResponse {
+    next_tli: u64,
+    next_tli_startpos: Lsn,
+}
+
+impl ReplicationResponse {
+    /// next timeline's ID
+    pub fn next_tli(&self) -> u64 {
+        self.next_tli
+    }
+
+    /// WAL location where the switch happened
+    pub fn next_tli_startpos(&self) -> Lsn {
+        self.next_tli_startpos
     }
 }
 
@@ -404,6 +453,15 @@ impl ReplicationClient {
         let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
 
         assert_eq!(fields.len(), 4);
+        assert_eq!(fields[0].type_oid(), Type::TEXT.oid());
+        assert_eq!(fields[0].format(), 0);
+        assert_eq!(fields[1].type_oid(), Type::TEXT.oid());
+        assert_eq!(fields[1].format(), 0);
+        assert_eq!(fields[2].type_oid(), Type::TEXT.oid());
+        assert_eq!(fields[2].format(), 0);
+        assert_eq!(fields[3].type_oid(), Type::TEXT.oid());
+        assert_eq!(fields[3].format(), 0);
+        assert_eq!(ranges.len(), 4);
 
         let values: Vec<Option<&str>> = ranges
             .iter()
@@ -642,7 +700,7 @@ pub struct ReplicationStream<'a> {
 
 impl ReplicationStream<'_> {
     /// Stop replication stream and return the replication client object.
-    pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<(), Error> {
+    pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<Option<ReplicationResponse>, Error> {
         let this = self.as_mut().project();
 
         this.rclient.send_copydone()?;
@@ -657,10 +715,36 @@ impl ReplicationStream<'_> {
             }
         }
 
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
+        let next_message = responses.next().await?;
+
+        let response = match next_message {
+            Message::RowDescription(rowdesc) => {
+                let datarow = match responses.next().await? {
+                    Message::DataRow(m) => m,
+                    m => return Err(Error::unexpected_message(m)),
+                };
+
+                let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
+                let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
+
+                assert_eq!(fields.len(), 2);
+                assert_eq!(fields[0].type_oid(), Type::INT8.oid());
+                assert_eq!(fields[0].format(), 0);
+                assert_eq!(fields[1].type_oid(), Type::TEXT.oid());
+                assert_eq!(fields[1].format(), 0);
+                assert_eq!(ranges.len(), 2);
+
+                let timeline = &datarow.buffer()[ranges[0].to_owned().unwrap()];
+                let switch = &datarow.buffer()[ranges[1].to_owned().unwrap()];
+                Some(ReplicationResponse {
+                    next_tli: from_utf8(timeline).unwrap().parse::<u64>().unwrap(),
+                    next_tli_startpos: Lsn::from(from_utf8(switch).unwrap()),
+                })
+            }
+            Message::CommandComplete(_) => None,
             m => return Err(Error::unexpected_message(m)),
         };
+
         match responses.next().await? {
             Message::CommandComplete(_) => (),
             m => return Err(Error::unexpected_message(m)),
@@ -670,7 +754,7 @@ impl ReplicationStream<'_> {
             m => return Err(Error::unexpected_message(m)),
         };
 
-        Ok(())
+        Ok(response)
     }
 }
 
