@@ -1,3 +1,124 @@
+//! Streaming replication support.
+//!
+//! This module allows writing Postgres replication clients. A
+//! replication client forms a special connection to the server in
+//! either physical replication mode, which receives a stream of raw
+//! Write-Ahead Log (WAL) records; or logical replication mode, which
+//! receives a stream of data that depends on the output plugin
+//! selected. All data and control messages are exchanged in CopyData
+//! envelopes.
+//!
+//! See the [PostgreSQL protocol
+//! documentation](https://www.postgresql.org/docs/current/protocol-replication.html)
+//! for details of the protocol itself.
+//!
+//! # Physical Replication Client Example
+//! ```no_run
+//! extern crate tokio;
+//!
+//! use postgres_protocol::message::backend::ReplicationMessage;
+//! use tokio::stream::StreamExt;
+//! use tokio_postgres::{connect_replication, Error, NoTls, ReplicationMode};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Error> {
+//!     let conninfo = "host=localhost user=postgres dbname=postgres";
+//!
+//!     // form replication connection
+//!     let (mut rclient, rconnection) =
+//!         connect_replication(conninfo, NoTls, ReplicationMode::Physical).await?;
+//!     tokio::spawn(async move {
+//!         if let Err(e) = rconnection.await {
+//!             eprintln!("connection error: {}", e);
+//!         }
+//!     });
+//!
+//!     let identify_system = rclient.identify_system().await?;
+//!
+//!     let mut physical_stream = rclient
+//!         .start_physical_replication(None, identify_system.xlogpos(), None)
+//!         .await?;
+//!
+//!     while let Some(replication_message) = physical_stream.next().await {
+//!         match replication_message? {
+//!             ReplicationMessage::XLogData(xlog_data) => {
+//!                 eprintln!("received XLogData: {:#?}", xlog_data);
+//!             }
+//!             ReplicationMessage::PrimaryKeepAlive(keepalive) => {
+//!                 eprintln!("received PrimaryKeepAlive: {:#?}", keepalive);
+//!             }
+//!             _ => (),
+//!         }
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Logical Replication Client Example
+//!
+//! This example requires the [wal2json
+//! extension](https://github.com/eulerto/wal2json).
+//!
+//! ```no_run
+//! extern crate tokio;
+//!
+//! use postgres_protocol::message::backend::ReplicationMessage;
+//! use tokio::stream::StreamExt;
+//! use tokio_postgres::{connect_replication, Error, NoTls, ReplicationMode};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Error> {
+//!     let conninfo = "host=localhost user=postgres dbname=postgres";
+//!
+//!     // form replication connection
+//!     let (mut rclient, rconnection) =
+//!         connect_replication(conninfo, NoTls, ReplicationMode::Logical).await?;
+//!
+//!     // spawn connection to run on its own
+//!     tokio::spawn(async move {
+//!         if let Err(e) = rconnection.await {
+//!             eprintln!("connection error: {}", e);
+//!         }
+//!     });
+//!
+//!     let identify_system = rclient.identify_system().await?;
+//!
+//!     let slot = "my_slot";
+//!     let plugin = "wal2json";
+//!     let options = &vec![("pretty-print", "1")];
+//!
+//!     let _slotdesc = rclient
+//!         .create_logical_replication_slot(slot, false, plugin, None)
+//!         .await?;
+//!
+//!     let mut physical_stream = rclient
+//!         .start_logical_replication(slot, identify_system.xlogpos(), options)
+//!         .await?;
+//!
+//!     while let Some(replication_message) = physical_stream.next().await {
+//!         match replication_message? {
+//!             ReplicationMessage::XLogData(xlog_data) => {
+//!                 eprintln!("received XLogData: {:#?}", xlog_data);
+//!                 let json = std::str::from_utf8(xlog_data.data()).unwrap();
+//!                 eprintln!("JSON text: {}", json);
+//!             }
+//!             ReplicationMessage::PrimaryKeepAlive(keepalive) => {
+//!                 eprintln!("received PrimaryKeepAlive: {:#?}", keepalive);
+//!             }
+//!             _ => (),
+//!         }
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Caveats
+//!
+//! It is recommended that you use a PostgreSQL server patch version
+//! of at least: 14.0, 13.2, 12.6, 11.11, 10.16, 9.6.21, or 9.5.25.
+
 use crate::client::Responses;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
@@ -11,10 +132,12 @@ use postgres_protocol::escape::{escape_identifier, escape_literal};
 use postgres_protocol::message::backend::{Message, ReplicationMessage};
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::str::from_utf8;
 use std::task::{Context, Poll};
 
+/// Result of [identify_system()](ReplicationClient::identify_system()) call.
 #[derive(Debug)]
 pub struct IdentifySystem {
     systemid: String,
@@ -41,22 +164,25 @@ impl IdentifySystem {
     }
 }
 
+/// Result of [timeline_history()](ReplicationClient::timeline_history()) call.
 #[derive(Debug)]
 pub struct TimelineHistory {
-    filename: String,
-    content: String,
+    filename: PathBuf,
+    content: Vec<u8>,
 }
 
 impl TimelineHistory {
-    pub fn filename(&self) -> &str {
-        &self.filename
+    pub fn filename(&self) -> &Path {
+        self.filename.as_path()
     }
 
-    pub fn content(&self) -> &str {
-        &self.content
+    pub fn content(&self) -> &[u8] {
+        self.content.as_slice()
     }
 }
 
+/// Argument to
+/// [create_logical_replication_slot()](ReplicationClient::create_logical_replication_slot).
 #[derive(Debug)]
 pub enum SnapshotMode {
     ExportSnapshot,
@@ -64,6 +190,10 @@ pub enum SnapshotMode {
     UseSnapshot,
 }
 
+/// Description of slot created with
+/// [create_physical_replication_slot()](ReplicationClient::create_physical_replication_slot)
+/// or
+/// [create_logical_replication_slot()](ReplicationClient::create_logical_replication_slot).
 #[derive(Debug)]
 pub struct CreateReplicationSlotResponse {
     slot_name: String,
@@ -90,127 +220,7 @@ impl CreateReplicationSlotResponse {
     }
 }
 
-/// Streaming replication support.
-///
-/// This module allows writing Postgres replication clients. A
-/// replication client forms a special connection to the server in
-/// either physical replication mode, which receives a stream of raw
-/// Write-Ahead Log (WAL) records; or logical replication mode, which
-/// receives a stream of data that depends on the output plugin
-/// selected. All data and control messages are exchanged in CopyData
-/// envelopes.
-///
-/// See the [PostgreSQL protocol
-/// documentation](https://www.postgresql.org/docs/current/protocol-replication.html)
-/// for details of the protocol itself.
-///
-/// # Physical Replication Client Example
-/// ```no_run
-/// extern crate tokio;
-///
-/// use postgres_protocol::message::backend::ReplicationMessage;
-/// use tokio::stream::StreamExt;
-/// use tokio_postgres::{connect_replication, Error, NoTls, ReplicationMode};
-///
-/// #[tokio::main]
-/// async fn main() -> Result<(), Error> {
-///     let conninfo = "host=localhost user=postgres dbname=postgres";
-///
-///     // form replication connection
-///     let (mut rclient, rconnection) =
-///         connect_replication(conninfo, NoTls, ReplicationMode::Physical).await?;
-///     tokio::spawn(async move {
-///         if let Err(e) = rconnection.await {
-///             eprintln!("connection error: {}", e);
-///         }
-///     });
-///
-///     let identify_system = rclient.identify_system().await?;
-///
-///     let mut physical_stream = rclient
-///         .start_physical_replication(None, identify_system.xlogpos(), None)
-///         .await?;
-///
-///     while let Some(replication_message) = physical_stream.next().await {
-///         match replication_message? {
-///             ReplicationMessage::XLogData(xlog_data) => {
-///                 eprintln!("received XLogData: {:#?}", xlog_data);
-///             }
-///             ReplicationMessage::PrimaryKeepAlive(keepalive) => {
-///                 eprintln!("received PrimaryKeepAlive: {:#?}", keepalive);
-///             }
-///             _ => (),
-///         }
-///     }
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// # Logical Replication Client Example
-///
-/// This example requires the [wal2json
-/// extension](https://github.com/eulerto/wal2json).
-///
-/// ```no_run
-/// extern crate tokio;
-///
-/// use postgres_protocol::message::backend::ReplicationMessage;
-/// use tokio::stream::StreamExt;
-/// use tokio_postgres::{connect_replication, Error, NoTls, ReplicationMode};
-///
-/// #[tokio::main]
-/// async fn main() -> Result<(), Error> {
-///     let conninfo = "host=localhost user=postgres dbname=postgres";
-///
-///     // form replication connection
-///     let (mut rclient, rconnection) =
-///         connect_replication(conninfo, NoTls, ReplicationMode::Logical).await?;
-///
-///     // spawn connection to run on its own
-///     tokio::spawn(async move {
-///         if let Err(e) = rconnection.await {
-///             eprintln!("connection error: {}", e);
-///         }
-///     });
-///
-///     let identify_system = rclient.identify_system().await?;
-///
-///     let slot = "my_slot";
-///     let plugin = "wal2json";
-///     let options = &vec![("pretty-print", "1")];
-///
-///     let _slotdesc = rclient
-///         .create_logical_replication_slot(slot, false, plugin, None)
-///         .await?;
-///
-///     let mut physical_stream = rclient
-///         .start_logical_replication(slot, identify_system.xlogpos(), options)
-///         .await?;
-///
-///     while let Some(replication_message) = physical_stream.next().await {
-///         match replication_message? {
-///             ReplicationMessage::XLogData(xlog_data) => {
-///                 eprintln!("received XLogData: {:#?}", xlog_data);
-///                 let json = std::str::from_utf8(xlog_data.data()).unwrap();
-///                 eprintln!("JSON text: {}", json);
-///             }
-///             ReplicationMessage::PrimaryKeepAlive(keepalive) => {
-///                 eprintln!("received PrimaryKeepAlive: {:#?}", keepalive);
-///             }
-///             _ => (),
-///         }
-///     }
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// # Caveats
-///
-/// It is recommended that you upgrade your server to the latest
-/// patch version to fix a protocol implementation bug. Use at least
-/// versions: 13.2, 12.6, 11.11, 10.16, 9.6.21, 9.5.25.
+/// Represents a client connected in replication mode.
 pub struct ReplicationClient {
     client: Client,
     replication_stream_active: bool,
@@ -348,9 +358,11 @@ impl ReplicationClient {
         let filename = &datarow.buffer()[ranges[0].to_owned().unwrap()];
         let content = &datarow.buffer()[ranges[1].to_owned().unwrap()];
 
+        let filename_path = PathBuf::from(from_utf8(filename).unwrap());
+
         Ok(TimelineHistory {
-            filename: from_utf8(filename).unwrap().to_string(),
-            content: from_utf8(content).unwrap().to_string(),
+            filename: filename_path,
+            content: Vec::from(content),
         })
     }
 
@@ -615,7 +627,9 @@ impl ReplicationClient {
     }
 }
 
-/// A stream of data from a `START_REPLICATION` command.
+/// A stream of data from a `START_REPLICATION` command. All control
+/// and data messages will be in
+/// [CopyData](postgres_protocol::message::backend::Message::CopyData).
 ///
 /// Intended to be used with the [next()](tokio::stream::StreamExt::next) method.
 #[pin_project(PinnedDrop)]

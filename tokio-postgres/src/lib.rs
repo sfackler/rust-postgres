@@ -126,7 +126,7 @@ pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
-pub use crate::replication_client::{ReplicationClient, ReplicationStream};
+use crate::replication_client::ReplicationClient;
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
@@ -164,7 +164,7 @@ mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
-mod replication_client;
+pub mod replication_client;
 pub mod row;
 mod simple_query;
 #[cfg(feature = "runtime")]
