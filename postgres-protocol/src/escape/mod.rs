@@ -1,8 +1,8 @@
 //! Provides functions for escaping literals and identifiers for use
 //! in SQL queries.
 //!
-//! Prefer parameterized queries where possible; see
-//! [`Client::query`](crate::Client::query). Do not escape parameters.
+//! Prefer parameterized queries where possible. Do not escape
+//! parameters in a parameterized query.
 
 #[cfg(test)]
 mod test;
