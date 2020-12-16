@@ -450,15 +450,6 @@ impl Client {
         self.simple_query_raw(query).await?.try_collect().await
     }
 
-    /// Validates connection, timing out after specified duration.
-    pub async fn is_valid(&self, timeout: Duration) -> Result<(), Error> {
-        type SqmResult = Result<Vec<SimpleQueryMessage>, Error>;
-        type SqmTimeout = Result<SqmResult, tokio::time::error::Elapsed>;
-        let sqm_future = self.simple_query_raw("").await?.try_collect();
-        let sqm_timeout: SqmTimeout = tokio::time::timeout(timeout, sqm_future).await;
-        sqm_timeout.map_err(|_| Error::timeout())?.map(|_| ())
-    }
-
     pub(crate) async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
         simple_query::simple_query(self.inner(), query).await
     }

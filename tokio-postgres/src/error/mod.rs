@@ -5,6 +5,7 @@ use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
 use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
+use tokio::time::error::Elapsed;
 
 pub use self::sqlstate::*;
 
@@ -493,8 +494,10 @@ impl Error {
     pub(crate) fn connect(e: io::Error) -> Error {
         Error::new(Kind::Connect, Some(Box::new(e)))
     }
+}
 
-    pub(crate) fn timeout() -> Error {
+impl From<Elapsed> for Error {
+    fn from(_e: Elapsed) -> Error {
         Error::new(Kind::Timeout, None)
     }
 }

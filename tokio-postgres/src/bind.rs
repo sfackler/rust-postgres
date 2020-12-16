@@ -20,8 +20,9 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    type BytesResult = Result<bytes::Bytes, Error>;
     let name = format!("p{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
-    let buf = client.with_buf(|buf| {
+    let buf = client.with_buf::<_, BytesResult>(|buf| {
         query::encode_bind(&statement, params, &name, buf)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())

@@ -4,6 +4,7 @@ use crate::{
     ToStatement, Transaction, TransactionBuilder,
 };
 use std::task::Poll;
+use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
@@ -414,8 +415,14 @@ impl Client {
     }
 
     /// Validates connection, timing out after specified duration.
-    pub fn is_valid(&mut self, timeout: std::time::Duration) -> Result<(), Error> {
-        self.connection.block_on(self.client.is_valid(timeout))
+    pub fn is_valid(&mut self, timeout: Duration) -> Result<(), Error> {
+        let is_valid = Client::is_valid_inner(&self.client, timeout);
+        self.connection.block_on(is_valid)
+    }
+
+    async fn is_valid_inner(client: &tokio_postgres::Client, timeout: Duration) -> Result<(), Error> {
+        let trivial_query = client.simple_query("");
+        tokio::time::timeout(timeout, trivial_query).await?.map(|_| ())
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol.

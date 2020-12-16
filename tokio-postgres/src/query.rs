@@ -61,7 +61,8 @@ pub async fn query_portal(
     portal: &Portal,
     max_rows: i32,
 ) -> Result<RowStream, Error> {
-    let buf = client.with_buf(|buf| {
+    type BytesResult = Result<bytes::Bytes, Error>;
+    let buf = client.with_buf::<_, BytesResult>(|buf| {
         frontend::execute(portal.name(), max_rows, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
