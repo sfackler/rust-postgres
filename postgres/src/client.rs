@@ -420,7 +420,8 @@ impl Client {
         self.connection.block_on(async {
             let trivial_query = inner_client.simple_query("");
             tokio::time::timeout(timeout, trivial_query)
-                .await?
+                .await
+                .map_err(|_| Error::timeout())?
                 .map(|_| ())
         })
     }
