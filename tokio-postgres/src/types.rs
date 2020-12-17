@@ -5,8 +5,10 @@
 #[doc(inline)]
 pub use postgres_types::*;
 
+use std::fmt;
+
 /// Log Sequence Number for PostgreSQL Write-Ahead Log (transaction log).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Lsn(u64);
 
 impl From<&str> for Lsn {
@@ -36,5 +38,13 @@ impl From<Lsn> for u64 {
 impl From<Lsn> for String {
     fn from(lsn: Lsn) -> String {
         format!("{:X}/{:X}", lsn.0 >> 32, lsn.0 & 0x00000000ffffffff)
+    }
+}
+
+impl fmt::Debug for Lsn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Lsn")
+         .field(&String::from(*self))
+         .finish()
     }
 }
