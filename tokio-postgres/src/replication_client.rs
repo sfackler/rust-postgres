@@ -293,14 +293,6 @@ impl ReplicationClient {
             Message::DataRow(m) => m,
             m => return Err(Error::unexpected_message(m)),
         };
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
         let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -345,14 +337,6 @@ impl ReplicationClient {
             Message::DataRow(m) => m,
             m => return Err(Error::unexpected_message(m)),
         };
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
         let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -377,14 +361,6 @@ impl ReplicationClient {
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
             m => return Err(Error::unexpected_message(m)),
         };
 
@@ -434,14 +410,6 @@ impl ReplicationClient {
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
             m => return Err(Error::unexpected_message(m)),
         };
 
@@ -505,14 +473,6 @@ impl ReplicationClient {
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
             m => return Err(Error::unexpected_message(m)),
         };
 
