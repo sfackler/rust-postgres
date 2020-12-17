@@ -129,7 +129,7 @@ use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
 use pin_project::{pin_project, pinned_drop};
 use postgres_protocol::escape::{escape_identifier, escape_literal};
-use postgres_protocol::message::backend::{Message, ReplicationMessage};
+use postgres_protocol::message::backend::{Message, ReplicationMessage, RowDescriptionBody};
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
 use std::path::{Path, PathBuf};
@@ -251,7 +251,7 @@ impl CreateReplicationSlotResponse {
 
 /// Response sent after streaming from a timeline that is not the
 /// current timeline.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ReplicationResponse {
     next_tli: u64,
     next_tli_startpos: Lsn,
@@ -272,15 +272,11 @@ impl ReplicationResponse {
 /// Represents a client connected in replication mode.
 pub struct ReplicationClient {
     client: Client,
-    replication_stream_active: bool,
 }
 
 impl ReplicationClient {
     pub(crate) fn new(client: Client) -> ReplicationClient {
-        ReplicationClient {
-            client: client,
-            replication_stream_active: false,
-        }
+        ReplicationClient { client: client }
     }
 }
 
@@ -657,30 +653,51 @@ impl ReplicationClient {
         &'a mut self,
         command: String,
     ) -> Result<Pin<Box<ReplicationStream<'a>>>, Error> {
+        let mut copyboth_received = false;
+        let mut replication_response: Option<ReplicationResponse> = None;
         let mut responses = self.send(&command).await?;
-        self.replication_stream_active = true;
 
+        // Before we construct the ReplicationStream, we must know
+        // whether the server entered copy mode or not. Otherwise, if
+        // the ReplicationStream were to be dropped, we wouldn't know
+        // whether to send a CopyDone message or not (and it would be
+        // bad to try to receive and process the responses during the
+        // destructor).
+
+        // If the timeline selected is the current one, the server
+        // will always enter copy mode. If the timeline is historic,
+        // and if there is no work to do, the server will skip copy
+        // mode and immediately send a response tuple.
         match responses.next().await? {
-            Message::CopyBothResponse(_) => {}
+            Message::CopyBothResponse(_) => {
+                copyboth_received = true;
+            }
+            Message::RowDescription(rowdesc) => {
+                // Never entered copy mode, so don't bother returning
+                // a stream, just process the response.
+                replication_response =
+                    Some(recv_replication_response(&mut responses, rowdesc).await?);
+            }
             m => return Err(Error::unexpected_message(m)),
         }
 
         Ok(Box::pin(ReplicationStream {
             rclient: self,
             responses: responses,
+            copyboth_received: copyboth_received,
+            copydone_sent: false,
+            copydone_received: false,
+            replication_response: replication_response,
             _phantom_pinned: PhantomPinned,
         }))
     }
 
     fn send_copydone(&mut self) -> Result<(), Error> {
-        if self.replication_stream_active {
-            let iclient = self.client.inner();
-            let mut buf = BytesMut::new();
-            frontend::copy_done(&mut buf);
-            iclient
-                .unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
-            self.replication_stream_active = false;
-        }
+        let iclient = self.client.inner();
+        let mut buf = BytesMut::new();
+        frontend::copy_done(&mut buf);
+        iclient.unpipelined_send(RequestMessages::Single(FrontendMessage::Raw(buf.freeze())))?;
+
         Ok(())
     }
 }
@@ -690,71 +707,76 @@ impl ReplicationClient {
 /// [CopyData](postgres_protocol::message::backend::Message::CopyData).
 ///
 /// Intended to be used with the [next()](tokio::stream::StreamExt::next) method.
+///
+/// If the timeline specified with
+/// [start_physical_replication()](ReplicationClient::start_physical_replication)
+/// or
+/// [start_logical_replication()](ReplicationClient::start_logical_replication())
+/// is the current timeline, the stream is indefinite, and must be
+/// terminated with
+/// [stop_replication()](ReplicationStream::stop_replication()) (which
+/// will not return a response tuple); or by dropping the
+/// [ReplicationStream](ReplicationStream).
+///
+/// If the timeline is not the current timeline, the stream will
+/// terminate when the end of the timeline is reached, and
+/// [stop_replication()](ReplicationStream::stop_replication()) will
+/// return a response tuple.
 #[pin_project(PinnedDrop)]
 pub struct ReplicationStream<'a> {
     rclient: &'a mut ReplicationClient,
     responses: Responses,
+    copyboth_received: bool,
+    copydone_sent: bool,
+    copydone_received: bool,
+    replication_response: Option<ReplicationResponse>,
     #[pin]
     _phantom_pinned: PhantomPinned,
 }
 
 impl ReplicationStream<'_> {
     /// Stop replication stream and return the replication client object.
-    pub async fn stop_replication(mut self: Pin<Box<Self>>) -> Result<Option<ReplicationResponse>, Error> {
+    pub async fn stop_replication(
+        mut self: Pin<Box<Self>>,
+    ) -> Result<Option<ReplicationResponse>, Error> {
         let this = self.as_mut().project();
 
-        this.rclient.send_copydone()?;
-        let responses = this.responses;
+        if this.replication_response.is_some() {
+            return Ok(this.replication_response.clone());
+        }
 
-        // drain remaining CopyData messages and CopyDone
-        loop {
-            match responses.next().await? {
-                Message::CopyData(_) => (),
-                Message::CopyDone => break,
-                m => return Err(Error::unexpected_message(m)),
+        // we must be in copy mode; shut it down
+        assert!(*this.copyboth_received);
+        if !*this.copydone_sent {
+            this.rclient.send_copydone()?;
+            *this.copydone_sent = true;
+        }
+
+        // If server didn't already shut down copy, drain remaining
+        // CopyData and the CopyDone.
+        if !*this.copydone_received {
+            loop {
+                match this.responses.next().await? {
+                    Message::CopyData(_) => (),
+                    Message::CopyDone => {
+                        *this.copydone_received = true;
+                        break;
+                    }
+                    m => return Err(Error::unexpected_message(m)),
+                }
             }
         }
 
-        let next_message = responses.next().await?;
-
-        let response = match next_message {
+        match this.responses.next().await? {
             Message::RowDescription(rowdesc) => {
-                let datarow = match responses.next().await? {
-                    Message::DataRow(m) => m,
-                    m => return Err(Error::unexpected_message(m)),
-                };
-
-                let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
-                let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
-
-                assert_eq!(fields.len(), 2);
-                assert_eq!(fields[0].type_oid(), Type::INT8.oid());
-                assert_eq!(fields[0].format(), 0);
-                assert_eq!(fields[1].type_oid(), Type::TEXT.oid());
-                assert_eq!(fields[1].format(), 0);
-                assert_eq!(ranges.len(), 2);
-
-                let timeline = &datarow.buffer()[ranges[0].to_owned().unwrap()];
-                let switch = &datarow.buffer()[ranges[1].to_owned().unwrap()];
-                Some(ReplicationResponse {
-                    next_tli: from_utf8(timeline).unwrap().parse::<u64>().unwrap(),
-                    next_tli_startpos: Lsn::from(from_utf8(switch).unwrap()),
-                })
+                *this.replication_response =
+                    Some(recv_replication_response(this.responses, rowdesc).await?);
             }
-            Message::CommandComplete(_) => None,
-            m => return Err(Error::unexpected_message(m)),
-        };
-
-        match responses.next().await? {
             Message::CommandComplete(_) => (),
             m => return Err(Error::unexpected_message(m)),
-        };
-        match responses.next().await? {
-            Message::ReadyForQuery(_) => (),
-            m => return Err(Error::unexpected_message(m)),
-        };
+        }
 
-        Ok(response)
+        Ok(this.replication_response.clone())
     }
 }
 
@@ -763,14 +785,27 @@ impl Stream for ReplicationStream<'_> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        let responses = this.responses;
 
-        match ready!(responses.poll_next(cx)?) {
+        // if we already got a replication response tuple, we're done
+        if this.replication_response.is_some() {
+            return Poll::Ready(None);
+        }
+
+        // we are in copy mode
+        assert!(*this.copyboth_received);
+        assert!(!*this.copydone_sent);
+        assert!(!*this.copydone_received);
+        match ready!(this.responses.poll_next(cx)?) {
             Message::CopyData(body) => {
                 let r = ReplicationMessage::parse(&body.into_bytes());
                 Poll::Ready(Some(r.map_err(Error::parse)))
             }
-            Message::CopyDone => Poll::Ready(None),
+            Message::CopyDone => {
+                *this.copydone_received = true;
+                this.rclient.send_copydone()?;
+                *this.copydone_sent = true;
+                Poll::Ready(None)
+            }
             m => Poll::Ready(Some(Err(Error::unexpected_message(m)))),
         }
     }
@@ -780,6 +815,39 @@ impl Stream for ReplicationStream<'_> {
 impl PinnedDrop for ReplicationStream<'_> {
     fn drop(mut self: Pin<&mut Self>) {
         let this = self.project();
-        this.rclient.send_copydone().unwrap();
+        if *this.copyboth_received && !*this.copydone_sent {
+            this.rclient.send_copydone().unwrap();
+            *this.copydone_sent = true;
+        }
+    }
+}
+
+// Read a replication response tuple from the server. This function
+// assumes that the caller has already consumed the RowDescription
+// from the stream.
+async fn recv_replication_response(
+    responses: &mut Responses,
+    rowdesc: RowDescriptionBody,
+) -> Result<ReplicationResponse, Error> {
+    let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[0].type_oid(), Type::INT8.oid());
+    assert_eq!(fields[0].format(), 0);
+    assert_eq!(fields[1].type_oid(), Type::TEXT.oid());
+    assert_eq!(fields[1].format(), 0);
+
+    match responses.next().await? {
+        Message::DataRow(datarow) => {
+            let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
+            assert_eq!(ranges.len(), 2);
+
+            let timeline = &datarow.buffer()[ranges[0].to_owned().unwrap()];
+            let switch = &datarow.buffer()[ranges[1].to_owned().unwrap()];
+            Ok(ReplicationResponse {
+                next_tli: from_utf8(timeline).unwrap().parse::<u64>().unwrap(),
+                next_tli_startpos: Lsn::from(from_utf8(switch).unwrap()),
+            })
+        }
+        m => Err(Error::unexpected_message(m)),
     }
 }

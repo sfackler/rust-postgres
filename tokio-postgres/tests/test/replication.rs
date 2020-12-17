@@ -1,7 +1,7 @@
 use postgres_protocol::message::backend::ReplicationMessage;
 use tokio::stream::StreamExt;
-use tokio_postgres::Client;
 use tokio_postgres::replication_client::ReplicationClient;
+use tokio_postgres::Client;
 use tokio_postgres::{connect, connect_replication, NoTls, ReplicationMode};
 
 const LOGICAL_BEGIN_TAG: u8 = b'B';
