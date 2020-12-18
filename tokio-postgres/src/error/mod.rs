@@ -495,7 +495,7 @@ impl Error {
     }
 
     #[doc(hidden)]
-    pub fn timeout() -> Error {
+    pub fn __private_api_timeout() -> Error {
         Error::new(Kind::Timeout, None)
     }
 }

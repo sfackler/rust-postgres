@@ -414,14 +414,16 @@ impl Client {
         self.connection.block_on(self.client.simple_query(query))
     }
 
-    /// Validates connection, timing out after specified duration.
+    /// Validates the connection by performing a simple no-op query.
+    ///
+    /// If the specified timeout is reached before the backend responds, an error will be returned.
     pub fn is_valid(&mut self, timeout: Duration) -> Result<(), Error> {
         let inner_client = &self.client;
         self.connection.block_on(async {
             let trivial_query = inner_client.simple_query("");
             tokio::time::timeout(timeout, trivial_query)
                 .await
-                .map_err(|_| Error::timeout())?
+                .map_err(|_| Error::__private_api_timeout())?
                 .map(|_| ())
         })
     }
