@@ -284,11 +284,11 @@ impl ReplicationClient {
         let mut responses = self.send(command).await?;
         let rowdesc = match responses.next().await? {
             Message::RowDescription(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -326,11 +326,11 @@ impl ReplicationClient {
         let mut responses = self.send(&command).await?;
         let rowdesc = match responses.next().await? {
             Message::RowDescription(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -355,11 +355,11 @@ impl ReplicationClient {
 
         let rowdesc = match responses.next().await? {
             Message::RowDescription(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -434,11 +434,11 @@ impl ReplicationClient {
 
         let rowdesc = match responses.next().await? {
             Message::RowDescription(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -514,11 +514,11 @@ impl ReplicationClient {
 
         let rowdesc = match responses.next().await? {
             Message::RowDescription(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
         let datarow = match responses.next().await? {
             Message::DataRow(m) => m,
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         };
 
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
@@ -705,7 +705,7 @@ impl ReplicationClient {
                 replication_response =
                     Some(recv_replication_response(&mut responses, rowdesc).await?);
             }
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         }
 
         Ok(Box::pin(ReplicationStream {
@@ -789,7 +789,7 @@ impl ReplicationStream<'_> {
                         *this.copydone_received = true;
                         break;
                     }
-                    m => return Err(Error::unexpected_message(m)),
+                    _ => return Err(Error::unexpected_message()),
                 }
             }
         }
@@ -800,7 +800,7 @@ impl ReplicationStream<'_> {
                     Some(recv_replication_response(this.responses, rowdesc).await?);
             }
             Message::CommandComplete(_) => (),
-            m => return Err(Error::unexpected_message(m)),
+            _ => return Err(Error::unexpected_message()),
         }
 
         Ok(this.replication_response.clone())
@@ -833,7 +833,7 @@ impl Stream for ReplicationStream<'_> {
                 *this.copydone_sent = true;
                 Poll::Ready(None)
             }
-            m => Poll::Ready(Some(Err(Error::unexpected_message(m)))),
+            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
         }
     }
 }
@@ -875,6 +875,6 @@ async fn recv_replication_response(
                 next_tli_startpos: Lsn::from(from_utf8(switch).unwrap()),
             })
         }
-        m => Err(Error::unexpected_message(m)),
+        _ => Err(Error::unexpected_message()),
     }
 }
