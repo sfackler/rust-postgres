@@ -43,8 +43,6 @@ impl From<Lsn> for String {
 
 impl fmt::Debug for Lsn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Lsn")
-         .field(&String::from(*self))
-         .finish()
+        f.debug_tuple("Lsn").field(&String::from(*self)).finish()
     }
 }

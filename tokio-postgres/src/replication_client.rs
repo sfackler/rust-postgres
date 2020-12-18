@@ -347,9 +347,7 @@ impl ReplicationClient {
 
     /// Requests the server to send over the timeline history file for
     /// the given timeline ID.
-    pub async fn timeline_history(
-        &mut self, timeline_id: u32,
-    ) -> Result<TimelineHistory, Error> {
+    pub async fn timeline_history(&mut self, timeline_id: u32) -> Result<TimelineHistory, Error> {
         let command = format!("TIMELINE_HISTORY {}", timeline_id);
         let mut responses = self.send(&command).await?;
 
@@ -371,7 +369,7 @@ impl ReplicationClient {
         // number of fields. Both fields are documented to be raw
         // bytes.
         //
-        // Both fields are documented to return raw bytes.  
+        // Both fields are documented to return raw bytes.
         assert_eq!(fields.len(), 2);
         assert_eq!(ranges.len(), 2);
 
@@ -379,10 +377,14 @@ impl ReplicationClient {
         // treat it as UTF-8, and convert it to a PathBuf. If this
         // assumption is violated, generate a useful error message.
         let filename_bytes = &datarow.buffer()[ranges[0].to_owned().unwrap()];
-        let filename_str = from_utf8(filename_bytes).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData,
-                           "Timeline history filename is invalid UTF-8")
-        }).map_err(Error::parse)?;
+        let filename_str = from_utf8(filename_bytes)
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Timeline history filename is invalid UTF-8",
+                )
+            })
+            .map_err(Error::parse)?;
         let filename_path = PathBuf::from(filename_str);
 
         // The file contents are typically ASCII, but we treat it as
