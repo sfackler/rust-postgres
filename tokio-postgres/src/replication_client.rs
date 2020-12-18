@@ -117,7 +117,9 @@
 //! # Caveats
 //!
 //! It is recommended that you use a PostgreSQL server patch version
-//! of at least: 14.0, 13.2, 12.6, 11.11, 10.16, 9.6.21, or 9.5.25.
+//! of at least: 14.0, 13.2, 12.6, 11.11, 10.16, 9.6.21, or
+//! 9.5.25. Earlier patch levels have a bug that doesn't properly
+//! handle pipelined requests after streaming has stopped.
 
 use crate::client::Responses;
 use crate::codec::FrontendMessage;
@@ -131,6 +133,7 @@ use pin_project::{pin_project, pinned_drop};
 use postgres_protocol::escape::{escape_identifier, escape_literal};
 use postgres_protocol::message::backend::{Message, ReplicationMessage, RowDescriptionBody};
 use postgres_protocol::message::frontend;
+use std::io;
 use std::marker::PhantomPinned;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -275,13 +278,7 @@ pub struct ReplicationClient {
 }
 
 impl ReplicationClient {
-    pub(crate) fn new(client: Client) -> ReplicationClient {
-        ReplicationClient { client: client }
-    }
-}
-
-impl ReplicationClient {
-    /// IDENTIFY_SYSTEM message
+    /// Requests the server to identify itself.
     pub async fn identify_system(&mut self) -> Result<IdentifySystem, Error> {
         let command = "IDENTIFY_SYSTEM";
         let mut responses = self.send(command).await?;
@@ -299,13 +296,9 @@ impl ReplicationClient {
 
         assert_eq!(fields.len(), 4);
         assert_eq!(fields[0].type_oid(), Type::TEXT.oid());
-        assert_eq!(fields[0].format(), 0);
         assert_eq!(fields[1].type_oid(), Type::INT4.oid());
-        assert_eq!(fields[1].format(), 0);
         assert_eq!(fields[2].type_oid(), Type::TEXT.oid());
-        assert_eq!(fields[2].format(), 0);
         assert_eq!(fields[3].type_oid(), Type::TEXT.oid());
-        assert_eq!(fields[3].format(), 0);
         assert_eq!(ranges.len(), 4);
 
         let values: Vec<Option<&str>> = ranges
@@ -325,7 +318,9 @@ impl ReplicationClient {
         })
     }
 
-    /// show the value of the given setting
+    /// Requests the server to send the current setting of a run-time
+    /// parameter. This is similar to the SQL command
+    /// [SHOW](https://www.postgresql.org/docs/current/sql-show.html).
     pub async fn show(&mut self, name: &str) -> Result<String, Error> {
         let command = format!("SHOW {}", escape_identifier(name));
         let mut responses = self.send(&command).await?;
@@ -350,8 +345,11 @@ impl ReplicationClient {
         Ok(String::from(val))
     }
 
-    /// show the value of the given setting
-    pub async fn timeline_history(&mut self, timeline_id: u32) -> Result<TimelineHistory, Error> {
+    /// Requests the server to send over the timeline history file for
+    /// the given timeline ID.
+    pub async fn timeline_history(
+        &mut self, timeline_id: u32,
+    ) -> Result<TimelineHistory, Error> {
         let command = format!("TIMELINE_HISTORY {}", timeline_id);
         let mut responses = self.send(&command).await?;
 
@@ -367,27 +365,57 @@ impl ReplicationClient {
         let fields = rowdesc.fields().collect::<Vec<_>>().map_err(Error::parse)?;
         let ranges = datarow.ranges().collect::<Vec<_>>().map_err(Error::parse)?;
 
+        // The TIMELINE_HISTORY command sends a misleading
+        // RowDescriptor which is different depending on the server
+        // version, so we ignore it aside from checking for the right
+        // number of fields. Both fields are documented to be raw
+        // bytes.
+        //
+        // Both fields are documented to return raw bytes.  
         assert_eq!(fields.len(), 2);
-
-        assert_eq!(fields[0].type_oid(), Type::TEXT.oid());
-        assert_eq!(fields[0].format(), 0);
-        assert_eq!(fields[1].type_oid(), Type::TEXT.oid());
-        assert_eq!(fields[1].format(), 0);
-
         assert_eq!(ranges.len(), 2);
 
-        let filename = &datarow.buffer()[ranges[0].to_owned().unwrap()];
-        let content = &datarow.buffer()[ranges[1].to_owned().unwrap()];
+        // Practically speaking, the filename is ASCII, so it's OK to
+        // treat it as UTF-8, and convert it to a PathBuf. If this
+        // assumption is violated, generate a useful error message.
+        let filename_bytes = &datarow.buffer()[ranges[0].to_owned().unwrap()];
+        let filename_str = from_utf8(filename_bytes).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData,
+                           "Timeline history filename is invalid UTF-8")
+        }).map_err(Error::parse)?;
+        let filename_path = PathBuf::from(filename_str);
 
-        let filename_path = PathBuf::from(from_utf8(filename).unwrap());
+        // The file contents are typically ASCII, but we treat it as
+        // binary because it can contain text in an unknown
+        // encoding. For instance, the restore point name will be in
+        // the server encoding (it will not be converted to the client
+        // encoding before being sent); and the file can also be
+        // edited by the user to contain arbitrary comments in an
+        // unknown encoding.
+        let content_bytes = &datarow.buffer()[ranges[1].to_owned().unwrap()];
 
         Ok(TimelineHistory {
             filename: filename_path,
-            content: Vec::from(content),
+            content: Vec::from(content_bytes),
         })
     }
 
-    /// Create physical replication slot
+    /// Create logical replication slot. See [Replication
+    /// Slots](https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION-SLOTS).
+    ///
+    /// Arguments:
+    ///
+    /// * `slot_name`: The name of the slot to create. Must be a valid
+    ///   replication slot name (see [Querying and Manipulating
+    ///   Replication
+    ///   Slots](https://www.postgresql.org/docs/13/warm-standby.html#STREAMING-REPLICATION-SLOTS-MANIPULATION)).
+    /// * `temporary`: Specify that this replication slot is a
+    ///   temporary one. Temporary slots are not saved to disk and are
+    ///   automatically dropped on error or when the session has
+    ///   finished.
+    /// * `reserve_wal`: Specify that this physical replication slot
+    ///   reserves WAL immediately. Otherwise, WAL is only reserved
+    ///   upon connection from a streaming replication client.
     pub async fn create_physical_replication_slot(
         &mut self,
         slot_name: &str,
@@ -444,7 +472,24 @@ impl ReplicationClient {
         })
     }
 
-    /// Create logical replication slot.
+    /// Create logical replication slot. See [Replication
+    /// Slots](https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION-SLOTS).
+    ///
+    /// Arguments:
+    ///
+    /// * `slot_name`: The name of the slot to create. Must be a valid
+    ///   replication slot name (see [Querying and Manipulating
+    ///   Replication
+    ///   Slots](https://www.postgresql.org/docs/13/warm-standby.html#STREAMING-REPLICATION-SLOTS-MANIPULATION)).
+    /// * `temporary`: Specify that this replication slot is a
+    ///   temporary one. Temporary slots are not saved to disk and are
+    ///   automatically dropped on error or when the session has
+    ///   finished.
+    /// * `plugin_name`: The name of the output plugin used for
+    ///   logical decoding (see [Logical Decoding Output
+    ///   Plugins](https://www.postgresql.org/docs/current/logicaldecoding-output-plugin.html)).
+    /// * `snapshot_mode`: Decides what to do with the snapshot
+    ///   created during logical slot initialization.
     pub async fn create_logical_replication_slot(
         &mut self,
         slot_name: &str,
@@ -498,7 +543,10 @@ impl ReplicationClient {
         })
     }
 
-    /// Drop replication slot
+    /// Drops a replication slot, freeing any reserved server-side
+    /// resources. If the slot is a logical slot that was created in a
+    /// database other than the database the walsender is connected
+    /// to, this command fails.
     pub async fn drop_replication_slot(
         &mut self,
         slot_name: &str,
@@ -514,10 +562,18 @@ impl ReplicationClient {
         Ok(())
     }
 
-    /// Begin physical replication, consuming the replication client and producing a replication stream.
+    /// Begin physical replication, consuming the replication client
+    /// and producing a replication stream.
     ///
-    /// Replication begins starting with the given Log Sequence Number
-    /// (LSN) on the given timeline.
+    /// Arguments:
+    ///
+    /// * `slot_name`: If a slot's name is provided via slot_name, it
+    ///   will be updated as replication progresses so that the server
+    ///   knows which WAL segments, and if hot_standby_feedback is on
+    ///   which transactions, are still needed by the standby.
+    /// * `lsn`: The starting WAL location.
+    /// * `timeline_id`: If specified, streaming starts on timeline
+    ///   tli; otherwise, the server's current timeline is selected.
     pub async fn start_physical_replication<'a>(
         &'a mut self,
         slot_name: Option<&str>,
@@ -544,8 +600,15 @@ impl ReplicationClient {
 
     /// Begin logical replication, consuming the replication client and producing a replication stream.
     ///
-    /// Replication begins starting with the given Log Sequence Number
-    /// (LSN) on the current timeline.
+    /// Arguments:
+    ///
+    /// * `slot_name`: If a slot's name is provided via slot_name, it
+    ///   will be updated as replication progresses so that the server
+    ///   knows which WAL segments, and if hot_standby_feedback is on
+    ///   which transactions, are still needed by the standby.
+    /// * `lsn`: The starting WAL location.
+    /// * `options`: (name, value) pairs of options passed to the
+    ///   slot's logical decoding plugin.
     pub async fn start_logical_replication<'a>(
         &'a mut self,
         slot_name: &str,
@@ -600,6 +663,10 @@ impl ReplicationClient {
     }
 
     // Private methods
+
+    pub(crate) fn new(client: Client) -> ReplicationClient {
+        ReplicationClient { client: client }
+    }
 
     // send command to the server, but finish any unfinished replication stream, first
     async fn send(&mut self, command: &str) -> Result<Responses, Error> {
