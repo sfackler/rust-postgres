@@ -135,7 +135,7 @@ impl ScramSha256 {
         let mut rng = rand::thread_rng();
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
-                let mut v = rng.gen_range(0x21u8, 0x7e);
+                let mut v = rng.gen_range(0x21u8..0x7e);
                 if v == 0x2c {
                     v = 0x7e
                 }
