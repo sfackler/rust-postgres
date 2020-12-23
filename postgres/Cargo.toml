@@ -31,7 +31,7 @@ with-uuid-0_8 = ["tokio-postgres/with-uuid-0_8"]
 with-time-0_2 = ["tokio-postgres/with-time-0_2"]
 
 [dependencies]
-bytes = "0.5"
+bytes = "1.0"
 fallible-iterator = "0.2"
 futures = "0.3"
 tokio-postgres = { version = "0.6.0", path = "../tokio-postgres" }

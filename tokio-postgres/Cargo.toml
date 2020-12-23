@@ -38,7 +38,7 @@ with-time-0_2 = ["postgres-types/with-time-0_2"]
 
 [dependencies]
 async-trait = "0.1"
-bytes = "0.5"
+bytes = "1.0"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures = "0.3"
