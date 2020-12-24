@@ -48,8 +48,10 @@ use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 #[cfg(feature = "runtime")]
 use openssl::ssl::SslConnector;
-use openssl::ssl::{ConnectConfiguration, SslRef};
-use std::fmt::Debug;
+use openssl::ssl::{self, ConnectConfiguration, SslRef};
+use openssl::x509::X509VerifyResult;
+use std::error::Error;
+use std::fmt::{self, Debug};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -57,7 +59,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_openssl::{HandshakeError, SslStream};
+use tokio_openssl::SslStream;
 use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
@@ -131,20 +133,52 @@ impl TlsConnector {
 
 impl<S> TlsConnect<S> for TlsConnector
 where
-    S: AsyncRead + AsyncWrite + Unpin + Debug + 'static + Sync + Send,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Stream = TlsStream<S>;
-    type Error = HandshakeError<S>;
+    type Error = Box<dyn Error + Send + Sync>;
     #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<TlsStream<S>, HandshakeError<S>>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<TlsStream<S>, Self::Error>> + Send>>;
 
     fn connect(self, stream: S) -> Self::Future {
         let future = async move {
-            let stream = tokio_openssl::connect(self.ssl, &self.domain, stream).await?;
-            Ok(TlsStream(stream))
+            let ssl = self.ssl.into_ssl(&self.domain)?;
+            let mut stream = SslStream::new(ssl, stream)?;
+            match Pin::new(&mut stream).connect().await {
+                Ok(()) => Ok(TlsStream(stream)),
+                Err(error) => Err(Box::new(ConnectError {
+                    error,
+                    verify_result: stream.ssl().verify_result(),
+                }) as _),
+            }
         };
 
         Box::pin(future)
+    }
+}
+
+#[derive(Debug)]
+struct ConnectError {
+    error: ssl::Error,
+    verify_result: X509VerifyResult,
+}
+
+impl fmt::Display for ConnectError {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.error, fmt)?;
+
+        if self.verify_result != X509VerifyResult::OK {
+            fmt.write_str(": ")?;
+            fmt::Display::fmt(&self.verify_result, fmt)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Error for ConnectError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.error)
     }
 }
 
