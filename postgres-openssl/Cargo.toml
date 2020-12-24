@@ -19,7 +19,7 @@ runtime = ["tokio-postgres/runtime"]
 futures = "0.3"
 openssl = "0.10"
 tokio = "0.3"
-tokio-openssl = "0.5"
+tokio-openssl = "0.6"
 tokio-postgres = { version = "0.6.0", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
