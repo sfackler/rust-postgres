@@ -46,7 +46,7 @@ impl BufRead for CopyOutReader<'_> {
             };
         }
 
-        Ok(self.cur.bytes())
+        Ok(&self.cur)
     }
 
     fn consume(&mut self, amt: usize) {

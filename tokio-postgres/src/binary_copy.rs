@@ -153,7 +153,7 @@ impl Stream for BinaryCopyOutStream {
             Some(header) => header.has_oids,
             None => {
                 check_remaining(&chunk, HEADER_LEN)?;
-                if &chunk.bytes()[..MAGIC.len()] != MAGIC {
+                if !chunk.chunk().starts_with(MAGIC) {
                     return Poll::Ready(Some(Err(Error::parse(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "invalid magic value",

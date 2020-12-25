@@ -1,5 +1,4 @@
 use crate::{FromSql, IsNull, ToSql, Type};
-use bytes::buf::BufMutExt;
 use bytes::{BufMut, BytesMut};
 use serde_1::{Deserialize, Serialize};
 use serde_json_1::Value;

@@ -2,7 +2,6 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::{query, slice_iter, Error, Statement};
-use bytes::buf::BufExt;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::channel::mpsc;
 use futures::future;

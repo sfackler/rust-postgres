@@ -4,6 +4,7 @@ use crate::connection::ConnectionRef;
 use crate::{Error, Notification};
 use fallible_iterator::FallibleIterator;
 use futures::{ready, FutureExt};
+use std::pin::Pin;
 use std::task::Poll;
 use std::time::Duration;
 use tokio::time::{self, Instant, Sleep};
@@ -64,7 +65,7 @@ impl<'a> Notifications<'a> {
     /// This iterator may start returning `Some` after previously returning `None` if more notifications are received.
     pub fn timeout_iter(&mut self, timeout: Duration) -> TimeoutIter<'_> {
         TimeoutIter {
-            delay: self.connection.enter(|| time::sleep(timeout)),
+            delay: Box::pin(self.connection.enter(|| time::sleep(timeout))),
             timeout,
             connection: self.connection.as_ref(),
         }
@@ -124,7 +125,7 @@ impl<'a> FallibleIterator for BlockingIter<'a> {
 /// A time-limited blocking iterator over pending notifications.
 pub struct TimeoutIter<'a> {
     connection: ConnectionRef<'a>,
-    delay: Sleep,
+    delay: Pin<Box<Sleep>>,
     timeout: Duration,
 }
 
@@ -134,7 +135,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
 
     fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
         if let Some(notification) = self.connection.notifications_mut().pop_front() {
-            self.delay.reset(Instant::now() + self.timeout);
+            self.delay.as_mut().reset(Instant::now() + self.timeout);
             return Ok(Some(notification));
         }
 
@@ -143,7 +144,7 @@ impl<'a> FallibleIterator for TimeoutIter<'a> {
         self.connection.poll_block_on(|cx, notifications, done| {
             match notifications.pop_front() {
                 Some(notification) => {
-                    delay.reset(Instant::now() + timeout);
+                    delay.as_mut().reset(Instant::now() + timeout);
                     return Poll::Ready(Ok(Some(notification)));
                 }
                 None if done => return Poll::Ready(Ok(None)),
