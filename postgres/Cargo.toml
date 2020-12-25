@@ -1,6 +1,6 @@
 [package]
 name = "postgres"
-version = "0.18.1"
+version = "0.19.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
