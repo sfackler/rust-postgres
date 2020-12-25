@@ -33,7 +33,7 @@ with-time-0_2 = ["tokio-postgres/with-time-0_2"]
 bytes = "1.0"
 fallible-iterator = "0.2"
 futures = "0.3"
-tokio-postgres = { version = "0.6.0", path = "../tokio-postgres" }
+tokio-postgres = { version = "0.7.0", path = "../tokio-postgres" }
 
 tokio = { version = "1.0", features = ["rt", "time"] }
 log = "0.4"

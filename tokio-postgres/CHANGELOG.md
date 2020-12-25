@@ -1,10 +1,21 @@
 # Change Log
 
+## v0.7.0 - 2020-12-25
+
+### Changed
+
+* Upgraded to `tokio` 1.0.
+* Upgraded to `postgres-types` 0.2.
+
+### Added
+
+* Methods taking iterators of `ToSql` values can now take both `&dyn ToSql` and `T: ToSql` values.
+
 ## v0.6.0 - 2020-10-17
 
 ### Changed
 
-* Upgraded to tokio `0.3`.
+* Upgraded to `tokio` 0.3.
 * Added the detail and hint fields to `DbError`'s `Display` implementation.
 
 ## v0.5.5 - 2020-07-03
