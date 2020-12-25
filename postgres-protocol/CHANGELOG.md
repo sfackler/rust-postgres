@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.6.0 - 2020-12-25
+
+### Changed
+
+* Upgraded `bytes`, `hmac`, and `rand`.
+
+### Added
+
+* Added `escape::{escape_literal, escape_identifier}`.
+
 ## v0.5.3 - 2020-10-17
 
 ### Changed
