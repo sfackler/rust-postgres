@@ -1,6 +1,6 @@
 [package]
 name = "postgres-types"
-version = "0.1.3"
+version = "0.2.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -15,7 +15,6 @@ derive = ["postgres-derive"]
 with-bit-vec-0_6 = ["bit-vec-06"]
 with-chrono-0_4 = ["chrono-04"]
 with-eui48-0_4 = ["eui48-04"]
-with-geo-types-0_4 = ["geo-types-04"]
 with-geo-types-0_6 = ["geo-types-06"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 with-uuid-0_8 = ["uuid-08"]
@@ -30,7 +29,6 @@ postgres-derive = { version = "0.4.0", optional = true, path = "../postgres-deri
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, features = ["clock"], optional = true }
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
-geo-types-04 = { version = "0.4", package = "geo-types", optional = true }
 geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true }

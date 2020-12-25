@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.2.0 - 2020-12-25
+
+### Changed
+
+* Upgraded `bytes` to 1.0.
+
+### Removed
+
+* Removed support for `geo-types` 0.4.
+
 ## v0.1.3 - 2020-10-17
 
 ### Added
