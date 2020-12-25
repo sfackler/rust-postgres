@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.0 - 2020-12-25
+
+### Changed
+
+* Upgraded to `tokio-postgres` 0.7.
+
 ## v0.4.0 - 2020-10-17
 
 ### Changed
