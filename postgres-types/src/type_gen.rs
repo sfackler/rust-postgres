@@ -35,6 +35,7 @@ pub enum Inner {
     PgNodeTree,
     JsonArray,
     TableAmHandler,
+    Xid8Array,
     IndexAmHandler,
     Point,
     Lseg,
@@ -125,7 +126,6 @@ pub enum Inner {
     Trigger,
     LanguageHandler,
     Internal,
-    Opaque,
     Anyelement,
     RecordArray,
     Anynonarray,
@@ -172,7 +172,16 @@ pub enum Inner {
     RegnamespaceArray,
     Regrole,
     RegroleArray,
+    Regcollation,
+    RegcollationArray,
     PgMcvList,
+    PgSnapshot,
+    PgSnapshotArray,
+    Xid8,
+    Anycompatible,
+    Anycompatiblearray,
+    Anycompatiblenonarray,
+    AnycompatibleRange,
     Other(Arc<Other>),
 }
 
@@ -201,6 +210,7 @@ impl Inner {
             194 => Some(Inner::PgNodeTree),
             199 => Some(Inner::JsonArray),
             269 => Some(Inner::TableAmHandler),
+            271 => Some(Inner::Xid8Array),
             325 => Some(Inner::IndexAmHandler),
             600 => Some(Inner::Point),
             601 => Some(Inner::Lseg),
@@ -291,7 +301,6 @@ impl Inner {
             2279 => Some(Inner::Trigger),
             2280 => Some(Inner::LanguageHandler),
             2281 => Some(Inner::Internal),
-            2282 => Some(Inner::Opaque),
             2283 => Some(Inner::Anyelement),
             2287 => Some(Inner::RecordArray),
             2776 => Some(Inner::Anynonarray),
@@ -338,7 +347,16 @@ impl Inner {
             4090 => Some(Inner::RegnamespaceArray),
             4096 => Some(Inner::Regrole),
             4097 => Some(Inner::RegroleArray),
+            4191 => Some(Inner::Regcollation),
+            4192 => Some(Inner::RegcollationArray),
             5017 => Some(Inner::PgMcvList),
+            5038 => Some(Inner::PgSnapshot),
+            5039 => Some(Inner::PgSnapshotArray),
+            5069 => Some(Inner::Xid8),
+            5077 => Some(Inner::Anycompatible),
+            5078 => Some(Inner::Anycompatiblearray),
+            5079 => Some(Inner::Anycompatiblenonarray),
+            5080 => Some(Inner::AnycompatibleRange),
             _ => None,
         }
     }
@@ -367,6 +385,7 @@ impl Inner {
             Inner::PgNodeTree => 194,
             Inner::JsonArray => 199,
             Inner::TableAmHandler => 269,
+            Inner::Xid8Array => 271,
             Inner::IndexAmHandler => 325,
             Inner::Point => 600,
             Inner::Lseg => 601,
@@ -457,7 +476,6 @@ impl Inner {
             Inner::Trigger => 2279,
             Inner::LanguageHandler => 2280,
             Inner::Internal => 2281,
-            Inner::Opaque => 2282,
             Inner::Anyelement => 2283,
             Inner::RecordArray => 2287,
             Inner::Anynonarray => 2776,
@@ -504,7 +522,16 @@ impl Inner {
             Inner::RegnamespaceArray => 4090,
             Inner::Regrole => 4096,
             Inner::RegroleArray => 4097,
+            Inner::Regcollation => 4191,
+            Inner::RegcollationArray => 4192,
             Inner::PgMcvList => 5017,
+            Inner::PgSnapshot => 5038,
+            Inner::PgSnapshotArray => 5039,
+            Inner::Xid8 => 5069,
+            Inner::Anycompatible => 5077,
+            Inner::Anycompatiblearray => 5078,
+            Inner::Anycompatiblenonarray => 5079,
+            Inner::AnycompatibleRange => 5080,
             Inner::Other(ref u) => u.oid,
         }
     }
@@ -533,6 +560,7 @@ impl Inner {
             Inner::PgNodeTree => &Kind::Simple,
             Inner::JsonArray => &Kind::Array(Type(Inner::Json)),
             Inner::TableAmHandler => &Kind::Pseudo,
+            Inner::Xid8Array => &Kind::Array(Type(Inner::Xid8)),
             Inner::IndexAmHandler => &Kind::Pseudo,
             Inner::Point => &Kind::Simple,
             Inner::Lseg => &Kind::Simple,
@@ -623,7 +651,6 @@ impl Inner {
             Inner::Trigger => &Kind::Pseudo,
             Inner::LanguageHandler => &Kind::Pseudo,
             Inner::Internal => &Kind::Pseudo,
-            Inner::Opaque => &Kind::Pseudo,
             Inner::Anyelement => &Kind::Pseudo,
             Inner::RecordArray => &Kind::Pseudo,
             Inner::Anynonarray => &Kind::Pseudo,
@@ -670,7 +697,16 @@ impl Inner {
             Inner::RegnamespaceArray => &Kind::Array(Type(Inner::Regnamespace)),
             Inner::Regrole => &Kind::Simple,
             Inner::RegroleArray => &Kind::Array(Type(Inner::Regrole)),
+            Inner::Regcollation => &Kind::Simple,
+            Inner::RegcollationArray => &Kind::Array(Type(Inner::Regcollation)),
             Inner::PgMcvList => &Kind::Simple,
+            Inner::PgSnapshot => &Kind::Simple,
+            Inner::PgSnapshotArray => &Kind::Array(Type(Inner::PgSnapshot)),
+            Inner::Xid8 => &Kind::Simple,
+            Inner::Anycompatible => &Kind::Pseudo,
+            Inner::Anycompatiblearray => &Kind::Pseudo,
+            Inner::Anycompatiblenonarray => &Kind::Pseudo,
+            Inner::AnycompatibleRange => &Kind::Pseudo,
             Inner::Other(ref u) => &u.kind,
         }
     }
@@ -699,6 +735,7 @@ impl Inner {
             Inner::PgNodeTree => "pg_node_tree",
             Inner::JsonArray => "_json",
             Inner::TableAmHandler => "table_am_handler",
+            Inner::Xid8Array => "_xid8",
             Inner::IndexAmHandler => "index_am_handler",
             Inner::Point => "point",
             Inner::Lseg => "lseg",
@@ -789,7 +826,6 @@ impl Inner {
             Inner::Trigger => "trigger",
             Inner::LanguageHandler => "language_handler",
             Inner::Internal => "internal",
-            Inner::Opaque => "opaque",
             Inner::Anyelement => "anyelement",
             Inner::RecordArray => "_record",
             Inner::Anynonarray => "anynonarray",
@@ -836,7 +872,16 @@ impl Inner {
             Inner::RegnamespaceArray => "_regnamespace",
             Inner::Regrole => "regrole",
             Inner::RegroleArray => "_regrole",
+            Inner::Regcollation => "regcollation",
+            Inner::RegcollationArray => "_regcollation",
             Inner::PgMcvList => "pg_mcv_list",
+            Inner::PgSnapshot => "pg_snapshot",
+            Inner::PgSnapshotArray => "_pg_snapshot",
+            Inner::Xid8 => "xid8",
+            Inner::Anycompatible => "anycompatible",
+            Inner::Anycompatiblearray => "anycompatiblearray",
+            Inner::Anycompatiblenonarray => "anycompatiblenonarray",
+            Inner::AnycompatibleRange => "anycompatiblerange",
             Inner::Other(ref u) => &u.name,
         }
     }
@@ -907,6 +952,9 @@ impl Type {
 
     /// TABLE_AM_HANDLER
     pub const TABLE_AM_HANDLER: Type = Type(Inner::TableAmHandler);
+
+    /// XID8&#91;&#93;
+    pub const XID8_ARRAY: Type = Type(Inner::Xid8Array);
 
     /// INDEX_AM_HANDLER - pseudo-type for the result of an index AM handler function
     pub const INDEX_AM_HANDLER: Type = Type(Inner::IndexAmHandler);
@@ -1178,9 +1226,6 @@ impl Type {
     /// INTERNAL - pseudo-type representing an internal data structure
     pub const INTERNAL: Type = Type(Inner::Internal);
 
-    /// OPAQUE - obsolete, deprecated pseudo-type
-    pub const OPAQUE: Type = Type(Inner::Opaque);
-
     /// ANYELEMENT - pseudo-type representing a polymorphic base type
     pub const ANYELEMENT: Type = Type(Inner::Anyelement);
 
@@ -1259,7 +1304,7 @@ impl Type {
     /// JSONB&#91;&#93;
     pub const JSONB_ARRAY: Type = Type(Inner::JsonbArray);
 
-    /// ANYRANGE - pseudo-type representing a polymorphic base type that is a range
+    /// ANYRANGE - pseudo-type representing a range over a polymorphic base type
     pub const ANY_RANGE: Type = Type(Inner::AnyRange);
 
     /// EVENT_TRIGGER - pseudo-type for the result of an event trigger function
@@ -1319,6 +1364,33 @@ impl Type {
     /// REGROLE&#91;&#93;
     pub const REGROLE_ARRAY: Type = Type(Inner::RegroleArray);
 
+    /// REGCOLLATION - registered collation
+    pub const REGCOLLATION: Type = Type(Inner::Regcollation);
+
+    /// REGCOLLATION&#91;&#93;
+    pub const REGCOLLATION_ARRAY: Type = Type(Inner::RegcollationArray);
+
     /// PG_MCV_LIST - multivariate MCV list
     pub const PG_MCV_LIST: Type = Type(Inner::PgMcvList);
+
+    /// PG_SNAPSHOT - snapshot
+    pub const PG_SNAPSHOT: Type = Type(Inner::PgSnapshot);
+
+    /// PG_SNAPSHOT&#91;&#93;
+    pub const PG_SNAPSHOT_ARRAY: Type = Type(Inner::PgSnapshotArray);
+
+    /// XID8 - full transaction id
+    pub const XID8: Type = Type(Inner::Xid8);
+
+    /// ANYCOMPATIBLE - pseudo-type representing a polymorphic common type
+    pub const ANYCOMPATIBLE: Type = Type(Inner::Anycompatible);
+
+    /// ANYCOMPATIBLEARRAY - pseudo-type representing an array of polymorphic common type elements
+    pub const ANYCOMPATIBLEARRAY: Type = Type(Inner::Anycompatiblearray);
+
+    /// ANYCOMPATIBLENONARRAY - pseudo-type representing a polymorphic common type that is not an array
+    pub const ANYCOMPATIBLENONARRAY: Type = Type(Inner::Anycompatiblenonarray);
+
+    /// ANYCOMPATIBLERANGE - pseudo-type representing a range over a polymorphic common type
+    pub const ANYCOMPATIBLE_RANGE: Type = Type(Inner::AnycompatibleRange);
 }
