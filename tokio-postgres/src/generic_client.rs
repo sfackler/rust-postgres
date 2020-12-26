@@ -12,6 +12,9 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 #[async_trait]
 pub trait GenericClient: private::Sealed {
+    /// Get a reference to the underlying `Client`
+    fn client(&self) -> &Client;
+
     /// Like `Client::execute`.
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
@@ -74,6 +77,10 @@ impl private::Sealed for Client {}
 
 #[async_trait]
 impl GenericClient for Client {
+    fn client(&self) -> &Client {
+        self
+    }
+
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -152,6 +159,10 @@ impl private::Sealed for Transaction<'_> {}
 #[async_trait]
 #[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
+    fn client(&self) -> &Client {
+        self.client()
+    }
+
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
