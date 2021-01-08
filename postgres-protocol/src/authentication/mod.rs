@@ -1,5 +1,5 @@
 //! Authentication protocol support.
-use md5::Context;
+use md5::{Digest, Md5};
 
 pub mod sasl;
 
@@ -10,14 +10,13 @@ pub mod sasl;
 /// `PasswordMessage` message.
 #[inline]
 pub fn md5_hash(username: &[u8], password: &[u8], salt: [u8; 4]) -> String {
-    let mut context = Context::new();
-    context.consume(password);
-    context.consume(username);
-    let output = context.compute();
-    context = Context::new();
-    context.consume(format!("{:x}", output));
-    context.consume(&salt);
-    format!("md5{:x}", context.compute())
+    let mut md5 = Md5::new();
+    md5.update(password);
+    md5.update(username);
+    let output = md5.finalize_reset();
+    md5.update(format!("{:x}", output));
+    md5.update(&salt);
+    format!("md5{:x}", md5.finalize())
 }
 
 #[cfg(test)]
