@@ -19,6 +19,7 @@ use std::io;
 pub mod authentication;
 pub mod escape;
 pub mod message;
+pub mod password;
 pub mod types;
 
 /// A Postgres OID.
