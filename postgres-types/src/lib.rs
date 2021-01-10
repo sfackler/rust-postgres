@@ -130,6 +130,9 @@ use crate::type_gen::{Inner, Other};
 #[doc(inline)]
 pub use postgres_protocol::Oid;
 
+#[doc(inline)]
+pub use pg_lsn::PgLsn;
+
 pub use crate::special::{Date, Timestamp};
 use bytes::BytesMut;
 
@@ -204,6 +207,7 @@ mod uuid_08;
 #[cfg(feature = "with-time-0_2")]
 extern crate time_02 as time;
 
+mod pg_lsn;
 #[doc(hidden)]
 pub mod private;
 mod special;
