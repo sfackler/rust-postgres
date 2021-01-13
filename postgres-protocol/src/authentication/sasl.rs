@@ -32,7 +32,7 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
     }
 }
 
-fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
+pub(crate) fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("HMAC is able to accept all key sizes");
     hmac.update(salt);
     hmac.update(&[0, 0, 0, 1]);
