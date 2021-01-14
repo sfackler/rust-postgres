@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
-use geo_types_06::{Coordinate, LineString, Point, Rect};
+use geo_types_0_7::{Coordinate, LineString, Point, Rect};
 use postgres_protocol::types;
 use std::error::Error;
 
