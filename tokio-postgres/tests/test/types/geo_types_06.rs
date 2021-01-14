@@ -1,4 +1,7 @@
+#[cfg(feature = "with-geo-types-0_6")]
 use geo_types_06::{Coordinate, LineString, Point, Rect};
+#[cfg(feature = "with-geo-types-0_7")]
+use geo_types_07::{Coordinate, LineString, Point, Rect};
 
 use crate::types::test_type;
 

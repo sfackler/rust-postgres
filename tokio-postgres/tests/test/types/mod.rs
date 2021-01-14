@@ -19,9 +19,7 @@ mod bit_vec_06;
 mod chrono_04;
 #[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
-#[cfg(feature = "with-geo-types-0_4")]
-mod geo_types_04;
-#[cfg(feature = "with-geo-types-0_6")]
+#[cfg(any(feature = "with-geo-types-0_6", feature = "with-geo-types-0_7"))]
 mod geo_types_06;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
