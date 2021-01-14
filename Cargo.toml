@@ -12,11 +12,11 @@ readme = "README.md"
 futures = "0.3"
 ring = "0.16"
 rustls = "0.19"
-tokio = "0.3"
-tokio-postgres = "0.6"
-tokio-rustls = "0.21"
+tokio = "1"
+tokio-postgres = "0.7"
+tokio-rustls = "0.22"
 webpki = "0.21"
 
 [dev-dependencies]
 env_logger = { version = "0.8", default-features = false }
-tokio = { version = "0.3", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt"] }
