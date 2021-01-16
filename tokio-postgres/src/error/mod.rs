@@ -414,14 +414,18 @@ impl Error {
         self.0.cause
     }
 
+    /// Returns the source of this error if it was a `DbError`.
+    ///
+    /// This is a simple convenience method.
+    pub fn as_db_error(&self) -> Option<&DbError> {
+        self.source().and_then(|e| e.downcast_ref::<DbError>())
+    }
+
     /// Returns the SQLSTATE error code associated with the error.
     ///
-    /// This is a convenience method that downcasts the cause to a `DbError`
-    /// and returns its code.
+    /// This is a convenience method that downcasts the cause to a `DbError` and returns its code.
     pub fn code(&self) -> Option<&SqlState> {
-        self.source()
-            .and_then(|e| e.downcast_ref::<DbError>())
-            .map(DbError::code)
+        self.as_db_error().map(DbError::code)
     }
 
     fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
