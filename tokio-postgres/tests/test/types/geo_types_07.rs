@@ -1,4 +1,5 @@
-use geo_types_04::{Coordinate, LineString, Point, Rect};
+#[cfg(feature = "with-geo-types-0_7")]
+use geo_types_07::{Coordinate, LineString, Point, Rect};
 
 use crate::types::test_type;
 
@@ -21,13 +22,13 @@ async fn test_box_params() {
         "BOX",
         &[
             (
-                Some(Rect {
-                    min: Coordinate { x: -3.2, y: 1.618 },
-                    max: Coordinate {
+                Some(Rect::new(
+                    Coordinate { x: -3.2, y: 1.618 },
+                    Coordinate {
                         x: 160.0,
                         y: 69701.5615,
                     },
-                }),
+                )),
                 "BOX(POINT(160.0, 69701.5615), POINT(-3.2, 1.618))",
             ),
             (None, "NULL"),

@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added support for `geo-types` 0.7 via `with-geo-types-0_7` feature.
+
 ## v0.19.0 - 2020-12-25
 
 ### Changed
