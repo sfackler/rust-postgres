@@ -407,8 +407,8 @@ impl Client {
     ///
     /// # Warning
     ///
-    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
-    /// functionality to safely imbed that data in the request. Do not form statements via string concatenation and pass
+    /// Prepared statements should be used for any query which contains user-specified data, as they provided the
+    /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.connection.block_on(self.client.simple_query(query))
