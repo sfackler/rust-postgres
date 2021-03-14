@@ -156,20 +156,29 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     let params = params.into_iter();
+    let capacity = params.len();
 
     assert!(
-        statement.params().len() == params.len(),
+        statement.params().len() == capacity,
         "expected {} parameters but got {}",
         statement.params().len(),
-        params.len()
+        capacity,
     );
+
+    let mut formats = Vec::with_capacity(capacity);
+    let mut values = Vec::with_capacity(capacity);
+
+    for (index, (param, ty)) in params.zip(statement.params()).enumerate() {
+        formats.push(param.borrow_to_sql().format().into());
+        values.push((index, (param, ty)));
+    }
 
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
         statement.name(),
-        Some(1),
-        params.zip(statement.params()).enumerate(),
+        formats,
+        values,
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
             Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
             Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
