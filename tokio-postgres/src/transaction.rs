@@ -5,7 +5,7 @@ use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{BorrowToSql, ToSql, Type};
+use crate::types::{BorrowToSql, Format, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -139,14 +139,24 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
-    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
-        self.client.query_raw(statement, params).await
+        self.client
+            .query_raw(statement, params, param_formats, column_formats)
+            .await
     }
 
     /// Like `Client::execute`.
@@ -162,14 +172,22 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute_iter`.
-    pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<P, I, J, T>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
     {
-        self.client.execute_raw(statement, params).await
+        self.client
+            .execute_raw(statement, params, param_formats)
+            .await
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
@@ -188,21 +206,42 @@ impl<'a> Transaction<'a> {
     where
         T: ?Sized + ToStatement,
     {
-        self.bind_raw(statement, slice_iter(params)).await
+        self.bind_raw(
+            statement,
+            slice_iter(params),
+            Some(Format::Binary),
+            Some(Format::Binary),
+        )
+        .await
     }
 
     /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
-    pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
+    pub async fn bind_raw<P, T, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
         let statement = statement.__convert().into_statement(self.client).await?;
-        bind::bind(self.client.inner(), statement, params).await
+        bind::bind(
+            self.client.inner(),
+            statement,
+            params,
+            param_formats,
+            column_formats,
+        )
+        .await
     }
 
     /// Continues execution of a portal, returning a stream of the resulting rows.

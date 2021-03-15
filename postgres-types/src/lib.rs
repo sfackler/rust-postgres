@@ -770,16 +770,12 @@ pub trait ToSql: fmt::Debug {
         ty: &Type,
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
-
-    /// Specifies the message format of the value
-    fn format(&self) -> Format {
-        Format::Binary
-    }
 }
 
 /// Supported Postgres message format types
 ///
 /// Using Text format in a message assumes a Postgres `SERVER_ENCODING` of `UTF8`
+#[derive(Copy, Clone, Debug)]
 pub enum Format {
     /// Text format (UTF-8)
     Text,
@@ -788,12 +784,18 @@ pub enum Format {
 }
 
 /// Convert from `Format` to the Postgres integer representation of those formats
-impl From<Format> for i16 {
-    fn from(format: Format) -> Self {
+impl From<&Format> for i16 {
+    fn from(format: &Format) -> Self {
         match format {
             Format::Text => 0,
             Format::Binary => 1,
         }
+    }
+}
+
+impl From<Format> for i16 {
+    fn from(format: Format) -> Self {
+        Self::from(&format)
     }
 }
 

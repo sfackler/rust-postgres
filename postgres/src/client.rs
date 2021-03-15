@@ -6,7 +6,7 @@ use crate::{
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
-use tokio_postgres::types::{BorrowToSql, ToSql, Type};
+use tokio_postgres::types::{BorrowToSql, Format, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
@@ -221,6 +221,7 @@ impl Client {
     ///
     /// ```no_run
     /// use postgres::{Client, NoTls};
+    /// use postgres::types::Format;
     /// use fallible_iterator::FallibleIterator;
     /// use std::iter;
     ///
@@ -228,7 +229,12 @@ impl Client {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
     /// let baz = true;
-    /// let mut it = client.query_raw("SELECT foo FROM bar WHERE baz = $1", iter::once(baz))?;
+    /// let mut it = client.query_raw(
+    ///     "SELECT foo FROM bar WHERE baz = $1",
+    ///     iter::once(baz),
+    ///     Some(Format::Binary),
+    ///     Some(Format::Binary),
+    /// )?;
     ///
     /// while let Some(row) = it.next()? {
     ///     let foo: i32 = row.get("foo");
@@ -243,7 +249,7 @@ impl Client {
     ///
     /// ```no_run
     /// # use postgres::{Client, NoTls};
-    /// use postgres::types::ToSql;
+    /// use postgres::types::{ToSql, Format};
     /// use fallible_iterator::FallibleIterator;
     /// # fn main() -> Result<(), postgres::Error> {
     /// # let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
@@ -255,6 +261,8 @@ impl Client {
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
     ///     params,
+    ///     Some(Format::Text),
+    ///     Some(Format::Binary),
     /// )?;
     ///
     /// while let Some(row) = it.next()? {
@@ -264,16 +272,27 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    pub fn query_raw<T, P, I, J, K>(
+        &mut self,
+        query: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
-        let stream = self
-            .connection
-            .block_on(self.client.query_raw(query, params))?;
+        let stream = self.connection.block_on(self.client.query_raw(
+            query,
+            params,
+            param_formats,
+            column_formats,
+        ))?;
         Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 

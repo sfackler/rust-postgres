@@ -2,7 +2,7 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
-use crate::types::{Field, Kind, Oid, Type};
+use crate::types::{Field, Format, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
 use bytes::Bytes;
@@ -137,7 +137,14 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let stmt = typeinfo_statement(client).await?;
 
-    let rows = query::query(client, stmt, slice_iter(&[&oid])).await?;
+    let rows = query::query(
+        client,
+        stmt,
+        slice_iter(&[&oid]),
+        Some(Format::Binary),
+        Some(Format::Binary),
+    )
+    .await?;
     pin_mut!(rows);
 
     let row = match rows.try_next().await? {
@@ -207,11 +214,17 @@ async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Erro
 async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<String>, Error> {
     let stmt = typeinfo_enum_statement(client).await?;
 
-    query::query(client, stmt, slice_iter(&[&oid]))
-        .await?
-        .and_then(|row| async move { row.try_get(0) })
-        .try_collect()
-        .await
+    query::query(
+        client,
+        stmt,
+        slice_iter(&[&oid]),
+        Some(Format::Binary),
+        Some(Format::Binary),
+    )
+    .await?
+    .and_then(|row| async move { row.try_get(0) })
+    .try_collect()
+    .await
 }
 
 async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
@@ -234,10 +247,16 @@ async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement,
 async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<Field>, Error> {
     let stmt = typeinfo_composite_statement(client).await?;
 
-    let rows = query::query(client, stmt, slice_iter(&[&oid]))
-        .await?
-        .try_collect::<Vec<_>>()
-        .await?;
+    let rows = query::query(
+        client,
+        stmt,
+        slice_iter(&[&oid]),
+        Some(Format::Binary),
+        Some(Format::Binary),
+    )
+    .await?
+    .try_collect::<Vec<_>>()
+    .await?;
 
     let mut fields = vec![];
     for row in rows {

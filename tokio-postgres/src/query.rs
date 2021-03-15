@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::{BorrowToSql, IsNull};
+use crate::types::{BorrowToSql, Format, IsNull, Type};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures::{ready, Stream};
@@ -27,15 +27,19 @@ where
     }
 }
 
-pub async fn query<P, I>(
+pub async fn query<P, I, J, K>(
     client: &InnerClient,
     statement: Statement,
     params: I,
+    param_formats: J,
+    column_formats: K,
 ) -> Result<RowStream, Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = Format>,
+    K: IntoIterator<Item = Format>,
 {
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
@@ -44,9 +48,9 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode(client, &statement, params, param_formats, column_formats)?
     } else {
-        encode(client, &statement, params)?
+        encode(client, &statement, params, param_formats, column_formats)?
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
@@ -76,15 +80,17 @@ pub async fn query_portal(
     })
 }
 
-pub async fn execute<P, I>(
+pub async fn execute<P, I, J>(
     client: &InnerClient,
     statement: Statement,
     params: I,
+    param_formats: J,
 ) -> Result<u64, Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = Format>,
 {
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
@@ -93,9 +99,21 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode(
+            client,
+            &statement,
+            params,
+            param_formats,
+            Some(Format::Binary),
+        )?
     } else {
-        encode(client, &statement, params)?
+        encode(
+            client,
+            &statement,
+            params,
+            param_formats,
+            Some(Format::Binary),
+        )?
     };
     let mut responses = start(client, buf).await?;
 
@@ -130,23 +148,33 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
+pub fn encode<P, I, J, K>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+    param_formats: J,
+    column_formats: K,
+) -> Result<Bytes, Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = Format>,
+    K: IntoIterator<Item = Format>,
 {
     client.with_buf(|buf| {
-        encode_bind(statement, params, "", buf)?;
+        encode_bind(statement, params, param_formats, column_formats, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })
 }
 
-pub fn encode_bind<P, I>(
+pub fn encode_bind<P, I, J, K>(
     statement: &Statement,
     params: I,
+    param_formats: J,
+    column_formats: K,
     portal: &str,
     buf: &mut BytesMut,
 ) -> Result<(), Error>
@@ -154,6 +182,8 @@ where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = Format>,
+    K: IntoIterator<Item = Format>,
 {
     let params = params.into_iter();
     let capacity = params.len();
@@ -165,29 +195,38 @@ where
         capacity,
     );
 
-    let mut formats = Vec::with_capacity(capacity);
+    let param_formats: Vec<Format> = param_formats.into_iter().collect();
+    let column_formats = column_formats.into_iter().map(Into::into);
     let mut values = Vec::with_capacity(capacity);
 
-    for (index, (param, ty)) in params.zip(statement.params()).enumerate() {
-        formats.push(param.borrow_to_sql().format().into());
-        values.push((index, (param, ty)));
+    for (idx, (param, ty)) in params.zip(statement.params()).enumerate() {
+        let format = param_formats.get(idx).unwrap_or(&Format::Binary);
+
+        values.push((idx, (param, ty, format)))
     }
 
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
         statement.name(),
-        formats,
+        param_formats.iter().map(Into::into),
         values,
-        |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
-            Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
-            Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
-            Err(e) => {
-                error_idx = idx;
-                Err(e)
+        |(idx, (param, ty, format)), buf| {
+            let ty = match format {
+                Format::Binary => ty,
+                Format::Text => &Type::TEXT,
+            };
+
+            match param.borrow_to_sql().to_sql_checked(ty, buf) {
+                Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
+                Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
+                Err(e) => {
+                    error_idx = idx;
+                    Err(e)
+                }
             }
         },
-        Some(1),
+        column_formats,
         buf,
     );
     match r {
