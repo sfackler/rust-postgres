@@ -200,9 +200,10 @@ where
                 return Ok(false);
             }
 
-            if let Poll::Pending = Pin::new(&mut self.stream)
+            if Pin::new(&mut self.stream)
                 .poll_ready(cx)
                 .map_err(Error::io)?
+                .is_pending()
             {
                 trace!("poll_write: waiting on socket");
                 return Ok(false);
