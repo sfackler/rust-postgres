@@ -760,8 +760,8 @@ impl<'a> UrlParser<'a> {
 
     fn remove_url_prefix(s: &str) -> Option<&str> {
         for prefix in &["postgres://", "postgresql://"] {
-            if s.starts_with(prefix) {
-                return Some(&s[prefix.len()..]);
+            if let Some(stripped) = s.strip_prefix(prefix) {
+                return Some(stripped);
             }
         }
 
@@ -825,8 +825,8 @@ impl<'a> UrlParser<'a> {
 
                 let host = &chunk[1..idx];
                 let remaining = &chunk[idx + 1..];
-                let port = if remaining.starts_with(':') {
-                    Some(&remaining[1..])
+                let port = if let Some(port) = remaining.strip_prefix(':') {
+                    Some(port)
                 } else if remaining.is_empty() {
                     None
                 } else {

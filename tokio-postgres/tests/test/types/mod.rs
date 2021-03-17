@@ -483,11 +483,7 @@ async fn domain() {
         }
 
         fn accepts(ty: &Type) -> bool {
-            ty.name() == "session_id"
-                && match *ty.kind() {
-                    Kind::Domain(_) => true,
-                    _ => false,
-                }
+            ty.name() == "session_id" && matches!(ty.kind(), Kind::Domain(_))
         }
 
         to_sql_checked!();

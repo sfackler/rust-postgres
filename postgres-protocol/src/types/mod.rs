@@ -231,9 +231,9 @@ fn write_pascal_string(s: &str, buf: &mut BytesMut) -> Result<(), StdBox<dyn Err
 
 /// Deserializes an `HSTORE` value.
 #[inline]
-pub fn hstore_from_sql<'a>(
-    mut buf: &'a [u8],
-) -> Result<HstoreEntries<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn hstore_from_sql(
+    mut buf: &[u8],
+) -> Result<HstoreEntries<'_>, StdBox<dyn Error + Sync + Send>> {
     let count = buf.read_i32::<BigEndian>()?;
     if count < 0 {
         return Err("invalid entry count".into());
@@ -319,9 +319,7 @@ where
 
 /// Deserializes a `VARBIT` or `BIT` value.
 #[inline]
-pub fn varbit_from_sql<'a>(
-    mut buf: &'a [u8],
-) -> Result<Varbit<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn varbit_from_sql(mut buf: &[u8]) -> Result<Varbit<'_>, StdBox<dyn Error + Sync + Send>> {
     let len = buf.read_i32::<BigEndian>()?;
     if len < 0 {
         return Err("invalid varbit length: varbit < 0".into());
@@ -508,7 +506,7 @@ where
 
 /// Deserializes an array value.
 #[inline]
-pub fn array_from_sql<'a>(mut buf: &'a [u8]) -> Result<Array<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn array_from_sql(mut buf: &[u8]) -> Result<Array<'_>, StdBox<dyn Error + Sync + Send>> {
     let dimensions = buf.read_i32::<BigEndian>()?;
     if dimensions < 0 {
         return Err("invalid dimension count".into());
@@ -738,7 +736,7 @@ pub enum RangeBound<T> {
 
 /// Deserializes a range value.
 #[inline]
-pub fn range_from_sql<'a>(mut buf: &'a [u8]) -> Result<Range<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn range_from_sql(mut buf: &[u8]) -> Result<Range<'_>, StdBox<dyn Error + Sync + Send>> {
     let tag = buf.read_u8()?;
 
     if tag == RANGE_EMPTY {
@@ -911,7 +909,7 @@ where
 
 /// Deserializes a Postgres path.
 #[inline]
-pub fn path_from_sql<'a>(mut buf: &'a [u8]) -> Result<Path<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn path_from_sql(mut buf: &[u8]) -> Result<Path<'_>, StdBox<dyn Error + Sync + Send>> {
     let closed = buf.read_u8()? != 0;
     let points = buf.read_i32::<BigEndian>()?;
 

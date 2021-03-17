@@ -1,5 +1,4 @@
 # Rust-Postgres
-[![CircleCI](https://circleci.com/gh/sfackler/rust-postgres.svg?style=shield)](https://circleci.com/gh/sfackler/rust-postgres)
 
 PostgreSQL support for Rust.
 
