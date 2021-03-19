@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.45.0
+          version: 1.46.0
       - run: echo "::set-output name=version::$(rustc --version)"
         id: rust-version
       - uses: actions/cache@v1
