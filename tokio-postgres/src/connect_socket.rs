@@ -1,17 +1,12 @@
 use crate::config::Host;
 use crate::{Error, Socket};
-use socket2::{Domain, Protocol, Type};
+use socket2::{SockRef, TcpKeepalive};
 use std::future::Future;
 use std::io;
-use std::net::SocketAddr;
-#[cfg(unix)]
-use std::os::unix::io::{FromRawFd, IntoRawFd};
-#[cfg(windows)]
-use std::os::windows::io::{FromRawSocket, IntoRawSocket};
 use std::time::Duration;
 #[cfg(unix)]
 use tokio::net::UnixStream;
-use tokio::net::{self, TcpSocket};
+use tokio::net::{self, TcpStream};
 use tokio::time;
 
 pub(crate) async fn connect_socket(
@@ -30,30 +25,23 @@ pub(crate) async fn connect_socket(
             let mut last_err = None;
 
             for addr in addrs {
-                let domain = match addr {
-                    SocketAddr::V4(_) => Domain::ipv4(),
-                    SocketAddr::V6(_) => Domain::ipv6(),
-                };
+                let stream =
+                    match connect_with_timeout(TcpStream::connect(addr), connect_timeout).await {
+                        Ok(stream) => stream,
+                        Err(e) => {
+                            last_err = Some(e);
+                            continue;
+                        }
+                    };
 
-                let socket = socket2::Socket::new(domain, Type::stream(), Some(Protocol::tcp()))
-                    .map_err(Error::connect)?;
-                socket.set_nonblocking(true).map_err(Error::connect)?;
-                socket.set_nodelay(true).map_err(Error::connect)?;
+                stream.set_nodelay(true).map_err(Error::connect)?;
                 if keepalives {
-                    socket
-                        .set_keepalive(Some(keepalives_idle))
+                    SockRef::from(&stream)
+                        .set_tcp_keepalive(&TcpKeepalive::new().with_time(keepalives_idle))
                         .map_err(Error::connect)?;
                 }
 
-                #[cfg(unix)]
-                let socket = unsafe { TcpSocket::from_raw_fd(socket.into_raw_fd()) };
-                #[cfg(windows)]
-                let socket = unsafe { TcpSocket::from_raw_socket(socket.into_raw_socket()) };
-
-                match connect_with_timeout(socket.connect(addr), connect_timeout).await {
-                    Ok(socket) => return Ok(Socket::new_tcp(socket)),
-                    Err(e) => last_err = Some(e),
-                }
+                return Ok(Socket::new_tcp(stream));
             }
 
             Err(last_err.unwrap_or_else(|| {
