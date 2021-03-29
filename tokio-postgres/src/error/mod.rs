@@ -421,6 +421,11 @@ impl Error {
         self.source().and_then(|e| e.downcast_ref::<DbError>())
     }
 
+    /// Determines if the error was associated with closed connection.
+    pub fn is_closed(&self) -> bool {
+        self.0.kind == Kind::Closed
+    }
+
     /// Returns the SQLSTATE error code associated with the error.
     ///
     /// This is a convenience method that downcasts the cause to a `DbError` and returns its code.
