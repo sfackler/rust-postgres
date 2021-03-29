@@ -577,7 +577,7 @@ async fn notices() {
             .unwrap();
 
     let (tx, rx) = mpsc::unbounded();
-    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
+    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!("{}", e));
     let connection = stream.forward(tx).map(|r| r.unwrap());
     tokio::spawn(connection);
 
@@ -612,7 +612,7 @@ async fn notifications() {
     let (client, mut connection) = connect_raw("user=postgres").await.unwrap();
 
     let (tx, rx) = mpsc::unbounded();
-    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!(e));
+    let stream = stream::poll_fn(move |cx| connection.poll_message(cx)).map_err(|e| panic!("{}", e));
     let connection = stream.forward(tx).map(|r| r.unwrap());
     tokio::spawn(connection);
 
