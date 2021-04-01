@@ -113,6 +113,10 @@ impl InnerClient {
         self.state.lock().types.insert(oid, type_.clone());
     }
 
+    pub fn clear_types(&self) {
+        self.state.lock().types.clear();
+    }
+
     pub fn with_buf<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut BytesMut) -> R,
@@ -174,6 +178,11 @@ impl Client {
 
     pub(crate) fn inner(&self) -> &Arc<InnerClient> {
         &self.inner
+    }
+
+    /// Clears the cache of database types (domain, enum, composition) that are loaded when preparing a query.
+    pub fn clear_types_cache(&self) {
+        self.inner().clear_types()
     }
 
     #[cfg(feature = "runtime")]
