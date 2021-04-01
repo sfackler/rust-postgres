@@ -20,6 +20,7 @@ use tokio_postgres::{
 };
 
 mod binary_copy;
+mod copy_both;
 mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;
