@@ -5,7 +5,7 @@ use crate::Error;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::ReplicationMessage;
+use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -86,6 +86,85 @@ impl Stream for ReplicationStream {
             Some(Ok(buf)) => {
                 Poll::Ready(Some(ReplicationMessage::parse(&buf).map_err(Error::parse)))
             }
+            Some(Err(err)) => Poll::Ready(Some(Err(err))),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+pin_project! {
+    /// A type which deserializes the postgres logical replication protocol. This type gives access
+    /// to a high level representation of the changes in transaction commit order.
+    ///
+    /// The replication *must* be explicitly completed via the `finish` method.
+    pub struct LogicalReplicationStream {
+        #[pin]
+        stream: ReplicationStream,
+    }
+}
+
+impl LogicalReplicationStream {
+    /// Creates a new LogicalReplicationStream that will wrap the underlying CopyBoth stream
+    pub fn new(stream: CopyBothDuplex<Bytes>) -> Self {
+        Self {
+            stream: ReplicationStream::new(stream),
+        }
+    }
+
+    /// Send standby update to server.
+    pub async fn standby_status_update(
+        self: Pin<&mut Self>,
+        write_lsn: PgLsn,
+        flush_lsn: PgLsn,
+        apply_lsn: PgLsn,
+        ts: i64,
+        reply: u8,
+    ) -> Result<(), Error> {
+        let this = self.project();
+        this.stream
+            .standby_status_update(write_lsn, flush_lsn, apply_lsn, ts, reply)
+            .await
+    }
+
+    /// Send hot standby feedback message to server.
+    pub async fn hot_standby_feedback(
+        self: Pin<&mut Self>,
+        timestamp: i64,
+        global_xmin: u32,
+        global_xmin_epoch: u32,
+        catalog_xmin: u32,
+        catalog_xmin_epoch: u32,
+    ) -> Result<(), Error> {
+        let this = self.project();
+        this.stream
+            .hot_standby_feedback(
+                timestamp,
+                global_xmin,
+                global_xmin_epoch,
+                catalog_xmin,
+                catalog_xmin_epoch,
+            )
+            .await
+    }
+}
+
+impl Stream for LogicalReplicationStream {
+    type Item = Result<ReplicationMessage<LogicalReplicationMessage>, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+
+        match ready!(this.stream.poll_next(cx)) {
+            Some(Ok(ReplicationMessage::XLogData(body))) => {
+                let body = body
+                    .map_data(|buf| LogicalReplicationMessage::parse(&buf))
+                    .map_err(Error::parse)?;
+                Poll::Ready(Some(Ok(ReplicationMessage::XLogData(body))))
+            }
+            Some(Ok(ReplicationMessage::PrimaryKeepAlive(body))) => {
+                Poll::Ready(Some(Ok(ReplicationMessage::PrimaryKeepAlive(body))))
+            }
+            Some(Ok(_)) => Poll::Ready(Some(Err(Error::unexpected_message()))),
             Some(Err(err)) => Poll::Ready(Some(Err(err))),
             None => Poll::Ready(None),
         }
