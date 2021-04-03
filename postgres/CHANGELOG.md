@@ -1,10 +1,11 @@
 # Change Log
 
-## Unreleased
+## v0.19.1 - 2021-04-03
 
 ### Added
 
 * Added support for `geo-types` 0.7 via `with-geo-types-0_7` feature.
+* Added `Client::clear_type_cache`.
 
 ## v0.19.0 - 2020-12-25
 
