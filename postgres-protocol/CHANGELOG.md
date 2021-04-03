@@ -1,5 +1,16 @@
 # Change Log
 
+## v0.6.1 - 2021-04-03
+
+### Added
+
+* Added the `password` module, which can be used to hash passwords before using them in queries like `ALTER USER`.
+* Added type conversions for `LSN`.
+
+### Changed
+
+* Moved from `md5` to `md-5`.
+
 ## v0.6.0 - 2020-12-25
 
 ### Changed
