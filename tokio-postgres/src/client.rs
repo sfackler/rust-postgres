@@ -113,7 +113,7 @@ impl InnerClient {
         self.state.lock().types.insert(oid, type_.clone());
     }
 
-    pub fn clear_types(&self) {
+    pub fn clear_type_cache(&self) {
         self.state.lock().types.clear();
     }
 
@@ -178,11 +178,6 @@ impl Client {
 
     pub(crate) fn inner(&self) -> &Arc<InnerClient> {
         &self.inner
-    }
-
-    /// Clears the cache of database types (domain, enum, composition) that are loaded when preparing a query.
-    pub fn clear_types_cache(&self) {
-        self.inner().clear_types()
     }
 
     #[cfg(feature = "runtime")]
@@ -493,9 +488,8 @@ impl Client {
         TransactionBuilder::new(self)
     }
 
-    /// Constructs a cancellation token that can later be used to request
-    /// cancellation of a query running on the connection associated with
-    /// this client.
+    /// Constructs a cancellation token that can later be used to request cancellation of a query running on the
+    /// connection associated with this client.
     pub fn cancel_token(&self) -> CancelToken {
         CancelToken {
             #[cfg(feature = "runtime")]
@@ -530,6 +524,15 @@ impl Client {
         T: TlsConnect<S>,
     {
         self.cancel_token().cancel_query_raw(stream, tls).await
+    }
+
+    /// Clears the client's type information cache.
+    ///
+    /// When user-defined types are used in a query, the client loads their definitions from the database and caches
+    /// them for the lifetime of the client. If those definitions are changed in the database, this method can be used
+    /// to flush the local cache and allow the new, updated definitions to be loaded.
+    pub fn clear_type_cache(&self) {
+        self.inner().clear_type_cache();
     }
 
     /// Determines if the connection to the server has already closed.

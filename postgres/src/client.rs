@@ -501,8 +501,8 @@ impl Client {
         Notifications::new(self.connection.as_ref())
     }
 
-    /// Constructs a cancellation token that can later be used to request
-    /// cancellation of a query running on this connection.
+    /// Constructs a cancellation token that can later be used to request cancellation of a query running on this
+    /// connection.
     ///
     /// # Examples
     ///
@@ -539,6 +539,15 @@ impl Client {
     /// ```
     pub fn cancel_token(&self) -> CancelToken {
         CancelToken::new(self.client.cancel_token())
+    }
+
+    /// Clears the client's type information cache.
+    ///
+    /// When user-defined types are used in a query, the client loads their definitions from the database and caches
+    /// them for the lifetime of the client. If those definitions are changed in the database, this method can be used
+    /// to flush the local cache and allow the new, updated definitions to be loaded.
+    pub fn clear_type_cache(&self) {
+        self.client.clear_type_cache();
     }
 
     /// Determines if the client's connection has already closed.
