@@ -1,10 +1,12 @@
 # Change Log
 
-## Unreleased
+## v0.7.1 - 2020-04-03
 
 ### Added
 
 * Added support for `geo-types` 0.7 via `with-geo-types-0_7` feature.
+* Added `Client::clear_type_cache`.
+* Added `Error::as_db_error` and `Error::is_closed`.
 
 ## v0.7.0 - 2020-12-25
 
