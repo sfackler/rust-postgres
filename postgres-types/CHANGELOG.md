@@ -1,10 +1,11 @@
 # Change Log
 
-## Unreleased
+## v0.2.1 - 2021-04-03
 
 ### Added
 
 * Added support for `geo-types` 0.7 via `with-geo-types-0_7` feature.
+* Added the `PgLsn` type, corresponding to `PG_LSN`.
 
 ## v0.2.0 - 2020-12-25
 

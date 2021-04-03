@@ -105,7 +105,7 @@
 //!     Happy,
 //! }
 //! ```
-#![doc(html_root_url = "https://docs.rs/postgres-types/0.1")]
+#![doc(html_root_url = "https://docs.rs/postgres-types/0.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
 use fallible_iterator::FallibleIterator;
