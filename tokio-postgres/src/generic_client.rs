@@ -12,9 +12,6 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 #[async_trait]
 pub trait GenericClient: private::Sealed {
-    /// Get a reference to the underlying `Client`
-    fn client(&self) -> &Client;
-
     /// Like `Client::execute`.
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
@@ -71,16 +68,15 @@ pub trait GenericClient: private::Sealed {
 
     /// Like `Client::transaction`.
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error>;
+
+    /// Returns a reference to the underlying `Client`.
+    fn client(&self) -> &Client;
 }
 
 impl private::Sealed for Client {}
 
 #[async_trait]
 impl GenericClient for Client {
-    fn client(&self) -> &Client {
-        self
-    }
-
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -152,6 +148,10 @@ impl GenericClient for Client {
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction().await
     }
+
+    fn client(&self) -> &Client {
+        self
+    }
 }
 
 impl private::Sealed for Transaction<'_> {}
@@ -159,10 +159,6 @@ impl private::Sealed for Transaction<'_> {}
 #[async_trait]
 #[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
-    fn client(&self) -> &Client {
-        self.client()
-    }
-
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -234,5 +230,9 @@ impl GenericClient for Transaction<'_> {
     #[allow(clippy::needless_lifetimes)]
     async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
         self.transaction().await
+    }
+
+    fn client(&self) -> &Client {
+        self.client()
     }
 }

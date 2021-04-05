@@ -64,11 +64,6 @@ impl<'a> Transaction<'a> {
         }
     }
 
-    /// Get a reference to the underlying `Client`
-    pub fn client(&self) -> &Client {
-        &self.client
-    }
-
     /// Consumes the transaction, committing all changes made within it.
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
@@ -310,5 +305,10 @@ impl<'a> Transaction<'a> {
             savepoint: Some(Savepoint { name, depth }),
             done: false,
         })
+    }
+
+    /// Returns a reference to the underlying `Client`.
+    pub fn client(&self) -> &Client {
+        &self.client
     }
 }
