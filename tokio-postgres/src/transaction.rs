@@ -309,6 +309,6 @@ impl<'a> Transaction<'a> {
 
     /// Returns a reference to the underlying `Client`.
     pub fn client(&self) -> &Client {
-        &self.client
+        self.client
     }
 }
