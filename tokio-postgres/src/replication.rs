@@ -6,9 +6,11 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
+use postgres_protocol::PG_EPOCH;
 use postgres_types::PgLsn;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::SystemTime;
 
 const STANDBY_STATUS_UPDATE_TAG: u8 = b'r';
 const HOT_STANDBY_FEEDBACK_TAG: u8 = b'h';
@@ -37,17 +39,22 @@ impl ReplicationStream {
         write_lsn: PgLsn,
         flush_lsn: PgLsn,
         apply_lsn: PgLsn,
-        ts: i64,
+        timestamp: SystemTime,
         reply: u8,
     ) -> Result<(), Error> {
         let mut this = self.project();
+
+        let timestamp = match timestamp.duration_since(*PG_EPOCH) {
+            Ok(d) => d.as_micros() as i64,
+            Err(e) => -(e.duration().as_micros() as i64),
+        };
 
         let mut buf = BytesMut::new();
         buf.put_u8(STANDBY_STATUS_UPDATE_TAG);
         buf.put_u64(write_lsn.into());
         buf.put_u64(flush_lsn.into());
         buf.put_u64(apply_lsn.into());
-        buf.put_i64(ts);
+        buf.put_i64(timestamp);
         buf.put_u8(reply);
 
         this.stream.send(buf.freeze()).await
@@ -56,13 +63,18 @@ impl ReplicationStream {
     /// Send hot standby feedback message to server.
     pub async fn hot_standby_feedback(
         self: Pin<&mut Self>,
-        timestamp: i64,
+        timestamp: SystemTime,
         global_xmin: u32,
         global_xmin_epoch: u32,
         catalog_xmin: u32,
         catalog_xmin_epoch: u32,
     ) -> Result<(), Error> {
         let mut this = self.project();
+
+        let timestamp = match timestamp.duration_since(*PG_EPOCH) {
+            Ok(d) => d.as_micros() as i64,
+            Err(e) => -(e.duration().as_micros() as i64),
+        };
 
         let mut buf = BytesMut::new();
         buf.put_u8(HOT_STANDBY_FEEDBACK_TAG);
@@ -117,19 +129,19 @@ impl LogicalReplicationStream {
         write_lsn: PgLsn,
         flush_lsn: PgLsn,
         apply_lsn: PgLsn,
-        ts: i64,
+        timestamp: SystemTime,
         reply: u8,
     ) -> Result<(), Error> {
         let this = self.project();
         this.stream
-            .standby_status_update(write_lsn, flush_lsn, apply_lsn, ts, reply)
+            .standby_status_update(write_lsn, flush_lsn, apply_lsn, timestamp, reply)
             .await
     }
 
     /// Send hot standby feedback message to server.
     pub async fn hot_standby_feedback(
         self: Pin<&mut Self>,
-        timestamp: i64,
+        timestamp: SystemTime,
         global_xmin: u32,
         global_xmin_epoch: u32,
         catalog_xmin: u32,

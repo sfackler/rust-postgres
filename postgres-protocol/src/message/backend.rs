@@ -8,8 +8,9 @@ use std::cmp;
 use std::io::{self, Read};
 use std::ops::Range;
 use std::str;
+use std::time::{Duration, SystemTime};
 
-use crate::{Lsn, Oid};
+use crate::{Lsn, Oid, PG_EPOCH};
 
 // top-level message tags
 pub const PARSE_COMPLETE_TAG: u8 = b'1';
@@ -340,7 +341,12 @@ impl ReplicationMessage<Bytes> {
             XLOG_DATA_TAG => {
                 let wal_start = buf.read_u64::<BigEndian>()?;
                 let wal_end = buf.read_u64::<BigEndian>()?;
-                let timestamp = buf.read_i64::<BigEndian>()?;
+                let ts = buf.read_i64::<BigEndian>()?;
+                let timestamp = if ts > 0 {
+                    *PG_EPOCH + Duration::from_micros(ts as u64)
+                } else {
+                    *PG_EPOCH - Duration::from_micros(-ts as u64)
+                };
                 let data = buf.read_all();
                 ReplicationMessage::XLogData(XLogDataBody {
                     wal_start,
@@ -351,7 +357,12 @@ impl ReplicationMessage<Bytes> {
             }
             PRIMARY_KEEPALIVE_TAG => {
                 let wal_end = buf.read_u64::<BigEndian>()?;
-                let timestamp = buf.read_i64::<BigEndian>()?;
+                let ts = buf.read_i64::<BigEndian>()?;
+                let timestamp = if ts > 0 {
+                    *PG_EPOCH + Duration::from_micros(ts as u64)
+                } else {
+                    *PG_EPOCH - Duration::from_micros(-ts as u64)
+                };
                 let reply = buf.read_u8()?;
                 ReplicationMessage::PrimaryKeepAlive(PrimaryKeepAliveBody {
                     wal_end,
@@ -894,7 +905,7 @@ impl RowDescriptionBody {
 pub struct XLogDataBody<D> {
     wal_start: u64,
     wal_end: u64,
-    timestamp: i64,
+    timestamp: SystemTime,
     data: D,
 }
 
@@ -910,7 +921,7 @@ impl<D> XLogDataBody<D> {
     }
 
     #[inline]
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
@@ -941,7 +952,7 @@ impl<D> XLogDataBody<D> {
 #[derive(Debug)]
 pub struct PrimaryKeepAliveBody {
     wal_end: u64,
-    timestamp: i64,
+    timestamp: SystemTime,
     reply: u8,
 }
 
@@ -952,7 +963,7 @@ impl PrimaryKeepAliveBody {
     }
 
     #[inline]
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 

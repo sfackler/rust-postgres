@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use postgres_protocol::message::backend::LogicalReplicationMessage::{Begin, Commit, Insert};
 use postgres_protocol::message::backend::ReplicationMessage::*;
@@ -130,13 +130,9 @@ async fn test_replication() {
 
     // Send a standby status update and require a keep alive response
     let lsn: PgLsn = lsn.parse().unwrap();
-
-    // Postgres epoch is 2000-01-01T00:00:00Z
-    let pg_epoch = UNIX_EPOCH + Duration::from_secs(946_684_800);
-    let ts = pg_epoch.elapsed().unwrap().as_micros() as i64;
     stream
         .as_mut()
-        .standby_status_update(lsn, lsn, lsn, ts, 1)
+        .standby_status_update(lsn, lsn, lsn, SystemTime::now(), 1)
         .await
         .unwrap();
     loop {
