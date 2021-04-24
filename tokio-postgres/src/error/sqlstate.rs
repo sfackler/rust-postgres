@@ -1074,6 +1074,7 @@ impl SqlState {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 enum Inner {
     E00000,
     E01000,

@@ -113,6 +113,7 @@ fn make_inner(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<F
         r#"
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 enum Inner {{"#,
     )
     .unwrap();
