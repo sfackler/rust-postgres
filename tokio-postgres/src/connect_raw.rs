@@ -82,7 +82,7 @@ pub(crate) async fn connect_raw_with_password<S, T>(
     stream: S,
     tls: T,
     config: &Config,
-    password: Option<&Vec<u8>>,
+    password: Option<&[u8]>,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -116,7 +116,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
-    connect_raw_with_password(stream, tls, config, config.password.as_ref()).await
+    connect_raw_with_password(stream, tls, config, config.password.as_deref()).await
 }
 
 async fn startup<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
@@ -150,7 +150,7 @@ where
 async fn authenticate<S, T>(
     stream: &mut StartupStream<S, T>,
     config: &Config,
-    password: Option<&Vec<u8>>,
+    password: Option<&[u8]>,
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -233,7 +233,7 @@ async fn authenticate_sasl<S, T>(
     stream: &mut StartupStream<S, T>,
     body: AuthenticationSaslBody,
     config: &Config,
-    password: &Vec<u8>,
+    password: &[u8],
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,

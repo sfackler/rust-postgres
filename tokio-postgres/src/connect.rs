@@ -63,11 +63,11 @@ where
     T: TlsConnect<Socket>,
 {
     let passfile_password;
-    let password = match (&config.password, &config.passfile) {
+    let password = match (config.password.as_deref(), &config.passfile) {
         (Some(password), _) => Some(password),
         (None, Some(passfile)) => {
             passfile_password = passfile::find_password(&passfile, &config, host, port).await;
-            passfile_password.as_ref()
+            passfile_password.as_deref()
         }
         (None, None) => None,
     };

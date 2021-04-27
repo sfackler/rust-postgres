@@ -35,7 +35,7 @@ impl<'a> PassfileKey<'a> {
         // This default is applied by the server, rather than our caller, so we have to apply it here too.
         let dbname = dbname.unwrap_or(user);
         PassfileKey {
-            hostname: hostname,
+            hostname,
             port: port_string,
             dbname: dbname.as_bytes(),
             user: user.as_bytes(),
@@ -61,13 +61,9 @@ impl PassfileEntry {
                 if b == b':' {
                     return Ok(value);
                 } else if b == b'\\' {
-                    value.push(match it.next() {
-                        Some(b2) => b2,
-                        // To be consistent with libpq, if the line ends with
-                        // a backslash then the backslash is treated as part
-                        // of the last field's value.
-                        None => b'\\',
-                    })
+                    // To be consistent with libpq, if the line ends with a backslash then the backslash is treated as
+                    // part of the last field's value.
+                    value.push(it.next().unwrap_or(b'\\'))
                 } else {
                     value.push(b)
                 }
