@@ -51,6 +51,9 @@ use tokio_postgres::{Error, Socket};
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
+/// * `passfile` - Filesystem path of a file storing passwords. Each line should have fields
+///    `hostname:port:database:username:password`. Lines beginning with `#` are comments. `*` as a complete field
+///    matches anything. `password` takes precedence if both are set.
 ///
 /// ## Examples
 ///
@@ -307,6 +310,20 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.config.get_channel_binding()
+    }
+
+    /// Sets the password file path.
+    pub fn passfile<T>(&mut self, passfile: T) -> &mut Config
+    where
+        T: AsRef<Path>,
+    {
+        self.config.passfile(passfile);
+        self
+    }
+
+    /// Gets the password file path, if one has been set with the `passfile` method.
+    pub fn get_passfile(&self) -> Option<&Path> {
+        self.config.get_passfile()
     }
 
     /// Sets the notice callback.

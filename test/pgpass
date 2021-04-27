@@ -1,0 +1,4 @@
+# Used by tokio-postgres/tests/test/passfile.rs
+localhost:5433:*:pass_user:password
+localhost:5433:*:md5_user:password
+localhost:5433:*:scram_user:password

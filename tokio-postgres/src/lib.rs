@@ -160,6 +160,8 @@ mod copy_out;
 pub mod error;
 mod generic_client;
 mod maybe_tls_stream;
+#[cfg(feature = "runtime")]
+mod passfile;
 mod portal;
 mod prepare;
 mod query;

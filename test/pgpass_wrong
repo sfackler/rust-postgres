@@ -1,0 +1,3 @@
+# Used by tokio-postgres/tests/test/passfile.rs
+localhost:5433:*:pass_user:wrong password
+# No entry for md5_user or scram_user
