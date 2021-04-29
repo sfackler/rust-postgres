@@ -33,7 +33,8 @@ fn normalize(pass: &[u8]) -> Vec<u8> {
 }
 
 pub(crate) fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
-    let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("HMAC is able to accept all key sizes");
+    let mut hmac =
+        Hmac::<Sha256>::new_from_slice(str).expect("HMAC is able to accept all key sizes");
     hmac.update(salt);
     hmac.update(&[0, 0, 0, 1]);
     let mut prev = hmac.finalize().into_bytes();
@@ -41,7 +42,7 @@ pub(crate) fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     let mut hi = prev;
 
     for _ in 1..i {
-        let mut hmac = Hmac::<Sha256>::new_varkey(str).expect("already checked above");
+        let mut hmac = Hmac::<Sha256>::new_from_slice(str).expect("already checked above");
         hmac.update(&prev);
         prev = hmac.finalize().into_bytes();
 
@@ -195,7 +196,7 @@ impl ScramSha256 {
 
         let salted_password = hi(&password, &salt, parsed.iteration_count);
 
-        let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
             .expect("HMAC is able to accept all key sizes");
         hmac.update(b"Client Key");
         let client_key = hmac.finalize().into_bytes();
@@ -214,8 +215,8 @@ impl ScramSha256 {
 
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
-        let mut hmac =
-            Hmac::<Sha256>::new_varkey(&stored_key).expect("HMAC is able to accept all key sizes");
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&stored_key)
+            .expect("HMAC is able to accept all key sizes");
         hmac.update(auth_message.as_bytes());
         let client_signature = hmac.finalize().into_bytes();
 
@@ -266,13 +267,13 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let mut hmac = Hmac::<Sha256>::new_varkey(&salted_password)
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
             .expect("HMAC is able to accept all key sizes");
         hmac.update(b"Server Key");
         let server_key = hmac.finalize().into_bytes();
 
-        let mut hmac =
-            Hmac::<Sha256>::new_varkey(&server_key).expect("HMAC is able to accept all key sizes");
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&server_key)
+            .expect("HMAC is able to accept all key sizes");
         hmac.update(auth_message.as_bytes());
         hmac.verify(&verifier)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))

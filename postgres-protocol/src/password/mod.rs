@@ -61,8 +61,8 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
     let salted_password = sasl::hi(&prepared, &salt, SCRAM_DEFAULT_ITERATIONS);
 
     // client key
-    let mut hmac =
-        Hmac::<Sha256>::new_varkey(&salted_password).expect("HMAC is able to accept all key sizes");
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
+        .expect("HMAC is able to accept all key sizes");
     hmac.update(b"Client Key");
     let client_key = hmac.finalize().into_bytes();
 
@@ -72,8 +72,8 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
     let stored_key = hash.finalize_fixed();
 
     // server key
-    let mut hmac =
-        Hmac::<Sha256>::new_varkey(&salted_password).expect("HMAC is able to accept all key sizes");
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
+        .expect("HMAC is able to accept all key sizes");
     hmac.update(b"Server Key");
     let server_key = hmac.finalize().into_bytes();
 
