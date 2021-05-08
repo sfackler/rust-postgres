@@ -1,6 +1,6 @@
 use crate::client::SocketConfig;
 use crate::config::{Host, TargetSessionAttrs};
-use crate::connect_raw::connect_raw;
+use crate::connect_raw::connect_raw_with_password;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
@@ -69,7 +69,8 @@ where
         config.keepalives_idle,
     )
     .await?;
-    let (mut client, mut connection) = connect_raw(socket, tls, config).await?;
+    let (mut client, mut connection) =
+        connect_raw_with_password(socket, tls, config, config.password.as_deref()).await?;
 
     if let TargetSessionAttrs::ReadWrite = config.target_session_attrs {
         let rows = client.simple_query_raw("SHOW transaction_read_only");
