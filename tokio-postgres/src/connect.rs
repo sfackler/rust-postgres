@@ -2,6 +2,7 @@ use crate::client::SocketConfig;
 use crate::config::{Host, TargetSessionAttrs};
 use crate::connect_raw::connect_raw_with_password;
 use crate::connect_socket::connect_socket;
+use crate::passfile;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
 use futures::{future, pin_mut, Future, FutureExt, Stream};
@@ -61,6 +62,16 @@ async fn connect_once<T>(
 where
     T: TlsConnect<Socket>,
 {
+    let passfile_password;
+    let password = match (config.password.as_deref(), &config.passfile) {
+        (Some(password), _) => Some(password),
+        (None, Some(passfile)) => {
+            passfile_password = passfile::find_password(&passfile, &config, host, port).await;
+            passfile_password.as_deref()
+        }
+        (None, None) => None,
+    };
+
     let socket = connect_socket(
         host,
         port,
@@ -70,7 +81,7 @@ where
     )
     .await?;
     let (mut client, mut connection) =
-        connect_raw_with_password(socket, tls, config, config.password.as_deref()).await?;
+        connect_raw_with_password(socket, tls, config, password).await?;
 
     if let TargetSessionAttrs::ReadWrite = config.target_session_attrs {
         let rows = client.simple_query_raw("SHOW transaction_read_only");
