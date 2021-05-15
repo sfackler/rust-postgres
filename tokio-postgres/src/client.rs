@@ -101,17 +101,7 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo(&self, statement: &Statement) {
-        // We only insert the statement if there isn't already a cached
-        // statement (this is safe as they are prepared statements for the same
-        // query).
-        //
-        // Note: We need to be sure that we don't drop a Statement while holding
-        // the state lock as its drop handling will call `with_buf`, which tries
-        // to take the lock.
-        let mut cache = self.cached_typeinfo.lock();
-        if cache.typeinfo.is_none() {
-            cache.typeinfo = Some(statement.clone());
-        }
+        self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
     }
 
     pub fn typeinfo_composite(&self) -> Option<Statement> {
@@ -119,13 +109,7 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo_composite(&self, statement: &Statement) {
-        // We only insert the statement if there isn't already a cached
-        // statement (this is safe as they are prepared statements for the same
-        // query).
-        let mut cache = self.cached_typeinfo.lock();
-        if cache.typeinfo_composite.is_none() {
-            cache.typeinfo_composite = Some(statement.clone());
-        }
+        self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
     }
 
     pub fn typeinfo_enum(&self) -> Option<Statement> {
@@ -133,13 +117,7 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo_enum(&self, statement: &Statement) {
-        // We only insert the statement if there isn't already a cached
-        // statement (this is safe as they are prepared statements for the same
-        // query).
-        let mut cache = self.cached_typeinfo.lock();
-        if cache.typeinfo_enum.is_none() {
-            cache.typeinfo_enum = Some(statement.clone());
-        }
+        self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
