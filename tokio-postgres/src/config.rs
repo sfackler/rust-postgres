@@ -42,6 +42,10 @@ pub enum SslMode {
     Prefer,
     /// Require the use of TLS.
     Require,
+    /// Require the use of TLS. Verify peer cert without hostname verification.
+    VerifyCa,
+    /// Require the use of TLS. Verify peer cert and hostname.
+    VerifyFull,
 }
 
 /// Channel binding configuration.
@@ -85,7 +89,9 @@ pub enum Host {
 /// * `options` - Command line options used to configure the server.
 /// * `application_name` - Sets the `application_name` parameter on the server.
 /// * `sslmode` - Controls usage of TLS. If set to `disable`, TLS will not be used. If set to `prefer`, TLS will be used
-///     if available, but not used otherwise. If set to `require`, TLS will be forced to be used. Defaults to `prefer`.
+///     if available, but not used otherwise. If set to `require`, `verify-ca`, or `verify-full`, TLS will be forced to
+///     be used. Defaults to `prefer`. Note that for modes `verify-ca` and `verify-full`, it's up to the user to configure
+///     the SSL stream to respect the desired configuration (e.g. verification of certs, hostname verification).
 /// * `host` - The host to connect to. On Unix platforms, if the host starts with a `/` character it is treated as the
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
@@ -409,6 +415,8 @@ impl Config {
                     "disable" => SslMode::Disable,
                     "prefer" => SslMode::Prefer,
                     "require" => SslMode::Require,
+                    "verify-ca" => SslMode::VerifyCa,
+                    "verify-full" => SslMode::VerifyFull,
                     _ => return Err(Error::config_parse(Box::new(InvalidValue("sslmode")))),
                 };
                 self.ssl_mode(mode);
