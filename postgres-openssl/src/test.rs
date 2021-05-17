@@ -145,21 +145,21 @@ async fn from_tls_config_base() {
     from_tls_config_smoke_test(TlsConfig {
         mode: SslMode::Require,
         client_cert: None,
-        root_cert: Some(PathBuf::from("../test/server.crt")),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
     })
     .await;
 
     from_tls_config_smoke_test(TlsConfig {
         mode: SslMode::VerifyCa,
         client_cert: None,
-        root_cert: Some(PathBuf::from("../test/server.crt")),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
     })
     .await;
 
     from_tls_config_smoke_test(TlsConfig {
         mode: SslMode::VerifyFull,
         client_cert: None,
-        root_cert: Some(PathBuf::from("../test/server.crt")),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
     })
     .await;
 }
@@ -203,7 +203,7 @@ async fn from_tls_config_verify_full_with_wrong_hostname_err() {
     let tls_config = TlsConfig {
         mode: SslMode::VerifyFull,
         client_cert: None,
-        root_cert: Some(PathBuf::from("../test/server.crt")),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
     };
     let mut connector = MakeTlsConnector::from_tls_config(tls_config).unwrap();
     smoke_test(
@@ -211,4 +211,75 @@ async fn from_tls_config_verify_full_with_wrong_hostname_err() {
         MakeTlsConnect::<TcpStream>::make_tls_connect(&mut connector, "otherhost").unwrap(),
     )
     .await
+}
+
+#[tokio::test]
+async fn from_tls_config_client_cert_verify_ca() {
+    let tls_config = TlsConfig {
+        mode: SslMode::VerifyCa,
+        client_cert: Some((
+            PathBuf::from("../test/postgres.crt"),
+            PathBuf::from("../test/postgres.key"),
+        )),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
+    };
+    let mut connector = MakeTlsConnector::from_tls_config(tls_config).unwrap();
+    smoke_test(
+        "user=cert_user_ca dbname=postgres",
+        MakeTlsConnect::<TcpStream>::make_tls_connect(&mut connector, "localhost").unwrap(),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn from_tls_config_client_cert_verify_full() {
+    let tls_config = TlsConfig {
+        mode: SslMode::VerifyFull,
+        client_cert: Some((
+            PathBuf::from("../test/cert_user_full.crt"),
+            PathBuf::from("../test/cert_user_full.key"),
+        )),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
+    };
+    let mut connector = MakeTlsConnector::from_tls_config(tls_config).unwrap();
+    smoke_test(
+        "user=cert_user_full dbname=postgres",
+        MakeTlsConnect::<TcpStream>::make_tls_connect(&mut connector, "localhost").unwrap(),
+    )
+    .await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "connection requires a valid client certificate")]
+async fn from_tls_config_client_cert_verify_full_no_cert_err() {
+    let tls_config = TlsConfig {
+        mode: SslMode::VerifyFull,
+        client_cert: None,
+        root_cert: Some(PathBuf::from("../test/root.crt")),
+    };
+    let mut connector = MakeTlsConnector::from_tls_config(tls_config).unwrap();
+    smoke_test(
+        "user=cert_user_full dbname=postgres",
+        MakeTlsConnect::<TcpStream>::make_tls_connect(&mut connector, "localhost").unwrap(),
+    )
+    .await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "\\\"trust\\\" authentication failed for user \\\"cert_user_full\\\"")]
+async fn from_tls_config_client_cert_verify_full_wrong_cert_err() {
+    let tls_config = TlsConfig {
+        mode: SslMode::VerifyFull,
+        client_cert: Some((
+            PathBuf::from("../test/postgres.crt"),
+            PathBuf::from("../test/postgres.key"),
+        )),
+        root_cert: Some(PathBuf::from("../test/root.crt")),
+    };
+    let mut connector = MakeTlsConnector::from_tls_config(tls_config).unwrap();
+    smoke_test(
+        "user=cert_user_full dbname=postgres",
+        MakeTlsConnect::<TcpStream>::make_tls_connect(&mut connector, "localhost").unwrap(),
+    )
+    .await;
 }
