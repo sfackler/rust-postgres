@@ -43,13 +43,12 @@
 
 #[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
-use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
 #[cfg(feature = "runtime")]
 use openssl::ssl::SslConnector;
-use openssl::ssl::{self, ConnectConfiguration, SslRef};
+use openssl::ssl::{self, ConnectConfiguration, SslFiletype, SslRef};
 use openssl::x509::X509VerifyResult;
-use std::error::Error;
+use openssl::{hash::MessageDigest, ssl::SslMethod};
+use openssl::{nid::Nid, ssl::SslVerifyMode};
 use std::fmt::{self, Debug};
 use std::future::Future;
 use std::io;
@@ -57,15 +56,27 @@ use std::pin::Pin;
 #[cfg(feature = "runtime")]
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::{error::Error, path::PathBuf};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_openssl::SslStream;
-use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::tls::{ChannelBinding, TlsConnect};
+use tokio_postgres::{config::SslMode, tls};
 
 #[cfg(test)]
 mod test;
+
+/// TLS configuration.
+#[cfg(feature = "runtime")]
+pub struct TlsConfig {
+    /// SSL mode (`sslmode`).
+    pub mode: SslMode,
+    /// Location of the client cert and key (`sslcert`, `sslkey`).
+    pub client_cert: Option<(PathBuf, PathBuf)>,
+    /// Location of the root certificate (`sslrootcert`).
+    pub root_cert: Option<PathBuf>,
+}
 
 /// A `MakeTlsConnect` implementation using the `openssl` crate.
 ///
@@ -85,6 +96,59 @@ impl MakeTlsConnector {
             connector,
             config: Arc::new(|_, _| Ok(())),
         }
+    }
+
+    /// Creates a new connector from the provided [`TlsConfig`].
+    ///
+    /// The returned [`MakeTlsConnector`] will be configured to mimick libpq-ssl behavior.
+    pub fn from_tls_config(tls_config: TlsConfig) -> Result<MakeTlsConnector, ErrorStack> {
+        let mut builder = SslConnector::builder(SslMethod::tls_client())?;
+        // The mode dictates whether we verify peer certs and hostnames. By default, Postgres is
+        // pretty relaxed and recommends SslMode::VerifyCa or SslMode::VerifyFull for security.
+        //
+        // For more details, check out Table 33.1. SSL Mode Descriptions in
+        // https://postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-PROTECTION.
+        let (verify_mode, verify_hostname) = match tls_config.mode {
+            SslMode::Disable | SslMode::Prefer => (SslVerifyMode::NONE, false),
+            SslMode::Require => match tls_config.root_cert {
+                // If a root CA file exists, the behavior of sslmode=require will be the same as
+                // that of verify-ca, meaning the server certificate is validated against the CA.
+                //
+                // For more details, check out the note about backwards compatibility in
+                // https://postgresql.org/docs/current/libpq-ssl.html#LIBQ-SSL-CERTIFICATES.
+                Some(_) => (SslVerifyMode::PEER, false),
+                None => (SslVerifyMode::NONE, false),
+            },
+            SslMode::VerifyCa => (SslVerifyMode::PEER, false),
+            SslMode::VerifyFull => (SslVerifyMode::PEER, true),
+            _ => panic!("unexpected sslmode {:?}", tls_config.mode),
+        };
+
+        // Configure peer verification
+        builder.set_verify(verify_mode);
+
+        // Configure certificates
+        if tls_config.client_cert.is_some() {
+            let (cert, key) = tls_config.client_cert.unwrap();
+            builder.set_certificate_file(cert, SslFiletype::PEM)?;
+            builder.set_private_key_file(key, SslFiletype::PEM)?;
+        }
+        if tls_config.root_cert.is_some() {
+            builder.set_ca_file(tls_config.root_cert.unwrap())?;
+        }
+
+        let mut tls_connector = MakeTlsConnector::new(builder.build());
+
+        // Configure hostname verification
+        match (verify_mode, verify_hostname) {
+            (SslVerifyMode::PEER, false) => tls_connector.set_callback(|connect, _| {
+                connect.set_verify_hostname(false);
+                Ok(())
+            }),
+            _ => {}
+        }
+
+        Ok(tls_connector)
     }
 
     /// Sets a callback used to apply per-connection configuration.
