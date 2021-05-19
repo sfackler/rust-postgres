@@ -450,9 +450,9 @@ impl CopyDataBody {
 }
 
 pub struct CopyInResponseBody {
-    storage: Bytes,
-    len: u16,
     format: u8,
+    len: u16,
+    storage: Bytes,
 }
 
 impl CopyInResponseBody {
@@ -504,9 +504,9 @@ impl<'a> FallibleIterator for ColumnFormats<'a> {
 }
 
 pub struct CopyOutResponseBody {
-    storage: Bytes,
-    len: u16,
     format: u8,
+    len: u16,
+    storage: Bytes,
 }
 
 impl CopyOutResponseBody {
