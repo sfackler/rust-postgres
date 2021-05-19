@@ -98,9 +98,12 @@ pub enum Host {
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
 /// * `application_name` - Sets the `application_name` parameter on the server.
+/// * `sslcert` - Location of the client SSL certificate file.
+/// * `sslkey` - Location for the secret key file used for the client certificate.
 /// * `sslmode` - Controls usage of TLS. If set to `disable`, TLS will not be used. If set to `prefer`, TLS will be used
 ///     if available, but not used otherwise. If set to `require`, `verify-ca`, or `verify-full`, TLS will be forced to
 ///     be used. Defaults to `prefer`.
+/// * `sslrootcert` - Location of SSL certificate authority (CA) certificate.
 /// * `host` - The host to connect to. On Unix platforms, if the host starts with a `/` character it is treated as the
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
@@ -166,7 +169,10 @@ pub struct Config {
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
+    pub(crate) ssl_cert: Option<PathBuf>,
+    pub(crate) ssl_key: Option<PathBuf>,
     pub(crate) ssl_mode: SslMode,
+    pub(crate) ssl_root_cert: Option<PathBuf>,
     pub(crate) host: Vec<Host>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
@@ -192,7 +198,10 @@ impl Config {
             dbname: None,
             options: None,
             application_name: None,
+            ssl_cert: None,
+            ssl_key: None,
             ssl_mode: SslMode::Prefer,
+            ssl_root_cert: None,
             host: vec![],
             port: vec![],
             connect_timeout: None,
@@ -271,6 +280,32 @@ impl Config {
         self.application_name.as_deref()
     }
 
+    /// Sets the location of the client SSL certificate file.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_cert(&mut self, ssl_cert: &str) -> &mut Config {
+        self.ssl_cert = Some(PathBuf::from(ssl_cert));
+        self
+    }
+
+    /// Gets the location of the client SSL certificate file.
+    pub fn get_ssl_cert(&self) -> Option<PathBuf> {
+        self.ssl_cert.clone()
+    }
+
+    /// Sets the location of the secret key file used for the client certificate.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_key(&mut self, ssl_key: &str) -> &mut Config {
+        self.ssl_key = Some(PathBuf::from(ssl_key));
+        self
+    }
+
+    /// Gets the location of the secret key file used for the client certificate.
+    pub fn get_ssl_key(&self) -> Option<PathBuf> {
+        self.ssl_key.clone()
+    }
+
     /// Sets the SSL configuration.
     ///
     /// Defaults to `prefer`.
@@ -282,6 +317,19 @@ impl Config {
     /// Gets the SSL configuration.
     pub fn get_ssl_mode(&self) -> SslMode {
         self.ssl_mode
+    }
+
+    /// Sets the location of SSL certificate authority (CA) certificate.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_root_cert(&mut self, ssl_root_cert: &str) -> &mut Config {
+        self.ssl_root_cert = Some(PathBuf::from(ssl_root_cert));
+        self
+    }
+
+    /// Gets the location of SSL certificate authority (CA) certificate.
+    pub fn get_ssl_root_cert(&self) -> Option<PathBuf> {
+        self.ssl_root_cert.clone()
     }
 
     /// Adds a host to the configuration.
@@ -432,6 +480,18 @@ impl Config {
             "application_name" => {
                 self.application_name(&value);
             }
+            "sslcert" => {
+                if std::fs::metadata(&value).is_err() {
+                    return Err(Error::config_parse(Box::new(InvalidValue("sslcert"))));
+                }
+                self.ssl_cert(&value);
+            }
+            "sslkey" => {
+                if std::fs::metadata(&value).is_err() {
+                    return Err(Error::config_parse(Box::new(InvalidValue("sslkey"))));
+                }
+                self.ssl_key(&value);
+            }
             "sslmode" => {
                 let mode = match value {
                     "disable" => SslMode::Disable,
@@ -442,6 +502,12 @@ impl Config {
                     _ => return Err(Error::config_parse(Box::new(InvalidValue("sslmode")))),
                 };
                 self.ssl_mode(mode);
+            }
+            "sslrootcert" => {
+                if std::fs::metadata(&value).is_err() {
+                    return Err(Error::config_parse(Box::new(InvalidValue("sslrootcert"))));
+                }
+                self.ssl_root_cert(&value);
             }
             "host" => {
                 for host in value.split(',') {
@@ -581,7 +647,10 @@ impl fmt::Debug for Config {
             .field("dbname", &self.dbname)
             .field("options", &self.options)
             .field("application_name", &self.application_name)
+            .field("ssl_cert", &self.ssl_cert)
+            .field("ssl_key", &self.ssl_key)
             .field("ssl_mode", &self.ssl_mode)
+            .field("ssl_root_cert", &self.ssl_root_cert)
             .field("host", &self.host)
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
