@@ -21,7 +21,7 @@ where
         SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
             return Ok(MaybeTlsStream::Raw(stream))
         }
-        SslMode::Prefer | SslMode::Require => {}
+        SslMode::Prefer | SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull => {}
     }
 
     let mut buf = BytesMut::new();
@@ -32,10 +32,11 @@ where
     stream.read_exact(&mut buf).await.map_err(Error::io)?;
 
     if buf[0] != b'S' {
-        if SslMode::Require == mode {
-            return Err(Error::tls("server does not support TLS".into()));
-        } else {
-            return Ok(MaybeTlsStream::Raw(stream));
+        match mode {
+            SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull => {
+                return Err(Error::tls("server does not support TLS".into()))
+            }
+            SslMode::Disable | SslMode::Prefer => return Ok(MaybeTlsStream::Raw(stream)),
         }
     }
 

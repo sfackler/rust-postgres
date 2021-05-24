@@ -5,11 +5,11 @@
 use crate::connection::Connection;
 use crate::Client;
 use log::info;
-use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, path::PathBuf};
 use tokio::runtime;
 #[doc(inline)]
 pub use tokio_postgres::config::{ChannelBinding, Host, SslMode, TargetSessionAttrs};
@@ -33,8 +33,12 @@ use tokio_postgres::{Error, Socket};
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
 /// * `application_name` - Sets the `application_name` parameter on the server.
+/// * `sslcert` - Location of the client SSL certificate file.
+/// * `sslkey` - Location for the secret key file used for the client certificate.
 /// * `sslmode` - Controls usage of TLS. If set to `disable`, TLS will not be used. If set to `prefer`, TLS will be used
-///     if available, but not used otherwise. If set to `require`, TLS will be forced to be used. Defaults to `prefer`.
+///     if available, but not used otherwise. If set to `require`, `verify-ca`, or `verify-full`, TLS will be forced to
+///     be used. Defaults to `prefer`.
+/// * `sslrootcert` - Location of SSL certificate authority (CA) certificate.
 /// * `host` - The host to connect to. On Unix platforms, if the host starts with a `/` character it is treated as the
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
@@ -183,6 +187,32 @@ impl Config {
         self.config.get_application_name()
     }
 
+    /// Sets the location of the client SSL certificate file.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_cert(&mut self, ssl_cert: &str) -> &mut Config {
+        self.config.ssl_cert(ssl_cert);
+        self
+    }
+
+    /// Gets the location of the client SSL certificate file.
+    pub fn get_ssl_cert(&self) -> Option<PathBuf> {
+        self.config.get_ssl_cert()
+    }
+
+    /// Sets the location of the secret key file used for the client certificate.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_key(&mut self, ssl_key: &str) -> &mut Config {
+        self.config.ssl_key(ssl_key);
+        self
+    }
+
+    /// Gets the location of the secret key file used for the client certificate.
+    pub fn get_ssl_key(&self) -> Option<PathBuf> {
+        self.config.get_ssl_key()
+    }
+
     /// Sets the SSL configuration.
     ///
     /// Defaults to `prefer`.
@@ -194,6 +224,19 @@ impl Config {
     /// Gets the SSL configuration.
     pub fn get_ssl_mode(&self) -> SslMode {
         self.config.get_ssl_mode()
+    }
+
+    /// Sets the location of SSL certificate authority (CA) certificate.
+    ///
+    /// Defaults to `None`.
+    pub fn ssl_root_cert(&mut self, ssl_root_cert: &str) -> &mut Config {
+        self.config.ssl_root_cert(ssl_root_cert);
+        self
+    }
+
+    /// Gets the location of SSL certificate authority (CA) certificate.
+    pub fn get_ssl_root_cert(&self) -> Option<PathBuf> {
+        self.config.get_ssl_root_cert()
     }
 
     /// Adds a host to the configuration.
