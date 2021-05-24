@@ -1,46 +1,24 @@
-# Rust-Postgres
+# Materialize fork of Rust-Postgres
 
-PostgreSQL support for Rust.
+This repo serves as a staging area in order to develop and use features of the
+rust postgtres client before they are accepted upstream.
 
-## postgres [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
+Since development on this repo and the upstream one can happen in parallel this
+repo adops a branching strategy that keeps both in sync and keeps a tidy
+history. Importantly, the release branches are **never** forced-pushed so that
+older versions of materialize are always buildable.
 
-[Documentation](https://docs.rs/postgres)
+## Branching strategy
 
-A native, synchronous PostgreSQL client.
+For every upstream release a local `mz-{version}` branch is created. The latest
+such branch should be made the default branch of this repo in the Github
+settings.
 
-## tokio-postgres [![Latest Version](https://img.shields.io/crates/v/tokio-postgres.svg)](https://crates.io/crates/tokio-postgres)
+Whenever a PR is opened it should targed the current release branch (it should
+be picked automatically if its set as default on Github).
 
-[Documentation](https://docs.rs/tokio-postgres)
-
-A native, asynchronous PostgreSQL client.
-
-## postgres-types [![Latest Version](https://img.shields.io/crates/v/postgres-types.svg)](https://crates.io/crates/postgres-types)
-
-[Documentation](https://docs.rs/postgres-types)
-
-Conversions between Rust and Postgres types.
-
-## postgres-native-tls [![Latest Version](https://img.shields.io/crates/v/postgres-native-tls.svg)](https://crates.io/crates/postgres-native-tls)
-
-[Documentation](https://docs.rs/postgres-native-tls)
-
-TLS support for postgres and tokio-postgres via native-tls.
-
-## postgres-openssl [![Latest Version](https://img.shields.io/crates/v/postgres-openssl.svg)](https://crates.io/crates/postgres-openssl)
-
-[Documentation](https://docs.rs/postgres-openssl)
-
-TLS support for postgres and tokio-postgres via openssl.
-
-# Running test suite
-
-The test suite requires postgres to be running in the correct configuration. The easiest way to do this is with docker:
-
-1. Install `docker` and `docker-compose`.
-   1. On ubuntu: `sudo apt install docker.io docker-compose`.
-1. Make sure your user has permissions for docker.
-   1. On ubuntu: ``sudo usermod -aG docker $USER``
-1. Change to top-level directory of `rust-postgres` repo.
-1. Run `docker-compose up -d`.
-1. Run `cargo test`.
-1. Run `docker-compose stop`.
+Whenever a new version is created upstream a new `mz-{version}` branch on this
+repo is created, initially pointing at the release commit of the upstream repo.
+Then, all the fork-specific work is rebased on top of it. This process gives
+the opportunity to prune PRs that have successfully made it to the upstream
+repo and keep a clean per-version history.
