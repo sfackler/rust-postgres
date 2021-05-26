@@ -6,7 +6,7 @@ use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures::{ready, Stream};
 use log::debug;
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
@@ -45,21 +45,20 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
     }
 }
 
-fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
+pub(crate) fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
     client.with_buf(|buf| {
         frontend::query(query, buf).map_err(Error::encode)?;
         Ok(buf.split().freeze())
     })
 }
 
-pin_project! {
-    /// A stream of simple query results.
-    pub struct SimpleQueryStream {
-        responses: Responses,
-        columns: Option<Arc<[String]>>,
-        #[pin]
-        _p: PhantomPinned,
-    }
+/// A stream of simple query results.
+#[pin_project]
+pub struct SimpleQueryStream {
+    responses: Responses,
+    columns: Option<Arc<[String]>>,
+    #[pin]
+    _p: PhantomPinned,
 }
 
 impl Stream for SimpleQueryStream {

@@ -25,7 +25,7 @@ pub enum RequestMessages {
 
 pub struct Request {
     pub messages: RequestMessages,
-    pub sender: mpsc::Sender<BackendMessages>,
+    pub sender: Option<mpsc::Sender<BackendMessages>>,
 }
 
 pub struct Response {
@@ -183,9 +183,9 @@ where
         match self.receiver.poll_next_unpin(cx) {
             Poll::Ready(Some(request)) => {
                 trace!("polled new request");
-                self.responses.push_back(Response {
-                    sender: request.sender,
-                });
+                if let Some(sender) = request.sender {
+                    self.responses.push_back(Response { sender: sender });
+                }
                 Poll::Ready(Some(request.messages))
             }
             Poll::Ready(None) => Poll::Ready(None),

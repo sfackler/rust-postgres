@@ -5,7 +5,7 @@ use crate::{query, slice_iter, Error, Statement};
 use bytes::Bytes;
 use futures::{ready, Stream};
 use log::debug;
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use postgres_protocol::message::backend::Message;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
@@ -38,13 +38,12 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-pin_project! {
-    /// A stream of `COPY ... TO STDOUT` query data.
-    pub struct CopyOutStream {
-        responses: Responses,
-        #[pin]
-        _p: PhantomPinned,
-    }
+/// A stream of `COPY ... TO STDOUT` query data.
+#[pin_project]
+pub struct CopyOutStream {
+    responses: Responses,
+    #[pin]
+    _p: PhantomPinned,
 }
 
 impl Stream for CopyOutStream {

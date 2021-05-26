@@ -132,6 +132,48 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
     })
 }
 
+#[inline]
+pub fn standby_status_update(
+    write_lsn: u64,
+    flush_lsn: u64,
+    apply_lsn: u64,
+    timestamp: i64,
+    reply: u8,
+    buf: &mut BytesMut,
+) -> io::Result<()> {
+    buf.put_u8(b'd');
+    write_body(buf, |buf| {
+        buf.put_u8(b'r');
+        buf.put_u64(write_lsn);
+        buf.put_u64(flush_lsn);
+        buf.put_u64(apply_lsn);
+        buf.put_i64(timestamp);
+        buf.put_u8(reply);
+        Ok(())
+    })
+}
+
+#[inline]
+pub fn hot_standby_feedback(
+    timestamp: i64,
+    global_xmin: u32,
+    global_xmin_epoch: u32,
+    catalog_xmin: u32,
+    catalog_xmin_epoch: u32,
+    buf: &mut BytesMut,
+) -> io::Result<()> {
+    buf.put_u8(b'd');
+    write_body(buf, |buf| {
+        buf.put_u8(b'h');
+        buf.put_i64(timestamp);
+        buf.put_u32(global_xmin);
+        buf.put_u32(global_xmin_epoch);
+        buf.put_u32(catalog_xmin);
+        buf.put_u32(catalog_xmin_epoch);
+        Ok(())
+    })
+}
+
 pub struct CopyData<T> {
     buf: T,
     len: i32,

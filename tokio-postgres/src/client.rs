@@ -85,7 +85,10 @@ pub struct InnerClient {
 impl InnerClient {
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
-        let request = Request { messages, sender };
+        let request = Request {
+            messages: messages,
+            sender: Some(sender),
+        };
         self.sender
             .unbounded_send(request)
             .map_err(|_| Error::closed())?;
@@ -94,6 +97,21 @@ impl InnerClient {
             receiver,
             cur: BackendMessages::empty(),
         })
+    }
+
+    // Send a message for the existing entry in the pipeline; don't
+    // create a new entry in the pipeline. This is needed for CopyBoth
+    // mode (i.e. streaming replication), where the client may send a
+    // new message that is part of the existing request.
+    pub fn unpipelined_send(&self, messages: RequestMessages) -> Result<(), Error> {
+        let request = Request {
+            messages: messages,
+            sender: None,
+        };
+        self.sender
+            .unbounded_send(request)
+            .map_err(|_| Error::closed())?;
+        Ok(())
     }
 
     pub fn typeinfo(&self) -> Option<Statement> {

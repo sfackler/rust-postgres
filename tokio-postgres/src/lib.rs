@@ -117,7 +117,7 @@
 
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
-pub use crate::config::Config;
+pub use crate::config::{Config, ReplicationMode};
 pub use crate::connection::Connection;
 pub use crate::copy_in::CopyInSink;
 pub use crate::copy_out::CopyOutStream;
@@ -126,6 +126,7 @@ pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
+use crate::replication_client::ReplicationClient;
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
@@ -163,6 +164,7 @@ mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
+pub mod replication_client;
 pub mod row;
 mod simple_query;
 #[cfg(feature = "runtime")]
@@ -191,6 +193,30 @@ where
 {
     let config = config.parse::<Config>()?;
     config.connect(tls).await
+}
+
+/// A convenience function which parses a connection string and connects to the database in replication mode. Normal queries are not permitted in replication mode.
+///
+/// See the documentation for [`Config`] for details on the connection string format.
+///
+/// Requires the `runtime` Cargo feature (enabled by default).
+///
+/// [`Config`]: config/struct.Config.html
+#[cfg(feature = "runtime")]
+pub async fn connect_replication<T>(
+    config: &str,
+    tls: T,
+    mode: ReplicationMode,
+) -> Result<(ReplicationClient, Connection<Socket, T::Stream>), Error>
+where
+    T: MakeTlsConnect<Socket>,
+{
+    let mut config = config.parse::<Config>()?;
+    config.replication_mode(mode);
+    config
+        .connect(tls)
+        .await
+        .map(|(client, conn)| (ReplicationClient::new(client), conn))
 }
 
 /// An asynchronous notification.
