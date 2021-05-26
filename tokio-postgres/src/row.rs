@@ -188,16 +188,42 @@ impl Row {
     }
 }
 
+/// Information about a column of a simple query.
+#[derive(Debug)]
+pub struct SimpleColumn {
+    name: String,
+}
+
+impl SimpleColumn {
+    pub(crate) fn new(name: String) -> SimpleColumn {
+        SimpleColumn { name }
+    }
+
+    /// Returns the name of the simple column.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl AsName for SimpleColumn {
+    fn as_name(&self) -> &str {
+        self.name()
+    }
+}
+
 /// A row of data returned from the database by a simple query.
 pub struct SimpleQueryRow {
-    columns: Arc<[String]>,
+    columns: Arc<[SimpleColumn]>,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
 
 impl SimpleQueryRow {
     #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(columns: Arc<[String]>, body: DataRowBody) -> Result<SimpleQueryRow, Error> {
+    pub(crate) fn new(
+        columns: Arc<[SimpleColumn]>,
+        body: DataRowBody,
+    ) -> Result<SimpleQueryRow, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(SimpleQueryRow {
             columns,
@@ -252,5 +278,10 @@ impl SimpleQueryRow {
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+
+    /// Returns information about the columns returned.
+    pub fn columns(&self) -> &[SimpleColumn] {
+        &self.columns
     }
 }
