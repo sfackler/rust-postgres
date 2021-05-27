@@ -19,7 +19,7 @@ use crate::{
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_util::{future, pin_mut, ready, Stream, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_types::BorrowToSql;
@@ -29,6 +29,7 @@ use std::fmt;
 use std::net::IpAddr;
 #[cfg(feature = "runtime")]
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
@@ -58,6 +59,17 @@ impl Responses {
 
     pub async fn next(&mut self) -> Result<Message, Error> {
         future::poll_fn(|cx| self.poll_next(cx)).await
+    }
+}
+
+impl Stream for Responses {
+    type Item = Result<Message, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!((*self).poll_next(cx)) {
+            Err(err) if err.is_closed() => Poll::Ready(None),
+            msg => Poll::Ready(Some(msg)),
+        }
     }
 }
 
