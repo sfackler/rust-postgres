@@ -14,6 +14,22 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+/// Information about a column of a single query row.
+pub struct SimpleColumn {
+    name: String,
+}
+
+impl SimpleColumn {
+    pub(crate) fn new(name: String) -> SimpleColumn {
+        SimpleColumn { name }
+    }
+
+    /// Returns the name of the column.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
     debug!("executing simple query: {}", query);
 
@@ -56,7 +72,7 @@ pin_project! {
     /// A stream of simple query results.
     pub struct SimpleQueryStream {
         responses: Responses,
-        columns: Option<Arc<[String]>>,
+        columns: Option<Arc<[SimpleColumn]>>,
         #[pin]
         _p: PhantomPinned,
     }
@@ -86,10 +102,11 @@ impl Stream for SimpleQueryStream {
                 Message::RowDescription(body) => {
                     let columns = body
                         .fields()
-                        .map(|f| Ok(f.name().to_string()))
+                        .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
                         .collect::<Vec<_>>()
                         .map_err(Error::parse)?
                         .into();
+
                     *this.columns = Some(columns);
                 }
                 Message::DataRow(body) => {
