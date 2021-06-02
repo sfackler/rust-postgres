@@ -32,6 +32,7 @@ pub const PARAMETER_STATUS_TAG: u8 = b'S';
 pub const PARAMETER_DESCRIPTION_TAG: u8 = b't';
 pub const ROW_DESCRIPTION_TAG: u8 = b'T';
 pub const READY_FOR_QUERY_TAG: u8 = b'Z';
+pub const COPY_BOTH_RESPONSE_TAG: u8 = b'W';
 
 #[derive(Debug, Copy, Clone)]
 pub struct Header {
@@ -93,6 +94,7 @@ pub enum Message {
     CopyDone,
     CopyInResponse(CopyInResponseBody),
     CopyOutResponse(CopyOutResponseBody),
+    CopyBothResponse(CopyBothResponseBody),
     DataRow(DataRowBody),
     EmptyQueryResponse,
     ErrorResponse(ErrorResponseBody),
@@ -185,6 +187,16 @@ impl Message {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
+                    format,
+                    len,
+                    storage,
+                })
+            }
+            COPY_BOTH_RESPONSE_TAG => {
+                let format = buf.read_u8()?;
+                let len = buf.read_u16::<BigEndian>()?;
+                let storage = buf.read_all();
+                Message::CopyBothResponse(CopyBothResponseBody {
                     format,
                     len,
                     storage,
@@ -525,6 +537,28 @@ impl CopyOutResponseBody {
 }
 
 #[derive(Debug)]
+pub struct CopyBothResponseBody {
+    storage: Bytes,
+    len: u16,
+    format: u8,
+}
+
+impl CopyBothResponseBody {
+    #[inline]
+    pub fn format(&self) -> u8 {
+        self.format
+    }
+
+    #[inline]
+    pub fn column_formats(&self) -> ColumnFormats<'_> {
+        ColumnFormats {
+            remaining: self.len,
+            buf: &self.storage,
+        }
+    }
+}
+
+>>>>>>> 77875f5 (Small changes to expose WAL)
 pub struct DataRowBody {
     storage: Bytes,
     len: u16,
