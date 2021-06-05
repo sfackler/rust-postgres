@@ -19,6 +19,8 @@ exhost.test::exdb:exuser:empty port
 exhost.test:5432:exdb:exuser:password-5432
 exhost.test:5433:exdb:exuser:interesting € password
 exhost.test:5432:exuser:exuser:password-exuserdb
+# The following line does not count as a wildcard
+exhost.test:5432:\*:exuser:password-escaped-star-dbname
 exhost.test:5432:*:exuser:password-star-dbname
 exhost.test:5432:*:exusersl:password-backslash\
 /run/postgresql:5432:*:exuser:password-unix

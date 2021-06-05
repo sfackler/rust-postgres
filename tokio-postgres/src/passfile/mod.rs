@@ -74,13 +74,15 @@ impl PassfileEntry {
 
         let mut parse_one_field = || {
             let mut value = Vec::new();
+            let mut has_any_escape = false;
             while let Some(b) = it.next() {
                 if b == b':' {
                     return Ok(match &value[..] {
-                        b"*" => PassfileField::Wildcard,
+                        b"*" if !has_any_escape => PassfileField::Wildcard,
                         _ => PassfileField::Bytes(value),
                     });
                 } else if b == b'\\' {
+                    has_any_escape = true;
                     value.push(it.next().ok_or(())?);
                 } else {
                     value.push(b)
