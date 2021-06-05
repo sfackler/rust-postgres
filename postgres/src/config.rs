@@ -52,9 +52,13 @@ use tokio_postgres::{Error, Socket};
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
 /// * `passfile` - Filesystem path of a file storing passwords. Each line should have fields
-///    `hostname:port:database:username:password`. Lines beginning with `#` are comments. `*` as a complete field
-///    matches anything. `password` takes precedence if both are set. The file is ignored (on Unix only) if its
-///    permissions allow any access to group or 'other'.
+///     `hostname:port:database:username:password`. Lines beginning with `#` are comments. `*` as a complete field
+///     matches anything. `password` takes precedence if both `password` and `passfile` are set. See [the PostgreSQL
+///     libpq documentation][libpq_pgpass] for more details. Unlike the libpq implementation, there is no default
+///     password file, and `localhost` is not treated specially as a hostname for a Unix socket connection. The file is
+///     ignored (on Unix only) if its permissions allow any access to group or 'other'.
+///
+/// [libpq_pgpass]: https://www.postgresql.org/docs/current/libpq-pgpass.html
 ///
 /// ## Examples
 ///
