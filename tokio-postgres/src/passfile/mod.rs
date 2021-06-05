@@ -44,23 +44,60 @@ impl<'a> PassfileKey<'a> {
     }
 }
 
+/// A single field (other than the password) in a passfile line.
+enum PassfileField {
+    Wildcard,
+    Bytes(Vec<u8>),
+}
+
+impl PassfileField {
+    fn accepts(&self, value: &[u8]) -> bool {
+        match self {
+            PassfileField::Wildcard => true,
+            PassfileField::Bytes(b) => (b == value),
+        }
+    }
+}
+
 /// The data from a single passfile line.
 struct PassfileEntry {
-    hostname: Vec<u8>,
-    port: Vec<u8>,
-    dbname: Vec<u8>,
-    user: Vec<u8>,
+    hostname: PassfileField,
+    port: PassfileField,
+    dbname: PassfileField,
+    user: PassfileField,
     password: Vec<u8>,
 }
 
 impl PassfileEntry {
     fn new(s: &[u8]) -> Result<PassfileEntry, ()> {
         let mut it = s.iter().copied();
-        let mut parse_one_field = |allow_eol| {
+
+        let mut parse_one_field = || {
             let mut value = Vec::new();
             while let Some(b) = it.next() {
                 if b == b':' {
-                    return Ok(value);
+                    return Ok(match &value[..] {
+                        b"*" => PassfileField::Wildcard,
+                        _ => PassfileField::Bytes(value),
+                    });
+                } else if b == b'\\' {
+                    value.push(it.next().ok_or(())?);
+                } else {
+                    value.push(b)
+                }
+            }
+            Err(())
+        };
+        let hostname = parse_one_field()?;
+        let port = parse_one_field()?;
+        let dbname = parse_one_field()?;
+        let user = parse_one_field()?;
+
+        let mut parse_final_field = || {
+            let mut value = Vec::new();
+            while let Some(b) = it.next() {
+                if b == b':' {
+                    return value;
                 } else if b == b'\\' {
                     // To be consistent with libpq, if the line ends with a backslash then the backslash is treated as
                     // part of the last field's value.
@@ -69,28 +106,18 @@ impl PassfileEntry {
                     value.push(b)
                 }
             }
-            if allow_eol {
-                Ok(value)
-            } else {
-                Err(())
-            }
+            value
         };
+        let password = parse_final_field();
 
         Ok(PassfileEntry {
-            hostname: parse_one_field(false)?,
-            port: parse_one_field(false)?,
-            dbname: parse_one_field(false)?,
-            user: parse_one_field(false)?,
-            password: parse_one_field(true)?,
+            hostname,
+            port,
+            dbname,
+            user,
+            password,
         })
     }
-}
-
-fn field_matches(search_value: &[u8], file_value: &[u8]) -> bool {
-    if file_value == [b'*'] {
-        return true;
-    }
-    file_value == search_value
 }
 
 /// Removes trailing CR and/or LF from a string.
@@ -124,10 +151,10 @@ where
             continue;
         }
         if let Ok(entry) = PassfileEntry::new(line) {
-            if field_matches(key.hostname, &entry.hostname)
-                && field_matches(&key.port, &entry.port)
-                && field_matches(key.dbname, &entry.dbname)
-                && field_matches(key.user, &entry.user)
+            if entry.hostname.accepts(&key.hostname)
+                && entry.port.accepts(&key.port)
+                && entry.dbname.accepts(&key.dbname)
+                && entry.user.accepts(&key.user)
             {
                 if entry.password.is_empty() {
                     // To be consistent with libpq, in this case we need to
