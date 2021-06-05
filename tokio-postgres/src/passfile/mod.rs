@@ -84,6 +84,8 @@ impl PassfileEntry {
                 } else if b == b'\\' {
                     has_any_escape = true;
                     value.push(it.next().ok_or(())?);
+                } else if b == b'\0' {
+                    return Err(());
                 } else {
                     value.push(b)
                 }
@@ -99,18 +101,20 @@ impl PassfileEntry {
             let mut value = Vec::new();
             while let Some(b) = it.next() {
                 if b == b':' {
-                    return value;
+                    return Ok(value);
                 } else if b == b'\\' {
                     // To be consistent with libpq, if the line ends with a backslash then the backslash is treated as
                     // part of the last field's value.
                     value.push(it.next().unwrap_or(b'\\'))
+                } else if b == b'\0' {
+                    return Err(());
                 } else {
                     value.push(b)
                 }
             }
-            value
+            Ok(value)
         };
-        let password = parse_final_field();
+        let password = parse_final_field()?;
 
         Ok(PassfileEntry {
             hostname,

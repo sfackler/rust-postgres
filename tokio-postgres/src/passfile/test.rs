@@ -48,6 +48,12 @@ const PASSFILE_NONL: &str = "exhost.test:5432:exdb:exuser:nonewline";
 
 const PASSFILE_NONUTF8: &[u8] = b"exhost.test:5432:exdb:exuser:\xa3100\n";
 
+const PASSFILE_NULS: &str = "
+exhost.test:5432:exdb:ex\x00user:null-in-username
+exhost.test:5432:exdb:exuser:null-in-password-\x00
+exhost.test:5432:exdb:exuser:no-null
+";
+
 async fn lookup(
     passfile_content: &str,
     host: &Host,
@@ -313,4 +319,17 @@ async fn non_utf8_password() {
     .await
     .unwrap();
     assert_eq!(password, b"\xa3100");
+}
+
+#[tokio::test]
+async fn nul_characters() {
+    let password = check_found(
+        PASSFILE_NULS,
+        &Host::Tcp("exhost.test".to_owned()),
+        5432,
+        Some("exdb"),
+        "exuser",
+    )
+    .await;
+    assert_eq!(password, "no-null");
 }
