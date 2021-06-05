@@ -1,6 +1,25 @@
 //! Support for reading password files.
 //!
 //! Requires the `runtime` Cargo feature.
+//!
+//! See [the PostgreSQL libpq documentation][libpq_pgpass] for details of the file format.
+//!
+//! This module assumes the passfile is in an ASCII-compatible encoding, but does not require the file as a whole to be
+//! UTF-8. Lines with a `dbname`, `user`, or TCP `host` field which is not UTF-8 will never match a search. The
+//! retrieved password is returned as a byte string.
+//!
+//! If a line contains a NUL character it will be ignored (libpq's behavior is erratic for files containing NULs).
+//!
+//! libpq converts a `host` set to the default socket path (`DEFAULT_PGSOCKET_DIR`) into `"localhost"` for matching
+//! purposes. This module doesn't attempt to do that, because we don't know what `DEFAULT_PGSOCKET_DIR` is. So passfiles
+//! using `localhost` to supply passwords for unix socket connections won't work.
+//!
+//! libpq can fall back to matching the `host` field against `hostaddr` or `"localhost"` if `host` is unset. We have no
+//! equivalent to this behavior: we require an explicit `host` in the connection configuration.
+//!
+//! Otherwise, the code here is intended to match libpq's behavior in all corner cases, including malformed files.
+//!
+//! [libpq_pgpass]: https://www.postgresql.org/docs/current/libpq-pgpass.html
 
 #[cfg(unix)]
 use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
@@ -28,8 +47,7 @@ impl<'a> PassfileKey<'a> {
         let hostname = match host {
             Host::Tcp(s) => s.as_bytes(),
             #[cfg(unix)]
-            // libpq translates DEFAULT_PGSOCKET_DIR to 'localhost' here, but we can't do the same that because we don't
-            // know what DEFAULT_PGSOCKET_DIR is.
+            // This would be the place to convert DEFAULT_PGSOCKET_DIR to 'localhost' if it was possible.
             Host::Unix(pathbuf) => pathbuf.as_os_str().as_bytes(),
         };
         let port_string = format!("{}", port).into_bytes();
@@ -101,6 +119,7 @@ impl PassfileEntry {
             let mut value = Vec::new();
             while let Some(b) = it.next() {
                 if b == b':' {
+                    // Text that looks like an additional field is ignored
                     return Ok(value);
                 } else if b == b'\\' {
                     // To be consistent with libpq, if the line ends with a backslash then the backslash is treated as
@@ -163,9 +182,8 @@ where
                 && entry.user.accepts(&key.user)
             {
                 if entry.password.is_empty() {
-                    // To be consistent with libpq, in this case we need to
-                    // stop searching the password file, but not attempt to
-                    // use the empty password string.
+                    // To be consistent with libpq, in this case we need to stop searching the password file, but not
+                    // attempt to use the empty password string.
                     return None;
                 } else {
                     return Some(entry.password);
@@ -186,11 +204,6 @@ where
 ///  - `config` doesn't have a user set.
 ///
 /// If `config` doesn't have a dbname set, matches the dbname field against the user name.
-///
-/// Intended to match libpq's behavior closely.
-///
-/// Unlike libpq, doesn't attempt to convert a `host` set to the default socket path into `"localhost"` for matching
-/// purposes. So passfiles using `localhost` to supply passwords for unix socket connections won't work.
 pub(crate) async fn find_password(
     passfile: &Path,
     config: &Config,
