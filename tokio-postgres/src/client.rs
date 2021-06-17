@@ -302,14 +302,12 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
+
         pin_mut!(stream);
 
-        let row = match stream.try_next().await? {
-            Some(row) => row,
-            None => return Ok(None),
-        };
+        let row = stream.try_next().await?;
 
-        Ok(Some(row))
+        Ok(row)
     }
 
     /// Executes a statement which returns zero or one rows, returning it.
