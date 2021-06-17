@@ -805,3 +805,44 @@ async fn query_opt() {
         .err()
         .unwrap();
 }
+
+#[tokio::test]
+async fn query_first() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT
+                );
+                INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('carol'), ('alice');
+            ",
+        )
+        .await
+        .unwrap();
+
+    assert!(client
+        .query_first("SELECT * FROM foo WHERE name = 'dave'", &[])
+        .await
+        .unwrap()
+        .is_none());
+
+    client
+        .query_first("SELECT * FROM foo WHERE name = 'alice'", &[])
+        .await
+        .unwrap()
+        .unwrap();
+
+    client
+        .query_first("SELECT * FROM foo WHERE name = 'bob'", &[])
+        .await
+        .unwrap()
+        .unwrap();
+
+    client
+        .query_first("SELECT * FROM foo", &[])
+        .await
+        .unwrap()
+        .unwrap();
+}

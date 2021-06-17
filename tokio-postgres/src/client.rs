@@ -280,7 +280,39 @@ impl Client {
         Ok(row)
     }
 
-    /// Executes a statements which returns zero or one rows, returning it.
+    /// Executes a statement, returns the first result and completely ignores the remaining rows.
+    /// Returns `None` if no row was returned.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub async fn query_first<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        pin_mut!(stream);
+
+        let row = match stream.try_next().await? {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+
+        Ok(Some(row))
+    }
+
+    /// Executes a statement which returns zero or one rows, returning it.
     ///
     /// Returns an error if the query returns more than one row.
     ///
