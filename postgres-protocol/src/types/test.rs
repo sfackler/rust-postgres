@@ -151,7 +151,7 @@ fn non_null_array() {
     .unwrap();
 
     let array = array_from_sql(&buf).unwrap();
-    assert!(array.has_nulls());
+    assert!(!array.has_nulls());
     assert_eq!(array.element_type(), 10);
     assert_eq!(array.dimensions().collect::<Vec<_>>().unwrap(), dimensions);
     assert_eq!(array.values().collect::<Vec<_>>().unwrap(), values);
