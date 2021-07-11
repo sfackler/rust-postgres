@@ -6,7 +6,12 @@
 //! # Derive
 //!
 //! If the `derive` cargo feature is enabled, you can derive `ToSql` and `FromSql` implementations for custom Postgres
-//! types.
+//! types. Explicitly, modify your `Cargo.toml` file to include the following:
+//!
+//! ```toml
+//! [dependencies]
+//! postgres-types = { version = "0.X.X", features = ["derive"] }
+//! ```
 //!
 //! ## Enums
 //!
