@@ -350,7 +350,7 @@ async fn test_hstore_params() {
 }
 
 #[tokio::test]
-async fn test_array_params() {
+async fn test_array_vec_params() {
     test_type(
         "integer[]",
         &[
@@ -359,6 +359,18 @@ async fn test_array_params() {
             (Some(vec![]), "ARRAY[]"),
             (None, "NULL"),
         ],
+    )
+    .await;
+}
+
+#[cfg(feature = "array-impls")]
+#[tokio::test]
+async fn test_array_array_params() {
+    test_type("integer[]", &[(Some([1i32, 2i32]), "ARRAY[1,2]")]).await;
+    test_type("text[]", &[(Some(["peter".to_string()]), "ARRAY['peter']")]).await;
+    test_type(
+        "integer[]",
+        &[(Some([] as [i32; 0]), "ARRAY[]"), (None, "NULL")],
     )
     .await;
 }

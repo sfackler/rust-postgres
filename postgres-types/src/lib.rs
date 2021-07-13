@@ -428,8 +428,10 @@ impl WrongType {
 ///
 /// # Arrays
 ///
-/// `FromSql` is implemented for `Vec<T>` where `T` implements `FromSql`, and
-/// corresponds to one-dimensional Postgres arrays.
+/// `FromSql` is implemented for `Vec<T>` and `[T; N]` where `T` implements
+/// `FromSql`, and corresponds to one-dimensional Postgres arrays. **Note:**
+/// the impl for arrays only exist when the Cargo feature `array-impls` is
+/// enabled.
 pub trait FromSql<'a>: Sized {
     /// Creates a new value of this type from a buffer of data of the specified
     /// Postgres `Type` in its binary format.
@@ -503,6 +505,47 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
             .values()
             .map(|v| T::from_sql_nullable(member_type, v))
             .collect()
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Array(ref inner) => T::accepts(inner),
+            _ => false,
+        }
+    }
+}
+
+#[cfg(feature = "array-impls")]
+impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
+            _ => panic!("expected array type"),
+        };
+
+        let array = types::array_from_sql(raw)?;
+        if array.dimensions().count()? > 1 {
+            return Err("array contains too many dimensions".into());
+        }
+
+        let mut values = array.values();
+        let out = array_init::try_array_init(|i| {
+            let v = values
+                .next()?
+                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                    format!("too few elements in array (expected {}, got {})", N, i).into()
+                })?;
+            T::from_sql_nullable(member_type, v)
+        })?;
+        if values.next()?.is_some() {
+            return Err(format!(
+                "excess elements in array (expected {}, got more than that)",
+                N,
+            )
+            .into());
+        }
+
+        Ok(out)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -691,8 +734,10 @@ pub enum IsNull {
 ///
 /// # Arrays
 ///
-/// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
-/// and corresponds to one-dimensional Postgres arrays with an index offset of 1.
+/// `ToSql` is implemented for `Vec<T>`, `&[T]` and `[T; N]` where `T`
+/// implements `ToSql`, and corresponds to one-dimensional Postgres arrays with
+/// an index offset of 1. **Note:** the impl for arrays only exist when the
+/// Cargo feature `array-impls` is enabled.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
@@ -804,6 +849,19 @@ impl<'a> ToSql for &'a [u8] {
     }
 
     accepts!(BYTEA);
+
+    to_sql_checked!();
+}
+
+#[cfg(feature = "array-impls")]
+impl<T: ToSql, const N: usize> ToSql for [T; N] {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&[T] as ToSql>::to_sql(&&self[..], ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[T] as ToSql>::accepts(ty)
+    }
 
     to_sql_checked!();
 }
