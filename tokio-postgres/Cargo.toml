@@ -27,6 +27,7 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 default = ["runtime"]
 runtime = ["tokio/net", "tokio/time"]
 
+array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
 with-chrono-0_4 = ["postgres-types/with-chrono-0_4"]
 with-eui48-0_4 = ["postgres-types/with-eui48-0_4"]
