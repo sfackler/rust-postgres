@@ -1,5 +1,5 @@
 use crate::query::RowStream;
-use crate::types::{BorrowToSql, ToSql, Type};
+use crate::types::{BorrowToSql, Format, ToSql, Type};
 use crate::{Client, Error, Row, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
@@ -18,12 +18,18 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like `Client::execute_raw`.
-    async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    async fn execute_raw<P, I, J, T>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
-        I::IntoIter: ExactSizeIterator;
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send;
 
     /// Like `Client::query`.
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
@@ -49,12 +55,20 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like `Client::query_raw`.
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    async fn query_raw<T, P, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
-        I::IntoIter: ExactSizeIterator;
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send,
+        K: IntoIterator<Item = Format> + Sync + Send;
 
     /// Like `Client::prepare`.
     async fn prepare(&self, query: &str) -> Result<Statement, Error>;
@@ -84,14 +98,20 @@ impl GenericClient for Client {
         self.execute(query, params).await
     }
 
-    async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    async fn execute_raw<P, I, J, T>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send,
     {
-        self.execute_raw(statement, params).await
+        self.execute_raw(statement, params, param_formats).await
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
@@ -123,14 +143,23 @@ impl GenericClient for Client {
         self.query_opt(statement, params).await
     }
 
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    async fn query_raw<T, P, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send,
+        K: IntoIterator<Item = Format> + Sync + Send,
     {
-        self.query_raw(statement, params).await
+        self.query_raw(statement, params, param_formats, column_formats)
+            .await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
@@ -166,14 +195,20 @@ impl GenericClient for Transaction<'_> {
         self.execute(query, params).await
     }
 
-    async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    async fn execute_raw<P, I, J, T>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send,
     {
-        self.execute_raw(statement, params).await
+        self.execute_raw(statement, params, param_formats).await
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
@@ -205,14 +240,23 @@ impl GenericClient for Transaction<'_> {
         self.query_opt(statement, params).await
     }
 
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    async fn query_raw<T, P, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format> + Sync + Send,
+        K: IntoIterator<Item = Format> + Sync + Send,
     {
-        self.query_raw(statement, params).await
+        self.query_raw(statement, params, param_formats, column_formats)
+            .await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {

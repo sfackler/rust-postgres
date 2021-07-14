@@ -1,4 +1,4 @@
-use crate::types::{BorrowToSql, ToSql, Type};
+use crate::types::{BorrowToSql, Format, ToSql, Type};
 use crate::{
     Client, CopyInWriter, CopyOutReader, Error, Row, RowIter, SimpleQueryMessage, Statement,
     ToStatement, Transaction,
@@ -37,12 +37,20 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_raw`.
-    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I, J, K>(
+        &mut self,
+        query: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
-        I::IntoIter: ExactSizeIterator;
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>;
 
     /// Like `Client::prepare`.
     fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
@@ -105,14 +113,22 @@ impl GenericClient for Client {
         self.query_opt(query, params)
     }
 
-    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I, J, K>(
+        &mut self,
+        query: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
-        self.query_raw(query, params)
+        self.query_raw(query, params, param_formats, column_formats)
     }
 
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
@@ -185,14 +201,22 @@ impl GenericClient for Transaction<'_> {
         self.query_opt(query, params)
     }
 
-    fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
+    fn query_raw<T, P, I, J, K>(
+        &mut self,
+        query: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
-        self.query_raw(query, params)
+        self.query_raw(query, params, param_formats, column_formats)
     }
 
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {

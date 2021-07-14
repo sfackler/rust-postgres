@@ -7,7 +7,7 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{Oid, ToSql, Type};
+use crate::types::{Format, Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -237,10 +237,15 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.query_raw(statement, slice_iter(params))
-            .await?
-            .try_collect()
-            .await
+        self.query_raw(
+            statement,
+            slice_iter(params),
+            Some(Format::Binary),
+            Some(Format::Binary),
+        )
+        .await?
+        .try_collect()
+        .await
     }
 
     /// Executes a statement which returns a single row, returning it.
@@ -265,7 +270,14 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        let stream = self
+            .query_raw(
+                statement,
+                slice_iter(params),
+                Some(Format::Binary),
+                Some(Format::Binary),
+            )
+            .await?;
         pin_mut!(stream);
 
         let row = match stream.try_next().await? {
@@ -302,7 +314,14 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        let stream = self
+            .query_raw(
+                statement,
+                slice_iter(params),
+                Some(Format::Binary),
+                Some(Format::Binary),
+            )
+            .await?;
         pin_mut!(stream);
 
         let row = match stream.try_next().await? {
@@ -326,6 +345,13 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
+    /// Parameter and Column `Format` are specified as iterators. If an empty iterator is provided,
+    /// all values use the binary format by default. If an iterator with a
+    /// single `Format` is provided, that format will apply to all parameters or columns.
+    /// If an iterator of multiple `Format` is provided, those formats will be applied to as many
+    /// parameters or columns exist, ignoring additional formats in the same way that
+    /// `prepare_typed` ignores additional `Type` configurations.
+    ///
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
@@ -336,7 +362,7 @@ impl Client {
     ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
-    /// use tokio_postgres::types::ToSql;
+    /// use tokio_postgres::types::{ToSql, Format};
     /// use futures::{pin_mut, TryStreamExt};
     ///
     /// let params: Vec<String> = vec![
@@ -346,6 +372,8 @@ impl Client {
     /// let mut it = client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
     ///     params,
+    ///     Some(Format::Text),
+    ///     Some(Format::Binary)
     /// ).await?;
     ///
     /// pin_mut!(it);
@@ -356,15 +384,30 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I, J, K>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+        column_formats: K,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
+        K: IntoIterator<Item = Format>,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        query::query(&self.inner, statement, params).await
+        query::query(
+            &self.inner,
+            statement,
+            params,
+            param_formats,
+            column_formats,
+        )
+        .await
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -389,7 +432,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.execute_raw(statement, slice_iter(params)).await
+        self.execute_raw(statement, slice_iter(params), Some(Format::Binary))
+            .await
     }
 
     /// The maximally flexible version of [`execute`].
@@ -406,15 +450,21 @@ impl Client {
     /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`execute`]: #method.execute
-    pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+    pub async fn execute_raw<T, P, I, J>(
+        &self,
+        statement: &T,
+        params: I,
+        param_formats: J,
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = Format>,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        query::execute(self.inner(), statement, params).await
+        query::execute(self.inner(), statement, params, param_formats).await
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.
