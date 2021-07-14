@@ -8,6 +8,8 @@ use crate::composites::Field;
 use crate::enums::Variant;
 use crate::overrides::Overrides;
 
+const DEFAULT_LIFETIME: &str = "de";
+
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs)?;
 
@@ -58,10 +60,33 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     let ident = &input.ident;
+    let mut generics = input.generics;
+    if generics.type_params().count() > 0 {
+        return Err(Error::new_spanned(
+            &generics,
+            "#[derive(FromSql)] does not support type parameters.",
+        ));
+    }
+
+    let generics_clone = &generics.clone();
+    let (_, type_generics, _) = generics_clone.split_for_impl();
+
+    let lifetime = syn::Lifetime::new(&format!("'{}", DEFAULT_LIFETIME), Span::call_site());
+    let mut lifetime_def = syn::LifetimeDef::new(lifetime.clone());
+    let lifetimes: Vec<syn::Lifetime> = generics.lifetimes().map(|l| l.lifetime.clone()).collect();
+    lifetime_def.bounds = syn::punctuated::Punctuated::new();
+    for l in lifetimes {
+        lifetime_def.bounds.push(l);
+    }
+    generics
+        .params
+        .push(syn::GenericParam::Lifetime(lifetime_def));
+    let (impl_generics, _, _) = generics.split_for_impl();
+
     let out = quote! {
-        impl<'a> postgres_types::FromSql<'a> for #ident {
-            fn from_sql(_type: &postgres_types::Type, buf: &'a [u8])
-                        -> std::result::Result<#ident,
+        impl #impl_generics postgres_types::FromSql<#lifetime> for #ident #type_generics {
+            fn from_sql(_type: &postgres_types::Type, buf: & #lifetime [u8])
+                        -> std::result::Result<#ident #type_generics,
                                                std::boxed::Box<dyn std::error::Error +
                                                                std::marker::Sync +
                                                                std::marker::Send>> {

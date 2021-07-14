@@ -33,3 +33,9 @@ error: non-C-like enums are not supported
    |
 22 |     Foo(i32),
    |     ^^^^^^^^
+
+error: #[derive(FromSql)] does not support type parameters.
+  --> $DIR/invalid-types.rs:26:28
+   |
+26 | struct FromSqlTypeParameter<T> {
+   |                            ^^^
