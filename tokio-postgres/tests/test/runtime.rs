@@ -67,6 +67,11 @@ async fn target_session_attrs_err() {
 }
 
 #[tokio::test]
+async fn plain_password_ok() {
+    smoke_test("host=localhost port=5433 user=pass_user dbname=postgres password=password").await;
+}
+
+#[tokio::test]
 async fn cancel_query() {
     let client = connect("host=localhost port=5433 user=postgres").await;
 
