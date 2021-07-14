@@ -124,6 +124,9 @@ where
     if let Some(application_name) = &config.application_name {
         params.push(("application_name", &**application_name));
     }
+    if let Some(replication) = &config.replication {
+        params.push(("replication", &**replication));
+    }
 
     let mut buf = BytesMut::new();
     frontend::startup_message(params, &mut buf).map_err(Error::encode)?;

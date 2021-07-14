@@ -132,6 +132,26 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
     })
 }
 
+#[inline]
+pub fn standby_status_update(
+    write_lsn: i64,
+    flush_lsn: i64,
+    apply_lsn: i64,
+    timestamp: i64,
+    buf: &mut BytesMut,
+) -> io::Result<()> {
+    buf.put_u8(b'd');
+    write_body(buf, |buf| {
+        buf.put_u8(b'r');
+        buf.put_i64(write_lsn + 1);
+        buf.put_i64(flush_lsn + 1);
+        buf.put_i64(apply_lsn + 1);
+        buf.put_i64(timestamp);
+        buf.put_u8(0);
+        Ok(())
+    })
+}
+
 pub struct CopyData<T> {
     buf: T,
     len: i32,

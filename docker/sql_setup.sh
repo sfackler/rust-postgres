@@ -64,6 +64,8 @@ port = 5433
 ssl = on
 ssl_cert_file = 'server.crt'
 ssl_key_file = 'server.key'
+wal_level = logical
+log_statement = 'all'
 EOCONF
 
 cat > "$PGDATA/pg_hba.conf" <<-EOCONF

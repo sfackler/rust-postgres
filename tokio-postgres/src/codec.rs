@@ -4,11 +4,21 @@ use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend::CopyData;
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
+//use std::fmt;
 
 pub enum FrontendMessage {
     Raw(Bytes),
     CopyData(CopyData<Box<dyn Buf + Send>>),
 }
+
+// impl fmt::Debug for FrontendMessage {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             FrontendMessage::Raw(b) => write!(f, "FrontendMessage::Raw({:?})", b),
+//             FrontendMessage::CopyData(b) => write!(f, "FrontendMessage::CopyData({:?})", "***"),
+//         }
+//     }
+// }
 
 pub enum BackendMessage {
     Normal {

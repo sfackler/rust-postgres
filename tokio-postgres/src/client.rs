@@ -3,6 +3,7 @@ use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
+use crate::replication::ReplicationStream;
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -11,8 +12,9 @@ use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_in, copy_out, prepare, query, replication, simple_query, slice_iter, CancelToken,
+    CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -447,6 +449,26 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         copy_out::copy_out(self.inner(), statement).await
+    }
+
+    /// Executes a 'START_REPLICATION SLOT ...', returning a stream of raw replication events
+    pub async fn start_replication(&self, query: &str) -> Result<ReplicationStream, Error> {
+        replication::start_replication(self.inner(), query).await
+    }
+
+    /// Stoppes the current replication by sending a copy_done message
+    pub async fn stop_replication(&self) -> Result<(), Error> {
+        replication::stop_replication(self.inner()).await
+    }
+
+    /// Notifies PostgreSQL of the last processed WAL
+    pub async fn standby_status_update(
+        &self,
+        write_lsn: i64,
+        flush_lsn: i64,
+        apply_lsn: i64,
+    ) -> Result<(), Error> {
+        replication::standby_status_update(self.inner(), write_lsn, flush_lsn, apply_lsn).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.
