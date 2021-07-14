@@ -13,7 +13,8 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{
-    AsyncMessage, Client, Config, Connection, Error, IsolationLevel, SimpleQueryMessage,
+    AsyncMessage, Client, CompositeType, Config, Connection, Error, IsolationLevel,
+    SimpleQueryMessage,
 };
 
 mod binary_copy;
@@ -804,4 +805,56 @@ async fn query_opt() {
         .await
         .err()
         .unwrap();
+}
+
+#[tokio::test]
+async fn composite_type() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TYPE pg_temp.message AS (
+                    id INTEGER,
+                    content TEXT,
+                    link TEXT
+                );
+                CREATE TYPE pg_temp.person AS (
+                    id INTEGER,
+                    name TEXT,
+                    messages message[],
+                    email TEXT
+                );
+
+            ",
+        )
+        .await
+        .unwrap();
+
+    let row = client
+        .query_one(
+            "select (123,'alice',ARRAY[(1,'message1',NULL)::message,(2,'message2',NULL)::message],NULL)::person",
+            &[],
+        )
+        .await
+        .unwrap();
+
+    let person: CompositeType<'_> = row.get(0);
+
+    assert_eq!(person.get::<_, Option<i32>>("id"), Some(123));
+    assert_eq!(person.get::<_, Option<&str>>("name"), Some("alice"));
+    assert_eq!(person.get::<_, Option<&str>>("email"), None);
+
+    let messages: Vec<CompositeType<'_>> = person.get("messages");
+
+    assert_eq!(messages.len(), 2);
+    assert_eq!(messages[0].get::<_, Option<i32>>("id"), Some(1));
+    assert_eq!(
+        messages[0].get::<_, Option<&str>>("content"),
+        Some("message1")
+    );
+    assert_eq!(messages[0].get::<_, Option<&str>>("link"), None);
+    assert_eq!(messages[1].get::<_, Option<i32>>(0), Some(2));
+    assert_eq!(messages[1].get::<_, Option<&str>>(1), Some("message2"));
+    assert_eq!(messages[1].get::<_, Option<&str>>(2), None);
 }
