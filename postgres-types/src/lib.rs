@@ -193,6 +193,8 @@ where
     v.to_sql(ty, out)
 }
 
+#[cfg(feature = "with-arrayvec-0_7")]
+mod arrayvec;
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
 #[cfg(feature = "with-chrono-0_4")]

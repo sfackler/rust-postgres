@@ -13,6 +13,7 @@ categories = ["database"]
 [features]
 derive = ["postgres-derive"]
 array-impls = ["array-init"]
+with-arrayvec-0_7 = ["arrayvec-0_7"]
 with-bit-vec-0_6 = ["bit-vec-06"]
 with-chrono-0_4 = ["chrono-04"]
 with-eui48-0_4 = ["eui48-04"]
@@ -29,6 +30,7 @@ fallible-iterator = "0.2"
 postgres-protocol = { version = "0.6.1", path = "../postgres-protocol" }
 postgres-derive = { version = "0.4.0", optional = true, path = "../postgres-derive" }
 
+arrayvec-0_7 = { default-features = false, optional = true, package = "arrayvec", version = "0.7" }
 array-init = { version = "2", optional = true }
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, features = ["clock"], optional = true }
