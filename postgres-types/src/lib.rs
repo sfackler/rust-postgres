@@ -1042,6 +1042,19 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
+impl sealed::Sealed for &(dyn ToSql + Sync) {}
+
+/// In async contexts it is sometimes necessary to have the additional
+/// Sync requirement on parameters for queries since this enables the
+/// resulting Futures to be Send, hence usable in, e.g., tokio::spawn.
+/// This instance is provided for those cases.
+impl BorrowToSql for &(dyn ToSql + Sync) {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        *self
+    }
+}
+
 impl<T> sealed::Sealed for T where T: ToSql {}
 
 impl<T> BorrowToSql for T
