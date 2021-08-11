@@ -1341,7 +1341,7 @@ enum Inner {
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = 
 ::phf::Map {
     key: 12913932095322966823,
-    disps: ::phf::Slice::Static(&[
+    disps: &[
         (0, 12),
         (0, 18),
         (0, 25),
@@ -1394,8 +1394,8 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> =
         (0, 242),
         (0, 72),
         (16, 53),
-    ]),
-    entries: ::phf::Slice::Static(&[
+    ],
+    entries: &[
         ("22034", SqlState::MORE_THAN_ONE_SQL_JSON_ITEM),
         ("40P01", SqlState::T_R_DEADLOCK_DETECTED),
         ("42703", SqlState::UNDEFINED_COLUMN),
@@ -1654,5 +1654,5 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> =
         ("25003", SqlState::INAPPROPRIATE_ACCESS_MODE_FOR_BRANCH_TRANSACTION),
         ("02001", SqlState::NO_ADDITIONAL_DYNAMIC_RESULT_SETS_RETURNED),
         ("42804", SqlState::DATATYPE_MISMATCH),
-    ]),
+    ],
 };
