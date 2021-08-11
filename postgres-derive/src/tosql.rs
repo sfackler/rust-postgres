@@ -30,7 +30,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
             ..
         }) if fields.unnamed.len() == 1 => {
             let field = fields.unnamed.first().unwrap();
-            (accepts::domain_body(&name, &field), domain_body())
+            (accepts::domain_body(&name, field), domain_body())
         }
         Data::Struct(DataStruct {
             fields: Fields::Named(ref fields),
