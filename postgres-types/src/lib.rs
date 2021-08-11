@@ -909,7 +909,7 @@ impl<'a> ToSql for &'a str {
 
 impl<'a> ToSql for Cow<'a, str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        <&str as ToSql>::to_sql(&&self.as_ref(), ty, w)
+        <&str as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {

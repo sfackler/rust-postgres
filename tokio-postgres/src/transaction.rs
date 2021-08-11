@@ -201,7 +201,7 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(&self.client).await?;
+        let statement = statement.__convert().into_statement(self.client).await?;
         bind::bind(self.client.inner(), statement, params).await
     }
 

@@ -390,19 +390,19 @@ impl Config {
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
-                self.user(&value);
+                self.user(value);
             }
             "password" => {
                 self.password(value);
             }
             "dbname" => {
-                self.dbname(&value);
+                self.dbname(value);
             }
             "options" => {
-                self.options(&value);
+                self.options(value);
             }
             "application_name" => {
-                self.application_name(&value);
+                self.application_name(value);
             }
             "sslmode" => {
                 let mode = match value {

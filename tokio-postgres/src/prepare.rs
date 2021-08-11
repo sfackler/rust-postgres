@@ -86,7 +86,7 @@ pub async fn prepare(
     let mut parameters = vec![];
     let mut it = parameter_description.parameters();
     while let Some(oid) = it.next().map_err(Error::parse)? {
-        let type_ = get_type(&client, oid).await?;
+        let type_ = get_type(client, oid).await?;
         parameters.push(type_);
     }
 
@@ -94,13 +94,13 @@ pub async fn prepare(
     if let Some(row_description) = row_description {
         let mut it = row_description.fields();
         while let Some(field) = it.next().map_err(Error::parse)? {
-            let type_ = get_type(&client, field.type_oid()).await?;
+            let type_ = get_type(client, field.type_oid()).await?;
             let column = Column::new(field.name().to_string(), type_);
             columns.push(column);
         }
     }
 
-    Ok(Statement::new(&client, name, parameters, columns))
+    Ok(Statement::new(client, name, parameters, columns))
 }
 
 fn prepare_rec<'a>(
@@ -120,7 +120,7 @@ fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Resu
 
     client.with_buf(|buf| {
         frontend::parse(name, query, types.iter().map(Type::oid), buf).map_err(Error::encode)?;
-        frontend::describe(b'S', &name, buf).map_err(Error::encode)?;
+        frontend::describe(b'S', name, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })
