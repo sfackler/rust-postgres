@@ -1,3 +1,4 @@
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::BytesMut;
 use chrono_04::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use postgres_protocol::types;
@@ -152,4 +153,27 @@ impl ToSql for NaiveTime {
 
     accepts!(TIME);
     to_sql_checked!();
+}
+
+impl<'a> FromSql<'a> for Duration {
+    fn from_sql(
+        _: &Type,
+        raw: &[u8],
+    ) -> Result<Duration, Box<dyn std::error::Error + Sync + Send>> {
+        let t = interval_from_sql(raw)?;
+        Ok(t)
+    }
+
+    accepts!(INTERVAL);
+}
+
+#[inline]
+fn interval_from_sql(mut buf: &[u8]) -> Result<Duration, Box<dyn std::error::Error + Sync + Send>> {
+    let time = buf.read_i64::<BigEndian>()?;
+    let seconds = Duration::seconds(time / 1000000);
+    let frac = Duration::nanoseconds(time % 1000000);
+    let day = Duration::days(buf.read_i32::<BigEndian>()?.into());
+    let month = Duration::seconds((buf.read_i32::<BigEndian>()? * 30 * 86400).into());
+
+    return Ok(seconds + frac + day + month);
 }
