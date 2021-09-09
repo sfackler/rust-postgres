@@ -16,7 +16,8 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{
-    AsyncMessage, Client, Config, Connection, Error, IsolationLevel, SimpleQueryMessage,
+    AsyncMessage, Client, Config, Connection, Error, GenericResult, IsolationLevel,
+    SimpleQueryMessage,
 };
 
 mod binary_copy;
@@ -185,6 +186,51 @@ async fn insert_select() {
     assert_eq!(rows[0].get::<_, &str>(1), "alice");
     assert_eq!(rows[1].get::<_, i32>(0), 2);
     assert_eq!(rows[1].get::<_, &str>(1), "bob");
+}
+
+#[tokio::test]
+async fn generic_query() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute("CREATE TEMPORARY TABLE foo (id SERIAL, name TEXT)")
+        .await
+        .unwrap();
+    let insert = client
+        .generic_query(
+            "INSERT INTO foo(name) VALUES($1), ($2)",
+            &[&"alice", &"bob"],
+        )
+        .await
+        .unwrap();
+    let select = client
+        .generic_query("SELECT id, name FROM foo ORDER BY id", &[])
+        .await
+        .unwrap();
+
+    let rows_written = match insert[0] {
+        GenericResult::Row(_) => 0, // failure case
+        GenericResult::NumRows(r) => r,
+    };
+    assert_eq!(rows_written, 2);
+    let mut s = select.iter();
+    if let GenericResult::Row(row) = s.next().unwrap() {
+        assert_eq!(row.get::<_, i32>(0), 1);
+        assert_eq!(row.get::<_, &str>(1), "alice");
+    } else {
+        assert!(false);
+    }
+    if let GenericResult::Row(row) = s.next().unwrap() {
+        assert_eq!(row.get::<_, i32>(0), 2);
+        assert_eq!(row.get::<_, &str>(1), "bob");
+    } else {
+        assert!(false);
+    }
+    if let GenericResult::NumRows(rows_read) = s.next().unwrap() {
+        assert_eq!(*rows_read, 2);
+    } else {
+        assert!(false);
+    }
 }
 
 #[tokio::test]

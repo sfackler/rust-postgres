@@ -4,9 +4,10 @@ use crate::config::Host;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
+use crate::generic_result::GenericResult;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
-use crate::query::RowStream;
+use crate::query::{ResultStream, RowStream};
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -248,6 +249,22 @@ impl Client {
             .await
     }
 
+    /// Executes a statement and returns a read or write response
+    pub async fn generic_query<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<GenericResult>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        // try_collect will wait for the ReadyForQuery message which is not strictly necessary.
+        self.generic_query_raw(statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.
@@ -370,6 +387,22 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         query::query(&self.inner, statement, params).await
+    }
+
+    /// Executes a generic query
+    pub async fn generic_query_raw<T, P, I>(
+        &self,
+        statement: &T,
+        params: I,
+    ) -> Result<ResultStream, Error>
+    where
+        T: ?Sized + ToStatement,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let statement = statement.__convert().into_statement(self).await?;
+        query::generic_query(&self.inner, statement, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.

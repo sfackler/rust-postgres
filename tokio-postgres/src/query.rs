@@ -2,7 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement};
+use crate::{Error, GenericResult, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
@@ -50,6 +50,35 @@ where
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
+        statement,
+        responses,
+        _p: PhantomPinned,
+    })
+}
+
+pub async fn generic_query<P, I>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
+) -> Result<ResultStream, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let buf = if log_enabled!(Level::Debug) {
+        let params = params.into_iter().collect::<Vec<_>>();
+        debug!(
+            "executing statement {} with parameters: {:?}",
+            statement.name(),
+            BorrowToSqlParamsDebug(params.as_slice()),
+        );
+        encode(client, &statement, params)?
+    } else {
+        encode(client, &statement, params)?
+    };
+    let responses = start(client, buf).await?;
+    Ok(ResultStream {
         statement,
         responses,
         _p: PhantomPinned,
@@ -194,6 +223,46 @@ where
         Ok(()) => Ok(()),
         Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, error_idx)),
         Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
+    }
+}
+
+pin_project! {
+    /// A stream of table rows.
+    pub struct ResultStream {
+        statement: Statement,
+        responses: Responses,
+        #[pin]
+        _p: PhantomPinned,
+    }
+}
+
+impl Stream for ResultStream {
+    type Item = Result<GenericResult, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        match ready!(this.responses.poll_next(cx)?) {
+            Message::DataRow(body) => Poll::Ready(Some(Ok(GenericResult::Row(Row::new(
+                this.statement.clone(),
+                body,
+            )?)))),
+            Message::CommandComplete(body) => {
+                // parse value from bytes
+                let val = body
+                    .tag()
+                    .map_err(Error::parse)?
+                    .rsplit(' ')
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .unwrap_or(0);
+                Poll::Ready(Some(Ok(GenericResult::NumRows(val))))
+            }
+            Message::EmptyQueryResponse | Message::PortalSuspended => Poll::Ready(None),
+            Message::ErrorResponse(body) => Poll::Ready(Some(Err(Error::db(body)))),
+            Message::ReadyForQuery(_) => Poll::Ready(None),
+            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
+        }
     }
 }
 
