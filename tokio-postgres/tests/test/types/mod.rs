@@ -29,6 +29,8 @@ mod geo_types_07;
 mod serde_json_1;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
+#[cfg(feature = "with-time-0_3")]
+mod time_03;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 
