@@ -4,10 +4,12 @@
 //!
 //! ```no_run
 //! use native_tls::{Certificate, TlsConnector};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_native_tls::MakeTlsConnector;
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let cert = fs::read("database_cert.pem")?;
 //! let cert = Certificate::from_pem(&cert)?;
 //! let connector = TlsConnector::builder()
@@ -19,6 +21,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! );
+//! # }
 //!
 //! // ...
 //! # Ok(())
@@ -27,10 +30,12 @@
 //!
 //! ```no_run
 //! use native_tls::{Certificate, TlsConnector};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_native_tls::MakeTlsConnector;
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let cert = fs::read("database_cert.pem")?;
 //! let cert = Certificate::from_pem(&cert)?;
 //! let connector = TlsConnector::builder()
@@ -42,6 +47,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! )?;
+//! # }
 //! # Ok(())
 //! # }
 //! ```

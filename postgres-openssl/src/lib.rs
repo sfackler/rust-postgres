@@ -4,9 +4,11 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;
 //! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
@@ -15,6 +17,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! );
+//! # }
 //!
 //! // ...
 //! # Ok(())
@@ -23,9 +26,11 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;
 //! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
@@ -34,6 +39,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! )?;
+//! # }
 //!
 //! // ...
 //! # Ok(())
