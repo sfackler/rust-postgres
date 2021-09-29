@@ -1,5 +1,18 @@
 # Change Log
 
+## v0.7.2 - 2021-09-29
+
+### Fixed
+
+* Fixed a deadlock when pipelined requests concurrently prepare cached typeinfo queries.
+
+### Added
+
+* Added `SimpleQueryRow::columns`.
+* Added support for `eui48` 1.0 via the `with-eui48-1` feature.
+* Added `FromSql` and `ToSql` implementations for arrays via the `array-impls` feature.
+* Added support for `time` 0.3 via the `with-time-0_3` feature.
+
 ## v0.7.2 - 2021-04-25
 
 ### Fixed
