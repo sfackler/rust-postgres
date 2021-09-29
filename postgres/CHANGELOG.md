@@ -1,5 +1,14 @@
 # Change Log
 
+## v0.19.2 - 2021-09-29
+
+### Added
+
+* Added `SimpleQueryRow::columns`.
+* Added support for `eui48` 1.0 via the `with-eui48-1` feature.
+* Added `FromSql` and `ToSql` implementations for arrays via the `array-impls` feature.
+* Added support for `time` 0.3 via the `with-time-0_3` feature.
+
 ## v0.19.1 - 2021-04-03
 
 ### Added
