@@ -3,10 +3,12 @@
 use crate::row::sealed::{AsName, Sealed};
 use crate::simple_query::SimpleColumn;
 use crate::statement::Column;
-use crate::types::{FromSql, Type, WrongType};
+use crate::types::{Field, FromSql, Kind, Type, WrongType};
 use crate::{Error, Statement};
+use byteorder::{BigEndian, ByteOrder};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
+use postgres_protocol::types::CompositeTypeRanges;
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -29,6 +31,12 @@ impl AsName for Column {
 impl AsName for String {
     fn as_name(&self) -> &str {
         self
+    }
+}
+
+impl AsName for Field {
+    fn as_name(&self) -> &str {
+        self.name()
     }
 }
 
@@ -192,6 +200,125 @@ impl Row {
 impl AsName for SimpleColumn {
     fn as_name(&self) -> &str {
         self.name()
+    }
+}
+
+/// A PostgreSQL composite type.
+/// Fields of a type can be accessed using `CompositeType::get` and `CompositeType::try_get` methods.
+pub struct CompositeType<'a> {
+    type_: Type,
+    body: &'a [u8],
+    ranges: Vec<Option<Range<usize>>>,
+}
+
+impl<'a> FromSql<'a> for CompositeType<'a> {
+    fn from_sql(
+        type_: &Type,
+        body: &'a [u8],
+    ) -> Result<CompositeType<'a>, Box<dyn std::error::Error + Sync + Send>> {
+        match *type_.kind() {
+            Kind::Composite(_) => {
+                let fields: &[Field] = composite_type_fields(&type_);
+                if body.len() < 4 {
+                    let message = format!("invalid composite type body length: {}", body.len());
+                    return Err(message.into());
+                }
+                let num_fields: i32 = BigEndian::read_i32(&body[0..4]);
+                if num_fields as usize != fields.len() {
+                    let message =
+                        format!("invalid field count: {} vs {}", num_fields, fields.len());
+                    return Err(message.into());
+                }
+                let ranges = CompositeTypeRanges::new(&body[4..], body.len(), num_fields as u16)
+                    .collect()
+                    .map_err(Error::parse)?;
+                Ok(CompositeType {
+                    type_: type_.clone(),
+                    body,
+                    ranges,
+                })
+            }
+            _ => Err(format!("expected composite type, got {}", type_).into()),
+        }
+    }
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Composite(_) => true,
+            _ => false,
+        }
+    }
+}
+
+fn composite_type_fields(type_: &Type) -> &[Field] {
+    match type_.kind() {
+        Kind::Composite(ref fields) => fields,
+        _ => unreachable!(),
+    }
+}
+
+impl<'a> CompositeType<'a> {
+    /// Returns information about the fields of the composite type.
+    pub fn fields(&self) -> &[Field] {
+        composite_type_fields(&self.type_)
+    }
+
+    /// Determines if the composite contains no values.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the number of fields of the composite type.
+    pub fn len(&self) -> usize {
+        self.fields().len()
+    }
+
+    /// Deserializes a value from the composite type.
+    ///
+    /// The value can be specified either by its numeric index, or by its field name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index is out of bounds or if the value cannot be converted to the specified type.
+    pub fn get<'b, I, T>(&'b self, idx: I) -> T
+    where
+        I: RowIndex + fmt::Display,
+        T: FromSql<'b>,
+    {
+        match self.get_inner(&idx) {
+            Ok(ok) => ok,
+            Err(err) => panic!("error retrieving column {}: {}", idx, err),
+        }
+    }
+
+    /// Like `CompositeType::get`, but returns a `Result` rather than panicking.
+    pub fn try_get<'b, I, T>(&'b self, idx: I) -> Result<T, Error>
+    where
+        I: RowIndex + fmt::Display,
+        T: FromSql<'b>,
+    {
+        self.get_inner(&idx)
+    }
+
+    fn get_inner<'b, I, T>(&'b self, idx: &I) -> Result<T, Error>
+    where
+        I: RowIndex + fmt::Display,
+        T: FromSql<'b>,
+    {
+        let idx = match idx.__idx(self.fields()) {
+            Some(idx) => idx,
+            None => return Err(Error::column(idx.to_string())),
+        };
+
+        let ty = self.fields()[idx].type_();
+        if !T::accepts(ty) {
+            return Err(Error::from_sql(
+                Box::new(WrongType::new::<T>(ty.clone())),
+                idx,
+            ));
+        }
+
+        let buf = self.ranges[idx].clone().map(|r| &self.body[r]);
+        FromSql::from_sql_nullable(ty, buf).map_err(|e| Error::from_sql(e, idx))
     }
 }
 
