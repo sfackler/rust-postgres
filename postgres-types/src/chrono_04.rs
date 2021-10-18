@@ -1,6 +1,7 @@
 use bytes::BytesMut;
 use chrono_04::{DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use postgres_protocol::types;
+use std::convert::TryInto;
 use std::error::Error;
 
 use crate::{FromSql, IsNull, ToSql, Type};
@@ -25,9 +26,13 @@ impl<'a> FromSql<'a> for NaiveDateTime {
 
 impl ToSql for NaiveDateTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let time = match self.signed_duration_since(base()).num_microseconds() {
-            Some(time) => time,
-            None => return Err("value too large to transmit".into()),
+        let time = match self
+            .signed_duration_since(base())
+            .whole_microseconds()
+            .try_into()
+        {
+            Ok(time) => time,
+            Err(_) => return Err("value too large to transmit".into()),
         };
         types::timestamp_to_sql(time, w);
         Ok(IsNull::No)
@@ -120,7 +125,7 @@ impl<'a> FromSql<'a> for NaiveDate {
 
 impl ToSql for NaiveDate {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let jd = self.signed_duration_since(base().date()).num_days();
+        let jd = self.signed_duration_since(base().date()).whole_days();
         if jd > i64::from(i32::max_value()) || jd < i64::from(i32::min_value()) {
             return Err("value too large to transmit".into());
         }
@@ -145,9 +150,9 @@ impl<'a> FromSql<'a> for NaiveTime {
 impl ToSql for NaiveTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let delta = self.signed_duration_since(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        let time = match delta.num_microseconds() {
-            Some(time) => time,
-            None => return Err("value too large to transmit".into()),
+        let time = match delta.whole_microseconds().try_into() {
+            Ok(time) => time,
+            Err(_) => return Err("value too large to transmit".into()),
         };
         types::time_to_sql(time, w);
         Ok(IsNull::No)
