@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.7.4 - 2021-10-19
+
+### Fixed
+
+* Fixed reporting of commit-time errors triggered by deferred constraints.
+
 ## v0.7.3 - 2021-09-29
 
 ### Fixed
