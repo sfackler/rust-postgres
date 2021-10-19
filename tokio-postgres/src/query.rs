@@ -99,11 +99,12 @@ where
     };
     let mut responses = start(client, buf).await?;
 
+    let mut rows = 0;
     loop {
         match responses.next().await? {
             Message::DataRow(_) => {}
             Message::CommandComplete(body) => {
-                let rows = body
+                rows = body
                     .tag()
                     .map_err(Error::parse)?
                     .rsplit(' ')
@@ -111,9 +112,9 @@ where
                     .unwrap()
                     .parse()
                     .unwrap_or(0);
-                return Ok(rows);
             }
-            Message::EmptyQueryResponse => return Ok(0),
+            Message::EmptyQueryResponse => rows = 0,
+            Message::ReadyForQuery(_) => return Ok(rows),
             _ => return Err(Error::unexpected_message()),
         }
     }
@@ -203,15 +204,17 @@ impl Stream for RowStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        match ready!(this.responses.poll_next(cx)?) {
-            Message::DataRow(body) => {
-                Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
+        loop {
+            match ready!(this.responses.poll_next(cx)?) {
+                Message::DataRow(body) => {
+                    return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
+                }
+                Message::EmptyQueryResponse
+                | Message::CommandComplete(_)
+                | Message::PortalSuspended => {}
+                Message::ReadyForQuery(_) => return Poll::Ready(None),
+                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
-            Message::EmptyQueryResponse
-            | Message::CommandComplete(_)
-            | Message::PortalSuspended => Poll::Ready(None),
-            Message::ErrorResponse(body) => Poll::Ready(Some(Err(Error::db(body)))),
-            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
         }
     }
 }

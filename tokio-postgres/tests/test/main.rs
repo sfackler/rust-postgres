@@ -805,3 +805,29 @@ async fn query_opt() {
         .err()
         .unwrap();
 }
+
+#[tokio::test]
+async fn deferred_constraint() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE t (
+                i INT,
+                UNIQUE (i) DEFERRABLE INITIALLY DEFERRED
+            );
+        ",
+        )
+        .await
+        .unwrap();
+
+    client
+        .execute("INSERT INTO t (i) VALUES (1)", &[])
+        .await
+        .unwrap();
+    client
+        .execute("INSERT INTO t (i) VALUES (1)", &[])
+        .await
+        .unwrap_err();
+}
