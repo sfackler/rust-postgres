@@ -1,4 +1,4 @@
-use crate::codec::BackendMessages;
+use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::{Host, SslMode};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
@@ -19,7 +19,7 @@ use fallible_iterator::FallibleIterator;
 use futures::channel::mpsc;
 use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
-use postgres_protocol::message::backend::Message;
+use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
@@ -488,7 +488,42 @@ impl Client {
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        self.batch_execute("BEGIN").await?;
+        struct RollbackIfNotDone<'me> {
+            client: &'me Client,
+            done: bool,
+        }
+
+        impl<'a> Drop for RollbackIfNotDone<'a> {
+            fn drop(&mut self) {
+                if self.done {
+                    return;
+                }
+
+                let buf = self.client.inner().with_buf(|buf| {
+                    frontend::query("ROLLBACK", buf).unwrap();
+                    buf.split().freeze()
+                });
+                let _ = self
+                    .client
+                    .inner()
+                    .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+            }
+        }
+
+        // This is done, as `Future` created by this method can be dropped after
+        // `RequestMessages` is synchronously send to the `Connection` by
+        // `batch_execute()`, but before `Responses` is asynchronously polled to
+        // completion. In that case `Transaction` won't be created and thus
+        // won't be rolled back.
+        {
+            let mut cleaner = RollbackIfNotDone {
+                client: self,
+                done: false,
+            };
+            self.batch_execute("BEGIN").await?;
+            cleaner.done = true;
+        }
+
         Ok(Transaction::new(self))
     }
 
