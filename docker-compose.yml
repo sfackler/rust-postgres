@@ -1,6 +1,10 @@
 version: '2'
 services:
   postgres:
-    image: "sfackler/rust-postgres-test:6"
+    image: postgres:14
     ports:
-    - 5433:5433
+      - 5433:5433
+    volumes:
+      - ./docker/sql_setup.sh:/docker-entrypoint-initdb.d/sql_setup.sh
+    environment:
+      POSTGRES_PASSWORD: postgres

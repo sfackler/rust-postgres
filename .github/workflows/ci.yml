@@ -50,13 +50,9 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: sfackler/rust-postgres-test:6
-        ports:
-          - 5433:5433
     steps:
       - uses: actions/checkout@v2
+      - run: docker compose up -d
       - uses: sfackler/actions/rustup@master
         with:
           version: 1.51.0
