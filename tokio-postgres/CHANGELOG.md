@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.7.5 - 2021-10-29
+
+### Fixed
+
+* Fixed a bug where the client could enter into a transaction if the `Client::transaction` future was dropped before completion.
+
 ## v0.7.4 - 2021-10-19
 
 ### Fixed
