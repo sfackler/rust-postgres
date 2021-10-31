@@ -1,4 +1,5 @@
 use std::{
+    convert::TryFrom,
     future::Future,
     io,
     pin::Pin,
@@ -8,11 +9,10 @@ use std::{
 
 use futures::future::{FutureExt, TryFutureExt};
 use ring::digest;
-use rustls::{ClientConfig, Session};
+use rustls::{ClientConfig, ServerName};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
 use tokio_rustls::{client::TlsStream, TlsConnector};
-use webpki::{DNSName, DNSNameRef};
 
 #[derive(Clone)]
 pub struct MakeRustlsConnect {
@@ -36,11 +36,13 @@ where
     type Error = io::Error;
 
     fn make_tls_connect(&mut self, hostname: &str) -> io::Result<RustlsConnect> {
-        DNSNameRef::try_from_ascii_str(hostname)
-            .map(|dns_name| RustlsConnect(Some(RustlsConnectData {
-                hostname: dns_name.to_owned(),
-                connector: Arc::clone(&self.config).into(),
-            })))
+        ServerName::try_from(hostname)
+            .map(|dns_name| {
+                RustlsConnect(Some(RustlsConnectData {
+                    hostname: dns_name,
+                    connector: Arc::clone(&self.config).into(),
+                }))
+            })
             .or(Ok(RustlsConnect(None)))
     }
 }
@@ -48,7 +50,7 @@ where
 pub struct RustlsConnect(Option<RustlsConnectData>);
 
 struct RustlsConnectData {
-    hostname: DNSName,
+    hostname: ServerName,
     connector: TlsConnector,
 }
 
@@ -63,10 +65,11 @@ where
     fn connect(self, stream: S) -> Self::Future {
         match self.0 {
             None => Box::pin(core::future::ready(Err(io::ErrorKind::InvalidInput.into()))),
-            Some(c) => c.connector
-                .connect(c.hostname.as_ref(), stream)
+            Some(c) => c
+                .connector
+                .connect(c.hostname, stream)
                 .map_ok(|s| RustlsStream(Box::pin(s)))
-                .boxed()
+                .boxed(),
         }
     }
 }
@@ -79,8 +82,8 @@ where
 {
     fn channel_binding(&self) -> ChannelBinding {
         let (_, session) = self.0.get_ref();
-        match session.get_peer_certificates() {
-            Some(certs) if certs.len() > 0 => {
+        match session.peer_certificates() {
+            Some(certs) if !certs.is_empty() => {
                 let sha256 = digest::digest(&digest::SHA256, certs[0].as_ref());
                 ChannelBinding::tls_server_end_point(sha256.as_ref().into())
             }
@@ -100,7 +103,6 @@ where
     ) -> Poll<tokio::io::Result<()>> {
         self.0.as_mut().poll_read(cx, buf)
     }
-
 }
 
 impl<S> AsyncWrite for RustlsStream<S>
@@ -122,7 +124,6 @@ where
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<tokio::io::Result<()>> {
         self.0.as_mut().poll_shutdown(cx)
     }
-
 }
 
 #[cfg(test)]
@@ -133,12 +134,17 @@ mod tests {
     async fn it_works() {
         env_logger::builder().is_test(true).try_init().unwrap();
 
-        let config = rustls::ClientConfig::new();
+        let config = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth();
         let tls = super::MakeRustlsConnect::new(config);
-        let (client, conn) =
-            tokio_postgres::connect("sslmode=require host=localhost port=5432 user=postgres", tls)
-                .await
-                .expect("connect");
+        let (client, conn) = tokio_postgres::connect(
+            "sslmode=require host=localhost port=5432 user=postgres",
+            tls,
+        )
+        .await
+        .expect("connect");
         tokio::spawn(conn.map_err(|e| panic!("{:?}", e)));
         let stmt = client.prepare("SELECT 1").await.expect("prepare");
         let _ = client.query(&stmt, &[]).await.expect("query");

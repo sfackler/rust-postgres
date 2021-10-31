@@ -9,7 +9,10 @@ and the [tokio-postgres asynchronous PostgreSQL client library](https://github.c
 # Example
 
 ```
-let config = rustls::ClientConfig::new();
+let config = rustls::ClientConfig::builder()
+    .with_safe_defaults()
+    .with_root_certificates(rustls::RootCertStore::empty())
+    .with_no_client_auth();
 let tls = tokio_postgres_rustls::MakeRustlsConnect::new(config);
 let connect_fut = tokio_postgres::connect("sslmode=require host=localhost user=postgres", tls);
 // ...
