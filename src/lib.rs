@@ -128,16 +128,37 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use futures::future::TryFutureExt;
+    use rustls::{client::ServerCertVerified, client::ServerCertVerifier, Certificate, Error};
+    use std::time::SystemTime;
+
+    struct AcceptAllVerifier {}
+    impl ServerCertVerifier for AcceptAllVerifier {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &Certificate,
+            _intermediates: &[Certificate],
+            _server_name: &ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp_response: &[u8],
+            _now: SystemTime,
+        ) -> Result<ServerCertVerified, Error> {
+            Ok(ServerCertVerified::assertion())
+        }
+    }
 
     #[tokio::test]
     async fn it_works() {
         env_logger::builder().is_test(true).try_init().unwrap();
 
-        let config = rustls::ClientConfig::builder()
+        let mut config = rustls::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(rustls::RootCertStore::empty())
             .with_no_client_auth();
+        config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(AcceptAllVerifier {}));
         let tls = super::MakeRustlsConnect::new(config);
         let (client, conn) = tokio_postgres::connect(
             "sslmode=require host=localhost port=5432 user=postgres",
