@@ -22,4 +22,9 @@ enum FromSqlEnum {
     Foo(i32),
 }
 
+#[derive(FromSql)]
+struct FromSqlTypeParameter<T> {
+    foo: T,
+}
+
 fn main() {}
