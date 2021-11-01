@@ -156,6 +156,8 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    
+    let (param_formats, params):(Vec<_>, Vec<_>) = params.into_iter().map(|p| (p.borrow_to_sql().encode_format(),p)).unzip();
     let params = params.into_iter();
 
     assert!(
@@ -169,7 +171,7 @@ where
     let r = frontend::bind(
         portal,
         statement.name(),
-        Some(1),
+        param_formats,
         params.zip(statement.params()).enumerate(),
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
             Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),

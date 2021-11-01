@@ -769,6 +769,40 @@ pub trait ToSql: fmt::Debug {
         ty: &Type,
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
+
+    /// Specify the encode format
+    fn encode_format(&self) -> i16 { 1 }
+
+    /// return string representation
+    fn as_string(&self) -> String {
+        panic!("as_string not implemented for {:?}", self)
+    }
+}
+
+
+/// A Wrapper type used for sending query parameters encoded as unknown.
+#[derive(Debug)]
+pub struct Unknown<'a>(pub &'a (dyn ToSql + Sync));
+
+impl ToSql for Unknown<'_> {
+    fn to_sql(
+        &self,
+        _ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        match *self {
+            Unknown(val) => {
+                types::text_to_sql(&val.as_string(), out);
+                Ok(IsNull::No)
+            }
+        }
+    }
+
+    fn accepts(_ty: &Type) -> bool { true }
+
+    fn encode_format(&self) -> i16 { 0 }
+
+    to_sql_checked!();
 }
 
 impl<'a, T> ToSql for &'a T
@@ -905,7 +939,7 @@ impl<'a> ToSql for &'a str {
             _ => false,
         }
     }
-
+    fn as_string(&self) -> String { self.to_string() }
     to_sql_checked!();
 }
 
@@ -929,7 +963,7 @@ impl ToSql for String {
     fn accepts(ty: &Type) -> bool {
         <&str as ToSql>::accepts(ty)
     }
-
+    fn as_string(&self) -> String { self.clone() }
     to_sql_checked!();
 }
 
@@ -942,6 +976,10 @@ macro_rules! simple_to {
                       -> Result<IsNull, Box<dyn Error + Sync + Send>> {
                 types::$f(*self, w);
                 Ok(IsNull::No)
+            }
+
+            fn as_string(&self) -> String {
+                format!("{}", &self)
             }
 
             accepts!($($expected),+);
