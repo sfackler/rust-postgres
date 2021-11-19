@@ -156,8 +156,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    
-    let (param_formats, params):(Vec<_>, Vec<_>) = params.into_iter().map(|p| (p.borrow_to_sql().encode_format(),p)).unzip();
+    let (param_formats, params):(Vec<_>, Vec<_>) = params.into_iter().map(|p|->(i16, P){(p.borrow_to_sql().encode_format().into(),p)}).unzip();
     let params = params.into_iter();
 
     assert!(

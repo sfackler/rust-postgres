@@ -771,34 +771,29 @@ pub trait ToSql: fmt::Debug {
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
 
     /// Specify the encode format
-    fn encode_format(&self) -> i16 { 1 }
+    fn encode_format(&self) -> Format { Format::Binary }
 }
 
+/// Supported Postgres message format types
+///
+/// Using Text format in a message assumes a Postgres `SERVER_ENCODING` of `UTF8`
+pub enum Format {
+    /// Text format (UTF-8)
+    Text,
+    /// Compact, typed binary format
+    Binary,
+}
 
-/// A Wrapper type used for sending query parameters encoded as unknown.
-#[derive(Debug)]
-pub struct Unknown<'a>(pub &'a str);
-
-impl ToSql for Unknown<'_> {
-    fn to_sql(
-        &self,
-        _ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        match *self {
-            Unknown(val) => {
-                types::text_to_sql(val, out);
-                Ok(IsNull::No)
-            }
+/// Convert from `Format` to the Postgres integer representation of those formats
+impl From<Format> for i16 {
+    fn from(format: Format) -> Self {
+        match format {
+            Format::Text => 0,
+            Format::Binary => 1,
         }
     }
-
-    fn accepts(_ty: &Type) -> bool { true }
-
-    fn encode_format(&self) -> i16 { 0 }
-
-    to_sql_checked!();
 }
+
 
 impl<'a, T> ToSql for &'a T
 where
