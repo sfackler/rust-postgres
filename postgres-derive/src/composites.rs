@@ -14,7 +14,13 @@ impl Field {
 
         let ident = raw.ident.as_ref().unwrap().clone();
         Ok(Field {
-            name: overrides.name.unwrap_or_else(|| ident.to_string()),
+            name: overrides.name.unwrap_or_else(|| {
+                let name = ident.to_string();
+                match name.strip_prefix("r#") {
+                    Some(name) => name.to_string(),
+                    None => name,
+                }
+            }),
             ident,
             type_: raw.ty.clone(),
         })

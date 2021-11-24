@@ -1,5 +1,5 @@
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use std::iter;
 use syn::{Data, DataStruct, DeriveInput, Error, Fields, Ident};
 
@@ -119,7 +119,7 @@ fn domain_body(ident: &Ident, field: &syn::Field) -> TokenStream {
 fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
     let temp_vars = &fields
         .iter()
-        .map(|f| Ident::new(&format!("__{}", f.ident), Span::call_site()))
+        .map(|f| format_ident!("__{}", f.ident))
         .collect::<Vec<_>>();
     let field_names = &fields.iter().map(|f| &f.name).collect::<Vec<_>>();
     let field_idents = &fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
