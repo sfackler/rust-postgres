@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.1 - 2021-11-23
+
+### Fixed
+
+* Fixed handling of struct fields using raw identifiers.
+
 ## v0.4.0 - 2019-12-23
 
 No changes
