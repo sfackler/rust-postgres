@@ -780,7 +780,7 @@ impl<'a> UrlParser<'a> {
     }
 
     fn take_all(&mut self) -> &'a str {
-        mem::replace(&mut self.s, "")
+        mem::take(&mut self.s)
     }
 
     fn eat_byte(&mut self) {
