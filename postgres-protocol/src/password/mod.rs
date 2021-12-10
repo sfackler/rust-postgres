@@ -7,7 +7,7 @@
 //! end up in logs pg_stat displays, etc.
 
 use crate::authentication::sasl;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use md5::Md5;
 use rand::RngCore;
 use sha2::digest::FixedOutput;

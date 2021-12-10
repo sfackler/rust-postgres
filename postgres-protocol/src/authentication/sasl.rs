@@ -1,6 +1,6 @@
 //! SASL-based authentication support.
 
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use rand::{self, Rng};
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
@@ -275,7 +275,7 @@ impl ScramSha256 {
         let mut hmac = Hmac::<Sha256>::new_from_slice(&server_key)
             .expect("HMAC is able to accept all key sizes");
         hmac.update(auth_message.as_bytes());
-        hmac.verify(&verifier)
+        hmac.verify(verifier.as_slice().into())
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
     }
 }
