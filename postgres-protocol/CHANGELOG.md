@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.6.3 - 2021-12-10
+
+### Changed
+
+* Upgraded `hmac`, `md-5` and `sha`.
+
 ## v0.6.2 - 2021-09-29
 
 ### Changed
