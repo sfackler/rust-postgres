@@ -14,6 +14,7 @@ use std::time::SystemTime;
 
 const STANDBY_STATUS_UPDATE_TAG: u8 = b'r';
 const HOT_STANDBY_FEEDBACK_TAG: u8 = b'h';
+const ZENITH_STATUS_UPDATE_TAG_BYTE: u8 = b'z';
 
 pin_project! {
     /// A type which deserializes the postgres replication protocol. This type can be used with
@@ -31,6 +32,22 @@ impl ReplicationStream {
     /// Creates a new ReplicationStream that will wrap the underlying CopyBoth stream
     pub fn new(stream: CopyBothDuplex<Bytes>) -> Self {
         Self { stream }
+    }
+
+    /// Send zenith status update to server.
+    pub async fn zenith_status_update(
+        self: Pin<&mut Self>,
+        len: u64,
+        data: &[u8],
+    ) -> Result<(), Error> {
+        let mut this = self.project();
+
+        let mut buf = BytesMut::new();
+        buf.put_u8(ZENITH_STATUS_UPDATE_TAG_BYTE);
+        buf.put_u64(len);
+        buf.put_slice(data);
+
+        this.stream.send(buf.freeze()).await
     }
 
     /// Send standby update to server.
