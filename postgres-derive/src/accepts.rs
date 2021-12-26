@@ -6,6 +6,14 @@ use syn::Ident;
 use crate::composites::Field;
 use crate::enums::Variant;
 
+pub fn transparent_body(field: &syn::Field) -> TokenStream {
+    let ty = &field.ty;
+
+    quote! {
+        <#ty as ::postgres_types::ToSql>::accepts(type_)
+    }
+}
+
 pub fn domain_body(name: &str, field: &syn::Field) -> TokenStream {
     let ty = &field.ty;
 

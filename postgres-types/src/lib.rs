@@ -55,6 +55,21 @@
 //! struct SessionId(Vec<u8>);
 //! ```
 //!
+//! ## Newtypes
+//!
+//! The `#[postgres(transparent)]` attribute can be used on a single-field tuple struct to create a
+//! Rust-only wrapper type that will use the [`ToSql`] & [`FromSql`] implementation of the inner
+//! value :
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(transparent)]
+//! struct UserId(i32);
+//! ```
+//!
 //! ## Composites
 //!
 //! Postgres composite types correspond to structs in Rust:
