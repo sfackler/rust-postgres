@@ -584,6 +584,18 @@ impl<'a> FromSql<'a> for String {
     }
 }
 
+impl<'a> FromSql<'a> for Box<str> {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Box<str>, Box<dyn Error + Sync + Send>> {
+        types::text_from_sql(raw)
+            .map(ToString::to_string)
+            .map(String::into_boxed_str)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as FromSql>::accepts(ty)
+    }
+}
+
 impl<'a> FromSql<'a> for &'a str {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<&'a str, Box<dyn Error + Sync + Send>> {
         types::text_from_sql(raw)
@@ -922,6 +934,18 @@ impl<'a> ToSql for Cow<'a, str> {
 }
 
 impl ToSql for String {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&str as ToSql>::to_sql(&&**self, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl ToSql for Box<str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&**self, ty, w)
     }
