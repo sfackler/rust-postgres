@@ -2,17 +2,18 @@ use syn::{Attribute, Error, Lit, Meta, NestedMeta};
 
 pub struct Overrides {
     pub name: Option<String>,
+    pub transparent: bool,
 }
 
 impl Overrides {
     pub fn extract(attrs: &[Attribute]) -> Result<Overrides, Error> {
-        let mut overrides = Overrides { name: None };
+        let mut overrides = Overrides {
+            name: None,
+            transparent: false,
+        };
 
         for attr in attrs {
-            let attr = match attr.parse_meta() {
-                Ok(meta) => meta,
-                Err(_) => continue,
-            };
+            let attr = attr.parse_meta()?;
 
             if !attr.path().is_ident("postgres") {
                 continue;
@@ -39,7 +40,14 @@ impl Overrides {
 
                         overrides.name = Some(value);
                     }
-                    bad => return Err(Error::new_spanned(bad, "expected a name-value meta item")),
+                    NestedMeta::Meta(Meta::Path(ref path)) => {
+                        if !path.is_ident("transparent") {
+                            return Err(Error::new_spanned(path, "unknown override"));
+                        }
+
+                        overrides.transparent = true;
+                    }
+                    bad => return Err(Error::new_spanned(bad, "unknown attribute")),
                 }
             }
         }

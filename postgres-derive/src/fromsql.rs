@@ -11,9 +11,36 @@ use crate::overrides::Overrides;
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs)?;
 
+    if overrides.name.is_some() && overrides.transparent {
+        return Err(Error::new_spanned(
+            &input,
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")]",
+        ));
+    }
+
     let name = overrides.name.unwrap_or_else(|| input.ident.to_string());
 
-    let (accepts_body, to_sql_body) = match input.data {
+    let (accepts_body, to_sql_body) = if overrides.transparent {
+        match input.data {
+            Data::Struct(DataStruct {
+                fields: Fields::Unnamed(ref fields),
+                ..
+            }) if fields.unnamed.len() == 1 => {
+                let field = fields.unnamed.first().unwrap();
+                (
+                    accepts::transparent_body(field),
+                    transparent_body(&input.ident, field),
+                )
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    input,
+                    "#[postgres(transparent)] may only be applied to single field tuple structs",
+                ))
+            }
+        }
+    } else {
+        match input.data {
         Data::Enum(ref data) => {
             let variants = data
                 .variants
@@ -55,6 +82,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 "#[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums",
             ))
         }
+    }
     };
 
     let ident = &input.ident;
@@ -75,6 +103,13 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     Ok(out)
+}
+
+fn transparent_body(ident: &Ident, field: &syn::Field) -> TokenStream {
+    let ty = &field.ty;
+    quote! {
+        <#ty as postgres_types::FromSql>::from_sql(_type, buf).map(#ident)
+    }
 }
 
 fn enum_body(ident: &Ident, variants: &[Variant]) -> TokenStream {

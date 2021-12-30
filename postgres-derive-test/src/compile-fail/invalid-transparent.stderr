@@ -1,0 +1,49 @@
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+ --> src/compile-fail/invalid-transparent.rs:4:1
+  |
+4 | / #[postgres(transparent)]
+5 | | struct ToSqlTransparentStruct {
+6 | |     a: i32
+7 | | }
+  | |_^
+
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+  --> src/compile-fail/invalid-transparent.rs:10:1
+   |
+10 | / #[postgres(transparent)]
+11 | | struct FromSqlTransparentStruct {
+12 | |     a: i32
+13 | | }
+   | |_^
+
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+  --> src/compile-fail/invalid-transparent.rs:16:1
+   |
+16 | / #[postgres(transparent)]
+17 | | enum ToSqlTransparentEnum {
+18 | |     Foo
+19 | | }
+   | |_^
+
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+  --> src/compile-fail/invalid-transparent.rs:22:1
+   |
+22 | / #[postgres(transparent)]
+23 | | enum FromSqlTransparentEnum {
+24 | |     Foo
+25 | | }
+   | |_^
+
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+  --> src/compile-fail/invalid-transparent.rs:28:1
+   |
+28 | / #[postgres(transparent)]
+29 | | struct ToSqlTransparentTwoFieldTupleStruct(i32, i32);
+   | |_____________________________________________________^
+
+error: #[postgres(transparent)] may only be applied to single field tuple structs
+  --> src/compile-fail/invalid-transparent.rs:32:1
+   |
+32 | / #[postgres(transparent)]
+33 | | struct FromSqlTransparentTwoFieldTupleStruct(i32, i32);
+   | |_______________________________________________________^
