@@ -1085,3 +1085,9 @@ where
         self
     }
 }
+
+impl<'a, T: ToSql + Send + Sync + 'a> From<T> for Box<dyn ToSql + Send + Sync + 'a> {
+    fn from(to_sql: T) -> Self {
+        Box::new(to_sql)
+    }
+}
