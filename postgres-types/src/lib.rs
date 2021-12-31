@@ -1083,6 +1083,23 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
+impl sealed::Sealed for Box<dyn ToSql + Sync> {}
+
+impl BorrowToSql for Box<dyn ToSql + Sync> {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        self.as_ref()
+    }
+}
+
+impl sealed::Sealed for Box<dyn ToSql + Sync + Send> {}
+impl BorrowToSql for Box<dyn ToSql + Sync + Send> {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        self.as_ref()
+    }
+}
+
 impl sealed::Sealed for &(dyn ToSql + Sync) {}
 
 /// In async contexts it is sometimes necessary to have the additional
