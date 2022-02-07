@@ -516,7 +516,7 @@ impl Config {
 impl FromStr for Config {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Config, Error> {
+    pub fn from_str(s: &str) -> Result<Config, Error> {
         match UrlParser::parse(s)? {
             Some(config) => Ok(config),
             None => Parser::parse(s),
