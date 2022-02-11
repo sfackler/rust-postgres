@@ -54,7 +54,7 @@ postgres-protocol = { version = "0.6.1", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.2", path = "../postgres-types" }
 socket2 = "0.4"
 tokio = { version = "1.0", features = ["io-util"] }
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
