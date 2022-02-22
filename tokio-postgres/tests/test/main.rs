@@ -3,9 +3,12 @@
 use bytes::{Bytes, BytesMut};
 use futures::channel::mpsc;
 use futures::{
-    future, join, pin_mut, stream, try_join, FutureExt, SinkExt, StreamExt, TryStreamExt,
+    future, join, pin_mut, stream, try_join, Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
+use pin_project_lite::pin_project;
 use std::fmt::Write;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time;
@@ -23,6 +26,35 @@ mod replication;
 mod runtime;
 mod types;
 
+pin_project! {
+    /// Polls `F` at most `polls_left` times returning `Some(F::Output)` if
+    /// [`Future`] returned [`Poll::Ready`] or [`None`] otherwise.
+    struct Cancellable<F> {
+        #[pin]
+        fut: F,
+        polls_left: usize,
+    }
+}
+
+impl<F: Future> Future for Cancellable<F> {
+    type Output = Option<F::Output>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        match this.fut.poll(ctx) {
+            Poll::Ready(r) => Poll::Ready(Some(r)),
+            Poll::Pending => {
+                *this.polls_left = this.polls_left.saturating_sub(1);
+                if *this.polls_left == 0 {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Pending
+                }
+            }
+        }
+    }
+}
+
 async fn connect_raw(s: &str) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let config = s.parse::<Config>().unwrap();
@@ -34,6 +66,20 @@ async fn connect(s: &str) -> Client {
     let connection = connection.map(|r| r.unwrap());
     tokio::spawn(connection);
     client
+}
+
+async fn current_transaction_id(client: &Client) -> i64 {
+    client
+        .query("SELECT txid_current()", &[])
+        .await
+        .unwrap()
+        .pop()
+        .unwrap()
+        .get::<_, i64>("txid_current")
+}
+
+async fn in_transaction(client: &Client) -> bool {
+    current_transaction_id(client).await == current_transaction_id(client).await
 }
 
 #[tokio::test]
@@ -283,6 +329,8 @@ async fn simple_query() {
     }
     match &messages[2] {
         SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
+            assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
             assert_eq!(row.get(0), Some("1"));
             assert_eq!(row.get(1), Some("steven"));
         }
@@ -290,6 +338,8 @@ async fn simple_query() {
     }
     match &messages[3] {
         SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
+            assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
             assert_eq!(row.get(0), Some("2"));
             assert_eq!(row.get(1), Some("joe"));
         }
@@ -372,6 +422,80 @@ async fn transaction_rollback() {
     let rows = client.query(&stmt, &[]).await.unwrap();
 
     assert_eq!(rows.len(), 0);
+}
+
+#[tokio::test]
+async fn transaction_future_cancellation() {
+    let mut client = connect("user=postgres").await;
+
+    for i in 0.. {
+        let done = {
+            let txn = client.transaction();
+            let fut = Cancellable {
+                fut: txn,
+                polls_left: i,
+            };
+            fut.await
+                .map(|res| res.expect("transaction failed"))
+                .is_some()
+        };
+
+        assert!(!in_transaction(&client).await);
+
+        if done {
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn transaction_commit_future_cancellation() {
+    let mut client = connect("user=postgres").await;
+
+    for i in 0.. {
+        let done = {
+            let txn = client.transaction().await.unwrap();
+            let commit = txn.commit();
+            let fut = Cancellable {
+                fut: commit,
+                polls_left: i,
+            };
+            fut.await
+                .map(|res| res.expect("transaction failed"))
+                .is_some()
+        };
+
+        assert!(!in_transaction(&client).await);
+
+        if done {
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn transaction_rollback_future_cancellation() {
+    let mut client = connect("user=postgres").await;
+
+    for i in 0.. {
+        let done = {
+            let txn = client.transaction().await.unwrap();
+            let rollback = txn.rollback();
+            let fut = Cancellable {
+                fut: rollback,
+                polls_left: i,
+            };
+            fut.await
+                .map(|res| res.expect("transaction failed"))
+                .is_some()
+        };
+
+        assert!(!in_transaction(&client).await);
+
+        if done {
+            break;
+        }
+    }
 }
 
 #[tokio::test]
@@ -801,4 +925,30 @@ async fn query_opt() {
         .await
         .err()
         .unwrap();
+}
+
+#[tokio::test]
+async fn deferred_constraint() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE t (
+                i INT,
+                UNIQUE (i) DEFERRABLE INITIALLY DEFERRED
+            );
+        ",
+        )
+        .await
+        .unwrap();
+
+    client
+        .execute("INSERT INTO t (i) VALUES (1)", &[])
+        .await
+        .unwrap();
+    client
+        .execute("INSERT INTO t (i) VALUES (1)", &[])
+        .await
+        .unwrap_err();
 }

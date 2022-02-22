@@ -1,6 +1,7 @@
 //! Rows.
 
 use crate::row::sealed::{AsName, Sealed};
+use crate::simple_query::SimpleColumn;
 use crate::statement::Column;
 use crate::types::{FromSql, Type, WrongType};
 use crate::{Error, Statement};
@@ -188,22 +189,36 @@ impl Row {
     }
 }
 
+impl AsName for SimpleColumn {
+    fn as_name(&self) -> &str {
+        self.name()
+    }
+}
+
 /// A row of data returned from the database by a simple query.
 pub struct SimpleQueryRow {
-    columns: Arc<[String]>,
+    columns: Arc<[SimpleColumn]>,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
 
 impl SimpleQueryRow {
     #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(columns: Arc<[String]>, body: DataRowBody) -> Result<SimpleQueryRow, Error> {
+    pub(crate) fn new(
+        columns: Arc<[SimpleColumn]>,
+        body: DataRowBody,
+    ) -> Result<SimpleQueryRow, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(SimpleQueryRow {
             columns,
             body,
             ranges,
         })
+    }
+
+    /// Returns information about the columns of data in the row.
+    pub fn columns(&self) -> &[SimpleColumn] {
+        &self.columns
     }
 
     /// Determines if the row contains no values.

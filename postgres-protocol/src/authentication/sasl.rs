@@ -275,7 +275,7 @@ impl ScramSha256 {
         let mut hmac = Hmac::<Sha256>::new_from_slice(&server_key)
             .expect("HMAC is able to accept all key sizes");
         hmac.update(auth_message.as_bytes());
-        hmac.verify(verifier.as_slice().into())
+        hmac.verify_slice(&verifier)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
     }
 }

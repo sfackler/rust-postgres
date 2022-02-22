@@ -6,7 +6,12 @@
 //! # Derive
 //!
 //! If the `derive` cargo feature is enabled, you can derive `ToSql` and `FromSql` implementations for custom Postgres
-//! types.
+//! types. Explicitly, modify your `Cargo.toml` file to include the following:
+//!
+//! ```toml
+//! [dependencies]
+//! postgres-types = { version = "0.X.X", features = ["derive"] }
+//! ```
 //!
 //! ## Enums
 //!
@@ -48,6 +53,21 @@
 //! # #[cfg(feature = "derive")]
 //! #[derive(Debug, ToSql, FromSql)]
 //! struct SessionId(Vec<u8>);
+//! ```
+//!
+//! ## Newtypes
+//!
+//! The `#[postgres(transparent)]` attribute can be used on a single-field tuple struct to create a
+//! Rust-only wrapper type that will use the [`ToSql`] & [`FromSql`] implementation of the inner
+//! value :
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(transparent)]
+//! struct UserId(i32);
 //! ```
 //!
 //! ## Composites
@@ -194,6 +214,8 @@ mod bit_vec_06;
 mod chrono_04;
 #[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
+#[cfg(feature = "with-eui48-1")]
+mod eui48_1;
 #[cfg(feature = "with-geo-types-0_6")]
 mod geo_types_06;
 #[cfg(feature = "with-geo-types-0_7")]
@@ -202,6 +224,8 @@ mod geo_types_07;
 mod serde_json_1;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
+#[cfg(feature = "with-time-0_3")]
+mod time_03;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 
@@ -421,8 +445,10 @@ impl WrongType {
 ///
 /// # Arrays
 ///
-/// `FromSql` is implemented for `Vec<T>` where `T` implements `FromSql`, and
-/// corresponds to one-dimensional Postgres arrays.
+/// `FromSql` is implemented for `Vec<T>` and `[T; N]` where `T` implements
+/// `FromSql`, and corresponds to one-dimensional Postgres arrays. **Note:**
+/// the impl for arrays only exist when the Cargo feature `array-impls` is
+/// enabled.
 pub trait FromSql<'a>: Sized {
     /// Creates a new value of this type from a buffer of data of the specified
     /// Postgres `Type` in its binary format.
@@ -506,6 +532,47 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     }
 }
 
+#[cfg(feature = "array-impls")]
+impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let member_type = match *ty.kind() {
+            Kind::Array(ref member) => member,
+            _ => panic!("expected array type"),
+        };
+
+        let array = types::array_from_sql(raw)?;
+        if array.dimensions().count()? > 1 {
+            return Err("array contains too many dimensions".into());
+        }
+
+        let mut values = array.values();
+        let out = array_init::try_array_init(|i| {
+            let v = values
+                .next()?
+                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                    format!("too few elements in array (expected {}, got {})", N, i).into()
+                })?;
+            T::from_sql_nullable(member_type, v)
+        })?;
+        if values.next()?.is_some() {
+            return Err(format!(
+                "excess elements in array (expected {}, got more than that)",
+                N,
+            )
+            .into());
+        }
+
+        Ok(out)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty.kind() {
+            Kind::Array(ref inner) => T::accepts(inner),
+            _ => false,
+        }
+    }
+}
+
 impl<'a> FromSql<'a> for Vec<u8> {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Vec<u8>, Box<dyn Error + Sync + Send>> {
         Ok(types::bytea_from_sql(raw).to_owned())
@@ -525,6 +592,18 @@ impl<'a> FromSql<'a> for &'a [u8] {
 impl<'a> FromSql<'a> for String {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<String, Box<dyn Error + Sync + Send>> {
         types::text_from_sql(raw).map(ToString::to_string)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as FromSql>::accepts(ty)
+    }
+}
+
+impl<'a> FromSql<'a> for Box<str> {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Box<str>, Box<dyn Error + Sync + Send>> {
+        types::text_from_sql(raw)
+            .map(ToString::to_string)
+            .map(String::into_boxed_str)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -684,8 +763,10 @@ pub enum IsNull {
 ///
 /// # Arrays
 ///
-/// `ToSql` is implemented for `Vec<T>` and `&[T]` where `T` implements `ToSql`,
-/// and corresponds to one-dimensional Postgres arrays with an index offset of 1.
+/// `ToSql` is implemented for `Vec<T>`, `&[T]` and `[T; N]` where `T`
+/// implements `ToSql`, and corresponds to one-dimensional Postgres arrays with
+/// an index offset of 1. **Note:** the impl for arrays only exist when the
+/// Cargo feature `array-impls` is enabled.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
@@ -801,6 +882,19 @@ impl<'a> ToSql for &'a [u8] {
     to_sql_checked!();
 }
 
+#[cfg(feature = "array-impls")]
+impl<T: ToSql, const N: usize> ToSql for [T; N] {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&[T] as ToSql>::to_sql(&&self[..], ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[T] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
 impl<T: ToSql> ToSql for Vec<T> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[T] as ToSql>::to_sql(&&**self, ty, w)
@@ -844,7 +938,7 @@ impl<'a> ToSql for &'a str {
 
 impl<'a> ToSql for Cow<'a, str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        <&str as ToSql>::to_sql(&&self.as_ref(), ty, w)
+        <&str as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -855,6 +949,18 @@ impl<'a> ToSql for Cow<'a, str> {
 }
 
 impl ToSql for String {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&str as ToSql>::to_sql(&&**self, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl ToSql for Box<str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&**self, ty, w)
     }
@@ -971,6 +1077,36 @@ pub trait BorrowToSql: sealed::Sealed {
 impl sealed::Sealed for &dyn ToSql {}
 
 impl BorrowToSql for &dyn ToSql {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        *self
+    }
+}
+
+impl sealed::Sealed for Box<dyn ToSql + Sync> {}
+
+impl BorrowToSql for Box<dyn ToSql + Sync> {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        self.as_ref()
+    }
+}
+
+impl sealed::Sealed for Box<dyn ToSql + Sync + Send> {}
+impl BorrowToSql for Box<dyn ToSql + Sync + Send> {
+    #[inline]
+    fn borrow_to_sql(&self) -> &dyn ToSql {
+        self.as_ref()
+    }
+}
+
+impl sealed::Sealed for &(dyn ToSql + Sync) {}
+
+/// In async contexts it is sometimes necessary to have the additional
+/// Sync requirement on parameters for queries since this enables the
+/// resulting Futures to be Send, hence usable in, e.g., tokio::spawn.
+/// This instance is provided for those cases.
+impl BorrowToSql for &(dyn ToSql + Sync) {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         *self

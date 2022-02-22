@@ -19,6 +19,8 @@ mod bit_vec_06;
 mod chrono_04;
 #[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
+#[cfg(feature = "with-eui48-1")]
+mod eui48_1;
 #[cfg(feature = "with-geo-types-0_6")]
 mod geo_types_06;
 #[cfg(feature = "with-geo-types-0_7")]
@@ -27,6 +29,8 @@ mod geo_types_07;
 mod serde_json_1;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
+#[cfg(feature = "with-time-0_3")]
+mod time_03;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 
@@ -348,7 +352,7 @@ async fn test_hstore_params() {
 }
 
 #[tokio::test]
-async fn test_array_params() {
+async fn test_array_vec_params() {
     test_type(
         "integer[]",
         &[
@@ -357,6 +361,18 @@ async fn test_array_params() {
             (Some(vec![]), "ARRAY[]"),
             (None, "NULL"),
         ],
+    )
+    .await;
+}
+
+#[cfg(feature = "array-impls")]
+#[tokio::test]
+async fn test_array_array_params() {
+    test_type("integer[]", &[(Some([1i32, 2i32]), "ARRAY[1,2]")]).await;
+    test_type("text[]", &[(Some(["peter".to_string()]), "ARRAY['peter']")]).await;
+    test_type(
+        "integer[]",
+        &[(Some([] as [i32; 0]), "ARRAY[]"), (None, "NULL")],
     )
     .await;
 }
