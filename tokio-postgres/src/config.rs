@@ -485,13 +485,13 @@ impl Config {
                 if std::fs::metadata(&value).is_err() {
                     return Err(Error::config_parse(Box::new(InvalidValue("sslcert"))));
                 }
-                self.ssl_cert(&value);
+                self.ssl_cert(value);
             }
             "sslkey" => {
                 if std::fs::metadata(&value).is_err() {
                     return Err(Error::config_parse(Box::new(InvalidValue("sslkey"))));
                 }
-                self.ssl_key(&value);
+                self.ssl_key(value);
             }
             "sslmode" => {
                 let mode = match value {
@@ -508,7 +508,7 @@ impl Config {
                 if std::fs::metadata(&value).is_err() {
                     return Err(Error::config_parse(Box::new(InvalidValue("sslrootcert"))));
                 }
-                self.ssl_root_cert(&value);
+                self.ssl_root_cert(value);
             }
             "host" => {
                 for host in value.split(',') {

@@ -277,7 +277,7 @@ impl SqlState {
             Inner::Other(code) => code,
         }
     }
-        
+
     /// 00000
     pub const SUCCESSFUL_COMPLETION: SqlState = SqlState(Inner::E00000);
 
@@ -363,7 +363,8 @@ impl SqlState {
     pub const DIAGNOSTICS_EXCEPTION: SqlState = SqlState(Inner::E0Z000);
 
     /// 0Z002
-    pub const STACKED_DIAGNOSTICS_ACCESSED_WITHOUT_ACTIVE_HANDLER: SqlState = SqlState(Inner::E0Z002);
+    pub const STACKED_DIAGNOSTICS_ACCESSED_WITHOUT_ACTIVE_HANDLER: SqlState =
+        SqlState(Inner::E0Z002);
 
     /// 20000
     pub const CASE_NOT_FOUND: SqlState = SqlState(Inner::E20000);
@@ -618,7 +619,8 @@ impl SqlState {
     pub const INAPPROPRIATE_ACCESS_MODE_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Inner::E25003);
 
     /// 25004
-    pub const INAPPROPRIATE_ISOLATION_LEVEL_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Inner::E25004);
+    pub const INAPPROPRIATE_ISOLATION_LEVEL_FOR_BRANCH_TRANSACTION: SqlState =
+        SqlState(Inner::E25004);
 
     /// 25005
     pub const NO_ACTIVE_SQL_TRANSACTION_FOR_BRANCH_TRANSACTION: SqlState = SqlState(Inner::E25005);
@@ -1334,7 +1336,7 @@ enum Inner {
     EXX002,
     Other(Box<str>),
 }
-        
+
 #[rustfmt::skip]
 static SQLSTATE_MAP: phf::Map<&'static str, SqlState> = 
 ::phf::Map {
