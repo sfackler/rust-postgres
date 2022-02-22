@@ -1,24 +1,33 @@
 # Materialize fork of Rust-Postgres
 
-This repo serves as a staging area in order to develop and use features of the
-rust postgtres client before they are accepted upstream.
+This repo serves as a staging area for Materialize patches to the
+[rust-postgres] client before they are accepted upstream.
 
-Since development on this repo and the upstream one can happen in parallel this
-repo adops a branching strategy that keeps both in sync and keeps a tidy
-history. Importantly, the release branches are **never** forced-pushed so that
-older versions of materialize are always buildable.
+There are no releases from this fork. The [MaterializeInc/materialize]
+repository simply pins a recent commit from the `master` branch. Other projects
+are welcome to do the same. The `master` branch is never force pushed. Upstream
+changes are periodically into `master` via `git merge`.
 
-## Branching strategy
+## Adding a new patch
 
-For every upstream release a local `mz-{version}` branch is created. The latest
-such branch should be made the default branch of this repo in the Github
-settings.
+Develop your patch against the master branch of the upstream [rust-postgres]
+project. Open a PR with your changes. If your PR is not merged quickly, open the
+same PR against this repository and request a review from a Materialize
+engineer.
 
-Whenever a PR is opened it should targed the current release branch (it should
-be picked automatically if its set as default on Github).
+The long-term goal is to get every patch merged upstream.
 
-Whenever a new version is created upstream a new `mz-{version}` branch on this
-repo is created, initially pointing at the release commit of the upstream repo.
-Then, all the fork-specific work is rebased on top of it. This process gives
-the opportunity to prune PRs that have successfully made it to the upstream
-repo and keep a clean per-version history.
+## Integrating upstream changes
+
+```shell
+git clone https://github.com/MaterializeInc/rust-postgres.git
+git remote add upstream https://github.com/sfackler/rust-postgres.git
+git checkout master
+git pull
+git checkout -b integrate-upstream
+git fetch upstream
+git merge upstream/master
+# Resolve any conflicts, then open a PR against this repository with the merge commit.
+```
+
+[rust-postgres]: https://github.com/sfackler/rust-postgres.git
