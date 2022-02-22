@@ -1,6 +1,12 @@
 # Change Log
 
-## v0.7.1 - 2020-04-03
+## v0.7.2 - 2021-04-25
+
+### Fixed
+
+* `SqlState` constants can now be used in `match` patterns.
+
+## v0.7.1 - 2021-04-03
 
 ### Added
 

@@ -51,7 +51,7 @@ use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, BufReader, ReadBuf};
 use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
 use tokio_postgres::tls::MakeTlsConnect;
@@ -115,6 +115,7 @@ where
     type Future = Pin<Box<dyn Future<Output = Result<TlsStream<S>, native_tls::Error>> + Send>>;
 
     fn connect(self, stream: S) -> Self::Future {
+        let stream = BufReader::with_capacity(8192, stream);
         let future = async move {
             let stream = self.connector.connect(&self.domain, stream).await?;
 
@@ -126,7 +127,7 @@ where
 }
 
 /// The stream returned by `TlsConnector`.
-pub struct TlsStream<S>(tokio_native_tls::TlsStream<S>);
+pub struct TlsStream<S>(tokio_native_tls::TlsStream<BufReader<S>>);
 
 impl<S> AsyncRead for TlsStream<S>
 where
