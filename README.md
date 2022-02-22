@@ -30,4 +30,5 @@ git merge upstream/master
 # Resolve any conflicts, then open a PR against this repository with the merge commit.
 ```
 
-[rust-postgres]: https://github.com/sfackler/rust-postgres.git
+[rust-postgres]: https://github.com/sfackler/rust-postgres
+[MaterializeInc/materialize]: https://github.com/MaterializeInc/materialize
