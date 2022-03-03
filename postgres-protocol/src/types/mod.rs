@@ -1059,3 +1059,19 @@ impl Inet {
         self.netmask
     }
 }
+
+/// Serializes a Postgres l{tree,query,txtquery} string
+#[inline]
+pub fn ltree_to_sql(v: &str, buf: &mut BytesMut) {
+    // A version number is prepended to an Ltree string per spec
+    buf.put_u8(1);
+    // Append the rest of the query
+    buf.put_slice(v.as_bytes());
+}
+
+/// Deserialize a Postgres l{tree,query,txtquery} string
+#[inline]
+pub fn ltree_from_sql(buf: &[u8]) -> Result<&str, StdBox<dyn Error + Sync + Send>> {
+    // Remove the version number from the front of the string per spec
+    Ok(str::from_utf8(&buf[1..])?)
+}
