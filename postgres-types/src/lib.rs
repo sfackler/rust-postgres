@@ -407,6 +407,7 @@ impl WrongType {
 /// | `f32`                             | REAL                                          |
 /// | `f64`                             | DOUBLE PRECISION                              |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME, UNKNOWN |
+/// |                                   | LTREE, LQUERY, LTXTQUERY                      |
 /// | `&[u8]`/`Vec<u8>`                 | BYTEA                                         |
 /// | `HashMap<String, Option<String>>` | HSTORE                                        |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE           |
@@ -739,6 +740,7 @@ pub enum IsNull {
 /// | `f32`                             | REAL                                 |
 /// | `f64`                             | DOUBLE PRECISION                     |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
+/// |                                   | LTREE, LQUERY, LTXTQUERY             |
 /// | `&[u8]`/`Vec<u8>`                 | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
