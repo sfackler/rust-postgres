@@ -1060,18 +1060,59 @@ impl Inet {
     }
 }
 
-/// Serializes a Postgres l{tree,query,txtquery} string
+/// Serializes a Postgres ltree string
 #[inline]
 pub fn ltree_to_sql(v: &str, buf: &mut BytesMut) {
-    // A version number is prepended to an Ltree string per spec
+    // A version number is prepended to an ltree string per spec
     buf.put_u8(1);
     // Append the rest of the query
     buf.put_slice(v.as_bytes());
 }
 
-/// Deserialize a Postgres l{tree,query,txtquery} string
+/// Deserialize a Postgres ltree string
 #[inline]
 pub fn ltree_from_sql(buf: &[u8]) -> Result<&str, StdBox<dyn Error + Sync + Send>> {
-    // Remove the version number from the front of the string per spec
-    Ok(str::from_utf8(&buf[1..])?)
+    match buf {
+        // Remove the version number from the front of the ltree per spec
+        [1u8, rest @ ..] => Ok(str::from_utf8(rest)?),
+        _ => Err("ltree version 1 only supported".into()),
+    }
+}
+
+/// Serializes a Postgres lquery string
+#[inline]
+pub fn lquery_to_sql(v: &str, buf: &mut BytesMut) {
+    // A version number is prepended to an lquery string per spec
+    buf.put_u8(1);
+    // Append the rest of the query
+    buf.put_slice(v.as_bytes());
+}
+
+/// Deserialize a Postgres lquery string
+#[inline]
+pub fn lquery_from_sql(buf: &[u8]) -> Result<&str, StdBox<dyn Error + Sync + Send>> {
+    match buf {
+        // Remove the version number from the front of the lquery per spec
+        [1u8, rest @ ..] => Ok(str::from_utf8(rest)?),
+        _ => Err("lquery version 1 only supported".into()),
+    }
+}
+
+/// Serializes a Postgres ltxtquery string
+#[inline]
+pub fn ltxtquery_to_sql(v: &str, buf: &mut BytesMut) {
+    // A version number is prepended to an ltxtquery string per spec
+    buf.put_u8(1);
+    // Append the rest of the query
+    buf.put_slice(v.as_bytes());
+}
+
+/// Deserialize a Postgres ltxtquery string
+#[inline]
+pub fn ltxtquery_from_sql(buf: &[u8]) -> Result<&str, StdBox<dyn Error + Sync + Send>> {
+    match buf {
+        // Remove the version number from the front of the ltxtquery per spec
+        [1u8, rest @ ..] => Ok(str::from_utf8(rest)?),
+        _ => Err("ltxtquery version 1 only supported".into()),
+    }
 }

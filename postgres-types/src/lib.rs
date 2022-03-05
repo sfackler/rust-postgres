@@ -619,24 +619,24 @@ impl<'a> FromSql<'a> for Box<str> {
 impl<'a> FromSql<'a> for &'a str {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<&'a str, Box<dyn Error + Sync + Send>> {
         match *ty {
-            ref ty if (
-                ty.name() == "ltree"    ||
-                ty.name() == "lquery"   ||
-                ty.name() == "ltxtquery"
-            ) => types::ltree_from_sql(raw),
-            _ => types::text_from_sql(raw)
+            ref ty if ty.name() == "ltree" => types::ltree_from_sql(raw),
+            ref ty if ty.name() == "lquery" => types::lquery_from_sql(raw),
+            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_from_sql(raw),
+            _ => types::text_from_sql(raw),
         }
     }
 
     fn accepts(ty: &Type) -> bool {
         match *ty {
             Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
-            ref ty if (
-                ty.name() == "citext"   ||
-                ty.name() == "ltree"    ||
-                ty.name() == "lquery"   ||
-                ty.name() == "ltxtquery"
-            ) => true,
+            ref ty
+                if (ty.name() == "citext"
+                    || ty.name() == "ltree"
+                    || ty.name() == "lquery"
+                    || ty.name() == "ltxtquery") =>
+            {
+                true
+            }
             _ => false,
         }
     }
@@ -939,13 +939,11 @@ impl ToSql for Vec<u8> {
 
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        match ty {
-            ref ty if (
-                ty.name() == "ltree" ||
-                ty.name() == "lquery" ||
-                ty.name() == "ltxtquery"
-            ) => types::ltree_to_sql(*self, w),
-            _ => types::text_to_sql(*self, w)
+        match *ty {
+            ref ty if ty.name() == "ltree" => types::ltree_to_sql(*self, w),
+            ref ty if ty.name() == "lquery" => types::lquery_to_sql(*self, w),
+            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_to_sql(*self, w),
+            _ => types::text_to_sql(*self, w),
         }
         Ok(IsNull::No)
     }
@@ -953,12 +951,14 @@ impl<'a> ToSql for &'a str {
     fn accepts(ty: &Type) -> bool {
         match *ty {
             Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
-            ref ty if (
-                ty.name() == "citext"   ||
-                ty.name() == "ltree"    ||
-                ty.name() == "lquery"   ||
-                ty.name() == "ltxtquery"
-            ) => true,
+            ref ty
+                if (ty.name() == "citext"
+                    || ty.name() == "ltree"
+                    || ty.name() == "lquery"
+                    || ty.name() == "ltxtquery") =>
+            {
+                true
+            }
             _ => false,
         }
     }
