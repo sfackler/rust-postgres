@@ -210,6 +210,8 @@ where
 
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
+#[cfg(feature = "with-cidr-0_2")]
+mod cidr_02;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
 #[cfg(feature = "with-eui48-0_4")]
