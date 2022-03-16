@@ -8,7 +8,8 @@ use crate::{FromSql, IsNull, ToSql, Type};
 impl<'a> FromSql<'a> for IpCidr {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         let inet = types::inet_from_sql(raw)?;
-        Ok(IpCidr::new(inet.addr(), inet.netmask()).expect("postgres cidr type has zeroed host portion"))
+        Ok(IpCidr::new(inet.addr(), inet.netmask())
+            .expect("postgres cidr type has zeroed host portion"))
     }
 
     accepts!(CIDR);
@@ -27,7 +28,8 @@ impl ToSql for IpCidr {
 impl<'a> FromSql<'a> for IpInet {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         let inet = types::inet_from_sql(raw)?;
-        Ok(IpInet::new(inet.addr(), inet.netmask()).expect("postgres enforces maximum length of netmask"))
+        Ok(IpInet::new(inet.addr(), inet.netmask())
+            .expect("postgres enforces maximum length of netmask"))
     }
 
     accepts!(INET);
