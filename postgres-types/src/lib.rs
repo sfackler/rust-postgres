@@ -212,6 +212,8 @@ where
 mod bit_vec_06;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
+#[cfg(feature = "with-cidr-0_2")]
+mod cidr_02;
 #[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
 #[cfg(feature = "with-eui48-1")]
@@ -436,6 +438,8 @@ impl WrongType {
 /// | `uuid::Uuid`                    | UUID                                |
 /// | `bit_vec::BitVec`               | BIT, VARBIT                         |
 /// | `eui48::MacAddress`             | MACADDR                             |
+/// | `cidr::InetCidr`                | CIDR                                |
+/// | `cidr::InetAddr`                | INET                                |
 ///
 /// # Nullability
 ///
