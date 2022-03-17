@@ -651,12 +651,6 @@ async fn inet() {
 
 #[tokio::test]
 async fn ltree() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "ltree",
         &[(Some("b.c.d".to_owned()), "'b.c.d'"), (None, "NULL")],
@@ -666,12 +660,6 @@ async fn ltree() {
 
 #[tokio::test]
 async fn ltree_any() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "ltree[]",
         &[
@@ -689,12 +677,6 @@ async fn ltree_any() {
 
 #[tokio::test]
 async fn lquery() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "lquery",
         &[
@@ -709,12 +691,6 @@ async fn lquery() {
 
 #[tokio::test]
 async fn lquery_any() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "lquery[]",
         &[
@@ -732,12 +708,6 @@ async fn lquery_any() {
 
 #[tokio::test]
 async fn ltxtquery() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "ltxtquery",
         &[
@@ -751,12 +721,6 @@ async fn ltxtquery() {
 
 #[tokio::test]
 async fn ltxtquery_any() {
-    let client = connect("user=postgres").await;
-    client
-        .execute("CREATE EXTENSION IF NOT EXISTS ltree;", &[])
-        .await
-        .unwrap();
-
     test_type(
         "ltxtquery[]",
         &[

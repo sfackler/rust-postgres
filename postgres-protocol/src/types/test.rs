@@ -174,12 +174,7 @@ fn ltree_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    let success = match ltree_from_sql(query.as_slice()) {
-        Ok(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(ltree_from_sql(query.as_slice()), Ok(_)))
 }
 
 #[test]
@@ -187,12 +182,7 @@ fn ltree_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    let success = match ltree_from_sql(query.as_slice()) {
-        Err(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(ltree_from_sql(query.as_slice()), Err(_)))
 }
 
 #[test]
@@ -212,12 +202,7 @@ fn lquery_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    let success = match lquery_from_sql(query.as_slice()) {
-        Ok(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(lquery_from_sql(query.as_slice()), Ok(_)))
 }
 
 #[test]
@@ -225,12 +210,7 @@ fn lquery_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    let success = match lquery_from_sql(query.as_slice()) {
-        Err(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(lquery_from_sql(query.as_slice()), Err(_)))
 }
 
 #[test]
@@ -250,12 +230,7 @@ fn ltxtquery_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("a & b*".as_bytes());
 
-    let success = match ltree_from_sql(query.as_slice()) {
-        Ok(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(ltree_from_sql(query.as_slice()), Ok(_)))
 }
 
 #[test]
@@ -263,10 +238,5 @@ fn ltxtquery_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("a & b*".as_bytes());
 
-    let success = match ltree_from_sql(query.as_slice()) {
-        Err(_) => true,
-        _ => false,
-    };
-
-    assert!(success)
+    assert!(matches!(ltree_from_sql(query.as_slice()), Err(_)))
 }

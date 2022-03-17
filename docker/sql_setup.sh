@@ -96,4 +96,5 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     CREATE ROLE ssl_user LOGIN;
     CREATE EXTENSION hstore;
     CREATE EXTENSION citext;
+    CREATE EXTENSION ltree;
 EOSQL
