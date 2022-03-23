@@ -648,3 +648,90 @@ async fn inet() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn ltree() {
+    test_type(
+        "ltree",
+        &[(Some("b.c.d".to_owned()), "'b.c.d'"), (None, "NULL")],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ltree_any() {
+    test_type(
+        "ltree[]",
+        &[
+            (Some(vec![]), "ARRAY[]"),
+            (Some(vec!["a.b.c".to_string()]), "ARRAY['a.b.c']"),
+            (
+                Some(vec!["a.b.c".to_string(), "e.f.g".to_string()]),
+                "ARRAY['a.b.c','e.f.g']",
+            ),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn lquery() {
+    test_type(
+        "lquery",
+        &[
+            (Some("b.c.d".to_owned()), "'b.c.d'"),
+            (Some("b.c.*".to_owned()), "'b.c.*'"),
+            (Some("b.*{1,2}.d|e".to_owned()), "'b.*{1,2}.d|e'"),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn lquery_any() {
+    test_type(
+        "lquery[]",
+        &[
+            (Some(vec![]), "ARRAY[]"),
+            (Some(vec!["b.c.*".to_string()]), "ARRAY['b.c.*']"),
+            (
+                Some(vec!["b.c.*".to_string(), "b.*{1,2}.d|e".to_string()]),
+                "ARRAY['b.c.*','b.*{1,2}.d|e']",
+            ),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ltxtquery() {
+    test_type(
+        "ltxtquery",
+        &[
+            (Some("b & c & d".to_owned()), "'b & c & d'"),
+            (Some("b@* & !c".to_owned()), "'b@* & !c'"),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ltxtquery_any() {
+    test_type(
+        "ltxtquery[]",
+        &[
+            (Some(vec![]), "ARRAY[]"),
+            (Some(vec!["b & c & d".to_string()]), "ARRAY['b & c & d']"),
+            (
+                Some(vec!["b & c & d".to_string(), "b@* & !c".to_string()]),
+                "ARRAY['b & c & d','b@* & !c']",
+            ),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
