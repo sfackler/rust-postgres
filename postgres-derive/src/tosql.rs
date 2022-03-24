@@ -11,46 +11,73 @@ use crate::overrides::Overrides;
 pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs)?;
 
+    if overrides.name.is_some() && overrides.transparent {
+        return Err(Error::new_spanned(
+            &input,
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")]",
+        ));
+    }
+
     let name = overrides.name.unwrap_or_else(|| input.ident.to_string());
 
-    let (accepts_body, to_sql_body) = match input.data {
-        Data::Enum(ref data) => {
-            let variants = data
-                .variants
-                .iter()
-                .map(Variant::parse)
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                accepts::enum_body(&name, &variants),
-                enum_body(&input.ident, &variants),
-            )
+    let (accepts_body, to_sql_body) = if overrides.transparent {
+        match input.data {
+            Data::Struct(DataStruct {
+                fields: Fields::Unnamed(ref fields),
+                ..
+            }) if fields.unnamed.len() == 1 => {
+                let field = fields.unnamed.first().unwrap();
+
+                (accepts::transparent_body(field), transparent_body())
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    input,
+                    "#[postgres(transparent)] may only be applied to single field tuple structs",
+                ));
+            }
         }
-        Data::Struct(DataStruct {
-            fields: Fields::Unnamed(ref fields),
-            ..
-        }) if fields.unnamed.len() == 1 => {
-            let field = fields.unnamed.first().unwrap();
-            (accepts::domain_body(&name, &field), domain_body())
-        }
-        Data::Struct(DataStruct {
-            fields: Fields::Named(ref fields),
-            ..
-        }) => {
-            let fields = fields
-                .named
-                .iter()
-                .map(Field::parse)
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                accepts::composite_body(&name, "ToSql", &fields),
-                composite_body(&fields),
-            )
-        }
-        _ => {
-            return Err(Error::new_spanned(
-                input,
-                "#[derive(ToSql)] may only be applied to structs, single field tuple structs, and enums",
-            ));
+    } else {
+        match input.data {
+            Data::Enum(ref data) => {
+                let variants = data
+                    .variants
+                    .iter()
+                    .map(Variant::parse)
+                    .collect::<Result<Vec<_>, _>>()?;
+                (
+                    accepts::enum_body(&name, &variants),
+                    enum_body(&input.ident, &variants),
+                )
+            }
+            Data::Struct(DataStruct {
+                fields: Fields::Unnamed(ref fields),
+                ..
+            }) if fields.unnamed.len() == 1 => {
+                let field = fields.unnamed.first().unwrap();
+
+                (accepts::domain_body(&name, field), domain_body())
+            }
+            Data::Struct(DataStruct {
+                fields: Fields::Named(ref fields),
+                ..
+            }) => {
+                let fields = fields
+                    .named
+                    .iter()
+                    .map(Field::parse)
+                    .collect::<Result<Vec<_>, _>>()?;
+                (
+                    accepts::composite_body(&name, "ToSql", &fields),
+                    composite_body(&fields),
+                )
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    input,
+                    "#[derive(ToSql)] may only be applied to structs, single field tuple structs, and enums",
+                ));
+            }
         }
     };
 
@@ -76,6 +103,12 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     Ok(out)
+}
+
+fn transparent_body() -> TokenStream {
+    quote! {
+        postgres_types::ToSql::to_sql(&self.0, _type, buf)
+    }
 }
 
 fn enum_body(ident: &Ident, variants: &[Variant]) -> TokenStream {

@@ -4,9 +4,11 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;
 //! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
@@ -15,6 +17,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! );
+//! # }
 //!
 //! // ...
 //! # Ok(())
@@ -23,9 +26,11 @@
 //!
 //! ```no_run
 //! use openssl::ssl::{SslConnector, SslMethod};
+//! # #[cfg(feature = "runtime")]
 //! use postgres_openssl::MakeTlsConnector;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "runtime")] {
 //! let mut builder = SslConnector::builder(SslMethod::tls())?;
 //! builder.set_ca_file("database_cert.pem")?;
 //! let connector = MakeTlsConnector::new(builder.build());
@@ -34,6 +39,7 @@
 //!     "host=localhost user=postgres sslmode=require",
 //!     connector,
 //! )?;
+//! # }
 //!
 //! // ...
 //! # Ok(())
@@ -57,7 +63,7 @@ use std::pin::Pin;
 #[cfg(feature = "runtime")]
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, BufReader, ReadBuf};
 use tokio_openssl::SslStream;
 use tokio_postgres::tls;
 #[cfg(feature = "runtime")]
@@ -140,6 +146,7 @@ where
     type Future = Pin<Box<dyn Future<Output = Result<TlsStream<S>, Self::Error>> + Send>>;
 
     fn connect(self, stream: S) -> Self::Future {
+        let stream = BufReader::with_capacity(8192, stream);
         let future = async move {
             let ssl = self.ssl.into_ssl(&self.domain)?;
             let mut stream = SslStream::new(ssl, stream)?;
@@ -182,7 +189,7 @@ impl Error for ConnectError {
 }
 
 /// The stream returned by `TlsConnector`.
-pub struct TlsStream<S>(SslStream<S>);
+pub struct TlsStream<S>(SslStream<BufReader<S>>);
 
 impl<S> AsyncRead for TlsStream<S>
 where

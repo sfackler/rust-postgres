@@ -215,3 +215,26 @@ fn wrong_type() {
         .unwrap_err();
     assert!(err.source().unwrap().is::<WrongType>());
 }
+
+#[test]
+fn raw_ident_field() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "inventory_item")]
+    struct InventoryItem {
+        r#type: String,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.inventory_item AS (
+            type TEXT
+        )",
+    )
+    .unwrap();
+
+    let item = InventoryItem {
+        r#type: "foo".to_owned(),
+    };
+
+    test_type(&mut conn, "inventory_item", &[(item, "ROW('foo')")]);
+}

@@ -1,5 +1,13 @@
 # Change Log
 
+## v0.2.2 - 2021-09-29
+
+### Added
+
+* Added support for `eui48` 1.0 via the `with-eui48-1` feature.
+* Added `ToSql` and `FromSql` implementations for array types via the `array-impls` feature.
+* Added support for `time` 0.3 via the `with-time-0_3` feature.
+
 ## v0.2.1 - 2021-04-03
 
 ### Added

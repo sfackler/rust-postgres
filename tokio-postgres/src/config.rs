@@ -407,19 +407,19 @@ impl Config {
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
-                self.user(&value);
+                self.user(value);
             }
             "password" => {
                 self.password(value);
             }
             "dbname" => {
-                self.dbname(&value);
+                self.dbname(value);
             }
             "options" => {
-                self.options(&value);
+                self.options(value);
             }
             "application_name" => {
-                self.application_name(&value);
+                self.application_name(value);
             }
             "sslmode" => {
                 let mode = match value {
@@ -797,7 +797,7 @@ impl<'a> UrlParser<'a> {
     }
 
     fn take_all(&mut self) -> &'a str {
-        mem::replace(&mut self.s, "")
+        mem::take(&mut self.s)
     }
 
     fn eat_byte(&mut self) {

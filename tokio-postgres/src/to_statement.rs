@@ -47,3 +47,11 @@ impl ToStatement for str {
 }
 
 impl Sealed for str {}
+
+impl ToStatement for String {
+    fn __convert(&self) -> ToStatementType<'_> {
+        ToStatementType::Query(self)
+    }
+}
+
+impl Sealed for String {}
