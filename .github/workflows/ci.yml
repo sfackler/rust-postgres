@@ -3,9 +3,11 @@ name: CI
 on:
   pull_request:
     branches:
+      - neon
       - master
   push:
     branches:
+      - neon
       - master
 
 env:
