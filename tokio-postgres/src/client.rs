@@ -1,5 +1,7 @@
 use crate::codec::{BackendMessages, FrontendMessage};
-use crate::config::{Host, SslMode};
+#[cfg(feature = "runtime")]
+use crate::config::Host;
+use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
@@ -25,6 +27,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+#[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -145,6 +148,7 @@ impl InnerClient {
     }
 }
 
+#[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub(crate) struct SocketConfig {
     pub host: Host,
