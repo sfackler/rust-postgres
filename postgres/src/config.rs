@@ -12,7 +12,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
 #[doc(inline)]
-pub use tokio_postgres::config::{ChannelBinding, Host, SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{
+    AuthKeys, ChannelBinding, Host, ScramKeys, SslMode, TargetSessionAttrs,
+};
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
@@ -147,6 +149,20 @@ impl Config {
     /// the `password` method.
     pub fn get_password(&self) -> Option<&[u8]> {
         self.config.get_password()
+    }
+
+    /// Sets precomputed protocol-specific keys to authenticate with.
+    /// When set, this option will override `password`.
+    /// See [`AuthKeys`] for more information.
+    pub fn auth_keys(&mut self, keys: AuthKeys) -> &mut Config {
+        self.config.auth_keys(keys);
+        self
+    }
+
+    /// Gets precomputed protocol-specific keys to authenticate with.
+    /// if one has been configured with the `auth_keys` method.
+    pub fn get_auth_keys(&self) -> Option<AuthKeys> {
+        self.config.get_auth_keys()
     }
 
     /// Sets the name of the database to connect to.
