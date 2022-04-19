@@ -96,14 +96,32 @@ impl ChannelBinding {
     }
 }
 
+/// A pair of keys for the SCRAM-SHA-256 mechanism.
+/// See <https://datatracker.ietf.org/doc/html/rfc5802#section-3> for details.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScramKeys<const N: usize> {
+    /// Used by server to authenticate client.
+    pub client_key: [u8; N],
+    /// Used by client to verify server's signature.
+    pub server_key: [u8; N],
+}
+
+/// Password or keys which were derived from it.
+enum Credentials<const N: usize> {
+    /// A regular password as a vector of bytes.
+    Password(Vec<u8>),
+    /// A precomputed pair of keys.
+    Keys(Box<ScramKeys<N>>),
+}
+
 enum State {
     Update {
         nonce: String,
-        password: Vec<u8>,
+        password: Credentials<32>,
         channel_binding: ChannelBinding,
     },
     Finish {
-        salted_password: [u8; 32],
+        server_key: [u8; 32],
         auth_message: String,
     },
     Done,
@@ -129,30 +147,43 @@ pub struct ScramSha256 {
     state: State,
 }
 
+fn nonce() -> String {
+    // rand 0.5's ThreadRng is cryptographically secure
+    let mut rng = rand::thread_rng();
+    (0..NONCE_LENGTH)
+        .map(|_| {
+            let mut v = rng.gen_range(0x21u8..0x7e);
+            if v == 0x2c {
+                v = 0x7e
+            }
+            v as char
+        })
+        .collect()
+}
+
 impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
     pub fn new(password: &[u8], channel_binding: ChannelBinding) -> ScramSha256 {
-        // rand 0.5's ThreadRng is cryptographically secure
-        let mut rng = rand::thread_rng();
-        let nonce = (0..NONCE_LENGTH)
-            .map(|_| {
-                let mut v = rng.gen_range(0x21u8..0x7e);
-                if v == 0x2c {
-                    v = 0x7e
-                }
-                v as char
-            })
-            .collect::<String>();
-
-        ScramSha256::new_inner(password, channel_binding, nonce)
+        let password = Credentials::Password(normalize(password));
+        ScramSha256::new_inner(password, channel_binding, nonce())
     }
 
-    fn new_inner(password: &[u8], channel_binding: ChannelBinding, nonce: String) -> ScramSha256 {
+    /// Constructs a new instance which will use the provided key pair for authentication.
+    pub fn new_with_keys(keys: ScramKeys<32>, channel_binding: ChannelBinding) -> ScramSha256 {
+        let password = Credentials::Keys(keys.into());
+        ScramSha256::new_inner(password, channel_binding, nonce())
+    }
+
+    fn new_inner(
+        password: Credentials<32>,
+        channel_binding: ChannelBinding,
+        nonce: String,
+    ) -> ScramSha256 {
         ScramSha256 {
             message: format!("{}n=,r={}", channel_binding.gs2_header(), nonce),
             state: State::Update {
                 nonce,
-                password: normalize(password),
+                password,
                 channel_binding,
             },
         }
@@ -189,20 +220,32 @@ impl ScramSha256 {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid nonce"));
         }
 
-        let salt = match base64::decode(parsed.salt) {
-            Ok(salt) => salt,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
+        let (client_key, server_key) = match password {
+            Credentials::Password(password) => {
+                let salt = match base64::decode(parsed.salt) {
+                    Ok(salt) => salt,
+                    Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
+                };
+
+                let salted_password = hi(&password, &salt, parsed.iteration_count);
+
+                let make_key = |name| {
+                    let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
+                        .expect("HMAC is able to accept all key sizes");
+                    hmac.update(name);
+
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(hmac.finalize().into_bytes().as_slice());
+                    key
+                };
+
+                (make_key(b"Client Key"), make_key(b"Server Key"))
+            }
+            Credentials::Keys(keys) => (keys.client_key, keys.server_key),
         };
 
-        let salted_password = hi(&password, &salt, parsed.iteration_count);
-
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(b"Client Key");
-        let client_key = hmac.finalize().into_bytes();
-
         let mut hash = Sha256::default();
-        hash.update(client_key.as_slice());
+        hash.update(client_key);
         let stored_key = hash.finalize_fixed();
 
         let mut cbind_input = vec![];
@@ -225,10 +268,10 @@ impl ScramSha256 {
             *proof ^= signature;
         }
 
-        write!(&mut self.message, ",p={}", base64::encode(&*client_proof)).unwrap();
+        write!(&mut self.message, ",p={}", base64::encode(client_proof)).unwrap();
 
         self.state = State::Finish {
-            salted_password,
+            server_key,
             auth_message,
         };
         Ok(())
@@ -239,11 +282,11 @@ impl ScramSha256 {
     /// This should be called when the backend sends an `AuthenticationSASLFinal` message.
     /// Authentication has only succeeded if this method returns `Ok(())`.
     pub fn finish(&mut self, message: &[u8]) -> io::Result<()> {
-        let (salted_password, auth_message) = match mem::replace(&mut self.state, State::Done) {
+        let (server_key, auth_message) = match mem::replace(&mut self.state, State::Done) {
             State::Finish {
-                salted_password,
+                server_key,
                 auth_message,
-            } => (salted_password, auth_message),
+            } => (server_key, auth_message),
             _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
         };
 
@@ -266,11 +309,6 @@ impl ScramSha256 {
             Ok(verifier) => verifier,
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
-
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(b"Server Key");
-        let server_key = hmac.finalize().into_bytes();
 
         let mut hmac = Hmac::<Sha256>::new_from_slice(&server_key)
             .expect("HMAC is able to accept all key sizes");
@@ -458,7 +496,7 @@ mod test {
         let server_final = "v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=";
 
         let mut scram = ScramSha256::new_inner(
-            password.as_bytes(),
+            Credentials::Password(normalize(password.as_bytes())),
             ChannelBinding::unsupported(),
             nonce.to_string(),
         );

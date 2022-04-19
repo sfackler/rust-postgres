@@ -1,5 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::config::{self, Config};
+use crate::config::{self, AuthKeys, Config};
 use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{TlsConnect, TlsStream};
@@ -228,11 +228,6 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
 {
-    let password = config
-        .password
-        .as_ref()
-        .ok_or_else(|| Error::config("password missing".into()))?;
-
     let mut has_scram = false;
     let mut has_scram_plus = false;
     let mut mechanisms = body.mechanisms();
@@ -270,7 +265,13 @@ where
         can_skip_channel_binding(config)?;
     }
 
-    let mut scram = ScramSha256::new(password, channel_binding);
+    let mut scram = if let Some(AuthKeys::ScramSha256(keys)) = config.get_auth_keys() {
+        ScramSha256::new_with_keys(keys, channel_binding)
+    } else if let Some(password) = config.get_password() {
+        ScramSha256::new(password, channel_binding)
+    } else {
+        return Err(Error::config("password or auth keys missing".into()));
+    };
 
     let mut buf = BytesMut::new();
     frontend::sasl_initial_response(mechanism, scram.message(), &mut buf).map_err(Error::encode)?;

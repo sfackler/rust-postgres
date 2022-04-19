@@ -22,6 +22,8 @@ use std::time::Duration;
 use std::{error, fmt, iter, mem};
 use tokio::io::{AsyncRead, AsyncWrite};
 
+pub use postgres_protocol::authentication::sasl::ScramKeys;
+
 /// Properties required of a session.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[non_exhaustive]
@@ -66,6 +68,13 @@ pub enum Host {
     /// This variant is only available on Unix platforms.
     #[cfg(unix)]
     Unix(PathBuf),
+}
+
+/// Precomputed keys which may override password during auth.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AuthKeys {
+    /// A `ClientKey` & `ServerKey` pair for `SCRAM-SHA-256`.
+    ScramSha256(ScramKeys<32>),
 }
 
 /// Connection configuration.
@@ -148,6 +157,7 @@ pub enum Host {
 pub struct Config {
     pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
+    pub(crate) auth_keys: Option<Box<AuthKeys>>,
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
@@ -173,6 +183,7 @@ impl Config {
         Config {
             user: None,
             password: None,
+            auth_keys: None,
             dbname: None,
             options: None,
             application_name: None,
@@ -214,6 +225,20 @@ impl Config {
     /// the `password` method.
     pub fn get_password(&self) -> Option<&[u8]> {
         self.password.as_deref()
+    }
+
+    /// Sets precomputed protocol-specific keys to authenticate with.
+    /// When set, this option will override `password`.
+    /// See [`AuthKeys`] for more information.
+    pub fn auth_keys(&mut self, keys: AuthKeys) -> &mut Config {
+        self.auth_keys = Some(Box::new(keys));
+        self
+    }
+
+    /// Gets precomputed protocol-specific keys to authenticate with.
+    /// if one has been configured with the `auth_keys` method.
+    pub fn get_auth_keys(&self) -> Option<AuthKeys> {
+        self.auth_keys.as_deref().copied()
     }
 
     /// Sets the name of the database to connect to.
