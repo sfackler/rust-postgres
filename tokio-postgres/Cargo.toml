@@ -36,6 +36,7 @@ with-geo-types-0_6 = ["postgres-types/with-geo-types-0_6"]
 with-geo-types-0_7 = ["postgres-types/with-geo-types-0_7"]
 with-serde_json-1 = ["postgres-types/with-serde_json-1"]
 with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
+with-uuid-1 = ["postgres-types/with-uuid-1"]
 with-time-0_2 = ["postgres-types/with-time-0_2"]
 with-time-0_3 = ["postgres-types/with-time-0_3"]
 
@@ -70,5 +71,6 @@ geo-types-07 = { version = "0.7", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 uuid-08 = { version = "0.8", package = "uuid" }
+uuid-1 = { version = "1.0", package = "uuid" }
 time-02 = { version = "0.2", package = "time" }
 time-03 = { version = "0.3", package = "time", features = ["parsing"] }
