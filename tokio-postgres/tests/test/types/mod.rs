@@ -33,6 +33,8 @@ mod time_02;
 mod time_03;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
+#[cfg(feature = "with-uuid-1")]
+mod uuid_1;
 
 async fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
 where
