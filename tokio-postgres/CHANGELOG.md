@@ -1,5 +1,16 @@
 # Change Log
 
+## v0.7.6 - 2022-04-30
+
+### Added
+
+* Added support for `uuid` 1.0 via the `with-uuid-1` feature.
+
+### Changed
+
+* Upgraded to `tokio-util` 0.7.
+* Upgraded to `parking_lot` 0.12.
+
 ## v0.7.5 - 2021-10-29
 
 ### Fixed
