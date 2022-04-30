@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.6.4 - 2022-04-03
+
+### Added
+
+* Added parsing support for `ltree`, `lquery`, and `ltxtquery`.
+
 ## v0.6.3 - 2021-12-10
 
 ### Changed
