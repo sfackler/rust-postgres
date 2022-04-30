@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.2 - 2022-04-30
+
+### Added
+
+* Added support for transparent wrapper types.
+
 ## v0.4.1 - 2021-11-23
 
 ### Fixed
