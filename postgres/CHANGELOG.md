@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.19.3 - 2022-04-30
+
+### Added
+
+* Added support for `uuid` 1.0 via the `with-uuid-1` feature.
+
 ## v0.19.2 - 2021-09-29
 
 ### Added
