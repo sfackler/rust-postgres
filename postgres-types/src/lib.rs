@@ -452,10 +452,11 @@ impl WrongType {
 ///
 /// # Arrays
 ///
-/// `FromSql` is implemented for `Vec<T>` and `[T; N]` where `T` implements
-/// `FromSql`, and corresponds to one-dimensional Postgres arrays. **Note:**
-/// the impl for arrays only exist when the Cargo feature `array-impls` is
-/// enabled.
+/// `FromSql` is implemented for `Vec<T>`, `Box<[T]>` and `[T; N]` where `T`
+/// implements `FromSql`, and corresponds to one-dimensional Postgres arrays.
+///
+/// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
+/// is enabled.
 pub trait FromSql<'a>: Sized {
     /// Creates a new value of this type from a buffer of data of the specified
     /// Postgres `Type` in its binary format.
@@ -577,6 +578,16 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
             Kind::Array(ref inner) => T::accepts(inner),
             _ => false,
         }
+    }
+}
+
+impl<'a, T: FromSql<'a>> FromSql<'a> for Box<[T]> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        Vec::<T>::from_sql(ty, raw).map(Vec::into_boxed_slice)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        Vec::<T>::accepts(ty)
     }
 }
 
@@ -783,10 +794,12 @@ pub enum IsNull {
 ///
 /// # Arrays
 ///
-/// `ToSql` is implemented for `Vec<T>`, `&[T]` and `[T; N]` where `T`
-/// implements `ToSql`, and corresponds to one-dimensional Postgres arrays with
-/// an index offset of 1. **Note:** the impl for arrays only exist when the
-/// Cargo feature `array-impls` is enabled.
+/// `ToSql` is implemented for `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]` where
+/// `T` implements `ToSql`, and corresponds to one-dimensional Postgres arrays
+/// with an index offset of 1.
+///
+/// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
+/// is enabled.
 pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
@@ -916,6 +929,18 @@ impl<T: ToSql, const N: usize> ToSql for [T; N] {
 }
 
 impl<T: ToSql> ToSql for Vec<T> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&[T] as ToSql>::to_sql(&&**self, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[T] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl<T: ToSql> ToSql for Box<[T]> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[T] as ToSql>::to_sql(&&**self, ty, w)
     }
