@@ -4,14 +4,8 @@ use crate::{
     ToStatement, Transaction,
 };
 
-mod private {
-    pub trait Sealed {}
-}
-
 /// A trait allowing abstraction over connections and transactions.
-///
-/// This trait is "sealed", and cannot be implemented outside of this crate.
-pub trait GenericClient: private::Sealed {
+pub trait GenericClient {
     /// Like `Client::execute`.
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
@@ -69,8 +63,6 @@ pub trait GenericClient: private::Sealed {
     /// Like `Client::transaction`.
     fn transaction(&mut self) -> Result<Transaction<'_>, Error>;
 }
-
-impl private::Sealed for Client {}
 
 impl GenericClient for Client {
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
@@ -149,8 +141,6 @@ impl GenericClient for Client {
         self.transaction()
     }
 }
-
-impl private::Sealed for Transaction<'_> {}
 
 impl GenericClient for Transaction<'_> {
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
