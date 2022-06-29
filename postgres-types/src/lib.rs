@@ -754,7 +754,7 @@ pub enum IsNull {
 /// | `f64`                             | DOUBLE PRECISION                     |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
 /// |                                   | LTREE, LQUERY, LTXTQUERY             |
-/// | `&[u8]`/`Vec<u8>`                 | BYTEA                                |
+/// | `&[u8]`/`Vec<u8>`/`[u8; N]`       | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
 /// | `IpAddr`                          | INET                                 |
@@ -794,9 +794,9 @@ pub enum IsNull {
 ///
 /// # Arrays
 ///
-/// `ToSql` is implemented for `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]` where
-/// `T` implements `ToSql`, and corresponds to one-dimensional Postgres arrays
-/// with an index offset of 1.
+/// `ToSql` is implemented for `[u8; N]`, `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]`
+/// where `T` implements `ToSql` and `N` is const usize, and corresponds to one-dimensional
+/// Postgres arrays with an index offset of 1.
 ///
 /// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
 /// is enabled.
