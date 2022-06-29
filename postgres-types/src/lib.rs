@@ -916,6 +916,18 @@ impl<'a> ToSql for &'a [u8] {
 }
 
 #[cfg(feature = "array-impls")]
+impl<const N: usize> ToSql for [u8; N] {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        types::bytea_to_sql(&self[..], w);
+        Ok(IsNull::No)
+    }
+
+    accepts!(BYTEA);
+
+    to_sql_checked!();
+}
+
+#[cfg(feature = "array-impls")]
 impl<T: ToSql, const N: usize> ToSql for [T; N] {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[T] as ToSql>::to_sql(&&self[..], ty, w)
