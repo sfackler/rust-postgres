@@ -155,6 +155,7 @@ pub use pg_lsn::PgLsn;
 
 pub use crate::special::{Date, Timestamp};
 use bytes::BytesMut;
+use smol_str::SmolStr;
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -629,6 +630,18 @@ impl<'a> FromSql<'a> for Box<str> {
     }
 }
 
+#[cfg(feature = "smol_str")]
+impl<'a> FromSql<'a> for smol_str::SmolStr {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<SmolStr, Box<dyn Error + Sync + Send>> {
+        <&str as FromSql>::from_sql(ty, raw)
+            .map(SmolStr::from)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as FromSql>::accepts(ty)
+    }
+}
+
 impl<'a> FromSql<'a> for &'a str {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<&'a str, Box<dyn Error + Sync + Send>> {
         match *ty {
@@ -1018,6 +1031,19 @@ impl ToSql for String {
 }
 
 impl ToSql for Box<str> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&str as ToSql>::to_sql(&&**self, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+#[cfg(feature = "smol_str")]
+impl ToSql for smol_str::SmolStr {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&**self, ty, w)
     }
