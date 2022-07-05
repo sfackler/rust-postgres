@@ -705,7 +705,7 @@ impl<'a> FromSql<'a> for SystemTime {
         let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
 
         let negative = time < 0;
-        let time = time.abs() as u64;
+        let time = time.unsigned_abs();
 
         let secs = time / USEC_PER_SEC;
         let nsec = (time % USEC_PER_SEC) * NSEC_PER_USEC;
@@ -759,7 +759,7 @@ pub enum IsNull {
 /// | `f64`                             | DOUBLE PRECISION                     |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
 /// |                                   | LTREE, LQUERY, LTXTQUERY             |
-/// | `&[u8]`/`Vec<u8>`                 | BYTEA                                |
+/// | `&[u8]`/`Vec<u8>`/`[u8; N]`       | BYTEA                                |
 /// | `HashMap<String, Option<String>>` | HSTORE                               |
 /// | `SystemTime`                      | TIMESTAMP, TIMESTAMP WITH TIME ZONE  |
 /// | `IpAddr`                          | INET                                 |
@@ -799,9 +799,9 @@ pub enum IsNull {
 ///
 /// # Arrays
 ///
-/// `ToSql` is implemented for `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]` where
-/// `T` implements `ToSql`, and corresponds to one-dimensional Postgres arrays
-/// with an index offset of 1.
+/// `ToSql` is implemented for `[u8; N]`, `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]`
+/// where `T` implements `ToSql` and `N` is const usize, and corresponds to one-dimensional
+/// Postgres arrays with an index offset of 1.
 ///
 /// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
 /// is enabled.
@@ -912,6 +912,18 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::bytea_to_sql(*self, w);
+        Ok(IsNull::No)
+    }
+
+    accepts!(BYTEA);
+
+    to_sql_checked!();
+}
+
+#[cfg(feature = "array-impls")]
+impl<const N: usize> ToSql for [u8; N] {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        types::bytea_to_sql(&self[..], w);
         Ok(IsNull::No)
     }
 
