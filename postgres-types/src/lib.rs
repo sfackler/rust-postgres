@@ -700,7 +700,7 @@ impl<'a> FromSql<'a> for SystemTime {
         let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
 
         let negative = time < 0;
-        let time = time.abs() as u64;
+        let time = time.unsigned_abs();
 
         let secs = time / USEC_PER_SEC;
         let nsec = (time % USEC_PER_SEC) * NSEC_PER_USEC;
