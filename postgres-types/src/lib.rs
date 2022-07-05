@@ -155,7 +155,6 @@ pub use pg_lsn::PgLsn;
 
 pub use crate::special::{Date, Timestamp};
 use bytes::BytesMut;
-use smol_str::SmolStr;
 
 // Number of seconds from 1970-01-01 to 2000-01-01
 const TIME_SEC_CONVERSION: u64 = 946_684_800;
@@ -233,6 +232,8 @@ mod time_03;
 mod uuid_08;
 #[cfg(feature = "with-uuid-1")]
 mod uuid_1;
+#[cfg(feature = "smol_str-01")]
+mod smol_str_01;
 
 // The time::{date, time} macros produce compile errors if the crate package is renamed.
 #[cfg(feature = "with-time-0_2")]
@@ -444,6 +445,9 @@ impl WrongType {
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `cidr::InetCidr`                | CIDR                                |
 /// | `cidr::InetAddr`                | INET                                |
+/// | `smol_str::SmolStr`             | VARCHAR, CHAR(n), TEXT, CITEXT,     |
+/// |                                 | NAME, UNKNOWN, LTREE, LQUERY,       |
+/// |                                 | LTXTQUERY                           |
 ///
 /// # Nullability
 ///
@@ -623,18 +627,6 @@ impl<'a> FromSql<'a> for Box<str> {
         <&str as FromSql>::from_sql(ty, raw)
             .map(ToString::to_string)
             .map(String::into_boxed_str)
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        <&str as FromSql>::accepts(ty)
-    }
-}
-
-#[cfg(feature = "smol_str")]
-impl<'a> FromSql<'a> for smol_str::SmolStr {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<SmolStr, Box<dyn Error + Sync + Send>> {
-        <&str as FromSql>::from_sql(ty, raw)
-            .map(SmolStr::from)
     }
 
     fn accepts(ty: &Type) -> bool {
@@ -1031,19 +1023,6 @@ impl ToSql for String {
 }
 
 impl ToSql for Box<str> {
-    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        <&str as ToSql>::to_sql(&&**self, ty, w)
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        <&str as ToSql>::accepts(ty)
-    }
-
-    to_sql_checked!();
-}
-
-#[cfg(feature = "smol_str")]
-impl ToSql for smol_str::SmolStr {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&&**self, ty, w)
     }
