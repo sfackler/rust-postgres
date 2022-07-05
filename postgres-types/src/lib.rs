@@ -224,6 +224,8 @@ mod geo_types_06;
 mod geo_types_07;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
+#[cfg(feature = "smol_str-01")]
+mod smol_str_01;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
 #[cfg(feature = "with-time-0_3")]
@@ -232,8 +234,6 @@ mod time_03;
 mod uuid_08;
 #[cfg(feature = "with-uuid-1")]
 mod uuid_1;
-#[cfg(feature = "smol_str-01")]
-mod smol_str_01;
 
 // The time::{date, time} macros produce compile errors if the crate package is renamed.
 #[cfg(feature = "with-time-0_2")]
