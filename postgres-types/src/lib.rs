@@ -224,6 +224,8 @@ mod geo_types_06;
 mod geo_types_07;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
+#[cfg(feature = "smol_str-01")]
+mod smol_str_01;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
 #[cfg(feature = "with-time-0_3")]
@@ -443,6 +445,9 @@ impl WrongType {
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `cidr::InetCidr`                | CIDR                                |
 /// | `cidr::InetAddr`                | INET                                |
+/// | `smol_str::SmolStr`             | VARCHAR, CHAR(n), TEXT, CITEXT,     |
+/// |                                 | NAME, UNKNOWN, LTREE, LQUERY,       |
+/// |                                 | LTXTQUERY                           |
 ///
 /// # Nullability
 ///
