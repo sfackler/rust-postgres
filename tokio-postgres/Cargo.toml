@@ -50,7 +50,7 @@ log = "0.4"
 parking_lot = "0.12"
 percent-encoding = "2.0"
 pin-project-lite = "0.2"
-phf = "0.10"
+phf = "0.11"
 postgres-protocol = { version = "0.6.4", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.3", path = "../postgres-types" }
 socket2 = "0.4"
