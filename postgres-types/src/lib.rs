@@ -834,7 +834,31 @@ pub trait ToSql: fmt::Debug {
         ty: &Type,
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
+
+    /// Specify the encode format
+    fn encode_format(&self) -> Format { Format::Binary }
 }
+
+/// Supported Postgres message format types
+///
+/// Using Text format in a message assumes a Postgres `SERVER_ENCODING` of `UTF8`
+pub enum Format {
+    /// Text format (UTF-8)
+    Text,
+    /// Compact, typed binary format
+    Binary,
+}
+
+/// Convert from `Format` to the Postgres integer representation of those formats
+impl From<Format> for i16 {
+    fn from(format: Format) -> Self {
+        match format {
+            Format::Text => 0,
+            Format::Binary => 1,
+        }
+    }
+}
+
 
 impl<'a, T> ToSql for &'a T
 where
