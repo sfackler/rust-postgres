@@ -105,6 +105,14 @@ pub enum Host {
 /// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
 ///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
 ///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
+/// * `passfile` - Filesystem path of a file storing passwords. Each line should have fields
+///     `hostname:port:database:username:password`. Lines beginning with `#` are comments. `*` as a complete field
+///     matches anything. `password` takes precedence if both `password` and `passfile` are set. See [the PostgreSQL
+///     libpq documentation][libpq_pgpass] for more details. Unlike the libpq implementation, there is no default
+///     password file, and `localhost` is not treated specially as a hostname for a Unix socket connection. The file is
+///     ignored (on Unix only) if its permissions allow any access to group or 'other'.
+///
+/// [libpq_pgpass]: https://www.postgresql.org/docs/current/libpq-pgpass.html
 ///
 /// ## Examples
 ///
@@ -159,6 +167,7 @@ pub struct Config {
     pub(crate) keepalives_idle: Duration,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) passfile: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -184,6 +193,7 @@ impl Config {
             keepalives_idle: Duration::from_secs(2 * 60 * 60),
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            passfile: None,
         }
     }
 
@@ -387,6 +397,20 @@ impl Config {
         self.channel_binding
     }
 
+    /// Sets the password file path.
+    pub fn passfile<T>(&mut self, passfile: T) -> &mut Config
+    where
+        T: AsRef<Path>,
+    {
+        self.passfile = Some(passfile.as_ref().to_path_buf());
+        self
+    }
+
+    /// Gets the password file path, if one has been set with the `passfile` method.
+    pub fn get_passfile(&self) -> Option<&Path> {
+        self.passfile.as_deref()
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -475,6 +499,9 @@ impl Config {
                     }
                 };
                 self.channel_binding(channel_binding);
+            }
+            "passfile" => {
+                self.passfile(Path::new(value));
             }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(

@@ -78,10 +78,11 @@ where
     }
 }
 
-pub async fn connect_raw<S, T>(
+pub(crate) async fn connect_raw_with_password<S, T>(
     stream: S,
     tls: T,
     config: &Config,
+    password: Option<&[u8]>,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -96,7 +97,7 @@ where
     };
 
     startup(&mut stream, config).await?;
-    authenticate(&mut stream, config).await?;
+    authenticate(&mut stream, config, password).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -104,6 +105,18 @@ where
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
     Ok((client, connection))
+}
+
+pub async fn connect_raw<S, T>(
+    stream: S,
+    tls: T,
+    config: &Config,
+) -> Result<(Client, Connection<S, T::Stream>), Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsConnect<S>,
+{
+    connect_raw_with_password(stream, tls, config, config.password.as_deref()).await
 }
 
 async fn startup<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
@@ -134,7 +147,11 @@ where
         .map_err(Error::io)
 }
 
-async fn authenticate<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
+async fn authenticate<S, T>(
+    stream: &mut StartupStream<S, T>,
+    config: &Config,
+    password: Option<&[u8]>,
+) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
@@ -147,11 +164,7 @@ where
         Some(Message::AuthenticationCleartextPassword) => {
             can_skip_channel_binding(config)?;
 
-            let pass = config
-                .password
-                .as_ref()
-                .ok_or_else(|| Error::config("password missing".into()))?;
-
+            let pass = password.ok_or_else(|| Error::config("password missing".into()))?;
             authenticate_password(stream, pass).await?;
         }
         Some(Message::AuthenticationMd5Password(body)) => {
@@ -161,16 +174,13 @@ where
                 .user
                 .as_ref()
                 .ok_or_else(|| Error::config("user missing".into()))?;
-            let pass = config
-                .password
-                .as_ref()
-                .ok_or_else(|| Error::config("password missing".into()))?;
-
+            let pass = password.ok_or_else(|| Error::config("password missing".into()))?;
             let output = authentication::md5_hash(user.as_bytes(), pass, body.salt());
             authenticate_password(stream, output.as_bytes()).await?;
         }
         Some(Message::AuthenticationSasl(body)) => {
-            authenticate_sasl(stream, body, config).await?;
+            let pass = password.ok_or_else(|| Error::config("password missing".into()))?;
+            authenticate_sasl(stream, body, config, pass).await?;
         }
         Some(Message::AuthenticationKerberosV5)
         | Some(Message::AuthenticationScmCredential)
@@ -223,16 +233,12 @@ async fn authenticate_sasl<S, T>(
     stream: &mut StartupStream<S, T>,
     body: AuthenticationSaslBody,
     config: &Config,
+    password: &[u8],
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
 {
-    let password = config
-        .password
-        .as_ref()
-        .ok_or_else(|| Error::config("password missing".into()))?;
-
     let mut has_scram = false;
     let mut has_scram_plus = false;
     let mut mechanisms = body.mechanisms();
