@@ -868,6 +868,10 @@ where
         T::accepts(ty)
     }
 
+    fn encode_format(&self) -> Format {
+        (*self).encode_format()
+    }
+
     to_sql_checked!();
 }
 
@@ -885,6 +889,13 @@ impl<T: ToSql> ToSql for Option<T> {
 
     fn accepts(ty: &Type) -> bool {
         <T as ToSql>::accepts(ty)
+    }
+
+    fn encode_format(&self) -> Format {
+        match self {
+            Some(ref val) => val.encode_format(),
+            None => Format::Binary,
+        }
     }
 
     to_sql_checked!();
