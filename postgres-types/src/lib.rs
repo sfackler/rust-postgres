@@ -844,7 +844,7 @@ pub trait ToSql: fmt::Debug {
 /// Supported Postgres message format types
 ///
 /// Using Text format in a message assumes a Postgres `SERVER_ENCODING` of `UTF8`
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Format {
     /// Text format (UTF-8)
     Text,
