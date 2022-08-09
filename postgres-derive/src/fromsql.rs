@@ -1,7 +1,10 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::iter;
-use syn::{Data, DataStruct, DeriveInput, Error, Fields, Ident};
+use syn::{
+    Data, DataStruct, DeriveInput, Error, Fields, GenericParam, Generics, Ident, Lifetime,
+    LifetimeDef,
+};
 
 use crate::accepts;
 use crate::composites::Field;
@@ -86,10 +89,13 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     let ident = &input.ident;
+    let (generics, lifetime) = build_generics(&input.generics);
+    let (impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let out = quote! {
-        impl<'a> postgres_types::FromSql<'a> for #ident {
-            fn from_sql(_type: &postgres_types::Type, buf: &'a [u8])
-                        -> std::result::Result<#ident,
+        impl#impl_generics postgres_types::FromSql<#lifetime> for #ident#ty_generics #where_clause {
+            fn from_sql(_type: &postgres_types::Type, buf: &#lifetime [u8])
+                        -> std::result::Result<#ident#ty_generics,
                                                std::boxed::Box<dyn std::error::Error +
                                                                std::marker::Sync +
                                                                std::marker::Send>> {
@@ -199,4 +205,16 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
             )*
         })
     }
+}
+
+fn build_generics(source: &Generics) -> (Generics, Lifetime) {
+    let mut out = source.to_owned();
+    // don't worry about lifetime name collisions, it doesn't make sense to derive FromSql on a struct with a lifetime
+    let lifetime = Lifetime::new("'a", Span::call_site());
+    out.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeDef::new(lifetime.to_owned())),
+    );
+
+    (out, lifetime)
 }

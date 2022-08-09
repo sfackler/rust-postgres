@@ -1,6 +1,6 @@
-use crate::test_type;
+use crate::{test_type, test_type_asymmetric};
 use postgres::{Client, NoTls};
-use postgres_types::{FromSql, ToSql, WrongType};
+use postgres_types::{FromSql, FromSqlOwned, ToSql, WrongType};
 use std::error::Error;
 
 #[test]
@@ -237,4 +237,69 @@ fn raw_ident_field() {
     };
 
     test_type(&mut conn, "inventory_item", &[(item, "ROW('foo')")]);
+}
+
+#[test]
+fn generics() {
+    #[derive(FromSql, Debug, PartialEq)]
+    struct InventoryItem<T: FromSqlOwned, U>
+    where
+        U: FromSqlOwned,
+    {
+        name: String,
+        supplier_id: T,
+        price: Option<U>,
+    }
+
+    // doesn't make sense to implement derived FromSql on a type with borrows
+    #[derive(ToSql, Debug, PartialEq)]
+    #[postgres(name = "InventoryItem")]
+    struct InventoryItemRef<'a, T: 'a + ToSql, U>
+    where
+        U: 'a + ToSql,
+    {
+        name: &'a str,
+        supplier_id: &'a T,
+        price: Option<&'a U>,
+    }
+
+    const NAME: &str = "foobar";
+    const SUPPLIER_ID: i32 = 100;
+    const PRICE: f64 = 15.50;
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.\"InventoryItem\" AS (
+            name TEXT,
+            supplier_id INT,
+            price DOUBLE PRECISION
+        );",
+    )
+    .unwrap();
+
+    let item = InventoryItemRef {
+        name: NAME,
+        supplier_id: &SUPPLIER_ID,
+        price: Some(&PRICE),
+    };
+
+    let item_null = InventoryItemRef {
+        name: NAME,
+        supplier_id: &SUPPLIER_ID,
+        price: None,
+    };
+
+    test_type_asymmetric(
+        &mut conn,
+        "\"InventoryItem\"",
+        &[
+            (item, "ROW('foobar', 100, 15.50)"),
+            (item_null, "ROW('foobar', 100, NULL)"),
+        ],
+        |t: &InventoryItemRef<i32, f64>, f: &InventoryItem<i32, f64>| {
+            t.name == f.name.as_str()
+                && t.supplier_id == &f.supplier_id
+                && t.price == f.price.as_ref()
+        },
+    );
 }
