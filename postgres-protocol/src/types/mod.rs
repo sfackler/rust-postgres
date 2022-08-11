@@ -132,10 +132,26 @@ pub fn int8_to_sql(v: i64, buf: &mut BytesMut) {
     buf.put_i64(v);
 }
 
+/// Serializes to a `NUMERIC` value.
+#[inline]
+pub fn int16_to_sql(v: i128, buf: &mut BytesMut) {
+    buf.put_i128(v);
+}
+
 /// Deserializes an `INT8` value.
 #[inline]
 pub fn int8_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Send>> {
     let v = buf.read_i64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(v)
+}
+
+/// Deserializes an `NUMERIC` value without fractional part.
+#[inline]
+pub fn int16_from_sql(mut buf: &[u8]) -> Result<i128, StdBox<dyn Error + Sync + Send>> {
+    let v = buf.read_i128::<BigEndian>()?;
     if !buf.is_empty() {
         return Err("invalid buffer size".into());
     }

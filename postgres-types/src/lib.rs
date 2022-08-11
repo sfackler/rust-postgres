@@ -408,6 +408,7 @@ impl WrongType {
 /// | `i32`                             | INT, SERIAL                                   |
 /// | `u32`                             | OID                                           |
 /// | `i64`                             | BIGINT, BIGSERIAL                             |
+/// | `i128`                            | NUMERIC                                       |
 /// | `f32`                             | REAL                                          |
 /// | `f64`                             | DOUBLE PRECISION                              |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME, UNKNOWN |
@@ -678,6 +679,7 @@ simple_from!(i16, int2_from_sql, INT2);
 simple_from!(i32, int4_from_sql, INT4);
 simple_from!(u32, oid_from_sql, OID);
 simple_from!(i64, int8_from_sql, INT8);
+simple_from!(i128, int16_from_sql, INT8);
 simple_from!(f32, float4_from_sql, FLOAT4);
 simple_from!(f64, float8_from_sql, FLOAT8);
 
@@ -755,6 +757,7 @@ pub enum IsNull {
 /// | `i32`                             | INT, SERIAL                          |
 /// | `u32`                             | OID                                  |
 /// | `i64`                             | BIGINT, BIGSERIAL                    |
+/// | `i128`                            | NUMERIC                              |
 /// | `f32`                             | REAL                                 |
 /// | `f64`                             | DOUBLE PRECISION                     |
 /// | `&str`/`String`                   | VARCHAR, CHAR(n), TEXT, CITEXT, NAME |
@@ -1097,6 +1100,7 @@ simple_to!(i16, int2_to_sql, INT2);
 simple_to!(i32, int4_to_sql, INT4);
 simple_to!(u32, oid_to_sql, OID);
 simple_to!(i64, int8_to_sql, INT8);
+simple_to!(i128, int16_to_sql, INT8);
 simple_to!(f32, float4_to_sql, FLOAT4);
 simple_to!(f64, float8_to_sql, FLOAT8);
 
