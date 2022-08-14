@@ -69,7 +69,7 @@
 //! combinator):
 //!
 //! ```rust
-//! use futures::future;
+//! use futures_util::future;
 //! use std::future::Future;
 //! use tokio_postgres::{Client, Error, Statement};
 //!

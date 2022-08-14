@@ -18,8 +18,8 @@ use crate::{
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
-use futures::channel::mpsc;
-use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_channel::mpsc;
+use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
@@ -341,7 +341,7 @@ impl Client {
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
     /// use tokio_postgres::types::ToSql;
-    /// use futures::{pin_mut, TryStreamExt};
+    /// use futures_util::{pin_mut, TryStreamExt};
     ///
     /// let params: Vec<String> = vec![
     ///     "first param".into(),

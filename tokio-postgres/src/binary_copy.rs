@@ -4,7 +4,7 @@ use crate::types::{FromSql, IsNull, ToSql, Type, WrongType};
 use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::{ready, SinkExt, Stream};
+use futures_util::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
 use postgres_types::BorrowToSql;
 use std::convert::TryFrom;

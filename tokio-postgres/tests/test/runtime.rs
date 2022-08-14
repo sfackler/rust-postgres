@@ -1,4 +1,4 @@
-use futures::{join, FutureExt};
+use futures_util::{join, FutureExt};
 use std::time::Duration;
 use tokio::time;
 use tokio_postgres::error::SqlState;

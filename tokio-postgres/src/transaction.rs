@@ -13,7 +13,7 @@ use crate::{
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
-use futures::TryStreamExt;
+use futures_util::TryStreamExt;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite};
 

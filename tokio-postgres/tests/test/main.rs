@@ -1,8 +1,8 @@
 #![warn(rust_2018_idioms)]
 
 use bytes::{Bytes, BytesMut};
-use futures::channel::mpsc;
-use futures::{
+use futures_channel::mpsc;
+use futures_util::{
     future, join, pin_mut, stream, try_join, Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
 use pin_project_lite::pin_project;
