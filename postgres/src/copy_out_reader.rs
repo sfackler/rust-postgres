@@ -1,7 +1,7 @@
 use crate::connection::ConnectionRef;
 use crate::lazy_pin::LazyPin;
 use bytes::{Buf, Bytes};
-use futures::StreamExt;
+use futures_util::StreamExt;
 use std::io::{self, BufRead, Read};
 use tokio_postgres::CopyOutStream;
 
