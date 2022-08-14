@@ -1,4 +1,4 @@
-use futures::FutureExt;
+use futures_util::FutureExt;
 use openssl::ssl::{SslConnector, SslMethod};
 use tokio::net::TcpStream;
 use tokio_postgres::tls::TlsConnect;

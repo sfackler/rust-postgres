@@ -1,4 +1,4 @@
-use futures::FutureExt;
+use futures_util::FutureExt;
 use native_tls::{self, Certificate};
 use tokio::net::TcpStream;
 use tokio_postgres::tls::TlsConnect;
