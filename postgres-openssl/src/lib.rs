@@ -73,7 +73,8 @@ use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 #[cfg(test)]
 mod test;
 
-type ConfigCallback = dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send;
+type ConfigCallback =
+    dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send;
 
 /// A `MakeTlsConnect` implementation using the `openssl` crate.
 ///
