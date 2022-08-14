@@ -28,7 +28,7 @@ where
         let port = config
             .port
             .get(i)
-            .or_else(|| config.port.get(0))
+            .or_else(|| config.port.first())
             .copied()
             .unwrap_or(5432);
 

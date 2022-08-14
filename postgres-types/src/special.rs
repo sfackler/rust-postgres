@@ -6,7 +6,7 @@ use std::{i32, i64};
 use crate::{FromSql, IsNull, ToSql, Type};
 
 /// A wrapper that can be used to represent infinity with `Type::Date` types.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Date<T> {
     /// Represents `infinity`, a date that is later than all other dates.
     PosInfinity,
@@ -55,7 +55,7 @@ impl<T: ToSql> ToSql for Date<T> {
 
 /// A wrapper that can be used to represent infinity with `Type::Timestamp` and `Type::Timestamptz`
 /// types.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Timestamp<T> {
     /// Represents `infinity`, a timestamp that is later than all other timestamps.
     PosInfinity,
