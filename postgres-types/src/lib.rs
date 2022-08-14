@@ -234,6 +234,8 @@ mod time_03;
 mod uuid_08;
 #[cfg(feature = "with-uuid-1")]
 mod uuid_1;
+#[cfg(feature = "with-url-2")]
+mod url_2;
 
 // The time::{date, time} macros produce compile errors if the crate package is renamed.
 #[cfg(feature = "with-time-0_2")]
