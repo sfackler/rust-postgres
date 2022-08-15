@@ -156,16 +156,18 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    let param_types = statement.params();
     let (param_formats, params): (Vec<_>, Vec<_>) = params
         .into_iter()
-        .map(|p| (p.borrow_to_sql().encode_format() as i16, p))
+        .zip(param_types.iter())
+        .map(|(p, ty)| (p.borrow_to_sql().encode_format(ty) as i16, p))
         .unzip();
     let params = params.into_iter();
 
     assert!(
-        statement.params().len() == params.len(),
+        param_types.len() == params.len(),
         "expected {} parameters but got {}",
-        statement.params().len(),
+        param_types.len(),
         params.len()
     );
 
@@ -174,7 +176,7 @@ where
         portal,
         statement.name(),
         param_formats,
-        params.zip(statement.params()).enumerate(),
+        params.zip(param_types).enumerate(),
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
             Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
             Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),

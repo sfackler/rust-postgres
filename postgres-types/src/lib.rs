@@ -836,7 +836,7 @@ pub trait ToSql: fmt::Debug {
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>>;
 
     /// Specify the encode format
-    fn encode_format(&self) -> Format {
+    fn encode_format(&self, _ty: &Type) -> Format {
         Format::Binary
     }
 }
@@ -868,8 +868,8 @@ where
         T::accepts(ty)
     }
 
-    fn encode_format(&self) -> Format {
-        (*self).encode_format()
+    fn encode_format(&self, ty: &Type) -> Format {
+        (*self).encode_format(ty)
     }
 
     to_sql_checked!();
@@ -891,9 +891,9 @@ impl<T: ToSql> ToSql for Option<T> {
         <T as ToSql>::accepts(ty)
     }
 
-    fn encode_format(&self) -> Format {
+    fn encode_format(&self, ty: &Type) -> Format {
         match self {
-            Some(ref val) => val.encode_format(),
+            Some(ref val) => val.encode_format(ty),
             None => Format::Binary,
         }
     }
