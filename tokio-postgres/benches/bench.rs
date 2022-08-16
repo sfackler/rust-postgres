@@ -1,6 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use futures::channel::oneshot;
-use futures::executor;
+use futures_channel::oneshot;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::runtime::Runtime;
@@ -32,7 +31,7 @@ fn query_prepared(c: &mut Criterion) {
     let (client, runtime) = setup();
     let statement = runtime.block_on(client.prepare("SELECT $1::INT8")).unwrap();
     c.bench_function("executor_block_on", move |b| {
-        b.iter(|| executor::block_on(client.query(&statement, &[&1i64])).unwrap())
+        b.iter(|| futures_executor::block_on(client.query(&statement, &[&1i64])).unwrap())
     });
 
     let (client, runtime) = setup();
@@ -50,7 +49,7 @@ fn query_prepared(c: &mut Criterion) {
                 }
                 tx.send(start.elapsed()).unwrap();
             });
-            executor::block_on(rx).unwrap()
+            futures_executor::block_on(rx).unwrap()
         })
     });
 }

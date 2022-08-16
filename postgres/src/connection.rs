@@ -1,6 +1,5 @@
 use crate::{Error, Notification};
-use futures::future;
-use futures::{pin_mut, Stream};
+use futures_util::{future, pin_mut, Stream};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};

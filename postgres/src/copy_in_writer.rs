@@ -1,7 +1,7 @@
 use crate::connection::ConnectionRef;
 use crate::lazy_pin::LazyPin;
 use bytes::{Bytes, BytesMut};
-use futures::SinkExt;
+use futures_util::SinkExt;
 use std::io;
 use std::io::Write;
 use tokio_postgres::{CopyInSink, Error};

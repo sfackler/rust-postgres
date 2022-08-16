@@ -1,6 +1,6 @@
 use crate::connection::ConnectionRef;
 use fallible_iterator::FallibleIterator;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use std::pin::Pin;
 use tokio_postgres::{Error, Row, RowStream};
 

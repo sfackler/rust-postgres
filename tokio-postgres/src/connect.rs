@@ -4,7 +4,7 @@ use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
-use futures::{future, pin_mut, Future, FutureExt, Stream};
+use futures_util::{future, pin_mut, Future, FutureExt, Stream};
 use std::io;
 use std::task::Poll;
 
@@ -28,7 +28,7 @@ where
         let port = config
             .port
             .get(i)
-            .or_else(|| config.port.get(0))
+            .or_else(|| config.port.first())
             .copied()
             .unwrap_or(5432);
 

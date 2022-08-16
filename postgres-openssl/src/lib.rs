@@ -73,6 +73,9 @@ use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 #[cfg(test)]
 mod test;
 
+type ConfigCallback =
+    dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send;
+
 /// A `MakeTlsConnect` implementation using the `openssl` crate.
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
@@ -80,7 +83,7 @@ mod test;
 #[derive(Clone)]
 pub struct MakeTlsConnector {
     connector: SslConnector,
-    config: Arc<dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send>,
+    config: Arc<ConfigCallback>,
 }
 
 #[cfg(feature = "runtime")]

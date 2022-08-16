@@ -3,7 +3,7 @@
 use crate::connection::ConnectionRef;
 use crate::{Error, Notification};
 use fallible_iterator::FallibleIterator;
-use futures::{ready, FutureExt};
+use futures_util::{ready, FutureExt};
 use std::pin::Pin;
 use std::task::Poll;
 use std::time::Duration;

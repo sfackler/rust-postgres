@@ -7,7 +7,7 @@ use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
-use futures::{pin_mut, TryStreamExt};
+use futures_util::{pin_mut, TryStreamExt};
 use log::debug;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
