@@ -157,11 +157,6 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     let param_types = statement.params();
-    let (param_formats, params): (Vec<_>, Vec<_>) = params
-        .into_iter()
-        .zip(param_types.iter())
-        .map(|(p, ty)| (p.borrow_to_sql().encode_format(ty) as i16, p))
-        .unzip();
     let params = params.into_iter();
 
     assert!(
@@ -170,6 +165,13 @@ where
         param_types.len(),
         params.len()
     );
+
+    let (param_formats, params): (Vec<_>, Vec<_>) = params
+        .zip(param_types.iter())
+        .map(|(p, ty)| (p.borrow_to_sql().encode_format(ty) as i16, p))
+        .unzip();
+
+    let params = params.into_iter();
 
     let mut error_idx = 0;
     let r = frontend::bind(
