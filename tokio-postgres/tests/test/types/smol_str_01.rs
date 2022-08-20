@@ -13,6 +13,7 @@ async fn test_smol_str() {
                 "'イロハニホヘト チリヌルヲ'",
             ),
             (None, "NULL"),
-        ]
-    ).await;
+        ],
+    )
+    .await;
 }
