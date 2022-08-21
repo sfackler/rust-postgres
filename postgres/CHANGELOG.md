@@ -1,5 +1,13 @@
 # Change Log
 
+## v0.19.4 - 2022-08-21
+
+## Added
+
+* Added `ToSql` and `FromSql` implementations for `[u8; N]` via the `array-impls` feature.
+* Added support for `smol_str` 0.1 via the `with-smol_str-01` feature.
+* Added `ToSql::encode_format` to support text encodings of parameters.
+
 ## v0.19.3 - 2022-04-30
 
 ### Added
