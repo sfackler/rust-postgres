@@ -4,9 +4,7 @@ use std::time::Duration;
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct KeepaliveConfig {
     pub idle: Duration,
-    #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
     pub interval: Option<Duration>,
-    #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
     pub retries: Option<u32>,
 }
 

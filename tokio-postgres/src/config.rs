@@ -101,9 +101,9 @@ pub enum Host {
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
 ///     This option is ignored when connecting with Unix sockets. Defaults to 2 hours.
 /// * `keepalives_interval` - The time interval between TCP keepalive probes.
-///     This option is ignored when connecting with Unix sockets. Available on neither Redox nor Solaris.
+///     This option is ignored when connecting with Unix sockets.
 /// * `keepalives_retries` - The maximum number of TCP keepalive probes that will be sent before dropping a connection.
-///     This option is ignored when connecting with Unix sockets. Available on neither Redox, Solaris nor Windows.
+///     This option is ignored when connecting with Unix sockets.
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
@@ -177,9 +177,7 @@ impl Config {
     pub fn new() -> Config {
         let keepalive_config = KeepaliveConfig {
             idle: Duration::from_secs(2 * 60 * 60),
-            #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
             interval: None,
-            #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
             retries: None,
         };
         Config {
@@ -373,18 +371,12 @@ impl Config {
     /// On Windows, this sets the value of the tcp_keepalive struct’s keepaliveinterval field.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
-    ///
-    /// Available on neither Redox nor Solaris.
-    #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
     pub fn keepalives_interval(&mut self, keepalives_interval: Duration) -> &mut Config {
         self.keepalive_config.interval = Some(keepalives_interval);
         self
     }
 
     /// Gets the time interval between TCP keepalive probes.
-    ///
-    /// Available on neither Redox nor Solaris.
-    #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
     pub fn get_keepalives_interval(&self) -> Option<&Duration> {
         self.keepalive_config.interval.as_ref()
     }
@@ -392,18 +384,12 @@ impl Config {
     /// Sets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
-    ///
-    /// Available on neither Redox, Solaris nor Windows.
-    #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
     pub fn keepalives_retries(&mut self, keepalives_retries: u32) -> &mut Config {
         self.keepalive_config.retries = Some(keepalives_retries);
         self
     }
 
     /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
-    ///
-    /// Available on neither Redox, Solaris nor Windows.
-    #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
     pub fn get_keepalives_retries(&self) -> Option<&u32> {
         self.keepalive_config.retries.as_ref()
     }
@@ -502,7 +488,6 @@ impl Config {
                     self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                 }
             }
-            #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
             "keepalives_interval" => {
                 let keepalives_interval = value.parse::<i64>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_interval")))
@@ -511,7 +496,6 @@ impl Config {
                     self.keepalives_interval(Duration::from_secs(keepalives_interval as u64));
                 }
             }
-            #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
             "keepalives_retries" => {
                 let keepalives_retries = value.parse::<u32>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_retries")))
@@ -601,8 +585,8 @@ impl fmt::Debug for Config {
             }
         }
 
-        let mut ds = f.debug_struct("Config");
-        ds.field("user", &self.user)
+        f.debug_struct("Config")
+            .field("user", &self.user)
             .field("password", &self.password.as_ref().map(|_| Redaction {}))
             .field("dbname", &self.dbname)
             .field("options", &self.options)
@@ -612,19 +596,10 @@ impl fmt::Debug for Config {
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
             .field("keepalives", &self.keepalives)
-            .field("keepalives_idle", &self.keepalive_config.idle);
-
-        #[cfg(not(any(target_os = "redox", target_os = "solaris")))]
-        {
-            ds.field("keepalives_interval", &self.keepalive_config.interval);
-        }
-
-        #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
-        {
-            ds.field("keepalives_retries", &self.keepalive_config.retries);
-        }
-
-        ds.field("target_session_attrs", &self.target_session_attrs)
+            .field("keepalives_idle", &self.keepalive_config.idle)
+            .field("keepalives_interval", &self.keepalive_config.interval)
+            .field("keepalives_retries", &self.keepalive_config.retries)
+            .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .finish()
     }
