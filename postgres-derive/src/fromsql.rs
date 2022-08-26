@@ -2,12 +2,15 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::iter;
 use syn::{
-    Data, DataStruct, DeriveInput, Error, Fields, GenericParam, Generics, Ident, Lifetime,
-    LifetimeDef,
+    punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
+    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, LifetimeDef,
+    PathArguments, PathSegment,
 };
+use syn::{TraitBound, TraitBoundModifier, TypeParamBound};
 
 use crate::accepts;
 use crate::composites::Field;
+use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
 use crate::overrides::Overrides;
 
@@ -208,13 +211,33 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
 }
 
 fn build_generics(source: &Generics) -> (Generics, Lifetime) {
-    let mut out = source.to_owned();
     // don't worry about lifetime name collisions, it doesn't make sense to derive FromSql on a struct with a lifetime
     let lifetime = Lifetime::new("'a", Span::call_site());
+
+    let mut out = append_generic_bound(source.to_owned(), &new_fromsql_bound(&lifetime));
     out.params.insert(
         0,
         GenericParam::Lifetime(LifetimeDef::new(lifetime.to_owned())),
     );
 
     (out, lifetime)
+}
+
+fn new_fromsql_bound(lifetime: &Lifetime) -> TypeParamBound {
+    let mut path_segment: PathSegment = Ident::new("FromSql", Span::call_site()).into();
+    let mut seg_args = Punctuated::new();
+    seg_args.push(GenericArgument::Lifetime(lifetime.to_owned()));
+    path_segment.arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+        colon2_token: None,
+        lt_token: token::Lt::default(),
+        args: seg_args,
+        gt_token: token::Gt::default(),
+    });
+
+    TypeParamBound::Trait(TraitBound {
+        lifetimes: None,
+        modifier: TraitBoundModifier::None,
+        paren_token: None,
+        path: new_derive_path(path_segment),
+    })
 }

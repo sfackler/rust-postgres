@@ -1,6 +1,6 @@
 use crate::{test_type, test_type_asymmetric};
 use postgres::{Client, NoTls};
-use postgres_types::{FromSql, FromSqlOwned, ToSql, WrongType};
+use postgres_types::{FromSql, ToSql, WrongType};
 use std::error::Error;
 
 #[test]
@@ -242,9 +242,9 @@ fn raw_ident_field() {
 #[test]
 fn generics() {
     #[derive(FromSql, Debug, PartialEq)]
-    struct InventoryItem<T: FromSqlOwned, U>
+    struct InventoryItem<T: Clone, U>
     where
-        U: FromSqlOwned,
+        U: Clone,
     {
         name: String,
         supplier_id: T,
@@ -254,9 +254,9 @@ fn generics() {
     // doesn't make sense to implement derived FromSql on a type with borrows
     #[derive(ToSql, Debug, PartialEq)]
     #[postgres(name = "InventoryItem")]
-    struct InventoryItemRef<'a, T: 'a + ToSql, U>
+    struct InventoryItemRef<'a, T: 'a + Clone, U>
     where
-        U: 'a + ToSql,
+        U: 'a + Clone,
     {
         name: &'a str,
         supplier_id: &'a T,
