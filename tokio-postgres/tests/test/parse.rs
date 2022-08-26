@@ -37,6 +37,19 @@ fn settings() {
 }
 
 #[test]
+#[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows")))]
+fn keepalive_settings() {
+    check(
+        "keepalives=1 keepalives_idle=15 keepalives_interval=5 keepalives_retries=9",
+        Config::new()
+            .keepalives(true)
+            .keepalives_idle(Duration::from_secs(15))
+            .keepalives_interval(Duration::from_secs(5))
+            .keepalives_retries(9),
+    );
+}
+
+#[test]
 fn url() {
     check("postgresql://", &Config::new());
     check(

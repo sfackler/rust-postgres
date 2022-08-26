@@ -4,6 +4,7 @@ use crate::config::Host;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
+use crate::keepalive::KeepaliveConfig;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
@@ -154,8 +155,7 @@ pub(crate) struct SocketConfig {
     pub host: Host,
     pub port: u16,
     pub connect_timeout: Option<Duration>,
-    pub keepalives: bool,
-    pub keepalives_idle: Duration,
+    pub keepalive: Option<KeepaliveConfig>,
 }
 
 /// An asynchronous PostgreSQL client.
