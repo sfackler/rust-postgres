@@ -12,6 +12,7 @@ use crate::{Client, Connection, Error};
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
+use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
@@ -90,6 +91,17 @@ pub enum Host {
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
+/// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
+///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
+///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
+///     - or if host specifies an IP address, that value will be used directly.
+///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
+///     with time constraints. However, a host name is required for verify-full SSL certificate verification.
+///     Note that `host` is always required regardless of whether `hostaddr` is present.
+///         * If `host` is specified without `hostaddr`, a host name lookup occurs;
+///         * If both `host` and `hostaddr` are specified, the value for `hostaddr` gives the server network address.
+///             The value for `host` is ignored unless the authentication method requires it,
+///             in which case it will be used as the host name.
 /// * `port` - The port to connect to. Multiple ports can be specified, separated by commas. The number of ports must be
 ///     either 1, in which case it will be used for all hosts, or the same as the number of hosts. Defaults to 5432 if
 ///     omitted or the empty string.
@@ -114,6 +126,10 @@ pub enum Host {
 ///
 /// ```not_rust
 /// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// ```
+///
+/// ```not_rust
+/// host=host1,host2,host3 port=1234,,5678 hostaddr=127.0.0.1,127.0.0.2,127.0.0.3 user=postgres target_session_attrs=read-write
 /// ```
 ///
 /// ```not_rust
@@ -153,6 +169,7 @@ pub struct Config {
     pub(crate) application_name: Option<String>,
     pub(crate) ssl_mode: SslMode,
     pub(crate) host: Vec<Host>,
+    pub(crate) hostaddr: Vec<String>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
@@ -178,6 +195,7 @@ impl Config {
             application_name: None,
             ssl_mode: SslMode::Prefer,
             host: vec![],
+            hostaddr: vec![],
             port: vec![],
             connect_timeout: None,
             keepalives: true,
@@ -288,6 +306,11 @@ impl Config {
         &self.host
     }
 
+    /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
+    pub fn get_hostaddrs(&self) -> &[String] {
+        self.hostaddr.deref()
+    }
+
     /// Adds a Unix socket host to the configuration.
     ///
     /// Unlike `host`, this method allows non-UTF8 paths.
@@ -297,6 +320,15 @@ impl Config {
         T: AsRef<Path>,
     {
         self.host.push(Host::Unix(host.as_ref().to_path_buf()));
+        self
+    }
+
+    /// Adds a hostaddr to the configuration.
+    ///
+    /// Multiple hostaddrs can be specified by calling this method multiple times, and each will be tried in order.
+    /// There must be either no hostaddrs, or the same number of hostaddrs as hosts.
+    pub fn hostaddr(&mut self, hostaddr: &str) -> &mut Config {
+        self.hostaddr.push(hostaddr.to_string());
         self
     }
 
@@ -416,6 +448,11 @@ impl Config {
             "host" => {
                 for host in value.split(',') {
                     self.host(host);
+                }
+            }
+            "hostaddr" => {
+                for hostaddr in value.split(',') {
+                    self.hostaddr(hostaddr);
                 }
             }
             "port" => {
@@ -542,6 +579,7 @@ impl fmt::Debug for Config {
             .field("application_name", &self.application_name)
             .field("ssl_mode", &self.ssl_mode)
             .field("host", &self.host)
+            .field("hostaddr", &self.hostaddr)
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
             .field("keepalives", &self.keepalives)
@@ -920,5 +958,37 @@ impl<'a> UrlParser<'a> {
         percent_encoding::percent_decode(s.as_bytes())
             .decode_utf8()
             .map_err(|e| Error::config_parse(e.into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{config::Host, Config};
+
+    #[test]
+    fn test_simple_parsing() {
+        let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257";
+        let config = s.parse::<Config>().unwrap();
+        assert_eq!(Some("pass_user"), config.get_user());
+        assert_eq!(Some("postgres"), config.get_dbname());
+        assert_eq!(
+            [
+                Host::Tcp("host1".to_string()),
+                Host::Tcp("host2".to_string())
+            ],
+            config.get_hosts(),
+        );
+
+        assert_eq!(["127.0.0.1", "127.0.0.2"], config.get_hostaddrs(),);
+
+        assert_eq!(1, 1);
+    }
+
+    #[test]
+    fn test_empty_hostaddrs() {
+        let s =
+            "user=pass_user dbname=postgres host=host1,host2,host3 hostaddr=127.0.0.1,,127.0.0.2";
+        let config = s.parse::<Config>().unwrap();
+        assert_eq!(["127.0.0.1", "", "127.0.0.2"], config.get_hostaddrs(),);
     }
 }

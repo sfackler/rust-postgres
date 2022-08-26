@@ -23,6 +23,15 @@ where
         return Err(Error::config("invalid number of ports".into()));
     }
 
+    if !config.hostaddr.is_empty() && config.hostaddr.len() != config.host.len() {
+        let msg = format!(
+            "invalid number of hostaddrs ({}). Possible values: 0 or number of hosts ({})",
+            config.hostaddr.len(),
+            config.host.len(),
+        );
+        return Err(Error::config(msg.into()));
+    }
+
     let mut error = None;
     for (i, host) in config.host.iter().enumerate() {
         let port = config
@@ -32,18 +41,28 @@ where
             .copied()
             .unwrap_or(5432);
 
+        // The value of host is always used as the hostname for TLS validation.
         let hostname = match host {
             Host::Tcp(host) => host.as_str(),
             // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
             Host::Unix(_) => "",
         };
-
         let tls = tls
             .make_tls_connect(hostname)
             .map_err(|e| Error::tls(e.into()))?;
 
-        match connect_once(host, port, tls, config).await {
+        // If both host and hostaddr are specified, the value of hostaddr is used to to establish the TCP connection.
+        let hostaddr = match host {
+            Host::Tcp(_hostname) => match config.hostaddr.get(i) {
+                Some(hostaddr) if hostaddr.is_empty() => Host::Tcp(hostaddr.clone()),
+                _ => host.clone(),
+            },
+            #[cfg(unix)]
+            Host::Unix(_v) => host.clone(),
+        };
+
+        match connect_once(&hostaddr, port, tls, config).await {
             Ok((client, connection)) => return Ok((client, connection)),
             Err(e) => error = Some(e),
         }
