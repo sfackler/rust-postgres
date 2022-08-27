@@ -3,6 +3,7 @@
 #[cfg(feature = "runtime")]
 use crate::connect::connect;
 use crate::connect_raw::connect_raw;
+use crate::keepalive::KeepaliveConfig;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
@@ -99,6 +100,10 @@ pub enum Host {
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
 ///     This option is ignored when connecting with Unix sockets. Defaults to 2 hours.
+/// * `keepalives_interval` - The time interval between TCP keepalive probes.
+///     This option is ignored when connecting with Unix sockets.
+/// * `keepalives_retries` - The maximum number of TCP keepalive probes that will be sent before dropping a connection.
+///     This option is ignored when connecting with Unix sockets.
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
@@ -156,7 +161,7 @@ pub struct Config {
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
-    pub(crate) keepalives_idle: Duration,
+    pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
 }
@@ -170,6 +175,11 @@ impl Default for Config {
 impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
+        let keepalive_config = KeepaliveConfig {
+            idle: Duration::from_secs(2 * 60 * 60),
+            interval: None,
+            retries: None,
+        };
         Config {
             user: None,
             password: None,
@@ -181,7 +191,7 @@ impl Config {
             port: vec![],
             connect_timeout: None,
             keepalives: true,
-            keepalives_idle: Duration::from_secs(2 * 60 * 60),
+            keepalive_config,
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
         }
@@ -347,14 +357,41 @@ impl Config {
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
-        self.keepalives_idle = keepalives_idle;
+        self.keepalive_config.idle = keepalives_idle;
         self
     }
 
     /// Gets the configured amount of idle time before a keepalive packet will
     /// be sent on the connection.
     pub fn get_keepalives_idle(&self) -> Duration {
-        self.keepalives_idle
+        self.keepalive_config.idle
+    }
+
+    /// Sets the time interval between TCP keepalive probes.
+    /// On Windows, this sets the value of the tcp_keepalive struct’s keepaliveinterval field.
+    ///
+    /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    pub fn keepalives_interval(&mut self, keepalives_interval: Duration) -> &mut Config {
+        self.keepalive_config.interval = Some(keepalives_interval);
+        self
+    }
+
+    /// Gets the time interval between TCP keepalive probes.
+    pub fn get_keepalives_interval(&self) -> Option<Duration> {
+        self.keepalive_config.interval
+    }
+
+    /// Sets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
+    ///
+    /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    pub fn keepalives_retries(&mut self, keepalives_retries: u32) -> &mut Config {
+        self.keepalive_config.retries = Some(keepalives_retries);
+        self
+    }
+
+    /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
+    pub fn get_keepalives_retries(&self) -> Option<u32> {
+        self.keepalive_config.retries
     }
 
     /// Sets the requirements of the session.
@@ -451,6 +488,20 @@ impl Config {
                     self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                 }
             }
+            "keepalives_interval" => {
+                let keepalives_interval = value.parse::<i64>().map_err(|_| {
+                    Error::config_parse(Box::new(InvalidValue("keepalives_interval")))
+                })?;
+                if keepalives_interval > 0 {
+                    self.keepalives_interval(Duration::from_secs(keepalives_interval as u64));
+                }
+            }
+            "keepalives_retries" => {
+                let keepalives_retries = value.parse::<u32>().map_err(|_| {
+                    Error::config_parse(Box::new(InvalidValue("keepalives_retries")))
+                })?;
+                self.keepalives_retries(keepalives_retries);
+            }
             "target_session_attrs" => {
                 let target_session_attrs = match value {
                     "any" => TargetSessionAttrs::Any,
@@ -545,7 +596,9 @@ impl fmt::Debug for Config {
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
             .field("keepalives", &self.keepalives)
-            .field("keepalives_idle", &self.keepalives_idle)
+            .field("keepalives_idle", &self.keepalive_config.idle)
+            .field("keepalives_interval", &self.keepalive_config.interval)
+            .field("keepalives_retries", &self.keepalive_config.retries)
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .finish()
