@@ -302,6 +302,7 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
+    /// There must be either no hosts, or the same number of hosts as hostaddrs.
     pub fn host(&mut self, host: &str) -> &mut Config {
         #[cfg(unix)]
         {
