@@ -13,6 +13,7 @@ use crate::{Client, Connection, Error};
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
+use std::net::IpAddr;
 use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
@@ -98,7 +99,9 @@ pub enum Host {
 ///     - or if host specifies an IP address, that value will be used directly.
 ///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
 ///     with time constraints. However, a host name is required for verify-full SSL certificate verification.
-///     Note that `host` is always required regardless of whether `hostaddr` is present.
+///     Specifically:
+///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
+///             The connection attempt will fail if the authentication method requires a host name;
 ///         * If `host` is specified without `hostaddr`, a host name lookup occurs;
 ///         * If both `host` and `hostaddr` are specified, the value for `hostaddr` gives the server network address.
 ///             The value for `host` is ignored unless the authentication method requires it,
@@ -174,7 +177,7 @@ pub struct Config {
     pub(crate) application_name: Option<String>,
     pub(crate) ssl_mode: SslMode,
     pub(crate) host: Vec<Host>,
-    pub(crate) hostaddr: Vec<String>,
+    pub(crate) hostaddr: Vec<IpAddr>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
@@ -317,7 +320,7 @@ impl Config {
     }
 
     /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
-    pub fn get_hostaddrs(&self) -> &[String] {
+    pub fn get_hostaddrs(&self) -> &[IpAddr] {
         self.hostaddr.deref()
     }
 
@@ -337,8 +340,8 @@ impl Config {
     ///
     /// Multiple hostaddrs can be specified by calling this method multiple times, and each will be tried in order.
     /// There must be either no hostaddrs, or the same number of hostaddrs as hosts.
-    pub fn hostaddr(&mut self, hostaddr: &str) -> &mut Config {
-        self.hostaddr.push(hostaddr.to_string());
+    pub fn hostaddr(&mut self, hostaddr: IpAddr) -> &mut Config {
+        self.hostaddr.push(hostaddr);
         self
     }
 
@@ -489,7 +492,10 @@ impl Config {
             }
             "hostaddr" => {
                 for hostaddr in value.split(',') {
-                    self.hostaddr(hostaddr);
+                    let addr = hostaddr
+                        .parse()
+                        .map_err(|_| Error::config_parse(Box::new(InvalidValue("hostaddr"))))?;
+                    self.hostaddr(addr);
                 }
             }
             "port" => {
@@ -1016,6 +1022,8 @@ impl<'a> UrlParser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::net::IpAddr;
+
     use crate::{config::Host, Config};
 
     #[test]
@@ -1032,16 +1040,14 @@ mod tests {
             config.get_hosts(),
         );
 
-        assert_eq!(["127.0.0.1", "127.0.0.2"], config.get_hostaddrs(),);
+        assert_eq!(
+            [
+                "127.0.0.1".parse::<IpAddr>().unwrap(),
+                "127.0.0.2".parse::<IpAddr>().unwrap()
+            ],
+            config.get_hostaddrs(),
+        );
 
         assert_eq!(1, 1);
-    }
-
-    #[test]
-    fn test_empty_hostaddrs() {
-        let s =
-            "user=pass_user dbname=postgres host=host1,host2,host3 hostaddr=127.0.0.1,,127.0.0.2";
-        let config = s.parse::<Config>().unwrap();
-        assert_eq!(["127.0.0.1", "", "127.0.0.2"], config.get_hostaddrs(),);
     }
 }
