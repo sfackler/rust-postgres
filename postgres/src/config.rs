@@ -293,7 +293,7 @@ impl Config {
     }
 
     /// Gets the time interval between TCP keepalive probes.
-    pub fn get_keepalives_interval(&self) -> Option<&Duration> {
+    pub fn get_keepalives_interval(&self) -> Option<Duration> {
         self.config.get_keepalives_interval()
     }
 
@@ -306,7 +306,7 @@ impl Config {
     }
 
     /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
-    pub fn get_keepalives_retries(&self) -> Option<&u32> {
+    pub fn get_keepalives_retries(&self) -> Option<u32> {
         self.config.get_keepalives_retries()
     }
 
