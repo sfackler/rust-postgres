@@ -252,7 +252,7 @@ impl Config {
 
     /// Gets the connection timeout, if one has been set with the
     /// `connect_timeout` method.
-    pub fn get_connect_timeout(&self) -> Option<Duration> {
+    pub fn get_connect_timeout(&self) -> Option<&Duration> {
         self.config.get_connect_timeout()
     }
 
