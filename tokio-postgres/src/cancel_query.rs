@@ -38,8 +38,7 @@ where
         &config.host,
         config.port,
         config.connect_timeout,
-        config.keepalives,
-        config.keepalives_idle,
+        config.keepalive.as_ref(),
     )
     .await?;
 

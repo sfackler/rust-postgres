@@ -84,8 +84,11 @@ where
         host,
         port,
         config.connect_timeout,
-        config.keepalives,
-        config.keepalives_idle,
+        if config.keepalives {
+            Some(&config.keepalive_config)
+        } else {
+            None
+        },
     )
     .await?;
     let (mut client, mut connection) = connect_raw(socket, tls, config).await?;
@@ -134,8 +137,11 @@ where
         host: host.clone(),
         port,
         connect_timeout: config.connect_timeout,
-        keepalives: config.keepalives,
-        keepalives_idle: config.keepalives_idle,
+        keepalive: if config.keepalives {
+            Some(config.keepalive_config.clone())
+        } else {
+            None
+        },
     });
 
     Ok((client, connection))

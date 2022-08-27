@@ -163,6 +163,7 @@ mod copy_in;
 mod copy_out;
 pub mod error;
 mod generic_client;
+mod keepalive;
 mod maybe_tls_stream;
 mod portal;
 mod prepare;
