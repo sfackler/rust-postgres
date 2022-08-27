@@ -336,8 +336,8 @@ impl Config {
 
     /// Gets the connection timeout, if one has been set with the
     /// `connect_timeout` method.
-    pub fn get_connect_timeout(&self) -> Option<&Duration> {
-        self.connect_timeout.as_ref()
+    pub fn get_connect_timeout(&self) -> Option<Duration> {
+        self.connect_timeout.as_ref().copied()
     }
 
     /// Controls the use of TCP keepalive.
