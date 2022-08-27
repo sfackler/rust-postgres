@@ -83,7 +83,7 @@ use tokio_postgres::{Error, Socket};
 /// ```not_rust
 /// host=host1,host2,host3 port=1234,,5678 hostaddr=127.0.0.1,127.0.0.2,127.0.0.3 user=postgres target_session_attrs=read-write
 /// ```
-/// 
+///
 /// ```not_rust
 /// host=host1,host2,host3 port=1234,,5678 user=postgres target_session_attrs=read-write
 /// ```
@@ -236,7 +236,7 @@ impl Config {
     /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
     pub fn get_hostaddrs(&self) -> &[IpAddr] {
         self.config.get_hostaddrs()
-    }    
+    }
 
     /// Adds a Unix socket host to the configuration.
     ///
