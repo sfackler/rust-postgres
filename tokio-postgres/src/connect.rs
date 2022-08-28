@@ -55,7 +55,7 @@ where
         // if it's not present, use the value of hostaddr.
         let hostname = match host {
             Some(Host::Tcp(host)) => host.clone(),
-            // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter        Some()
+            // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
             Some(Host::Unix(_)) => "".to_string(),
             None => hostaddr.map_or("".to_string(), |ipaddr| ipaddr.to_string()),
