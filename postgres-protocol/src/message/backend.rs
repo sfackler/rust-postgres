@@ -404,7 +404,124 @@ impl TryInto<Bytes> for Message {
                 buf.put_slice(body.tag()?.as_bytes());
                 Ok(Bytes::from(buf))
             },
-            _ => todo!("match remaining variants"),
+            Message::CopyData(body) => {
+                let len = body.data().len() + 1 + 4;
+                let mut buf = BytesMut::with_capacity(len);
+                buf.put_u8(COPY_DATA_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(body.data());
+                Ok(Bytes::from(buf))
+            },
+            Message::CopyDone => {
+                let len = 4i32;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(COPY_DONE_TAG);
+                buf.put_i32(len);
+                Ok(Bytes::from(buf))
+            },
+            Message::CopyInResponse(body) => {
+                let len = body.len + 1 + 4 + 1 + 2 + 2;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(COPY_IN_RESPONSE_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::CopyOutResponse(body) => {
+                let len = body.len + 1 + 4 + 1 + 2 + 2;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(COPY_OUT_RESPONSE_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::DataRow(body) => {
+                let len = body.len + 1 + 4 + 2 + 4;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(DATA_ROW_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::EmptyQueryResponse => {
+                let len = 4i32;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(EMPTY_QUERY_RESPONSE_TAG);
+                buf.put_i32(len);
+                Ok(Bytes::from(buf))
+            },
+            Message::ErrorResponse(body) => {
+                let len = body.storage.len() + 1;
+                let mut buf = BytesMut::with_capacity(len);
+                buf.put_u8(ERROR_RESPONSE_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::NoData => {
+                let len = 4i32;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(NO_DATA_TAG);
+                buf.put_i32(len);
+                Ok(Bytes::from(buf))
+            },
+            Message::NoticeResponse(body) => {
+                let len = body.storage.len() + 1;
+                let mut buf = BytesMut::with_capacity(len);
+                buf.put_u8(NOTICE_RESPONSE_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::NotificationResponse(body) => {
+                Ok(body.message)
+            },
+            Message::ParameterDescription(body) => {
+                let len = body.len + 1;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(PARAMETER_DESCRIPTION_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            },
+            Message::ParameterStatus(body) => {
+                let len = body.value.len() + 1;
+                let mut buf = BytesMut::with_capacity(len);
+                buf.put_u8(PARAMETER_STATUS_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.value);
+                Ok(Bytes::from(buf))
+            },
+            Message::ParseComplete => {
+                let len = 4i32;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(PARSE_COMPLETE_TAG);
+                buf.put_i32(len);
+                Ok(Bytes::from(buf))
+            },
+            Message::PortalSuspended => {
+                let len = 4i32;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(PORTAL_SUSPENDED_TAG);
+                buf.put_i32(len);
+                Ok(Bytes::from(buf))
+            },
+            Message::ReadyForQuery(body) => {
+                let len = 5;
+                let mut buf = BytesMut::with_capacity(len);
+                buf.put_u8(READY_FOR_QUERY_TAG);
+                buf.put_i32(len as i32);
+                buf.put_u8(body.status);
+                Ok(Bytes::from(buf))
+            },
+            Message::RowDescription(body) => {
+                let len = body.len;
+                let mut buf = BytesMut::with_capacity(len as usize);
+                buf.put_u8(ROW_DESCRIPTION_TAG);
+                buf.put_i32(len as i32);
+                buf.put_slice(&body.storage);
+                Ok(Bytes::from(buf))
+            }
         }
     }
 }
