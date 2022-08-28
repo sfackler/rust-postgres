@@ -51,14 +51,17 @@ where
             .copied()
             .unwrap_or(5432);
 
-        // The value of host is always used as the hostname for TLS validation.
-        // postgres doesn't support TLS over unix sockets, so the choice for Host::Unix variant here doesn't matter
+        // The value of host is used as the hostname for TLS validation,
+        // if it's not present, use the value of hostaddr.
         let hostname = match host {
-            Some(Host::Tcp(host)) => host.as_str(),
-            _ => "",
+            Some(Host::Tcp(host)) => host.clone(),
+            // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter        Some()
+            #[cfg(unix)]
+            Some(Host::Unix(_)) => "".to_string(),
+            None => hostaddr.map_or("".to_string(), |ipaddr| ipaddr.to_string()),
         };
         let tls = tls
-            .make_tls_connect(hostname)
+            .make_tls_connect(&hostname)
             .map_err(|e| Error::tls(e.into()))?;
 
         // Try to use the value of hostaddr to establish the TCP connection,
