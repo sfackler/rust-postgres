@@ -10,6 +10,50 @@ use std::marker;
 
 use crate::{write_nullable, FromUsize, IsNull, Oid};
 
+pub const BIND_TAG: u8 = b'B';
+pub const CLOSE_TAG: u8 = b'C';
+pub const COPY_FAIL_TAG: u8 = b'f';
+pub const DESCRIBE_TAG: u8 = b'D';
+pub const EXECUTE_TAG: u8 = b'E';
+pub const FLUSH_TAG: u8 = b'H';
+pub const FUNCTION_CALL_TAG: u8 = b'F';
+pub const GSSENCREQUEST_TAG: u8 = b'8';
+pub const GSSENCRESPONSE_TAG: u8 = b'p';
+pub const PARSE_TAG: u8 = b'P';
+pub const PASSWORD_MESSAGE_TAG: u8 = b'p';
+pub const QUERY_TAG: u8 = b'Q';
+pub const SASL_INITIAL_RESPONSE_TAG: u8 = b'p';
+pub const SASL_RESPONSE_TAG: u8 = b'p';
+pub const SASL_REQUEST_TAG: u8 = b'8';
+pub const SYNC_TAG_TAG: u8 = b'S';
+pub const TERMINATE_TAG: u8 = b'X';
+
+#[non_exaustive]
+pub enum Message {
+    Bind(BindBody),
+    Close(CloseBody),
+    CopyFail(CopyFailBody),
+    Descibe(DescribeBody),
+    Execute(ExecuteBody),
+    Flush(FlushBody),
+    FunctionCall(FunctionCall),
+    GSSENCRequest(GSSENCRequestBody),
+    GSSResponse(GSSResponseBody),
+    Parse(ParseBody),
+    PasswordMessage(PasswordMessageBody),
+    Query(QueryBody),
+    SASLInitialResponse(SASLInitialResponseBody),
+    SASLResponse(SASLResponseBody),
+    SSLRequest(SSLRequestBody),
+    StartupMessage(StartupMessageBody),
+    Sync(SyncBody),
+    Terminate(TerminateBody),
+}
+
+pub struct BindBody {
+
+}
+
 #[inline]
 fn write_body<F, E>(buf: &mut BytesMut, f: F) -> Result<(), E>
 where
