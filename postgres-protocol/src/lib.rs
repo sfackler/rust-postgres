@@ -13,8 +13,10 @@
 #![warn(missing_docs, rust_2018_idioms, clippy::all)]
 
 use byteorder::{BigEndian, ByteOrder};
-use bytes::{BufMut, BytesMut};
-use std::io;
+use bytes::{Bytes, BufMut, BytesMut};
+use std::{io, intrinsics::size_of};
+use memchr::memchr;
+use std::mem;
 
 pub mod authentication;
 pub mod escape;
@@ -76,3 +78,86 @@ macro_rules! from_usize {
 
 from_usize!(i16);
 from_usize!(i32);
+
+pub struct Buffer {
+    bytes: bytes::Bytes,
+    idx: usize,
+}
+
+impl Buffer {
+    pub fn new(bytes: bytes::Bytes, idx: usize) -> Self {
+        Self { bytes, idx }
+    }
+}
+
+impl Buffer {
+    #[inline]
+    pub fn slice(&self) -> &[u8] {
+        &self.bytes[self.idx..]
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.slice().is_empty()
+    }
+
+    #[inline]
+    pub fn read_cstr(&mut self) -> io::Result<Bytes> {
+        match memchr(0, self.slice()) {
+            Some(pos) => {
+                let start = self.idx;
+                let end = start + pos;
+                let cstr = self.bytes.slice(start..end);
+                self.idx = end + 1;
+                Ok(cstr)
+            }
+            None => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "unexpected EOF",
+            )),
+        }
+    }
+
+    #[inline]
+    fn read_by_size(&mut self, size: usize, kind: &str) -> io::Result<Bytes> {
+        let start = self.idx;
+        let end = start + size + 1;
+        match self.bytes.get(start..end) {
+            Some(s) => {
+                self.idx = end;
+                Ok(s.into())
+            },
+            None => io::Error::new(io::ErrorKind::UnexpectedEOF, format!("Unable to read {}", kind)),
+        }
+    }
+
+    #[inline]
+    pub fn read_u16(&mut self) -> io::Result<u16> {
+        self.read_by_size(mem::size_of::<u16>(), "u16")
+    }
+
+    #[inline]
+    pub fn read_i32(&mut self) -> io::Result<i32> {
+        self.read_by_size(mem::size_of::<i32>(), "i32")
+    }
+
+    #[inline]
+    pub fn read_i16(&mut self) -> io::Result<i32> {
+        self.read_by_size(mem::size_of::<i16>(), "i16")
+    }
+
+    #[inline]
+    pub fn read_byten(&mut self, n: usize) -> io::Result<Bytes> {
+        self.read_by_size(1, &format!("byte{}", n))
+    }
+
+    #[inline]
+    pub fn 
+
+    #[inline]
+    pub fn read_all(&mut self) -> Bytes {
+        let buf = self.bytes.slice(self.idx..);
+        self.idx = self.bytes.len();
+        buf
+    }
+}

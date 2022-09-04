@@ -2,13 +2,15 @@
 #![allow(missing_docs)]
 
 use byteorder::{BigEndian, ByteOrder};
+use bytes::{Bytes, BytesMut, BufMut, Buf};
 use bytes::{Buf, BufMut, BytesMut};
+use std::io::{self, Read};
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io;
 use std::marker;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid};
+use crate::{write_nullable, FromUsize, IsNull, Oid, Buffer};
 
 pub const BIND_TAG: u8 = b'B';
 pub const CLOSE_TAG: u8 = b'C';
@@ -50,8 +52,35 @@ pub enum Message {
     Terminate(TerminateBody),
 }
 
-pub struct BindBody {
+pub struct BindBody<'a> {
+    len: i32,
+    dest: &'a str,
+    src: &'a str,
+    c: i16,
+    param_codes: Vec<u16>,
+    num_of_param_values: i16,
+    param_value_len: i32,
+    param_value: u8,
+    num_of_result_column: i16,
+    result_column: Vec<u16>,
+}
 
+impl<'a> BindBody<'a> {
+    pub fn identifier(&self) -> u8 {
+        BIND_TAG
+    }
+}
+
+impl<'a> TryFrom<&Bytes> for BindBody<'a> {
+    type Error = io::Error;
+
+    fn try_from(buf: &Bytes) -> Result<Self, Self::Error> {
+        let len = (buf.len() + 1) as i32;
+        let buf = Buffer::new(buf.clone(), 5);
+        let dest = buf.read_cstr()?;
+        let src = buf.read_cstr()?;
+        let c = buf.re
+    }
 }
 
 #[inline]
