@@ -6,7 +6,7 @@ use crate::statement::Column;
 use crate::types::{FromSql, Type, WrongType};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
-use postgres_protocol::message::backend::DataRowBody;
+use postgres_protocol::message::backend::{DataRowBody, OwnedField};
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -29,6 +29,12 @@ impl AsName for Column {
 impl AsName for String {
     fn as_name(&self) -> &str {
         self
+    }
+}
+
+impl AsName for OwnedField {
+    fn as_name(&self) -> &str {
+        self.name()
     }
 }
 
@@ -196,9 +202,9 @@ impl AsName for SimpleColumn {
 }
 
 /// A row of data returned from the database by a simple query.
-#[derive(Debug)]
+#[derive(Eq, PartialEq)]
 pub struct SimpleQueryRow {
-    columns: Arc<[SimpleColumn]>,
+    fields: Arc<[OwnedField]>,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
@@ -206,20 +212,29 @@ pub struct SimpleQueryRow {
 impl SimpleQueryRow {
     #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new(
-        columns: Arc<[SimpleColumn]>,
+        fields: Arc<[OwnedField]>,
         body: DataRowBody,
     ) -> Result<SimpleQueryRow, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(SimpleQueryRow {
-            columns,
+            fields,
             body,
             ranges,
         })
     }
 
-    /// Returns information about the columns of data in the row.
-    pub fn columns(&self) -> &[SimpleColumn] {
-        &self.columns
+    /// Returns information about the columns of data in the row. Performs an allocation to return
+    /// each name as a `SimpleColumn`. To avoid the allocation, use `SimpleQueryRow::fields()`.
+    pub fn columns(&self) -> Vec<SimpleColumn> {
+        self.fields
+            .iter()
+            .map(|f| SimpleColumn::new(f.name().to_string()))
+            .collect()
+    }
+
+    /// Returns the fields found in the RowDescription message with information on each column.
+    pub fn fields(&self) -> &[OwnedField] {
+        &self.fields
     }
 
     /// Determines if the row contains no values.
@@ -229,7 +244,7 @@ impl SimpleQueryRow {
 
     /// Returns the number of values in the row.
     pub fn len(&self) -> usize {
-        self.columns.len()
+        self.fields.len()
     }
 
     /// Returns a value from the row.
@@ -261,12 +276,22 @@ impl SimpleQueryRow {
     where
         I: RowIndex + fmt::Display,
     {
-        let idx = match idx.__idx(&self.columns) {
+        let idx = match idx.__idx(&self.fields) {
             Some(idx) => idx,
             None => return Err(Error::column(idx.to_string())),
         };
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+}
+
+impl std::fmt::Debug for SimpleQueryRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut values = Vec::with_capacity(self.len());
+        for i in 0..self.len() {
+            values.push(self.get(i).unwrap_or(""))
+        }
+        write!(f, "{:?}", values)
     }
 }

@@ -558,7 +558,7 @@ impl CopyBothResponseBody {
     }
 }
 
->>>>>>> 77875f5 (Small changes to expose WAL)
+#[derive(PartialEq, Eq)]
 pub struct DataRowBody {
     storage: Bytes,
     len: u16,
@@ -900,6 +900,70 @@ impl<'a> Field<'a> {
     #[inline]
     pub fn format(&self) -> i16 {
         self.format
+    }
+}
+
+/// A struct representing the fields of a RowDescription message. Clones the fields to avoid keeping
+/// the `RowDescriptionMessage`.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OwnedField {
+    name: String,
+    table_oid: Oid,
+    column_id: i16,
+    type_oid: Oid,
+    type_size: i16,
+    type_modifier: i32,
+    format: i16,
+}
+
+impl OwnedField {
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
+    pub fn table_oid(&self) -> Oid {
+        self.table_oid
+    }
+
+    #[inline]
+    pub fn column_id(&self) -> i16 {
+        self.column_id
+    }
+
+    #[inline]
+    pub fn type_oid(&self) -> Oid {
+        self.type_oid
+    }
+
+    #[inline]
+    pub fn type_size(&self) -> i16 {
+        self.type_size
+    }
+
+    #[inline]
+    pub fn type_modifier(&self) -> i32 {
+        self.type_modifier
+    }
+
+    #[inline]
+    pub fn format(&self) -> i16 {
+        self.format
+    }
+}
+
+impl From<Field<'_>> for OwnedField {
+    fn from(f: Field<'_>) -> Self {
+        OwnedField {
+            name: f.name().to_string(),
+            table_oid: f.table_oid(),
+            column_id: f.column_id(),
+            type_oid: f.type_oid(),
+            type_size: f.type_size(),
+            type_modifier: f.type_modifier(),
+            format: f.format(),
+        }
     }
 }
 
