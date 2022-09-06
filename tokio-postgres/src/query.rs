@@ -4,7 +4,7 @@ use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
-use futures::{ready, Stream};
+use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
@@ -156,21 +156,29 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    let param_types = statement.params();
     let params = params.into_iter();
 
     assert!(
-        statement.params().len() == params.len(),
+        param_types.len() == params.len(),
         "expected {} parameters but got {}",
-        statement.params().len(),
+        param_types.len(),
         params.len()
     );
+
+    let (param_formats, params): (Vec<_>, Vec<_>) = params
+        .zip(param_types.iter())
+        .map(|(p, ty)| (p.borrow_to_sql().encode_format(ty) as i16, p))
+        .unzip();
+
+    let params = params.into_iter();
 
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
         statement.name(),
-        Some(1),
-        params.zip(statement.params()).enumerate(),
+        param_formats,
+        params.zip(param_types).enumerate(),
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
             Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
             Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),

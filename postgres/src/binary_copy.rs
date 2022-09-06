@@ -4,7 +4,7 @@ use crate::connection::ConnectionRef;
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{CopyInWriter, CopyOutReader, Error};
 use fallible_iterator::FallibleIterator;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use std::pin::Pin;
 #[doc(inline)]
 pub use tokio_postgres::binary_copy::BinaryCopyOutRow;

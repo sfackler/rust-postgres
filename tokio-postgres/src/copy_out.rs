@@ -3,7 +3,7 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::{query, slice_iter, Error, Statement};
 use bytes::Bytes;
-use futures::{ready, Stream};
+use futures_util::{ready, Stream};
 use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;

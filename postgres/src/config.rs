@@ -48,6 +48,10 @@ use tokio_postgres::{Error, Socket};
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
 ///     This option is ignored when connecting with Unix sockets. Defaults to 2 hours.
+/// * `keepalives_interval` - The time interval between TCP keepalive probes.
+///     This option is ignored when connecting with Unix sockets.
+/// * `keepalives_retries` - The maximum number of TCP keepalive probes that will be sent before dropping a connection.
+///     This option is ignored when connecting with Unix sockets.
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
@@ -277,6 +281,33 @@ impl Config {
     /// be sent on the connection.
     pub fn get_keepalives_idle(&self) -> Duration {
         self.config.get_keepalives_idle()
+    }
+
+    /// Sets the time interval between TCP keepalive probes.
+    /// On Windows, this sets the value of the tcp_keepalive struct’s keepaliveinterval field.
+    ///
+    /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    pub fn keepalives_interval(&mut self, keepalives_interval: Duration) -> &mut Config {
+        self.config.keepalives_interval(keepalives_interval);
+        self
+    }
+
+    /// Gets the time interval between TCP keepalive probes.
+    pub fn get_keepalives_interval(&self) -> Option<Duration> {
+        self.config.get_keepalives_interval()
+    }
+
+    /// Sets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
+    ///
+    /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    pub fn keepalives_retries(&mut self, keepalives_retries: u32) -> &mut Config {
+        self.config.keepalives_retries(keepalives_retries);
+        self
+    }
+
+    /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
+    pub fn get_keepalives_retries(&self) -> Option<u32> {
+        self.config.get_keepalives_retries()
     }
 
     /// Sets the requirements of the session.

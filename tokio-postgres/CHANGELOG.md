@@ -1,5 +1,24 @@
 # Change Log
 
+## v0.7.7 - 2022-08-21
+
+## Added
+
+* Added `ToSql` and `FromSql` implementations for `[u8; N]` via the `array-impls` feature.
+* Added support for `smol_str` 0.1 via the `with-smol_str-01` feature.
+* Added `ToSql::encode_format` to support text encodings of parameters.
+
+## v0.7.6 - 2022-04-30
+
+### Added
+
+* Added support for `uuid` 1.0 via the `with-uuid-1` feature.
+
+### Changed
+
+* Upgraded to `tokio-util` 0.7.
+* Upgraded to `parking_lot` 0.12.
+
 ## v0.7.5 - 2021-10-29
 
 ### Fixed

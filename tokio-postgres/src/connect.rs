@@ -4,7 +4,7 @@ use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::{MakeTlsConnect, TlsConnect};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
-use futures::{future, pin_mut, Future, FutureExt, Stream};
+use futures_util::{future, pin_mut, Future, FutureExt, Stream};
 use std::io;
 use std::task::Poll;
 
@@ -28,7 +28,7 @@ where
         let port = config
             .port
             .get(i)
-            .or_else(|| config.port.get(0))
+            .or_else(|| config.port.first())
             .copied()
             .unwrap_or(5432);
 
@@ -65,8 +65,11 @@ where
         host,
         port,
         config.connect_timeout,
-        config.keepalives,
-        config.keepalives_idle,
+        if config.keepalives {
+            Some(&config.keepalive_config)
+        } else {
+            None
+        },
     )
     .await?;
     let (mut client, mut connection) = connect_raw(socket, tls, config).await?;
@@ -115,8 +118,11 @@ where
         host: host.clone(),
         port,
         connect_timeout: config.connect_timeout,
-        keepalives: config.keepalives,
-        keepalives_idle: config.keepalives_idle,
+        keepalive: if config.keepalives {
+            Some(config.keepalive_config.clone())
+        } else {
+            None
+        },
     });
 
     Ok((client, connection))

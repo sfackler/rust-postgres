@@ -1,5 +1,24 @@
 # Change Log
 
+## v0.2.4 - 2022-08-20
+
+## Added
+
+* Added `ToSql` and `FromSql` implementations for `Box<[T]>`.
+* Added `ToSql` and `FromSql` implementations for `[u8; N]` via the `array-impls` feature.
+* Added support for `smol_str` 0.1 via the `with-smol_str-01` feature.
+* Added `ToSql::encode_format` to support text encodings of parameters.
+
+## v0.2.3 - 2022-04-30
+
+### Added
+
+* Added `ToSql` and `FromSql` implementations for `Box<str>`.
+* Added `BorrowToSql` implementations for `Box<dyn ToSql + Sync>` and `Box<dyn ToSql + Sync + Send>`.
+* Added support for `cidr` 0.2 via the `with-cidr-02` feature.
+* Added conversions between the `LTREE`, `LQUERY` and `LTXTQUERY` types and Rust strings.
+* Added support for `uuid` 1.0 via the `with-uuid-1` feature.
+
 ## v0.2.2 - 2021-09-29
 
 ### Added

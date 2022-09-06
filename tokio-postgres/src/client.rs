@@ -1,7 +1,11 @@
 use crate::codec::{BackendMessages, FrontendMessage};
-use crate::config::{Host, SslMode};
+#[cfg(feature = "runtime")]
+use crate::config::Host;
+use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
+#[cfg(feature = "runtime")]
+use crate::keepalive::KeepaliveConfig;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
@@ -16,8 +20,8 @@ use crate::{
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
-use futures::channel::mpsc;
-use futures::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_channel::mpsc;
+use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
@@ -25,6 +29,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+#[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -170,13 +175,13 @@ impl InnerClient {
     }
 }
 
+#[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub(crate) struct SocketConfig {
     pub host: Host,
     pub port: u16,
     pub connect_timeout: Option<Duration>,
-    pub keepalives: bool,
-    pub keepalives_idle: Duration,
+    pub keepalive: Option<KeepaliveConfig>,
 }
 
 /// An asynchronous PostgreSQL client.
@@ -364,7 +369,7 @@ impl Client {
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
     /// use tokio_postgres::types::ToSql;
-    /// use futures::{pin_mut, TryStreamExt};
+    /// use futures_util::{pin_mut, TryStreamExt};
     ///
     /// let params: Vec<String> = vec![
     ///     "first param".into(),
