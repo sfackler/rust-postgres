@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.3 - 2022-09-07
+
+### Added
+
+* Added support for parameterized structs.
+
 ## v0.4.2 - 2022-04-30
 
 ### Added
