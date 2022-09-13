@@ -566,6 +566,14 @@ pub struct DataRowBody {
 
 impl DataRowBody {
     #[inline]
+    pub fn new(storage: Bytes, len: u16) -> DataRowBody {
+        Self {
+            storage,
+            len,
+        }
+    }
+
+    #[inline]
     pub fn ranges(&self) -> DataRowRanges<'_> {
         DataRowRanges {
             buf: &self.storage,
@@ -917,6 +925,27 @@ pub struct OwnedField {
 }
 
 impl OwnedField {
+    #[inline]
+    pub fn new(
+        name: String,
+        table_oid: Oid,
+        column_id: i16,
+        type_oid: Oid,
+        type_size: i16,
+        type_modifier: i32,
+        format: i16,
+    ) -> Self {
+        Self {
+            name,
+            table_oid,
+            column_id,
+            type_oid,
+            type_size,
+            type_modifier,
+            format,
+        }
+    }
+
     #[inline]
     pub fn name(&self) -> &str {
         &self.name

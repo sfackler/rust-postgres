@@ -211,7 +211,7 @@ pub struct SimpleQueryRow {
 
 impl SimpleQueryRow {
     #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(
+    pub fn new(
         fields: Arc<[OwnedField]>,
         body: DataRowBody,
     ) -> Result<SimpleQueryRow, Error> {
@@ -245,6 +245,11 @@ impl SimpleQueryRow {
     /// Returns the number of values in the row.
     pub fn len(&self) -> usize {
         self.fields.len()
+    }
+
+    /// Returns the DataRowBody which stores the row as Bytes.
+    pub fn body(&self) -> &DataRowBody {
+        &self.body
     }
 
     /// Returns a value from the row.
