@@ -107,7 +107,7 @@ fn prepare_rec<'a>(
     client: &'a Arc<InnerClient>,
     query: &'a str,
     types: &'a [Type],
-) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
+) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send + Sync>> {
     Box::pin(prepare(client, query, types))
 }
 
@@ -183,7 +183,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 fn get_type_rec<'a>(
     client: &'a Arc<InnerClient>,
     oid: Oid,
-) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + Send + 'a>> {
+) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + Send + 'a + Sync>> {
     Box::pin(get_type(client, oid))
 }
 
