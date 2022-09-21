@@ -7,7 +7,7 @@ use tokio_util::codec::{Decoder, Encoder};
 
 pub enum FrontendMessage {
     Raw(Bytes),
-    CopyData(CopyData<Box<dyn Buf + Send>>),
+    CopyData(CopyData<Box<dyn Buf + Send + Sync>>),
 }
 
 pub enum BackendMessage {
@@ -36,6 +36,8 @@ impl FallibleIterator for BackendMessages {
 }
 
 pub struct PostgresCodec;
+
+unsafe impl Sync for PostgresCodec {}
 
 impl Encoder<FrontendMessage> for PostgresCodec {
     type Error = io::Error;

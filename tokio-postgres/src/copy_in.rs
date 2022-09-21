@@ -86,7 +86,7 @@ pin_project! {
 
 impl<T> CopyInSink<T>
 where
-    T: Buf + 'static + Send,
+    T: Buf + 'static + Send + Sync,
 {
     /// A poll-based version of `finish`.
     pub fn poll_finish(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<u64, Error>> {
@@ -138,7 +138,7 @@ where
 
 impl<T> Sink<T> for CopyInSink<T>
 where
-    T: Buf + 'static + Send,
+    T: Buf + 'static + Send + Sync,
 {
     type Error = Error;
 
@@ -152,7 +152,7 @@ where
     fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Error> {
         let this = self.project();
 
-        let data: Box<dyn Buf + Send> = if item.remaining() > 4096 {
+        let data: Box<dyn Buf + Send + Sync> = if item.remaining() > 4096 {
             if this.buf.is_empty() {
                 Box::new(item)
             } else {
@@ -178,7 +178,7 @@ where
 
         if !this.buf.is_empty() {
             ready!(this.sender.as_mut().poll_ready(cx)).map_err(|_| Error::closed())?;
-            let data: Box<dyn Buf + Send> = Box::new(this.buf.split().freeze());
+            let data: Box<dyn Buf + Send + Sync> = Box::new(this.buf.split().freeze());
             let data = CopyData::new(data).map_err(Error::encode)?;
             this.sender
                 .as_mut()
