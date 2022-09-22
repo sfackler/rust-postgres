@@ -5,9 +5,15 @@ use postgres_protocol::message::frontend::CopyData;
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
 
+#[cfg(feature = "sync-only")]
+trait CopyDataT = Buf + Send + Sync;
+
+#[cfg(not(feature = "sync-only"))]
+trait CopyDataT = Buf + Send;
+
 pub enum FrontendMessage {
     Raw(Bytes),
-    CopyData(CopyData<Box<dyn Buf + Send + Sync>>),
+    CopyData(CopyData<Box<dyn CopyDataT>>),
 }
 
 pub enum BackendMessage {
@@ -36,8 +42,6 @@ impl FallibleIterator for BackendMessages {
 }
 
 pub struct PostgresCodec;
-
-unsafe impl Sync for PostgresCodec {}
 
 impl Encoder<FrontendMessage> for PostgresCodec {
     type Error = io::Error;

@@ -103,11 +103,17 @@ pub async fn prepare(
     Ok(Statement::new(client, name, parameters, columns))
 }
 
+#[cfg(feature = "sync-only")]
+pub trait SendSync = Send + Sync;
+
+#[cfg(not(feature = "sync-only"))]
+pub trait SendSync = Send;
+
 fn prepare_rec<'a>(
     client: &'a Arc<InnerClient>,
     query: &'a str,
     types: &'a [Type],
-) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send + Sync>> {
+) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + SendSync>> {
     Box::pin(prepare(client, query, types))
 }
 
@@ -183,7 +189,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 fn get_type_rec<'a>(
     client: &'a Arc<InnerClient>,
     oid: Oid,
-) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + Send + 'a + Sync>> {
+) -> Pin<Box<dyn Future<Output = Result<Type, Error>> + 'a + SendSync>> {
     Box::pin(get_type(client, oid))
 }
 

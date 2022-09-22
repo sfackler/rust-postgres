@@ -132,6 +132,7 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
     })
 }
 
+#[cfg(feature = "sync-only")]
 pub struct CopyData<T> 
 where T: Sync
 {
@@ -139,12 +140,22 @@ where T: Sync
     len: i32,
 }
 
+#[cfg(not(feature = "sync-only"))]
+pub struct CopyData<T> 
+{
+    buf: T,
+    len: i32,
+}
 
-unsafe impl<T> Sync for CopyData<T> where T: Sync {}
+
+#[cfg(feature = "sync-only")]
+pub trait CopyDataT = Buf + Sync;
+
+#[cfg(not(feature = "sync-only"))]
+pub trait CopyDataT = Buf;
 
 impl<T> CopyData<T>
-where
-    T: Buf + Sync,
+where T: CopyDataT,
 {
     pub fn new(buf: T) -> io::Result<CopyData<T>> {
         let len = buf

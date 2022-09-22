@@ -19,3 +19,6 @@ memchr = "2.0"
 rand = "0.8"
 sha2 = "0.10"
 stringprep = "0.1"
+
+[features]
+sync-only = []

@@ -119,6 +119,8 @@
 #![doc(html_root_url = "https://docs.rs/tokio-postgres/0.7")]
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+#![feature(trait_alias)]
+
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
