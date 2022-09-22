@@ -132,33 +132,26 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
     })
 }
 
-#[cfg(feature = "sync-only")]
 pub struct CopyData<T> 
+{
+    buf: T,
+    len: i32,
+}
+
+
+/// Works the same as CopyData, but forces buffer to be `Sync`
+pub struct CopyDataSync<T> 
 where T: Sync
 {
     buf: T,
     len: i32,
 }
 
-#[cfg(not(feature = "sync-only"))]
-pub struct CopyData<T> 
-{
-    buf: T,
-    len: i32,
-}
 
-
-#[cfg(feature = "sync-only")]
-pub trait CopyDataT = Buf + Sync;
-
-#[cfg(not(feature = "sync-only"))]
-pub trait CopyDataT = Buf;
-
-impl<T> CopyData<T>
-where T: CopyDataT,
-{
-    pub fn new(buf: T) -> io::Result<CopyData<T>> {
-        let len = buf
+macro_rules! CopyDataNew {
+    ($buf: expr, $type: ident) => {
+        {
+        let len = $buf
             .remaining()
             .checked_add(4)
             .and_then(|l| i32::try_from(l).ok())
@@ -166,13 +159,42 @@ where T: CopyDataT,
                 io::Error::new(io::ErrorKind::InvalidInput, "message length overflow")
             })?;
 
-        Ok(CopyData { buf, len })
+        Ok($type { buf: $buf, len })
+        }
+    };
+}
+
+macro_rules! CopyDataWrite {
+    ($self: ident, $out: ident) => {
+        {
+            $out.put_u8(b'd');
+            $out.put_i32($self.len);
+            $out.put($self.buf);
+        }
+    }
+}
+
+impl<T> CopyData<T>
+where T: Buf,
+{
+    pub fn new(buf: T) -> io::Result<CopyData<T>> {
+        CopyDataNew!(buf, CopyData)
     }
 
     pub fn write(self, out: &mut BytesMut) {
-        out.put_u8(b'd');
-        out.put_i32(self.len);
-        out.put(self.buf);
+        CopyDataWrite!(self, out)
+    }
+}
+
+impl<T> CopyDataSync<T>
+where T: Buf + Sync
+{
+    pub fn new(buf: T) -> io::Result<CopyDataSync<T>> {
+        CopyDataNew!(buf, CopyDataSync)
+    }
+
+    pub fn write(self, out: &mut BytesMut) {
+        CopyDataWrite!(self, out)
     }
 }
 

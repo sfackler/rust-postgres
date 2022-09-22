@@ -12,8 +12,6 @@
 #![doc(html_root_url = "https://docs.rs/postgres-protocol/0.6")]
 #![warn(missing_docs, rust_2018_idioms, clippy::all)]
 
-#![feature(trait_alias)]
-
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use std::io;
