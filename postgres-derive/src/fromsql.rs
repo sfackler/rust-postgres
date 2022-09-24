@@ -12,10 +12,10 @@ use crate::accepts;
 use crate::composites::Field;
 use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
-use crate::overrides::Overrides;
+use crate::struct_overrides::StructOverrides;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
-    let overrides = Overrides::extract(&input.attrs)?;
+    let mut overrides = StructOverrides::extract(&input.attrs)?;
 
     if overrides.name.is_some() && overrides.transparent {
         return Err(Error::new_spanned(
@@ -24,7 +24,10 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
         ));
     }
 
-    let name = overrides.name.unwrap_or_else(|| input.ident.to_string());
+    let name = overrides
+        .name
+        .take()
+        .unwrap_or_else(|| input.ident.to_string());
 
     let (accepts_body, to_sql_body) = if overrides.transparent {
         match input.data {
@@ -51,7 +54,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             let variants = data
                 .variants
                 .iter()
-                .map(Variant::parse)
+                .map(|variant| Variant::parse(&overrides, variant))
                 .collect::<Result<Vec<_>, _>>()?;
             (
                 accepts::enum_body(&name, &variants),
@@ -75,7 +78,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             let fields = fields
                 .named
                 .iter()
-                .map(Field::parse)
+                .map(|field| Field::parse(&overrides, field))
                 .collect::<Result<Vec<_>, _>>()?;
             (
                 accepts::composite_body(&name, "FromSql", &fields),
