@@ -11,7 +11,7 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{Oid, BorrowToSqlChecked, ToSqlChecked, Type};
+use crate::types::{BorrowToSqlChecked, Oid, ToSqlChecked, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{

@@ -50,7 +50,10 @@ impl BinaryCopyInWriter {
     /// # Panics
     ///
     /// Panics if the number of values provided does not match the number expected.
-    pub async fn write(self: Pin<&mut Self>, values: &[&(dyn ToSqlChecked + Sync)]) -> Result<(), Error> {
+    pub async fn write(
+        self: Pin<&mut Self>,
+        values: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<(), Error> {
         self.write_raw(slice_iter(values)).await
     }
 

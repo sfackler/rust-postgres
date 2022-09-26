@@ -769,7 +769,7 @@ pub enum IsNull {
 ///
 /// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
 /// is enabled.
-pub trait ToSql {
+pub trait ToSql: fmt::Debug {
     /// Converts the value of `self` into the binary format of the specified
     /// Postgres `Type`, appending it to `out`.
     ///
@@ -794,8 +794,8 @@ pub trait ToSql {
 
 /// Trait used by Rust-Postgres **internally** to convert types into Postgres values.
 ///
-/// **Note:** Avoid manual implementation of this trait, use [`ToSql`] instead.
-pub trait ToSqlChecked {
+/// **Note:** Do not implement this trait directly, use [`ToSql`] instead.
+pub trait ToSqlChecked: fmt::Debug {
     /// Converts `Self` into `ty` Postgres type.
     fn to_sql_checked(
         &self,
@@ -927,7 +927,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
     }
 }
 
-impl<'a> ToSql for [u8] {
+impl ToSql for [u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::bytea_to_sql(self, w);
         Ok(IsNull::No)
@@ -1144,7 +1144,7 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// A trait used by clients to abstract over `&dyn ToSqlChecked` and `T: ToSql`.
+/// A trait used by clients to abstract over `&dyn ToSqlChecked` and `T: ToSqlChecked`.
 ///
 /// This cannot be implemented outside of this crate.
 pub trait BorrowToSqlChecked: sealed::Sealed {
@@ -1171,6 +1171,7 @@ impl BorrowToSqlChecked for Box<dyn ToSqlChecked + Sync> {
 }
 
 impl sealed::Sealed for Box<dyn ToSqlChecked + Sync + Send> {}
+
 impl BorrowToSqlChecked for Box<dyn ToSqlChecked + Sync + Send> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSqlChecked {

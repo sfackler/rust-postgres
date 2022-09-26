@@ -13,17 +13,29 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 pub trait GenericClient: private::Sealed {
     /// Like `Client::execute`.
-    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
+    fn execute<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query`.
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_one`.
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement;
 
@@ -80,14 +92,22 @@ impl GenericClient for Client {
         self.execute(query, params)
     }
 
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.query(query, params)
     }
 
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -160,14 +180,22 @@ impl GenericClient for Transaction<'_> {
         self.execute(query, params)
     }
 
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.query(query, params)
     }
 
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {

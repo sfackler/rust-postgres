@@ -13,7 +13,11 @@ mod private {
 #[async_trait]
 pub trait GenericClient: private::Sealed {
     /// Like `Client::execute`.
-    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
+    async fn execute<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
@@ -26,7 +30,11 @@ pub trait GenericClient: private::Sealed {
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::query`.
-    async fn query<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    async fn query<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
@@ -77,7 +85,11 @@ impl private::Sealed for Client {}
 
 #[async_trait]
 impl GenericClient for Client {
-    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
+    async fn execute<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
@@ -94,7 +106,11 @@ impl GenericClient for Client {
         self.execute_raw(statement, params).await
     }
 
-    async fn query<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    async fn query<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
@@ -159,7 +175,11 @@ impl private::Sealed for Transaction<'_> {}
 #[async_trait]
 #[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
-    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
+    async fn execute<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
@@ -176,7 +196,11 @@ impl GenericClient for Transaction<'_> {
         self.execute_raw(statement, params).await
     }
 
-    async fn query<T>(&self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    async fn query<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {

@@ -67,7 +67,7 @@
 
 ### Added
 
-* Methods taking iterators of `ToSql` values can now take both `&dyn ToSqlChecked` and `T: ToSql` values.
+* Methods taking iterators of `ToSql` values can now take both `&dyn ToSql` and `T: ToSql` values.
 
 ## v0.6.0 - 2020-10-17
 
@@ -161,7 +161,7 @@
 * The library now uses `std::futures::Future` and async/await syntax.
 * Most methods now take `&self` rather than `&mut self`.
 * The transaction API has changed to more closely resemble the synchronous API and is significantly more ergonomic.
-* Methods now take `&[&(dyn ToSqlChecked + Sync)]` rather than `&[&dyn ToSqlChecked]` to allow futures to be `Send`.
+* Methods now take `&[&(dyn ToSql + Sync)]` rather than `&[&dyn ToSql]` to allow futures to be `Send`.
 * Methods are now "normal" async functions that no longer do work up-front.
 * Statements are no longer required to be prepared explicitly before use. Methods taking `&Statement` can now also take
     `&str`, and will internally prepare the statement.

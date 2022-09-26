@@ -80,7 +80,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
+    pub fn execute<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -116,7 +120,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -153,7 +161,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
+    pub fn query_one<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {

@@ -14,32 +14,16 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Wrapper type used for the [autoderef-based specialization][1].
-///
-/// [1]: https://bit.ly/3UAJ1Fd
-struct DebugWrap<T>(T);
+struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
-/// Trait used if inner type of [`DebugWrap`] implements [`fmt::Debug`].
-trait Impl {
-    /// Formats inner type of [`DebugWrap`] using [`fmt::Debug`].
-    fn format_debug(&self) -> String;
-}
-
-/// Trait used if inner type of [`DebugWrap`] does not implement [`fmt::Debug`].
-trait Fallback {
-    /// Returns string contains `Unformattable` message.
-    fn format_debug(&self) -> String;
-}
-
-impl<T: fmt::Debug> Impl for &DebugWrap<T> {
-    fn format_debug(&self) -> String {
-        format!("{:?}", &self.0)
-    }
-}
-
-impl<T> Fallback for DebugWrap<T> {
-    fn format_debug(&self) -> String {
-        "Unformattable".to_string()
+impl<'a, T> fmt::Debug for BorrowToSqlParamsDebug<'a, T>
+where
+    T: BorrowToSqlChecked,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|x| x.borrow_to_sql()))
+            .finish()
     }
 }
 
@@ -58,7 +42,7 @@ where
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
-            DebugWrap(params.as_slice()).format_debug()
+            BorrowToSqlParamsDebug(params.as_slice()),
         );
         encode(client, &statement, params)?
     } else {
@@ -107,7 +91,7 @@ where
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
-            DebugWrap(params.as_slice()).format_debug(),
+            BorrowToSqlParamsDebug(params.as_slice()),
         );
         encode(client, &statement, params)?
     } else {
