@@ -1,7 +1,7 @@
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::BorrowToSql;
+use crate::types::BorrowToSqlChecked;
 use crate::{query, Error, Portal, Statement};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -16,7 +16,7 @@ pub async fn bind<P, I>(
     params: I,
 ) -> Result<Portal, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {

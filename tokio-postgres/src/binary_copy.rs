@@ -1,12 +1,12 @@
 //! Utilities for working with the PostgreSQL binary copy format.
 
-use crate::types::{FromSql, IsNull, ToSql, Type, WrongType};
+use crate::types::{FromSql, IsNull, ToSqlChecked, Type, WrongType};
 use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures_util::{ready, SinkExt, Stream};
 use pin_project_lite::pin_project;
-use postgres_types::BorrowToSql;
+use postgres_types::BorrowToSqlChecked;
 use std::convert::TryFrom;
 use std::io;
 use std::io::Cursor;
@@ -50,7 +50,7 @@ impl BinaryCopyInWriter {
     /// # Panics
     ///
     /// Panics if the number of values provided does not match the number expected.
-    pub async fn write(self: Pin<&mut Self>, values: &[&(dyn ToSql + Sync)]) -> Result<(), Error> {
+    pub async fn write(self: Pin<&mut Self>, values: &[&(dyn ToSqlChecked + Sync)]) -> Result<(), Error> {
         self.write_raw(slice_iter(values)).await
     }
 
@@ -61,7 +61,7 @@ impl BinaryCopyInWriter {
     /// Panics if the number of values provided does not match the number expected.
     pub async fn write_raw<P, I>(self: Pin<&mut Self>, values: I) -> Result<(), Error>
     where
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {

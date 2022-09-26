@@ -1,4 +1,4 @@
-use postgres_types::to_sql_checked;
+// use postgres_types::to_sql_checked;
 use std::collections::HashMap;
 use std::error::Error;
 use std::f32;
@@ -51,14 +51,14 @@ where
             .await
             .unwrap();
         let result = rows[0].get(0);
-        assert_eq!(val, &result);
+        assert!(val == &result);
 
         let rows = client
             .query(&*format!("SELECT $1::{}", sql_type), &[&val])
             .await
             .unwrap();
         let result = rows[0].get(0);
-        assert_eq!(val, &result);
+        assert!(val == &result);
     }
 }
 
@@ -505,8 +505,6 @@ async fn domain() {
         fn accepts(ty: &Type) -> bool {
             ty.name() == "session_id" && matches!(ty.kind(), Kind::Domain(_))
         }
-
-        to_sql_checked!();
     }
 
     impl<'a> FromSql<'a> for SessionId {

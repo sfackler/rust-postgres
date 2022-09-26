@@ -1,4 +1,4 @@
-use crate::types::{BorrowToSql, ToSql, Type};
+use crate::types::{BorrowToSqlChecked, ToSqlChecked, Type};
 use crate::{
     Client, CopyInWriter, CopyOutReader, Error, Row, RowIter, SimpleQueryMessage, Statement,
     ToStatement, Transaction,
@@ -13,17 +13,17 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 pub trait GenericClient: private::Sealed {
     /// Like `Client::execute`.
-    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query`.
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_one`.
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement;
 
@@ -31,7 +31,7 @@ pub trait GenericClient: private::Sealed {
     fn query_opt<T>(
         &mut self,
         query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement;
@@ -40,7 +40,7 @@ pub trait GenericClient: private::Sealed {
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator;
 
@@ -73,21 +73,21 @@ pub trait GenericClient: private::Sealed {
 impl private::Sealed for Client {}
 
 impl GenericClient for Client {
-    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.execute(query, params)
     }
 
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.query(query, params)
     }
 
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -97,7 +97,7 @@ impl GenericClient for Client {
     fn query_opt<T>(
         &mut self,
         query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -108,7 +108,7 @@ impl GenericClient for Client {
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -153,21 +153,21 @@ impl GenericClient for Client {
 impl private::Sealed for Transaction<'_> {}
 
 impl GenericClient for Transaction<'_> {
-    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.execute(query, params)
     }
 
-    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
         self.query(query, params)
     }
 
-    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -177,7 +177,7 @@ impl GenericClient for Transaction<'_> {
     fn query_opt<T>(
         &mut self,
         query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -188,7 +188,7 @@ impl GenericClient for Transaction<'_> {
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {

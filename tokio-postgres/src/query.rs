@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::{BorrowToSql, IsNull};
+use crate::types::{BorrowToSqlChecked, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
@@ -14,16 +14,32 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
+/// Wrapper type used for the [autoderef-based specialization][1].
+///
+/// [1]: https://bit.ly/3UAJ1Fd
+struct DebugWrap<T>(T);
 
-impl<'a, T> fmt::Debug for BorrowToSqlParamsDebug<'a, T>
-where
-    T: BorrowToSql,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list()
-            .entries(self.0.iter().map(|x| x.borrow_to_sql()))
-            .finish()
+/// Trait used if inner type of [`DebugWrap`] implements [`fmt::Debug`].
+trait Impl {
+    /// Formats inner type of [`DebugWrap`] using [`fmt::Debug`].
+    fn format_debug(&self) -> String;
+}
+
+/// Trait used if inner type of [`DebugWrap`] does not implement [`fmt::Debug`].
+trait Fallback {
+    /// Returns string contains `Unformattable` message.
+    fn format_debug(&self) -> String;
+}
+
+impl<T: fmt::Debug> Impl for &DebugWrap<T> {
+    fn format_debug(&self) -> String {
+        format!("{:?}", &self.0)
+    }
+}
+
+impl<T> Fallback for DebugWrap<T> {
+    fn format_debug(&self) -> String {
+        "Unformattable".to_string()
     }
 }
 
@@ -33,7 +49,7 @@ pub async fn query<P, I>(
     params: I,
 ) -> Result<RowStream, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -42,7 +58,7 @@ where
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
-            BorrowToSqlParamsDebug(params.as_slice()),
+            DebugWrap(params.as_slice()).format_debug()
         );
         encode(client, &statement, params)?
     } else {
@@ -82,7 +98,7 @@ pub async fn execute<P, I>(
     params: I,
 ) -> Result<u64, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -91,7 +107,7 @@ where
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
-            BorrowToSqlParamsDebug(params.as_slice()),
+            DebugWrap(params.as_slice()).format_debug(),
         );
         encode(client, &statement, params)?
     } else {
@@ -133,7 +149,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 
 pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -152,15 +168,16 @@ pub fn encode_bind<P, I>(
     buf: &mut BytesMut,
 ) -> Result<(), Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
     let param_types = statement.params();
     let params = params.into_iter();
 
-    assert!(
-        param_types.len() == params.len(),
+    assert_eq!(
+        param_types.len(),
+        params.len(),
         "expected {} parameters but got {}",
         param_types.len(),
         params.len()

@@ -74,6 +74,4 @@ impl ToSql for PgLsn {
     }
 
     accepts!(PG_LSN);
-
-    to_sql_checked!();
 }

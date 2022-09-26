@@ -1,6 +1,6 @@
 use crate::connection::ConnectionRef;
 use crate::{CancelToken, CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
-use tokio_postgres::types::{BorrowToSql, ToSql, Type};
+use tokio_postgres::types::{BorrowToSqlChecked, ToSqlChecked, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
 /// A representation of a PostgreSQL database transaction.
@@ -62,7 +62,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
-    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -71,7 +71,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
-    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -80,7 +80,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_one`.
-    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -92,7 +92,7 @@ impl<'a> Transaction<'a> {
     pub fn query_opt<T>(
         &mut self,
         query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -105,7 +105,7 @@ impl<'a> Transaction<'a> {
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -125,7 +125,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    pub fn bind<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Portal, Error>
+    pub fn bind<T>(&mut self, query: &T, params: &[&(dyn ToSqlChecked + Sync)]) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
     {

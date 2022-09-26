@@ -103,8 +103,6 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
             fn accepts(type_: &postgres_types::Type) -> bool {
                 #accepts_body
             }
-
-            postgres_types::to_sql_checked!();
         }
     };
 

@@ -19,11 +19,11 @@ where
             .prepare(&*format!("SELECT {}::{}", *repr, sql_type))
             .unwrap();
         let result = conn.query_one(&stmt, &[]).unwrap().get(0);
-        assert_eq!(val, &result);
+        assert!(val == &result);
 
         let stmt = conn.prepare(&*format!("SELECT $1::{}", sql_type)).unwrap();
         let result = conn.query_one(&stmt, &[val]).unwrap().get(0);
-        assert_eq!(val, &result);
+        assert!(val == &result);
     }
 }
 

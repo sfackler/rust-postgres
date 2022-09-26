@@ -141,7 +141,7 @@ pub use crate::tls::NoTls;
 pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
-use crate::types::ToSql;
+use crate::types::ToSqlChecked;
 
 pub mod binary_copy;
 mod bind;
@@ -250,7 +250,7 @@ pub enum SimpleQueryMessage {
 }
 
 fn slice_iter<'a>(
-    s: &'a [&'a (dyn ToSql + Sync)],
-) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {
+    s: &'a [&'a (dyn ToSqlChecked + Sync)],
+) -> impl ExactSizeIterator<Item = &'a dyn ToSqlChecked> + 'a {
     s.iter().map(|s| *s as _)
 }
