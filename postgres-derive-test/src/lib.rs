@@ -11,7 +11,7 @@ mod transparent;
 
 pub fn test_type<T, S>(conn: &mut Client, sql_type: &str, checks: &[(T, S)])
 where
-    T: PartialEq + FromSqlOwned + ToSql + Sync + fmt::Debug,
+    T: PartialEq + FromSqlOwned + ToSql + Sync,
     S: fmt::Display,
 {
     for &(ref val, ref repr) in checks.iter() {
