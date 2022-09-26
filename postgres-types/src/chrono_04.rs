@@ -31,7 +31,6 @@ impl ToSql for NaiveDateTime {
     }
 
     accepts!(TIMESTAMP);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for DateTime<Utc> {
@@ -53,7 +52,6 @@ impl ToSql for DateTime<Utc> {
     }
 
     accepts!(TIMESTAMPTZ);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for DateTime<Local> {
@@ -75,7 +73,6 @@ impl ToSql for DateTime<Local> {
     }
 
     accepts!(TIMESTAMPTZ);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for DateTime<FixedOffset> {
@@ -100,7 +97,6 @@ impl ToSql for DateTime<FixedOffset> {
     }
 
     accepts!(TIMESTAMPTZ);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for NaiveDate {
@@ -127,7 +123,6 @@ impl ToSql for NaiveDate {
     }
 
     accepts!(DATE);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for NaiveTime {
@@ -151,5 +146,4 @@ impl ToSql for NaiveTime {
     }
 
     accepts!(TIME);
-    to_sql_checked!();
 }

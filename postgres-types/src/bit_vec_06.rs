@@ -26,5 +26,4 @@ impl ToSql for BitVec {
     }
 
     accepts!(BIT, VARBIT);
-    to_sql_checked!();
 }

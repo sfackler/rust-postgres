@@ -35,7 +35,7 @@
 ### Changed
 
 * Upgraded to `tokio-postgres` 0.7.
-* Methods taking iterators of `ToSql` values can now take both `&dyn ToSqlChecked` and `T: ToSql` values.
+* Methods taking iterators of `ToSql` values can now take both `&dyn ToSql` and `T: ToSql` values.
 
 ### Added
 

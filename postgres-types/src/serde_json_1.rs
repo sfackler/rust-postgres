@@ -48,7 +48,6 @@ where
     }
 
     accepts!(JSON, JSONB);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for Value {
@@ -69,5 +68,4 @@ impl ToSql for Value {
     }
 
     accepts!(JSON, JSONB);
-    to_sql_checked!();
 }

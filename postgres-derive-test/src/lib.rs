@@ -11,7 +11,7 @@ mod transparent;
 
 pub fn test_type<T, S>(conn: &mut Client, sql_type: &str, checks: &[(T, S)])
 where
-    T: PartialEq + FromSqlOwned + ToSql + Sync,
+    T: PartialEq + FromSqlOwned + ToSql + Sync + fmt::Debug,
     S: fmt::Display,
 {
     for &(ref val, ref repr) in checks.iter() {
@@ -19,11 +19,11 @@ where
             .prepare(&*format!("SELECT {}::{}", *repr, sql_type))
             .unwrap();
         let result = conn.query_one(&stmt, &[]).unwrap().get(0);
-        assert!(val == &result);
+        assert_eq!(val, &result);
 
         let stmt = conn.prepare(&*format!("SELECT $1::{}", sql_type)).unwrap();
         let result = conn.query_one(&stmt, &[val]).unwrap().get(0);
-        assert!(val == &result);
+        assert_eq!(val, &result);
     }
 }
 

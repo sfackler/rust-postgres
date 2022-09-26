@@ -22,7 +22,6 @@ impl ToSql for Point<f64> {
     }
 
     accepts!(POINT);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for Rect<f64> {
@@ -44,7 +43,6 @@ impl ToSql for Rect<f64> {
     }
 
     accepts!(BOX);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for LineString<f64> {
@@ -68,5 +66,4 @@ impl ToSql for LineString<f64> {
     }
 
     accepts!(PATH);
-    to_sql_checked!();
 }

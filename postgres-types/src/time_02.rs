@@ -31,7 +31,6 @@ impl ToSql for PrimitiveDateTime {
     }
 
     accepts!(TIMESTAMP);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for OffsetDateTime {
@@ -57,7 +56,6 @@ impl ToSql for OffsetDateTime {
     }
 
     accepts!(TIMESTAMPTZ);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for Date {
@@ -81,7 +79,6 @@ impl ToSql for Date {
     }
 
     accepts!(DATE);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for Time {
@@ -105,5 +102,4 @@ impl ToSql for Time {
     }
 
     accepts!(TIME);
-    to_sql_checked!();
 }

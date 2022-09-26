@@ -1,4 +1,3 @@
-// use postgres_types::to_sql_checked;
 use std::collections::HashMap;
 use std::error::Error;
 use std::f32;
@@ -438,7 +437,7 @@ async fn test_slice() {
         .await
         .unwrap();
     let rows = client
-        .query(&stmt, &[&&[1i32, 3, 4][..]])
+        .query(&stmt, &[&[1i32, 3, 4][..]])
         .await
         .unwrap()
         .into_iter()
@@ -465,7 +464,7 @@ async fn test_slice_wrong_type() {
         .prepare("SELECT * FROM foo WHERE id = ANY($1)")
         .await
         .unwrap();
-    let err = client.query(&stmt, &[&&[&"hi"][..]]).await.err().unwrap();
+    let err = client.query(&stmt, &[&[&"hi"][..]]).await.err().unwrap();
     match err.source() {
         Some(e) if e.is::<WrongType>() => {}
         _ => panic!("Unexpected error {:?}", err),
@@ -474,6 +473,72 @@ async fn test_slice_wrong_type() {
 
 #[tokio::test]
 async fn test_slice_range() {
+    let client = connect("user=postgres").await;
+
+    let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
+    let err = client.query(&stmt, &[&[&1i64][..]]).await.err().unwrap();
+    match err.source() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("Unexpected error {:?}", err),
+    };
+}
+
+#[tokio::test]
+async fn test_slice_ref() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY,
+                f TEXT
+            );
+            INSERT INTO foo (f) VALUES ('a'), ('b'), ('c'), ('d');",
+        )
+        .await
+        .unwrap();
+
+    let stmt = client
+        .prepare("SELECT f FROM foo WHERE id = ANY($1)")
+        .await
+        .unwrap();
+    let rows = client
+        .query(&stmt, &[&&[1i32, 3, 4][..]])
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| r.get(0))
+        .collect::<Vec<String>>();
+
+    assert_eq!(vec!["a".to_owned(), "c".to_owned(), "d".to_owned()], rows);
+}
+
+#[tokio::test]
+async fn test_slice_ref_wrong_type() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE foo (
+                id SERIAL PRIMARY KEY
+            )",
+        )
+        .await
+        .unwrap();
+
+    let stmt = client
+        .prepare("SELECT * FROM foo WHERE id = ANY($1)")
+        .await
+        .unwrap();
+    let err = client.query(&stmt, &[&&[&"hi"][..]]).await.err().unwrap();
+    match err.source() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("Unexpected error {:?}", err),
+    };
+}
+
+#[tokio::test]
+async fn test_slice_ref_range() {
     let client = connect("user=postgres").await;
 
     let stmt = client.prepare("SELECT $1::INT8RANGE").await.unwrap();
