@@ -25,6 +25,7 @@ pub struct Transaction<'a> {
     client: &'a mut Client,
     savepoint: Option<Savepoint>,
     done: bool,
+    result_format: bool,
 }
 
 /// A representation of a PostgreSQL database savepoint.
@@ -57,10 +58,12 @@ impl<'a> Drop for Transaction<'a> {
 
 impl<'a> Transaction<'a> {
     pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
+        let result_format = client.result_format();
         Transaction {
             client,
             savepoint: None,
             done: false,
+            result_format,
         }
     }
 
@@ -202,7 +205,7 @@ impl<'a> Transaction<'a> {
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self.client).await?;
-        bind::bind(self.client.inner(), statement, params).await
+        bind::bind(self.client.inner(), statement, params, self.result_format).await
     }
 
     /// Continues execution of a portal, returning a stream of the resulting rows.
@@ -304,6 +307,7 @@ impl<'a> Transaction<'a> {
             client: self.client,
             savepoint: Some(Savepoint { name, depth }),
             done: false,
+            result_format: self.result_format,
         })
     }
 

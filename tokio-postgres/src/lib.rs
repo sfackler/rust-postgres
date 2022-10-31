@@ -179,6 +179,9 @@ mod transaction;
 mod transaction_builder;
 pub mod types;
 
+// Default result format : binary(true)
+const DEFAULT_RESULT_FORMAT: bool = true;
+
 /// A convenience function which parses a connection string and connects to the database.
 ///
 /// See the documentation for [`Config`] for details on the connection string format.

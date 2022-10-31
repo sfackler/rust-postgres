@@ -46,6 +46,24 @@ impl Client {
         Config::new()
     }
 
+    /// Return the result format of client
+    ///
+    /// true indicates that the client will receive the result in binary format
+    /// false indicates that the client will receive the result in text format
+    pub fn result_format(&self) -> bool {
+        self.client.result_format()
+    }
+
+    /// Set the format of return result.
+    ///
+    /// format
+    ///    true: binary format
+    ///   false: text format
+    /// default format is binary format(result_format = true)
+    pub fn set_result_format(&mut self, format: bool) {
+        self.client.set_result_format(format);
+    }
+
     /// Executes a statement, returning the number of rows modified.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list

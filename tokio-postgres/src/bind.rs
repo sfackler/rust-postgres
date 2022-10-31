@@ -14,6 +14,7 @@ pub async fn bind<P, I>(
     client: &Arc<InnerClient>,
     statement: Statement,
     params: I,
+    result_format: bool,
 ) -> Result<Portal, Error>
 where
     P: BorrowToSql,
@@ -22,7 +23,7 @@ where
 {
     let name = format!("p{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
     let buf = client.with_buf(|buf| {
-        query::encode_bind(&statement, params, &name, buf)?;
+        query::encode_bind(&statement, params, &name, buf, result_format)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })?;
