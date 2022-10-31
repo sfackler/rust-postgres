@@ -508,3 +508,36 @@ fn check_send() {
     is_send::<Statement>();
     is_send::<Transaction<'_>>();
 }
+
+#[test]
+fn query_text() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    client.set_result_format(false);
+
+    let rows = client.query("SELECT $1::TEXT", &[&"hello"]).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get_text(0).unwrap(), "hello");
+
+    let rows = client.query("SELECT 2,'2022-01-01'::date", &[]).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get_text(0).unwrap(), "2");
+    assert_eq!(rows[0].get_text(1).unwrap(), "2022-01-01");
+}
+
+#[test]
+fn transaction_text() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    client.set_result_format(false);
+
+    let mut transaction = client.transaction().unwrap();
+
+    let prepare_stmt = transaction.prepare("SELECT $1::INT8,$2::FLOAT4").unwrap();
+    let portal = transaction
+        .bind(&prepare_stmt, &[&64_i64, &3.9999_f32])
+        .unwrap();
+    let rows = transaction.query_portal(&portal, 0).unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get_text(0).unwrap(), "64");
+    assert_eq!(rows[0].get_text(1).unwrap(), "3.9999");
+}
