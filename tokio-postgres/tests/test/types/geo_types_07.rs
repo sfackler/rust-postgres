@@ -1,5 +1,5 @@
 #[cfg(feature = "with-geo-types-0_7")]
-use geo_types_07::{Coordinate, LineString, Point, Rect};
+use geo_types_07::{Coord, LineString, Point, Rect};
 
 use crate::types::test_type;
 
@@ -23,8 +23,8 @@ async fn test_box_params() {
         &[
             (
                 Some(Rect::new(
-                    Coordinate { x: -3.2, y: 1.618 },
-                    Coordinate {
+                    Coord { x: -3.2, y: 1.618 },
+                    Coord {
                         x: 160.0,
                         y: 69701.5615,
                     },
@@ -40,9 +40,9 @@ async fn test_box_params() {
 #[tokio::test]
 async fn test_path_params() {
     let points = vec![
-        Coordinate { x: 0., y: 0. },
-        Coordinate { x: -3.2, y: 1.618 },
-        Coordinate {
+        Coord { x: 0., y: 0. },
+        Coord { x: -3.2, y: 1.618 },
+        Coord {
             x: 160.0,
             y: 69701.5615,
         },
