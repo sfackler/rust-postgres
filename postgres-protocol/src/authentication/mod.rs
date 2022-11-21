@@ -15,7 +15,7 @@ pub fn md5_hash(username: &[u8], password: &[u8], salt: [u8; 4]) -> String {
     md5.update(username);
     let output = md5.finalize_reset();
     md5.update(format!("{:x}", output));
-    md5.update(&salt);
+    md5.update(salt);
     format!("md5{:x}", md5.finalize())
 }
 
