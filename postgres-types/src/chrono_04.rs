@@ -6,7 +6,10 @@ use std::error::Error;
 use crate::{FromSql, IsNull, ToSql, Type};
 
 fn base() -> NaiveDateTime {
-    NaiveDate::from_ymd_opt(2000, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap()
+    NaiveDate::from_ymd_opt(2000, 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
 }
 
 impl<'a> FromSql<'a> for NaiveDateTime {
