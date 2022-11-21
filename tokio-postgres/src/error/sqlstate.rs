@@ -232,6 +232,7 @@ impl SqlState {
             Inner::E57P02 => "57P02",
             Inner::E57P03 => "57P03",
             Inner::E57P04 => "57P04",
+            Inner::E57P05 => "57P05",
             Inner::E58000 => "58000",
             Inner::E58030 => "58030",
             Inner::E58P01 => "58P01",
@@ -946,6 +947,9 @@ impl SqlState {
     /// 57P04
     pub const DATABASE_DROPPED: SqlState = SqlState(Inner::E57P04);
 
+    /// 57P05
+    pub const IDLE_SESSION_TIMEOUT: SqlState = SqlState(Inner::E57P05);
+
     /// 58000
     pub const SYSTEM_ERROR: SqlState = SqlState(Inner::E58000);
 
@@ -1292,6 +1296,7 @@ enum Inner {
     E57P02,
     E57P03,
     E57P04,
+    E57P05,
     E58000,
     E58030,
     E58P01,
@@ -1498,6 +1503,7 @@ static SQLSTATE_MAP: phf::Map<&'static str, SqlState> =
         ("55006", SqlState::OBJECT_IN_USE),
         ("42P01", SqlState::UNDEFINED_TABLE),
         ("25P03", SqlState::IDLE_IN_TRANSACTION_SESSION_TIMEOUT),
+        ("57P05", SqlState::IDLE_SESSION_TIMEOUT),
         ("22037", SqlState::NON_UNIQUE_KEYS_IN_A_JSON_OBJECT),
         ("2203A", SqlState::SQL_JSON_MEMBER_NOT_FOUND),
         ("P0004", SqlState::ASSERT_FAILURE),
