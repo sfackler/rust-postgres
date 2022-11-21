@@ -185,6 +185,15 @@ fn parse_types() -> BTreeMap<u32, Type> {
             )
         })
         .collect::<HashMap<_, _>>();
+    let multi_range_elements = raw_ranges
+        .iter()
+        .map(|m| {
+            (
+                oids_by_name[&*m["rngmultitypid"]],
+                oids_by_name[&*m["rngsubtype"]],
+            )
+        })
+        .collect::<HashMap<_, _>>();
 
     let range_vector_re = Regex::new("(range|vector)$").unwrap();
     let array_re = Regex::new("^_(.*)").unwrap();
@@ -209,7 +218,11 @@ fn parse_types() -> BTreeMap<u32, Type> {
         }
 
         let element = match &*kind {
-            "R" => range_elements[&oid],
+            "R" => match &*raw_type["typtype"] {
+                "r" => range_elements[&oid],
+                "m" => multi_range_elements[&oid],
+                typtype => panic!("invalid range typtype {}", typtype),
+            }
             "A" => oids_by_name[&raw_type["typelem"]],
             _ => 0,
         };
