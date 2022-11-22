@@ -320,6 +320,8 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
+    /// A multirange type along with the type of its elements.
+    Multirange(Type),
     /// A domain type along with its underlying type.
     Domain(Type),
     /// A composite type along with information about its fields.
