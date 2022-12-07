@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 /// Information about a column of a single query row.
+#[derive(Debug)]
 pub struct SimpleColumn {
     name: String,
 }
