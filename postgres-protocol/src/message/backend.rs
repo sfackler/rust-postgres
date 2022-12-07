@@ -524,6 +524,7 @@ impl CopyOutResponseBody {
     }
 }
 
+#[derive(Debug)]
 pub struct DataRowBody {
     storage: Bytes,
     len: u16,
