@@ -161,6 +161,12 @@ where
 }
 
 #[inline]
+pub fn flush(buf: &mut BytesMut) {
+    buf.put_u8(b'H');
+    write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();
+}
+
+#[inline]
 pub fn copy_done(buf: &mut BytesMut) {
     buf.put_u8(b'c');
     write_body(buf, |_| Ok::<(), io::Error>(())).unwrap();

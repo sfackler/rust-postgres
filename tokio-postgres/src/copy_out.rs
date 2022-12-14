@@ -14,7 +14,7 @@ use std::task::{Context, Poll};
 pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
     debug!("executing copy out statement {}", statement.name());
 
-    let buf = query::encode(client, &statement, slice_iter(&[]))?;
+    let buf = query::encode_copyout(client, &statement, slice_iter(&[]))?;
     let responses = start(client, buf).await?;
     Ok(CopyOutStream {
         responses,
@@ -27,11 +27,6 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 
     match responses.next().await? {
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
-    }
-
-    match responses.next().await? {
-        Message::CopyOutResponse(_) => {}
         _ => return Err(Error::unexpected_message()),
     }
 
@@ -53,10 +48,13 @@ impl Stream for CopyOutStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
 
-        match ready!(this.responses.poll_next(cx)?) {
-            Message::CopyData(body) => Poll::Ready(Some(Ok(body.into_bytes()))),
-            Message::CopyDone => Poll::Ready(None),
-            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
+        loop {
+            match ready!(this.responses.poll_next(cx)?) {
+                Message::CopyData(body) => return Poll::Ready(Some(Ok(body.into_bytes()))),
+                Message::CopyOutResponse(_) => {},
+                Message::CopyDone => return Poll::Ready(None),
+                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+            }
         }
     }
 }

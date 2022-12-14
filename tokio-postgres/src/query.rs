@@ -131,6 +131,21 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
+pub fn encode_copyout<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
+    client.with_buf(|buf| {
+        encode_bind(statement, params, "", buf)?;
+        frontend::flush(buf);
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+        frontend::sync(buf);
+        Ok(buf.split().freeze())
+    })
+}
+
 pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
 where
     P: BorrowToSql,
