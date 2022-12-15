@@ -50,7 +50,8 @@ enum State {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
-    parameters: HashMap<String, String>,
+    /// HACK: we need this in the Neon Proxy to forward params.
+    pub parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
     pending_request: Option<RequestMessages>,
     pending_responses: VecDeque<BackendMessage>,
