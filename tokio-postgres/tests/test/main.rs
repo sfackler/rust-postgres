@@ -16,8 +16,8 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{
-    AsyncMessage, Client, Config, Connection, Error, GenericResult, IsolationLevel,
-    SimpleQueryMessage,
+    AsyncMessage, Client, CommandCompleteContents, Config, Connection, Error, GenericResult,
+    IsolationLevel, SimpleQueryMessage,
 };
 
 mod binary_copy;
@@ -365,11 +365,11 @@ async fn simple_query() {
         .unwrap();
 
     match messages[0] {
-        SimpleQueryMessage::CommandComplete(0) => {}
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { rows: 0, .. }) => {}
         _ => panic!("unexpected message"),
     }
     match messages[1] {
-        SimpleQueryMessage::CommandComplete(2) => {}
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { rows: 2, .. }) => {}
         _ => panic!("unexpected message"),
     }
     match &messages[2] {
@@ -391,7 +391,7 @@ async fn simple_query() {
         _ => panic!("unexpected message"),
     }
     match messages[4] {
-        SimpleQueryMessage::CommandComplete(2) => {}
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { rows: 2, .. }) => {}
         _ => panic!("unexpected message"),
     }
     assert_eq!(messages.len(), 5);

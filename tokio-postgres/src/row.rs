@@ -211,10 +211,7 @@ pub struct SimpleQueryRow {
 
 impl SimpleQueryRow {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(
-        fields: Arc<[OwnedField]>,
-        body: DataRowBody,
-    ) -> Result<SimpleQueryRow, Error> {
+    pub fn new(fields: Arc<[OwnedField]>, body: DataRowBody) -> Result<SimpleQueryRow, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(SimpleQueryRow {
             fields,

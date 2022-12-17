@@ -7,7 +7,7 @@ use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::debug;
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::{OwnedField, Message};
+use postgres_protocol::message::backend::{Message, OwnedField};
 use postgres_protocol::message::frontend;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
@@ -95,10 +95,24 @@ impl Stream for SimpleQueryStream {
                         .unwrap()
                         .parse()
                         .unwrap_or(0);
-                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))));
+                    let fields = this.fields.clone();
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(
+                        crate::CommandCompleteContents {
+                            fields,
+                            rows,
+                            tag: body.into_bytes(),
+                        },
+                    ))));
                 }
                 Message::EmptyQueryResponse => {
-                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))));
+                    let fields = this.fields.clone();
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(
+                        crate::CommandCompleteContents {
+                            fields,
+                            rows: 0,
+                            tag: Bytes::new(),
+                        },
+                    ))));
                 }
                 Message::RowDescription(body) => {
                     let fields = body
