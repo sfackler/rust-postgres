@@ -6,7 +6,7 @@
 //! use postgres::{Client, NoTls};
 //!
 //! fn main() -> Result<(), postgres::Error> {
-//!     let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+//!     let mut client = Client::connect("host=localhost user=postgres password=postgres", NoTls)?;
 //!
 //!     client.batch_execute("
 //!         CREATE TABLE person (
