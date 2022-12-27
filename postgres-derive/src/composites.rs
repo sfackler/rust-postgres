@@ -1,4 +1,8 @@
-use syn::{Error, Ident, Type};
+use proc_macro2::Span;
+use syn::{
+    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Path, PathSegment, Type,
+    TypeParamBound,
+};
 
 use crate::overrides::Overrides;
 
@@ -25,4 +29,24 @@ impl Field {
             type_: raw.ty.clone(),
         })
     }
+}
+
+pub(crate) fn append_generic_bound(mut generics: Generics, bound: &TypeParamBound) -> Generics {
+    for param in &mut generics.params {
+        if let GenericParam::Type(param) = param {
+            param.bounds.push(bound.to_owned())
+        }
+    }
+    generics
+}
+
+pub(crate) fn new_derive_path(last: PathSegment) -> Path {
+    let mut path = Path {
+        leading_colon: None,
+        segments: Punctuated::new(),
+    };
+    path.segments
+        .push(Ident::new("postgres_types", Span::call_site()).into());
+    path.segments.push(last);
+    path
 }

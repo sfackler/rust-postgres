@@ -320,6 +320,8 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
+    /// A multirange type along with the type of its elements.
+    Multirange(Type),
     /// A domain type along with its underlying type.
     Domain(Type),
     /// A composite type along with information about its fields.
@@ -938,7 +940,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        types::bytea_to_sql(*self, w);
+        types::bytea_to_sql(self, w);
         Ok(IsNull::No)
     }
 
@@ -1011,10 +1013,10 @@ impl ToSql for Vec<u8> {
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         match *ty {
-            ref ty if ty.name() == "ltree" => types::ltree_to_sql(*self, w),
-            ref ty if ty.name() == "lquery" => types::lquery_to_sql(*self, w),
-            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_to_sql(*self, w),
-            _ => types::text_to_sql(*self, w),
+            ref ty if ty.name() == "ltree" => types::ltree_to_sql(self, w),
+            ref ty if ty.name() == "lquery" => types::lquery_to_sql(self, w),
+            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_to_sql(self, w),
+            _ => types::text_to_sql(self, w),
         }
         Ok(IsNull::No)
     }

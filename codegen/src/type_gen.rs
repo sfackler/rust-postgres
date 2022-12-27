@@ -17,6 +17,7 @@ struct Type {
     variant: String,
     ident: String,
     kind: String,
+    typtype: Option<String>,
     element: u32,
     doc: String,
 }
@@ -185,6 +186,15 @@ fn parse_types() -> BTreeMap<u32, Type> {
             )
         })
         .collect::<HashMap<_, _>>();
+    let multi_range_elements = raw_ranges
+        .iter()
+        .map(|m| {
+            (
+                oids_by_name[&*m["rngmultitypid"]],
+                oids_by_name[&*m["rngsubtype"]],
+            )
+        })
+        .collect::<HashMap<_, _>>();
 
     let range_vector_re = Regex::new("(range|vector)$").unwrap();
     let array_re = Regex::new("^_(.*)").unwrap();
@@ -208,8 +218,18 @@ fn parse_types() -> BTreeMap<u32, Type> {
             continue;
         }
 
+        let typtype = raw_type.get("typtype").cloned();
+
         let element = match &*kind {
-            "R" => range_elements[&oid],
+            "R" => match typtype
+                .as_ref()
+                .expect("range type must have typtype")
+                .as_str()
+            {
+                "r" => range_elements[&oid],
+                "m" => multi_range_elements[&oid],
+                typtype => panic!("invalid range typtype {}", typtype),
+            },
             "A" => oids_by_name[&raw_type["typelem"]],
             _ => 0,
         };
@@ -235,6 +255,7 @@ fn parse_types() -> BTreeMap<u32, Type> {
                 variant,
                 ident,
                 kind: "A".to_string(),
+                typtype: None,
                 element: oid,
                 doc,
             };
@@ -246,6 +267,7 @@ fn parse_types() -> BTreeMap<u32, Type> {
             variant,
             ident,
             kind,
+            typtype,
             element,
             doc,
         };
@@ -349,7 +371,16 @@ fn make_impl(w: &mut BufWriter<File>, types: &BTreeMap<u32, Type>) {
         let kind = match &*type_.kind {
             "P" => "Pseudo".to_owned(),
             "A" => format!("Array(Type(Inner::{}))", types[&type_.element].variant),
-            "R" => format!("Range(Type(Inner::{}))", types[&type_.element].variant),
+            "R" => match type_
+                .typtype
+                .as_ref()
+                .expect("range type must have typtype")
+                .as_str()
+            {
+                "r" => format!("Range(Type(Inner::{}))", types[&type_.element].variant),
+                "m" => format!("Multirange(Type(Inner::{}))", types[&type_.element].variant),
+                typtype => panic!("invalid range typtype {}", typtype),
+            },
             _ => "Simple".to_owned(),
         };
 
