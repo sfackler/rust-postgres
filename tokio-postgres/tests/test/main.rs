@@ -218,18 +218,18 @@ async fn generic_query() {
         assert_eq!(row.get::<_, i32>(0), 1);
         assert_eq!(row.get::<_, &str>(1), "alice");
     } else {
-        assert!(false);
+        panic!();
     }
     if let GenericResult::Row(row) = s.next().unwrap() {
         assert_eq!(row.get::<_, i32>(0), 2);
         assert_eq!(row.get::<_, &str>(1), "bob");
     } else {
-        assert!(false);
+        panic!();
     }
     if let GenericResult::NumRows(rows_read) = s.next().unwrap() {
         assert_eq!(*rows_read, 2);
     } else {
-        assert!(false);
+        panic!();
     }
 }
 
