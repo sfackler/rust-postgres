@@ -302,6 +302,9 @@ where
     ///
     /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
     /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
+    ///
+    /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
+    /// receiving one of those values.
     pub fn poll_message(
         &mut self,
         cx: &mut Context<'_>,
