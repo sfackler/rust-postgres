@@ -631,7 +631,7 @@ impl<'a> FallibleIterator for DataRowRanges<'a> {
                 ));
             }
             let base = self.len - self.buf.len();
-            self.buf = &self.buf[len as usize..];
+            self.buf = &self.buf[len..];
             Ok(Some(Some(base..base + len)))
         }
     }
