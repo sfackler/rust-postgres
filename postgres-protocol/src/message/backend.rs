@@ -164,7 +164,7 @@ impl Message {
             DATA_ROW_TAG => {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
-                Message::DataRow(DataRowBody { storage, len })
+                Message::DataRow(DataRowBody::new(storage, len))
             }
             ERROR_RESPONSE_TAG => {
                 let storage = buf.read_all();
@@ -531,6 +531,11 @@ pub struct DataRowBody {
 }
 
 impl DataRowBody {
+    /// Constructs a new data row body.
+    pub fn new(storage: Bytes, len: u16) -> Self {
+        Self { storage, len }
+    }
+
     #[inline]
     pub fn ranges(&self) -> DataRowRanges<'_> {
         DataRowRanges {

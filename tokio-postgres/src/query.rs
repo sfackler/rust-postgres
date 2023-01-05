@@ -12,6 +12,7 @@ use postgres_protocol::message::frontend;
 use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
@@ -50,7 +51,7 @@ where
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
-        statement,
+        statement: Arc::new(statement),
         responses,
         _p: PhantomPinned,
     })
@@ -70,7 +71,7 @@ pub async fn query_portal(
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     Ok(RowStream {
-        statement: portal.statement().clone(),
+        statement: Arc::new(portal.statement().clone()),
         responses,
         _p: PhantomPinned,
     })
@@ -200,7 +201,7 @@ where
 pin_project! {
     /// A stream of table rows.
     pub struct RowStream {
-        statement: Statement,
+        statement: Arc<Statement>,
         responses: Responses,
         #[pin]
         _p: PhantomPinned,

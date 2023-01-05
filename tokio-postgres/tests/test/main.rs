@@ -16,7 +16,8 @@ use tokio_postgres::error::SqlState;
 use tokio_postgres::tls::{NoTls, NoTlsStream};
 use tokio_postgres::types::{Kind, Type};
 use tokio_postgres::{
-    AsyncMessage, Client, Config, Connection, Error, IsolationLevel, SimpleQueryMessage,
+    AsyncMessage, Client, Config, Connection, Error, IsolationLevel, RowDescription,
+    SimpleQueryMessage,
 };
 
 mod binary_copy;

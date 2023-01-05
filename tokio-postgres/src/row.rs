@@ -2,11 +2,13 @@
 
 use crate::row::sealed::{AsName, Sealed};
 use crate::simple_query::SimpleColumn;
-use crate::statement::Column;
+use crate::statement::{Column, RowDescription};
 use crate::types::{FromSql, Type, WrongType};
-use crate::{Error, Statement};
+use crate::Error;
+use bytes::{BufMut, BytesMut};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
+use postgres_types::{IsNull, ToSql};
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -96,7 +98,7 @@ where
 
 /// A row of data returned from the database by a query.
 pub struct Row {
-    statement: Statement,
+    description: Arc<dyn RowDescription>,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
@@ -110,18 +112,26 @@ impl fmt::Debug for Row {
 }
 
 impl Row {
-    pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
+    pub(crate) fn new(
+        description: Arc<dyn RowDescription>,
+        body: DataRowBody,
+    ) -> Result<Row, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(Row {
-            statement,
+            description,
             body,
             ranges,
         })
     }
 
+    /// Returns description about the data in the row.
+    pub fn description(&self) -> Arc<dyn RowDescription> {
+        self.description.clone()
+    }
+
     /// Returns information about the columns of data in the row.
     pub fn columns(&self) -> &[Column] {
-        self.statement.columns()
+        self.description.columns()
     }
 
     /// Determines if the row contains no values.
@@ -268,5 +278,113 @@ impl SimpleQueryRow {
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+}
+/// Builder for building a [`Row`].
+pub struct RowBuilder {
+    desc: Arc<dyn RowDescription>,
+    buf: BytesMut,
+    n: usize,
+}
+
+impl RowBuilder {
+    /// Creates a new builder using the provided row description.
+    pub fn new(desc: Arc<dyn RowDescription>) -> Self {
+        Self {
+            desc,
+            buf: BytesMut::new(),
+            n: 0,
+        }
+    }
+
+    /// Appends a column's value and returns a value indicates if this value should be represented
+    /// as NULL.
+    pub fn push(&mut self, value: Option<impl ToSql>) -> Result<IsNull, Error> {
+        let columns = self.desc.columns();
+
+        if columns.len() == self.n {
+            return Err(Error::column(
+                "exceeded expected number of columns".to_string(),
+            ));
+        }
+
+        let db_type = columns[self.n].type_();
+        let start = self.buf.len();
+
+        // Reserve 4 bytes for the length of the binary data to be written
+        self.buf.put_i32(-1i32);
+
+        let is_null = value
+            .to_sql(db_type, &mut self.buf)
+            .map_err(|e| Error::to_sql(e, self.n))?;
+
+        // Calculate the length of data just written.
+        if is_null == IsNull::No {
+            let len = (self.buf.len() - start - 4) as i32;
+            // Update the length of data
+            self.buf[start..start + 4].copy_from_slice(&len.to_be_bytes());
+        };
+
+        self.n += 1;
+        Ok(is_null)
+    }
+
+    /// Builds the row.
+    pub fn build(self) -> Result<Row, Error> {
+        Row::new(
+            self.desc.clone(),
+            DataRowBody::new(self.buf.freeze(), self.n as u16),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use postgres_types::IsNull;
+
+    use super::*;
+    use std::net::IpAddr;
+
+    struct TestRowDescription {
+        columns: Vec<Column>,
+    }
+
+    impl RowDescription for TestRowDescription {
+        fn columns(&self) -> &[Column] {
+            &self.columns
+        }
+    }
+
+    #[test]
+    fn test_row_builder() {
+        let mut builder = RowBuilder::new(Arc::new(TestRowDescription {
+            columns: vec![
+                Column::new("id".to_string(), Type::INT8),
+                Column::new("name".to_string(), Type::VARCHAR),
+                Column::new("ip".to_string(), Type::INET),
+            ],
+        }));
+
+        let expected_id = 1234i64;
+        let is_null = builder.push(Some(expected_id)).unwrap();
+        assert_eq!(IsNull::No, is_null);
+
+        let expected_name = "row builder";
+        let is_null = builder.push(Some(expected_name)).unwrap();
+        assert_eq!(IsNull::No, is_null);
+
+        let is_null = builder.push(None::<IpAddr>).unwrap();
+        assert_eq!(IsNull::Yes, is_null);
+
+        let row = builder.build().unwrap();
+
+        let actual_id: i64 = row.try_get("id").unwrap();
+        assert_eq!(expected_id, actual_id);
+
+        let actual_name: String = row.try_get("name").unwrap();
+        assert_eq!(expected_name, actual_name);
+
+        let actual_dt: Option<IpAddr> = row.try_get("ip").unwrap();
+        assert_eq!(None, actual_dt);
     }
 }
