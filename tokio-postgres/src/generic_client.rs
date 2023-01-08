@@ -72,7 +72,6 @@ pub trait GenericClient: private::Sealed {
     /// Like `Client::batch_execute`.
     async fn batch_execute(&self, query: &str) -> Result<(), Error>;
 
-
     /// Returns a reference to the underlying `Client`.
     fn client(&self) -> &Client;
 }
