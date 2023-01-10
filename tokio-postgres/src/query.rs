@@ -2,7 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement};
+use crate::{Error, Portal, Row, Statement, DEFAULT_RESULT_FORMAT};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
@@ -31,6 +31,7 @@ pub async fn query<P, I>(
     client: &InnerClient,
     statement: Statement,
     params: I,
+    result_format: bool,
 ) -> Result<RowStream, Error>
 where
     P: BorrowToSql,
@@ -44,9 +45,9 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode(client, &statement, params, result_format)?
     } else {
-        encode(client, &statement, params)?
+        encode(client, &statement, params, result_format)?
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
@@ -93,9 +94,9 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode(client, &statement, params, DEFAULT_RESULT_FORMAT)?
     } else {
-        encode(client, &statement, params)?
+        encode(client, &statement, params, DEFAULT_RESULT_FORMAT)?
     };
     let mut responses = start(client, buf).await?;
 
@@ -131,14 +132,19 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     Ok(responses)
 }
 
-pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
+pub fn encode<P, I>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+    result_format: bool,
+) -> Result<Bytes, Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
     client.with_buf(|buf| {
-        encode_bind(statement, params, "", buf)?;
+        encode_bind(statement, params, "", buf, result_format)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
@@ -150,6 +156,7 @@ pub fn encode_bind<P, I>(
     params: I,
     portal: &str,
     buf: &mut BytesMut,
+    result_format: bool,
 ) -> Result<(), Error>
 where
     P: BorrowToSql,
@@ -174,6 +181,7 @@ where
     let params = params.into_iter();
 
     let mut error_idx = 0;
+    let result_format = if result_format { Some(1) } else { Some(0) };
     let r = frontend::bind(
         portal,
         statement.name(),
@@ -187,7 +195,7 @@ where
                 Err(e)
             }
         },
-        Some(1),
+        result_format,
         buf,
     );
     match r {

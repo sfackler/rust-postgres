@@ -182,6 +182,46 @@ impl Row {
         FromSql::from_sql_nullable(ty, self.col_buffer(idx)).map_err(|e| Error::from_sql(e, idx))
     }
 
+    /// Returns a value(text format) from the row.
+    ///
+    /// The value can be specified either by its numeric index in the row, or by its column name.
+    ///
+    /// NOTE: user should gurantee the result is text format
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index is out of bounds or if the value cannot be converted to the TEXT type.
+    pub fn get_text<I>(&self, idx: I) -> Option<&str>
+    where
+        I: RowIndex + fmt::Display,
+    {
+        match self.get_text_inner(&idx) {
+            Ok(ok) => ok,
+            Err(err) => panic!("error retrieving column {}: {}", idx, err),
+        }
+    }
+
+    /// Like `Row::get_text`, but returns a `Result` rather than panicking.
+    pub fn try_get_text<I>(&self, idx: I) -> Result<Option<&str>, Error>
+    where
+        I: RowIndex + fmt::Display,
+    {
+        self.get_text_inner(&idx)
+    }
+
+    fn get_text_inner<I>(&self, idx: &I) -> Result<Option<&str>, Error>
+    where
+        I: RowIndex + fmt::Display,
+    {
+        let idx = match idx.__idx(self.columns()) {
+            Some(idx) => idx,
+            None => return Err(Error::column(idx.to_string())),
+        };
+
+        let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
+        FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+
     /// Get the raw bytes for the column at the given index.
     fn col_buffer(&self, idx: usize) -> Option<&[u8]> {
         let range = self.ranges[idx].to_owned()?;

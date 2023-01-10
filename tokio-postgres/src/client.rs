@@ -170,6 +170,7 @@ pub struct Client {
     ssl_mode: SslMode,
     process_id: i32,
     secret_key: i32,
+    result_format: bool,
 }
 
 impl Client {
@@ -190,6 +191,7 @@ impl Client {
             ssl_mode,
             process_id,
             secret_key,
+            result_format: true,
         }
     }
 
@@ -200,6 +202,24 @@ impl Client {
     #[cfg(feature = "runtime")]
     pub(crate) fn set_socket_config(&mut self, socket_config: SocketConfig) {
         self.socket_config = Some(socket_config);
+    }
+
+    /// Return the result format of client
+    ///
+    /// true indicates that the client will receive the result in binary format
+    /// false indicates that the client will receive the result in text format
+    pub fn result_format(&self) -> bool {
+        self.result_format
+    }
+
+    /// Set the format of return result.
+    ///
+    /// format
+    ///    true: binary format
+    ///   false: text format
+    /// default format is binary format(result_format = true)
+    pub fn set_result_format(&mut self, format: bool) {
+        self.result_format = format;
     }
 
     /// Creates a new prepared statement.
@@ -369,7 +389,7 @@ impl Client {
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        query::query(&self.inner, statement, params).await
+        query::query(&self.inner, statement, params, self.result_format).await
     }
 
     /// Executes a statement, returning the number of rows modified.
