@@ -7,6 +7,8 @@
 //! end up in logs pg_stat displays, etc.
 
 use crate::authentication::sasl;
+use base64::display::Base64Display;
+use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
 use md5::Md5;
 use rand::RngCore;
@@ -80,9 +82,9 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
     format!(
         "SCRAM-SHA-256${}:{}${}:{}",
         SCRAM_DEFAULT_ITERATIONS,
-        base64::encode(salt),
-        base64::encode(stored_key),
-        base64::encode(server_key)
+        Base64Display::new(&salt, &STANDARD),
+        Base64Display::new(&stored_key, &STANDARD),
+        Base64Display::new(&server_key, &STANDARD)
     )
 }
 
