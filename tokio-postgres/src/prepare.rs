@@ -64,7 +64,7 @@ pub async fn prepare(
     types: &[Type],
 ) -> Result<Statement, Error> {
     let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
-    let buf = encode(client, &name, query, types)?;
+    let buf = encode(client, &name, query, types, EncodeTermination::Sync)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
@@ -103,6 +103,50 @@ pub async fn prepare(
     Ok(Statement::new(client, name, parameters, columns))
 }
 
+pub async fn anonymous(
+    client: &Arc<InnerClient>,
+    query: &str,
+    types: &[Type],
+) -> Result<Statement, Error> {
+    let buf = encode(client, "", query, types, EncodeTermination::Flush)?;
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    match responses.next().await? {
+        Message::ParseComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+
+    let parameter_description = match responses.next().await? {
+        Message::ParameterDescription(body) => body,
+        _ => return Err(Error::unexpected_message()),
+    };
+
+    let row_description = match responses.next().await? {
+        Message::RowDescription(body) => Some(body),
+        Message::NoData => None,
+        _ => return Err(Error::unexpected_message()),
+    };
+
+    let mut parameters = vec![];
+    let mut it = parameter_description.parameters();
+    while let Some(oid) = it.next().map_err(Error::parse)? {
+        let type_ = get_type(client, oid).await?;
+        parameters.push(type_);
+    }
+
+    let mut columns = vec![];
+    if let Some(row_description) = row_description {
+        let mut it = row_description.fields();
+        while let Some(field) = it.next().map_err(Error::parse)? {
+            let type_ = get_type(client, field.type_oid()).await?;
+            let column = Column::new(field.name().to_string(), type_);
+            columns.push(column);
+        }
+    }
+
+    Ok(Statement::new(client, "".to_string(), parameters, columns))
+}
+
 fn prepare_rec<'a>(
     client: &'a Arc<InnerClient>,
     query: &'a str,
@@ -111,7 +155,18 @@ fn prepare_rec<'a>(
     Box::pin(prepare(client, query, types))
 }
 
-fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
+enum EncodeTermination {
+    Sync,
+    Flush,
+}
+
+fn encode(
+    client: &InnerClient,
+    name: &str,
+    query: &str,
+    types: &[Type],
+    terminate_with: EncodeTermination,
+) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {}: {}", name, query);
     } else {
@@ -121,7 +176,10 @@ fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Resu
     client.with_buf(|buf| {
         frontend::parse(name, query, types.iter().map(Type::oid), buf).map_err(Error::encode)?;
         frontend::describe(b'S', name, buf).map_err(Error::encode)?;
-        frontend::sync(buf);
+        match terminate_with {
+            EncodeTermination::Sync => frontend::sync(buf),
+            EncodeTermination::Flush => frontend::flush(buf),
+        }
         Ok(buf.split().freeze())
     })
 }

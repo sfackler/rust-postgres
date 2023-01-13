@@ -121,13 +121,15 @@ where
 }
 
 async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
+    println!("Starting! buf: {:?}", buf);
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+    println!("Sent!");
 
     match responses.next().await? {
         Message::BindComplete => {}
         _ => return Err(Error::unexpected_message()),
     }
-
+    println!("Got a response!");
     Ok(responses)
 }
 

@@ -22,6 +22,7 @@ use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use log::debug;
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
@@ -32,7 +33,6 @@ use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
-
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
     cur: BackendMessages,
@@ -243,6 +243,36 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         self.query_raw(statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await
+    }
+
+    /// Executes a statement, returning a vector of the resulting rows.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument is a raw query string.
+    ///
+    /// This function exists because the two-step process of prepare, then execute, does not work with
+    /// transaction pooling pgbouncer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of parameters provided does not match the number expected.
+    pub async fn query_without_prepare(
+        &self,
+        query: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error> {
+        let statement = prepare::anonymous(&self.inner, query, &[]).await?;
+        debug!(
+            "Un-prepared statement. Columns: {:?} Params: {:?}",
+            statement.columns(),
+            statement.params(),
+        );
+        query::query(&self.inner, statement, slice_iter(params))
             .await?
             .try_collect()
             .await
