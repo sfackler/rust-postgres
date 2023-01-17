@@ -240,7 +240,7 @@ impl Stream for RowStream {
 impl RowStream {
     /// Returns the number of rows affected by the query.
     ///
-    /// This will be `None` if the information is not available yet.
+    /// This function will return `None` until the stream has been exhausted.
     pub fn rows_affected(&self) -> Option<u64> {
         self.rows_affected
     }
