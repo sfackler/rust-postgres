@@ -7,7 +7,7 @@ use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::Message;
+use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
 use std::fmt;
 use std::marker::PhantomPinned;
@@ -52,6 +52,7 @@ where
     Ok(RowStream {
         statement,
         responses,
+        rows_affected: None,
         _p: PhantomPinned,
     })
 }
@@ -72,8 +73,22 @@ pub async fn query_portal(
     Ok(RowStream {
         statement: portal.statement().clone(),
         responses,
+        rows_affected: None,
         _p: PhantomPinned,
     })
+}
+
+/// Extract the number of rows affected from [`CommandCompleteBody`].
+pub fn extract_row_affected(body: &CommandCompleteBody) -> Result<u64, Error> {
+    let rows = body
+        .tag()
+        .map_err(Error::parse)?
+        .rsplit(' ')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap_or(0);
+    Ok(rows)
 }
 
 pub async fn execute<P, I>(
@@ -104,14 +119,7 @@ where
         match responses.next().await? {
             Message::DataRow(_) => {}
             Message::CommandComplete(body) => {
-                rows = body
-                    .tag()
-                    .map_err(Error::parse)?
-                    .rsplit(' ')
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .unwrap_or(0);
+                rows = extract_row_affected(&body)?;
             }
             Message::EmptyQueryResponse => rows = 0,
             Message::ReadyForQuery(_) => return Ok(rows),
@@ -202,6 +210,7 @@ pin_project! {
     pub struct RowStream {
         statement: Statement,
         responses: Responses,
+        rows_affected: Option<u64>,
         #[pin]
         _p: PhantomPinned,
     }
@@ -217,12 +226,22 @@ impl Stream for RowStream {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
                 }
-                Message::EmptyQueryResponse
-                | Message::CommandComplete(_)
-                | Message::PortalSuspended => {}
+                Message::CommandComplete(body) => {
+                    *this.rows_affected = Some(extract_row_affected(&body)?);
+                }
+                Message::EmptyQueryResponse | Message::PortalSuspended => {}
                 Message::ReadyForQuery(_) => return Poll::Ready(None),
                 _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
         }
+    }
+}
+
+impl RowStream {
+    /// Returns the number of rows affected by the query.
+    ///
+    /// This function will return `None` until the stream has been exhausted.
+    pub fn rows_affected(&self) -> Option<u64> {
+        self.rows_affected
     }
 }

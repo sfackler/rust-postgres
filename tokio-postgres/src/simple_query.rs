@@ -1,6 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::query::extract_row_affected;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
@@ -87,14 +88,7 @@ impl Stream for SimpleQueryStream {
         loop {
             match ready!(this.responses.poll_next(cx)?) {
                 Message::CommandComplete(body) => {
-                    let rows = body
-                        .tag()
-                        .map_err(Error::parse)?
-                        .rsplit(' ')
-                        .next()
-                        .unwrap()
-                        .parse()
-                        .unwrap_or(0);
+                    let rows = extract_row_affected(&body)?;
                     return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))));
                 }
                 Message::EmptyQueryResponse => {
