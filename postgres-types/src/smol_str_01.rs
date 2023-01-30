@@ -22,6 +22,4 @@ impl ToSql for SmolStr {
     fn accepts(ty: &Type) -> bool {
         <&str as ToSql>::accepts(ty)
     }
-
-    to_sql_checked!();
 }

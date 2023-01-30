@@ -21,5 +21,4 @@ impl ToSql for Uuid {
     }
 
     accepts!(UUID);
-    to_sql_checked!();
 }

@@ -11,7 +11,7 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{Oid, ToSql, Type};
+use crate::types::{BorrowToSqlChecked, Oid, ToSqlChecked, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -24,7 +24,6 @@ use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
-use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -237,7 +236,7 @@ impl Client {
     pub async fn query<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -265,7 +264,7 @@ impl Client {
     pub async fn query_one<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -302,7 +301,7 @@ impl Client {
     pub async fn query_opt<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -364,7 +363,7 @@ impl Client {
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -389,7 +388,7 @@ impl Client {
     pub async fn execute<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -414,7 +413,7 @@ impl Client {
     pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {

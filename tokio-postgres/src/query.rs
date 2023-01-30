@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::types::{BorrowToSql, IsNull};
+use crate::types::{BorrowToSqlChecked, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
@@ -18,7 +18,7 @@ struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
 impl<'a, T> fmt::Debug for BorrowToSqlParamsDebug<'a, T>
 where
-    T: BorrowToSql,
+    T: BorrowToSqlChecked,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
@@ -33,7 +33,7 @@ pub async fn query<P, I>(
     params: I,
 ) -> Result<RowStream, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -97,7 +97,7 @@ pub async fn execute<P, I>(
     params: I,
 ) -> Result<u64, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -141,7 +141,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 
 pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
@@ -160,15 +160,16 @@ pub fn encode_bind<P, I>(
     buf: &mut BytesMut,
 ) -> Result<(), Error>
 where
-    P: BorrowToSql,
+    P: BorrowToSqlChecked,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
     let param_types = statement.params();
     let params = params.into_iter();
 
-    assert!(
-        param_types.len() == params.len(),
+    assert_eq!(
+        param_types.len(),
+        params.len(),
         "expected {} parameters but got {}",
         param_types.len(),
         params.len()

@@ -5,7 +5,7 @@ use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{BorrowToSql, ToSql, Type};
+use crate::types::{BorrowToSqlChecked, ToSqlChecked, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -106,7 +106,7 @@ impl<'a> Transaction<'a> {
     pub async fn query<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -118,7 +118,7 @@ impl<'a> Transaction<'a> {
     pub async fn query_one<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -130,7 +130,7 @@ impl<'a> Transaction<'a> {
     pub async fn query_opt<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -142,7 +142,7 @@ impl<'a> Transaction<'a> {
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -153,7 +153,7 @@ impl<'a> Transaction<'a> {
     pub async fn execute<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -165,7 +165,7 @@ impl<'a> Transaction<'a> {
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
@@ -183,7 +183,7 @@ impl<'a> Transaction<'a> {
     pub async fn bind<T>(
         &self,
         statement: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
@@ -197,7 +197,7 @@ impl<'a> Transaction<'a> {
     pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {

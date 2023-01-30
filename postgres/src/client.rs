@@ -6,7 +6,7 @@ use crate::{
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
-use tokio_postgres::types::{BorrowToSql, ToSql, Type};
+use tokio_postgres::types::{BorrowToSqlChecked, ToSqlChecked, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
@@ -80,7 +80,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    pub fn execute<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -116,7 +120,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    pub fn query<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -153,7 +161,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
+    pub fn query_one<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSqlChecked + Sync)],
+    ) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
     {
@@ -199,7 +211,7 @@ impl Client {
     pub fn query_opt<T>(
         &mut self,
         query: &T,
-        params: &[&(dyn ToSql + Sync)],
+        params: &[&(dyn ToSqlChecked + Sync)],
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -239,7 +251,7 @@ impl Client {
     /// ```
     ///
     /// If you have a type like `Vec<T>` where `T: ToSql` Rust will not know how to use it as params. To get around
-    /// this the type must explicitly be converted to `&dyn ToSql`.
+    /// this the type must explicitly be converted to `&dyn ToSqlChecked`.
     ///
     /// ```no_run
     /// # use postgres::{Client, NoTls};
@@ -267,7 +279,7 @@ impl Client {
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
-        P: BorrowToSql,
+        P: BorrowToSqlChecked,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {

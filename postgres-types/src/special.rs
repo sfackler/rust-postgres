@@ -49,8 +49,6 @@ impl<T: ToSql> ToSql for Date<T> {
     fn accepts(ty: &Type) -> bool {
         *ty == Type::DATE && T::accepts(ty)
     }
-
-    to_sql_checked!();
 }
 
 /// A wrapper that can be used to represent infinity with `Type::Timestamp` and `Type::Timestamptz`
@@ -98,6 +96,4 @@ impl<T: ToSql> ToSql for Timestamp<T> {
     fn accepts(ty: &Type) -> bool {
         matches!(*ty, Type::TIMESTAMP | Type::TIMESTAMPTZ if T::accepts(ty))
     }
-
-    to_sql_checked!();
 }

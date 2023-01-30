@@ -161,7 +161,7 @@ async fn test_time_params() {
 async fn test_special_params_without_wrapper() {
     async fn assert_overflows<T>(client: &mut Client, val: &str, sql_type: &str)
     where
-        T: FromSqlOwned + fmt::Debug,
+        T: FromSqlOwned,
     {
         let err = client
             .query_one(&*format!("SELECT {}::{}", val, sql_type), &[])

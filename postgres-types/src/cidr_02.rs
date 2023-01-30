@@ -21,7 +21,6 @@ impl ToSql for IpCidr {
     }
 
     accepts!(CIDR);
-    to_sql_checked!();
 }
 
 impl<'a> FromSql<'a> for IpInet {
@@ -40,5 +39,4 @@ impl ToSql for IpInet {
     }
 
     accepts!(INET);
-    to_sql_checked!();
 }

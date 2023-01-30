@@ -23,5 +23,4 @@ impl ToSql for MacAddress {
     }
 
     accepts!(MACADDR);
-    to_sql_checked!();
 }
