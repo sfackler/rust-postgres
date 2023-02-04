@@ -43,6 +43,12 @@ pub enum SslMode {
     Prefer,
     /// Require the use of TLS.
     Require,
+    /// Require the use of TLS. Verify peer cert without hostname verification.
+    /// The user of this lib must handle TLS verification and set ssl mode to Require before calling `connect_tls`.
+    VerifyCa,
+    /// Require the use of TLS. Verify peer cert and hostname.
+    /// The user of this lib must handle TLS verification and set ssl mode to Require before calling `connect_tls`.
+    VerifyFull,
 }
 
 /// Channel binding configuration.
@@ -446,6 +452,8 @@ impl Config {
                     "disable" => SslMode::Disable,
                     "prefer" => SslMode::Prefer,
                     "require" => SslMode::Require,
+                    "verify-ca" => SslMode::VerifyCa,
+                    "verify-full" => SslMode::VerifyFull,
                     _ => return Err(Error::config_parse(Box::new(InvalidValue("sslmode")))),
                 };
                 self.ssl_mode(mode);

@@ -22,6 +22,11 @@ where
             return Ok(MaybeTlsStream::Raw(stream))
         }
         SslMode::Prefer | SslMode::Require => {}
+        SslMode::VerifyCa | SslMode::VerifyFull => {
+            // The user of this lib must handle TLS verification themselves
+            // and set config ssl mode to Require before calling connect_tls()
+            return Err(Error::tls("TLS verification was not handled".into()));
+        }
     }
 
     let mut buf = BytesMut::new();
