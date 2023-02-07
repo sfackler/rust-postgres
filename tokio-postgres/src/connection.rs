@@ -13,6 +13,7 @@ use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
@@ -54,6 +55,7 @@ pub struct Connection<S, T> {
     pending_responses: VecDeque<BackendMessage>,
     responses: VecDeque<Response>,
     state: State,
+    notification_callback: Option<Arc<dyn Fn(Notification) + Sync + Send>>,
 }
 
 impl<S, T> Connection<S, T>
@@ -75,6 +77,7 @@ where
             pending_responses,
             responses: VecDeque::new(),
             state: State::Active,
+            notification_callback: None,
         }
     }
 
@@ -323,6 +326,12 @@ where
             },
         }
     }
+
+    pub fn notification_callback<F>(&mut self, notification_callback: F)
+        where F: Fn(Notification) + Send + Sync + 'static,
+    {
+        self.notification_callback = Some(notification_callback);
+    }
 }
 
 impl<S, T> Future for Connection<S, T>
@@ -334,8 +343,15 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         while let Some(message) = ready!(self.poll_message(cx)?) {
-            if let AsyncMessage::Notice(notice) = message {
-                info!("{}: {}", notice.severity(), notice.message());
+            match message {
+                AsyncMessage::Notice(notice) => {
+                    info!("{}: {}", notice.severity(), notice.message());
+                },
+                AsyncMessage::Notification(notification) => {
+                    if let Some(callback) = self.notification_callback.as_ref() {
+                        callback(notification);
+                    }
+                }
             }
         }
         Poll::Ready(Ok(()))
