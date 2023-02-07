@@ -327,10 +327,11 @@ where
         }
     }
 
+    /// Function intercepting asynchronous notifications sent from the server using "pg_notify" or "notify".
     pub fn notification_callback<F>(&mut self, notification_callback: F)
         where F: Fn(Notification) + Send + Sync + 'static,
     {
-        self.notification_callback = Some(notification_callback);
+        self.notification_callback = Some(Arc::new(notification_callback));
     }
 }
 
