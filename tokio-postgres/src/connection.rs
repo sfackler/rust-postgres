@@ -329,7 +329,8 @@ where
 
     /// Function intercepting asynchronous notifications sent from the server using "pg_notify" or "notify".
     pub fn notification_callback<F>(&mut self, notification_callback: F)
-        where F: Fn(Notification) + Send + Sync + 'static,
+    where
+        F: Fn(Notification) + Send + Sync + 'static,
     {
         self.notification_callback = Some(Arc::new(notification_callback));
     }
@@ -347,7 +348,7 @@ where
             match message {
                 AsyncMessage::Notice(notice) => {
                     info!("{}: {}", notice.severity(), notice.message());
-                },
+                }
                 AsyncMessage::Notification(notification) => {
                     if let Some(callback) = self.notification_callback.as_ref() {
                         callback(notification);
