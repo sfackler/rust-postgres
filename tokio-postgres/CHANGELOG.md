@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added `execute_prepared` functions.
+
 ## v0.7.7 - 2022-08-21
 
 ## Added

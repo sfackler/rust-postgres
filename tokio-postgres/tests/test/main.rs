@@ -6,7 +6,9 @@ use futures_util::{
     future, join, pin_mut, stream, try_join, Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
 use pin_project_lite::pin_project;
+use postgres_types::ToSql;
 use std::fmt::Write;
+use std::future::poll_fn;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -950,4 +952,91 @@ async fn deferred_constraint() {
         .execute("INSERT INTO t (i) VALUES (1)", &[])
         .await
         .unwrap_err();
+}
+
+#[tokio::test]
+async fn execute_prepared() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    id INT GENERATED ALWAYS AS IDENTITY,
+                    a INT,
+                    b INT
+                );
+            ",
+        )
+        .await
+        .unwrap();
+
+    let statement1 = client
+        .prepare("INSERT INTO foo (a, b) VALUES ($1, $2)")
+        .await
+        .unwrap();
+    let statement2 = client
+        .prepare("INSERT INTO foo (a) VALUES ($1)")
+        .await
+        .unwrap();
+
+    let future1 = client.execute_prepared(&statement1, [&10 as &dyn ToSql, &11]);
+    let future2 = client.execute_prepared(&statement2, [&12 as &dyn ToSql]);
+
+    fn same_type<T>(_: &T, _: &T) {}
+    same_type(&future1, &future2);
+
+    future2.await.unwrap();
+    future1.await.unwrap();
+
+    let mut rows: Vec<(i32, i32, Option<i32>)> = client
+        .query("SELECT * FROM foo", &[])
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.get("id"), row.get("a"), row.get("b")))
+        .collect();
+
+    rows.sort_by_key(|row| row.0);
+
+    assert_eq!(rows, vec![(1, 10, Some(11)), (2, 12, None)]);
+}
+
+#[tokio::test]
+async fn execute_error() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    id INT GENERATED ALWAYS AS IDENTITY,
+                    a INT
+                );
+            ",
+        )
+        .await
+        .unwrap();
+
+    let statement = client
+        .prepare("INSERT INTO foo (a) VALUES ($1)")
+        .await
+        .unwrap();
+
+    let future = client.execute_prepared(&statement, [&"" as &dyn ToSql]);
+
+    future.await.unwrap_err();
+}
+
+#[tokio::test]
+#[should_panic]
+async fn execute_poll_after_completion() {
+    let client = connect("user=postgres").await;
+
+    let statement = client.prepare("SELECT 1").await.unwrap();
+
+    let mut future = client.execute_prepared::<&dyn ToSql, _>(&statement, []);
+
+    poll_fn(|cx| Pin::new(&mut future).poll(cx)).await.unwrap();
+    let _ = future.await;
 }
