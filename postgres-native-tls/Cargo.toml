@@ -14,12 +14,12 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 [features]
 default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]
-vendored-openssl = ["tokio-native-tls/vendored-openssl", "native-tls/vendored"]
+vendored-openssl = ["tokio-native-tls/vendored", "native-tls/vendored"]
 
 [dependencies]
 native-tls = "0.2"
 tokio = "1.0"
-tokio-native-tls = { git = "https://github.com/pimeys/tls", branch = "vendored-openssl" }
+tokio-native-tls = "0.3"
 tokio-postgres = { version = "0.7.0", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
