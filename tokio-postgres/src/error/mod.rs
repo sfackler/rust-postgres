@@ -344,6 +344,7 @@ enum Kind {
     ToSql(usize),
     FromSql(usize),
     Column(String),
+    Parameters(usize, usize),
     Closed,
     Db,
     Parse,
@@ -383,6 +384,9 @@ impl fmt::Display for Error {
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {}", idx)?,
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {}", idx)?,
             Kind::Column(column) => write!(fmt, "invalid column `{}`", column)?,
+            Kind::Parameters(real, expected) => {
+                write!(fmt, "expected {expected} parameters but got {real}")?
+            }
             Kind::Closed => fmt.write_str("connection closed")?,
             Kind::Db => fmt.write_str("db error")?,
             Kind::Parse => fmt.write_str("error parsing response from server")?,
@@ -472,6 +476,10 @@ impl Error {
 
     pub(crate) fn column(column: String) -> Error {
         Error::new(Kind::Column(column), None)
+    }
+
+    pub(crate) fn parameters(real: usize, expected: usize) -> Error {
+        Error::new(Kind::Parameters(real, expected), None)
     }
 
     pub(crate) fn tls(e: Box<dyn error::Error + Sync + Send>) -> Error {

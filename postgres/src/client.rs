@@ -57,10 +57,6 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
-    ///
     /// # Example
     ///
     /// ```no_run
@@ -96,10 +92,6 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -134,10 +126,6 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -171,10 +159,6 @@ impl Client {
     /// The `query` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// # Examples
     ///
@@ -212,10 +196,6 @@ impl Client {
     ///
     /// It takes an iterator of parameters rather than a slice, and returns an iterator of rows rather than collecting
     /// them into an array.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// # Examples
     ///
