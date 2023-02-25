@@ -167,12 +167,9 @@ where
     let param_types = statement.params();
     let params = params.into_iter();
 
-    assert!(
-        param_types.len() == params.len(),
-        "expected {} parameters but got {}",
-        param_types.len(),
-        params.len()
-    );
+    if param_types.len() != params.len() {
+        return Err(Error::parameters(params.len(), param_types.len()));
+    }
 
     let (param_formats, params): (Vec<_>, Vec<_>) = params
         .zip(param_types.iter())
