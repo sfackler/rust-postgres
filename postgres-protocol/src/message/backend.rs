@@ -546,7 +546,7 @@ impl DataRowBody {
     }
 
     #[inline]
-    pub fn storage_bytes(&self) -> &Bytes {
+    pub fn buffer_bytes(&self) -> &Bytes {
         &self.storage
     }
 }
