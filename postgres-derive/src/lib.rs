@@ -9,8 +9,10 @@ use syn::parse_macro_input;
 mod accepts;
 mod composites;
 mod enums;
+mod field_variant_overrides;
 mod fromsql;
-mod overrides;
+mod rename_rule;
+mod struct_overrides;
 mod tosql;
 
 #[proc_macro_derive(ToSql, attributes(postgres))]

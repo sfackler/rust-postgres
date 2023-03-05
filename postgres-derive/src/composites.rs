@@ -4,7 +4,7 @@ use syn::{
     TypeParamBound,
 };
 
-use crate::overrides::Overrides;
+use crate::{field_variant_overrides::FieldVariantOverrides, struct_overrides::StructOverrides};
 
 pub struct Field {
     pub name: String,
@@ -13,17 +13,20 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn parse(raw: &syn::Field) -> Result<Field, Error> {
-        let overrides = Overrides::extract(&raw.attrs)?;
+    pub fn parse(struct_overrides: &StructOverrides, raw: &syn::Field) -> Result<Field, Error> {
+        use convert_case::Casing;
+
+        let mut overrides = FieldVariantOverrides::extract(&raw.attrs)?;
 
         let ident = raw.ident.as_ref().unwrap().clone();
         Ok(Field {
-            name: overrides.name.unwrap_or_else(|| {
+            name: overrides.name.take().unwrap_or_else(|| {
                 let name = ident.to_string();
-                match name.strip_prefix("r#") {
-                    Some(name) => name.to_string(),
-                    None => name,
-                }
+                let name = name.strip_prefix("r#").map(String::from).unwrap_or(name);
+                struct_overrides
+                    .rename_all
+                    .map(|case| name.to_case(case))
+                    .unwrap_or(name)
             }),
             ident,
             type_: raw.ty.clone(),
