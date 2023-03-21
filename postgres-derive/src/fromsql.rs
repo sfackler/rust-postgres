@@ -3,10 +3,10 @@ use quote::{format_ident, quote};
 use std::iter;
 use syn::{
     punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
-    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, LifetimeDef,
-    PathArguments, PathSegment,
+    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments,
+    PathSegment,
 };
-use syn::{TraitBound, TraitBoundModifier, TypeParamBound};
+use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
 
 use crate::accepts;
 use crate::composites::Field;
@@ -96,9 +96,9 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let (impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let out = quote! {
-        impl#impl_generics postgres_types::FromSql<#lifetime> for #ident#ty_generics #where_clause {
+        impl #impl_generics postgres_types::FromSql<#lifetime> for #ident #ty_generics #where_clause {
             fn from_sql(_type: &postgres_types::Type, buf: &#lifetime [u8])
-                        -> std::result::Result<#ident#ty_generics,
+                        -> std::result::Result<#ident #ty_generics,
                                                std::boxed::Box<dyn std::error::Error +
                                                                std::marker::Sync +
                                                                std::marker::Send>> {
@@ -217,7 +217,7 @@ fn build_generics(source: &Generics) -> (Generics, Lifetime) {
     let mut out = append_generic_bound(source.to_owned(), &new_fromsql_bound(&lifetime));
     out.params.insert(
         0,
-        GenericParam::Lifetime(LifetimeDef::new(lifetime.to_owned())),
+        GenericParam::Lifetime(LifetimeParam::new(lifetime.to_owned())),
     );
 
     (out, lifetime)
