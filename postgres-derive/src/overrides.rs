@@ -1,4 +1,5 @@
-use syn::{Attribute, Error, Lit, Meta, NestedMeta};
+use syn::punctuated::Punctuated;
+use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token};
 
 pub struct Overrides {
     pub name: Option<String>,
@@ -13,26 +14,28 @@ impl Overrides {
         };
 
         for attr in attrs {
-            let attr = attr.parse_meta()?;
-
             if !attr.path().is_ident("postgres") {
                 continue;
             }
 
-            let list = match attr {
+            let list = match &attr.meta {
                 Meta::List(ref list) => list,
                 bad => return Err(Error::new_spanned(bad, "expected a #[postgres(...)]")),
             };
 
-            for item in &list.nested {
+            let nested = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+
+            for item in nested {
                 match item {
-                    NestedMeta::Meta(Meta::NameValue(meta)) => {
+                    Meta::NameValue(meta) => {
                         if !meta.path.is_ident("name") {
                             return Err(Error::new_spanned(&meta.path, "unknown override"));
                         }
 
-                        let value = match &meta.lit {
-                            Lit::Str(s) => s.value(),
+                        let value = match &meta.value {
+                            Expr::Lit(ExprLit {
+                                lit: Lit::Str(lit), ..
+                            }) => lit.value(),
                             bad => {
                                 return Err(Error::new_spanned(bad, "expected a string literal"))
                             }
@@ -40,7 +43,7 @@ impl Overrides {
 
                         overrides.name = Some(value);
                     }
-                    NestedMeta::Meta(Meta::Path(ref path)) => {
+                    Meta::Path(path) => {
                         if !path.is_ident("transparent") {
                             return Err(Error::new_spanned(path, "unknown override"));
                         }
