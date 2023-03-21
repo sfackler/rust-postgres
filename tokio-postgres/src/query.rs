@@ -10,6 +10,7 @@ use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -91,11 +92,68 @@ pub fn extract_row_affected(body: &CommandCompleteBody) -> Result<u64, Error> {
     Ok(rows)
 }
 
-pub async fn execute<P, I>(
-    client: &InnerClient,
-    statement: Statement,
-    params: I,
-) -> Result<u64, Error>
+/// A future that completes with the result of an `execute_prepared` function call.
+// Once https://github.com/rust-lang/rust/issues/63063 is stable, we might want to replace this by
+//     type Execute = impl Future<Output=Result<u64, Error>> + Sync + Send + Unpin + 'static
+// and restore the simpler procedural logic instead of writing the state machine ourselves.
+pub struct Execute {
+    responses: Result<Responses, Option<Error>>,
+    bound: bool,
+    rows: u64,
+}
+
+impl Future for Execute {
+    type Output = Result<u64, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        use Poll::*;
+        let slf = self.get_mut();
+        let responses = match &mut slf.responses {
+            Ok(r) => r,
+            Err(e) => match e.take() {
+                Some(e) => return Ready(Err(e)),
+                _ => panic!("Execute future polled after it has already completed"),
+            },
+        };
+        loop {
+            let message = match responses.poll_next(cx) {
+                Ready(Ok(msg)) => msg,
+                Ready(Err(e)) => {
+                    slf.responses = Err(None);
+                    return Ready(Err(e));
+                }
+                Pending => return Pending,
+            };
+            if !slf.bound {
+                match message {
+                    Message::BindComplete => slf.bound = true,
+                    _ => {
+                        slf.responses = Err(None);
+                        return Ready(Err(Error::unexpected_message()));
+                    }
+                }
+            } else {
+                match message {
+                    Message::DataRow(_) => {}
+                    Message::CommandComplete(body) => {
+                        slf.rows = extract_row_affected(&body)?;
+                    }
+                    Message::EmptyQueryResponse => slf.rows = 0,
+                    Message::ReadyForQuery(_) => {
+                        slf.responses = Err(None);
+                        return Ready(Ok(slf.rows));
+                    }
+                    _ => {
+                        slf.responses = Err(None);
+                        return Ready(Err(Error::unexpected_message()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn execute<P, I>(client: &InnerClient, statement: Statement, params: I) -> Execute
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
@@ -108,23 +166,19 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode(client, &statement, params)
     } else {
-        encode(client, &statement, params)?
+        encode(client, &statement, params)
     };
-    let mut responses = start(client, buf).await?;
 
-    let mut rows = 0;
-    loop {
-        match responses.next().await? {
-            Message::DataRow(_) => {}
-            Message::CommandComplete(body) => {
-                rows = extract_row_affected(&body)?;
-            }
-            Message::EmptyQueryResponse => rows = 0,
-            Message::ReadyForQuery(_) => return Ok(rows),
-            _ => return Err(Error::unexpected_message()),
-        }
+    let responses = buf
+        .and_then(|buf| client.send(RequestMessages::Single(FrontendMessage::Raw(buf))))
+        .map_err(Some);
+
+    Execute {
+        responses,
+        bound: false,
+        rows: 0,
     }
 }
 

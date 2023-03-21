@@ -6,7 +6,7 @@ use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
-use crate::query::RowStream;
+use crate::query::{Execute, RowStream};
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -396,6 +396,26 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         query::execute(self.inner(), statement, params).await
+    }
+
+    /// A version of [`execute_raw`] that does not borrow its arguments.
+    ///
+    /// This function is identical to [`execute_raw`] except that:
+    ///
+    /// 1. The returned future does not borrow the parameters or `self`.
+    /// 2. The type of the returned future does not depend on the parameters.
+    /// 3. If multiple such futures are being used concurrently, then they are executed on the server in the order
+    ///    in which this function was called, regardless of the order in which the futures are polled.
+    /// 4. This function can only be used with prepared statements.
+    ///
+    /// [`execute_raw`]: #method.execute_raw
+    pub fn execute_prepared<P, I>(&self, statement: &Statement, params: I) -> Execute
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        query::execute(self.inner(), statement.clone(), params)
     }
 
     /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.

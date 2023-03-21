@@ -1,7 +1,7 @@
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::copy_out::CopyOutStream;
-use crate::query::RowStream;
+use crate::query::{Execute, RowStream};
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
@@ -170,6 +170,16 @@ impl<'a> Transaction<'a> {
         I::IntoIter: ExactSizeIterator,
     {
         self.client.execute_raw(statement, params).await
+    }
+
+    /// Like `Client::execute_prepared`.
+    pub fn execute_prepared<P, I>(&self, statement: &Statement, params: I) -> Execute
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.client.execute_prepared(statement, params)
     }
 
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.

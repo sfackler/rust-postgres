@@ -1,4 +1,4 @@
-use crate::query::RowStream;
+use crate::query::{Execute, RowStream};
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{Client, Error, Row, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
@@ -23,6 +23,13 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Sync + Send,
+        I::IntoIter: ExactSizeIterator;
+
+    /// Like `Client::execute_prepared`.
+    fn execute_prepared<P, I>(&self, statement: &Statement, params: I) -> Execute
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator;
 
     /// Like `Client::query`.
@@ -95,6 +102,15 @@ impl GenericClient for Client {
         I::IntoIter: ExactSizeIterator,
     {
         self.execute_raw(statement, params).await
+    }
+
+    fn execute_prepared<P, I>(&self, statement: &Statement, params: I) -> Execute
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.execute_prepared(statement, params)
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
@@ -181,6 +197,15 @@ impl GenericClient for Transaction<'_> {
         I::IntoIter: ExactSizeIterator,
     {
         self.execute_raw(statement, params).await
+    }
+
+    fn execute_prepared<P, I>(&self, statement: &Statement, params: I) -> Execute
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.execute_prepared(statement, params)
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
