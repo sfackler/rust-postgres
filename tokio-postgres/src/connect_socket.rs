@@ -14,7 +14,7 @@ pub(crate) async fn connect_socket(
     host: &Host,
     port: u16,
     connect_timeout: Option<Duration>,
-    user_timeout: Option<Duration>,
+    tcp_user_timeout: Option<Duration>,
     keepalive_config: Option<&KeepaliveConfig>,
 ) -> Result<Socket, Error> {
     match host {
@@ -41,7 +41,7 @@ pub(crate) async fn connect_socket(
                 #[cfg(target_os = "linux")]
                 {
                     sock_ref
-                        .set_tcp_user_timeout(user_timeout)
+                        .set_tcp_user_timeout(tcp_user_timeout)
                         .map_err(Error::timeout)?;
                 }
 

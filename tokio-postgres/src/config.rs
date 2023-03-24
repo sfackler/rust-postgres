@@ -96,6 +96,9 @@ pub enum Host {
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
+///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
+///     and will default to the system default; on other systems, it has no effect.
 /// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
@@ -160,7 +163,7 @@ pub struct Config {
     pub(crate) host: Vec<Host>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
-    pub(crate) user_timeout: Option<Duration>,
+    pub(crate) tcp_user_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
@@ -191,7 +194,7 @@ impl Config {
             host: vec![],
             port: vec![],
             connect_timeout: None,
-            user_timeout: None,
+            tcp_user_timeout: None,
             keepalives: true,
             keepalive_config,
             target_session_attrs: TargetSessionAttrs::Any,
@@ -343,15 +346,19 @@ impl Config {
     }
 
     /// Sets the TCP user timeout.
-    pub fn user_timeout(&mut self, user_timeout: Duration) -> &mut Config {
-        self.user_timeout = Some(user_timeout);
+    ///
+    /// This is ignored for Unix domain socket connections. It is only supported on systems where
+    /// TCP_USER_TIMEOUT is available and will default to the system default; on other systems,
+    /// it has no effect.
+    pub fn tcp_user_timeout(&mut self, tcp_user_timeout: Duration) -> &mut Config {
+        self.tcp_user_timeout = Some(tcp_user_timeout);
         self
     }
 
     /// Gets the TCP user timeout, if one has been set with the
     /// `user_timeout` method.
-    pub fn get_user_timeout(&self) -> Option<&Duration> {
-        self.user_timeout.as_ref()
+    pub fn get_tcp_user_timeout(&self) -> Option<&Duration> {
+        self.tcp_user_timeout.as_ref()
     }
 
     /// Controls the use of TCP keepalive.
@@ -488,6 +495,14 @@ impl Config {
                     self.connect_timeout(Duration::from_secs(timeout as u64));
                 }
             }
+            "tcp_user_timeout" => {
+                let timeout = value
+                    .parse::<i64>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("tcp_user_timeout"))))?;
+                if timeout > 0 {
+                    self.tcp_user_timeout(Duration::from_secs(timeout as u64));
+                }
+            }
             "keepalives" => {
                 let keepalives = value
                     .parse::<u64>()
@@ -609,6 +624,7 @@ impl fmt::Debug for Config {
             .field("host", &self.host)
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
+            .field("tcp_user_timeout", &self.tcp_user_timeout)
             .field("keepalives", &self.keepalives)
             .field("keepalives_idle", &self.keepalive_config.idle)
             .field("keepalives_interval", &self.keepalive_config.interval)
