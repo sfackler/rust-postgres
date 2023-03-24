@@ -65,6 +65,7 @@ where
         host,
         port,
         config.connect_timeout,
+        config.user_timeout,
         if config.keepalives {
             Some(&config.keepalive_config)
         } else {
@@ -118,6 +119,7 @@ where
         host: host.clone(),
         port,
         connect_timeout: config.connect_timeout,
+        user_timeout: config.user_timeout,
         keepalive: if config.keepalives {
             Some(config.keepalive_config.clone())
         } else {

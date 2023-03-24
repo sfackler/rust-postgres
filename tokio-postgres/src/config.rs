@@ -160,6 +160,7 @@ pub struct Config {
     pub(crate) host: Vec<Host>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
+    pub(crate) user_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
@@ -190,6 +191,7 @@ impl Config {
             host: vec![],
             port: vec![],
             connect_timeout: None,
+            user_timeout: None,
             keepalives: true,
             keepalive_config,
             target_session_attrs: TargetSessionAttrs::Any,
@@ -338,6 +340,18 @@ impl Config {
     /// `connect_timeout` method.
     pub fn get_connect_timeout(&self) -> Option<&Duration> {
         self.connect_timeout.as_ref()
+    }
+
+    /// Sets the TCP user timeout.
+    pub fn user_timeout(&mut self, user_timeout: Duration) -> &mut Config {
+        self.user_timeout = Some(user_timeout);
+        self
+    }
+
+    /// Gets the TCP user timeout, if one has been set with the
+    /// `user_timeout` method.
+    pub fn get_user_timeout(&self) -> Option<&Duration> {
+        self.user_timeout.as_ref()
     }
 
     /// Controls the use of TCP keepalive.
