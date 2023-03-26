@@ -1,8 +1,11 @@
 use syn::punctuated::Punctuated;
 use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token};
 
+use crate::case::{RenameRule, RENAME_RULES};
+
 pub struct Overrides {
     pub name: Option<String>,
+    pub rename_all: Option<RenameRule>,
     pub transparent: bool,
 }
 
@@ -10,6 +13,7 @@ impl Overrides {
     pub fn extract(attrs: &[Attribute]) -> Result<Overrides, Error> {
         let mut overrides = Overrides {
             name: None,
+            rename_all: None,
             transparent: false,
         };
 
@@ -28,7 +32,9 @@ impl Overrides {
             for item in nested {
                 match item {
                     Meta::NameValue(meta) => {
-                        if !meta.path.is_ident("name") {
+                        let name_override = meta.path.is_ident("name");
+                        let rename_all_override = meta.path.is_ident("rename_all");
+                        if !name_override && !rename_all_override {
                             return Err(Error::new_spanned(&meta.path, "unknown override"));
                         }
 
@@ -41,7 +47,29 @@ impl Overrides {
                             }
                         };
 
-                        overrides.name = Some(value);
+                        if name_override {
+                            overrides.name = Some(value);
+                        } else if rename_all_override {
+                            let rename_rule = RENAME_RULES
+                                .iter()
+                                .find(|rule| rule.0 == value)
+                                .map(|val| val.1)
+                                .ok_or_else(|| {
+                                    Error::new_spanned(
+                                        &meta.value,
+                                        format!(
+                                            "invalid rename_all rule, expected one of: {}",
+                                            RENAME_RULES
+                                                .iter()
+                                                .map(|rule| format!("\"{}\"", rule.0))
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        ),
+                                    )
+                                })?;
+
+                            overrides.rename_all = Some(rename_rule);
+                        }
                     }
                     Meta::Path(path) => {
                         if !path.is_ident("transparent") {
