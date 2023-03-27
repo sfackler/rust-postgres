@@ -15,7 +15,7 @@ use crate::enums::Variant;
 use crate::overrides::Overrides;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
-    let overrides = Overrides::extract(&input.attrs)?;
+    let overrides = Overrides::extract(&input.attrs, true)?;
 
     if overrides.name.is_some() && overrides.transparent {
         return Err(Error::new_spanned(

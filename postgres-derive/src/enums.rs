@@ -18,7 +18,7 @@ impl Variant {
                 ))
             }
         }
-        let overrides = Overrides::extract(&raw.attrs)?;
+        let overrides = Overrides::extract(&raw.attrs, false)?;
 
         // variant level name override takes precendence over container level rename_all override
         let name = overrides.name.unwrap_or_else(|| match rename_all {

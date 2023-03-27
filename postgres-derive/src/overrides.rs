@@ -10,7 +10,7 @@ pub struct Overrides {
 }
 
 impl Overrides {
-    pub fn extract(attrs: &[Attribute]) -> Result<Overrides, Error> {
+    pub fn extract(attrs: &[Attribute], container_attr: bool) -> Result<Overrides, Error> {
         let mut overrides = Overrides {
             name: None,
             rename_all: None,
@@ -34,6 +34,12 @@ impl Overrides {
                     Meta::NameValue(meta) => {
                         let name_override = meta.path.is_ident("name");
                         let rename_all_override = meta.path.is_ident("rename_all");
+                        if !container_attr && rename_all_override {
+                            return Err(Error::new_spanned(
+                                &meta.path,
+                                "rename_all is a container attribute",
+                            ));
+                        }
                         if !name_override && !rename_all_override {
                             return Err(Error::new_spanned(&meta.path, "unknown override"));
                         }

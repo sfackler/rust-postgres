@@ -14,7 +14,7 @@ pub struct Field {
 
 impl Field {
     pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<Field, Error> {
-        let overrides = Overrides::extract(&raw.attrs)?;
+        let overrides = Overrides::extract(&raw.attrs, false)?;
         let ident = raw.ident.as_ref().unwrap().clone();
 
         // field level name override takes precendence over container level rename_all override
