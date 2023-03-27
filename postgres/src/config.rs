@@ -44,6 +44,9 @@ use tokio_postgres::{Error, Socket};
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
+///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
+///     and will default to the system default if omitted or set to 0; on other systems, it has no effect.
 /// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
@@ -254,6 +257,22 @@ impl Config {
     /// `connect_timeout` method.
     pub fn get_connect_timeout(&self) -> Option<&Duration> {
         self.config.get_connect_timeout()
+    }
+
+    /// Sets the TCP user timeout.
+    ///
+    /// This is ignored for Unix domain socket connections. It is only supported on systems where
+    /// TCP_USER_TIMEOUT is available and will default to the system default if omitted or set to 0;
+    /// on other systems, it has no effect.
+    pub fn tcp_user_timeout(&mut self, tcp_user_timeout: Duration) -> &mut Config {
+        self.config.tcp_user_timeout(tcp_user_timeout);
+        self
+    }
+
+    /// Gets the TCP user timeout, if one has been set with the
+    /// `user_timeout` method.
+    pub fn get_tcp_user_timeout(&self) -> Option<&Duration> {
+        self.config.get_tcp_user_timeout()
     }
 
     /// Controls the use of TCP keepalive.
