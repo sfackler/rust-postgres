@@ -1,6 +1,11 @@
 #[allow(deprecated, unused_imports)]
 use std::ascii::AsciiExt;
 
+use heck::{
+    ToKebabCase, ToLowerCamelCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase, ToTrainCase,
+    ToUpperCamelCase,
+};
+
 use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
@@ -26,78 +31,56 @@ pub enum RenameRule {
     KebabCase,
     /// Rename direct children to "SCREAMING-KEBAB-CASE" style.
     ScreamingKebabCase,
+
+    /// Rename direct children to "Train-Case" style.
+    TrainCase,
 }
 
-pub static RENAME_RULES: &[(&str, RenameRule)] = &[
-    ("lowercase", LowerCase),
-    ("UPPERCASE", UpperCase),
-    ("PascalCase", PascalCase),
-    ("camelCase", CamelCase),
-    ("snake_case", SnakeCase),
-    ("SCREAMING_SNAKE_CASE", ScreamingSnakeCase),
-    ("kebab-case", KebabCase),
-    ("SCREAMING-KEBAB-CASE", ScreamingKebabCase),
+pub const RENAME_RULES: &[&str] = &[
+    "lowercase",
+    "UPPERCASE",
+    "PascalCase",
+    "camelCase",
+    "snake_case",
+    "SCREAMING_SNAKE_CASE",
+    "kebab-case",
+    "SCREAMING-KEBAB-CASE",
+    "Train-Case",
 ];
 
 impl RenameRule {
-    /// Apply a renaming rule to an enum variant, returning the version expected in the source.
-    pub fn apply_to_variant(&self, variant: &str) -> String {
-        match *self {
-            PascalCase => variant.to_owned(),
-            LowerCase => variant.to_ascii_lowercase(),
-            UpperCase => variant.to_ascii_uppercase(),
-            CamelCase => variant[..1].to_ascii_lowercase() + &variant[1..],
-            SnakeCase => {
-                let mut snake = String::new();
-                for (i, ch) in variant.char_indices() {
-                    if i > 0 && ch.is_uppercase() {
-                        snake.push('_');
-                    }
-                    snake.push(ch.to_ascii_lowercase());
-                }
-                snake
-            }
-            ScreamingSnakeCase => SnakeCase.apply_to_variant(variant).to_ascii_uppercase(),
-            KebabCase => SnakeCase.apply_to_variant(variant).replace('_', "-"),
-            ScreamingKebabCase => ScreamingSnakeCase
-                .apply_to_variant(variant)
-                .replace('_', "-"),
+    pub fn from_str(rule: &str) -> Option<RenameRule> {
+        match rule {
+            "lowercase" => Some(LowerCase),
+            "UPPERCASE" => Some(UpperCase),
+            "PascalCase" => Some(PascalCase),
+            "camelCase" => Some(CamelCase),
+            "snake_case" => Some(SnakeCase),
+            "SCREAMING_SNAKE_CASE" => Some(ScreamingSnakeCase),
+            "kebab-case" => Some(KebabCase),
+            "SCREAMING-KEBAB-CASE" => Some(ScreamingKebabCase),
+            "Train-Case" => Some(TrainCase),
+            _ => None,
         }
     }
-
-    /// Apply a renaming rule to a struct field, returning the version expected in the source.
-    pub fn apply_to_field(&self, field: &str) -> String {
+    /// Apply a renaming rule to an enum or struct field, returning the version expected in the source.
+    pub fn apply_to_field(&self, variant: &str) -> String {
         match *self {
-            LowerCase | SnakeCase => field.to_owned(),
-            UpperCase => field.to_ascii_uppercase(),
-            PascalCase => {
-                let mut pascal = String::new();
-                let mut capitalize = true;
-                for ch in field.chars() {
-                    if ch == '_' {
-                        capitalize = true;
-                    } else if capitalize {
-                        pascal.push(ch.to_ascii_uppercase());
-                        capitalize = false;
-                    } else {
-                        pascal.push(ch);
-                    }
-                }
-                pascal
-            }
-            CamelCase => {
-                let pascal = PascalCase.apply_to_field(field);
-                pascal[..1].to_ascii_lowercase() + &pascal[1..]
-            }
-            ScreamingSnakeCase => field.to_ascii_uppercase(),
-            KebabCase => field.replace('_', "-"),
-            ScreamingKebabCase => ScreamingSnakeCase.apply_to_field(field).replace('_', "-"),
+            LowerCase => variant.to_lowercase(),
+            UpperCase => variant.to_uppercase(),
+            PascalCase => variant.to_upper_camel_case(),
+            CamelCase => variant.to_lower_camel_case(),
+            SnakeCase => variant.to_snake_case(),
+            ScreamingSnakeCase => variant.to_shouty_snake_case(),
+            KebabCase => variant.to_kebab_case(),
+            ScreamingKebabCase => variant.to_shouty_kebab_case(),
+            TrainCase => variant.to_train_case(),
         }
     }
 }
 
 #[test]
-fn rename_variants() {
+fn rename_field() {
     for &(original, lower, upper, camel, snake, screaming, kebab, screaming_kebab) in &[
         (
             "Outcome", "outcome", "OUTCOME", "outcome", "outcome", "OUTCOME", "outcome", "OUTCOME",
@@ -115,42 +98,11 @@ fn rename_variants() {
         ("A", "a", "A", "a", "a", "A", "a", "A"),
         ("Z42", "z42", "Z42", "z42", "z42", "Z42", "z42", "Z42"),
     ] {
-        assert_eq!(LowerCase.apply_to_variant(original), lower);
-        assert_eq!(UpperCase.apply_to_variant(original), upper);
-        assert_eq!(PascalCase.apply_to_variant(original), original);
-        assert_eq!(CamelCase.apply_to_variant(original), camel);
-        assert_eq!(SnakeCase.apply_to_variant(original), snake);
-        assert_eq!(ScreamingSnakeCase.apply_to_variant(original), screaming);
-        assert_eq!(KebabCase.apply_to_variant(original), kebab);
-        assert_eq!(
-            ScreamingKebabCase.apply_to_variant(original),
-            screaming_kebab
-        );
-    }
-}
-
-#[test]
-fn rename_fields() {
-    for &(original, upper, pascal, camel, screaming, kebab, screaming_kebab) in &[
-        (
-            "outcome", "OUTCOME", "Outcome", "outcome", "OUTCOME", "outcome", "OUTCOME",
-        ),
-        (
-            "very_tasty",
-            "VERY_TASTY",
-            "VeryTasty",
-            "veryTasty",
-            "VERY_TASTY",
-            "very-tasty",
-            "VERY-TASTY",
-        ),
-        ("a", "A", "A", "a", "A", "a", "A"),
-        ("z42", "Z42", "Z42", "z42", "Z42", "z42", "Z42"),
-    ] {
+        assert_eq!(LowerCase.apply_to_field(original), lower);
         assert_eq!(UpperCase.apply_to_field(original), upper);
-        assert_eq!(PascalCase.apply_to_field(original), pascal);
+        assert_eq!(PascalCase.apply_to_field(original), original);
         assert_eq!(CamelCase.apply_to_field(original), camel);
-        assert_eq!(SnakeCase.apply_to_field(original), original);
+        assert_eq!(SnakeCase.apply_to_field(original), snake);
         assert_eq!(ScreamingSnakeCase.apply_to_field(original), screaming);
         assert_eq!(KebabCase.apply_to_field(original), kebab);
         assert_eq!(ScreamingKebabCase.apply_to_field(original), screaming_kebab);

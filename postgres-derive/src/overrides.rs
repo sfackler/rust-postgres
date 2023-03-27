@@ -56,23 +56,19 @@ impl Overrides {
                         if name_override {
                             overrides.name = Some(value);
                         } else if rename_all_override {
-                            let rename_rule = RENAME_RULES
-                                .iter()
-                                .find(|rule| rule.0 == value)
-                                .map(|val| val.1)
-                                .ok_or_else(|| {
-                                    Error::new_spanned(
-                                        &meta.value,
-                                        format!(
-                                            "invalid rename_all rule, expected one of: {}",
-                                            RENAME_RULES
-                                                .iter()
-                                                .map(|rule| format!("\"{}\"", rule.0))
-                                                .collect::<Vec<_>>()
-                                                .join(", ")
-                                        ),
-                                    )
-                                })?;
+                            let rename_rule = RenameRule::from_str(&value).ok_or_else(|| {
+                                Error::new_spanned(
+                                    &meta.value,
+                                    format!(
+                                        "invalid rename_all rule, expected one of: {}",
+                                        RENAME_RULES
+                                            .iter()
+                                            .map(|rule| format!("\"{}\"", rule))
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    ),
+                                )
+                            })?;
 
                             overrides.rename_all = Some(rename_rule);
                         }

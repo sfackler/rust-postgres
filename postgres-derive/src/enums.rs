@@ -22,7 +22,7 @@ impl Variant {
 
         // variant level name override takes precendence over container level rename_all override
         let name = overrides.name.unwrap_or_else(|| match rename_all {
-            Some(rule) => rule.apply_to_variant(&raw.ident.to_string()),
+            Some(rule) => rule.apply_to_field(&raw.ident.to_string()),
             None => raw.ident.to_string(),
         });
         Ok(Variant {
