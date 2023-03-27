@@ -156,6 +156,7 @@ pub(crate) struct SocketConfig {
     pub host: Host,
     pub port: u16,
     pub connect_timeout: Option<Duration>,
+    pub tcp_user_timeout: Option<Duration>,
     pub keepalive: Option<KeepaliveConfig>,
 }
 
