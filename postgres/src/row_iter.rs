@@ -17,6 +17,13 @@ impl<'a> RowIter<'a> {
             it: Box::pin(stream),
         }
     }
+
+    /// Returns the number of rows affected by the query.
+    ///
+    /// This function will return `None` until the iterator has been exhausted.
+    pub fn rows_affected(&self) -> Option<u64> {
+        self.it.rows_affected()
+    }
 }
 
 impl FallibleIterator for RowIter<'_> {
