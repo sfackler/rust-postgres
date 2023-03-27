@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.4 - 2023-03-27
+
+### Changed
+
+* Upgraded `syn`.
+
 ## v0.4.3 - 2022-09-07
 
 ### Added
