@@ -42,7 +42,7 @@ pub(crate) async fn connect_socket(
                 {
                     sock_ref
                         .set_tcp_user_timeout(tcp_user_timeout)
-                        .map_err(Error::timeout)?;
+                        .map_err(Error::connect)?;
                 }
 
                 if let Some(keepalive_config) = keepalive_config {
