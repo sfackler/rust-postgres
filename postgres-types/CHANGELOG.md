@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.2.5 - 2023-03-27
+
+## Added
+
+* Added support for multi-range types.
+
 ## v0.2.4 - 2022-08-20
 
 ## Added
