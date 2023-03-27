@@ -1,5 +1,21 @@
 # Change Log
 
+## v0.7.8
+
+## Added
+
+* Added `keepalives_interval` and `keepalives_retries` config options.
+* Added new `SqlState` variants.
+* Added more `Debug` impls.
+* Added `GenericClient::batch_execute`.
+* Added `RowStream::rows_affected`.
+* Added the `tcp_user_timeout` config option.
+
+## Changed
+
+* Passing an incorrect number of parameters to a query method now returns an error instead of panicking.
+* Upgraded `socket2`.
+
 ## v0.7.7 - 2022-08-21
 
 ## Added
