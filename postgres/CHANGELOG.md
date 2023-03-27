@@ -1,5 +1,17 @@
 # Change Log
 
+## v0.19.5 - 2023-03-27
+
+## Added
+
+* Added `keepalives_interval` and `keepalives_retries` config options.
+* Added the `tcp_user_timeout` config option.
+* Added `RowIter::rows_affected`.
+
+## Changed
+
+* Passing an incorrect number of parameters to a query method now returns an error instead of panicking.
+
 ## v0.19.4 - 2022-08-21
 
 ## Added
