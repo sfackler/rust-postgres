@@ -15,10 +15,10 @@ use crate::overrides::Overrides;
 pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs, true)?;
 
-    if overrides.name.is_some() && overrides.transparent {
+    if (overrides.name.is_some() || overrides.rename_all.is_some()) && overrides.transparent {
         return Err(Error::new_spanned(
             &input,
-            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")]",
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")] or #[postgres(rename_all = \"...\")]",
         ));
     }
 

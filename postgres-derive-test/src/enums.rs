@@ -58,15 +58,15 @@ fn rename_all_overrides() {
     #[derive(Debug, ToSql, FromSql, PartialEq)]
     #[postgres(name = "mood", rename_all = "snake_case")]
     enum Mood {
-        Sad,
+        VerySad,
         #[postgres(name = "okay")]
         Ok,
-        Happy,
+        VeryHappy,
     }
 
     let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
     conn.execute(
-        "CREATE TYPE pg_temp.mood AS ENUM ('sad', 'okay', 'happy')",
+        "CREATE TYPE pg_temp.mood AS ENUM ('very_sad', 'okay', 'very_happy')",
         &[],
     )
     .unwrap();
@@ -75,9 +75,9 @@ fn rename_all_overrides() {
         &mut conn,
         "mood",
         &[
-            (Mood::Sad, "'sad'"),
+            (Mood::VerySad, "'very_sad'"),
             (Mood::Ok, "'okay'"),
-            (Mood::Happy, "'happy'"),
+            (Mood::VeryHappy, "'very_happy'"),
         ],
     );
 }
