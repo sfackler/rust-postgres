@@ -17,7 +17,12 @@ impl From<&KeepaliveConfig> for TcpKeepalive {
             tcp_keepalive = tcp_keepalive.with_interval(interval);
         }
 
-        #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "windows", target_os = "openbsd")))]
+        #[cfg(not(any(
+            target_os = "redox",
+            target_os = "solaris",
+            target_os = "windows",
+            target_os = "openbsd"
+        )))]
         if let Some(retries) = keepalive_config.retries {
             tcp_keepalive = tcp_keepalive.with_retries(retries);
         }
