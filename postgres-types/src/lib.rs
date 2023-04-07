@@ -1012,28 +1012,20 @@ impl ToSql for Vec<u8> {
 
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        match *ty {
-            ref ty if ty.name() == "ltree" => types::ltree_to_sql(self, w),
-            ref ty if ty.name() == "lquery" => types::lquery_to_sql(self, w),
-            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_to_sql(self, w),
+        match ty.name() {
+            "ltree" => types::ltree_to_sql(self, w),
+            "lquery" => types::lquery_to_sql(self, w),
+            "ltxtquery" => types::ltxtquery_to_sql(self, w),
             _ => types::text_to_sql(self, w),
         }
         Ok(IsNull::No)
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
-            ref ty
-                if (ty.name() == "citext"
-                    || ty.name() == "ltree"
-                    || ty.name() == "lquery"
-                    || ty.name() == "ltxtquery") =>
-            {
-                true
-            }
-            _ => false,
-        }
+        matches!(
+            *ty,
+            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN
+        ) || matches!(ty.name(), "citext" | "ltree" | "lquery" | "ltxtquery")
     }
 
     to_sql_checked!();
