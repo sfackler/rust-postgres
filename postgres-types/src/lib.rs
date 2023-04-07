@@ -1022,18 +1022,10 @@ impl<'a> ToSql for &'a str {
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
-            ref ty
-                if (ty.name() == "citext"
-                    || ty.name() == "ltree"
-                    || ty.name() == "lquery"
-                    || ty.name() == "ltxtquery") =>
-            {
-                true
-            }
-            _ => false,
-        }
+        matches!(
+            *ty,
+            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN
+        ) || matches!(ty.name(), "citext" | "ltree" | "lquery" | "ltxtquery")
     }
 
     to_sql_checked!();
