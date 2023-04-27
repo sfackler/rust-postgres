@@ -49,7 +49,8 @@ enum State {
 /// occurred, or because its associated `Client` has dropped and all outstanding work has completed.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<S, T> {
-    stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
+    /// HACK: we need this in the Neon Proxy.
+    pub stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     /// HACK: we need this in the Neon Proxy to forward params.
     pub parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
