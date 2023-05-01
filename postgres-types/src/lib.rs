@@ -910,9 +910,15 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
             _ => panic!("expected array type"),
         };
 
+        // Arrays are normally one indexed by default but oidvector *requires* zero indexing
+        let lower_bound = match *ty {
+            Type::OID_VECTOR => 0,
+            _ => 1,
+        };
+
         let dimension = ArrayDimension {
             len: downcast(self.len())?,
-            lower_bound: 1,
+            lower_bound,
         };
 
         types::array_to_sql(
