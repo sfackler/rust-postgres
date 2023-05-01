@@ -14,7 +14,9 @@ pub(crate) async fn connect_socket(
     host: &Host,
     port: u16,
     connect_timeout: Option<Duration>,
-    tcp_user_timeout: Option<Duration>,
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] tcp_user_timeout: Option<
+        Duration,
+    >,
     keepalive_config: Option<&KeepaliveConfig>,
 ) -> Result<Socket, Error> {
     match host {
