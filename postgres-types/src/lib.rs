@@ -910,9 +910,9 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
             _ => panic!("expected array type"),
         };
 
-        // Arrays are normally one indexed by default but oidvector *requires* zero indexing
+        // Arrays are normally one indexed by default but oidvector and int2vector *require* zero indexing
         let lower_bound = match *ty {
-            Type::OID_VECTOR => 0,
+            Type::OID_VECTOR | Type::INT2_VECTOR => 0,
             _ => 1,
         };
 
