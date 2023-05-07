@@ -55,7 +55,7 @@ jobs:
       - run: docker compose up -d
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.64.0
+          version: 1.65.0
       - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
       - uses: actions/cache@v3
