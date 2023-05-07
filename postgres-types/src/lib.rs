@@ -1178,17 +1178,17 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
-impl sealed::Sealed for Box<dyn ToSql + Sync> {}
+impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + 'a> {}
 
-impl BorrowToSql for Box<dyn ToSql + Sync> {
+impl<'a> BorrowToSql for Box<dyn ToSql + Sync + 'a> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
     }
 }
 
-impl sealed::Sealed for Box<dyn ToSql + Sync + Send> {}
-impl BorrowToSql for Box<dyn ToSql + Sync + Send> {
+impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + Send + 'a> {}
+impl<'a> BorrowToSql for Box<dyn ToSql + Sync + Send + 'a> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
