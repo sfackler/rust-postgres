@@ -126,7 +126,7 @@ fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Resu
     })
 }
 
-async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
+pub async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
     if let Some(type_) = Type::from_oid(oid) {
         return Ok(type_);
     }

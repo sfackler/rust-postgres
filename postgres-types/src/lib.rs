@@ -442,6 +442,22 @@ impl WrongType {
     }
 }
 
+/// An error indicating that a as_text conversion was attempted on a binary
+/// result.
+#[derive(Debug)]
+pub struct WrongFormat {}
+
+impl Error for WrongFormat {}
+
+impl fmt::Display for WrongFormat {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            fmt,
+            "cannot read column as text while it is in binary format"
+        )
+    }
+}
+
 /// A trait for types that can be created from a Postgres value.
 ///
 /// # Types
@@ -893,7 +909,7 @@ pub trait ToSql: fmt::Debug {
 /// Supported Postgres message format types
 ///
 /// Using Text format in a message assumes a Postgres `SERVER_ENCODING` of `UTF8`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Format {
     /// Text format (UTF-8)
     Text,

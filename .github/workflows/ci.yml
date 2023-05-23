@@ -53,7 +53,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: sfackler/actions/rustup@master
-      - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
+        with:
+          version: 1.65.0
+      - run: echo "::set-output name=version::$(rustc --version)"
         id: rust-version
       - run: rustup target add wasm32-unknown-unknown
       - uses: actions/cache@v3

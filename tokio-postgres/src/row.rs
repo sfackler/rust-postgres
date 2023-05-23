@@ -7,6 +7,7 @@ use crate::types::{FromSql, Type, WrongType};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
+use postgres_types::{Format, WrongFormat};
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -186,6 +187,27 @@ impl Row {
     fn col_buffer(&self, idx: usize) -> Option<&[u8]> {
         let range = self.ranges[idx].to_owned()?;
         Some(&self.body.buffer()[range])
+    }
+
+    /// Interpret the column at the given index as text
+    ///
+    /// Useful when using query_raw_txt() which sets text transfer mode
+    pub fn as_text(&self, idx: usize) -> Result<Option<&str>, Error> {
+        if self.statement.output_format() == Format::Text {
+            match self.col_buffer(idx) {
+                Some(raw) => {
+                    FromSql::from_sql(&Type::TEXT, raw).map_err(|e| Error::from_sql(e, idx))
+                }
+                None => Ok(None),
+            }
+        } else {
+            Err(Error::from_sql(Box::new(WrongFormat {}), idx))
+        }
+    }
+
+    /// Row byte size
+    pub fn body_len(&self) -> usize {
+        self.body.buffer().len()
     }
 }
 

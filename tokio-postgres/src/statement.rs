@@ -3,6 +3,7 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
 use postgres_protocol::message::frontend;
+use postgres_types::Format;
 use std::{
     fmt,
     sync::{Arc, Weak},
@@ -13,6 +14,7 @@ struct StatementInner {
     name: String,
     params: Vec<Type>,
     columns: Vec<Column>,
+    output_format: Format,
 }
 
 impl Drop for StatementInner {
@@ -46,6 +48,22 @@ impl Statement {
             name,
             params,
             columns,
+            output_format: Format::Binary,
+        }))
+    }
+
+    pub(crate) fn new_text(
+        inner: &Arc<InnerClient>,
+        name: String,
+        params: Vec<Type>,
+        columns: Vec<Column>,
+    ) -> Statement {
+        Statement(Arc::new(StatementInner {
+            client: Arc::downgrade(inner),
+            name,
+            params,
+            columns,
+            output_format: Format::Text,
         }))
     }
 
@@ -61,6 +79,11 @@ impl Statement {
     /// Returns information about the columns returned when the statement is queried.
     pub fn columns(&self) -> &[Column] {
         &self.0.columns
+    }
+
+    /// Returns output format for the statement.
+    pub fn output_format(&self) -> Format {
+        self.0.output_format
     }
 }
 

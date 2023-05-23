@@ -35,7 +35,9 @@ impl FallibleIterator for BackendMessages {
     }
 }
 
-pub struct PostgresCodec;
+pub struct PostgresCodec {
+    pub max_message_size: Option<usize>,
+}
 
 impl Encoder<FrontendMessage> for PostgresCodec {
     type Error = io::Error;
@@ -62,6 +64,15 @@ impl Decoder for PostgresCodec {
             let len = header.len() as usize + 1;
             if src[idx..].len() < len {
                 break;
+            }
+
+            if let Some(max) = self.max_message_size {
+                if len > max {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "message too large",
+                    ));
+                }
             }
 
             match header.tag() {
