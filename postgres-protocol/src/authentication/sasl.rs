@@ -389,7 +389,7 @@ impl<'a> Parser<'a> {
     }
 
     fn posit_number(&mut self) -> io::Result<u32> {
-        let n = self.take_while(|c| matches!(c, '0'..='9'))?;
+        let n = self.take_while(|c| c.is_ascii_digit())?;
         n.parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
     }

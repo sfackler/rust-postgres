@@ -14,7 +14,7 @@ where
     T: PartialEq + FromSqlOwned + ToSql + Sync,
     S: fmt::Display,
 {
-    for &(ref val, ref repr) in checks.iter() {
+    for (val, repr) in checks.iter() {
         let stmt = conn
             .prepare(&format!("SELECT {}::{}", *repr, sql_type))
             .unwrap();
@@ -38,7 +38,7 @@ pub fn test_type_asymmetric<T, F, S, C>(
     S: fmt::Display,
     C: Fn(&T, &F) -> bool,
 {
-    for &(ref val, ref repr) in checks.iter() {
+    for (val, repr) in checks.iter() {
         let stmt = conn
             .prepare(&format!("SELECT {}::{}", *repr, sql_type))
             .unwrap();
