@@ -8,6 +8,10 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 
+[features]
+default = []
+js = ["getrandom/js"]
+
 [dependencies]
 base64 = "0.21"
 byteorder = "1.0"
@@ -19,6 +23,4 @@ memchr = "2.0"
 rand = "0.8"
 sha2 = "0.10"
 stringprep = "0.1"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.2.9", features = ["js"] }
+getrandom = { version = "0.2", optional = true }
