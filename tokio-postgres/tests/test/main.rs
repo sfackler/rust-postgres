@@ -256,7 +256,7 @@ async fn query_raw_txt() {
     let client = connect("user=postgres").await;
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("SELECT 55 * $1", ["42"])
+        .query_raw_txt("SELECT 55 * $1", [Some("42")])
         .await
         .unwrap()
         .try_collect()
@@ -268,7 +268,7 @@ async fn query_raw_txt() {
     assert_eq!(res, 55 * 42);
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("SELECT $1", ["42"])
+        .query_raw_txt("SELECT $1", [Some("42")])
         .await
         .unwrap()
         .try_collect()
