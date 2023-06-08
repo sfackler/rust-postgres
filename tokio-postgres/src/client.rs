@@ -375,7 +375,7 @@ impl Client {
     pub async fn query_raw_txt<'a, S, I>(&self, query: S, params: I) -> Result<RowStream, Error>
     where
         S: AsRef<str>,
-        I: IntoIterator<Item = S>,
+        I: IntoIterator<Item = Option<S>>,
         I::IntoIter: ExactSizeIterator,
     {
         let params = params.into_iter();
@@ -390,9 +390,12 @@ impl Client {
                 "",                 // empty string selects the unnamed prepared statement
                 std::iter::empty(), // all parameters use the default format (text)
                 params,
-                |param, buf| {
-                    buf.put_slice(param.as_ref().as_bytes());
-                    Ok(postgres_protocol::IsNull::No)
+                |param, buf| match param {
+                    Some(param) => {
+                        buf.put_slice(param.as_ref().as_bytes());
+                        Ok(postgres_protocol::IsNull::No)
+                    }
+                    None => Ok(postgres_protocol::IsNull::Yes),
                 },
                 Some(0), // all text
                 buf,

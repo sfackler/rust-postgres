@@ -254,7 +254,7 @@ async fn query_raw_txt() {
     let client = connect("user=postgres").await;
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("SELECT 55 * $1", ["42"])
+        .query_raw_txt("SELECT 55 * $1", [Some("42")])
         .await
         .unwrap()
         .try_collect()
@@ -266,7 +266,7 @@ async fn query_raw_txt() {
     assert_eq!(res, 55 * 42);
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("SELECT $1", ["42"])
+        .query_raw_txt("SELECT $1", [Some("42")])
         .await
         .unwrap()
         .try_collect()
@@ -276,6 +276,36 @@ async fn query_raw_txt() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].get::<_, &str>(0), "42");
     assert!(rows[0].body_len() > 0);
+}
+
+#[tokio::test]
+async fn query_raw_txt_nulls() {
+    let client = connect("user=postgres").await;
+
+    let rows: Vec<tokio_postgres::Row> = client
+        .query_raw_txt(
+            "SELECT $1 as str, $2 as n, 'null' as str2, null as n2",
+            [Some("null"), None],
+        )
+        .await
+        .unwrap()
+        .try_collect()
+        .await
+        .unwrap();
+
+    assert_eq!(rows.len(), 1);
+
+    let res = rows[0].as_text(0).unwrap();
+    assert_eq!(res, Some("null"));
+
+    let res = rows[0].as_text(1).unwrap();
+    assert_eq!(res, None);
+
+    let res = rows[0].as_text(2).unwrap();
+    assert_eq!(res, Some("null"));
+
+    let res = rows[0].as_text(3).unwrap();
+    assert_eq!(res, None);
 }
 
 #[tokio::test]
