@@ -77,7 +77,7 @@ jobs:
           # dev dependencies can add unwanted dependencies to the build, so we'll hackily disable them for this check.
 
           sed -i 's/\[dev-dependencies]/[ignore-dependencies]/g' ./tokio-postgres/Cargo.toml
-          cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features
+          cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
 
   test:
     name: test
