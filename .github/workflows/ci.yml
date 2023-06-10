@@ -71,13 +71,8 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: target
-          key: clippy-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}y
-      - run: |
-          # Hack: wasm support currently relies on not having tokio with features like socket enabled. With resolver 1
-          # dev dependencies can add unwanted dependencies to the build, so we'll hackily disable them for this check.
-
-          sed -i 's/\[dev-dependencies]/[ignore-dependencies]/g' ./tokio-postgres/Cargo.toml
-          cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
+          key: check-wasm32-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
 
   test:
     name: test
