@@ -15,16 +15,19 @@ use crate::enums::Variant;
 use crate::overrides::Overrides;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
-    let overrides = Overrides::extract(&input.attrs)?;
+    let overrides = Overrides::extract(&input.attrs, true)?;
 
-    if overrides.name.is_some() && overrides.transparent {
+    if (overrides.name.is_some() || overrides.rename_all.is_some()) && overrides.transparent {
         return Err(Error::new_spanned(
             &input,
-            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")]",
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")] or #[postgres(rename_all = \"...\")]",
         ));
     }
 
-    let name = overrides.name.unwrap_or_else(|| input.ident.to_string());
+    let name = overrides
+        .name
+        .clone()
+        .unwrap_or_else(|| input.ident.to_string());
 
     let (accepts_body, to_sql_body) = if overrides.transparent {
         match input.data {
@@ -51,7 +54,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             let variants = data
                 .variants
                 .iter()
-                .map(Variant::parse)
+                .map(|variant| Variant::parse(variant, overrides.rename_all))
                 .collect::<Result<Vec<_>, _>>()?;
             (
                 accepts::enum_body(&name, &variants),
@@ -75,7 +78,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             let fields = fields
                 .named
                 .iter()
-                .map(Field::parse)
+                .map(|field| Field::parse(field, overrides.rename_all))
                 .collect::<Result<Vec<_>, _>>()?;
             (
                 accepts::composite_body(&name, "FromSql", &fields),

@@ -125,6 +125,37 @@
 //!     Happy,
 //! }
 //! ```
+//!
+//! Alternatively, the `#[postgres(rename_all = "...")]` attribute can be used to rename all fields or variants
+//! with the chosen casing convention. This will not affect the struct or enum's type name. Note that
+//! `#[postgres(name = "...")]` takes precendence when used in conjunction with `#[postgres(rename_all = "...")]`:
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "mood", rename_all = "snake_case")]
+//! enum Mood {
+//!     VerySad,        // very_sad
+//!     #[postgres(name = "ok")]
+//!     Ok,             // ok
+//!     VeryHappy,      // very_happy
+//! }
+//! ```
+//!
+//! The following case conventions are supported:
+//! - `"lowercase"`
+//! - `"UPPERCASE"`
+//! - `"PascalCase"`
+//! - `"camelCase"`
+//! - `"snake_case"`
+//! - `"SCREAMING_SNAKE_CASE"`
+//! - `"kebab-case"`
+//! - `"SCREAMING-KEBAB-CASE"`
+//! - `"Train-Case"`
+
 #![doc(html_root_url = "https://docs.rs/postgres-types/0.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 

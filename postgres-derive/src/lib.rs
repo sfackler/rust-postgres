@@ -7,6 +7,7 @@ use proc_macro::TokenStream;
 use syn::parse_macro_input;
 
 mod accepts;
+mod case;
 mod composites;
 mod enums;
 mod fromsql;

@@ -90,6 +90,49 @@ fn name_overrides() {
 }
 
 #[test]
+fn rename_all_overrides() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "inventory_item", rename_all = "SCREAMING_SNAKE_CASE")]
+    struct InventoryItem {
+        name: String,
+        supplier_id: i32,
+        #[postgres(name = "Price")]
+        price: Option<f64>,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.inventory_item AS (
+            \"NAME\" TEXT,
+            \"SUPPLIER_ID\" INT,
+            \"Price\" DOUBLE PRECISION
+        );",
+    )
+    .unwrap();
+
+    let item = InventoryItem {
+        name: "foobar".to_owned(),
+        supplier_id: 100,
+        price: Some(15.50),
+    };
+
+    let item_null = InventoryItem {
+        name: "foobar".to_owned(),
+        supplier_id: 100,
+        price: None,
+    };
+
+    test_type(
+        &mut conn,
+        "inventory_item",
+        &[
+            (item, "ROW('foobar', 100, 15.50)"),
+            (item_null, "ROW('foobar', 100, NULL)"),
+        ],
+    );
+}
+
+#[test]
 fn wrong_name() {
     #[derive(FromSql, ToSql, Debug, PartialEq)]
     struct InventoryItem {
