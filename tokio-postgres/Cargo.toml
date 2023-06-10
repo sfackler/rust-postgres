@@ -40,6 +40,7 @@ with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 with-uuid-1 = ["postgres-types/with-uuid-1"]
 with-time-0_2 = ["postgres-types/with-time-0_2"]
 with-time-0_3 = ["postgres-types/with-time-0_3"]
+js = ["postgres-protocol/js"]
 
 [dependencies]
 async-trait = "0.1"
@@ -55,9 +56,11 @@ pin-project-lite = "0.2"
 phf = "0.11"
 postgres-protocol = { version = "0.6.5", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.4", path = "../postgres-types" }
-socket2 = { version = "0.5", features = ["all"] }
 tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
 futures-executor = "0.3"
