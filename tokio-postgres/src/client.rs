@@ -443,8 +443,10 @@ impl Client {
         if let Some(row_description) = row_description {
             let mut it = row_description.fields();
             while let Some(field) = it.next().map_err(Error::parse)? {
+                // NB: for some types that function may send a query to the server. At least in
+                // raw text mode we don't need that info and can skip this.
                 let type_ = get_type(&self.inner, field.type_oid()).await?;
-                let column = Column::new(field.name().to_string(), type_);
+                let column = Column::new(field.name().to_string(), type_, field);
                 columns.push(column);
             }
         }

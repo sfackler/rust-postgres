@@ -95,7 +95,7 @@ pub async fn prepare(
         let mut it = row_description.fields();
         while let Some(field) = it.next().map_err(Error::parse)? {
             let type_ = get_type(client, field.type_oid()).await?;
-            let column = Column::new(field.name().to_string(), type_);
+            let column = Column::new(field.name().to_string(), type_, field);
             columns.push(column);
         }
     }

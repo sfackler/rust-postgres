@@ -352,6 +352,31 @@ async fn command_tag() {
 }
 
 #[tokio::test]
+async fn column_extras() {
+    let client = connect("user=postgres").await;
+
+    let rows: Vec<tokio_postgres::Row> = client
+        .query_raw_txt("select relacl, relname from pg_class limit 1", [])
+        .await
+        .unwrap()
+        .try_collect()
+        .await
+        .unwrap();
+
+    let column = rows[0].columns().get(1).unwrap();
+    assert_eq!(column.name(), "relname");
+    assert_eq!(column.type_(), &Type::NAME);
+
+    assert!(column.table_oid() > 0);
+    assert_eq!(column.column_id(), 2);
+    assert_eq!(column.format(), 0);
+
+    assert_eq!(column.type_oid(), 19);
+    assert_eq!(column.type_size(), 64);
+    assert_eq!(column.type_modifier(), -1);
+}
+
+#[tokio::test]
 async fn custom_composite() {
     let client = connect("user=postgres").await;
 
