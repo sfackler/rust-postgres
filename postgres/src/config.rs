@@ -378,6 +378,21 @@ impl Config {
         self
     }
 
+    /// When enabled, the client skips all internal caching for statements,
+    /// allowing usage with pgBouncer's transaction mode and clearing of
+    /// statements in the session with `DEALLOCATE ALL`.
+    ///
+    /// Defaults to `false`.
+    pub fn pgbouncer_mode(&mut self, enable: bool) -> &mut Config {
+        self.config.pgbouncer_mode(enable);
+        self
+    }
+
+    /// Gets the pgBouncer mode status.
+    pub fn get_pgbouncer_mode(&self) -> bool {
+        self.config.get_pgbouncer_mode()
+    }
+
     /// Opens a connection to a PostgreSQL database.
     pub fn connect<T>(&self, tls: T) -> Result<Client, Error>
     where

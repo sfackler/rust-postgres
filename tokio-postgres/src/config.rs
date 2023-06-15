@@ -170,6 +170,7 @@ pub struct Config {
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) pgbouncer_mode: bool,
 }
 
 impl Default for Config {
@@ -201,6 +202,7 @@ impl Config {
             },
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            pgbouncer_mode: false,
         }
     }
 
@@ -451,6 +453,21 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.channel_binding
+    }
+
+    /// When enabled, the client skips all internal caching for statements,
+    /// allowing usage with pgBouncer's transaction mode and clearing of
+    /// statements in the session with `DEALLOCATE ALL`.
+    ///
+    /// Defaults to `false`.
+    pub fn pgbouncer_mode(&mut self, enable: bool) -> &mut Config {
+        self.pgbouncer_mode = enable;
+        self
+    }
+
+    /// Gets the pgBouncer mode status.
+    pub fn get_pgbouncer_mode(&self) -> bool {
+        self.pgbouncer_mode
     }
 
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {

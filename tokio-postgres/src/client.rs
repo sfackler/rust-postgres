@@ -81,6 +81,7 @@ struct CachedTypeInfo {
 
 pub struct InnerClient {
     sender: mpsc::UnboundedSender<Request>,
+    pgbouncer_mode: bool,
     cached_typeinfo: Mutex<CachedTypeInfo>,
 
     /// A buffer to use when writing out postgres commands.
@@ -102,35 +103,59 @@ impl InnerClient {
     }
 
     pub fn typeinfo(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo.clone()
+        if self.pgbouncer_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo.clone()
+        }
     }
 
     pub fn set_typeinfo(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
+        if !self.pgbouncer_mode {
+            self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
+        }
     }
 
     pub fn typeinfo_composite(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_composite.clone()
+        if self.pgbouncer_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo_composite.clone()
+        }
     }
 
     pub fn set_typeinfo_composite(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
+        if !self.pgbouncer_mode {
+            self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
+        }
     }
 
     pub fn typeinfo_enum(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_enum.clone()
+        if self.pgbouncer_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo_enum.clone()
+        }
     }
 
     pub fn set_typeinfo_enum(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
+        if !self.pgbouncer_mode {
+            self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
+        }
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
-        self.cached_typeinfo.lock().types.get(&oid).cloned()
+        if self.pgbouncer_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().types.get(&oid).cloned()
+        }
     }
 
     pub fn set_type(&self, oid: Oid, type_: &Type) {
-        self.cached_typeinfo.lock().types.insert(oid, type_.clone());
+        if !self.pgbouncer_mode {
+            self.cached_typeinfo.lock().types.insert(oid, type_.clone());
+        }
     }
 
     pub fn clear_type_cache(&self) {
@@ -179,10 +204,12 @@ impl Client {
         ssl_mode: SslMode,
         process_id: i32,
         secret_key: i32,
+        pgbouncer_mode: bool,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
                 sender,
+                pgbouncer_mode,
                 cached_typeinfo: Default::default(),
                 buffer: Default::default(),
             }),

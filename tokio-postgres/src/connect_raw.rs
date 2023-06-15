@@ -100,7 +100,13 @@ where
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
-    let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
+    let client = Client::new(
+        sender,
+        config.ssl_mode,
+        process_id,
+        secret_key,
+        config.pgbouncer_mode,
+    );
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
     Ok((client, connection))
