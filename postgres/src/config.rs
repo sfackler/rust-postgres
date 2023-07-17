@@ -6,6 +6,7 @@ use crate::connection::Connection;
 use crate::Client;
 use log::info;
 use std::fmt;
+use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -39,6 +40,19 @@ use tokio_postgres::{Error, Socket};
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
+/// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
+///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
+///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
+///     - or if host specifies an IP address, that value will be used directly.
+///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
+///     with time constraints. However, a host name is required for verify-full SSL certificate verification.
+///     Specifically:
+///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
+///             The connection attempt will fail if the authentication method requires a host name;
+///         * If `host` is specified without `hostaddr`, a host name lookup occurs;
+///         * If both `host` and `hostaddr` are specified, the value for `hostaddr` gives the server network address.
+///             The value for `host` is ignored unless the authentication method requires it,
+///             in which case it will be used as the host name.
 /// * `port` - The port to connect to. Multiple ports can be specified, separated by commas. The number of ports must be
 ///     either 1, in which case it will be used for all hosts, or the same as the number of hosts. Defaults to 5432 if
 ///     omitted or the empty string.
@@ -67,6 +81,10 @@ use tokio_postgres::{Error, Socket};
 ///
 /// ```not_rust
 /// host=/var/run/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// ```
+///
+/// ```not_rust
+/// host=host1,host2,host3 port=1234,,5678 hostaddr=127.0.0.1,127.0.0.2,127.0.0.3 user=postgres target_session_attrs=read-write
 /// ```
 ///
 /// ```not_rust
@@ -207,6 +225,7 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
+    /// There must be either no hosts, or the same number of hosts as hostaddrs.
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.config.host(host);
         self
@@ -215,6 +234,11 @@ impl Config {
     /// Gets the hosts that have been added to the configuration with `host`.
     pub fn get_hosts(&self) -> &[Host] {
         self.config.get_hosts()
+    }
+
+    /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
+    pub fn get_hostaddrs(&self) -> &[IpAddr] {
+        self.config.get_hostaddrs()
     }
 
     /// Adds a Unix socket host to the configuration.
@@ -226,6 +250,15 @@ impl Config {
         T: AsRef<Path>,
     {
         self.config.host_path(host);
+        self
+    }
+
+    /// Adds a hostaddr to the configuration.
+    ///
+    /// Multiple hostaddrs can be specified by calling this method multiple times, and each will be tried in order.
+    /// There must be either no hostaddrs, or the same number of hostaddrs as hosts.
+    pub fn hostaddr(&mut self, hostaddr: IpAddr) -> &mut Config {
+        self.config.hostaddr(hostaddr);
         self
     }
 
