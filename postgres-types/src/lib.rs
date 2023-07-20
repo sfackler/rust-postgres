@@ -1035,6 +1035,18 @@ impl<T: ToSql> ToSql for Box<[T]> {
     to_sql_checked!();
 }
 
+impl<'a> ToSql for Cow<'a, [u8]> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&[u8] as ToSql>::to_sql(&self.as_ref(), ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[u8] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
 impl ToSql for Vec<u8> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[u8] as ToSql>::to_sql(&&**self, ty, w)
