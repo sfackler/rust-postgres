@@ -3,6 +3,7 @@ use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::Host;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
+use crate::copy_both::CopyBothDuplex;
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
@@ -15,18 +16,20 @@ use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_both, copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken,
+    CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_util::{future, pin_mut, ready, Stream, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
@@ -56,6 +59,17 @@ impl Responses {
 
     pub async fn next(&mut self) -> Result<Message, Error> {
         future::poll_fn(|cx| self.poll_next(cx)).await
+    }
+}
+
+impl Stream for Responses {
+    type Item = Result<Message, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!((*self).poll_next(cx)) {
+            Err(err) if err.is_closed() => Poll::Ready(None),
+            msg => Poll::Ready(Some(msg)),
+        }
     }
 }
 
@@ -421,6 +435,15 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         copy_out::copy_out(self.inner(), statement).await
+    }
+
+    /// Executes a CopyBoth query, returning a combined Stream+Sink type to read and write copy
+    /// data.
+    pub async fn copy_both_simple<T>(&self, query: &str) -> Result<CopyBothDuplex<T>, Error>
+    where
+        T: Buf + 'static + Send,
+    {
+        copy_both::copy_both_simple(self.inner(), query).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.
