@@ -40,7 +40,7 @@ pub(crate) async fn connect_socket(
                     .map_err(Error::connect)?;
             }
 
-            return Ok(Socket::new_tcp(stream));
+            Ok(Socket::new_tcp(stream))
         }
         #[cfg(unix)]
         Addr::Unix(dir) => {
