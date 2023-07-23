@@ -138,7 +138,6 @@
 //! #[derive(Debug, ToSql, FromSql)]
 //! #[postgres(name = "mood", rename_all = "snake_case")]
 //! enum Mood {
-//!     VerySad,        // very_sad
 //!     #[postgres(name = "ok")]
 //!     Ok,             // ok
 //!     VeryHappy,      // very_happy
@@ -155,10 +154,28 @@
 //! - `"kebab-case"`
 //! - `"SCREAMING-KEBAB-CASE"`
 //! - `"Train-Case"`
-
+//!
+//! ## Allowing Enum Mismatches
+//!
+//! By default the generated implementation of [`ToSql`] & [`FromSql`] for enums will require an exact match of the enum
+//! variants between the Rust and Postgres types.
+//! To allow mismatches, the `#[postgres(allow_mismatch)]` attribute can be used on the enum definition:
+//!
+//! ```sql
+//! CREATE TYPE mood AS ENUM (
+//!   'Sad',
+//!   'Ok',
+//!   'Happy'
+//! );
+//! ```
+//! #[postgres(allow_mismatch)]
+//! enum Mood {
+//!    Happy,
+//!    Meh,
+//! }
+//! ```
 #![doc(html_root_url = "https://docs.rs/postgres-types/0.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
-
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::any::type_name;

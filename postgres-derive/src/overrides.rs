@@ -7,6 +7,7 @@ pub struct Overrides {
     pub name: Option<String>,
     pub rename_all: Option<RenameRule>,
     pub transparent: bool,
+    pub allow_mismatch: bool,
 }
 
 impl Overrides {
@@ -15,6 +16,7 @@ impl Overrides {
             name: None,
             rename_all: None,
             transparent: false,
+            allow_mismatch: false,
         };
 
         for attr in attrs {
@@ -74,11 +76,25 @@ impl Overrides {
                         }
                     }
                     Meta::Path(path) => {
-                        if !path.is_ident("transparent") {
+                        if path.is_ident("transparent") {
+                            if overrides.allow_mismatch {
+                                return Err(Error::new_spanned(
+                                    path,
+                                    "#[postgres(allow_mismatch)] is not allowed with #[postgres(transparent)]",
+                                ));
+                            }
+                            overrides.transparent = true;
+                        } else if path.is_ident("allow_mismatch") {
+                            if overrides.transparent {
+                                return Err(Error::new_spanned(
+                                    path,
+                                    "#[postgres(transparent)] is not allowed with #[postgres(allow_mismatch)]",
+                                ));
+                            }
+                            overrides.allow_mismatch = true;
+                        } else {
                             return Err(Error::new_spanned(path, "unknown override"));
                         }
-
-                        overrides.transparent = true;
                     }
                     bad => return Err(Error::new_spanned(bad, "unknown attribute")),
                 }

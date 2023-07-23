@@ -44,6 +44,26 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                 ));
             }
         }
+    } else if overrides.allow_mismatch {
+        match input.data {
+            Data::Enum(ref data) => {
+                let variants = data
+                    .variants
+                    .iter()
+                    .map(|variant| Variant::parse(variant, overrides.rename_all))
+                    .collect::<Result<Vec<_>, _>>()?;
+                (
+                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    enum_body(&input.ident, &variants),
+                )
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    input,
+                    "#[postgres(allow_mismatch)] may only be applied to enums",
+                ));
+            }
+        }
     } else {
         match input.data {
             Data::Enum(ref data) => {
@@ -53,7 +73,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|variant| Variant::parse(variant, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::enum_body(&name, &variants),
+                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
                 )
             }
