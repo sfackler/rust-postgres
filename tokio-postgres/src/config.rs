@@ -97,9 +97,9 @@ pub enum Host {
 /// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
 ///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
 ///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
-///     - or if host specifies an IP address, that value will be used directly.
+///     or if host specifies an IP address, that value will be used directly.
 ///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
-///     with time constraints. However, a host name is required for verify-full SSL certificate verification.
+///     with time constraints. However, a host name is required for TLS certificate verification.
 ///     Specifically:
 ///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
 ///             The connection attempt will fail if the authentication method requires a host name;
@@ -645,7 +645,7 @@ impl Config {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        connect_raw(stream, tls, self).await
+        connect_raw(stream, Some(tls), self).await
     }
 }
 

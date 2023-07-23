@@ -80,7 +80,7 @@ where
 
 pub async fn connect_raw<S, T>(
     stream: S,
-    tls: T,
+    tls: Option<T>,
     config: &Config,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where

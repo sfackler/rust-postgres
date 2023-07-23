@@ -1,5 +1,5 @@
 use crate::client::SocketConfig;
-use crate::config::{Host, SslMode};
+use crate::config::SslMode;
 use crate::tls::MakeTlsConnect;
 use crate::{cancel_query_raw, connect_socket, Error, Socket};
 use std::io;
@@ -24,14 +24,10 @@ where
         }
     };
 
-    let hostname = match &config.host {
-        Host::Tcp(host) => &**host,
-        // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
-        #[cfg(unix)]
-        Host::Unix(_) => "",
-    };
-    let tls = tls
-        .make_tls_connect(hostname)
+    let tls = config
+        .hostname
+        .map(|s| tls.make_tls_connect(&s))
+        .transpose()
         .map_err(|e| Error::tls(e.into()))?;
 
     let socket = connect_socket::connect_socket(

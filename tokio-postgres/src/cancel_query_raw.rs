@@ -8,7 +8,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 pub async fn cancel_query_raw<S, T>(
     stream: S,
     mode: SslMode,
-    tls: T,
+    tls: Option<T>,
     process_id: i32,
     secret_key: i32,
 ) -> Result<(), Error>

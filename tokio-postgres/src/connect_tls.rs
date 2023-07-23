@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 pub async fn connect_tls<S, T>(
     mut stream: S,
     mode: SslMode,
-    tls: T,
+    tls: Option<T>,
 ) -> Result<MaybeTlsStream<S, T::Stream>, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -18,7 +18,11 @@ where
 {
     match mode {
         SslMode::Disable => return Ok(MaybeTlsStream::Raw(stream)),
-        SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
+        SslMode::Prefer
+            if tls
+                .as_ref()
+                .map_or(false, |tls| !tls.can_connect(ForcePrivateApi)) =>
+        {
             return Ok(MaybeTlsStream::Raw(stream))
         }
         SslMode::Prefer | SslMode::Require => {}
@@ -40,6 +44,7 @@ where
     }
 
     let stream = tls
+        .ok_or_else(|| Error::tls("no hostname provided for TLS handshake".into()))?
         .connect(stream)
         .await
         .map_err(|e| Error::tls(e.into()))?;

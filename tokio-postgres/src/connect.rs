@@ -52,16 +52,17 @@ where
             .unwrap_or(5432);
 
         // The value of host is used as the hostname for TLS validation,
-        // if it's not present, use the value of hostaddr.
         let hostname = match host {
-            Some(Host::Tcp(host)) => host.clone(),
+            Some(Host::Tcp(host)) => Some(host.clone()),
             // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
-            Some(Host::Unix(_)) => "".to_string(),
-            None => hostaddr.map_or("".to_string(), |ipaddr| ipaddr.to_string()),
+            Some(Host::Unix(_)) => None,
+            None => None,
         };
-        let tls = tls
-            .make_tls_connect(&hostname)
+        let tls = hostname
+            .as_ref()
+            .map(|s| tls.make_tls_connect(s))
+            .transpose()
             .map_err(|e| Error::tls(e.into()))?;
 
         // Try to use the value of hostaddr to establish the TCP connection,
@@ -78,7 +79,7 @@ where
             }
         };
 
-        match connect_once(&addr, port, tls, config).await {
+        match connect_once(addr, hostname, port, tls, config).await {
             Ok((client, connection)) => return Ok((client, connection)),
             Err(e) => error = Some(e),
         }
@@ -88,16 +89,17 @@ where
 }
 
 async fn connect_once<T>(
-    host: &Host,
+    host: Host,
+    hostname: Option<String>,
     port: u16,
-    tls: T,
+    tls: Option<T>,
     config: &Config,
 ) -> Result<(Client, Connection<Socket, T::Stream>), Error>
 where
     T: TlsConnect<Socket>,
 {
     let socket = connect_socket(
-        host,
+        &host,
         port,
         config.connect_timeout,
         config.tcp_user_timeout,
@@ -151,7 +153,8 @@ where
     }
 
     client.set_socket_config(SocketConfig {
-        host: host.clone(),
+        host,
+        hostname,
         port,
         connect_timeout: config.connect_timeout,
         tcp_user_timeout: config.tcp_user_timeout,
