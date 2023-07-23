@@ -645,7 +645,7 @@ impl Config {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        connect_raw(stream, Some(tls), self).await
+        connect_raw(stream, tls, true, self).await
     }
 }
 

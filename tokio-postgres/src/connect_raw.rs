@@ -80,14 +80,15 @@ where
 
 pub async fn connect_raw<S, T>(
     stream: S,
-    tls: Option<T>,
+    tls: T,
+    has_hostname: bool,
     config: &Config,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
-    let stream = connect_tls(stream, config.ssl_mode, tls).await?;
+    let stream = connect_tls(stream, config.ssl_mode, tls, has_hostname).await?;
 
     let mut stream = StartupStream {
         inner: Framed::new(stream, PostgresCodec),

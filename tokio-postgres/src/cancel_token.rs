@@ -54,7 +54,8 @@ impl CancelToken {
         cancel_query_raw::cancel_query_raw(
             stream,
             self.ssl_mode,
-            Some(tls),
+            tls,
+            true,
             self.process_id,
             self.secret_key,
         )
