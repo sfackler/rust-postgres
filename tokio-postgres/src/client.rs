@@ -1,6 +1,4 @@
 use crate::codec::{BackendMessages, FrontendMessage};
-#[cfg(feature = "runtime")]
-use crate::config::Host;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
@@ -27,6 +25,10 @@ use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(feature = "runtime")]
+use std::net::IpAddr;
+#[cfg(feature = "runtime")]
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
@@ -153,12 +155,20 @@ impl InnerClient {
 #[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub(crate) struct SocketConfig {
-    pub host: Host,
+    pub addr: Addr,
     pub hostname: Option<String>,
     pub port: u16,
     pub connect_timeout: Option<Duration>,
     pub tcp_user_timeout: Option<Duration>,
     pub keepalive: Option<KeepaliveConfig>,
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone)]
+pub(crate) enum Addr {
+    Tcp(IpAddr),
+    #[cfg(unix)]
+    Unix(PathBuf),
 }
 
 /// An asynchronous PostgreSQL client.

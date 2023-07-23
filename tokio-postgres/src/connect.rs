@@ -1,12 +1,14 @@
-use crate::client::SocketConfig;
-use crate::config::{Host, TargetSessionAttrs};
+use crate::client::{Addr, SocketConfig};
+use crate::config::{Host, LoadBalanceHosts, TargetSessionAttrs};
 use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
-use crate::tls::{MakeTlsConnect, TlsConnect};
+use crate::tls::MakeTlsConnect;
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
 use futures_util::{future, pin_mut, Future, FutureExt, Stream};
+use rand::seq::SliceRandom;
 use std::task::Poll;
 use std::{cmp, io};
+use tokio::net;
 
 pub async fn connect<T>(
     mut tls: T,
@@ -40,8 +42,13 @@ where
         return Err(Error::config("invalid number of ports".into()));
     }
 
+    let mut indices = (0..num_hosts).collect::<Vec<_>>();
+    if config.load_balance_hosts == LoadBalanceHosts::Random {
+        indices.shuffle(&mut rand::thread_rng());
+    }
+
     let mut error = None;
-    for i in 0..num_hosts {
+    for i in indices {
         let host = config.host.get(i);
         let hostaddr = config.hostaddr.get(i);
         let port = config
@@ -59,25 +66,15 @@ where
             Some(Host::Unix(_)) => None,
             None => None,
         };
-        let tls = tls
-            .make_tls_connect(hostname.as_deref().unwrap_or(""))
-            .map_err(|e| Error::tls(e.into()))?;
 
         // Try to use the value of hostaddr to establish the TCP connection,
         // fallback to host if hostaddr is not present.
         let addr = match hostaddr {
             Some(ipaddr) => Host::Tcp(ipaddr.to_string()),
-            None => {
-                if let Some(host) = host {
-                    host.clone()
-                } else {
-                    // This is unreachable.
-                    return Err(Error::config("both host and hostaddr are empty".into()));
-                }
-            }
+            None => host.cloned().unwrap(),
         };
 
-        match connect_once(addr, hostname, port, tls, config).await {
+        match connect_host(addr, hostname, port, &mut tls, config).await {
             Ok((client, connection)) => return Ok((client, connection)),
             Err(e) => error = Some(e),
         }
@@ -86,18 +83,66 @@ where
     Err(error.unwrap())
 }
 
-async fn connect_once<T>(
+async fn connect_host<T>(
     host: Host,
     hostname: Option<String>,
     port: u16,
-    tls: T,
+    tls: &mut T,
     config: &Config,
 ) -> Result<(Client, Connection<Socket, T::Stream>), Error>
 where
-    T: TlsConnect<Socket>,
+    T: MakeTlsConnect<Socket>,
+{
+    match host {
+        Host::Tcp(host) => {
+            let mut addrs = net::lookup_host((&*host, port))
+                .await
+                .map_err(Error::connect)?
+                .collect::<Vec<_>>();
+
+            if config.load_balance_hosts == LoadBalanceHosts::Random {
+                addrs.shuffle(&mut rand::thread_rng());
+            }
+
+            let mut last_err = None;
+            for addr in addrs {
+                match connect_once(Addr::Tcp(addr.ip()), hostname.as_deref(), port, tls, config)
+                    .await
+                {
+                    Ok(stream) => return Ok(stream),
+                    Err(e) => {
+                        last_err = Some(e);
+                        continue;
+                    }
+                };
+            }
+
+            Err(last_err.unwrap_or_else(|| {
+                Error::connect(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "could not resolve any addresses",
+                ))
+            }))
+        }
+        #[cfg(unix)]
+        Host::Unix(path) => {
+            connect_once(Addr::Unix(path), hostname.as_deref(), port, tls, config).await
+        }
+    }
+}
+
+async fn connect_once<T>(
+    addr: Addr,
+    hostname: Option<&str>,
+    port: u16,
+    tls: &mut T,
+    config: &Config,
+) -> Result<(Client, Connection<Socket, T::Stream>), Error>
+where
+    T: MakeTlsConnect<Socket>,
 {
     let socket = connect_socket(
-        &host,
+        &addr,
         port,
         config.connect_timeout,
         config.tcp_user_timeout,
@@ -108,6 +153,10 @@ where
         },
     )
     .await?;
+
+    let tls = tls
+        .make_tls_connect(hostname.unwrap_or(""))
+        .map_err(|e| Error::tls(e.into()))?;
     let has_hostname = hostname.is_some();
     let (mut client, mut connection) = connect_raw(socket, tls, has_hostname, config).await?;
 
@@ -152,8 +201,8 @@ where
     }
 
     client.set_socket_config(SocketConfig {
-        host,
-        hostname,
+        addr,
+        hostname: hostname.map(|s| s.to_string()),
         port,
         connect_timeout: config.connect_timeout,
         tcp_user_timeout: config.tcp_user_timeout,

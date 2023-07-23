@@ -30,7 +30,7 @@ where
     let has_hostname = config.hostname.is_some();
 
     let socket = connect_socket::connect_socket(
-        &config.host,
+        &config.addr,
         config.port,
         config.connect_timeout,
         config.tcp_user_timeout,

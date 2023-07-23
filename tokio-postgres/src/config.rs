@@ -60,6 +60,16 @@ pub enum ChannelBinding {
     Require,
 }
 
+/// Load balancing configuration.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LoadBalanceHosts {
+    /// Make connection attempts to hosts in the order provided.
+    Disable,
+    /// Make connection attempts to hosts in a random order.
+    Random,
+}
+
 /// A host specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Host {
@@ -129,6 +139,12 @@ pub enum Host {
 /// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
 ///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
 ///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
+/// * `load_balance_hosts` - Controls the order in which the client tries to connect to the available hosts and
+///     addresses. Once a connection attempt is successful no other hosts and addresses will be tried. This parameter
+///     is typically used in combination with multiple host names or a DNS record that returns multiple IPs. If set to
+///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
+///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
+///     to `disable`.
 ///
 /// ## Examples
 ///
@@ -190,6 +206,7 @@ pub struct Config {
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) load_balance_hosts: LoadBalanceHosts,
 }
 
 impl Default for Config {
@@ -222,6 +239,7 @@ impl Config {
             },
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            load_balance_hosts: LoadBalanceHosts::Disable,
         }
     }
 
@@ -489,6 +507,19 @@ impl Config {
         self.channel_binding
     }
 
+    /// Sets the host load balancing behavior.
+    ///
+    /// Defaults to `disable`.
+    pub fn load_balance_hosts(&mut self, load_balance_hosts: LoadBalanceHosts) -> &mut Config {
+        self.load_balance_hosts = load_balance_hosts;
+        self
+    }
+
+    /// Gets the host load balancing behavior.
+    pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
+        self.load_balance_hosts
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -611,6 +642,18 @@ impl Config {
                     }
                 };
                 self.channel_binding(channel_binding);
+            }
+            "load_balance_hosts" => {
+                let load_balance_hosts = match value {
+                    "disable" => LoadBalanceHosts::Disable,
+                    "random" => LoadBalanceHosts::Random,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "load_balance_hosts",
+                        ))))
+                    }
+                };
+                self.load_balance_hosts(load_balance_hosts);
             }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
