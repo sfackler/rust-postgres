@@ -1,6 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::trace::make_span;
 use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
@@ -13,6 +14,7 @@ use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tracing::{Instrument, Span};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
@@ -27,6 +29,51 @@ where
     }
 }
 
+fn encode_with_logs<P, I>(
+    client: &InnerClient,
+    span: &Span,
+    statement: &Statement,
+    params: I,
+) -> Result<Bytes, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
+    if log_enabled!(Level::Debug) || !span.is_disabled() {
+        let params = params.into_iter().collect::<Vec<_>>();
+        debug!(
+            "executing statement {} with parameters: {:?}",
+            statement.name(),
+            BorrowToSqlParamsDebug(params.as_slice()),
+        );
+        if !span.is_disabled() {
+            span.record("db.statement", statement.query());
+
+            // while OTEL supports arrays, we don't want to add that as a dependency, so debug view it is.
+            let raw_params = BorrowToSqlParamsDebug(params.as_slice());
+            span.record("db.statement.params", format!("{raw_params:?}"));
+        }
+        encode(client, statement, params)
+    } else {
+        encode(client, statement, params)
+    }
+}
+
+async fn start_traced(client: &InnerClient, span: &Span, buf: Bytes) -> Result<Responses, Error> {
+    match start(client, buf).instrument(span.clone()).await {
+        Ok(response) => {
+            span.record("otel.status_code", "OK");
+            Ok(response)
+        }
+        Err(e) => {
+            span.record("otel.status_code", "ERROR");
+            span.record("exception.message", e.to_string());
+            Err(e)
+        }
+    }
+}
+
 pub async fn query<P, I>(
     client: &InnerClient,
     statement: Statement,
@@ -37,20 +84,19 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log_enabled!(Level::Debug) {
-        let params = params.into_iter().collect::<Vec<_>>();
-        debug!(
-            "executing statement {} with parameters: {:?}",
-            statement.name(),
-            BorrowToSqlParamsDebug(params.as_slice()),
-        );
-        encode(client, &statement, params)?
-    } else {
-        encode(client, &statement, params)?
-    };
-    let responses = start(client, buf).await?;
+    let span = make_span(client);
+    span.record("db.operation", "query");
+
+    let buf = encode_with_logs(client, &span, &statement, params)?;
+
+    let responses = start_traced(client, &span, buf).await?;
+
+    span.in_scope(|| {
+        tracing::trace!("response ready");
+    });
     Ok(RowStream {
         statement,
+        span,
         responses,
         rows_affected: None,
         _p: PhantomPinned,
@@ -62,6 +108,10 @@ pub async fn query_portal(
     portal: &Portal,
     max_rows: i32,
 ) -> Result<RowStream, Error> {
+    let span = make_span(client);
+    span.record("db.statement", portal.statement().query());
+    span.record("db.operation", "portal");
+
     let buf = client.with_buf(|buf| {
         frontend::execute(portal.name(), max_rows, buf).map_err(Error::encode)?;
         frontend::sync(buf);
@@ -72,6 +122,7 @@ pub async fn query_portal(
 
     Ok(RowStream {
         statement: portal.statement().clone(),
+        span,
         responses,
         rows_affected: None,
         _p: PhantomPinned,
@@ -101,25 +152,25 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log_enabled!(Level::Debug) {
-        let params = params.into_iter().collect::<Vec<_>>();
-        debug!(
-            "executing statement {} with parameters: {:?}",
-            statement.name(),
-            BorrowToSqlParamsDebug(params.as_slice()),
-        );
-        encode(client, &statement, params)?
-    } else {
-        encode(client, &statement, params)?
-    };
-    let mut responses = start(client, buf).await?;
+    let span = make_span(client);
+    span.record("db.operation", "execute");
+
+    let buf = encode_with_logs(client, &span, &statement, params)?;
+
+    let mut responses = start_traced(client, &span, buf).await?;
+
+    span.in_scope(|| {
+        tracing::trace!("response ready");
+    });
 
     let mut rows = 0;
     loop {
-        match responses.next().await? {
+        match responses.next().instrument(span.clone()).await? {
             Message::DataRow(_) => {}
             Message::CommandComplete(body) => {
                 rows = extract_row_affected(&body)?;
+                span.record("db.sql.rows_affected", rows);
+                tracing::trace!("execute complete");
             }
             Message::EmptyQueryResponse => rows = 0,
             Message::ReadyForQuery(_) => return Ok(rows),
@@ -206,6 +257,7 @@ pin_project! {
     /// A stream of table rows.
     pub struct RowStream {
         statement: Statement,
+        span: Span,
         responses: Responses,
         rows_affected: Option<u64>,
         #[pin]
@@ -218,13 +270,19 @@ impl Stream for RowStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
+        let _span = this.span.enter();
         loop {
             match ready!(this.responses.poll_next(cx)?) {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
                 }
                 Message::CommandComplete(body) => {
-                    *this.rows_affected = Some(extract_row_affected(&body)?);
+                    let rows_affected = extract_row_affected(&body)?;
+
+                    this.span.record("db.sql.rows_affected", rows_affected);
+                    tracing::trace!("query complete");
+
+                    *this.rows_affected = Some(rows_affected);
                 }
                 Message::EmptyQueryResponse | Message::PortalSuspended => {}
                 Message::ReadyForQuery(_) => return Poll::Ready(None),

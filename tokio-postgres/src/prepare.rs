@@ -2,6 +2,7 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
+use crate::trace::make_span;
 use crate::types::{Field, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
@@ -15,6 +16,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use tracing::Instrument;
 
 const TYPEINFO_QUERY: &str = "\
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -100,7 +102,13 @@ pub async fn prepare(
         }
     }
 
-    Ok(Statement::new(client, name, parameters, columns))
+    Ok(Statement::new(
+        client,
+        name,
+        query.to_string(),
+        parameters,
+        columns,
+    ))
 }
 
 fn prepare_rec<'a>(
@@ -108,7 +116,9 @@ fn prepare_rec<'a>(
     query: &'a str,
     types: &'a [Type],
 ) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    Box::pin(prepare(client, query, types))
+    let span = make_span(client);
+    span.record("db.operation", "prepare");
+    Box::pin(prepare(client, query, types).instrument(span))
 }
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {

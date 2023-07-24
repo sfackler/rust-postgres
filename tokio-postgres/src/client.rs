@@ -9,12 +9,13 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
+use crate::trace::make_span;
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, Config, CopyInSink,
+    Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -34,6 +35,7 @@ use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::Instrument;
 
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
@@ -85,6 +87,11 @@ pub struct InnerClient {
     sender: mpsc::UnboundedSender<Request>,
     cached_typeinfo: Mutex<CachedTypeInfo>,
 
+    db_user: String,
+    db_name: String,
+    #[cfg(feature = "runtime")]
+    socket_config: Option<SocketConfig>,
+
     /// A buffer to use when writing out postgres commands.
     buffer: Mutex<BytesMut>,
 }
@@ -101,6 +108,18 @@ impl InnerClient {
             receiver,
             cur: BackendMessages::empty(),
         })
+    }
+
+    pub fn db_user(&self) -> &str {
+        &self.db_user
+    }
+
+    pub fn db_name(&self) -> &str {
+        &self.db_name
+    }
+
+    pub(crate) fn socket_config(&self) -> Option<&SocketConfig> {
+        self.socket_config.as_ref()
     }
 
     pub fn typeinfo(&self) -> Option<Statement> {
@@ -190,11 +209,16 @@ impl Client {
         ssl_mode: SslMode,
         process_id: i32,
         secret_key: i32,
+        config: &Config,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
                 sender,
                 cached_typeinfo: Default::default(),
+                db_user: config.user.clone().unwrap_or_default(),
+                db_name: config.dbname.clone().unwrap_or_default(),
+                #[cfg(feature = "runtime")]
+                socket_config: None,
                 buffer: Default::default(),
             }),
             #[cfg(feature = "runtime")]
@@ -211,6 +235,9 @@ impl Client {
 
     #[cfg(feature = "runtime")]
     pub(crate) fn set_socket_config(&mut self, socket_config: SocketConfig) {
+        if let Some(inner) = Arc::get_mut(&mut self.inner) {
+            inner.socket_config = Some(socket_config.clone());
+        }
         self.socket_config = Some(socket_config);
     }
 
@@ -231,7 +258,12 @@ impl Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        prepare::prepare(&self.inner, query, parameter_types).await
+        let span = make_span(&self.inner);
+        span.record("db.operation", "prepare");
+
+        prepare::prepare(&self.inner, query, parameter_types)
+            .instrument(span)
+            .await
     }
 
     /// Executes a statement, returning a vector of the resulting rows.
