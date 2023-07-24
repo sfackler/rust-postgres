@@ -149,6 +149,16 @@ impl<'a> Transaction<'a> {
         self.client.query_raw(statement, params).await
     }
 
+    /// Like `Client::query_raw_txt`.
+    pub async fn query_raw_txt<S, I>(&self, query: S, params: I) -> Result<RowStream, Error>
+    where
+        S: AsRef<str> + Sync + Send,
+        I: IntoIterator<Item = Option<S>>,
+        I::IntoIter: ExactSizeIterator + Sync + Send,
+    {
+        self.client.query_raw_txt(query, params).await
+    }
+
     /// Like `Client::execute`.
     pub async fn execute<T>(
         &self,

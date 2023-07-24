@@ -4,10 +4,8 @@ use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
-use crate::prepare::get_type;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
-use crate::statement::Column;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
@@ -18,7 +16,7 @@ use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
     Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
@@ -374,86 +372,11 @@ impl Client {
     /// to save a roundtrip
     pub async fn query_raw_txt<'a, S, I>(&self, query: S, params: I) -> Result<RowStream, Error>
     where
-        S: AsRef<str>,
+        S: AsRef<str> + Sync + Send,
         I: IntoIterator<Item = Option<S>>,
-        I::IntoIter: ExactSizeIterator,
+        I::IntoIter: ExactSizeIterator + Sync + Send,
     {
-        let params = params.into_iter();
-        let params_len = params.len();
-
-        let buf = self.inner.with_buf(|buf| {
-            // Parse, anonymous portal
-            frontend::parse("", query.as_ref(), std::iter::empty(), buf).map_err(Error::encode)?;
-            // Bind, pass params as text, retrieve as binary
-            match frontend::bind(
-                "",                 // empty string selects the unnamed portal
-                "",                 // empty string selects the unnamed prepared statement
-                std::iter::empty(), // all parameters use the default format (text)
-                params,
-                |param, buf| match param {
-                    Some(param) => {
-                        buf.put_slice(param.as_ref().as_bytes());
-                        Ok(postgres_protocol::IsNull::No)
-                    }
-                    None => Ok(postgres_protocol::IsNull::Yes),
-                },
-                Some(0), // all text
-                buf,
-            ) {
-                Ok(()) => Ok(()),
-                Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, 0)),
-                Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
-            }?;
-
-            // Describe portal to typecast results
-            frontend::describe(b'P', "", buf).map_err(Error::encode)?;
-            // Execute
-            frontend::execute("", 0, buf).map_err(Error::encode)?;
-            // Sync
-            frontend::sync(buf);
-
-            Ok(buf.split().freeze())
-        })?;
-
-        let mut responses = self
-            .inner
-            .send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
-
-        // now read the responses
-
-        match responses.next().await? {
-            Message::ParseComplete => {}
-            _ => return Err(Error::unexpected_message()),
-        }
-        match responses.next().await? {
-            Message::BindComplete => {}
-            _ => return Err(Error::unexpected_message()),
-        }
-        let row_description = match responses.next().await? {
-            Message::RowDescription(body) => Some(body),
-            Message::NoData => None,
-            _ => return Err(Error::unexpected_message()),
-        };
-
-        // construct statement object
-
-        let parameters = vec![Type::UNKNOWN; params_len];
-
-        let mut columns = vec![];
-        if let Some(row_description) = row_description {
-            let mut it = row_description.fields();
-            while let Some(field) = it.next().map_err(Error::parse)? {
-                // NB: for some types that function may send a query to the server. At least in
-                // raw text mode we don't need that info and can skip this.
-                let type_ = get_type(&self.inner, field.type_oid()).await?;
-                let column = Column::new(field.name().to_string(), type_, field);
-                columns.push(column);
-            }
-        }
-
-        let statement = Statement::new_text(&self.inner, "".to_owned(), parameters, columns);
-
-        Ok(RowStream::new(statement, responses))
+        query::query_txt(&self.inner, query, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.

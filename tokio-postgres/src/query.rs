@@ -1,17 +1,21 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::prepare::get_type;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement};
-use bytes::{Bytes, BytesMut};
+use crate::{Column, Error, Portal, Row, Statement};
+use bytes::{BufMut, Bytes, BytesMut};
+use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
+use postgres_types::Type;
 use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
@@ -56,6 +60,92 @@ where
         command_tag: None,
         _p: PhantomPinned,
     })
+}
+
+pub async fn query_txt<S, I>(
+    client: &Arc<InnerClient>,
+    query: S,
+    params: I,
+) -> Result<RowStream, Error>
+where
+    S: AsRef<str> + Sync + Send,
+    I: IntoIterator<Item = Option<S>>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let params = params.into_iter();
+    let params_len = params.len();
+
+    let buf = client.with_buf(|buf| {
+        // Parse, anonymous portal
+        frontend::parse("", query.as_ref(), std::iter::empty(), buf).map_err(Error::encode)?;
+        // Bind, pass params as text, retrieve as binary
+        match frontend::bind(
+            "",                 // empty string selects the unnamed portal
+            "",                 // empty string selects the unnamed prepared statement
+            std::iter::empty(), // all parameters use the default format (text)
+            params,
+            |param, buf| match param {
+                Some(param) => {
+                    buf.put_slice(param.as_ref().as_bytes());
+                    Ok(postgres_protocol::IsNull::No)
+                }
+                None => Ok(postgres_protocol::IsNull::Yes),
+            },
+            Some(0), // all text
+            buf,
+        ) {
+            Ok(()) => Ok(()),
+            Err(frontend::BindError::Conversion(e)) => Err(Error::to_sql(e, 0)),
+            Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
+        }?;
+
+        // Describe portal to typecast results
+        frontend::describe(b'P', "", buf).map_err(Error::encode)?;
+        // Execute
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+        // Sync
+        frontend::sync(buf);
+
+        Ok(buf.split().freeze())
+    })?;
+
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    // now read the responses
+
+    match responses.next().await? {
+        Message::ParseComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+    match responses.next().await? {
+        Message::BindComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+    let row_description = match responses.next().await? {
+        Message::RowDescription(body) => Some(body),
+        Message::NoData => None,
+        _ => return Err(Error::unexpected_message()),
+    };
+
+    // construct statement object
+
+    let parameters = vec![Type::UNKNOWN; params_len];
+
+    let mut columns = vec![];
+    if let Some(row_description) = row_description {
+        let mut it = row_description.fields();
+        while let Some(field) = it.next().map_err(Error::parse)? {
+            // NB: for some types that function may send a query to the server. At least in
+            // raw text mode we don't need that info and can skip this.
+            let type_ = get_type(client, field.type_oid()).await?;
+            let column = Column::new(field.name().to_string(), type_, field);
+            columns.push(column);
+        }
+    }
+
+    let statement = Statement::new_text(client, "".to_owned(), parameters, columns);
+
+    Ok(RowStream::new(statement, responses))
 }
 
 pub async fn query_portal(
