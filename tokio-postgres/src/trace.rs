@@ -1,9 +1,83 @@
-use tracing::{field::Empty, Span};
+use tracing::{field::Empty, Level, Span};
 
 use crate::client::{Addr, InnerClient};
 
-pub(crate) fn make_span(client: &InnerClient) -> Span {
-    let span = tracing::debug_span!("query",
+pub(crate) enum SpanOperation {
+    Query,
+    Portal,
+    Execute,
+    Prepare,
+}
+
+impl SpanOperation {
+    const fn name(&self) -> &'static str {
+        match self {
+            SpanOperation::Query => "query",
+            SpanOperation::Portal => "portal",
+            SpanOperation::Execute => "execute",
+            SpanOperation::Prepare => "prepare",
+        }
+    }
+
+    const fn level(&self) -> Level {
+        match self {
+            SpanOperation::Query => Level::DEBUG,
+            SpanOperation::Portal => Level::DEBUG,
+            SpanOperation::Execute => Level::DEBUG,
+            SpanOperation::Prepare => Level::TRACE,
+        }
+    }
+}
+
+macro_rules! span_dynamic_lvl {
+    ( $(target: $target:expr,)? $(parent: $parent:expr,)? $lvl:expr, $($tt:tt)* ) => {
+        match $lvl {
+            tracing::Level::ERROR => {
+                tracing::span!(
+                    $(target: $target,)?
+                    $(parent: $parent,)?
+                    tracing::Level::ERROR,
+                    $($tt)*
+                )
+            }
+            tracing::Level::WARN => {
+                tracing::span!(
+                    $(target: $target,)?
+                    $(parent: $parent,)?
+                    tracing::Level::WARN,
+                    $($tt)*
+                )
+            }
+            tracing::Level::INFO => {
+                tracing::span!(
+                    $(target: $target,)?
+                    $(parent: $parent,)?
+                    tracing::Level::INFO,
+                    $($tt)*
+                )
+            }
+            tracing::Level::DEBUG => {
+                tracing::span!(
+                    $(target: $target,)?
+                    $(parent: $parent,)?
+                    tracing::Level::DEBUG,
+                    $($tt)*
+                )
+            }
+            tracing::Level::TRACE => {
+                tracing::span!(
+                    $(target: $target,)?
+                    $(parent: $parent,)?
+                    tracing::Level::TRACE,
+                    $($tt)*
+                )
+            }
+        }
+    };
+}
+
+pub(crate) fn make_span(client: &InnerClient, operation: SpanOperation) -> Span {
+    let span = span_dynamic_lvl!(operation.level(), "query",
         db.system = "postgresql",
         server.address = Empty,
         server.socket.address = Empty,
@@ -12,13 +86,13 @@ pub(crate) fn make_span(client: &InnerClient) -> Span {
         network.transport = Empty,
         db.name = %client.db_name(),
         db.user = %client.db_user(),
-        otel.name = %format!("psql {}", client.db_name()),
+        otel.name = %format!("PSQL {} {}", operation.name(), client.db_name()),
         otel.kind = "Client",
 
         // to set when output
         otel.status_code = Empty,
         exception.message = Empty,
-        db.operation = Empty,
+        db.operation = operation.name(),
 
         // for queries
         db.statement = Empty,

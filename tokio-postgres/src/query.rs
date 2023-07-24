@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::trace::make_span;
+use crate::trace::{make_span, SpanOperation};
 use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
@@ -84,7 +84,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let span = make_span(client);
+    let span = make_span(client, SpanOperation::Query);
     span.record("db.operation", "query");
 
     let buf = encode_with_logs(client, &span, &statement, params)?;
@@ -108,9 +108,8 @@ pub async fn query_portal(
     portal: &Portal,
     max_rows: i32,
 ) -> Result<RowStream, Error> {
-    let span = make_span(client);
+    let span = make_span(client, SpanOperation::Portal);
     span.record("db.statement", portal.statement().query());
-    span.record("db.operation", "portal");
 
     let buf = client.with_buf(|buf| {
         frontend::execute(portal.name(), max_rows, buf).map_err(Error::encode)?;
@@ -152,8 +151,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let span = make_span(client);
-    span.record("db.operation", "execute");
+    let span = make_span(client, SpanOperation::Execute);
 
     let buf = encode_with_logs(client, &span, &statement, params)?;
 

@@ -9,7 +9,7 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::trace::make_span;
+use crate::trace::{make_span, SpanOperation};
 use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
@@ -258,8 +258,7 @@ impl Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        let span = make_span(&self.inner);
-        span.record("db.operation", "prepare");
+        let span = make_span(&self.inner, SpanOperation::Prepare);
 
         prepare::prepare(&self.inner, query, parameter_types)
             .instrument(span)
