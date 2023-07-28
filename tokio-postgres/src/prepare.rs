@@ -2,7 +2,7 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
-use crate::trace::{make_span, SpanOperation};
+use crate::trace::{make_span_for_client, SpanOperation};
 use crate::types::{Field, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
@@ -116,7 +116,7 @@ fn prepare_rec<'a>(
     query: &'a str,
     types: &'a [Type],
 ) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    let span = make_span(client, SpanOperation::Prepare);
+    let span = make_span_for_client(client, SpanOperation::Prepare);
     Box::pin(prepare(client, query, types).instrument(span))
 }
 

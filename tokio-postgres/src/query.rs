@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::trace::{make_span, SpanOperation};
+use crate::trace::{make_span_for_client, record_error, SpanOperation, record_ok};
 use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
@@ -63,12 +63,11 @@ where
 async fn start_traced(client: &InnerClient, span: &Span, buf: Bytes) -> Result<Responses, Error> {
     match start(client, buf).instrument(span.clone()).await {
         Ok(response) => {
-            span.record("otel.status_code", "OK");
+            record_ok(span);
             Ok(response)
         }
         Err(e) => {
-            span.record("otel.status_code", "ERROR");
-            span.record("exception.message", e.to_string());
+            record_error(span, &e);
             Err(e)
         }
     }
@@ -84,8 +83,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let span = make_span(client, SpanOperation::Query);
-    span.record("db.operation", "query");
+    let span = make_span_for_client(client, SpanOperation::Query);
 
     let buf = encode_with_logs(client, &span, &statement, params)?;
 
@@ -108,7 +106,7 @@ pub async fn query_portal(
     portal: &Portal,
     max_rows: i32,
 ) -> Result<RowStream, Error> {
-    let span = make_span(client, SpanOperation::Portal);
+    let span = make_span_for_client(client, SpanOperation::Portal);
     span.record("db.statement", portal.statement().query());
 
     let buf = client.with_buf(|buf| {
@@ -151,7 +149,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let span = make_span(client, SpanOperation::Execute);
+    let span = make_span_for_client(client, SpanOperation::Execute);
 
     let buf = encode_with_logs(client, &span, &statement, params)?;
 

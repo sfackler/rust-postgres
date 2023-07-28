@@ -5,7 +5,9 @@ use crate::tls::TlsConnect;
 use crate::Error;
 use bytes::BytesMut;
 use postgres_protocol::message::frontend;
+use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tracing::Span;
 
 pub async fn connect_tls<S, T>(
     mut stream: S,
@@ -25,6 +27,7 @@ where
         SslMode::Prefer | SslMode::Require => {}
     }
 
+    let start_time = Instant::now();
     let mut buf = BytesMut::new();
     frontend::ssl_request(&mut buf);
     stream.write_all(&buf).await.map_err(Error::io)?;
@@ -48,6 +51,10 @@ where
         .connect(stream)
         .await
         .map_err(|e| Error::tls(e.into()))?;
+    Span::current().record(
+        "db.connect.timing.tls_handshake_ns",
+        start_time.elapsed().as_nanos() as u64,
+    );
 
     Ok(MaybeTlsStream::Tls(stream))
 }

@@ -4,11 +4,12 @@ use crate::{Error, Socket};
 use socket2::{SockRef, TcpKeepalive};
 use std::future::Future;
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
 use tokio::time;
+use tracing::Span;
 
 pub(crate) async fn connect_socket(
     addr: &Addr,
@@ -21,8 +22,13 @@ pub(crate) async fn connect_socket(
 ) -> Result<Socket, Error> {
     match addr {
         Addr::Tcp(ip) => {
+            let connect_start = Instant::now();
             let stream =
                 connect_with_timeout(TcpStream::connect((*ip, port)), connect_timeout).await?;
+            Span::current().record(
+                "db.connect.timing.tcp_handshake_ns",
+                connect_start.elapsed().as_nanos() as u64,
+            );
 
             stream.set_nodelay(true).map_err(Error::connect)?;
 
