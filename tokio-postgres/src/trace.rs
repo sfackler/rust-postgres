@@ -26,11 +26,11 @@ impl SpanOperation {
 
     const fn level(&self) -> Level {
         match self {
-            SpanOperation::Connect => Level::DEBUG,
-            SpanOperation::Query => Level::DEBUG,
-            SpanOperation::Portal => Level::DEBUG,
-            SpanOperation::Execute => Level::DEBUG,
-            SpanOperation::Prepare => Level::TRACE,
+            SpanOperation::Connect => Level::INFO,
+            SpanOperation::Query => Level::INFO,
+            SpanOperation::Portal => Level::INFO,
+            SpanOperation::Execute => Level::INFO,
+            SpanOperation::Prepare => Level::DEBUG,
         }
     }
 }
