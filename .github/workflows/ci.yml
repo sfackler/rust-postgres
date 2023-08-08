@@ -7,10 +7,15 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
 
 env:
   RUSTFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
+  V_HOST: localhost
+  V_PORT: 5433
+  V_USER: dbadmin
+  V_DATABASE: VMart
 
 jobs:
   rustfmt:
@@ -79,10 +84,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: docker compose up -d
+      - name: Set up a Vertica server docker container
+        timeout-minutes: 15
+        run: |
+          docker run -d -p 5433:5433 -p 5444:5444 \
+            --name vertica_docker \
+            vertica/vertica-ce:23.3.0-0
+          echo "Vertica startup ..."
+          until docker exec vertica_docker test -f /data/vertica/VMart/agent_start.out; do \
+            echo "..."; \
+            sleep 3; \
+          done;
+          echo "Vertica is up"
+          docker exec -u dbadmin vertica_docker /opt/vertica/bin/vsql -c "\l"
+          docker exec -u dbadmin vertica_docker /opt/vertica/bin/vsql -c "select version()"
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.65.0
+          version: 1.71.0
       - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
       - uses: actions/cache@v3

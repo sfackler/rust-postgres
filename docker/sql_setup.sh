@@ -1,4 +1,6 @@
 #!/bin/bash
+
+#sets up postgres keys and certs, run in docker-compose.yml
 set -e
 
 cat > "$PGDATA/server.key" <<-EOKEY

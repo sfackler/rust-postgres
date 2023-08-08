@@ -1,3 +1,5 @@
+# sets up postgres, replaced with vertica-ce
+# to run in ci.yml, replace vertica logic with - run: docker compose up -d
 version: '2'
 services:
   postgres:
