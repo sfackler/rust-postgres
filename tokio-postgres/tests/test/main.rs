@@ -312,7 +312,7 @@ async fn query_raw_txt_nulls() {
 async fn limit_max_backend_message_size() {
     let client = connect("user=postgres max_backend_message_size=10000").await;
     let small: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("SELECT REPEAT('a', 20)", [])
+        .query_raw_txt("SELECT REPEAT('a', 20)", [] as [Option<&str>; 0])
         .await
         .unwrap()
         .try_collect()
@@ -323,7 +323,7 @@ async fn limit_max_backend_message_size() {
     assert_eq!(small[0].as_text(0).unwrap().unwrap().len(), 20);
 
     let large: Result<Vec<tokio_postgres::Row>, Error> = client
-        .query_raw_txt("SELECT REPEAT('a', 2000000)", [])
+        .query_raw_txt("SELECT REPEAT('a', 2000000)", [] as [Option<&str>; 0])
         .await
         .unwrap()
         .try_collect()
@@ -337,7 +337,7 @@ async fn command_tag() {
     let client = connect("user=postgres").await;
 
     let row_stream = client
-        .query_raw_txt("select unnest('{1,2,3}'::int[]);", [])
+        .query_raw_txt("select unnest('{1,2,3}'::int[]);", [] as [Option<&str>; 0])
         .await
         .unwrap();
 
@@ -352,11 +352,39 @@ async fn command_tag() {
 }
 
 #[tokio::test]
+async fn ready_for_query() {
+    let client = connect("user=postgres").await;
+
+    let row_stream = client
+        .query_raw_txt("START TRANSACTION", [] as [Option<&str>; 0])
+        .await
+        .unwrap();
+
+    pin_mut!(row_stream);
+    while row_stream.next().await.is_none() {}
+
+    assert_eq!(row_stream.ready_status(), Some(b'T'));
+
+    let row_stream = client
+        .query_raw_txt("ROLLBACK", [] as [Option<&str>; 0])
+        .await
+        .unwrap();
+
+    pin_mut!(row_stream);
+    while row_stream.next().await.is_none() {}
+
+    assert_eq!(row_stream.ready_status(), Some(b'I'));
+}
+
+#[tokio::test]
 async fn column_extras() {
     let client = connect("user=postgres").await;
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_raw_txt("select relacl, relname from pg_class limit 1", [])
+        .query_raw_txt(
+            "select relacl, relname from pg_class limit 1",
+            [] as [Option<&str>; 0],
+        )
         .await
         .unwrap()
         .try_collect()

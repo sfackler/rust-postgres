@@ -98,6 +98,7 @@ where
 /// A row of data returned from the database by a query.
 pub struct Row {
     statement: Statement,
+    output_format: Format,
     body: DataRowBody,
     ranges: Vec<Option<Range<usize>>>,
 }
@@ -111,12 +112,17 @@ impl fmt::Debug for Row {
 }
 
 impl Row {
-    pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
+    pub(crate) fn new(
+        statement: Statement,
+        body: DataRowBody,
+        output_format: Format,
+    ) -> Result<Row, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
         Ok(Row {
             statement,
             body,
             ranges,
+            output_format,
         })
     }
 
@@ -193,7 +199,7 @@ impl Row {
     ///
     /// Useful when using query_raw_txt() which sets text transfer mode
     pub fn as_text(&self, idx: usize) -> Result<Option<&str>, Error> {
-        if self.statement.output_format() == Format::Text {
+        if self.output_format == Format::Text {
             match self.col_buffer(idx) {
                 Some(raw) => {
                     FromSql::from_sql(&Type::TEXT, raw).map_err(|e| Error::from_sql(e, idx))

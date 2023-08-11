@@ -207,7 +207,6 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
-    pub(crate) replication_mode: Option<ReplicationMode>,
     pub(crate) max_backend_message_size: Option<usize>,
 }
 
@@ -242,7 +241,6 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
-            replication_mode: None,
             max_backend_message_size: None,
         }
     }

@@ -370,13 +370,19 @@ impl Client {
 
     /// Pass text directly to the Postgres backend to allow it to sort out typing itself and
     /// to save a roundtrip
-    pub async fn query_raw_txt<'a, S, I>(&self, query: S, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw_txt<'a, T, S, I>(
+        &self,
+        statement: &T,
+        params: I,
+    ) -> Result<RowStream, Error>
     where
-        S: AsRef<str> + Sync + Send,
+        T: ?Sized + ToStatement,
+        S: AsRef<str>,
         I: IntoIterator<Item = Option<S>>,
-        I::IntoIter: ExactSizeIterator + Sync + Send,
+        I::IntoIter: ExactSizeIterator,
     {
-        query::query_txt(&self.inner, query, params).await
+        let statement = statement.__convert().into_statement(self).await?;
+        query::query_txt(&self.inner, statement, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.
