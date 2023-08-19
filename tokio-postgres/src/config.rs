@@ -190,7 +190,7 @@ pub enum Host {
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
-    user: String,
+    pub(crate) user: String,
     pub(crate) password: Option<Vec<u8>>,
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
@@ -245,17 +245,20 @@ impl Config {
 
     /// Sets the user to authenticate with.
     ///
-    /// If the user is not set, then this defaults to the user executing this process.
+    /// Defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
         self.user = user.to_string();
         self
     }
 
     /// Gets the user to authenticate with.
+    ///
     /// If no user has been configured with the [`user`](Config::user) method,
-    /// then this defaults to the user executing this process.
-    pub fn get_user(&self) -> &str {
-        &self.user
+    /// then this defaults to the user executing this process. It always
+    /// returns `Some`.
+    // FIXME remove option
+    pub fn get_user(&self) -> Option<&str> {
+        Some(&self.user)
     }
 
     /// Sets the password to authenticate with.
@@ -1125,7 +1128,7 @@ mod tests {
     fn test_simple_parsing() {
         let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257";
         let config = s.parse::<Config>().unwrap();
-        assert_eq!("pass_user", config.get_user());
+        assert_eq!(Some("pass_user"), config.get_user());
         assert_eq!(Some("postgres"), config.get_dbname());
         assert_eq!(
             [
