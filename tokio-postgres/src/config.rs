@@ -93,7 +93,7 @@ pub enum Host {
 ///
 /// ## Keys
 ///
-/// * `user` - The username to authenticate with. Required.
+/// * `user` - The username to authenticate with. Defaults to the user executing this process.
 /// * `password` - The password to authenticate with.
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
@@ -190,7 +190,7 @@ pub enum Host {
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
-    pub(crate) user: Option<String>,
+    user: String,
     pub(crate) password: Option<Vec<u8>>,
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
@@ -219,7 +219,7 @@ impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
         Config {
-            user: None,
+            user: whoami::username(),
             password: None,
             dbname: None,
             options: None,
@@ -245,16 +245,17 @@ impl Config {
 
     /// Sets the user to authenticate with.
     ///
-    /// Required.
+    /// If the user is not set, then this defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
-        self.user = Some(user.to_string());
+        self.user = user.to_string();
         self
     }
 
-    /// Gets the user to authenticate with, if one has been configured with
-    /// the `user` method.
-    pub fn get_user(&self) -> Option<&str> {
-        self.user.as_deref()
+    /// Gets the user to authenticate with.
+    /// If no user has been configured with the [`user`](Config::user) method,
+    /// then this defaults to the user executing this process.
+    pub fn get_user(&self) -> &str {
+        &self.user
     }
 
     /// Sets the password to authenticate with.
@@ -1124,7 +1125,7 @@ mod tests {
     fn test_simple_parsing() {
         let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257";
         let config = s.parse::<Config>().unwrap();
-        assert_eq!(Some("pass_user"), config.get_user());
+        assert_eq!("pass_user", config.get_user());
         assert_eq!(Some("postgres"), config.get_dbname());
         assert_eq!(
             [
