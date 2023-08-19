@@ -29,7 +29,7 @@ use tokio_postgres::{Error, Socket};
 ///
 /// ## Keys
 ///
-/// * `user` - The username to authenticate with. Required.
+/// * `user` - The username to authenticate with. Defaults to the user executing this process.
 /// * `password` - The password to authenticate with.
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
@@ -143,15 +143,16 @@ impl Config {
 
     /// Sets the user to authenticate with.
     ///
-    /// Required.
+    /// If the user is not set, then this defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
         self.config.user(user);
         self
     }
 
-    /// Gets the user to authenticate with, if one has been configured with
-    /// the `user` method.
-    pub fn get_user(&self) -> Option<&str> {
+    /// Gets the user to authenticate with.
+    /// If no user has been configured with the [`user`](Config::user) method,
+    /// then this defaults to the user executing this process.
+    pub fn get_user(&self) -> &str {
         self.config.get_user()
     }
 
