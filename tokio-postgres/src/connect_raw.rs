@@ -113,9 +113,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     let mut params = vec![("client_encoding", "UTF8")];
-    if let Some(user) = &config.user {
-        params.push(("user", &**user));
-    }
+    params.push(("user", config.get_user()));
     if let Some(dbname) = &config.dbname {
         params.push(("database", &**dbname));
     }
@@ -158,10 +156,7 @@ where
         Some(Message::AuthenticationMd5Password(body)) => {
             can_skip_channel_binding(config)?;
 
-            let user = config
-                .user
-                .as_ref()
-                .ok_or_else(|| Error::config("user missing".into()))?;
+            let user = config.get_user();
             let pass = config
                 .password
                 .as_ref()
