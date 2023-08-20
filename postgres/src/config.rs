@@ -13,7 +13,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
 #[doc(inline)]
-pub use tokio_postgres::config::{ChannelBinding, Host, SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{
+    ChannelBinding, Host, LoadBalanceHosts, SslMode, TargetSessionAttrs,
+};
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
@@ -43,9 +45,9 @@ use tokio_postgres::{Error, Socket};
 /// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
 ///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
 ///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
-///     - or if host specifies an IP address, that value will be used directly.
+///     or if host specifies an IP address, that value will be used directly.
 ///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
-///     with time constraints. However, a host name is required for verify-full SSL certificate verification.
+///     with time constraints. However, a host name is required for TLS certificate verification.
 ///     Specifically:
 ///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
 ///             The connection attempt will fail if the authentication method requires a host name;
@@ -72,6 +74,15 @@ use tokio_postgres::{Error, Socket};
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
+/// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
+///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
+///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
+/// * `load_balance_hosts` - Controls the order in which the client tries to connect to the available hosts and
+///     addresses. Once a connection attempt is successful no other hosts and addresses will be tried. This parameter
+///     is typically used in combination with multiple host names or a DNS record that returns multiple IPs. If set to
+///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
+///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
+///     to `disable`.
 ///
 /// ## Examples
 ///
@@ -80,7 +91,7 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// host=/var/run/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
 /// ```
 ///
 /// ```not_rust
@@ -94,7 +105,7 @@ use tokio_postgres::{Error, Socket};
 /// # Url
 ///
 /// This format resembles a URL with a scheme of either `postgres://` or `postgresql://`. All components are optional,
-/// and the format accept query parameters for all of the key-value pairs described in the section above. Multiple
+/// and the format accepts query parameters for all of the key-value pairs described in the section above. Multiple
 /// host/port pairs can be comma-separated. Unix socket paths in the host section of the URL should be percent-encoded,
 /// as the path component of the URL specifies the database name.
 ///
@@ -105,7 +116,7 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// postgresql://user:password@%2Fvar%2Frun%2Fpostgresql/mydb?connect_timeout=10
+/// postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10
 /// ```
 ///
 /// ```not_rust
@@ -113,7 +124,7 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// postgresql:///mydb?user=user&host=/var/run/postgresql
+/// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
 #[derive(Clone)]
 pub struct Config {
@@ -394,6 +405,19 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.config.get_channel_binding()
+    }
+
+    /// Sets the host load balancing behavior.
+    ///
+    /// Defaults to `disable`.
+    pub fn load_balance_hosts(&mut self, load_balance_hosts: LoadBalanceHosts) -> &mut Config {
+        self.config.load_balance_hosts(load_balance_hosts);
+        self
+    }
+
+    /// Gets the host load balancing behavior.
+    pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
+        self.config.get_load_balance_hosts()
     }
 
     /// Sets the notice callback.
