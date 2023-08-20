@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.6.6 -2023-08-19
+
+### Added
+
+* Added the `js` feature for WASM support.
+
 ## v0.6.5 - 2023-03-27
 
 ### Added
