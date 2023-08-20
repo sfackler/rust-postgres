@@ -11,6 +11,7 @@ use std::{
 struct StatementInner {
     client: Weak<InnerClient>,
     name: String,
+    query: String,
     params: Vec<Type>,
     columns: Vec<Column>,
 }
@@ -38,12 +39,14 @@ impl Statement {
     pub(crate) fn new(
         inner: &Arc<InnerClient>,
         name: String,
+        query: String,
         params: Vec<Type>,
         columns: Vec<Column>,
     ) -> Statement {
         Statement(Arc::new(StatementInner {
             client: Arc::downgrade(inner),
             name,
+            query,
             params,
             columns,
         }))
@@ -51,6 +54,11 @@ impl Statement {
 
     pub(crate) fn name(&self) -> &str {
         &self.0.name
+    }
+
+    /// Returns the query that was used to create this statement.
+    pub fn query(&self) -> &str {
+        &self.0.query
     }
 
     /// Returns the expected types of the statement's parameters.

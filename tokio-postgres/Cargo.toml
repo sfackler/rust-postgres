@@ -58,6 +58,7 @@ postgres-protocol = { version = "0.6.6", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.5", path = "../postgres-types" }
 tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
+tracing = "0.1"
 rand = "0.8.5"
 whoami = "1.4.1"
 

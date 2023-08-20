@@ -3,12 +3,15 @@ use crate::config::{Host, LoadBalanceHosts, TargetSessionAttrs};
 use crate::connect_raw::connect_raw;
 use crate::connect_socket::connect_socket;
 use crate::tls::MakeTlsConnect;
+use crate::trace::{make_span, record_connect_info, record_error, record_ok, SpanOperation};
 use crate::{Client, Config, Connection, Error, SimpleQueryMessage, Socket};
 use futures_util::{future, pin_mut, Future, FutureExt, Stream};
 use rand::seq::SliceRandom;
 use std::task::Poll;
+use std::time::Instant;
 use std::{cmp, io};
 use tokio::net;
+use tracing::Instrument as _;
 
 pub async fn connect<T>(
     mut tls: T,
@@ -93,24 +96,51 @@ async fn connect_host<T>(
 where
     T: MakeTlsConnect<Socket>,
 {
+    let mut span = make_span(
+        SpanOperation::Connect,
+        config.user.as_deref().unwrap_or_default(),
+        config.dbname.as_deref().unwrap_or_default(),
+    );
     match host {
         Host::Tcp(host) => {
+            let dns_start = Instant::now();
             let mut addrs = net::lookup_host((&*host, port))
+                .instrument(span.clone())
                 .await
                 .map_err(Error::connect)?
                 .collect::<Vec<_>>();
+            span.record(
+                "db.connect.timing.dns_lookup_ns",
+                dns_start.elapsed().as_nanos() as u64,
+            );
 
             if config.load_balance_hosts == LoadBalanceHosts::Random {
                 addrs.shuffle(&mut rand::thread_rng());
             }
 
             let mut last_err = None;
-            for addr in addrs {
-                match connect_once(Addr::Tcp(addr.ip()), hostname.as_deref(), port, tls, config)
+            for (i, addr) in addrs.iter().enumerate() {
+                if i > 0 {
+                    span = make_span(
+                        SpanOperation::Connect,
+                        config.user.as_deref().unwrap_or_default(),
+                        config.dbname.as_deref().unwrap_or_default(),
+                    );
+                }
+
+                let addr = Addr::Tcp(addr.ip());
+                span.record("db.connect.attempt", i);
+                record_connect_info(&span, &addr, hostname.as_deref(), port);
+                match connect_once(addr, hostname.as_deref(), port, tls, config)
+                    .instrument(span.clone())
                     .await
                 {
-                    Ok(stream) => return Ok(stream),
+                    Ok((client, conn)) => {
+                        record_ok(&span);
+                        return Ok((client, conn));
+                    }
                     Err(e) => {
+                        record_error(&span, &e);
                         last_err = Some(e);
                         continue;
                     }
@@ -126,7 +156,21 @@ where
         }
         #[cfg(unix)]
         Host::Unix(path) => {
-            connect_once(Addr::Unix(path), hostname.as_deref(), port, tls, config).await
+            let addr = Addr::Unix(path);
+            record_connect_info(&span, &addr, hostname.as_deref(), port);
+            match connect_once(addr, hostname.as_deref(), port, tls, config)
+                .instrument(span.clone())
+                .await
+            {
+                Ok((client, conn)) => {
+                    record_ok(&span);
+                    Ok((client, conn))
+                }
+                Err(e) => {
+                    record_error(&span, &e);
+                    Err(e)
+                }
+            }
         }
     }
 }

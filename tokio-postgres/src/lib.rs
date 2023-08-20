@@ -175,6 +175,7 @@ mod socket;
 mod statement;
 pub mod tls;
 mod to_statement;
+mod trace;
 mod transaction;
 mod transaction_builder;
 pub mod types;
