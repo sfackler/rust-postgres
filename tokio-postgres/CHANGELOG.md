@@ -1,5 +1,18 @@
 # Change Log
 
+## v0.7.9
+
+## Fixed
+
+* Fixed builds on OpenBSD.
+
+## Added
+
+* Added the `js` feature for WASM support.
+* Added support for the `hostaddr` config option to bypass DNS lookups.
+* Added support for the `load_balance_hosts` config option to randomize connection ordering.
+* The `user` config option now defaults to the executing process's user.
+
 ## v0.7.8
 
 ## Added
