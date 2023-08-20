@@ -1,6 +1,4 @@
 //! Connection configuration.
-//!
-//! Requires the `runtime` Cargo feature (enabled by default).
 
 use crate::connection::Connection;
 use crate::Client;
