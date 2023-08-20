@@ -174,7 +174,6 @@
 //!    Meh,
 //! }
 //! ```
-#![doc(html_root_url = "https://docs.rs/postgres-types/0.2")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
