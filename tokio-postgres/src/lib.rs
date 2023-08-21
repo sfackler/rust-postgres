@@ -185,6 +185,15 @@ mod transaction;
 mod transaction_builder;
 pub mod types;
 
+/// This crate was originally written to use binary result format for pretty much everything, and
+/// it's still the case in most parts of the code that we hardcode to use binary. There are some
+/// small use cases we've hacked in where you can specify different result formats, though.
+/// Since Postgres lets you specify different result formats for different columns, we generally
+/// accept an IntoIterator<Item = i16> since each result format is specified as an i16 value of 0
+/// for text or 1 for binary. However, if you only specify a single format, Postgres interprets
+/// that as "use this format for everything", hence Some(1) being the default here:
+pub(crate) const DEFAULT_RESULT_FORMATS: Option<i16> = Some(1);
+
 /// A convenience function which parses a connection string and connects to the database.
 ///
 /// See the documentation for [`Config`] for details on the connection string format.

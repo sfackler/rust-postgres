@@ -2,7 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, GenericResult, Portal, Row, Statement};
+use crate::{Error, GenericResult, Portal, Row, Statement, DEFAULT_RESULT_FORMATS};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
@@ -56,15 +56,17 @@ where
     })
 }
 
-pub async fn generic_query<P, I>(
+pub async fn generic_query<P, I, J>(
     client: &InnerClient,
     statement: Statement,
     params: I,
+    result_formats: J,
 ) -> Result<ResultStream, Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = i16>,
 {
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
@@ -73,9 +75,9 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode_with_result_formats(client, &statement, params, result_formats)?
     } else {
-        encode(client, &statement, params)?
+        encode_with_result_formats(client, &statement, params, result_formats)?
     };
     let responses = start(client, buf).await?;
     Ok(ResultStream {
@@ -166,24 +168,41 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    encode_with_result_formats(client, statement, params, DEFAULT_RESULT_FORMATS)
+}
+
+pub fn encode_with_result_formats<P, I, J>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+    result_formats: J,
+) -> Result<Bytes, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = i16>,
+{
     client.with_buf(|buf| {
-        encode_bind(statement, params, "", buf)?;
+        encode_bind(statement, params, "", buf, result_formats)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })
 }
 
-pub fn encode_bind<P, I>(
+pub fn encode_bind<P, I, J>(
     statement: &Statement,
     params: I,
     portal: &str,
     buf: &mut BytesMut,
+    result_formats: J,
 ) -> Result<(), Error>
 where
     P: BorrowToSql,
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
+    J: IntoIterator<Item = i16>,
 {
     let param_types = statement.params();
     let params = params.into_iter();
@@ -216,7 +235,7 @@ where
                 Err(e)
             }
         },
-        Some(1),
+        result_formats,
         buf,
     );
     match r {
