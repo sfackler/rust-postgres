@@ -140,6 +140,11 @@ impl Row {
         self.columns().len()
     }
 
+    /// Returns the DataRowBody which stores the row as Bytes.
+    pub fn body(&self) -> &DataRowBody {
+        &self.body
+    }
+
     /// Deserializes a value from the row.
     ///
     /// The value can be specified either by its numeric index in the row, or by its column name.
