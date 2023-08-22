@@ -2,7 +2,7 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::BorrowToSql;
-use crate::{query, Error, Portal, Statement};
+use crate::{query, Error, Portal, Statement, DEFAULT_RESULT_FORMATS};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -22,7 +22,7 @@ where
 {
     let name = format!("p{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
     let buf = client.with_buf(|buf| {
-        query::encode_bind(&statement, params, &name, buf)?;
+        query::encode_bind(&statement, params, &name, buf, DEFAULT_RESULT_FORMATS)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
     })?;
