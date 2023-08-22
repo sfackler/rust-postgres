@@ -68,11 +68,23 @@ impl Statement {
 pub struct Column {
     name: String,
     type_: Type,
+    table_oid: Option<u32>,
+    column_id: Option<i16>,
 }
 
 impl Column {
-    pub(crate) fn new(name: String, type_: Type) -> Column {
-        Column { name, type_ }
+    pub(crate) fn new(
+        name: String,
+        type_: Type,
+        table_oid: Option<u32>,
+        column_id: Option<i16>,
+    ) -> Column {
+        Column {
+            name,
+            type_,
+            table_oid,
+            column_id,
+        }
     }
 
     /// Returns the name of the column.
@@ -83,6 +95,17 @@ impl Column {
     /// Returns the type of the column.
     pub fn type_(&self) -> &Type {
         &self.type_
+    }
+
+    /// Returns the oid of the column's table, if it is a direct alias to a column in a table
+    pub fn table_oid(&self) -> Option<u32> {
+        self.table_oid
+    }
+
+    /// Returns the column's attribute number in its table, if it is a direct alias to a column in a
+    /// table
+    pub fn column_id(&self) -> Option<i16> {
+        self.column_id
     }
 }
 
