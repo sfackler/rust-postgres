@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.7.10
+
+## Fixed
+
+* Defered default username lookup to avoid regressing `Config` behavior.
+
 ## v0.7.9
 
 ## Fixed
