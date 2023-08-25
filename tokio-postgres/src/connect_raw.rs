@@ -13,6 +13,7 @@ use postgres_protocol::authentication::sasl;
 use postgres_protocol::authentication::sasl::ScramSha256;
 use postgres_protocol::message::backend::{AuthenticationSaslBody, Message};
 use postgres_protocol::message::frontend;
+use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
@@ -96,7 +97,10 @@ where
         delayed: VecDeque::new(),
     };
 
-    let user = config.user.clone().unwrap_or_else(whoami::username);
+    let user = config
+        .user
+        .as_deref()
+        .map_or_else(|| Cow::Owned(whoami::username()), Cow::Borrowed);
 
     startup(&mut stream, config, &user).await?;
     authenticate(&mut stream, config, &user).await?;
