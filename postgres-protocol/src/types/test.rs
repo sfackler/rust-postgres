@@ -174,7 +174,7 @@ fn ltree_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    assert!(matches!(ltree_from_sql(query.as_slice()), Ok(_)))
+    assert!(ltree_from_sql(query.as_slice()).is_ok())
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn ltree_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    assert!(matches!(ltree_from_sql(query.as_slice()), Err(_)))
+    assert!(ltree_from_sql(query.as_slice()).is_err())
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn lquery_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    assert!(matches!(lquery_from_sql(query.as_slice()), Ok(_)))
+    assert!(lquery_from_sql(query.as_slice()).is_ok())
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn lquery_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("A.B.C".as_bytes());
 
-    assert!(matches!(lquery_from_sql(query.as_slice()), Err(_)))
+    assert!(lquery_from_sql(query.as_slice()).is_err())
 }
 
 #[test]
@@ -230,7 +230,7 @@ fn ltxtquery_str() {
     let mut query = vec![1u8];
     query.extend_from_slice("a & b*".as_bytes());
 
-    assert!(matches!(ltree_from_sql(query.as_slice()), Ok(_)))
+    assert!(ltree_from_sql(query.as_slice()).is_ok())
 }
 
 #[test]
@@ -238,5 +238,5 @@ fn ltxtquery_wrong_version() {
     let mut query = vec![2u8];
     query.extend_from_slice("a & b*".as_bytes());
 
-    assert!(matches!(ltree_from_sql(query.as_slice()), Err(_)))
+    assert!(ltree_from_sql(query.as_slice()).is_err())
 }
