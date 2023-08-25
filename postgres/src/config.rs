@@ -158,12 +158,8 @@ impl Config {
         self
     }
 
-    /// Gets the user to authenticate with.
-    ///
-    /// If no user has been configured with the [`user`](Config::user) method,
-    /// then this defaults to the user executing this process. It always
-    /// returns `Some`.
-    // FIXME remove option
+    /// Gets the user to authenticate with, if one has been configured with
+    /// the `user` method.
     pub fn get_user(&self) -> Option<&str> {
         self.config.get_user()
     }

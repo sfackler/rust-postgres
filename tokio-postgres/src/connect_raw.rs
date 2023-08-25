@@ -96,8 +96,10 @@ where
         delayed: VecDeque::new(),
     };
 
-    startup(&mut stream, config).await?;
-    authenticate(&mut stream, config).await?;
+    let user = config.user.clone().unwrap_or_else(whoami::username);
+
+    startup(&mut stream, config, &user).await?;
+    authenticate(&mut stream, config, &user).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -107,13 +109,17 @@ where
     Ok((client, connection))
 }
 
-async fn startup<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
+async fn startup<S, T>(
+    stream: &mut StartupStream<S, T>,
+    config: &Config,
+    user: &str,
+) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
     let mut params = vec![("client_encoding", "UTF8")];
-    params.push(("user", &config.user));
+    params.push(("user", user));
     if let Some(dbname) = &config.dbname {
         params.push(("database", &**dbname));
     }
@@ -133,7 +139,11 @@ where
         .map_err(Error::io)
 }
 
-async fn authenticate<S, T>(stream: &mut StartupStream<S, T>, config: &Config) -> Result<(), Error>
+async fn authenticate<S, T>(
+    stream: &mut StartupStream<S, T>,
+    config: &Config,
+    user: &str,
+) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
@@ -156,7 +166,6 @@ where
         Some(Message::AuthenticationMd5Password(body)) => {
             can_skip_channel_binding(config)?;
 
-            let user = &config.user;
             let pass = config
                 .password
                 .as_ref()

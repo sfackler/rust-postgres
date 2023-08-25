@@ -190,7 +190,7 @@ pub enum Host {
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
-    pub(crate) user: String,
+    pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
@@ -219,7 +219,7 @@ impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
         Config {
-            user: whoami::username(),
+            user: None,
             password: None,
             dbname: None,
             options: None,
@@ -247,18 +247,14 @@ impl Config {
     ///
     /// Defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
-        self.user = user.to_string();
+        self.user = Some(user.to_string());
         self
     }
 
-    /// Gets the user to authenticate with.
-    ///
-    /// If no user has been configured with the [`user`](Config::user) method,
-    /// then this defaults to the user executing this process. It always
-    /// returns `Some`.
-    // FIXME remove option
+    /// Gets the user to authenticate with, if one has been configured with
+    /// the `user` method.
     pub fn get_user(&self) -> Option<&str> {
-        Some(&self.user)
+        self.user.as_deref()
     }
 
     /// Sets the password to authenticate with.
