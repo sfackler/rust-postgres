@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.19.7 - 2023-08-25
+
+## Fixed
+
+* Defered default username lookup to avoid regressing `Config` behavior.
+
 ## v0.19.6 - 2023-08-19
 
 ### Added

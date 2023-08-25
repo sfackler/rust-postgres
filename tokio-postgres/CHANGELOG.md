@@ -1,12 +1,12 @@
 # Change Log
 
-## v0.7.10
+## v0.7.10 - 2023-08-25
 
 ## Fixed
 
 * Defered default username lookup to avoid regressing `Config` behavior.
 
-## v0.7.9
+## v0.7.9 - 2023-08-19
 
 ## Fixed
 
@@ -19,7 +19,7 @@
 * Added support for the `load_balance_hosts` config option to randomize connection ordering.
 * The `user` config option now defaults to the executing process's user.
 
-## v0.7.8
+## v0.7.8 - 2023-05-27
 
 ## Added
 
