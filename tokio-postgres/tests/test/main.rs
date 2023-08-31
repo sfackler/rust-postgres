@@ -353,6 +353,21 @@ async fn custom_range() {
 async fn simple_query_select_transaction() {
     let client = connect("user=postgres").await;
 
+    // The following statements configure the tables for the test.
+    let _ = client.simple_query("DROP TABLE sbtest1").await;
+    let _ = client.simple_query("DROP TABLE sbtest2").await;
+    let _ = client
+        .simple_query("CREATE TABLE sbtest1 (id INTEGER, k INTEGER);")
+        .await;
+    let _ = client
+        .simple_query("CREATE TABLE sbtest2 (id INTEGER, k INTEGER);")
+        .await;
+/// This test check to make sure that empty responses for select queries include the header but not
+/// for other query types.
+#[tokio::test]
+async fn simple_query_select_transaction() {
+    let client = connect("user=postgres").await;
+
     match client.simple_query("DROP TABLE sbtest1").await {
         Ok(_) => {
             println!("Query executed successfully");
@@ -389,6 +404,91 @@ async fn simple_query_select_transaction() {
         }
     }
 
+    let messages = client
+        .simple_query(
+            "INSERT INTO sbtest1  VALUES (1, 2);
+            INSERT INTO sbtest2  VALUES (1, 2);
+            SELECT * FROM sbtest1 ORDER BY id;
+            SELECT k FROM sbtest1 WHERE id = 999;
+            BEGIN;
+            UPDATE sbtest1 SET k=id;
+            UPDATE sbtest2 SET k=id;
+            END;",
+        )
+        .await
+        .unwrap();
+
+    match messages[0] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { rows: 1, .. }) => {}
+        _ => panic!("unexpected message"),
+    }
+    match messages[1] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { rows: 1, .. }) => {}
+        _ => panic!("unexpected message"),
+    }
+    match &messages[2] {
+        SimpleQueryMessage::Row(row) => {
+            assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
+            assert_eq!(row.columns().get(1).map(|c| c.name()), Some("k"));
+            assert_eq!(row.get(0), Some("1"));
+            assert_eq!(row.get(1), Some("2"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[3] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if f.is_some() {
+                panic!("Unexpected data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[4] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if let Some(field_vec) = &f {
+                assert_eq!((&**field_vec).len(), 1);
+                assert_eq!("k", (&**field_vec)[0].name());
+            } else {
+                panic!("No data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[5] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if f.is_some() {
+                panic!("Unexpected data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[6] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if f.is_some() {
+                panic!("Unexpected data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[7] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if f.is_some() {
+                panic!("Unexpected data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[8] {
+        SimpleQueryMessage::CommandComplete(CommandCompleteContents { fields: f, .. }) => {
+            if f.is_some() {
+                panic!("Unexpected data found");
+            }
+        }
+        _ => panic!("unexpected message"),
+    }
+
+    assert_eq!(messages.len(), 9);
+}
     match client
         .simple_query("CREATE TABLE sbtest2 (id INTEGER, k INTEGER);")
         .await
