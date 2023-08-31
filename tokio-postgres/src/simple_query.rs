@@ -98,7 +98,12 @@ impl Stream for SimpleQueryStream {
                         .parse()
                         .unwrap_or(0);
                     let fields = if *this.include_fields_in_complete {
-                        this.fields.clone()
+                        let _tag = body.tag().expect("Failed to get tag");
+                        if _tag.starts_with("SELECT") {
+                            this.fields.clone()
+                        } else {
+                            None
+                        }
                     } else {
                         // Reset bool for next grouping
                         *this.include_fields_in_complete = true;
