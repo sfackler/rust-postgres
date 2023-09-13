@@ -9,6 +9,8 @@ members = [
     "postgres-protocol",
     "postgres-types",
     "tokio-postgres",
+    "tokio-postgres-derive",
+    "tokio-postgres-derive-test"
 ]
 resolver = "2"
 

@@ -9,12 +9,14 @@ use crate::types::{BorrowToSql, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
+    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, FromRow, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
-use futures_util::TryStreamExt;
+use futures_util::{stream::BoxStream, TryStreamExt};
 use postgres_protocol::message::frontend;
+use postgres_types::FromSqlOwned;
+use std::ops::Deref;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
@@ -114,6 +116,33 @@ impl<'a> Transaction<'a> {
         self.client.query(statement, params).await
     }
 
+    /// Like [`Client::query_all`]
+    pub async fn query_all(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error> {
+        self.client().query_all(sql, params).await
+    }
+
+    /// Like [`Client::query_all_as`]
+    pub async fn query_all_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        self.client.query_all_as(sql, params).await
+    }
+
+    /// Like [`Client::query_all_scalar`]
+    pub async fn query_all_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        self.client.query_all_scalar(sql, params).await
+    }
+
     /// Like `Client::query_one`.
     pub async fn query_one<T>(
         &self,
@@ -124,6 +153,24 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         self.client.query_one(statement, params).await
+    }
+
+    /// Like [`Client::query_one_as`]
+    pub async fn query_one_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        self.client.query_one_as(sql, params).await
+    }
+
+    /// Like [`Client::query_scalar_one`]
+    pub async fn query_scalar_one<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        self.client.query_scalar_one(sql, params).await
     }
 
     /// Like `Client::query_opt`.
@@ -138,6 +185,15 @@ impl<'a> Transaction<'a> {
         self.client.query_opt(statement, params).await
     }
 
+    /// Like [`Client::query_opt_as`]
+    pub async fn query_opt_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<T>, Error> {
+        self.client.query_opt_as(sql, params).await
+    }
+
     /// Like `Client::query_raw`.
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
@@ -147,6 +203,24 @@ impl<'a> Transaction<'a> {
         I::IntoIter: ExactSizeIterator,
     {
         self.client.query_raw(statement, params).await
+    }
+
+    /// Like [`Client::stream`]
+    pub async fn stream(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<RowStream, Error> {
+        self.client.stream(sql, params).await
+    }
+
+    /// Like [`Client::stream_as`]
+    pub async fn stream_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<BoxStream<'static, Result<T, Error>>, Error> {
+        self.client.stream_as(sql, params).await
     }
 
     /// Like `Client::execute`.
@@ -309,6 +383,14 @@ impl<'a> Transaction<'a> {
 
     /// Returns a reference to the underlying `Client`.
     pub fn client(&self) -> &Client {
+        self.client
+    }
+}
+
+impl<'a> Deref for Transaction<'a> {
+    type Target = Client;
+
+    fn deref(&self) -> &Self::Target {
         self.client
     }
 }

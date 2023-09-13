@@ -40,7 +40,7 @@ impl ToSql for NaiveDateTime {
 impl<'a> FromSql<'a> for DateTime<Utc> {
     fn from_sql(type_: &Type, raw: &[u8]) -> Result<DateTime<Utc>, Box<dyn Error + Sync + Send>> {
         let naive = NaiveDateTime::from_sql(type_, raw)?;
-        Ok(DateTime::from_utc(naive, Utc))
+        Ok(DateTime::from_naive_utc_and_offset(naive, Utc))
     }
 
     accepts!(TIMESTAMPTZ);

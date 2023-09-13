@@ -2,6 +2,7 @@ use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
+use crate::from_row::FromRow;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
 use crate::query::RowStream;
@@ -19,10 +20,10 @@ use crate::{
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_util::{future, pin_mut, ready, stream::BoxStream, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
-use postgres_types::BorrowToSql;
+use postgres_types::{BorrowToSql, FromSqlOwned};
 use std::collections::HashMap;
 use std::fmt;
 #[cfg(feature = "runtime")]
@@ -256,6 +257,35 @@ impl Client {
             .await
     }
 
+    /// An alias for [`Client::query`]
+    pub async fn query_all(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error> {
+        self.query(sql, params).await
+    }
+
+    /// Returns a vector of `T`s
+    pub async fn query_all_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        let rows = self.query_all(sql, params).await?;
+        rows.iter().map(|x| FromRow::try_from_row(x)).collect()
+    }
+
+    /// Returns a vector of scalars
+    pub async fn query_all_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        let rows = self.query_all(sql, params).await?;
+        rows.into_iter().map(|r| r.try_get(0)).collect()
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.
@@ -289,6 +319,26 @@ impl Client {
         Ok(row)
     }
 
+    /// Like [`Client::query_one`] but converts row to `T`.
+    pub async fn query_one_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        let row = self.query_one(sql, params).await?;
+        FromRow::try_from_row(&row)
+    }
+
+    /// Like [`Client::query_scalar_one`] but returns one scalar
+    pub async fn query_scalar_one<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        let row = self.query_one(sql, params).await?;
+        row.try_get(0)
+    }
+
     /// Executes a statements which returns zero or one rows, returning it.
     ///
     /// Returns an error if the query returns more than one row.
@@ -320,6 +370,27 @@ impl Client {
         }
 
         Ok(Some(row))
+    }
+
+    /// Like [`Client::query_opt`] but converts row into `T`
+    pub async fn query_opt_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<T>, Error> {
+        let row = self.query_opt(sql, params).await?;
+        row.map(|x| FromRow::try_from_row(&x)).transpose()
+    }
+
+    /// Like [`Client::query_opt`] but returns an optional scalar
+    pub async fn query_scalar_opt<S: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<S>, Error> {
+        let row = self.query_opt(sql, params).await?;
+        row.and_then(|x| (x.try_get::<_, Option<S>>(0)).transpose())
+            .transpose()
     }
 
     /// The maximally flexible version of [`query`].
@@ -366,6 +437,28 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         query::query(&self.inner, statement, params).await
+    }
+
+    /// Returns a stream of rows
+    pub async fn stream(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<RowStream, Error> {
+        let stream = self.query_raw(sql, slice_iter(params)).await?;
+        Ok(stream)
+    }
+
+    /// Returns a stream of `T`s
+    pub async fn stream_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<BoxStream<'static, Result<T, Error>>, Error> {
+        let stream = self.stream(sql, params).await?;
+        Ok(stream
+            .map(move |x| x.and_then(|x| FromRow::try_from_row(&x)))
+            .boxed())
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -467,6 +560,11 @@ impl Client {
     /// them to this method!
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         simple_query::batch_execute(self.inner(), query).await
+    }
+
+    /// Alias for [`Client::transaction`]
+    pub async fn begin(&mut self) -> Result<Transaction<'_>, Error> {
+        self.transaction().await
     }
 
     /// Begins a new database transaction.

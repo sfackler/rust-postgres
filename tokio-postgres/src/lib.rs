@@ -126,6 +126,7 @@ pub use crate::copy_in::CopyInSink;
 pub use crate::copy_out::CopyOutStream;
 use crate::error::DbError;
 pub use crate::error::Error;
+pub use crate::from_row::FromRow;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
@@ -161,6 +162,7 @@ mod connection;
 mod copy_in;
 mod copy_out;
 pub mod error;
+mod from_row;
 mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
 mod keepalive;
@@ -252,6 +254,6 @@ pub enum SimpleQueryMessage {
 
 fn slice_iter<'a>(
     s: &'a [&'a (dyn ToSql + Sync)],
-) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {
-    s.iter().map(|s| *s as _)
+) -> impl ExactSizeIterator<Item = &'a (dyn ToSql + Sync)> + 'a {
+    s.iter().copied()
 }
