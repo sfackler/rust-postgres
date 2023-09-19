@@ -4,20 +4,19 @@ use crate::error::DbError;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::{AsyncMessage, Error, Notification};
 use bytes::BytesMut;
-use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{ready, stream::FusedStream, Sink, Stream, StreamExt};
-use log::{debug, info};
+use futures_util::{ready, Sink, Stream, StreamExt};
+use log::info;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::mem;
 use std::pin::Pin;
+use std::process::abort;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
-use tracing::Span;
 
 pub enum RequestMessages {
     Single(FrontendMessage),
@@ -27,12 +26,10 @@ pub enum RequestMessages {
 pub struct Request {
     pub messages: RequestMessages,
     pub sender: mpsc::Sender<BackendMessages>,
-    pub span: Span,
 }
 
 pub struct Response {
     sender: mpsc::Sender<BackendMessages>,
-    span: Span,
 }
 
 #[derive(PartialEq, Debug)]
@@ -54,10 +51,8 @@ pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
-    pending_requests: VecDeque<Request>,
+    pending_requests: VecDeque<PendingRequest>,
     pending_responses: VecDeque<PendingResponse>,
-    last_request_span: Span,
-    last_response_span: Span,
     responses: VecDeque<Response>,
     messages: VecDeque<AsyncMessage>,
     flushing: bool,
@@ -82,8 +77,6 @@ where
             pending_requests: VecDeque::new(),
             pending_responses: VecDeque::new(),
             responses: VecDeque::new(),
-            last_request_span: Span::current(),
-            last_response_span: Span::current(),
             messages: VecDeque::new(),
             flushing: false,
             state: State::Active,
@@ -120,7 +113,10 @@ where
                     body.value().map_err(Error::parse)?.to_string(),
                 );
             }
-            _ => unreachable!(),
+            _ => {
+                println!("dead!");
+                abort()
+            },
         }
 
         Ok(())
@@ -133,10 +129,17 @@ where
     ///
     /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
     /// receiving one of those values.
-    pub fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+    pub fn poll_message(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<AsyncMessage, Error>>> {
         self.poll_read(cx)?;
         self.poll_write(cx)?;
-        self.poll_shutdown(cx)
+        let shutdown = self.poll_shutdown(cx)?;
+
+        self.messages
+            .pop_front()
+            .map_or(shutdown.map(|_| None), |m| Poll::Ready(Some(Ok(m))))
     }
 
     fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
@@ -158,28 +161,28 @@ where
                     Poll::Ready(None) | Poll::Pending => break,
                 };
 
-                let mut is_new = true;
                 if let Some(pending) = self.pending_responses.front_mut() {
                     if !pending.completed {
                         pending.messages.extend(messages);
                         pending.completed = response_complete;
-                        is_new = false;
+                        continue;
                     }
                 }
 
-                if is_new {
-                    let response = self.responses.pop_front().unwrap();
-                    self.pending_responses.push_back(PendingResponse {
-                        response,
-                        messages,
-                        completed: response_complete,
-                    });
-                }
+                let response = self.responses.pop_front().unwrap_or_else(|| {
+                    println!("no response!");
+                    abort();
+                });
+                self.pending_responses.push_back(PendingResponse {
+                    response,
+                    messages,
+                    completed: response_complete,
+                });
             }
         }
 
         // Then send the received data to the client of this connection.
-        self.pending_responses.retain_mut(|mut pending| {
+        self.pending_responses.retain_mut(|pending| {
             match pending.response.sender.poll_ready(cx) {
                 Poll::Ready(Ok(())) => {
                     // We don't care about the result of this send, because channel can be closed
@@ -205,14 +208,19 @@ where
         if self.state != State::Closing {
             loop {
                 let req = match self.receiver.poll_next_unpin(cx) {
-                    Poll::Ready(Some(req)) => req,
+                    Poll::Ready(Some(req)) => req.into(),
                     Poll::Ready(None)
                         if self.responses.is_empty() && self.state == State::Active =>
                     {
                         self.state = State::Terminating;
                         let mut request = BytesMut::new();
                         frontend::terminate(&mut request);
-                        RequestMessages::Single(FrontendMessage::Raw(request.freeze()))
+                        PendingRequest {
+                            messages: RequestMessages::Single(FrontendMessage::Raw(
+                                request.freeze(),
+                            )),
+                            sender: None,
+                        }
                     }
                     Poll::Ready(None) | Poll::Pending => break,
                 };
@@ -255,7 +263,7 @@ where
             match req.messages {
                 RequestMessages::Single(msg) => {
                     Pin::new(&mut self.stream)
-                        .start_send((msg, self.last_request_span.clone()))
+                        .start_send(msg)
                         .map_err(Error::io)?;
                     if self.state == State::Terminating {
                         self.state = State::Closing;
@@ -270,24 +278,22 @@ where
                         }
                         Poll::Pending => {
                             // Message not ready yet, wait for it.
-                            self.pending_requests.push_front(Request {
+                            self.pending_requests.push_front(PendingRequest {
                                 messages: RequestMessages::CopyIn(receiver),
                                 sender: req.sender,
-                                span: req.span,
                             });
                             break;
                         }
                     };
                     Pin::new(&mut self.stream)
-                        .start_send((msg, self.last_request_span.clone()))
+                        .start_send(msg)
                         .map_err(Error::io)?;
                 }
             }
 
-            self.responses.push_back(Response {
-                sender: req.sender,
-                span: req.span,
-            });
+            if let Some(sender) = req.sender {
+                self.responses.push_back(Response { sender });
+            }
             self.flushing = true;
         }
 
@@ -299,10 +305,7 @@ where
             return Poll::Pending;
         }
 
-        _ = ready!(Pin::new(&mut self.stream)
-            .poll_close(cx)
-            .map_err(Error::io)?);
-        Poll::Ready(Ok(()))
+        Pin::new(&mut self.stream).poll_close(cx).map_err(Error::io)
     }
 }
 
@@ -314,11 +317,24 @@ where
     type Output = Result<(), Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        _ = ready!(self.poll_message(cx)?);
-        while let Some(AsyncMessage::Notice(notice)) = self.messages.pop_front() {
+        while let Some(AsyncMessage::Notice(notice)) = ready!(self.poll_message(cx)?) {
             info!("{}: {}", notice.severity(), notice.message());
         }
         Poll::Ready(Ok(()))
+    }
+}
+
+struct PendingRequest {
+    messages: RequestMessages,
+    sender: Option<mpsc::Sender<BackendMessages>>,
+}
+
+impl From<Request> for PendingRequest {
+    fn from(req: Request) -> Self {
+        Self {
+            messages: req.messages,
+            sender: Some(req.sender),
+        }
     }
 }
 

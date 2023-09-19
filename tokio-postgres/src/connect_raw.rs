@@ -26,7 +26,7 @@ pub struct StartupStream<S, T> {
     delayed: VecDeque<Message>,
 }
 
-impl<S, T> Sink<(FrontendMessage, Span)> for StartupStream<S, T>
+impl<S, T> Sink<FrontendMessage> for StartupStream<S, T>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
@@ -37,7 +37,7 @@ where
         Pin::new(&mut self.inner).poll_ready(cx)
     }
 
-    fn start_send(mut self: Pin<&mut Self>, item: (FrontendMessage, Span)) -> io::Result<()> {
+    fn start_send(mut self: Pin<&mut Self>, item: FrontendMessage) -> io::Result<()> {
         Pin::new(&mut self.inner).start_send(item)
     }
 
@@ -129,7 +129,7 @@ where
     frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)
 }
@@ -214,7 +214,7 @@ where
     frontend::password_message(password, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)
 }
@@ -275,7 +275,7 @@ where
     let mut buf = BytesMut::new();
     frontend::sasl_initial_response(mechanism, scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)?;
 
@@ -293,7 +293,7 @@ where
     let mut buf = BytesMut::new();
     frontend::sasl_response(scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
+        .send(FrontendMessage::Raw(buf.freeze()))
         .await
         .map_err(Error::io)?;
 
