@@ -1,7 +1,8 @@
-use crate::client::InnerClient;
+use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
+use crate::trace::{make_span_for_client, record_error, record_ok, SpanOperation};
 use crate::types::{Field, Kind, Oid, Type};
 use crate::{query, slice_iter};
 use crate::{Column, Error, Statement};
@@ -15,6 +16,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use tracing::{Instrument, Span};
 
 const TYPEINFO_QUERY: &str = "\
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
@@ -63,14 +65,21 @@ pub async fn prepare(
     query: &str,
     types: &[Type],
 ) -> Result<Statement, Error> {
-    let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
-    let buf = encode(client, &name, query, types)?;
-    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+    let span = make_span_for_client(client, SpanOperation::Prepare);
 
-    match responses.next().await? {
-        Message::ParseComplete => {}
-        _ => return Err(Error::unexpected_message()),
-    }
+    let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
+
+    let buf = encode(client, &name, query, types)?;
+
+    span.in_scope(|| {
+        tracing::debug!("waiting for ready");
+    });
+
+    let mut responses = start_traced(client, &span, buf).await?;
+
+    span.in_scope(|| {
+        tracing::debug!("response ready");
+    });
 
     let parameter_description = match responses.next().await? {
         Message::ParameterDescription(body) => body,
@@ -101,6 +110,30 @@ pub async fn prepare(
     }
 
     Ok(Statement::new(client, name, parameters, columns))
+}
+
+async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    match responses.next().await? {
+        Message::ParseComplete => {}
+        _ => return Err(Error::unexpected_message()),
+    }
+
+    Ok(responses)
+}
+
+async fn start_traced(client: &InnerClient, span: &Span, buf: Bytes) -> Result<Responses, Error> {
+    match start(client, buf).instrument(span.clone()).await {
+        Ok(response) => {
+            record_ok(span);
+            Ok(response)
+        }
+        Err(e) => {
+            record_error(span, &e);
+            Err(e)
+        }
+    }
 }
 
 fn prepare_rec<'a>(

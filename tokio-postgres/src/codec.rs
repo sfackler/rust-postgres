@@ -4,6 +4,7 @@ use postgres_protocol::message::backend;
 use postgres_protocol::message::frontend::CopyData;
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::Span;
 
 pub enum FrontendMessage {
     Raw(Bytes),
@@ -18,11 +19,20 @@ pub enum BackendMessage {
     Async(backend::Message),
 }
 
+#[derive(Default)]
 pub struct BackendMessages(BytesMut);
 
 impl BackendMessages {
-    pub fn empty() -> BackendMessages {
-        BackendMessages(BytesMut::new())
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    pub fn extend_from_slice(&mut self, buf: &[u8]) {
+        self.0.extend_from_slice(buf);
+    }
+
+    pub fn extend(&mut self, rhs: Self) {
+        self.0.extend_from_slice(&rhs.0);
     }
 }
 
@@ -37,13 +47,23 @@ impl FallibleIterator for BackendMessages {
 
 pub struct PostgresCodec;
 
-impl Encoder<FrontendMessage> for PostgresCodec {
+impl Encoder<(FrontendMessage, Span)> for PostgresCodec {
     type Error = io::Error;
 
-    fn encode(&mut self, item: FrontendMessage, dst: &mut BytesMut) -> io::Result<()> {
+    fn encode(&mut self, (item, span): (FrontendMessage, Span), dst: &mut BytesMut) -> io::Result<()> {
         match item {
-            FrontendMessage::Raw(buf) => dst.extend_from_slice(&buf),
-            FrontendMessage::CopyData(data) => data.write(dst),
+            FrontendMessage::Raw(buf) => {
+                span.in_scope(|| {
+                    log::debug!("sending raw message: {}", buf.len());
+                });
+                dst.extend_from_slice(&buf)
+            },
+            FrontendMessage::CopyData(data) => {
+                span.in_scope(|| {
+                    log::debug!("sending copy data message: {}", data.len);
+                });
+                data.write(dst)
+            },
         }
 
         Ok(())

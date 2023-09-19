@@ -7,15 +7,17 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{ready, stream::FusedStream, Sink, Stream, StreamExt};
-use log::{info, trace};
+use log::{debug, info};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
+use tracing::Span;
 
 pub enum RequestMessages {
     Single(FrontendMessage),
@@ -25,10 +27,12 @@ pub enum RequestMessages {
 pub struct Request {
     pub messages: RequestMessages,
     pub sender: mpsc::Sender<BackendMessages>,
+    pub span: Span,
 }
 
 pub struct Response {
     sender: mpsc::Sender<BackendMessages>,
+    span: Span,
 }
 
 #[derive(PartialEq, Debug)]
@@ -50,9 +54,13 @@ pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
     receiver: mpsc::UnboundedReceiver<Request>,
-    pending_request: Option<RequestMessages>,
-    pending_responses: VecDeque<BackendMessage>,
+    pending_requests: VecDeque<Request>,
+    pending_responses: VecDeque<PendingResponse>,
+    last_request_span: Span,
+    last_response_span: Span,
     responses: VecDeque<Response>,
+    messages: VecDeque<AsyncMessage>,
+    flushing: bool,
     state: State,
 }
 
@@ -63,213 +71,226 @@ where
 {
     pub(crate) fn new(
         stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
-        pending_responses: VecDeque<BackendMessage>,
+        delayed_messages: VecDeque<Message>,
         parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
-    ) -> Connection<S, T> {
-        Connection {
+    ) -> Result<Connection<S, T>, Error> {
+        let mut this = Connection {
             stream,
             parameters,
             receiver,
-            pending_request: None,
-            pending_responses,
+            pending_requests: VecDeque::new(),
+            pending_responses: VecDeque::new(),
             responses: VecDeque::new(),
+            last_request_span: Span::current(),
+            last_response_span: Span::current(),
+            messages: VecDeque::new(),
+            flushing: false,
             state: State::Active,
+        };
+
+        for msg in delayed_messages {
+            this.handle_message(msg)?;
         }
+
+        Ok(this)
     }
 
-    fn poll_response(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<BackendMessage, Error>>> {
-        if let Some(message) = self.pending_responses.pop_front() {
-            trace!("retrying pending response");
-            return Poll::Ready(Some(Ok(message)));
-        }
-
-        Pin::new(&mut self.stream)
-            .poll_next(cx)
-            .map(|o| o.map(|r| r.map_err(Error::io)))
+    /// Returns the value of a runtime parameter for this connection.
+    pub fn parameter(&self, name: &str) -> Option<&str> {
+        self.parameters.get(name).map(|s| &**s)
     }
 
-    fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<Option<AsyncMessage>, Error> {
-        if self.state != State::Active {
-            trace!("poll_read: done");
-            return Ok(None);
-        }
-
-        loop {
-            let message = match self.poll_response(cx)? {
-                Poll::Ready(Some(message)) => message,
-                Poll::Ready(None) => return Err(Error::closed()),
-                Poll::Pending => {
-                    trace!("poll_read: waiting on response");
-                    return Ok(None);
-                }
-            };
-
-            let (mut messages, request_complete) = match message {
-                BackendMessage::Async(Message::NoticeResponse(body)) => {
-                    let error = DbError::parse(&mut body.fields()).map_err(Error::parse)?;
-                    return Ok(Some(AsyncMessage::Notice(error)));
-                }
-                BackendMessage::Async(Message::NotificationResponse(body)) => {
-                    let notification = Notification {
+    fn handle_message(&mut self, msg: Message) -> Result<(), Error> {
+        match msg {
+            Message::NoticeResponse(body) => self.messages.push_back(AsyncMessage::Notice(
+                DbError::parse(&mut body.fields()).map_err(Error::parse)?,
+            )),
+            Message::NotificationResponse(body) => {
+                self.messages
+                    .push_back(AsyncMessage::Notification(Notification {
                         process_id: body.process_id(),
                         channel: body.channel().map_err(Error::parse)?.to_string(),
                         payload: body.message().map_err(Error::parse)?.to_string(),
-                    };
-                    return Ok(Some(AsyncMessage::Notification(notification)));
-                }
-                BackendMessage::Async(Message::ParameterStatus(body)) => {
-                    self.parameters.insert(
-                        body.name().map_err(Error::parse)?.to_string(),
-                        body.value().map_err(Error::parse)?.to_string(),
-                    );
-                    continue;
-                }
-                BackendMessage::Async(_) => unreachable!(),
-                BackendMessage::Normal {
-                    messages,
-                    request_complete,
-                } => (messages, request_complete),
-            };
+                    }))
+            }
+            Message::ParameterStatus(body) => {
+                self.parameters.insert(
+                    body.name().map_err(Error::parse)?.to_string(),
+                    body.value().map_err(Error::parse)?.to_string(),
+                );
+            }
+            _ => unreachable!(),
+        }
 
-            let mut response = match self.responses.pop_front() {
-                Some(response) => response,
-                None => match messages.next().map_err(Error::parse)? {
-                    Some(Message::ErrorResponse(error)) => return Err(Error::db(error)),
-                    _ => return Err(Error::unexpected_message()),
-                },
-            };
+        Ok(())
+    }
 
-            match response.sender.poll_ready(cx) {
-                Poll::Ready(Ok(())) => {
-                    let _ = response.sender.start_send(messages);
-                    if !request_complete {
-                        self.responses.push_front(response);
+    /// Polls for asynchronous messages from the server.
+    ///
+    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
+    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
+    ///
+    /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
+    /// receiving one of those values.
+    pub fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.poll_read(cx)?;
+        self.poll_write(cx)?;
+        self.poll_shutdown(cx)
+    }
+
+    fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
+        // Poll incoming data from postgres first.
+        if self.state == State::Active {
+            loop {
+                let res = Pin::new(&mut self.stream)
+                    .poll_next(cx)
+                    .map(|o| o.map(|r| r.map_err(Error::io)))?;
+                let (messages, response_complete) = match res {
+                    Poll::Ready(Some(BackendMessage::Async(msg))) => {
+                        self.handle_message(msg)?;
+                        continue;
                     }
-                }
-                Poll::Ready(Err(_)) => {
-                    // we need to keep paging through the rest of the messages even if the receiver's hung up
-                    if !request_complete {
-                        self.responses.push_front(response);
-                    }
-                }
-                Poll::Pending => {
-                    self.responses.push_front(response);
-                    self.pending_responses.push_back(BackendMessage::Normal {
+                    Poll::Ready(Some(BackendMessage::Normal {
                         messages,
                         request_complete,
+                    })) => (messages, request_complete),
+                    Poll::Ready(None) | Poll::Pending => break,
+                };
+
+                let mut is_new = true;
+                if let Some(pending) = self.pending_responses.front_mut() {
+                    if !pending.completed {
+                        pending.messages.extend(messages);
+                        pending.completed = response_complete;
+                        is_new = false;
+                    }
+                }
+
+                if is_new {
+                    let response = self.responses.pop_front().unwrap();
+                    self.pending_responses.push_back(PendingResponse {
+                        response,
+                        messages,
+                        completed: response_complete,
                     });
-                    trace!("poll_read: waiting on sender");
-                    return Ok(None);
                 }
             }
         }
-    }
 
-    fn poll_request(&mut self, cx: &mut Context<'_>) -> Poll<Option<RequestMessages>> {
-        if let Some(messages) = self.pending_request.take() {
-            trace!("retrying pending request");
-            return Poll::Ready(Some(messages));
-        }
-
-        if self.receiver.is_terminated() {
-            return Poll::Ready(None);
-        }
-
-        match self.receiver.poll_next_unpin(cx) {
-            Poll::Ready(Some(request)) => {
-                trace!("polled new request");
-                self.responses.push_back(Response {
-                    sender: request.sender,
-                });
-                Poll::Ready(Some(request.messages))
+        // Then send the received data to the client of this connection.
+        self.pending_responses.retain_mut(|mut pending| {
+            match pending.response.sender.poll_ready(cx) {
+                Poll::Ready(Ok(())) => {
+                    // We don't care about the result of this send, because channel can be closed
+                    // by client side while we're receiving the responses from postgres.
+                    let _ = pending
+                        .response
+                        .sender
+                        .start_send(mem::take(&mut pending.messages));
+                    !pending.completed
+                }
+                Poll::Ready(Err(_)) => {
+                    // We still need to fully receive the response from postgres.
+                    !pending.completed
+                }
+                Poll::Pending => true,
             }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
+        });
+
+        Ok(())
     }
 
-    fn poll_write(&mut self, cx: &mut Context<'_>) -> Result<bool, Error> {
+    fn poll_write(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
+        if self.state != State::Closing {
+            loop {
+                let req = match self.receiver.poll_next_unpin(cx) {
+                    Poll::Ready(Some(req)) => req,
+                    Poll::Ready(None)
+                        if self.responses.is_empty() && self.state == State::Active =>
+                    {
+                        self.state = State::Terminating;
+                        let mut request = BytesMut::new();
+                        frontend::terminate(&mut request);
+                        RequestMessages::Single(FrontendMessage::Raw(request.freeze()))
+                    }
+                    Poll::Ready(None) | Poll::Pending => break,
+                };
+
+                self.pending_requests.push_back(req);
+            }
+        }
+
         loop {
-            if self.state == State::Closing {
-                trace!("poll_write: done");
-                return Ok(false);
+            // First, flush previous messages.
+            if self.flushing {
+                match Pin::new(&mut self.stream)
+                    .poll_flush(cx)
+                    .map_err(Error::io)?
+                {
+                    Poll::Ready(()) => {
+                        self.flushing = false;
+                    }
+                    Poll::Pending => {
+                        // A previous message is not flushed, so we can't write a new one.
+                        break;
+                    }
+                }
             }
 
+            let Some(req) = self.pending_requests.pop_front() else {
+                break;
+            };
+
+            // Socket is not ready yet, so we can't write a new message.
             if Pin::new(&mut self.stream)
                 .poll_ready(cx)
                 .map_err(Error::io)?
                 .is_pending()
             {
-                trace!("poll_write: waiting on socket");
-                return Ok(false);
+                self.pending_requests.push_front(req);
+                break;
             }
 
-            let request = match self.poll_request(cx) {
-                Poll::Ready(Some(request)) => request,
-                Poll::Ready(None) if self.responses.is_empty() && self.state == State::Active => {
-                    trace!("poll_write: at eof, terminating");
-                    self.state = State::Terminating;
-                    let mut request = BytesMut::new();
-                    frontend::terminate(&mut request);
-                    RequestMessages::Single(FrontendMessage::Raw(request.freeze()))
-                }
-                Poll::Ready(None) => {
-                    trace!(
-                        "poll_write: at eof, pending responses {}",
-                        self.responses.len()
-                    );
-                    return Ok(true);
-                }
-                Poll::Pending => {
-                    trace!("poll_write: waiting on request");
-                    return Ok(true);
-                }
-            };
-
-            match request {
-                RequestMessages::Single(request) => {
+            match req.messages {
+                RequestMessages::Single(msg) => {
                     Pin::new(&mut self.stream)
-                        .start_send(request)
+                        .start_send((msg, self.last_request_span.clone()))
                         .map_err(Error::io)?;
                     if self.state == State::Terminating {
-                        trace!("poll_write: sent eof, closing");
                         self.state = State::Closing;
                     }
                 }
                 RequestMessages::CopyIn(mut receiver) => {
-                    let message = match receiver.poll_next_unpin(cx) {
-                        Poll::Ready(Some(message)) => message,
+                    let msg = match receiver.poll_next_unpin(cx) {
+                        Poll::Ready(Some(msg)) => msg,
                         Poll::Ready(None) => {
-                            trace!("poll_write: finished copy_in request");
-                            continue;
+                            // No receiver found, move to the next message.
+                            break;
                         }
                         Poll::Pending => {
-                            trace!("poll_write: waiting on copy_in stream");
-                            self.pending_request = Some(RequestMessages::CopyIn(receiver));
-                            return Ok(true);
+                            // Message not ready yet, wait for it.
+                            self.pending_requests.push_front(Request {
+                                messages: RequestMessages::CopyIn(receiver),
+                                sender: req.sender,
+                                span: req.span,
+                            });
+                            break;
                         }
                     };
                     Pin::new(&mut self.stream)
-                        .start_send(message)
+                        .start_send((msg, self.last_request_span.clone()))
                         .map_err(Error::io)?;
-                    self.pending_request = Some(RequestMessages::CopyIn(receiver));
                 }
             }
-        }
-    }
 
-    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
-        match Pin::new(&mut self.stream)
-            .poll_flush(cx)
-            .map_err(Error::io)?
-        {
-            Poll::Ready(()) => trace!("poll_flush: flushed"),
-            Poll::Pending => trace!("poll_flush: waiting on socket"),
+            self.responses.push_back(Response {
+                sender: req.sender,
+                span: req.span,
+            });
+            self.flushing = true;
         }
+
         Ok(())
     }
 
@@ -278,47 +299,10 @@ where
             return Poll::Pending;
         }
 
-        match Pin::new(&mut self.stream)
+        _ = ready!(Pin::new(&mut self.stream)
             .poll_close(cx)
-            .map_err(Error::io)?
-        {
-            Poll::Ready(()) => {
-                trace!("poll_shutdown: complete");
-                Poll::Ready(Ok(()))
-            }
-            Poll::Pending => {
-                trace!("poll_shutdown: waiting on socket");
-                Poll::Pending
-            }
-        }
-    }
-
-    /// Returns the value of a runtime parameter for this connection.
-    pub fn parameter(&self, name: &str) -> Option<&str> {
-        self.parameters.get(name).map(|s| &**s)
-    }
-
-    /// Polls for asynchronous messages from the server.
-    ///
-    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
-    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
-    pub fn poll_message(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<AsyncMessage, Error>>> {
-        let message = self.poll_read(cx)?;
-        let want_flush = self.poll_write(cx)?;
-        if want_flush {
-            self.poll_flush(cx)?;
-        }
-        match message {
-            Some(message) => Poll::Ready(Some(Ok(message))),
-            None => match self.poll_shutdown(cx) {
-                Poll::Ready(Ok(())) => Poll::Ready(None),
-                Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-                Poll::Pending => Poll::Pending,
-            },
-        }
+            .map_err(Error::io)?);
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -330,11 +314,16 @@ where
     type Output = Result<(), Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        while let Some(message) = ready!(self.poll_message(cx)?) {
-            if let AsyncMessage::Notice(notice) = message {
-                info!("{}: {}", notice.severity(), notice.message());
-            }
+        _ = ready!(self.poll_message(cx)?);
+        while let Some(AsyncMessage::Notice(notice)) = self.messages.pop_front() {
+            info!("{}: {}", notice.severity(), notice.message());
         }
         Poll::Ready(Ok(()))
     }
+}
+
+struct PendingResponse {
+    response: Response,
+    messages: BackendMessages,
+    completed: bool,
 }

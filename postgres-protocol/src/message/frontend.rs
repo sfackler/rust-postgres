@@ -134,7 +134,7 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
 
 pub struct CopyData<T> {
     buf: T,
-    len: i32,
+    pub len: i32,
 }
 
 impl<T> CopyData<T>

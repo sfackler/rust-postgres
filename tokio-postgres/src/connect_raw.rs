@@ -23,10 +23,10 @@ use tokio_util::codec::Framed;
 pub struct StartupStream<S, T> {
     inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     buf: BackendMessages,
-    delayed: VecDeque<BackendMessage>,
+    delayed: VecDeque<Message>,
 }
 
-impl<S, T> Sink<FrontendMessage> for StartupStream<S, T>
+impl<S, T> Sink<(FrontendMessage, Span)> for StartupStream<S, T>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
@@ -37,7 +37,7 @@ where
         Pin::new(&mut self.inner).poll_ready(cx)
     }
 
-    fn start_send(mut self: Pin<&mut Self>, item: FrontendMessage) -> io::Result<()> {
+    fn start_send(mut self: Pin<&mut Self>, item: (FrontendMessage, Span)) -> io::Result<()> {
         Pin::new(&mut self.inner).start_send(item)
     }
 
@@ -101,7 +101,7 @@ where
 
     let (sender, receiver) = mpsc::unbounded();
     let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
-    let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
+    let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver)?;
 
     Ok((client, connection))
 }
@@ -129,7 +129,7 @@ where
     frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send(FrontendMessage::Raw(buf.freeze()))
+        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
         .await
         .map_err(Error::io)
 }
@@ -214,7 +214,7 @@ where
     frontend::password_message(password, &mut buf).map_err(Error::encode)?;
 
     stream
-        .send(FrontendMessage::Raw(buf.freeze()))
+        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
         .await
         .map_err(Error::io)
 }
@@ -275,7 +275,7 @@ where
     let mut buf = BytesMut::new();
     frontend::sasl_initial_response(mechanism, scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send(FrontendMessage::Raw(buf.freeze()))
+        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
         .await
         .map_err(Error::io)?;
 
@@ -293,7 +293,7 @@ where
     let mut buf = BytesMut::new();
     frontend::sasl_response(scram.message(), &mut buf).map_err(Error::encode)?;
     stream
-        .send(FrontendMessage::Raw(buf.freeze()))
+        .send((FrontendMessage::Raw(buf.freeze()), Span::current()))
         .await
         .map_err(Error::io)?;
 
@@ -335,7 +335,7 @@ where
                 );
             }
             Some(msg @ Message::NoticeResponse(_)) => {
-                stream.delayed.push_back(BackendMessage::Async(msg))
+                stream.delayed.push_back(msg);
             }
             Some(Message::ReadyForQuery(_)) => return Ok((process_id, secret_key, parameters)),
             Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),

@@ -46,9 +46,42 @@ where
         );
         encode(client, &statement, params)?
     } else {
-        encode(client, &statement, params)?
-    };
-    let responses = start(client, buf).await?;
+        encode(client, statement, params)
+    }
+}
+
+async fn start_traced(client: &InnerClient, span: &Span, buf: Bytes) -> Result<Responses, Error> {
+    match start(client, buf).instrument(span.clone()).await {
+        Ok(response) => {
+            record_ok(span);
+            Ok(response)
+        }
+        Err(e) => {
+            record_error(span, &e);
+            Err(e)
+        }
+    }
+}
+
+pub async fn query<P, I>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
+) -> Result<RowStream, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let span = make_span_for_client(client, SpanOperation::Query);
+
+    let buf = encode_with_logs(client, &span, &statement, params)?;
+
+    let responses = start_traced(client, &span, buf).await?;
+
+    span.in_scope(|| {
+        tracing::debug!("response ready");
+    });
     Ok(RowStream {
         statement,
         responses,
@@ -86,32 +119,24 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log_enabled!(Level::Debug) {
-        let params = params.into_iter().collect::<Vec<_>>();
-        debug!(
-            "executing statement {} with parameters: {:?}",
-            statement.name(),
-            BorrowToSqlParamsDebug(params.as_slice()),
-        );
-        encode(client, &statement, params)?
-    } else {
-        encode(client, &statement, params)?
-    };
-    let mut responses = start(client, buf).await?;
+    let span = make_span_for_client(client, SpanOperation::Execute);
+
+    let buf = encode_with_logs(client, &span, &statement, params)?;
+
+    let mut responses = start_traced(client, &span, buf).await?;
+
+    span.in_scope(|| {
+        tracing::debug!("response ready");
+    });
 
     let mut rows = 0;
     loop {
         match responses.next().await? {
             Message::DataRow(_) => {}
             Message::CommandComplete(body) => {
-                rows = body
-                    .tag()
-                    .map_err(Error::parse)?
-                    .rsplit(' ')
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .unwrap_or(0);
+                rows = extract_row_affected(&body)?;
+                span.record("db.sql.rows_affected", rows);
+                tracing::debug!("execute complete");
             }
             Message::EmptyQueryResponse => rows = 0,
             Message::ReadyForQuery(_) => return Ok(rows),
@@ -217,9 +242,15 @@ impl Stream for RowStream {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
                 }
-                Message::EmptyQueryResponse
-                | Message::CommandComplete(_)
-                | Message::PortalSuspended => {}
+                Message::CommandComplete(body) => {
+                    let rows_affected = extract_row_affected(&body)?;
+
+                    this.span.record("db.sql.rows_affected", rows_affected);
+                    tracing::debug!("query complete");
+
+                    *this.rows_affected = Some(rows_affected);
+                }
+                Message::EmptyQueryResponse | Message::PortalSuspended => {}
                 Message::ReadyForQuery(_) => return Poll::Ready(None),
                 _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
