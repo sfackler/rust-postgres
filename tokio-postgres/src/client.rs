@@ -32,7 +32,6 @@ use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{instrument, Span};
 
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
@@ -89,10 +88,9 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
-    #[instrument(name = "PgClient", skip_all)]
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
-        let request = Request { messages, sender, span: Span::current() };
+        let request = Request { messages, sender };
         self.sender
             .unbounded_send(request)
             .map_err(|_| Error::closed())?;
