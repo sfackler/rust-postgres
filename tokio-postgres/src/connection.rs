@@ -320,7 +320,7 @@ where
                                 messages: RequestMessages::CopyIn(receiver),
                                 sender: req.sender,
                             });
-                            break;
+                            continue;
                         }
                     };
 
