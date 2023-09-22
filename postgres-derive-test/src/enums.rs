@@ -1,5 +1,5 @@
 use crate::test_type;
-use postgres::{Client, NoTls};
+use postgres::{error::DbError, Client, NoTls};
 use postgres_types::{FromSql, ToSql, WrongType};
 use std::error::Error;
 
@@ -54,6 +54,35 @@ fn name_overrides() {
 }
 
 #[test]
+fn rename_all_overrides() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(name = "mood", rename_all = "snake_case")]
+    enum Mood {
+        VerySad,
+        #[postgres(name = "okay")]
+        Ok,
+        VeryHappy,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute(
+        "CREATE TYPE pg_temp.mood AS ENUM ('very_sad', 'okay', 'very_happy')",
+        &[],
+    )
+    .unwrap();
+
+    test_type(
+        &mut conn,
+        "mood",
+        &[
+            (Mood::VerySad, "'very_sad'"),
+            (Mood::Ok, "'okay'"),
+            (Mood::VeryHappy, "'very_happy'"),
+        ],
+    );
+}
+
+#[test]
 fn wrong_name() {
     #[derive(Debug, ToSql, FromSql, PartialEq)]
     enum Foo {
@@ -100,5 +129,75 @@ fn missing_variant() {
         .unwrap();
 
     let err = conn.execute("SELECT $1::foo", &[&Foo::Bar]).unwrap_err();
+    assert!(err.source().unwrap().is::<WrongType>());
+}
+
+#[test]
+fn allow_mismatch_enums() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(allow_mismatch)]
+    enum Foo {
+        Bar,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE TYPE pg_temp.\"Foo\" AS ENUM ('Bar', 'Baz')", &[])
+        .unwrap();
+
+    let row = conn.query_one("SELECT $1::\"Foo\"", &[&Foo::Bar]).unwrap();
+    assert_eq!(row.get::<_, Foo>(0), Foo::Bar);
+}
+
+#[test]
+fn missing_enum_variant() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(allow_mismatch)]
+    enum Foo {
+        Bar,
+        Buz,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE TYPE pg_temp.\"Foo\" AS ENUM ('Bar', 'Baz')", &[])
+        .unwrap();
+
+    let err = conn
+        .query_one("SELECT $1::\"Foo\"", &[&Foo::Buz])
+        .unwrap_err();
+    assert!(err.source().unwrap().is::<DbError>());
+}
+
+#[test]
+fn allow_mismatch_and_renaming() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(name = "foo", allow_mismatch)]
+    enum Foo {
+        #[postgres(name = "bar")]
+        Bar,
+        #[postgres(name = "buz")]
+        Buz,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE TYPE pg_temp.foo AS ENUM ('bar', 'baz', 'buz')", &[])
+        .unwrap();
+
+    let row = conn.query_one("SELECT $1::foo", &[&Foo::Buz]).unwrap();
+    assert_eq!(row.get::<_, Foo>(0), Foo::Buz);
+}
+
+#[test]
+fn wrong_name_and_allow_mismatch() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(allow_mismatch)]
+    enum Foo {
+        Bar,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE TYPE pg_temp.foo AS ENUM ('Bar', 'Baz')", &[])
+        .unwrap();
+
+    let err = conn.query_one("SELECT $1::foo", &[&Foo::Bar]).unwrap_err();
     assert!(err.source().unwrap().is::<WrongType>());
 }

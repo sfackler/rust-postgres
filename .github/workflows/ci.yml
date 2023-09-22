@@ -17,60 +17,87 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: sfackler/actions/rustup@master
       - uses: sfackler/actions/rustfmt@master
-  
+
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: sfackler/actions/rustup@master
-      - run: echo "::set-output name=version::$(rustc --version)"
+      - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
         with:
           path: ~/.cargo/registry/index
           key: index-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             index-${{ runner.os }}-
       - run: cargo generate-lockfile
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
         with:
           path: ~/.cargo/registry/cache
           key: registry-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo fetch
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
         with:
           path: target
           key: clippy-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}y
       - run: cargo clippy --all --all-targets
 
-  test:
-    name: test
+  check-wasm32:
+    name: check-wasm32
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: docker compose up -d
+      - uses: actions/checkout@v3
       - uses: sfackler/actions/rustup@master
-        with:
-          version: 1.62.0
-      - run: echo "::set-output name=version::$(rustc --version)"
+      - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
-      - uses: actions/cache@v1
+      - run: rustup target add wasm32-unknown-unknown
+      - uses: actions/cache@v3
         with:
           path: ~/.cargo/registry/index
           key: index-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             index-${{ runner.os }}-
       - run: cargo generate-lockfile
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
         with:
           path: ~/.cargo/registry/cache
           key: registry-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo fetch
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
+        with:
+          path: target
+          key: check-wasm32-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: docker compose up -d
+      - uses: sfackler/actions/rustup@master
+        with:
+          version: 1.70.0
+      - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
+        id: rust-version
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry/index
+          key: index-${{ runner.os }}-${{ github.run_number }}
+          restore-keys: |
+            index-${{ runner.os }}-
+      - run: cargo generate-lockfile
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry/cache
+          key: registry-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo fetch
+      - uses: actions/cache@v3
         with:
           path: target
           key: test-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}y

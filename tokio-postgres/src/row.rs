@@ -196,6 +196,7 @@ impl AsName for SimpleColumn {
 }
 
 /// A row of data returned from the database by a simple query.
+#[derive(Debug)]
 pub struct SimpleQueryRow {
     columns: Arc<[SimpleColumn]>,
     body: DataRowBody,

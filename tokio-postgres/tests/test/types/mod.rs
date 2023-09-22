@@ -739,3 +739,25 @@ async fn ltxtquery_any() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn oidvector() {
+    test_type(
+        "oidvector",
+        // NB: postgres does not support empty oidarrays! All empty arrays are normalized to zero dimensions, but the
+        // oidvectorrecv function requires exactly one dimension.
+        &[(Some(vec![0u32, 1, 2]), "ARRAY[0,1,2]"), (None, "NULL")],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn int2vector() {
+    test_type(
+        "int2vector",
+        // NB: postgres does not support empty int2vectors! All empty arrays are normalized to zero dimensions, but the
+        // oidvectorrecv function requires exactly one dimension.
+        &[(Some(vec![0i16, 1, 2]), "ARRAY[0,1,2]"), (None, "NULL")],
+    )
+    .await;
+}

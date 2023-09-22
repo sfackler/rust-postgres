@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
-use geo_types_0_7::{Coordinate, LineString, Point, Rect};
+use geo_types_0_7::{Coord, LineString, Point, Rect};
 use postgres_protocol::types;
 use std::error::Error;
 
@@ -52,7 +52,7 @@ impl<'a> FromSql<'a> for LineString<f64> {
         let path = types::path_from_sql(raw)?;
         let points = path
             .points()
-            .map(|p| Ok(Coordinate { x: p.x(), y: p.y() }))
+            .map(|p| Ok(Coord { x: p.x(), y: p.y() }))
             .collect()?;
         Ok(LineString(points))
     }

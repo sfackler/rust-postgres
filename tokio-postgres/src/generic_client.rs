@@ -69,6 +69,9 @@ pub trait GenericClient: private::Sealed {
     /// Like `Client::transaction`.
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error>;
 
+    /// Like `Client::batch_execute`.
+    async fn batch_execute(&self, query: &str) -> Result<(), Error>;
+
     /// Returns a reference to the underlying `Client`.
     fn client(&self) -> &Client;
 }
@@ -147,6 +150,10 @@ impl GenericClient for Client {
 
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction().await
+    }
+
+    async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+        self.batch_execute(query).await
     }
 
     fn client(&self) -> &Client {
@@ -230,6 +237,10 @@ impl GenericClient for Transaction<'_> {
     #[allow(clippy::needless_lifetimes)]
     async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
         self.transaction().await
+    }
+
+    async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+        self.batch_execute(query).await
     }
 
     fn client(&self) -> &Client {

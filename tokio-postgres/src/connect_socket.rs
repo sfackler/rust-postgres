@@ -1,59 +1,50 @@
-use crate::config::Host;
+use crate::client::Addr;
 use crate::keepalive::KeepaliveConfig;
 use crate::{Error, Socket};
 use socket2::{SockRef, TcpKeepalive};
 use std::future::Future;
 use std::io;
 use std::time::Duration;
+use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
-use tokio::net::{self, TcpStream};
 use tokio::time;
 
 pub(crate) async fn connect_socket(
-    host: &Host,
+    addr: &Addr,
     port: u16,
     connect_timeout: Option<Duration>,
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] tcp_user_timeout: Option<
+        Duration,
+    >,
     keepalive_config: Option<&KeepaliveConfig>,
 ) -> Result<Socket, Error> {
-    match host {
-        Host::Tcp(host) => {
-            let addrs = net::lookup_host((&**host, port))
-                .await
-                .map_err(Error::connect)?;
+    match addr {
+        Addr::Tcp(ip) => {
+            let stream =
+                connect_with_timeout(TcpStream::connect((*ip, port)), connect_timeout).await?;
 
-            let mut last_err = None;
+            stream.set_nodelay(true).map_err(Error::connect)?;
 
-            for addr in addrs {
-                let stream =
-                    match connect_with_timeout(TcpStream::connect(addr), connect_timeout).await {
-                        Ok(stream) => stream,
-                        Err(e) => {
-                            last_err = Some(e);
-                            continue;
-                        }
-                    };
-
-                stream.set_nodelay(true).map_err(Error::connect)?;
-                if let Some(keepalive_config) = keepalive_config {
-                    SockRef::from(&stream)
-                        .set_tcp_keepalive(&TcpKeepalive::from(keepalive_config))
-                        .map_err(Error::connect)?;
-                }
-
-                return Ok(Socket::new_tcp(stream));
+            let sock_ref = SockRef::from(&stream);
+            #[cfg(target_os = "linux")]
+            {
+                sock_ref
+                    .set_tcp_user_timeout(tcp_user_timeout)
+                    .map_err(Error::connect)?;
             }
 
-            Err(last_err.unwrap_or_else(|| {
-                Error::connect(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "could not resolve any addresses",
-                ))
-            }))
+            if let Some(keepalive_config) = keepalive_config {
+                sock_ref
+                    .set_tcp_keepalive(&TcpKeepalive::from(keepalive_config))
+                    .map_err(Error::connect)?;
+            }
+
+            Ok(Socket::new_tcp(stream))
         }
         #[cfg(unix)]
-        Host::Unix(path) => {
-            let path = path.join(format!(".s.PGSQL.{}", port));
+        Addr::Unix(dir) => {
+            let path = dir.join(format!(".s.PGSQL.{}", port));
             let socket = connect_with_timeout(UnixStream::connect(path), connect_timeout).await?;
             Ok(Socket::new_unix(socket))
         }

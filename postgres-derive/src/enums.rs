@@ -1,6 +1,6 @@
 use syn::{Error, Fields, Ident};
 
-use crate::overrides::Overrides;
+use crate::{case::RenameRule, overrides::Overrides};
 
 pub struct Variant {
     pub ident: Ident,
@@ -8,7 +8,7 @@ pub struct Variant {
 }
 
 impl Variant {
-    pub fn parse(raw: &syn::Variant) -> Result<Variant, Error> {
+    pub fn parse(raw: &syn::Variant, rename_all: Option<RenameRule>) -> Result<Variant, Error> {
         match raw.fields {
             Fields::Unit => {}
             _ => {
@@ -18,11 +18,16 @@ impl Variant {
                 ))
             }
         }
+        let overrides = Overrides::extract(&raw.attrs, false)?;
 
-        let overrides = Overrides::extract(&raw.attrs)?;
+        // variant level name override takes precendence over container level rename_all override
+        let name = overrides.name.unwrap_or_else(|| match rename_all {
+            Some(rule) => rule.apply_to_field(&raw.ident.to_string()),
+            None => raw.ident.to_string(),
+        });
         Ok(Variant {
             ident: raw.ident.clone(),
-            name: overrides.name.unwrap_or_else(|| raw.ident.to_string()),
+            name,
         })
     }
 }

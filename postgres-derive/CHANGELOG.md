@@ -1,5 +1,18 @@
 # Change Log
 
+## v0.4.5 - 2023-08-19
+
+### Added
+
+* Added a `rename_all` option for enum and struct derives.
+* Added an `allow_mismatch` option to disable strict enum variant checks against the Postgres type.
+
+## v0.4.4 - 2023-03-27
+
+### Changed
+
+* Upgraded `syn`.
+
 ## v0.4.3 - 2022-09-07
 
 ### Added

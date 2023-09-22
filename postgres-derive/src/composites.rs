@@ -4,7 +4,7 @@ use syn::{
     TypeParamBound,
 };
 
-use crate::overrides::Overrides;
+use crate::{case::RenameRule, overrides::Overrides};
 
 pub struct Field {
     pub name: String,
@@ -13,18 +13,26 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn parse(raw: &syn::Field) -> Result<Field, Error> {
-        let overrides = Overrides::extract(&raw.attrs)?;
-
+    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<Field, Error> {
+        let overrides = Overrides::extract(&raw.attrs, false)?;
         let ident = raw.ident.as_ref().unwrap().clone();
-        Ok(Field {
-            name: overrides.name.unwrap_or_else(|| {
+
+        // field level name override takes precendence over container level rename_all override
+        let name = match overrides.name {
+            Some(n) => n,
+            None => {
                 let name = ident.to_string();
-                match name.strip_prefix("r#") {
-                    Some(name) => name.to_string(),
-                    None => name,
+                let stripped = name.strip_prefix("r#").map(String::from).unwrap_or(name);
+
+                match rename_all {
+                    Some(rule) => rule.apply_to_field(&stripped),
+                    None => stripped,
                 }
-            }),
+            }
+        };
+
+        Ok(Field {
+            name,
             ident,
             type_: raw.ty.clone(),
         })

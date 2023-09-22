@@ -1,5 +1,40 @@
 # Change Log
 
+## v0.7.10 - 2023-08-25
+
+## Fixed
+
+* Defered default username lookup to avoid regressing `Config` behavior.
+
+## v0.7.9 - 2023-08-19
+
+## Fixed
+
+* Fixed builds on OpenBSD.
+
+## Added
+
+* Added the `js` feature for WASM support.
+* Added support for the `hostaddr` config option to bypass DNS lookups.
+* Added support for the `load_balance_hosts` config option to randomize connection ordering.
+* The `user` config option now defaults to the executing process's user.
+
+## v0.7.8 - 2023-05-27
+
+## Added
+
+* Added `keepalives_interval` and `keepalives_retries` config options.
+* Added new `SqlState` variants.
+* Added more `Debug` impls.
+* Added `GenericClient::batch_execute`.
+* Added `RowStream::rows_affected`.
+* Added the `tcp_user_timeout` config option.
+
+## Changed
+
+* Passing an incorrect number of parameters to a query method now returns an error instead of panicking.
+* Upgraded `socket2`.
+
 ## v0.7.7 - 2022-08-21
 
 ## Added

@@ -174,6 +174,16 @@ pub enum Inner {
     RegroleArray,
     Regcollation,
     RegcollationArray,
+    Int4multiRange,
+    NummultiRange,
+    TsmultiRange,
+    TstzmultiRange,
+    DatemultiRange,
+    Int8multiRange,
+    AnymultiRange,
+    AnycompatiblemultiRange,
+    PgBrinBloomSummary,
+    PgBrinMinmaxMultiSummary,
     PgMcvList,
     PgSnapshot,
     PgSnapshotArray,
@@ -182,6 +192,12 @@ pub enum Inner {
     Anycompatiblearray,
     Anycompatiblenonarray,
     AnycompatibleRange,
+    Int4multiRangeArray,
+    NummultiRangeArray,
+    TsmultiRangeArray,
+    TstzmultiRangeArray,
+    DatemultiRangeArray,
+    Int8multiRangeArray,
     Other(Arc<Other>),
 }
 
@@ -349,6 +365,16 @@ impl Inner {
             4097 => Some(Inner::RegroleArray),
             4191 => Some(Inner::Regcollation),
             4192 => Some(Inner::RegcollationArray),
+            4451 => Some(Inner::Int4multiRange),
+            4532 => Some(Inner::NummultiRange),
+            4533 => Some(Inner::TsmultiRange),
+            4534 => Some(Inner::TstzmultiRange),
+            4535 => Some(Inner::DatemultiRange),
+            4536 => Some(Inner::Int8multiRange),
+            4537 => Some(Inner::AnymultiRange),
+            4538 => Some(Inner::AnycompatiblemultiRange),
+            4600 => Some(Inner::PgBrinBloomSummary),
+            4601 => Some(Inner::PgBrinMinmaxMultiSummary),
             5017 => Some(Inner::PgMcvList),
             5038 => Some(Inner::PgSnapshot),
             5039 => Some(Inner::PgSnapshotArray),
@@ -357,6 +383,12 @@ impl Inner {
             5078 => Some(Inner::Anycompatiblearray),
             5079 => Some(Inner::Anycompatiblenonarray),
             5080 => Some(Inner::AnycompatibleRange),
+            6150 => Some(Inner::Int4multiRangeArray),
+            6151 => Some(Inner::NummultiRangeArray),
+            6152 => Some(Inner::TsmultiRangeArray),
+            6153 => Some(Inner::TstzmultiRangeArray),
+            6155 => Some(Inner::DatemultiRangeArray),
+            6157 => Some(Inner::Int8multiRangeArray),
             _ => None,
         }
     }
@@ -524,6 +556,16 @@ impl Inner {
             Inner::RegroleArray => 4097,
             Inner::Regcollation => 4191,
             Inner::RegcollationArray => 4192,
+            Inner::Int4multiRange => 4451,
+            Inner::NummultiRange => 4532,
+            Inner::TsmultiRange => 4533,
+            Inner::TstzmultiRange => 4534,
+            Inner::DatemultiRange => 4535,
+            Inner::Int8multiRange => 4536,
+            Inner::AnymultiRange => 4537,
+            Inner::AnycompatiblemultiRange => 4538,
+            Inner::PgBrinBloomSummary => 4600,
+            Inner::PgBrinMinmaxMultiSummary => 4601,
             Inner::PgMcvList => 5017,
             Inner::PgSnapshot => 5038,
             Inner::PgSnapshotArray => 5039,
@@ -532,6 +574,12 @@ impl Inner {
             Inner::Anycompatiblearray => 5078,
             Inner::Anycompatiblenonarray => 5079,
             Inner::AnycompatibleRange => 5080,
+            Inner::Int4multiRangeArray => 6150,
+            Inner::NummultiRangeArray => 6151,
+            Inner::TsmultiRangeArray => 6152,
+            Inner::TstzmultiRangeArray => 6153,
+            Inner::DatemultiRangeArray => 6155,
+            Inner::Int8multiRangeArray => 6157,
             Inner::Other(ref u) => u.oid,
         }
     }
@@ -699,6 +747,16 @@ impl Inner {
             Inner::RegroleArray => &Kind::Array(Type(Inner::Regrole)),
             Inner::Regcollation => &Kind::Simple,
             Inner::RegcollationArray => &Kind::Array(Type(Inner::Regcollation)),
+            Inner::Int4multiRange => &Kind::Multirange(Type(Inner::Int4)),
+            Inner::NummultiRange => &Kind::Multirange(Type(Inner::Numeric)),
+            Inner::TsmultiRange => &Kind::Multirange(Type(Inner::Timestamp)),
+            Inner::TstzmultiRange => &Kind::Multirange(Type(Inner::Timestamptz)),
+            Inner::DatemultiRange => &Kind::Multirange(Type(Inner::Date)),
+            Inner::Int8multiRange => &Kind::Multirange(Type(Inner::Int8)),
+            Inner::AnymultiRange => &Kind::Pseudo,
+            Inner::AnycompatiblemultiRange => &Kind::Pseudo,
+            Inner::PgBrinBloomSummary => &Kind::Simple,
+            Inner::PgBrinMinmaxMultiSummary => &Kind::Simple,
             Inner::PgMcvList => &Kind::Simple,
             Inner::PgSnapshot => &Kind::Simple,
             Inner::PgSnapshotArray => &Kind::Array(Type(Inner::PgSnapshot)),
@@ -707,6 +765,12 @@ impl Inner {
             Inner::Anycompatiblearray => &Kind::Pseudo,
             Inner::Anycompatiblenonarray => &Kind::Pseudo,
             Inner::AnycompatibleRange => &Kind::Pseudo,
+            Inner::Int4multiRangeArray => &Kind::Array(Type(Inner::Int4multiRange)),
+            Inner::NummultiRangeArray => &Kind::Array(Type(Inner::NummultiRange)),
+            Inner::TsmultiRangeArray => &Kind::Array(Type(Inner::TsmultiRange)),
+            Inner::TstzmultiRangeArray => &Kind::Array(Type(Inner::TstzmultiRange)),
+            Inner::DatemultiRangeArray => &Kind::Array(Type(Inner::DatemultiRange)),
+            Inner::Int8multiRangeArray => &Kind::Array(Type(Inner::Int8multiRange)),
             Inner::Other(ref u) => &u.kind,
         }
     }
@@ -874,6 +938,16 @@ impl Inner {
             Inner::RegroleArray => "_regrole",
             Inner::Regcollation => "regcollation",
             Inner::RegcollationArray => "_regcollation",
+            Inner::Int4multiRange => "int4multirange",
+            Inner::NummultiRange => "nummultirange",
+            Inner::TsmultiRange => "tsmultirange",
+            Inner::TstzmultiRange => "tstzmultirange",
+            Inner::DatemultiRange => "datemultirange",
+            Inner::Int8multiRange => "int8multirange",
+            Inner::AnymultiRange => "anymultirange",
+            Inner::AnycompatiblemultiRange => "anycompatiblemultirange",
+            Inner::PgBrinBloomSummary => "pg_brin_bloom_summary",
+            Inner::PgBrinMinmaxMultiSummary => "pg_brin_minmax_multi_summary",
             Inner::PgMcvList => "pg_mcv_list",
             Inner::PgSnapshot => "pg_snapshot",
             Inner::PgSnapshotArray => "_pg_snapshot",
@@ -882,6 +956,12 @@ impl Inner {
             Inner::Anycompatiblearray => "anycompatiblearray",
             Inner::Anycompatiblenonarray => "anycompatiblenonarray",
             Inner::AnycompatibleRange => "anycompatiblerange",
+            Inner::Int4multiRangeArray => "_int4multirange",
+            Inner::NummultiRangeArray => "_nummultirange",
+            Inner::TsmultiRangeArray => "_tsmultirange",
+            Inner::TstzmultiRangeArray => "_tstzmultirange",
+            Inner::DatemultiRangeArray => "_datemultirange",
+            Inner::Int8multiRangeArray => "_int8multirange",
             Inner::Other(ref u) => &u.name,
         }
     }
@@ -1370,6 +1450,36 @@ impl Type {
     /// REGCOLLATION&#91;&#93;
     pub const REGCOLLATION_ARRAY: Type = Type(Inner::RegcollationArray);
 
+    /// INT4MULTIRANGE - multirange of integers
+    pub const INT4MULTI_RANGE: Type = Type(Inner::Int4multiRange);
+
+    /// NUMMULTIRANGE - multirange of numerics
+    pub const NUMMULTI_RANGE: Type = Type(Inner::NummultiRange);
+
+    /// TSMULTIRANGE - multirange of timestamps without time zone
+    pub const TSMULTI_RANGE: Type = Type(Inner::TsmultiRange);
+
+    /// TSTZMULTIRANGE - multirange of timestamps with time zone
+    pub const TSTZMULTI_RANGE: Type = Type(Inner::TstzmultiRange);
+
+    /// DATEMULTIRANGE - multirange of dates
+    pub const DATEMULTI_RANGE: Type = Type(Inner::DatemultiRange);
+
+    /// INT8MULTIRANGE - multirange of bigints
+    pub const INT8MULTI_RANGE: Type = Type(Inner::Int8multiRange);
+
+    /// ANYMULTIRANGE - pseudo-type representing a polymorphic base type that is a multirange
+    pub const ANYMULTI_RANGE: Type = Type(Inner::AnymultiRange);
+
+    /// ANYCOMPATIBLEMULTIRANGE - pseudo-type representing a multirange over a polymorphic common type
+    pub const ANYCOMPATIBLEMULTI_RANGE: Type = Type(Inner::AnycompatiblemultiRange);
+
+    /// PG_BRIN_BLOOM_SUMMARY - BRIN bloom summary
+    pub const PG_BRIN_BLOOM_SUMMARY: Type = Type(Inner::PgBrinBloomSummary);
+
+    /// PG_BRIN_MINMAX_MULTI_SUMMARY - BRIN minmax-multi summary
+    pub const PG_BRIN_MINMAX_MULTI_SUMMARY: Type = Type(Inner::PgBrinMinmaxMultiSummary);
+
     /// PG_MCV_LIST - multivariate MCV list
     pub const PG_MCV_LIST: Type = Type(Inner::PgMcvList);
 
@@ -1393,4 +1503,22 @@ impl Type {
 
     /// ANYCOMPATIBLERANGE - pseudo-type representing a range over a polymorphic common type
     pub const ANYCOMPATIBLE_RANGE: Type = Type(Inner::AnycompatibleRange);
+
+    /// INT4MULTIRANGE&#91;&#93;
+    pub const INT4MULTI_RANGE_ARRAY: Type = Type(Inner::Int4multiRangeArray);
+
+    /// NUMMULTIRANGE&#91;&#93;
+    pub const NUMMULTI_RANGE_ARRAY: Type = Type(Inner::NummultiRangeArray);
+
+    /// TSMULTIRANGE&#91;&#93;
+    pub const TSMULTI_RANGE_ARRAY: Type = Type(Inner::TsmultiRangeArray);
+
+    /// TSTZMULTIRANGE&#91;&#93;
+    pub const TSTZMULTI_RANGE_ARRAY: Type = Type(Inner::TstzmultiRangeArray);
+
+    /// DATEMULTIRANGE&#91;&#93;
+    pub const DATEMULTI_RANGE_ARRAY: Type = Type(Inner::DatemultiRangeArray);
+
+    /// INT8MULTIRANGE&#91;&#93;
+    pub const INT8MULTI_RANGE_ARRAY: Type = Type(Inner::Int8multiRangeArray);
 }

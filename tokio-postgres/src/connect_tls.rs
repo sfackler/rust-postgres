@@ -11,6 +11,7 @@ pub async fn connect_tls<S, T>(
     mut stream: S,
     mode: SslMode,
     tls: T,
+    has_hostname: bool,
 ) -> Result<MaybeTlsStream<S, T::Stream>, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -37,6 +38,10 @@ where
         } else {
             return Ok(MaybeTlsStream::Raw(stream));
         }
+    }
+
+    if !has_hostname {
+        return Err(Error::tls("no hostname provided for TLS handshake".into()));
     }
 
     let stream = tls

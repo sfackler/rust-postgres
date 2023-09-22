@@ -125,9 +125,56 @@
 //!     Happy,
 //! }
 //! ```
-#![doc(html_root_url = "https://docs.rs/postgres-types/0.2")]
+//!
+//! Alternatively, the `#[postgres(rename_all = "...")]` attribute can be used to rename all fields or variants
+//! with the chosen casing convention. This will not affect the struct or enum's type name. Note that
+//! `#[postgres(name = "...")]` takes precendence when used in conjunction with `#[postgres(rename_all = "...")]`:
+//!
+//! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "mood", rename_all = "snake_case")]
+//! enum Mood {
+//!     #[postgres(name = "ok")]
+//!     Ok,             // ok
+//!     VeryHappy,      // very_happy
+//! }
+//! ```
+//!
+//! The following case conventions are supported:
+//! - `"lowercase"`
+//! - `"UPPERCASE"`
+//! - `"PascalCase"`
+//! - `"camelCase"`
+//! - `"snake_case"`
+//! - `"SCREAMING_SNAKE_CASE"`
+//! - `"kebab-case"`
+//! - `"SCREAMING-KEBAB-CASE"`
+//! - `"Train-Case"`
+//!
+//! ## Allowing Enum Mismatches
+//!
+//! By default the generated implementation of [`ToSql`] & [`FromSql`] for enums will require an exact match of the enum
+//! variants between the Rust and Postgres types.
+//! To allow mismatches, the `#[postgres(allow_mismatch)]` attribute can be used on the enum definition:
+//!
+//! ```sql
+//! CREATE TYPE mood AS ENUM (
+//!   'Sad',
+//!   'Ok',
+//!   'Happy'
+//! );
+//! ```
+//! #[postgres(allow_mismatch)]
+//! enum Mood {
+//!    Happy,
+//!    Meh,
+//! }
+//! ```
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
-
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::any::type_name;
@@ -320,6 +367,8 @@ pub enum Kind {
     Array(Type),
     /// A range type along with the type of its elements.
     Range(Type),
+    /// A multirange type along with the type of its elements.
+    Multirange(Type),
     /// A domain type along with its underlying type.
     Domain(Type),
     /// A composite type along with information about its fields.
@@ -908,9 +957,15 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
             _ => panic!("expected array type"),
         };
 
+        // Arrays are normally one indexed by default but oidvector and int2vector *require* zero indexing
+        let lower_bound = match *ty {
+            Type::OID_VECTOR | Type::INT2_VECTOR => 0,
+            _ => 1,
+        };
+
         let dimension = ArrayDimension {
             len: downcast(self.len())?,
-            lower_bound: 1,
+            lower_bound,
         };
 
         types::array_to_sql(
@@ -938,7 +993,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
 
 impl<'a> ToSql for &'a [u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        types::bytea_to_sql(*self, w);
+        types::bytea_to_sql(self, w);
         Ok(IsNull::No)
     }
 
@@ -996,6 +1051,18 @@ impl<T: ToSql> ToSql for Box<[T]> {
     to_sql_checked!();
 }
 
+impl<'a> ToSql for Cow<'a, [u8]> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&[u8] as ToSql>::to_sql(&self.as_ref(), ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&[u8] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
 impl ToSql for Vec<u8> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[u8] as ToSql>::to_sql(&&**self, ty, w)
@@ -1010,28 +1077,20 @@ impl ToSql for Vec<u8> {
 
 impl<'a> ToSql for &'a str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        match *ty {
-            ref ty if ty.name() == "ltree" => types::ltree_to_sql(*self, w),
-            ref ty if ty.name() == "lquery" => types::lquery_to_sql(*self, w),
-            ref ty if ty.name() == "ltxtquery" => types::ltxtquery_to_sql(*self, w),
-            _ => types::text_to_sql(*self, w),
+        match ty.name() {
+            "ltree" => types::ltree_to_sql(self, w),
+            "lquery" => types::lquery_to_sql(self, w),
+            "ltxtquery" => types::ltxtquery_to_sql(self, w),
+            _ => types::text_to_sql(self, w),
         }
         Ok(IsNull::No)
     }
 
     fn accepts(ty: &Type) -> bool {
-        match *ty {
-            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN => true,
-            ref ty
-                if (ty.name() == "citext"
-                    || ty.name() == "ltree"
-                    || ty.name() == "lquery"
-                    || ty.name() == "ltxtquery") =>
-            {
-                true
-            }
-            _ => false,
-        }
+        matches!(
+            *ty,
+            Type::VARCHAR | Type::TEXT | Type::BPCHAR | Type::NAME | Type::UNKNOWN
+        ) || matches!(ty.name(), "citext" | "ltree" | "lquery" | "ltxtquery")
     }
 
     to_sql_checked!();
@@ -1184,17 +1243,17 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
-impl sealed::Sealed for Box<dyn ToSql + Sync> {}
+impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + 'a> {}
 
-impl BorrowToSql for Box<dyn ToSql + Sync> {
+impl<'a> BorrowToSql for Box<dyn ToSql + Sync + 'a> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
     }
 }
 
-impl sealed::Sealed for Box<dyn ToSql + Sync + Send> {}
-impl BorrowToSql for Box<dyn ToSql + Sync + Send> {
+impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + Send + 'a> {}
+impl<'a> BorrowToSql for Box<dyn ToSql + Sync + Send + 'a> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()

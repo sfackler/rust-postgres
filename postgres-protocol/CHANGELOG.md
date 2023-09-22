@@ -1,5 +1,22 @@
 # Change Log
 
+## v0.6.6 -2023-08-19
+
+### Added
+
+* Added the `js` feature for WASM support.
+
+## v0.6.5 - 2023-03-27
+
+### Added
+
+* Added `message::frontend::flush`.
+* Added `DataRowBody::buffer_bytes`.
+
+### Changed
+
+* Upgraded `base64`.
+
 ## v0.6.4 - 2022-04-03
 
 ### Added

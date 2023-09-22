@@ -1,5 +1,8 @@
 //! SASL-based authentication support.
 
+use base64::display::Base64Display;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use hmac::{Hmac, Mac};
 use rand::{self, Rng};
 use sha2::digest::FixedOutput;
@@ -189,7 +192,7 @@ impl ScramSha256 {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid nonce"));
         }
 
-        let salt = match base64::decode(parsed.salt) {
+        let salt = match STANDARD.decode(parsed.salt) {
             Ok(salt) => salt,
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
@@ -208,7 +211,7 @@ impl ScramSha256 {
         let mut cbind_input = vec![];
         cbind_input.extend(channel_binding.gs2_header().as_bytes());
         cbind_input.extend(channel_binding.cbind_data());
-        let cbind_input = base64::encode(&cbind_input);
+        let cbind_input = STANDARD.encode(&cbind_input);
 
         self.message.clear();
         write!(&mut self.message, "c={},r={}", cbind_input, parsed.nonce).unwrap();
@@ -225,7 +228,12 @@ impl ScramSha256 {
             *proof ^= signature;
         }
 
-        write!(&mut self.message, ",p={}", base64::encode(&*client_proof)).unwrap();
+        write!(
+            &mut self.message,
+            ",p={}",
+            Base64Display::new(&client_proof, &STANDARD)
+        )
+        .unwrap();
 
         self.state = State::Finish {
             salted_password,
@@ -262,7 +270,7 @@ impl ScramSha256 {
             ServerFinalMessage::Verifier(verifier) => verifier,
         };
 
-        let verifier = match base64::decode(verifier) {
+        let verifier = match STANDARD.decode(verifier) {
             Ok(verifier) => verifier,
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
@@ -351,7 +359,7 @@ impl<'a> Parser<'a> {
     }
 
     fn posit_number(&mut self) -> io::Result<u32> {
-        let n = self.take_while(|c| matches!(c, '0'..='9'))?;
+        let n = self.take_while(|c| c.is_ascii_digit())?;
         n.parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
     }

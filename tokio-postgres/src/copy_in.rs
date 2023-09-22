@@ -1,6 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::query::extract_row_affected;
 use crate::{query, slice_iter, Error, Statement};
 use bytes::{Buf, BufMut, BytesMut};
 use futures_channel::mpsc;
@@ -110,14 +111,7 @@ where
                     let this = self.as_mut().project();
                     match ready!(this.responses.poll_next(cx))? {
                         Message::CommandComplete(body) => {
-                            let rows = body
-                                .tag()
-                                .map_err(Error::parse)?
-                                .rsplit(' ')
-                                .next()
-                                .unwrap()
-                                .parse()
-                                .unwrap_or(0);
+                            let rows = extract_row_affected(&body)?;
                             return Poll::Ready(Ok(rows));
                         }
                         _ => return Poll::Ready(Err(Error::unexpected_message())),

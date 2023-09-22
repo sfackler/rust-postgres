@@ -1,8 +1,34 @@
 # Change Log
 
+## v0.19.7 - 2023-08-25
+
+## Fixed
+
+* Defered default username lookup to avoid regressing `Config` behavior.
+
+## v0.19.6 - 2023-08-19
+
+### Added
+
+* Added support for the `hostaddr` config option to bypass DNS lookups.
+* Added support for the `load_balance_hosts` config option to randomize connection ordering.
+* The `user` config option now defaults to the executing process's user.
+
+## v0.19.5 - 2023-03-27
+
+### Added
+
+* Added `keepalives_interval` and `keepalives_retries` config options.
+* Added the `tcp_user_timeout` config option.
+* Added `RowIter::rows_affected`.
+
+### Changed
+
+* Passing an incorrect number of parameters to a query method now returns an error instead of panicking.
+
 ## v0.19.4 - 2022-08-21
 
-## Added
+### Added
 
 * Added `ToSql` and `FromSql` implementations for `[u8; N]` via the `array-impls` feature.
 * Added support for `smol_str` 0.1 via the `with-smol_str-01` feature.

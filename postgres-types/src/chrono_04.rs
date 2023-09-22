@@ -6,7 +6,10 @@ use std::error::Error;
 use crate::{FromSql, IsNull, ToSql, Type};
 
 fn base() -> NaiveDateTime {
-    NaiveDate::from_ymd(2000, 1, 1).and_hms(0, 0, 0)
+    NaiveDate::from_ymd_opt(2000, 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
 }
 
 impl<'a> FromSql<'a> for NaiveDateTime {
@@ -84,7 +87,7 @@ impl<'a> FromSql<'a> for DateTime<FixedOffset> {
         raw: &[u8],
     ) -> Result<DateTime<FixedOffset>, Box<dyn Error + Sync + Send>> {
         let utc = DateTime::<Utc>::from_sql(type_, raw)?;
-        Ok(utc.with_timezone(&FixedOffset::east(0)))
+        Ok(utc.with_timezone(&FixedOffset::east_opt(0).unwrap()))
     }
 
     accepts!(TIMESTAMPTZ);
@@ -133,7 +136,7 @@ impl ToSql for NaiveDate {
 impl<'a> FromSql<'a> for NaiveTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveTime, Box<dyn Error + Sync + Send>> {
         let usec = types::time_from_sql(raw)?;
-        Ok(NaiveTime::from_hms(0, 0, 0) + Duration::microseconds(usec))
+        Ok(NaiveTime::from_hms_opt(0, 0, 0).unwrap() + Duration::microseconds(usec))
     }
 
     accepts!(TIME);
@@ -141,7 +144,7 @@ impl<'a> FromSql<'a> for NaiveTime {
 
 impl ToSql for NaiveTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let delta = self.signed_duration_since(NaiveTime::from_hms(0, 0, 0));
+        let delta = self.signed_duration_since(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         let time = match delta.num_microseconds() {
             Some(time) => time,
             None => return Err("value too large to transmit".into()),

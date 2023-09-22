@@ -3,6 +3,7 @@
 #[cfg(feature = "runtime")]
 use crate::connect::connect;
 use crate::connect_raw::connect_raw;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::keepalive::KeepaliveConfig;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -13,6 +14,8 @@ use crate::{Client, Connection, Error};
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
+use std::net::IpAddr;
+use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
@@ -57,6 +60,16 @@ pub enum ChannelBinding {
     Require,
 }
 
+/// Load balancing configuration.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LoadBalanceHosts {
+    /// Make connection attempts to hosts in the order provided.
+    Disable,
+    /// Make connection attempts to hosts in a random order.
+    Random,
+}
+
 /// A host specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Host {
@@ -80,7 +93,7 @@ pub enum Host {
 ///
 /// ## Keys
 ///
-/// * `user` - The username to authenticate with. Required.
+/// * `user` - The username to authenticate with. Defaults to the user executing this process.
 /// * `password` - The password to authenticate with.
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
@@ -91,11 +104,27 @@ pub enum Host {
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
+/// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
+///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
+///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
+///     or if host specifies an IP address, that value will be used directly.
+///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
+///     with time constraints. However, a host name is required for TLS certificate verification.
+///     Specifically:
+///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
+///             The connection attempt will fail if the authentication method requires a host name;
+///         * If `host` is specified without `hostaddr`, a host name lookup occurs;
+///         * If both `host` and `hostaddr` are specified, the value for `hostaddr` gives the server network address.
+///             The value for `host` is ignored unless the authentication method requires it,
+///             in which case it will be used as the host name.
 /// * `port` - The port to connect to. Multiple ports can be specified, separated by commas. The number of ports must be
 ///     either 1, in which case it will be used for all hosts, or the same as the number of hosts. Defaults to 5432 if
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
+///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
+///     and will default to the system default if omitted or set to 0; on other systems, it has no effect.
 /// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
@@ -110,6 +139,12 @@ pub enum Host {
 /// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
 ///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
 ///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
+/// * `load_balance_hosts` - Controls the order in which the client tries to connect to the available hosts and
+///     addresses. Once a connection attempt is successful no other hosts and addresses will be tried. This parameter
+///     is typically used in combination with multiple host names or a DNS record that returns multiple IPs. If set to
+///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
+///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
+///     to `disable`.
 ///
 /// ## Examples
 ///
@@ -119,6 +154,10 @@ pub enum Host {
 ///
 /// ```not_rust
 /// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// ```
+///
+/// ```not_rust
+/// host=host1,host2,host3 port=1234,,5678 hostaddr=127.0.0.1,127.0.0.2,127.0.0.3 user=postgres target_session_attrs=read-write
 /// ```
 ///
 /// ```not_rust
@@ -158,12 +197,16 @@ pub struct Config {
     pub(crate) application_name: Option<String>,
     pub(crate) ssl_mode: SslMode,
     pub(crate) host: Vec<Host>,
+    pub(crate) hostaddr: Vec<IpAddr>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
+    pub(crate) tcp_user_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
+    pub(crate) load_balance_hosts: LoadBalanceHosts,
 }
 
 impl Default for Config {
@@ -175,11 +218,6 @@ impl Default for Config {
 impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
-        let keepalive_config = KeepaliveConfig {
-            idle: Duration::from_secs(2 * 60 * 60),
-            interval: None,
-            retries: None,
-        };
         Config {
             user: None,
             password: None,
@@ -188,18 +226,26 @@ impl Config {
             application_name: None,
             ssl_mode: SslMode::Prefer,
             host: vec![],
+            hostaddr: vec![],
             port: vec![],
             connect_timeout: None,
+            tcp_user_timeout: None,
             keepalives: true,
-            keepalive_config,
+            #[cfg(not(target_arch = "wasm32"))]
+            keepalive_config: KeepaliveConfig {
+                idle: Duration::from_secs(2 * 60 * 60),
+                interval: None,
+                retries: None,
+            },
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
+            load_balance_hosts: LoadBalanceHosts::Disable,
         }
     }
 
     /// Sets the user to authenticate with.
     ///
-    /// Required.
+    /// Defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
         self.user = Some(user.to_string());
         self
@@ -281,6 +327,7 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
+    /// There must be either no hosts, or the same number of hosts as hostaddrs.
     pub fn host(&mut self, host: &str) -> &mut Config {
         #[cfg(unix)]
         {
@@ -298,6 +345,11 @@ impl Config {
         &self.host
     }
 
+    /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
+    pub fn get_hostaddrs(&self) -> &[IpAddr] {
+        self.hostaddr.deref()
+    }
+
     /// Adds a Unix socket host to the configuration.
     ///
     /// Unlike `host`, this method allows non-UTF8 paths.
@@ -307,6 +359,15 @@ impl Config {
         T: AsRef<Path>,
     {
         self.host.push(Host::Unix(host.as_ref().to_path_buf()));
+        self
+    }
+
+    /// Adds a hostaddr to the configuration.
+    ///
+    /// Multiple hostaddrs can be specified by calling this method multiple times, and each will be tried in order.
+    /// There must be either no hostaddrs, or the same number of hostaddrs as hosts.
+    pub fn hostaddr(&mut self, hostaddr: IpAddr) -> &mut Config {
+        self.hostaddr.push(hostaddr);
         self
     }
 
@@ -340,6 +401,22 @@ impl Config {
         self.connect_timeout.as_ref()
     }
 
+    /// Sets the TCP user timeout.
+    ///
+    /// This is ignored for Unix domain socket connections. It is only supported on systems where
+    /// TCP_USER_TIMEOUT is available and will default to the system default if omitted or set to 0;
+    /// on other systems, it has no effect.
+    pub fn tcp_user_timeout(&mut self, tcp_user_timeout: Duration) -> &mut Config {
+        self.tcp_user_timeout = Some(tcp_user_timeout);
+        self
+    }
+
+    /// Gets the TCP user timeout, if one has been set with the
+    /// `user_timeout` method.
+    pub fn get_tcp_user_timeout(&self) -> Option<&Duration> {
+        self.tcp_user_timeout.as_ref()
+    }
+
     /// Controls the use of TCP keepalive.
     ///
     /// This is ignored for Unix domain socket connections. Defaults to `true`.
@@ -356,6 +433,7 @@ impl Config {
     /// Sets the amount of idle time before a keepalive packet is sent on the connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         self.keepalive_config.idle = keepalives_idle;
         self
@@ -363,6 +441,7 @@ impl Config {
 
     /// Gets the configured amount of idle time before a keepalive packet will
     /// be sent on the connection.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_keepalives_idle(&self) -> Duration {
         self.keepalive_config.idle
     }
@@ -371,12 +450,14 @@ impl Config {
     /// On Windows, this sets the value of the tcp_keepalive struct’s keepaliveinterval field.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn keepalives_interval(&mut self, keepalives_interval: Duration) -> &mut Config {
         self.keepalive_config.interval = Some(keepalives_interval);
         self
     }
 
     /// Gets the time interval between TCP keepalive probes.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_keepalives_interval(&self) -> Option<Duration> {
         self.keepalive_config.interval
     }
@@ -384,12 +465,14 @@ impl Config {
     /// Sets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn keepalives_retries(&mut self, keepalives_retries: u32) -> &mut Config {
         self.keepalive_config.retries = Some(keepalives_retries);
         self
     }
 
     /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_keepalives_retries(&self) -> Option<u32> {
         self.keepalive_config.retries
     }
@@ -424,6 +507,19 @@ impl Config {
         self.channel_binding
     }
 
+    /// Sets the host load balancing behavior.
+    ///
+    /// Defaults to `disable`.
+    pub fn load_balance_hosts(&mut self, load_balance_hosts: LoadBalanceHosts) -> &mut Config {
+        self.load_balance_hosts = load_balance_hosts;
+        self
+    }
+
+    /// Gets the host load balancing behavior.
+    pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
+        self.load_balance_hosts
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -455,6 +551,14 @@ impl Config {
                     self.host(host);
                 }
             }
+            "hostaddr" => {
+                for hostaddr in value.split(',') {
+                    let addr = hostaddr
+                        .parse()
+                        .map_err(|_| Error::config_parse(Box::new(InvalidValue("hostaddr"))))?;
+                    self.hostaddr(addr);
+                }
+            }
             "port" => {
                 for port in value.split(',') {
                     let port = if port.is_empty() {
@@ -474,12 +578,22 @@ impl Config {
                     self.connect_timeout(Duration::from_secs(timeout as u64));
                 }
             }
+            "tcp_user_timeout" => {
+                let timeout = value
+                    .parse::<i64>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("tcp_user_timeout"))))?;
+                if timeout > 0 {
+                    self.tcp_user_timeout(Duration::from_secs(timeout as u64));
+                }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
             "keepalives" => {
                 let keepalives = value
                     .parse::<u64>()
                     .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
                 self.keepalives(keepalives != 0);
             }
+            #[cfg(not(target_arch = "wasm32"))]
             "keepalives_idle" => {
                 let keepalives_idle = value
                     .parse::<i64>()
@@ -488,6 +602,7 @@ impl Config {
                     self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
             "keepalives_interval" => {
                 let keepalives_interval = value.parse::<i64>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_interval")))
@@ -496,6 +611,7 @@ impl Config {
                     self.keepalives_interval(Duration::from_secs(keepalives_interval as u64));
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
             "keepalives_retries" => {
                 let keepalives_retries = value.parse::<u32>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_retries")))
@@ -526,6 +642,18 @@ impl Config {
                     }
                 };
                 self.channel_binding(channel_binding);
+            }
+            "load_balance_hosts" => {
+                let load_balance_hosts = match value {
+                    "disable" => LoadBalanceHosts::Disable,
+                    "random" => LoadBalanceHosts::Random,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "load_balance_hosts",
+                        ))))
+                    }
+                };
+                self.load_balance_hosts(load_balance_hosts);
             }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
@@ -560,7 +688,7 @@ impl Config {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        connect_raw(stream, tls, self).await
+        connect_raw(stream, tls, true, self).await
     }
 }
 
@@ -585,7 +713,8 @@ impl fmt::Debug for Config {
             }
         }
 
-        f.debug_struct("Config")
+        let mut config_dbg = &mut f.debug_struct("Config");
+        config_dbg = config_dbg
             .field("user", &self.user)
             .field("password", &self.password.as_ref().map(|_| Redaction {}))
             .field("dbname", &self.dbname)
@@ -593,12 +722,21 @@ impl fmt::Debug for Config {
             .field("application_name", &self.application_name)
             .field("ssl_mode", &self.ssl_mode)
             .field("host", &self.host)
+            .field("hostaddr", &self.hostaddr)
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
-            .field("keepalives", &self.keepalives)
-            .field("keepalives_idle", &self.keepalive_config.idle)
-            .field("keepalives_interval", &self.keepalive_config.interval)
-            .field("keepalives_retries", &self.keepalive_config.retries)
+            .field("tcp_user_timeout", &self.tcp_user_timeout)
+            .field("keepalives", &self.keepalives);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            config_dbg = config_dbg
+                .field("keepalives_idle", &self.keepalive_config.idle)
+                .field("keepalives_interval", &self.keepalive_config.interval)
+                .field("keepalives_retries", &self.keepalive_config.retries);
+        }
+
+        config_dbg
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .finish()
@@ -973,5 +1111,43 @@ impl<'a> UrlParser<'a> {
         percent_encoding::percent_decode(s.as_bytes())
             .decode_utf8()
             .map_err(|e| Error::config_parse(e.into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::IpAddr;
+
+    use crate::{config::Host, Config};
+
+    #[test]
+    fn test_simple_parsing() {
+        let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257";
+        let config = s.parse::<Config>().unwrap();
+        assert_eq!(Some("pass_user"), config.get_user());
+        assert_eq!(Some("postgres"), config.get_dbname());
+        assert_eq!(
+            [
+                Host::Tcp("host1".to_string()),
+                Host::Tcp("host2".to_string())
+            ],
+            config.get_hosts(),
+        );
+
+        assert_eq!(
+            [
+                "127.0.0.1".parse::<IpAddr>().unwrap(),
+                "127.0.0.2".parse::<IpAddr>().unwrap()
+            ],
+            config.get_hostaddrs(),
+        );
+
+        assert_eq!(1, 1);
+    }
+
+    #[test]
+    fn test_invalid_hostaddr_parsing() {
+        let s = "user=pass_user dbname=postgres host=host1 hostaddr=127.0.0 port=26257";
+        s.parse::<Config>().err().unwrap();
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "tokio-postgres"
-version = "0.7.7"
+version = "0.7.10"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -40,6 +40,7 @@ with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 with-uuid-1 = ["postgres-types/with-uuid-1"]
 with-time-0_2 = ["postgres-types/with-time-0_2"]
 with-time-0_3 = ["postgres-types/with-time-0_3"]
+js = ["postgres-protocol/js"]
 
 [dependencies]
 async-trait = "0.1"
@@ -53,16 +54,20 @@ parking_lot = "0.12"
 percent-encoding = "2.0"
 pin-project-lite = "0.2"
 phf = "0.11"
-postgres-protocol = { version = "0.6.4", path = "../postgres-protocol" }
-postgres-types = { version = "0.2.4", path = "../postgres-types" }
-socket2 = "0.4"
-tokio = { version = "1.0", features = ["io-util"] }
+postgres-protocol = { version = "0.6.6", path = "../postgres-protocol" }
+postgres-types = { version = "0.2.5", path = "../postgres-types" }
+tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
+rand = "0.8.5"
+whoami = "1.4.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
 futures-executor = "0.3"
-criterion = "0.4"
-env_logger = "0.9"
+criterion = "0.5"
+env_logger = "0.10"
 tokio = { version = "1.0", features = [
     "macros",
     "net",

@@ -1,18 +1,19 @@
 //! Connection configuration.
-//!
-//! Requires the `runtime` Cargo feature (enabled by default).
 
 use crate::connection::Connection;
 use crate::Client;
 use log::info;
 use std::fmt;
+use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
 #[doc(inline)]
-pub use tokio_postgres::config::{ChannelBinding, Host, SslMode, TargetSessionAttrs};
+pub use tokio_postgres::config::{
+    ChannelBinding, Host, LoadBalanceHosts, SslMode, TargetSessionAttrs,
+};
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
@@ -28,7 +29,7 @@ use tokio_postgres::{Error, Socket};
 ///
 /// ## Keys
 ///
-/// * `user` - The username to authenticate with. Required.
+/// * `user` - The username to authenticate with. Defaults to the user executing this process.
 /// * `password` - The password to authenticate with.
 /// * `dbname` - The name of the database to connect to. Defaults to the username.
 /// * `options` - Command line options used to configure the server.
@@ -39,11 +40,27 @@ use tokio_postgres::{Error, Socket};
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
+/// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
+///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
+///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
+///     or if host specifies an IP address, that value will be used directly.
+///     Using `hostaddr` allows the application to avoid a host name look-up, which might be important in applications
+///     with time constraints. However, a host name is required for TLS certificate verification.
+///     Specifically:
+///         * If `hostaddr` is specified without `host`, the value for `hostaddr` gives the server network address.
+///             The connection attempt will fail if the authentication method requires a host name;
+///         * If `host` is specified without `hostaddr`, a host name lookup occurs;
+///         * If both `host` and `hostaddr` are specified, the value for `hostaddr` gives the server network address.
+///             The value for `host` is ignored unless the authentication method requires it,
+///             in which case it will be used as the host name.
 /// * `port` - The port to connect to. Multiple ports can be specified, separated by commas. The number of ports must be
 ///     either 1, in which case it will be used for all hosts, or the same as the number of hosts. Defaults to 5432 if
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
+///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
+///     and will default to the system default if omitted or set to 0; on other systems, it has no effect.
 /// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
 ///     This option is ignored when connecting with Unix sockets. Defaults to on.
 /// * `keepalives_idle` - The number of seconds of inactivity after which a keepalive message is sent to the server.
@@ -55,6 +72,15 @@ use tokio_postgres::{Error, Socket};
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
 ///     in a database cluster as opposed to the secondary read-only mirrors. Defaults to `all`.
+/// * `channel_binding` - Controls usage of channel binding in the authentication process. If set to `disable`, channel
+///     binding will not be used. If set to `prefer`, channel binding will be used if available, but not used otherwise.
+///     If set to `require`, the authentication process will fail if channel binding is not used. Defaults to `prefer`.
+/// * `load_balance_hosts` - Controls the order in which the client tries to connect to the available hosts and
+///     addresses. Once a connection attempt is successful no other hosts and addresses will be tried. This parameter
+///     is typically used in combination with multiple host names or a DNS record that returns multiple IPs. If set to
+///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
+///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
+///     to `disable`.
 ///
 /// ## Examples
 ///
@@ -63,7 +89,11 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// host=/var/run/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// ```
+///
+/// ```not_rust
+/// host=host1,host2,host3 port=1234,,5678 hostaddr=127.0.0.1,127.0.0.2,127.0.0.3 user=postgres target_session_attrs=read-write
 /// ```
 ///
 /// ```not_rust
@@ -73,7 +103,7 @@ use tokio_postgres::{Error, Socket};
 /// # Url
 ///
 /// This format resembles a URL with a scheme of either `postgres://` or `postgresql://`. All components are optional,
-/// and the format accept query parameters for all of the key-value pairs described in the section above. Multiple
+/// and the format accepts query parameters for all of the key-value pairs described in the section above. Multiple
 /// host/port pairs can be comma-separated. Unix socket paths in the host section of the URL should be percent-encoded,
 /// as the path component of the URL specifies the database name.
 ///
@@ -84,7 +114,7 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// postgresql://user:password@%2Fvar%2Frun%2Fpostgresql/mydb?connect_timeout=10
+/// postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10
 /// ```
 ///
 /// ```not_rust
@@ -92,7 +122,7 @@ use tokio_postgres::{Error, Socket};
 /// ```
 ///
 /// ```not_rust
-/// postgresql:///mydb?user=user&host=/var/run/postgresql
+/// postgresql:///mydb?user=user&host=/var/lib/postgresql
 /// ```
 #[derive(Clone)]
 pub struct Config {
@@ -122,7 +152,7 @@ impl Config {
 
     /// Sets the user to authenticate with.
     ///
-    /// Required.
+    /// If the user is not set, then this defaults to the user executing this process.
     pub fn user(&mut self, user: &str) -> &mut Config {
         self.config.user(user);
         self
@@ -204,6 +234,7 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
+    /// There must be either no hosts, or the same number of hosts as hostaddrs.
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.config.host(host);
         self
@@ -212,6 +243,11 @@ impl Config {
     /// Gets the hosts that have been added to the configuration with `host`.
     pub fn get_hosts(&self) -> &[Host] {
         self.config.get_hosts()
+    }
+
+    /// Gets the hostaddrs that have been added to the configuration with `hostaddr`.
+    pub fn get_hostaddrs(&self) -> &[IpAddr] {
+        self.config.get_hostaddrs()
     }
 
     /// Adds a Unix socket host to the configuration.
@@ -223,6 +259,15 @@ impl Config {
         T: AsRef<Path>,
     {
         self.config.host_path(host);
+        self
+    }
+
+    /// Adds a hostaddr to the configuration.
+    ///
+    /// Multiple hostaddrs can be specified by calling this method multiple times, and each will be tried in order.
+    /// There must be either no hostaddrs, or the same number of hostaddrs as hosts.
+    pub fn hostaddr(&mut self, hostaddr: IpAddr) -> &mut Config {
+        self.config.hostaddr(hostaddr);
         self
     }
 
@@ -254,6 +299,22 @@ impl Config {
     /// `connect_timeout` method.
     pub fn get_connect_timeout(&self) -> Option<&Duration> {
         self.config.get_connect_timeout()
+    }
+
+    /// Sets the TCP user timeout.
+    ///
+    /// This is ignored for Unix domain socket connections. It is only supported on systems where
+    /// TCP_USER_TIMEOUT is available and will default to the system default if omitted or set to 0;
+    /// on other systems, it has no effect.
+    pub fn tcp_user_timeout(&mut self, tcp_user_timeout: Duration) -> &mut Config {
+        self.config.tcp_user_timeout(tcp_user_timeout);
+        self
+    }
+
+    /// Gets the TCP user timeout, if one has been set with the
+    /// `user_timeout` method.
+    pub fn get_tcp_user_timeout(&self) -> Option<&Duration> {
+        self.config.get_tcp_user_timeout()
     }
 
     /// Controls the use of TCP keepalive.
@@ -338,6 +399,19 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.config.get_channel_binding()
+    }
+
+    /// Sets the host load balancing behavior.
+    ///
+    /// Defaults to `disable`.
+    pub fn load_balance_hosts(&mut self, load_balance_hosts: LoadBalanceHosts) -> &mut Config {
+        self.config.load_balance_hosts(load_balance_hosts);
+        self
+    }
+
+    /// Gets the host load balancing behavior.
+    pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
+        self.config.get_load_balance_hosts()
     }
 
     /// Sets the notice callback.

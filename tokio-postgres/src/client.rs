@@ -1,6 +1,4 @@
 use crate::codec::{BackendMessages, FrontendMessage};
-#[cfg(feature = "runtime")]
-use crate::config::Host;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
@@ -27,6 +25,10 @@ use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(feature = "runtime")]
+use std::net::IpAddr;
+#[cfg(feature = "runtime")]
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
@@ -153,10 +155,20 @@ impl InnerClient {
 #[cfg(feature = "runtime")]
 #[derive(Clone)]
 pub(crate) struct SocketConfig {
-    pub host: Host,
+    pub addr: Addr,
+    pub hostname: Option<String>,
     pub port: u16,
     pub connect_timeout: Option<Duration>,
+    pub tcp_user_timeout: Option<Duration>,
     pub keepalive: Option<KeepaliveConfig>,
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone)]
+pub(crate) enum Addr {
+    Tcp(IpAddr),
+    #[cfg(unix)]
+    Unix(PathBuf),
 }
 
 /// An asynchronous PostgreSQL client.
@@ -230,10 +242,6 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -258,10 +266,6 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -295,10 +299,6 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -330,10 +330,6 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     ///
     /// [`query`]: #method.query
     ///
@@ -382,10 +378,6 @@ impl Client {
     /// with the `prepare` method.
     ///
     /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -406,10 +398,6 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// # Panics
-    ///
-    /// Panics if the number of parameters provided does not match the number expected.
-    ///
     /// [`execute`]: #method.execute
     pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
@@ -426,10 +414,6 @@ impl Client {
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
     /// be explicitly completed via the `Sink::close` or `finish` methods. If it is not, the copy will be aborted.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statement contains parameters.
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
@@ -442,10 +426,6 @@ impl Client {
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statement contains parameters.
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
