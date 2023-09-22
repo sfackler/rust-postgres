@@ -265,7 +265,13 @@ where
             }
         }
 
+        let mut not_processed_count = self.pending_requests.len();
         loop {
+            if not_processed_count == 0 {
+                // All requests are pending to be received.
+                break;
+            }
+
             // Flush the previously written messages.
             if self.flushing {
                 match Pin::new(&mut self.stream)
@@ -297,6 +303,7 @@ where
                 break;
             }
 
+            not_processed_count -= 1;
             match req.messages {
                 RequestMessages::Single(msg) => {
                     Pin::new(&mut self.stream)
