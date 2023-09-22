@@ -1,61 +1,68 @@
-use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::copy_in::CopyInReceiver;
-use crate::error::DbError;
-use crate::maybe_tls_stream::MaybeTlsStream;
-use crate::{AsyncMessage, Error, Notification};
+//! [`Connection`] definitions.
+
 use bytes::BytesMut;
 use futures_channel::mpsc;
-use futures_util::{ready, Sink, Stream, StreamExt};
-use log::info;
-use postgres_protocol::message::backend::Message;
-use postgres_protocol::message::frontend;
-use std::collections::{HashMap, VecDeque};
-use std::future::Future;
-use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use futures_util::{Sink, Stream, StreamExt};
+use postgres_protocol::message::{backend::Message, frontend};
+use std::{
+    collections::{HashMap, VecDeque},
+    future::Future,
+    mem,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
-pub enum RequestMessages {
-    Single(FrontendMessage),
-    CopyIn(CopyInReceiver),
-}
+use crate::{
+    codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec},
+    copy_in::CopyInReceiver,
+    error::DbError,
+    maybe_tls_stream::MaybeTlsStream,
+    AsyncMessage, Error, Notification,
+};
 
-pub struct Request {
-    pub messages: RequestMessages,
-    pub sender: mpsc::Sender<BackendMessages>,
-}
-
-pub struct Response {
-    sender: mpsc::Sender<BackendMessages>,
-}
-
-#[derive(PartialEq, Debug)]
-enum State {
-    Active,
-    Terminating,
-    Closing,
-}
-
-/// A connection to a PostgreSQL database.
+/// A background connection to a PostgreSQL database.
 ///
-/// This is one half of what is returned when a new connection is established. It performs the actual IO with the
-/// server, and should generally be spawned off onto an executor to run in the background.
+/// Instead of [`Client`] the [`Connection`] implements [`Future`] and performs I/O operations with
+/// the PostgreSQL server. This type mostly should be spawned off onto an executor to run in the
+/// background.
 ///
-/// `Connection` implements `Future`, and only resolves when the connection is closed, either because a fatal error has
-/// occurred, or because its associated `Client` has dropped and all outstanding work has completed.
+/// Also, the [`Connection`] is used to receive the [`AsyncMessage`]s (notices and notifications)
+/// from the PostgreSQL server. To do that, the [`Connection`] should be polled manually with the
+/// [`poll_message`] method.
+///
+/// [`Client`]: crate::Client
+/// [`poll_message`]: Connection::poll_message
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<S, T> {
-    stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
-    parameters: HashMap<String, String>,
-    receiver: mpsc::UnboundedReceiver<Request>,
-    pending_requests: VecDeque<PendingRequest>,
-    pending_responses: VecDeque<PendingResponse>,
-    responses: VecDeque<Response>,
-    messages: VecDeque<AsyncMessage>,
-    flushing: bool,
+    /// Current state of this [`Connection`].
     state: State,
+
+    /// Receiver of the new [`Request`]s.
+    receiver: mpsc::UnboundedReceiver<Request>,
+
+    /// Database connection stream.
+    stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
+
+    /// Parameters of this [`Connection`].
+    parameters: HashMap<String, String>,
+
+    /// Messages received from the database.
+    messages: VecDeque<AsyncMessage>,
+
+    /// [`Request`]s not fully received yet.
+    pending_requests: VecDeque<PendingRequest>,
+
+    /// [`Response`]s not fully sent yet.
+    pending_responses: VecDeque<PendingResponse>,
+
+    /// Expected [`Response`]s of the received [`Request`]s.
+    expected_responses: VecDeque<Response>,
+
+    /// Indicator whether this [`Connection`] is flushing the data to its
+    /// `stream`.
+    flushing: bool,
 }
 
 impl<S, T> Connection<S, T>
@@ -63,22 +70,27 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    /// Creates a new [`Connection`].
+    ///
+    /// # Errors
+    ///
+    /// If failed to process the delayed [`Message`]s.
     pub(crate) fn new(
         stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
-        delayed_messages: VecDeque<Message>,
-        parameters: HashMap<String, String>,
         receiver: mpsc::UnboundedReceiver<Request>,
+        parameters: HashMap<String, String>,
+        delayed_messages: VecDeque<Message>,
     ) -> Result<Self, Error> {
         let mut this = Connection {
+            state: State::Active,
             stream,
-            parameters,
             receiver,
+            parameters,
+            messages: VecDeque::new(),
             pending_requests: VecDeque::new(),
             pending_responses: VecDeque::new(),
-            responses: VecDeque::new(),
-            messages: VecDeque::new(),
+            expected_responses: VecDeque::new(),
             flushing: false,
-            state: State::Active,
         };
 
         for msg in delayed_messages {
@@ -88,11 +100,16 @@ where
         Ok(this)
     }
 
-    /// Returns the value of a runtime parameter for this connection.
+    /// Returns the value of a runtime parameter for this [`Connection`].
     pub fn parameter(&self, name: &str) -> Option<&str> {
         self.parameters.get(name).map(|s| &**s)
     }
 
+    /// Handles a [`Message`] received from the database.
+    ///
+    /// # Errors
+    ///
+    /// If failed to parse the provided [`Message`].
     fn handle_message(&mut self, msg: Message) -> Result<(), Error> {
         match msg {
             Message::NoticeResponse(body) => self.messages.push_back(AsyncMessage::Notice(
@@ -112,19 +129,22 @@ where
                     body.value().map_err(Error::parse)?.to_string(),
                 );
             }
-            _ => unreachable!("unexpected message: {:?}", msg),
+            _ => unreachable!("unexpected message"),
         }
 
         Ok(())
     }
 
-    /// Polls for asynchronous messages from the server.
+    /// Polls this [`Connection`] updating its state and returning the next
+    /// [`AsyncMessage`], if available.
     ///
-    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
-    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
+    /// `None` or `Some(Err(_))` are returned in case this [`Connection`] is
+    /// closed. Callers should not invoke this method again after receiving one
+    /// of those values.
     ///
-    /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
-    /// receiving one of those values.
+    /// The PostgreSQL server can send notices as well as notifications asynchronously to
+    /// this [`Connection`]. Applications that wish to examine those [`AsyncMessage`]s should use
+    /// this method to drive the [`Connection`] rather than its [`Future`] implementation.
     pub fn poll_message(
         &mut self,
         cx: &mut Context<'_>,
@@ -138,8 +158,15 @@ where
             .map_or(shutdown.map(|_| None), |m| Poll::Ready(Some(Ok(m))))
     }
 
+    /// Reads incoming messages from PostgreSQL server:
+    /// - [`AsyncMessage`]s (notices and notifications);
+    /// - [`BackendMessage`]s ([`Response`]s to the [`Request`]s).
+    ///
+    /// # Errors
+    ///
+    /// If failed to read the messages from the PostgreSQL server.
     fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
-        // Poll incoming data from postgres first.
+        // First, read all available messages from the server.
         if self.state == State::Active {
             loop {
                 let res = Pin::new(&mut self.stream)
@@ -167,8 +194,8 @@ where
                     }
                 }
 
-                let response = self.responses.pop_front().unwrap_or_else(|| {
-                    panic!("Response received from postgres without a matching request")
+                let response = self.expected_responses.pop_front().unwrap_or_else(|| {
+                    panic!("Response received from PostgreSQL without a matching request")
                 });
                 self.pending_responses.push_back(PendingResponse {
                     response: Some(response),
@@ -178,7 +205,7 @@ where
             }
         }
 
-        // Then send the received data to the client of this connection.
+        // Then send the received responses to the client of this connection.
         self.pending_responses.retain_mut(|pending| {
             let Some(response) = &mut pending.response else {
                 return !pending.completed;
@@ -187,12 +214,13 @@ where
             match response.sender.poll_ready(cx) {
                 Poll::Ready(Ok(())) => {
                     // We don't care about the result of this send, because channel can be closed
-                    // by client side while we're receiving the responses from postgres.
+                    // by the client side while we're receiving the responses from the postgres server.
                     let _ = response.sender.start_send(mem::take(&mut pending.messages));
                     !pending.completed
                 }
                 Poll::Ready(Err(_)) => {
-                    // We still need to fully receive the response from postgres.
+                    // Keep the message even if the client side receiver is closed to
+                    // read full response from the postgres server.
                     pending.response = None;
                     !pending.completed
                 }
@@ -203,17 +231,21 @@ where
         Ok(())
     }
 
+    /// Sends the [`Request`]s to PostgreSQL server.
+    ///
+    /// # Errors
+    ///
+    /// If failed to send the [`Request`]s to the PostgreSQL server.
     fn poll_write(&mut self, cx: &mut Context<'_>) -> Result<(), Error> {
+        // First, receive all available requests from the client.
         if self.state != State::Closing {
             loop {
                 let req = match self.receiver.poll_next_unpin(cx) {
                     Poll::Ready(Some(req)) => req.into(),
                     Poll::Ready(None)
-                        if self.responses.is_empty()
-                            && self.pending_responses.is_empty()
-                            && self.state == State::Active =>
+                        if self.pending_responses.is_empty() && self.state == State::Active =>
                     {
-                        self.state = State::Terminating;
+                        self.state = State::CloseRequested;
                         let mut request = BytesMut::new();
                         frontend::terminate(&mut request);
                         PendingRequest {
@@ -224,6 +256,7 @@ where
                         }
                     }
                     Poll::Ready(None) | Poll::Pending => {
+                        // Even if client is closed, wait for all pending responses to be sent.
                         break;
                     }
                 };
@@ -233,7 +266,7 @@ where
         }
 
         loop {
-            // First, flush previous messages.
+            // Flush the previously written messages.
             if self.flushing {
                 match Pin::new(&mut self.stream)
                     .poll_flush(cx)
@@ -243,22 +276,23 @@ where
                         self.flushing = false;
                     }
                     Poll::Pending => {
-                        // A previous message is not flushed, so we can't write a new one.
+                        // We can't write any more messages until the previous ones are flushed.
                         break;
                     }
                 }
             }
 
             let Some(req) = self.pending_requests.pop_front() else {
+                // Nothing to send.
                 break;
             };
 
-            // Socket is not ready yet, so we can't write a new message.
             if Pin::new(&mut self.stream)
                 .poll_ready(cx)
                 .map_err(Error::io)?
                 .is_pending()
             {
+                // Socket is not ready yet, try in the next iteration.
                 self.pending_requests.push_front(req);
                 break;
             }
@@ -268,7 +302,8 @@ where
                     Pin::new(&mut self.stream)
                         .start_send(msg)
                         .map_err(Error::io)?;
-                    if self.state == State::Terminating {
+                    if self.state == State::CloseRequested {
+                        // EOF message sent, now wait for a flush to perform a graceful shutdown.
                         self.state = State::Closing;
                     }
                 }
@@ -296,7 +331,7 @@ where
             }
 
             if let Some(sender) = req.sender {
-                self.responses.push_back(Response { sender });
+                self.expected_responses.push_back(Response { sender });
             }
             self.flushing = true;
         }
@@ -304,12 +339,22 @@ where
         Ok(())
     }
 
+    /// Performs a graceful shutdown of this [`Connection`].
+    ///
+    /// # Errors
+    ///
+    /// If failed to perform a graceful shutdown of this [`Connection`].
     fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        if self.state != State::Closing {
-            return Poll::Pending;
+        match self.state {
+            State::Active | State::CloseRequested => Poll::Pending,
+            State::Closing if self.flushing => Poll::Pending,
+            State::Closing => {
+                ready!(Pin::new(&mut self.stream).poll_close(cx)).map_err(Error::io)?;
+                self.state = State::Closed;
+                Poll::Ready(Ok(()))
+            }
+            State::Closed => Poll::Ready(Ok(())),
         }
-
-        Pin::new(&mut self.stream).poll_close(cx).map_err(Error::io)
     }
 }
 
@@ -322,15 +367,48 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         while let Some(AsyncMessage::Notice(notice)) = ready!(self.poll_message(cx)?) {
-            info!("{}: {}", notice.severity(), notice.message());
+            log::info!("{}: {}", notice.severity(), notice.message());
         }
 
         Poll::Ready(Ok(()))
     }
 }
 
+/// State of the [`Connection`].
+#[derive(PartialEq, Debug)]
+enum State {
+    /// [`Connection`] is active.
+    Active,
+
+    /// [`Connection`] requested to terminate from the [`Client`].
+    ///
+    /// [`Client`]: crate::Client
+    CloseRequested,
+
+    /// [`Connection`] performing a graceful shutdown.
+    Closing,
+
+    /// [`Connection`] is closed.
+    Closed,
+}
+
+/// Request sent by a [`Client`].
+///
+/// [`Client`]: crate::Client
+pub struct Request {
+    /// Messages to send to the database.
+    pub messages: RequestMessages,
+
+    /// Sender to which the responses to this request should be sent.
+    pub sender: mpsc::Sender<BackendMessages>,
+}
+
+/// [`Request`] not fully received by a [`Connection`].
 struct PendingRequest {
+    /// Messages to send to the database.
     messages: RequestMessages,
+
+    /// Sender to which the responses to this request should be sent, if any.
     sender: Option<mpsc::Sender<BackendMessages>>,
 }
 
@@ -343,8 +421,35 @@ impl From<Request> for PendingRequest {
     }
 }
 
+/// Messages sent by a [`Client`] to a [`Connection`].
+///
+/// [`Client`]: crate::Client
+pub enum RequestMessages {
+    /// A single message.
+    Single(FrontendMessage),
+
+    /// A copy-in stream.
+    CopyIn(CopyInReceiver),
+}
+
+/// Response being sent to a [`Client`].
+#[derive(Debug)]
+pub struct Response {
+    /// Sender to which [`BackendMessages`] of this [`Response`] should be sent.
+    sender: mpsc::Sender<BackendMessages>,
+}
+
+/// [`Response`] not fully sent to a [`Client`].
+#[derive(Debug)]
 struct PendingResponse {
+    /// [`Response`] itself.
+    ///
+    /// [`None`] if [`Client`]-side receiver is closed.
     response: Option<Response>,
+
+    /// [`BackendMessages`] of this [`Response`].
     messages: BackendMessages,
+
+    /// Indicator whether this [`Response`] is fully received from the PostgreSQL server.
     completed: bool,
 }

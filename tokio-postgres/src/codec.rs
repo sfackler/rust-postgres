@@ -18,19 +18,25 @@ pub enum BackendMessage {
     Async(backend::Message),
 }
 
-#[derive(Default)]
+/// Messages received from the PostgreSQL server.
+#[derive(Debug, Default)]
 pub struct BackendMessages(BytesMut);
 
 impl BackendMessages {
+    /// Creates an empty [`BackendMessages`].
     pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn extend_from_slice(&mut self, buf: &[u8]) {
+    /// Extends this [`BackendMessages`] with the contents of the provided
+    /// bytes slice.
+    pub(crate) fn extend_from_slice(&mut self, buf: &[u8]) {
         self.0.extend_from_slice(buf);
     }
 
-    pub fn extend(&mut self, rhs: Self) {
+    /// Extends this [`BackendMessages`] with the contents of another
+    /// [`BackendMessages`].
+    pub(crate) fn extend(&mut self, rhs: Self) {
         self.extend_from_slice(&rhs.0);
     }
 }
