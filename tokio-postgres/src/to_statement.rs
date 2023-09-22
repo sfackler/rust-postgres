@@ -15,7 +15,7 @@ mod private {
         pub async fn into_statement(self, client: &Client) -> Result<Statement, Error> {
             match self {
                 ToStatementType::Statement(s) => Ok(s.clone()),
-                ToStatementType::Query(s) => client.prepare(s).await,
+                ToStatementType::Query(s) => client.prepare_unnamed(s).await,
             }
         }
     }

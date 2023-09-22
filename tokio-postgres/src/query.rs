@@ -186,7 +186,7 @@ where
             }
             Message::EmptyQueryResponse => rows = 0,
             Message::ReadyForQuery(_) => return Ok(rows),
-            _ => return Err(Error::unexpected_message()),
+            m => return Err(Error::unexpected_message(m)),
         }
     }
 }
@@ -195,8 +195,12 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
+        Message::ParseComplete => match responses.next().await? {
+            Message::BindComplete => {}
+            m => return Err(Error::unexpected_message(m)),
+        },
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(responses)
@@ -209,6 +213,9 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     client.with_buf(|buf| {
+        if let Some(query) = statement.query() {
+            frontend::parse("", query, [], buf).unwrap();
+        }
         encode_bind(statement, params, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
@@ -305,7 +312,7 @@ impl Stream for RowStream {
                     *this.status = Some(status.status());
                     return Poll::Ready(None);
                 }
-                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+                m => return Poll::Ready(Some(Err(Error::unexpected_message(m)))),
             }
         }
     }

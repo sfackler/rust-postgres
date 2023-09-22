@@ -59,7 +59,7 @@ postgres-types = { version = "0.2.5", path = "../postgres-types" }
 tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 rand = "0.8.5"
-whoami = "1.4.1"
+whoami = "1.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 socket2 = { version = "0.5", features = ["all"] }

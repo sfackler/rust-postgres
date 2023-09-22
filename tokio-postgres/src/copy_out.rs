@@ -26,13 +26,17 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
+        Message::ParseComplete => match responses.next().await? {
+            Message::BindComplete => {}
+            m => return Err(Error::unexpected_message(m)),
+        },
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     match responses.next().await? {
         Message::CopyOutResponse(_) => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(responses)
@@ -56,7 +60,7 @@ impl Stream for CopyOutStream {
         match ready!(this.responses.poll_next(cx)?) {
             Message::CopyData(body) => Poll::Ready(Some(Ok(body.into_bytes()))),
             Message::CopyDone => Poll::Ready(None),
-            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
+            m => Poll::Ready(Some(Err(Error::unexpected_message(m)))),
         }
     }
 }

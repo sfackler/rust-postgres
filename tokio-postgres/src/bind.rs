@@ -31,7 +31,7 @@ where
 
     match responses.next().await? {
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(Portal::new(client, name, statement))

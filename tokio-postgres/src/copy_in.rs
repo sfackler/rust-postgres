@@ -114,7 +114,7 @@ where
                             let rows = extract_row_affected(&body)?;
                             return Poll::Ready(Ok(rows));
                         }
-                        _ => return Poll::Ready(Err(Error::unexpected_message())),
+                        m => return Poll::Ready(Err(Error::unexpected_message(m))),
                     }
                 }
             }
@@ -206,13 +206,19 @@ where
         .map_err(|_| Error::closed())?;
 
     match responses.next().await? {
+        Message::ParseComplete => {
+            match responses.next().await? {
+                Message::BindComplete => {}
+                m => return Err(Error::unexpected_message(m)),
+            }
+        }
         Message::BindComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     match responses.next().await? {
         Message::CopyInResponse(_) => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     Ok(CopyInSink {

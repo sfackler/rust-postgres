@@ -231,7 +231,11 @@ impl Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        prepare::prepare(&self.inner, query, parameter_types).await
+        prepare::prepare(&self.inner, query, parameter_types, false).await
+    }
+
+    pub(crate) async fn prepare_unnamed(&self, query: &str) -> Result<Statement, Error> {
+        prepare::prepare(&self.inner, query, &[], true).await
     }
 
     /// Executes a statement, returning a vector of the resulting rows.
