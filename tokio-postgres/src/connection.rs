@@ -315,8 +315,8 @@ where
                             continue;
                         }
                         Poll::Pending => {
-                            // Message not ready yet, wait for it.
-                            self.pending_requests.push_front(PendingRequest {
+                            // Do not await the receiver, move to the next message.
+                            self.pending_requests.push_back(PendingRequest {
                                 messages: RequestMessages::CopyIn(receiver),
                                 sender: req.sender,
                             });
