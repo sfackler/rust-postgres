@@ -58,7 +58,7 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
             | Message::EmptyQueryResponse
             | Message::RowDescription(_)
             | Message::DataRow(_) => {}
-            _ => return Err(Error::unexpected_message()),
+            m => return Err(Error::unexpected_message(m)),
         }
     }
 }
@@ -107,12 +107,12 @@ impl Stream for SimpleQueryStream {
                 Message::DataRow(body) => {
                     let row = match &this.columns {
                         Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
-                        None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+                        None => return Poll::Ready(Some(Err(Error::closed()))),
                     };
                     return Poll::Ready(Some(Ok(SimpleQueryMessage::Row(row))));
                 }
                 Message::ReadyForQuery(_) => return Poll::Ready(None),
-                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+                m => return Poll::Ready(Some(Err(Error::unexpected_message(m)))),
             }
         }
     }

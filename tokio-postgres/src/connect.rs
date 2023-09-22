@@ -195,7 +195,7 @@ where
                     }
                 }
                 Some(_) => {}
-                None => return Err(Error::unexpected_message()),
+                None => return Err(Error::closed()),
             }
         }
     }

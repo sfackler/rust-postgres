@@ -1,7 +1,7 @@
 //! Errors.
 
 use fallible_iterator::FallibleIterator;
-use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody};
+use postgres_protocol::message::backend::{ErrorFields, ErrorResponseBody, Message};
 use std::error::{self, Error as _Error};
 use std::fmt;
 use std::io;
@@ -339,7 +339,7 @@ pub enum ErrorPosition {
 #[derive(Debug, PartialEq)]
 enum Kind {
     Io,
-    UnexpectedMessage,
+    UnexpectedMessage(Message),
     Tls,
     ToSql(usize),
     FromSql(usize),
@@ -379,7 +379,9 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0.kind {
             Kind::Io => fmt.write_str("error communicating with the server")?,
-            Kind::UnexpectedMessage => fmt.write_str("unexpected message from server")?,
+            Kind::UnexpectedMessage(msg) => {
+                write!(fmt, "unexpected message from server: {:?}", msg)?
+            }
             Kind::Tls => fmt.write_str("error performing TLS handshake")?,
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {}", idx)?,
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {}", idx)?,
@@ -445,8 +447,8 @@ impl Error {
         Error::new(Kind::Closed, None)
     }
 
-    pub(crate) fn unexpected_message() -> Error {
-        Error::new(Kind::UnexpectedMessage, None)
+    pub(crate) fn unexpected_message(message: Message) -> Error {
+        Error::new(Kind::UnexpectedMessage(message), None)
     }
 
     #[allow(clippy::needless_pass_by_value)]

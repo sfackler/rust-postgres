@@ -69,18 +69,18 @@ pub async fn prepare(
 
     match responses.next().await? {
         Message::ParseComplete => {}
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     }
 
     let parameter_description = match responses.next().await? {
         Message::ParameterDescription(body) => body,
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     };
 
     let row_description = match responses.next().await? {
         Message::RowDescription(body) => Some(body),
         Message::NoData => None,
-        _ => return Err(Error::unexpected_message()),
+        m => return Err(Error::unexpected_message(m)),
     };
 
     let mut parameters = vec![];
@@ -142,7 +142,7 @@ async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
 
     let row = match rows.try_next().await? {
         Some(row) => row,
-        None => return Err(Error::unexpected_message()),
+        None => return Err(Error::closed()),
     };
 
     let name: String = row.try_get(0)?;

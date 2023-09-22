@@ -139,7 +139,8 @@ where
                 Some(response) => response,
                 None => match messages.next().map_err(Error::parse)? {
                     Some(Message::ErrorResponse(error)) => return Err(Error::db(error)),
-                    _ => return Err(Error::unexpected_message()),
+                    Some(m) => return Err(Error::unexpected_message(m)),
+                    None => return Err(Error::closed()),
                 },
             };
 
