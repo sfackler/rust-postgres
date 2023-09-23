@@ -44,7 +44,7 @@ impl Drop for StatementInner {
 pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
-    pub(crate) fn new(
+    pub(crate) fn named(
         inner: &Arc<InnerClient>,
         name: String,
         params: Vec<Type>,
@@ -58,11 +58,11 @@ impl Statement {
         }))
     }
 
-    pub(crate) fn unnamed(prepared: Statement, query: String) -> Self {
+    pub(crate) fn unnamed(query: String, params: Vec<Type>, columns: Vec<Column>) -> Self {
         Statement(Arc::new(StatementInner::Unnamed {
             query,
-            params: prepared.params().to_owned(),
-            columns: prepared.columns().to_owned(),
+            params,
+            columns,
         }))
     }
 
@@ -98,7 +98,6 @@ impl Statement {
 }
 
 /// Information about a column of a query.
-#[derive(Clone)]
 pub struct Column {
     name: String,
     type_: Type,

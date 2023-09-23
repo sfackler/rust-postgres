@@ -62,8 +62,13 @@ pub async fn prepare(
     client: &Arc<InnerClient>,
     query: &str,
     types: &[Type],
+    unnamed: bool,
 ) -> Result<Statement, Error> {
-    let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
+    let name = if unnamed {
+        String::new()
+    } else {
+        format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst))
+    };
     let buf = encode(client, &name, query, types)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
@@ -100,7 +105,11 @@ pub async fn prepare(
         }
     }
 
-    Ok(Statement::new(client, name, parameters, columns))
+    if unnamed {
+        Ok(Statement::unnamed(query.to_owned(), parameters, columns))
+    } else {
+        Ok(Statement::named(client, name, parameters, columns))
+    }
 }
 
 fn prepare_rec<'a>(
@@ -108,7 +117,7 @@ fn prepare_rec<'a>(
     query: &'a str,
     types: &'a [Type],
 ) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    Box::pin(prepare(client, query, types))
+    Box::pin(prepare(client, query, types, false))
 }
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {

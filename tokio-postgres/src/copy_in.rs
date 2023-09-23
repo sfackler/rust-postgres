@@ -206,11 +206,12 @@ where
         .map_err(|_| Error::closed())?;
 
     match responses.next().await? {
-        Message::ParseComplete => {}
-        m => return Err(Error::unexpected_message(m)),
-    }
-
-    match responses.next().await? {
+        Message::ParseComplete => {
+            match responses.next().await? {
+                Message::BindComplete => {}
+                m => return Err(Error::unexpected_message(m)),
+            }
+        }
         Message::BindComplete => {}
         m => return Err(Error::unexpected_message(m)),
     }

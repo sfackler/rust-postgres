@@ -150,8 +150,8 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     client.with_buf(|buf| {
-        if statement.name().is_empty() {
-            frontend::parse("", statement.query().unwrap(), [], buf).unwrap();
+        if let Some(query) = statement.query() {
+            frontend::parse("", query, [], buf).unwrap();
         }
         encode_bind(statement, params, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
