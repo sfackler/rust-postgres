@@ -6,7 +6,7 @@ use syn::{DeriveInput, Result};
 
 /// Calls the fallible entry point and writes any errors to the token stream.
 /// Fallible entry point for generating a `FromRow` implementation
-pub fn try_derive_from_row(input: &DeriveInput) -> std::result::Result<TokenStream, Error> {
+pub fn derive_from_row(input: &DeriveInput) -> std::result::Result<TokenStream, Error> {
     let from_row_derive = DeriveFromRow::from_derive_input(input)?;
     Ok(from_row_derive.generate()?)
 }
@@ -69,24 +69,12 @@ impl DeriveFromRow {
             .map(|f| f.generate_from_row())
             .collect::<Result<Vec<_>>>()?;
 
-        let try_from_row_fields = self
-            .fields()
-            .iter()
-            .map(|f| f.generate_try_from_row())
-            .collect::<Result<Vec<_>>>()?;
-
         Ok(quote! {
             impl #impl_generics tokio_postgres::FromRow for #ident #ty_generics where #(#original_predicates),* #(#predicates),* {
 
-                fn from_row(row: &tokio_postgres::Row) -> Self {
-                    Self {
-                        #(#from_row_fields),*
-                    }
-                }
-
-                fn try_from_row(row: &tokio_postgres::Row) -> std::result::Result<Self, tokio_postgres::Error> {
+                fn from_row(row: &tokio_postgres::Row) -> std::result::Result<Self, tokio_postgres::Error> {
                     Ok(Self {
-                        #(#try_from_row_fields),*
+                        #(#from_row_fields),*
                     })
                 }
             }
@@ -198,29 +186,7 @@ impl FromRowField {
         let target_ty = self.target_ty()?;
 
         let mut base = if self.flatten {
-            quote!(<#target_ty as tokio_postgres::FromRow>::from_row(row))
-        } else {
-            quote!(tokio_postgres::Row::get::<&str, #target_ty>(row, #column_name))
-        };
-
-        if self.from.is_some() {
-            base = quote!(<#field_ty as std::convert::From<#target_ty>>::from(#base));
-        } else if self.try_from.is_some() {
-            base = quote!(<#field_ty as std::convert::TryFrom<#target_ty>>::try_from(#base).expect("could not convert column"));
-        };
-
-        Ok(quote!(#ident: #base))
-    }
-
-    /// Generate the line needed to retrieve this field from a row when calling `try_from_row`.
-    fn generate_try_from_row(&self) -> Result<TokenStream2> {
-        let ident = self.ident.as_ref().unwrap();
-        let column_name = self.column_name();
-        let field_ty = &self.ty;
-        let target_ty = self.target_ty()?;
-
-        let mut base = if self.flatten {
-            quote!(<#target_ty as tokio_postgres::FromRow>::try_from_row(row)?)
+            quote!(<#target_ty as tokio_postgres::FromRow>::from_row(row)?)
         } else {
             quote!(tokio_postgres::Row::try_get::<&str, #target_ty>(row, #column_name)?)
         };

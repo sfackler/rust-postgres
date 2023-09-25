@@ -273,7 +273,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<T>, Error> {
         let rows = self.query_all(sql, params).await?;
-        rows.iter().map(|x| FromRow::try_from_row(x)).collect()
+        rows.iter().map(|x| FromRow::from_row(x)).collect()
     }
 
     /// Returns a vector of scalars
@@ -326,7 +326,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<T, Error> {
         let row = self.query_one(sql, params).await?;
-        FromRow::try_from_row(&row)
+        FromRow::from_row(&row)
     }
 
     /// Like [`Client::query_scalar_one`] but returns one scalar
@@ -379,7 +379,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<T>, Error> {
         let row = self.query_opt(sql, params).await?;
-        row.map(|x| FromRow::try_from_row(&x)).transpose()
+        row.map(|x| FromRow::from_row(&x)).transpose()
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar
@@ -457,7 +457,7 @@ impl Client {
     ) -> Result<BoxStream<'static, Result<T, Error>>, Error> {
         let stream = self.stream(sql, params).await?;
         Ok(stream
-            .map(move |x| x.and_then(|x| FromRow::try_from_row(&x)))
+            .map(move |x| x.and_then(|x| FromRow::from_row(&x)))
             .boxed())
     }
 
