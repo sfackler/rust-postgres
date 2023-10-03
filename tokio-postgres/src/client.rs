@@ -389,8 +389,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<S>, Error> {
         let row = self.query_opt(sql, params).await?;
-        row.and_then(|x| (x.try_get::<_, Option<S>>(0)).transpose())
-            .transpose()
+        row.map(|x| (x.try_get::<_, S>(0))).transpose()
     }
 
     /// The maximally flexible version of [`query`].

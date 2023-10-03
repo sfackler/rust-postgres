@@ -90,12 +90,12 @@ impl<'a> Transaction<'a> {
         self.client.batch_execute(&query).await
     }
 
-    /// Like `Client::prepare`.
+    /// Like [`Client::prepare`]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.client.prepare(query).await
     }
 
-    /// Like `Client::prepare_typed`.
+    /// Like [`Client::prepare_typed`]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -104,7 +104,7 @@ impl<'a> Transaction<'a> {
         self.client.prepare_typed(query, parameter_types).await
     }
 
-    /// Like `Client::query`.
+    /// Like [`Client::query`]
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -143,7 +143,7 @@ impl<'a> Transaction<'a> {
         self.client.query_all_scalar(sql, params).await
     }
 
-    /// Like `Client::query_one`.
+    /// Like [`Client::query_one`]
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -173,7 +173,7 @@ impl<'a> Transaction<'a> {
         self.client.query_scalar_one(sql, params).await
     }
 
-    /// Like `Client::query_opt`.
+    /// Like [`Client::query_opt`].
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -194,7 +194,16 @@ impl<'a> Transaction<'a> {
         self.client.query_opt_as(sql, params).await
     }
 
-    /// Like `Client::query_raw`.
+    /// Like [`Client::query_scalar_opt`]
+    pub async fn query_scalar_opt<S: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<S>, Error> {
+        self.client.query_scalar_opt(sql, params).await
+    }
+
+    /// Like [`Client::query_raw`]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
@@ -223,7 +232,7 @@ impl<'a> Transaction<'a> {
         self.client.stream_as(sql, params).await
     }
 
-    /// Like `Client::execute`.
+    /// Like [`Client::execute`]
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -235,7 +244,7 @@ impl<'a> Transaction<'a> {
         self.client.execute(statement, params).await
     }
 
-    /// Like `Client::execute_iter`.
+    /// Like [`Client::execute_raw`]
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -301,7 +310,7 @@ impl<'a> Transaction<'a> {
         query::query_portal(self.client.inner(), portal, max_rows).await
     }
 
-    /// Like `Client::copy_in`.
+    /// Like [`Client::copy_in`]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,

@@ -951,3 +951,49 @@ async fn deferred_constraint() {
         .await
         .unwrap_err();
 }
+
+#[tokio::test]
+async fn query_scalar_opt() {
+    let client = connect("user=postgres").await;
+    client
+        .batch_execute(
+            "CREATE TEMPORARY TABLE person (
+                id serial,
+                name text NOT NULL,
+                age integer
+            );
+            INSERT INTO person (name, age) VALUES ('steven', 18);
+            INSERT INTO person (name, age) VALUES ('fred', NULL);
+            ",
+        )
+        .await
+        .unwrap();
+
+    let age: Option<i32> = client
+        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"steven"])
+        .await
+        .unwrap();
+
+    assert_eq!(age, Some(18));
+
+    let age: Option<Option<i32>> = client
+        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"fred"])
+        .await
+        .unwrap();
+
+    assert_eq!(age, Some(None));
+
+    let age: Option<Option<i32>> = client
+        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"steven"])
+        .await
+        .unwrap();
+
+    assert_eq!(age, Some(Some(18)));
+
+    let age: Option<Option<i32>> = client
+        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"barney"])
+        .await
+        .unwrap();
+
+    assert_eq!(age, None);
+}
