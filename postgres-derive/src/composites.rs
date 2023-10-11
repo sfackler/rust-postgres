@@ -1,23 +1,27 @@
 use proc_macro2::Span;
+use std::collections::HashSet;
 use syn::{
-    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Path, PathSegment, Type,
-    TypeParamBound,
+    punctuated::Punctuated, AngleBracketedGenericArguments, Error, GenericArgument, GenericParam,
+    Generics, Ident, Lifetime, Path, PathArguments, PathSegment, Type, TypeParamBound,
 };
 
 use crate::{case::RenameRule, overrides::Overrides};
 
-pub struct Field {
+pub struct NamedField {
     pub name: String,
     pub ident: Ident,
     pub type_: Type,
+    pub borrowed_lifetimes: HashSet<Lifetime>,
 }
 
-impl Field {
-    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<Field, Error> {
+impl NamedField {
+    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<NamedField, Error> {
         let overrides = Overrides::extract(&raw.attrs, false)?;
         let ident = raw.ident.as_ref().unwrap().clone();
 
-        // field level name override takes precendence over container level rename_all override
+        let borrowed_lifetimes = extract_borrowed_lifetimes(raw, &overrides);
+
+        // field level name override takes precedence over container level rename_all override
         let name = match overrides.name {
             Some(n) => n,
             None => {
@@ -31,12 +35,58 @@ impl Field {
             }
         };
 
-        Ok(Field {
+        Ok(NamedField {
             name,
             ident,
             type_: raw.ty.clone(),
+            borrowed_lifetimes,
         })
     }
+}
+
+pub struct UnnamedField {
+    pub borrowed_lifetimes: HashSet<Lifetime>,
+}
+
+impl UnnamedField {
+    pub fn parse(raw: &syn::Field) -> Result<UnnamedField, Error> {
+        let overrides = Overrides::extract(&raw.attrs, false)?;
+        let borrowed_lifetimes = extract_borrowed_lifetimes(raw, &overrides);
+        Ok(UnnamedField { borrowed_lifetimes })
+    }
+}
+
+pub(crate) fn extract_borrowed_lifetimes(
+    raw: &syn::Field,
+    overrides: &Overrides,
+) -> HashSet<Lifetime> {
+    let mut borrowed_lifetimes = HashSet::new();
+
+    // If the field is a reference, it's lifetime should be implicitly borrowed. Serde does
+    // the same thing
+    if let Type::Reference(ref_type) = &raw.ty {
+        borrowed_lifetimes.insert(ref_type.lifetime.to_owned().unwrap());
+    }
+
+    // Borrow all generic lifetimes of fields marked with #[postgres(borrow)]
+    if overrides.borrows {
+        if let Type::Path(type_path) = &raw.ty {
+            for segment in &type_path.path.segments {
+                if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                    args, ..
+                }) = &segment.arguments
+                {
+                    let lifetimes = args.iter().filter_map(|a| match a {
+                        GenericArgument::Lifetime(lifetime) => Some(lifetime.to_owned()),
+                        _ => None,
+                    });
+                    borrowed_lifetimes.extend(lifetimes);
+                }
+            }
+        }
+    }
+
+    borrowed_lifetimes
 }
 
 pub(crate) fn append_generic_bound(mut generics: Generics, bound: &TypeParamBound) -> Generics {
