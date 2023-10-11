@@ -72,8 +72,9 @@ impl DeriveFromRow {
         Ok(quote! {
             impl #impl_generics tokio_postgres::FromRow for #ident #ty_generics where #(#original_predicates),* #(#predicates),* {
 
-                fn from_row(row: &tokio_postgres::Row) -> std::result::Result<Self, tokio_postgres::Error> {
-                    Ok(Self {
+                fn from_row(row: &tokio_postgres::Row) -> ::std::result::Result<Self, tokio_postgres::Error> {
+                ::std::result::Result::Ok(
+                    Self {
                         #(#from_row_fields),*
                     })
                 }
