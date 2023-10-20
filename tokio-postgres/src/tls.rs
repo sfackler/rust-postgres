@@ -163,6 +163,11 @@ impl fmt::Display for NoTlsError {
 
 impl Error for NoTlsError {}
 
+/// Represents a stream which can start tls itself.
+pub trait StartTlsStream: TlsStream {
+    /// Switch from plaintext to TLS
+    fn start_tls(self) -> Self;
+}
 /// Use TLS when socket already originates TLS connection
 pub struct PassthroughTls;
 
@@ -179,13 +184,14 @@ impl fmt::Display for PassthroughTlsError {
     }
 }
 
-impl<S: TlsStream + Unpin> TlsConnect<S> for PassthroughTls {
+impl<S: StartTlsStream + Unpin> TlsConnect<S> for PassthroughTls {
     type Stream = S;
     type Error = PassthroughTlsError;
     type Future = futures_util::future::Ready<Result<S, PassthroughTlsError>>;
 
     fn connect(self, s: Self::Stream) -> Self::Future {
-        futures_util::future::ready(Ok(s))
+        let tls = s.start_tls();
+        futures_util::future::ready(Ok(tls))
     }
 
     fn can_connect(&self, _: private::ForcePrivateApi) -> bool {
