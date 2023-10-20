@@ -78,8 +78,7 @@ tokio = { version = "1.0", features = [
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono", default-features = false }
-eui48-04 = { version = "0.4", package = "eui48" }
-eui48-1 = { version = "1.0", package = "eui48" }
+eui48-1 = { version = "1.0", package = "eui48", default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
 serde-1 = { version = "1.0", package = "serde" }

@@ -17,8 +17,6 @@ use bytes::BytesMut;
 mod bit_vec_06;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
-#[cfg(feature = "with-eui48-0_4")]
-mod eui48_04;
 #[cfg(feature = "with-eui48-1")]
 mod eui48_1;
 #[cfg(feature = "with-geo-types-0_6")]

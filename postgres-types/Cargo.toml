@@ -39,8 +39,10 @@ chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, 
     "clock",
 ], optional = true }
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
+# eui48-04 will stop compiling and support will be removed
+# See https://github.com/sfackler/rust-postgres/issues/1073
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
-eui48-1 = { version = "1.0", package = "eui48", optional = true }
+eui48-1 = { version = "1.0", package = "eui48", optional = true, default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
 geo-types-0_7 = { version = "0.7", package = "geo-types", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
