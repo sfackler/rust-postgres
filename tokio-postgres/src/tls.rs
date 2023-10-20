@@ -162,3 +162,33 @@ impl fmt::Display for NoTlsError {
 }
 
 impl Error for NoTlsError {}
+
+/// Use TLS when socket already originates TLS connection
+pub struct PassthroughTls;
+
+#[derive(Debug)]
+/// Error type for PassthroughTls.
+/// Should never be returned.
+pub struct PassthroughTlsError;
+
+impl Error for PassthroughTlsError {}
+
+impl fmt::Display for PassthroughTlsError {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.write_str("PassthroughTlsError: future already polled")
+    }
+}
+
+impl<S: TlsStream + Unpin> TlsConnect<S> for PassthroughTls {
+    type Stream = S;
+    type Error = PassthroughTlsError;
+    type Future = futures_util::future::Ready<Result<S, PassthroughTlsError>>;
+
+    fn connect(self, s: Self::Stream) -> Self::Future {
+        futures_util::future::ready(Ok(s))
+    }
+
+    fn can_connect(&self, _: private::ForcePrivateApi) -> bool {
+        true
+    }
+}
