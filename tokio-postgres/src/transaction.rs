@@ -116,31 +116,49 @@ impl<'a> Transaction<'a> {
         self.client.query(statement, params).await
     }
 
-    /// Like [`Client::query_all`]
+    /// Like [`Client::query_as`]
+    pub async fn query_as<T: FromRow>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        self.client.query_as(sql, params).await
+    }
+
+    /// Like [`Client::query`]
     pub async fn query_all(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Row>, Error> {
-        self.client().query_all(sql, params).await
+        self.client().query(sql, params).await
     }
 
-    /// Like [`Client::query_all_as`]
+    /// Like [`Client::query_as`]
     pub async fn query_all_as<T: FromRow>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<T>, Error> {
-        self.client.query_all_as(sql, params).await
+        self.client.query_as(sql, params).await
     }
 
-    /// Like [`Client::query_all_scalar`]
+    /// Like [`Client::query_scalar`]
+    pub async fn query_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        self.client.query_scalar(sql, params).await
+    }
+
+    /// Like [`Client::query_scalar`]
     pub async fn query_all_scalar<T: FromSqlOwned>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<T>, Error> {
-        self.client.query_all_scalar(sql, params).await
+        self.client.query_scalar(sql, params).await
     }
 
     /// Like [`Client::query_one`]
