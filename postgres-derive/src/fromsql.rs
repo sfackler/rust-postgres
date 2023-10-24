@@ -4,17 +4,18 @@ use quote::{format_ident, quote};
 use std::iter;
 use std::iter::FromIterator;
 use syn::{
-    punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
-    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments,
-    PathSegment,
+    AngleBracketedGenericArguments, Data, DataStruct, DeriveInput, Error, Fields,
+    GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments, PathSegment, punctuated::Punctuated,
+    token,
 };
 use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
 
 use crate::accepts;
 use crate::composites::{append_generic_bound, new_derive_path};
-use crate::composites::{NamedField, UnnamedField};
+use crate::composites::NamedField;
 use crate::enums::Variant;
 use crate::overrides::Overrides;
+use crate::transparent::UnnamedField;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs, true)?;
