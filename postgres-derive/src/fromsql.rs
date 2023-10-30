@@ -1,18 +1,18 @@
-use std::collections::{BTreeSet, HashSet};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
+use std::collections::BTreeSet;
 use std::iter;
 use std::iter::FromIterator;
 use syn::{
-    AngleBracketedGenericArguments, Data, DataStruct, DeriveInput, Error, Fields,
-    GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments, PathSegment, punctuated::Punctuated,
-    token,
+    punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
+    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments,
+    PathSegment,
 };
 use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
 
 use crate::accepts;
-use crate::composites::{append_generic_bound, new_derive_path};
 use crate::composites::NamedField;
+use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
 use crate::overrides::Overrides;
 use crate::transparent::UnnamedField;
@@ -64,7 +64,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 (
                     accepts::enum_body(&name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
-                    HashSet::new(),
+                    vec![],
                 )
             }
             _ => {
@@ -85,7 +85,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             (
                 accepts::enum_body(&name, &variants, overrides.allow_mismatch),
                 enum_body(&input.ident, &variants),
-                HashSet::new(),
+                vec![],
             )
         }
         Data::Struct(DataStruct {
@@ -109,7 +109,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 .iter()
                 .map(|field| NamedField::parse(field, overrides.rename_all))
                 .collect::<Result<Vec<_>, _>>()?;
-            let borrowed_lifetimes: HashSet<_> = fields
+            let borrowed_lifetimes: Vec<_> = fields
                 .iter()
                 .flat_map(|f| f.borrowed_lifetimes.to_owned())
                 .collect();
@@ -247,7 +247,10 @@ fn composite_body(ident: &Ident, fields: &[NamedField]) -> TokenStream {
     }
 }
 
-fn build_generics(source: &Generics, borrowed_lifetimes: HashSet<Lifetime>) -> (Generics, Lifetime) {
+fn build_generics(
+    source: &Generics,
+    borrowed_lifetimes: Vec<Lifetime>,
+) -> (Generics, Lifetime) {
     // This is the same parent lifetime name serde uses
     let lifetime = Lifetime::new("'de", Span::call_site());
     // Sort lifetimes for deterministic code-gen

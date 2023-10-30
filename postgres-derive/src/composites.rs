@@ -1,10 +1,9 @@
-use proc_macro2::Span;
-use std::collections::HashSet;
-use syn::{
-    Error, GenericParam, Generics,
-    Ident, Lifetime, Path, PathSegment, punctuated::Punctuated, Type, TypeParamBound,
-};
 use lifetimes::extract_borrowed_lifetimes;
+use proc_macro2::Span;
+use syn::{
+    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Lifetime, Path, PathSegment,
+    Type, TypeParamBound,
+};
 
 use crate::{case::RenameRule, lifetimes, overrides::Overrides};
 
@@ -12,7 +11,7 @@ pub struct NamedField {
     pub name: String,
     pub ident: Ident,
     pub type_: Type,
-    pub borrowed_lifetimes: HashSet<Lifetime>,
+    pub borrowed_lifetimes: Vec<Lifetime>,
 }
 
 impl NamedField {

@@ -363,7 +363,7 @@ fn struct_with_borrowed_fields() {
             data BYTEA
         );",
     )
-        .unwrap();
+    .unwrap();
 
     let item = Item {
         name: "foobar",

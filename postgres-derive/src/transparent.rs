@@ -1,11 +1,10 @@
-use syn::{Error, Lifetime};
-use std::collections::HashSet;
-use lifetimes::extract_borrowed_lifetimes;
 use crate::lifetimes;
 use crate::overrides::Overrides;
+use lifetimes::extract_borrowed_lifetimes;
+use syn::{Error, Lifetime};
 
 pub struct UnnamedField {
-    pub borrowed_lifetimes: HashSet<Lifetime>,
+    pub borrowed_lifetimes: Vec<Lifetime>,
 }
 
 impl UnnamedField {
