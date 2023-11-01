@@ -451,7 +451,7 @@ impl Client {
         self.simple_query_raw(query).await?.try_collect().await
     }
 
-    pub(crate) async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
+    pub async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
         simple_query::simple_query(self.inner(), query).await
     }
 
