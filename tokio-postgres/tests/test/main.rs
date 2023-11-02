@@ -997,3 +997,31 @@ async fn query_scalar_opt() {
 
     assert_eq!(age, None);
 }
+
+#[tokio::test]
+async fn records() {
+    let client = connect("user=postgres").await;
+
+    let record: (i32, i32, i32, i32, i32) = client
+        .query_scalar_one("SELECT (1, 2, 3, 4, 5)", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(record, (1, 2, 3, 4, 5));
+}
+
+#[tokio::test]
+async fn records_nested() {
+    let client = connect("user=postgres").await;
+    type Record = ((String, (i32, (i32, i32))), i32);
+
+    let nested: Record = client
+        .query_scalar_one("SELECT (('fred', (0, (1, 2))), 3)", &[])
+        .await
+        .unwrap();
+
+    match &nested {
+        ((fred, (0, (1, 2))), 3) if fred == "fred" => {}
+        _ => panic!("value {:?} does not match", nested),
+    }
+}

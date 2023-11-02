@@ -775,10 +775,65 @@ impl<'a> FromSql<'a> for SystemTime {
 impl<'a> FromSql<'a> for IpAddr {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<IpAddr, Box<dyn Error + Sync + Send>> {
         let inet = types::inet_from_sql(raw)?;
+
         Ok(inet.addr())
     }
 
     accepts!(INET);
+}
+
+macro_rules! tuple_impls {
+    ($(($($Type:ident),*) => $len:literal),*) => {
+        $(
+            impl<'a, $($Type: FromSql<'a>),*> FromSql<'a> for ($($Type),*) {
+                fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+                    let record = types::record_from_sql(raw)?;
+
+                    if $len != record.len() {
+                        return Err(
+                            format!("expected as record type with {} fields, found {} fields", $len, record.len())
+                            .into(),
+                        );
+                    }
+
+                    let mut fields = record.fields();
+
+                    Ok((
+                        $({
+                            let field = fields.next()?
+                                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                                    "not enough fields for record".into()
+                                })?;
+
+                            let ty = Type::from_oid(field.field_type())
+                                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                                    "could not find type for record field, only built-in postgres types are currently supported inside records".into()
+                                })?;
+
+                            $Type::from_sql_nullable(&ty, field.bytes())?
+                        }),*
+                    ))
+                }
+
+                fn accepts(ty: &Type) -> bool {
+                    *ty == Type::RECORD && *ty.kind() == Kind::Pseudo
+                }
+            }
+
+        )*
+    };
+}
+
+tuple_impls! {
+    (C0, C1) => 2,
+    (C0, C1, C2) => 3,
+    (C0, C1, C2, C3) => 4,
+    (C0, C1, C2, C3, C4) => 5,
+    (C0, C1, C2, C3, C4, C5) => 6,
+    (C0, C1, C2, C3, C4, C5, C6) => 7,
+    (C0, C1, C2, C3, C4, C5, C6, C7) => 8,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8) => 9,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9) => 10
 }
 
 /// An enum representing the nullability of a Postgres value.
