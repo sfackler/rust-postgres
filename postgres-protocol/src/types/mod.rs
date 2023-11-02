@@ -658,9 +658,7 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
 }
 
 /// Serializes a record value.
-pub fn record_from_sql<'a>(
-    mut buf: &'a [u8],
-) -> Result<Record<'a>, StdBox<dyn Error + Sync + Send>> {
+pub fn record_from_sql(mut buf: &[u8]) -> Result<Record<'_>, StdBox<dyn Error + Sync + Send>> {
     let len = buf.read_i32::<BigEndian>()?;
 
     Ok(Record { len, buf })
@@ -677,6 +675,12 @@ impl<'a> Record<'a> {
     #[inline]
     pub fn len(&self) -> i32 {
         self.len
+    }
+
+    /// Checks if the record has no fields.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len <= 0
     }
 
     /// Create an iterator over the fields of this record.
@@ -724,7 +728,7 @@ impl<'a> FallibleIterator for RecordFields<'a> {
                 return Err("invalid value length".into());
             }
 
-            let (bytes, buf) = self.buf.split_at(len as usize);
+            let (bytes, buf) = self.buf.split_at(len);
             self.buf = buf;
 
             Ok(Some(RecordField {

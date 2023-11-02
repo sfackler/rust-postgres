@@ -1009,13 +1009,15 @@ async fn records() {
 
     assert_eq!(record, (1, 2, 3, 4, 5));
 
-    let nested: ((String, (i32, (i32, i32))), i32) = client
-        .query_scalar_one("SELECT (('foo', (0, (1, 2))), 3)", &[])
+    type Record = ((String, (i32, (i32, i32))), i32);
+
+    let nested: Record = client
+        .query_scalar_one("SELECT (('fred', (0, (1, 2))), 3)", &[])
         .await
         .unwrap();
 
     match &nested {
-        ((foo, (0, (1, 2))), 3) if foo == "foo" => {}
+        ((fred, (0, (1, 2))), 3) if fred == "fred" => {}
         _ => panic!("value does not match"),
     }
 }
