@@ -807,7 +807,7 @@ macro_rules! tuple_impls {
 
                             let ty = Type::from_oid(field.field_type())
                                 .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
-                                    "could not convert type for record field".into()
+                                    "could not find type for record field, only built-in postgres types are currently supported inside records".into()
                                 })?;
 
                             $Type::from_sql_nullable(&ty, field.bytes())?
