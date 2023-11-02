@@ -1008,7 +1008,11 @@ async fn records() {
         .unwrap();
 
     assert_eq!(record, (1, 2, 3, 4, 5));
+}
 
+#[tokio::test]
+async fn records_nested() {
+    let client = connect("user=postgres").await;
     type Record = ((String, (i32, (i32, i32))), i32);
 
     let nested: Record = client
@@ -1018,6 +1022,6 @@ async fn records() {
 
     match &nested {
         ((fred, (0, (1, 2))), 3) if fred == "fred" => {}
-        _ => panic!("value does not match"),
+        _ => panic!("value {:?} does not match", nested),
     }
 }
