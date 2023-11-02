@@ -716,11 +716,8 @@ impl<'a> FallibleIterator for RecordFields<'a> {
         let field_type = self.buf.read_u32::<BigEndian>()?;
         let len = self.buf.read_i32::<BigEndian>()?;
 
-        if len < 0 {
-            Ok(Some(RecordField {
-                field_type,
-                bytes: None,
-            }))
+        let bytes = if len < 0 {
+            None
         } else {
             let len = len as usize;
 
@@ -731,11 +728,10 @@ impl<'a> FallibleIterator for RecordFields<'a> {
             let (bytes, buf) = self.buf.split_at(len);
             self.buf = buf;
 
-            Ok(Some(RecordField {
-                field_type,
-                bytes: Some(bytes),
-            }))
-        }
+            Some(bytes)
+        };
+
+        Ok(Some(RecordField { field_type, bytes }))
     }
 }
 
