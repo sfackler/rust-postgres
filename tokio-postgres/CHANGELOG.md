@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+* Disable `rustc-serialize` compatibility of `eui48-1` dependency
+* Remove tests for `eui48-04`
+
+
 ## v0.7.10 - 2023-08-25
 
 ## Fixed
