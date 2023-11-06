@@ -61,30 +61,9 @@ impl Responses {
     }
 }
 
-/// A cache of type info and prepared statements for fetching type info
-/// (corresponding to the queries in the [prepare](prepare) module).
-#[derive(Default)]
-struct CachedTypeInfo {
-    /// A statement for basic information for a type from its
-    /// OID. Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_QUERY) (or its
-    /// fallback).
-    typeinfo: Option<Statement>,
-    /// A statement for getting information for a composite type from its OID.
-    /// Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_COMPOSITE_QUERY).
-    typeinfo_composite: Option<Statement>,
-    /// A statement for getting information for a composite type from its OID.
-    /// Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_COMPOSITE_QUERY) (or
-    /// its fallback).
-    typeinfo_enum: Option<Statement>,
-
-    /// Cache of types already looked up.
-    types: HashMap<Oid, Type>,
-}
-
 pub struct InnerClient {
     sender: mpsc::UnboundedSender<Request>,
-    transaction_pool_mode: bool,
-    cached_typeinfo: Mutex<CachedTypeInfo>,
+    cached_typeinfo: Mutex<HashMap<Oid, Type>>,
 
     /// A buffer to use when writing out postgres commands.
     buffer: Mutex<BytesMut>,
@@ -104,66 +83,12 @@ impl InnerClient {
         })
     }
 
-    pub fn typeinfo(&self) -> Option<Statement> {
-        if self.transaction_pool_mode {
-            None
-        } else {
-            self.cached_typeinfo.lock().typeinfo.clone()
-        }
-    }
-
-    pub fn set_typeinfo(&self, statement: &Statement) {
-        if !self.transaction_pool_mode {
-            self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
-        }
-    }
-
-    pub fn typeinfo_composite(&self) -> Option<Statement> {
-        if self.transaction_pool_mode {
-            None
-        } else {
-            self.cached_typeinfo.lock().typeinfo_composite.clone()
-        }
-    }
-
-    pub fn set_typeinfo_composite(&self, statement: &Statement) {
-        if !self.transaction_pool_mode {
-            self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
-        }
-    }
-
-    pub fn typeinfo_enum(&self) -> Option<Statement> {
-        if self.transaction_pool_mode {
-            None
-        } else {
-            self.cached_typeinfo.lock().typeinfo_enum.clone()
-        }
-    }
-
-    pub fn set_typeinfo_enum(&self, statement: &Statement) {
-        if !self.transaction_pool_mode {
-            self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
-        }
-    }
-
     pub fn type_(&self, oid: Oid) -> Option<Type> {
-        if self.transaction_pool_mode {
-            None
-        } else {
-            self.cached_typeinfo.lock().types.get(&oid).cloned()
-        }
-    }
-
-    pub fn set_type(&self, oid: Oid, type_: &Type) {
-        if !self.transaction_pool_mode {
-            self.cached_typeinfo.lock().types.insert(oid, type_.clone());
-        }
+        self.cached_typeinfo.lock().get(&oid).cloned()
     }
 
     pub fn clear_type_cache(&self) {
-        if !self.transaction_pool_mode {
-            self.cached_typeinfo.lock().types.clear();
-        }
+        self.cached_typeinfo.lock().clear();
     }
 
     /// Call the given function with a buffer to be used when writing out
@@ -217,14 +142,12 @@ impl Client {
         ssl_mode: SslMode,
         process_id: i32,
         secret_key: i32,
-        transaction_pool_mode: bool,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
                 sender,
                 cached_typeinfo: Default::default(),
                 buffer: Default::default(),
-                transaction_pool_mode,
             }),
             #[cfg(feature = "runtime")]
             socket_config: None,

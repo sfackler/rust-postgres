@@ -433,20 +433,6 @@ impl Config {
         self
     }
 
-    /// When enabled, the client skips all internal caching for statements,
-    /// allowing usage with a connection pool with transaction mode.
-    ///
-    /// Defaults to `false`.
-    pub fn transaction_pool_mode(&mut self, enable: bool) -> &mut Config {
-        self.config.transaction_pool_mode(enable);
-        self
-    }
-
-    /// Gets the transaction pool mode status.
-    pub fn get_transaction_pool_mode(&self) -> bool {
-        self.config.get_transaction_pool_mode()
-    }
-
     /// Opens a connection to a PostgreSQL database.
     pub fn connect<T>(&self, tls: T) -> Result<Client, Error>
     where

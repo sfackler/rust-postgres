@@ -11,6 +11,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
+#[derive(Debug)]
 enum StatementInner {
     Unnamed {
         query: String,
@@ -43,7 +44,7 @@ impl Drop for StatementInner {
 /// A prepared statement.
 ///
 /// Prepared statements can only be used with the connection that created them.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
