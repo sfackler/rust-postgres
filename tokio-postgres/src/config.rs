@@ -208,6 +208,7 @@ pub struct Config {
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
     pub(crate) max_backend_message_size: Option<usize>,
+    pub(crate) transaction_pool_mode: bool,
 }
 
 impl Default for Config {
@@ -242,6 +243,7 @@ impl Config {
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
             max_backend_message_size: None,
+            transaction_pool_mode: false,
         }
     }
 
@@ -507,6 +509,20 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.channel_binding
+    }
+
+    /// When enabled, the client skips all internal caching for statements,
+    /// allowing usage with a connection pool with transaction mode.
+    ///
+    /// Defaults to `false`.
+    pub fn transaction_pool_mode(&mut self, enable: bool) -> &mut Config {
+        self.transaction_pool_mode = enable;
+        self
+    }
+
+    /// Gets the transaction pool mode status.
+    pub fn get_transaction_pool_mode(&self) -> bool {
+        self.transaction_pool_mode
     }
 
     /// Sets the host load balancing behavior.
