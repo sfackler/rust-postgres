@@ -113,14 +113,7 @@ where
 
     let (sender, receiver) = mpsc::unbounded();
 
-    let client = Client::new(
-        sender,
-        config.ssl_mode,
-        process_id,
-        secret_key,
-        config.transaction_pool_mode,
-    );
-
+    let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
     Ok((client, connection))

@@ -106,6 +106,7 @@ where
 
     // now read the responses
     let responses = start(client, buf).await?;
+
     Ok(RowStream {
         statement,
         responses,
