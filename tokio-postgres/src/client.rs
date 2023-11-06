@@ -105,7 +105,11 @@ impl InnerClient {
     }
 
     pub fn typeinfo(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo.clone()
+        if self.transaction_pool_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo.clone()
+        }
     }
 
     pub fn set_typeinfo(&self, statement: &Statement) {
@@ -115,7 +119,11 @@ impl InnerClient {
     }
 
     pub fn typeinfo_composite(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_composite.clone()
+        if self.transaction_pool_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo_composite.clone()
+        }
     }
 
     pub fn set_typeinfo_composite(&self, statement: &Statement) {
@@ -125,7 +133,11 @@ impl InnerClient {
     }
 
     pub fn typeinfo_enum(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_enum.clone()
+        if self.transaction_pool_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().typeinfo_enum.clone()
+        }
     }
 
     pub fn set_typeinfo_enum(&self, statement: &Statement) {
@@ -135,7 +147,11 @@ impl InnerClient {
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
-        self.cached_typeinfo.lock().types.get(&oid).cloned()
+        if self.transaction_pool_mode {
+            None
+        } else {
+            self.cached_typeinfo.lock().types.get(&oid).cloned()
+        }
     }
 
     pub fn set_type(&self, oid: Oid, type_: &Type) {
@@ -145,7 +161,9 @@ impl InnerClient {
     }
 
     pub fn clear_type_cache(&self) {
-        self.cached_typeinfo.lock().types.clear();
+        if !self.transaction_pool_mode {
+            self.cached_typeinfo.lock().types.clear();
+        }
     }
 
     /// Call the given function with a buffer to be used when writing out
