@@ -83,6 +83,7 @@ struct CachedTypeInfo {
 
 pub struct InnerClient {
     sender: mpsc::UnboundedSender<Request>,
+    transaction_pool_mode: bool,
     cached_typeinfo: Mutex<CachedTypeInfo>,
 
     /// A buffer to use when writing out postgres commands.
@@ -108,7 +109,9 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
+        if !self.transaction_pool_mode {
+            self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
+        }
     }
 
     pub fn typeinfo_composite(&self) -> Option<Statement> {
@@ -116,7 +119,9 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo_composite(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
+        if !self.transaction_pool_mode {
+            self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
+        }
     }
 
     pub fn typeinfo_enum(&self) -> Option<Statement> {
@@ -124,7 +129,9 @@ impl InnerClient {
     }
 
     pub fn set_typeinfo_enum(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
+        if !self.transaction_pool_mode {
+            self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
+        }
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
@@ -132,7 +139,9 @@ impl InnerClient {
     }
 
     pub fn set_type(&self, oid: Oid, type_: &Type) {
-        self.cached_typeinfo.lock().types.insert(oid, type_.clone());
+        if !self.transaction_pool_mode {
+            self.cached_typeinfo.lock().types.insert(oid, type_.clone());
+        }
     }
 
     pub fn clear_type_cache(&self) {
@@ -190,12 +199,14 @@ impl Client {
         ssl_mode: SslMode,
         process_id: i32,
         secret_key: i32,
+        transaction_pool_mode: bool,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
                 sender,
                 cached_typeinfo: Default::default(),
                 buffer: Default::default(),
+                transaction_pool_mode,
             }),
             #[cfg(feature = "runtime")]
             socket_config: None,
