@@ -4,7 +4,7 @@ use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
-use crate::query::RowStream;
+use crate::query::{RowStream, };
 use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -326,19 +326,17 @@ impl Client {
 
     /// Pass text directly to the Postgres backend to allow it to sort out typing itself and
     /// to save a roundtrip
-    pub async fn query_raw_txt<'a, T, S, I>(
+    pub async fn query_raw_txt<'a, S, I>(
         &self,
-        statement: &T,
+        query: &str,
         params: I,
     ) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
         S: AsRef<str>,
         I: IntoIterator<Item = Option<S>>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(self).await?;
-        query::query_txt(&self.inner, statement, params).await
+        query::query_txt(&self.inner, query, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.

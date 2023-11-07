@@ -2,14 +2,15 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement};
+use crate::{Error, Portal, Row, Statement, Column};
 use bytes::{BufMut, Bytes, BytesMut};
+use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::{CommandCompleteBody, Message};
+use postgres_protocol::message::backend::{CommandCompleteBody, Message, ParameterDescriptionBody, RowDescriptionBody};
 use postgres_protocol::message::frontend;
-use postgres_types::Format;
+use postgres_types::{Format, Type};
 use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
@@ -50,7 +51,7 @@ where
     } else {
         encode(client, &statement, params)?
     };
-    let responses = start(client, buf).await?;
+    let (statement, responses) = start(client, buf).await?;
     Ok(RowStream {
         statement,
         responses,
@@ -58,13 +59,14 @@ where
         command_tag: None,
         status: None,
         output_format: Format::Binary,
+        parameter_description: None,
         _p: PhantomPinned,
     })
 }
 
 pub async fn query_txt<S, I>(
     client: &Arc<InnerClient>,
-    statement: Statement,
+    query: &str,
     params: I,
 ) -> Result<RowStream, Error>
 where
@@ -72,13 +74,19 @@ where
     I: IntoIterator<Item = Option<S>>,
     I::IntoIter: ExactSizeIterator,
 {
+    dbg!("here");
     let params = params.into_iter();
 
     let buf = client.with_buf(|buf| {
+        // prepare
+        frontend::parse("", query, std::iter::empty(), buf).map_err(Error::encode)?;
+        frontend::describe(b'S', "", buf).map_err(Error::encode)?;
+        frontend::flush(buf);
+
         // Bind, pass params as text, retrieve as binary
         match frontend::bind(
             "",                 // empty string selects the unnamed portal
-            statement.name(),   // named prepared statement
+            "",   // unnamed prepared statement
             std::iter::empty(), // all parameters use the default format (text)
             params,
             |param, buf| match param {
@@ -104,10 +112,13 @@ where
         Ok(buf.split().freeze())
     })?;
 
+    dbg!("here");
     // now read the responses
-    let responses = start(client, buf).await?;
+    let (statement, responses) = start(client, buf).await?;
+    dbg!("here");
 
     Ok(RowStream {
+        parameter_description: None,
         statement,
         responses,
         command_tag: None,
@@ -132,7 +143,8 @@ pub async fn query_portal(
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     Ok(RowStream {
-        statement: portal.statement().clone(),
+        parameter_description: None,
+        statement: Some(portal.statement().clone()),
         responses,
         rows_affected: None,
         command_tag: None,
@@ -176,7 +188,7 @@ where
     } else {
         encode(client, &statement, params)?
     };
-    let mut responses = start(client, buf).await?;
+    let (_statement, mut responses) = start(client, buf).await?;
 
     let mut rows = 0;
     loop {
@@ -192,19 +204,49 @@ where
     }
 }
 
-async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
+async fn start(client: &InnerClient, buf: Bytes) -> Result<(Option<Statement>, Responses), Error> {
+    let mut parameter_description: Option<ParameterDescriptionBody> = None;
+    let mut statement = None;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+        let make_statement = |parameter_description: ParameterDescriptionBody, row_description: Option<RowDescriptionBody>| {
+            let mut parameters = vec![];
+            let mut it = parameter_description.parameters();
+            while let Some(oid) = it.next().map_err(Error::parse).unwrap() {
+                let type_ = crate::prepare::get_type(client, oid);
+                parameters.push(type_);
+            }
 
-    match responses.next().await? {
-        Message::ParseComplete => match responses.next().await? {
-            Message::BindComplete => {}
-            m => return Err(Error::unexpected_message(m)),
-        },
-        Message::BindComplete => {}
-        m => return Err(Error::unexpected_message(m)),
-    }
+            let mut columns = vec![];
+            if let Some(row_description) = row_description {
+                let mut it = row_description.fields();
+                while let Some(field) = it.next().map_err(Error::parse).unwrap() {
+                    let type_ = crate::prepare::get_type(client, field.type_oid());
+                    let column = Column::new(field.name().to_string(), type_, field);
+                    columns.push(column);
+                }
+            }
 
-    Ok(responses)
+                Statement::unnamed("Dose this matter?".to_owned(), parameters, columns)
+
+        };
+
+        loop {
+            match responses.next().await? {
+                Message::ParseComplete => {},
+                Message::BindComplete => {return Ok((statement, responses))}
+                Message::ParameterDescription(body) => {
+                    parameter_description = Some(body); // to love me
+                }
+                Message::NoData => {
+                    statement = Some(make_statement(parameter_description.take().unwrap(), None));
+                }
+                Message::RowDescription(body) => {
+                    statement = Some(make_statement(parameter_description.take().unwrap(), Some(body)));
+                }
+                m => return Err(Error::unexpected_message(m)),
+            }
+        }
+
 }
 
 pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
@@ -276,12 +318,14 @@ where
 pin_project! {
     /// A stream of table rows.
     pub struct RowStream {
-        statement: Statement,
+        statement: Option<Statement>,
         responses: Responses,
         rows_affected: Option<u64>,
         command_tag: Option<String>,
         output_format: Format,
         status: Option<u8>,
+        parameter_description: Option<ParameterDescriptionBody>,
+
         #[pin]
         _p: PhantomPinned,
     }
@@ -291,12 +335,44 @@ impl Stream for RowStream {
     type Item = Result<Row, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // dbg!("here");
         let this = self.project();
+        // let make_statement = |parameter_description: ParameterDescriptionBody, row_description: Option<RowDescriptionBody>| {
+        //     let mut parameters = vec![];
+        //     let mut it = parameter_description.parameters();
+        //     while let Some(oid) = it.next().map_err(Error::parse).unwrap() {
+        //         let type_ = Type::TEXT;
+        //         parameters.push(type_);
+        //     }
+
+        //     let mut columns = vec![];
+        //     if let Some(row_description) = row_description {
+        //         let mut it = row_description.fields();
+        //         while let Some(field) = it.next().map_err(Error::parse).unwrap() {
+        //             let type_ = crate::prepare::get_type(client, field.type_oid());
+        //             let column = Column::new(field.name().to_string(), type_, field);
+        //             columns.push(column);
+        //         }
+        //     }
+
+        //         Statement::unnamed("Dose this matter?".to_owned(), parameters, columns)
+
+        // };
         loop {
             match ready!(this.responses.poll_next(cx)?) {
+                // Message::ParseComplete => {} // nice
+                // Message::ParameterDescription(body) => {
+                //     *this.parameter_description = Some(body); // to love me
+                // }
+                // Message::NoData => {
+                //     *this.statement = Some(make_statement(this.parameter_description.take().unwrap(), None));
+                // }
+                // Message::RowDescription(body) => {
+                //     *this.statement = Some(make_statement(this.parameter_description.take().unwrap(), Some(body)));
+                // }
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(
-                        this.statement.clone(),
+                        this.statement.as_ref().unwrap().clone(),
                         body,
                         *this.output_format,
                     )?)))
@@ -341,3 +417,4 @@ impl RowStream {
         self.status
     }
 }
+

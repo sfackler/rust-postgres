@@ -47,7 +47,7 @@ pub async fn prepare(
     let mut parameters = vec![];
     let mut it = parameter_description.parameters();
     while let Some(oid) = it.next().map_err(Error::parse)? {
-        let type_ = get_type(client, oid).await?;
+        let type_ = get_type(client, oid);
         parameters.push(type_);
     }
 
@@ -55,7 +55,7 @@ pub async fn prepare(
     if let Some(row_description) = row_description {
         let mut it = row_description.fields();
         while let Some(field) = it.next().map_err(Error::parse)? {
-            let type_ = get_type(client, field.type_oid()).await?;
+            let type_ = get_type(client, field.type_oid());
             let column = Column::new(field.name().to_string(), type_, field);
             columns.push(column);
         }
@@ -68,7 +68,7 @@ pub async fn prepare(
     }
 }
 
-fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
+pub(crate) fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {}: {}", name, query);
     } else {
@@ -83,14 +83,14 @@ fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Resu
     })
 }
 
-pub async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
+pub fn get_type(client: &InnerClient, oid: Oid) -> Type {
     if let Some(type_) = Type::from_oid(oid) {
-        return Ok(type_);
+        return type_;
     }
 
-    if let Some(type_) = client.type_(oid) {
-        return Ok(type_);
-    }
+    // if let Some(type_) = client.type_(oid) {
+    //     return Ok(type_);
+    // }
 
-    Ok(Type::TEXT)
+    Type::TEXT
 }
