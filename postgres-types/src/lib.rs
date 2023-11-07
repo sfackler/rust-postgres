@@ -168,6 +168,8 @@
 //!   'Happy'
 //! );
 //! ```
+//!
+//! ```rust
 //! #[postgres(allow_mismatch)]
 //! enum Mood {
 //!    Happy,
