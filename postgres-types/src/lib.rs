@@ -170,6 +170,11 @@
 //! ```
 //!
 //! ```rust
+//! # #[cfg(feature = "derive")]
+//! use postgres_types::{ToSql, FromSql};
+//!
+//! # #[cfg(feature = "derive")]
+//! #[derive(Debug, ToSql, FromSql)]
 //! #[postgres(allow_mismatch)]
 //! enum Mood {
 //!    Happy,
