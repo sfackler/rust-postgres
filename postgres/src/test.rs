@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::Type;
-use tokio_postgres::NoTls;
+use tokio_postgres::{NoTls, RowDescription};
 
 use super::*;
 use crate::binary_copy::{BinaryCopyInWriter, BinaryCopyOutIter};

@@ -8,6 +8,12 @@ use std::{
     sync::{Arc, Weak},
 };
 
+/// Describes the data (columns) in a row.
+pub trait RowDescription: Sync + Send {
+    /// Returns information about the columns returned when the statement is queried.
+    fn columns(&self) -> &[Column];
+}
+
 struct StatementInner {
     client: Weak<InnerClient>,
     name: String,
@@ -57,9 +63,16 @@ impl Statement {
     pub fn params(&self) -> &[Type] {
         &self.0.params
     }
+}
 
-    /// Returns information about the columns returned when the statement is queried.
-    pub fn columns(&self) -> &[Column] {
+impl RowDescription for Statement {
+    fn columns(&self) -> &[Column] {
+        &self.0.columns
+    }
+}
+
+impl RowDescription for Arc<Statement> {
+    fn columns(&self) -> &[Column] {
         &self.0.columns
     }
 }
@@ -71,7 +84,8 @@ pub struct Column {
 }
 
 impl Column {
-    pub(crate) fn new(name: String, type_: Type) -> Column {
+    /// Constructs a new column.
+    pub fn new(name: String, type_: Type) -> Column {
         Column { name, type_ }
     }
 

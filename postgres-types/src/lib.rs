@@ -789,6 +789,7 @@ impl<'a> FromSql<'a> for IpAddr {
 }
 
 /// An enum representing the nullability of a Postgres value.
+#[derive(Debug, Eq, PartialEq)]
 pub enum IsNull {
     /// The value is NULL.
     Yes,
