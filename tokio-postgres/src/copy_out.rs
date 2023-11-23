@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{query, slice_iter, Error, Statement};
+use crate::{query, slice_iter, Error, FormatCode, Statement};
 use bytes::Bytes;
 use futures_util::{ready, Stream};
 use log::debug;
@@ -14,7 +14,7 @@ use std::task::{Context, Poll};
 pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
     debug!("executing copy out statement {}", statement.name());
 
-    let buf = query::encode(client, &statement, slice_iter(&[]))?;
+    let buf = query::encode(client, &statement, slice_iter(&[]), FormatCode::Binary)?;
     let responses = start(client, buf).await?;
     Ok(CopyOutStream {
         responses,

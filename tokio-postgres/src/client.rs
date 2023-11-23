@@ -35,6 +35,13 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+pub enum FormatCode {
+    /// Use the stable text representation.
+    Text = 0,
+    /// Use the less-stable binary representation.
+    Binary = 1,
+}
+
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
     cur: BackendMessages,
@@ -87,6 +94,8 @@ pub struct InnerClient {
 
     /// A buffer to use when writing out postgres commands.
     buffer: Mutex<BytesMut>,
+
+    result_format: FormatCode,
 }
 
 impl InnerClient {
@@ -196,6 +205,7 @@ impl Client {
                 sender,
                 cached_typeinfo: Default::default(),
                 buffer: Default::default(),
+                result_format: FormatCode::Binary,
             }),
             #[cfg(feature = "runtime")]
             socket_config: None,
@@ -250,7 +260,29 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        self.query_raw(statement, slice_iter(params))
+        self.query_raw(statement, slice_iter(params), FormatCode::Binary)
+            .await?
+            .try_collect()
+            .await
+    }
+
+    /// Executes a statement, returning a vector of the resulting rows in Text Format.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    pub async fn query_with_text_format<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query_raw(statement, slice_iter(params), FormatCode::Text)
             .await?
             .try_collect()
             .await
@@ -274,7 +306,9 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        let stream = self
+            .query_raw(statement, slice_iter(params), FormatCode::Binary)
+            .await?;
         pin_mut!(stream);
 
         let row = match stream.try_next().await? {
@@ -307,7 +341,9 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
+        let stream = self
+            .query_raw(statement, slice_iter(params), FormatCode::Binary)
+            .await?;
         pin_mut!(stream);
 
         let row = match stream.try_next().await? {
@@ -357,7 +393,12 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    pub async fn query_raw<T, P, I>(
+        &self,
+        statement: &T,
+        params: I,
+        result_format: FormatCode,
+    ) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
         P: BorrowToSql,
@@ -365,7 +406,7 @@ impl Client {
         I::IntoIter: ExactSizeIterator,
     {
         let statement = statement.__convert().into_statement(self).await?;
-        query::query(&self.inner, statement, params).await
+        query::query(&self.inner, statement, params, result_format).await
     }
 
     /// Executes a statement, returning the number of rows modified.

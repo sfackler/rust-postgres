@@ -7,7 +7,7 @@ use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
-use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
+use tokio_postgres::{Error, FormatCode, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
 pub struct Client {
@@ -251,9 +251,9 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        let stream = self
-            .connection
-            .block_on(self.client.query_raw(query, params))?;
+        let stream =
+            self.connection
+                .block_on(self.client.query_raw(query, params, FormatCode::Binary))?;
         Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 

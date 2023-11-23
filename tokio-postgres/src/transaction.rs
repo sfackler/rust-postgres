@@ -9,7 +9,7 @@ use crate::types::{BorrowToSql, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
+    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, FormatCode, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
@@ -146,7 +146,9 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.client.query_raw(statement, params).await
+        self.client
+            .query_raw(statement, params, FormatCode::Binary)
+            .await
     }
 
     /// Like `Client::execute`.
