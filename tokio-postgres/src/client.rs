@@ -257,15 +257,6 @@ impl Client {
             .await
     }
 
-    /// A temporary alias for [`Client::query`]
-    pub async fn query_all(
-        &self,
-        sql: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error> {
-        self.query(sql, params).await
-    }
-
     /// Returns a vector of `T`s
     pub async fn query_as<T: FromRow>(
         &self,
@@ -276,15 +267,6 @@ impl Client {
         rows.iter().map(|x| FromRow::from_row(x)).collect()
     }
 
-    /// A temporary alias for [`Client::query_as`]
-    pub async fn query_all_as<T: FromRow>(
-        &self,
-        sql: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        self.query_as(sql, params).await
-    }
-
     /// Returns a vector of scalars
     pub async fn query_scalar<T: FromSqlOwned>(
         &self,
@@ -293,15 +275,6 @@ impl Client {
     ) -> Result<Vec<T>, Error> {
         let rows = self.query(sql, params).await?;
         rows.into_iter().map(|r| r.try_get(0)).collect()
-    }
-
-    /// A temporary alias for [`Client::query_scalar`]
-    pub async fn query_all_scalar<T: FromSqlOwned>(
-        &self,
-        sql: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        self.query_scalar(sql, params).await
     }
 
     /// Executes a statement which returns a single row, returning it.
@@ -577,11 +550,6 @@ impl Client {
     /// them to this method!
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         simple_query::batch_execute(self.inner(), query).await
-    }
-
-    /// Alias for [`Client::transaction`]
-    pub async fn begin(&mut self) -> Result<Transaction<'_>, Error> {
-        self.transaction().await
     }
 
     /// Begins a new database transaction.
