@@ -100,7 +100,7 @@ pub async fn prepare(
                 name: field.name().to_string(),
                 table_oid: NonZeroU32::new(field.table_oid()),
                 column_id: NonZeroI16::new(field.column_id()),
-                type_,
+                r#type: type_,
             };
             columns.push(column);
         }

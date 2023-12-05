@@ -4,7 +4,6 @@ use crate::connection::RequestMessages;
 use crate::types::Type;
 use postgres_protocol::message::frontend;
 use std::{
-    fmt,
     num::{NonZeroI16, NonZeroU32},
     sync::{Arc, Weak},
 };
@@ -66,11 +65,12 @@ impl Statement {
 }
 
 /// Information about a column of a query.
+#[derive(Debug)]
 pub struct Column {
     pub(crate) name: String,
     pub(crate) table_oid: Option<NonZeroU32>,
     pub(crate) column_id: Option<NonZeroI16>,
-    pub(crate) type_: Type,
+    pub(crate) r#type: Type,
 }
 
 impl Column {
@@ -91,17 +91,6 @@ impl Column {
 
     /// Returns the type of the column.
     pub fn type_(&self) -> &Type {
-        &self.type_
-    }
-}
-
-impl fmt::Debug for Column {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Column")
-            .field("name", &self.name)
-            .field("table_oid", &self.table_oid)
-            .field("column_id", &self.column_id)
-            .field("type", &self.type_)
-            .finish()
+        &self.r#type
     }
 }
