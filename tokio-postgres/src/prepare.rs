@@ -12,7 +12,6 @@ use log::debug;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
-use std::num::{NonZeroI16, NonZeroU32};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -98,8 +97,8 @@ pub async fn prepare(
             let type_ = get_type(client, field.type_oid()).await?;
             let column = Column {
                 name: field.name().to_string(),
-                table_oid: NonZeroU32::new(field.table_oid()),
-                column_id: NonZeroI16::new(field.column_id()),
+                table_oid: Some(field.table_oid()).filter(|n| *n != 0),
+                column_id: Some(field.column_id()).filter(|n| *n != 0),
                 r#type: type_,
             };
             columns.push(column);

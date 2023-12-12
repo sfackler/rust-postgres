@@ -3,10 +3,7 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
 use postgres_protocol::message::frontend;
-use std::{
-    num::{NonZeroI16, NonZeroU32},
-    sync::{Arc, Weak},
-};
+use std::sync::{Arc, Weak};
 
 struct StatementInner {
     client: Weak<InnerClient>,
@@ -68,8 +65,8 @@ impl Statement {
 #[derive(Debug)]
 pub struct Column {
     pub(crate) name: String,
-    pub(crate) table_oid: Option<NonZeroU32>,
-    pub(crate) column_id: Option<NonZeroI16>,
+    pub(crate) table_oid: Option<u32>,
+    pub(crate) column_id: Option<i16>,
     pub(crate) r#type: Type,
 }
 
@@ -80,12 +77,12 @@ impl Column {
     }
 
     /// Returns the OID of the underlying database table.
-    pub fn table_oid(&self) -> Option<NonZeroU32> {
+    pub fn table_oid(&self) -> Option<u32> {
         self.table_oid
     }
 
     /// Return the column ID within the underlying database table.
-    pub fn column_id(&self) -> Option<NonZeroI16> {
+    pub fn column_id(&self) -> Option<i16> {
         self.column_id
     }
 
