@@ -572,6 +572,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Vec<T>, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => &Type::RECORD,
             _ => panic!("expected array type"),
         };
 
@@ -589,6 +590,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     fn accepts(ty: &Type) -> bool {
         match *ty.kind() {
             Kind::Array(ref inner) => T::accepts(inner),
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => T::accepts(&Type::RECORD),
             _ => false,
         }
     }
