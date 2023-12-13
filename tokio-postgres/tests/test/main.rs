@@ -1025,3 +1025,15 @@ async fn records_nested() {
         _ => panic!("value {:?} does not match", nested),
     }
 }
+
+#[tokio::test]
+async fn array_of_records() {
+    let client = connect("user=postgres").await;
+
+    let record: Vec<(i32, i32)> = client
+        .query_scalar_one("SELECT ARRAY[(1, 2), (3, 4)]", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(record, vec![(1, 2), (3, 4)]);
+}
