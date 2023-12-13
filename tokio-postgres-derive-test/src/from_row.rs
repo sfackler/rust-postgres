@@ -26,7 +26,7 @@ async fn query_all_as() {
         .unwrap();
 
     let users: Vec<Person> = client
-        .query_all_as("SELECT name, age FROM person", &[])
+        .query_as("SELECT name, age FROM person", &[])
         .await
         .unwrap();
 
