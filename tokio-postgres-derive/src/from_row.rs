@@ -133,6 +133,8 @@ impl FromRowField {
 
         if self.attrs.flatten {
             predicates.push(quote! (#target_ty: ::tokio_postgres::FromRow))
+        } else if self.attrs.skip {
+            predicates.push(quote! (#target_ty: ::std::default::Default))
         } else {
             predicates.push(quote! (#target_ty: for<'a> ::tokio_postgres::types::FromSql<'a>))
         };
@@ -158,6 +160,8 @@ impl FromRowField {
 
         let mut base = if self.attrs.flatten {
             quote!(<#target_ty as ::tokio_postgres::FromRow>::from_row(row)?)
+        } else if self.attrs.skip {
+            quote!(<#field_ty as ::std::default::Default>::default())
         } else {
             quote!(::tokio_postgres::Row::try_get::<&::std::primitive::str, #target_ty>(row, #column_name)?)
         };
@@ -187,6 +191,9 @@ struct FromRowFieldAttrs {
     /// Override the name of the actual sql column instead of using `self.ident`.
     /// Is not compatible with `flatten` since no column is needed there.
     rename: Option<String>,
+    /// Skip this field when looking for columns in the row, instead initialize it using
+    /// `Default::default`.
+    skip: bool,
 }
 
 impl FromRowFieldAttrs {
@@ -201,6 +208,8 @@ impl FromRowFieldAttrs {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("flatten") {
                     this.flatten = true
+                } else if meta.path.is_ident("skip") {
+                    this.skip = true
                 } else if meta.path.is_ident("try_from") {
                     let lit: syn::LitStr = meta.value()?.parse()?;
                     this.try_from = Some(lit.parse()?)
@@ -218,6 +227,10 @@ impl FromRowFieldAttrs {
                     return Err(meta.error(
                         r#"can't combine `#[from_row(flatten)]` with `#[from_row(rename = "..")]`"#,
                     ));
+                }
+
+                if this.skip && (this.rename.is_some() || this.try_from.is_some() || this.flatten || this.rename.is_some()) {
+                    return Err(meta.error(r#"can't combine `#[from_row(skip)]` with other attributes"#))
                 }
 
                 if this.from.is_some() && this.try_from.is_some() {
