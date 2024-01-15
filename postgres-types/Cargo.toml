@@ -26,6 +26,7 @@ with-uuid-0_8 = ["uuid-08"]
 with-uuid-1 = ["uuid-1"]
 with-time-0_2 = ["time-02"]
 with-time-0_3 = ["time-03"]
+with-prost-0_12 = ["prost-012"]
 
 [dependencies]
 bytes = "1.0"
@@ -52,3 +53,4 @@ uuid-1 = { version = "1.0", package = "uuid", optional = true }
 time-02 = { version = "0.2", package = "time", optional = true }
 time-03 = { version = "0.3", package = "time", default-features = false, optional = true }
 smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }
+prost-012 = { version = "0.12", package = "prost", optional = true }

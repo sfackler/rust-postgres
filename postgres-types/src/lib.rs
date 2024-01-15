@@ -199,6 +199,10 @@ pub use postgres_derive::{FromSql, ToSql};
 
 #[cfg(feature = "with-serde_json-1")]
 pub use crate::serde_json_1::Json;
+
+#[cfg(feature = "with-prost-0_12")]
+pub use crate::prost_012::Protobuf;
+
 use crate::type_gen::{Inner, Other};
 
 #[doc(inline)]
@@ -276,6 +280,8 @@ mod eui48_1;
 mod geo_types_06;
 #[cfg(feature = "with-geo-types-0_7")]
 mod geo_types_07;
+#[cfg(feature = "with-prost-0_12")]
+mod prost_012;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
