@@ -6,7 +6,7 @@ use crate::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for SmolStr {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        Ok(SmolStr::new(<&str as FromSql>::from_sql(ty, raw)?))
+        <&str as FromSql>::from_sql(ty, raw).map(SmolStr::new)
     }
 
     fn accepts(ty: &Type) -> bool {
