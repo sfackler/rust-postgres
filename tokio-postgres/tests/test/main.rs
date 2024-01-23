@@ -303,6 +303,7 @@ async fn custom_range() {
 }
 
 #[tokio::test]
+#[allow(clippy::get_first)]
 async fn simple_query() {
     let client = connect("user=postgres").await;
 
