@@ -70,8 +70,14 @@ socket2 = { version = "0.5", features = ["all"] }
 [dev-dependencies]
 futures-executor = "0.3"
 criterion = "0.5"
-env_logger = "0.10"
-tokio = { version = "1.0", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
+env_logger = "0.11"
+tokio = { version = "1.0", features = [
+    "macros",
+    "net",
+    "rt",
+    "rt-multi-thread",
+    "time",
+] }
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono", default-features = false }
