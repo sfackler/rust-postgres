@@ -274,19 +274,9 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
-        pin_mut!(stream);
-
-        let row = match stream.try_next().await? {
-            Some(row) => row,
-            None => return Err(Error::row_count()),
-        };
-
-        if stream.try_next().await?.is_some() {
-            return Err(Error::row_count());
-        }
-
-        Ok(row)
+        self.query_opt(statement, params)
+            .await
+            .and_then(|res| res.ok_or_else(Error::row_count))
     }
 
     /// Executes a statements which returns zero or one rows, returning it.
@@ -310,16 +300,22 @@ impl Client {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
 
-        let row = match stream.try_next().await? {
-            Some(row) => row,
-            None => return Ok(None),
-        };
+        let mut first = None;
 
-        if stream.try_next().await?.is_some() {
-            return Err(Error::row_count());
+        // Originally this was two calls to `try_next().await?`,
+        // once for the first element, and second to error if more than one.
+        //
+        // However, this new form with only one .await in a loop generates
+        // slightly smaller codegen/stack usage for the resulting future.
+        while let Some(row) = stream.try_next().await? {
+            if first.is_some() {
+                return Err(Error::row_count());
+            }
+
+            first = Some(row);
         }
 
-        Ok(Some(row))
+        Ok(first)
     }
 
     /// The maximally flexible version of [`query`].
