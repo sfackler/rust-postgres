@@ -141,6 +141,7 @@ impl Row {
     /// # Panics
     ///
     /// Panics if the index is out of bounds or if the value cannot be converted to the specified type.
+    #[track_caller]
     pub fn get<'a, I, T>(&'a self, idx: I) -> T
     where
         I: RowIndex + fmt::Display,
@@ -239,6 +240,7 @@ impl SimpleQueryRow {
     /// # Panics
     ///
     /// Panics if the index is out of bounds or if the value cannot be converted to the specified type.
+    #[track_caller]
     pub fn get<I>(&self, idx: I) -> Option<&str>
     where
         I: RowIndex + fmt::Display,
