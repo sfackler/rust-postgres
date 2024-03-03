@@ -34,6 +34,14 @@ fn settings() {
             .keepalives_idle(Duration::from_secs(30))
             .target_session_attrs(TargetSessionAttrs::ReadWrite),
     );
+    check(
+        "connect_timeout=3 keepalives=0 keepalives_idle=30 target_session_attrs=read-only",
+        Config::new()
+            .connect_timeout(Duration::from_secs(3))
+            .keepalives(false)
+            .keepalives_idle(Duration::from_secs(30))
+            .target_session_attrs(TargetSessionAttrs::ReadOnly),
+    );
 }
 
 #[test]
