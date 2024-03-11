@@ -40,7 +40,7 @@ with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 with-uuid-1 = ["postgres-types/with-uuid-1"]
 with-time-0_2 = ["postgres-types/with-time-0_2"]
 with-time-0_3 = ["postgres-types/with-time-0_3"]
-js = ["postgres-protocol/js"]
+js = ["postgres-protocol/js", "postgres-types/js"]
 
 [dependencies]
 async-trait = "0.1"
