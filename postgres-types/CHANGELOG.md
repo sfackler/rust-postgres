@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Changed
+
+* `FromStr` implementation for `PgLsn` no longer allocates a `Vec` when splitting an lsn string on it's `/`.
+
 ## v0.2.6 - 2023-08-19
 
 ### Fixed

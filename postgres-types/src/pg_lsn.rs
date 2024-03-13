@@ -33,16 +33,14 @@ impl FromStr for PgLsn {
     type Err = ParseLsnError;
 
     fn from_str(lsn_str: &str) -> Result<Self, Self::Err> {
-        let split: Vec<&str> = lsn_str.split('/').collect();
-        if split.len() == 2 {
-            let (hi, lo) = (
-                u64::from_str_radix(split[0], 16).map_err(|_| ParseLsnError(()))?,
-                u64::from_str_radix(split[1], 16).map_err(|_| ParseLsnError(()))?,
-            );
-            Ok(PgLsn((hi << 32) | lo))
-        } else {
-            Err(ParseLsnError(()))
-        }
+        let Some((split_hi, split_lo)) = lsn_str.split_once('/') else {
+            return Err(ParseLsnError(()));
+        };
+        let (hi, lo) = (
+            u64::from_str_radix(split_hi, 16).map_err(|_| ParseLsnError(()))?,
+            u64::from_str_radix(split_lo, 16).map_err(|_| ParseLsnError(()))?,
+        );
+        Ok(PgLsn((hi << 32) | lo))
     }
 }
 
