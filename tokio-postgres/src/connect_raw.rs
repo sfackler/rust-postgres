@@ -24,7 +24,7 @@ use tokio_util::codec::Framed;
 pub struct StartupStream<S, T> {
     inner: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     buf: BackendMessages,
-    delayed: VecDeque<BackendMessage>,
+    delayed: VecDeque<Message>,
 }
 
 impl<S, T> Sink<FrontendMessage> for StartupStream<S, T>
@@ -108,7 +108,7 @@ where
 
     let (sender, receiver) = mpsc::unbounded();
     let client = Client::new(sender, config.ssl_mode, process_id, secret_key);
-    let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
+    let connection = Connection::new(stream.inner, receiver, parameters, stream.delayed)?;
 
     Ok((client, connection))
 }
@@ -344,7 +344,7 @@ where
                 );
             }
             Some(msg @ Message::NoticeResponse(_)) => {
-                stream.delayed.push_back(BackendMessage::Async(msg))
+                stream.delayed.push_back(msg);
             }
             Some(Message::ReadyForQuery(_)) => return Ok((process_id, secret_key, parameters)),
             Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
