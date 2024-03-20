@@ -12,5 +12,8 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+fallible-iterator = "0.3"
+
 [profile.release]
 debug = 2
