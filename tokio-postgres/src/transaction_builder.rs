@@ -106,8 +106,8 @@ impl<'a> TransactionBuilder<'a> {
             query.push_str(s);
         }
 
-        self.client.batch_execute(&query).await?;
-
-        Ok(Transaction::new(self.client))
+        self.client
+            .start_transaction_with_rollback(&query, None)
+            .await
     }
 }

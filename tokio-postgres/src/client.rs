@@ -13,8 +13,9 @@ use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_in, copy_out, prepare, query, simple_query, slice_iter, transaction::Savepoint,
+    CancelToken, CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -469,8 +470,17 @@ impl Client {
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
+        self.build_transaction().start().await
+    }
+
+    pub(crate) async fn start_transaction_with_rollback(
+        &mut self,
+        query: &str,
+        savepoint: Option<Savepoint>,
+    ) -> Result<Transaction<'_>, Error> {
         struct RollbackIfNotDone<'me> {
             client: &'me Client,
+            savepoint: Option<&'me Savepoint>,
             done: bool,
         }
 
@@ -480,8 +490,13 @@ impl Client {
                     return;
                 }
 
+                let query = if let Some(sp) = self.savepoint {
+                    format!("ROLLBACK TO {}", sp.name)
+                } else {
+                    "ROLLBACK".to_string()
+                };
                 let buf = self.client.inner().with_buf(|buf| {
-                    frontend::query("ROLLBACK", buf).unwrap();
+                    frontend::query(&query, buf).unwrap();
                     buf.split().freeze()
                 });
                 let _ = self
@@ -499,13 +514,14 @@ impl Client {
         {
             let mut cleaner = RollbackIfNotDone {
                 client: self,
+                savepoint: savepoint.as_ref(),
                 done: false,
             };
-            self.batch_execute("BEGIN").await?;
+            self.batch_execute(query).await?;
             cleaner.done = true;
         }
 
-        Ok(Transaction::new(self))
+        Ok(Transaction::new(self, savepoint))
     }
 
     /// Returns a builder for a transaction with custom settings.
