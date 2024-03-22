@@ -111,9 +111,11 @@ impl ToSql for DateTime<FixedOffset> {
 impl<'a> FromSql<'a> for NaiveDate {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<NaiveDate, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
+        let jd = Duration::try_days(i64::from(jd))
+            .ok_or_else(|| "value too large to decode")?;
         base()
             .date()
-            .checked_add_signed(Duration::days(i64::from(jd)))
+            .checked_add_signed(jd)
             .ok_or_else(|| "value too large to decode".into())
     }
 

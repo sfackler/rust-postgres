@@ -28,8 +28,8 @@ pub struct Transaction<'a> {
 }
 
 /// A representation of a PostgreSQL database savepoint.
-struct Savepoint {
-    name: String,
+pub(crate) struct Savepoint {
+    pub(crate) name: String,
     depth: u32,
 }
 
@@ -56,10 +56,10 @@ impl<'a> Drop for Transaction<'a> {
 }
 
 impl<'a> Transaction<'a> {
-    pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
+    pub(crate) fn new(client: &'a mut Client, savepoint: Option<Savepoint>) -> Transaction<'a> {
         Transaction {
             client,
-            savepoint: None,
+            savepoint,
             done: false,
         }
     }
@@ -298,13 +298,11 @@ impl<'a> Transaction<'a> {
         let depth = self.savepoint.as_ref().map_or(0, |sp| sp.depth) + 1;
         let name = name.unwrap_or_else(|| format!("sp_{}", depth));
         let query = format!("SAVEPOINT {}", name);
-        self.batch_execute(&query).await?;
+        let savepoint = Savepoint { name, depth };
 
-        Ok(Transaction {
-            client: self.client,
-            savepoint: Some(Savepoint { name, depth }),
-            done: false,
-        })
+        self.client
+            .start_transaction_with_rollback(&query, Some(savepoint))
+            .await
     }
 
     /// Returns a reference to the underlying `Client`.
