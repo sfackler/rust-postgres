@@ -954,7 +954,7 @@ async fn deferred_constraint() {
 }
 
 #[tokio::test]
-async fn query_scalar_opt() {
+async fn query_opt_scalar() {
     let client = connect("user=postgres").await;
     client
         .batch_execute(
@@ -971,28 +971,28 @@ async fn query_scalar_opt() {
         .unwrap();
 
     let age: Option<i32> = client
-        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"steven"])
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"steven"])
         .await
         .unwrap();
 
     assert_eq!(age, Some(18));
 
     let age: Option<Option<i32>> = client
-        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"fred"])
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"fred"])
         .await
         .unwrap();
 
     assert_eq!(age, Some(None));
 
     let age: Option<Option<i32>> = client
-        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"steven"])
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"steven"])
         .await
         .unwrap();
 
     assert_eq!(age, Some(Some(18)));
 
     let age: Option<Option<i32>> = client
-        .query_scalar_opt("SELECT age FROM person WHERE name = $1", &[&"barney"])
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"barney"])
         .await
         .unwrap();
 
@@ -1004,7 +1004,7 @@ async fn records() {
     let client = connect("user=postgres").await;
 
     let record: (i32, i32, i32, i32, i32) = client
-        .query_scalar_one("SELECT (1, 2, 3, 4, 5)", &[])
+        .query_one_scalar("SELECT (1, 2, 3, 4, 5)", &[])
         .await
         .unwrap();
 
@@ -1017,7 +1017,7 @@ async fn records_nested() {
     type Record = ((String, (i32, (i32, i32))), i32);
 
     let nested: Record = client
-        .query_scalar_one("SELECT (('fred', (0, (1, 2))), 3)", &[])
+        .query_one_scalar("SELECT (('fred', (0, (1, 2))), 3)", &[])
         .await
         .unwrap();
 
@@ -1032,7 +1032,7 @@ async fn array_of_records() {
     let client = connect("user=postgres").await;
 
     let record: Vec<(i32, i32)> = client
-        .query_scalar_one("SELECT ARRAY[(1, 2), (3, 4)]", &[])
+        .query_one_scalar("SELECT ARRAY[(1, 2), (3, 4)]", &[])
         .await
         .unwrap();
 

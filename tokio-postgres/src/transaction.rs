@@ -155,13 +155,13 @@ impl<'a> Transaction<'a> {
         self.client.query_one_as(sql, params).await
     }
 
-    /// Like [`Client::query_scalar_one`]
-    pub async fn query_scalar_one<T: FromSqlOwned>(
+    /// Like [`Client::query_one_scalar`]
+    pub async fn query_one_scalar<T: FromSqlOwned>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<T, Error> {
-        self.client.query_scalar_one(sql, params).await
+        self.client.query_one_scalar(sql, params).await
     }
 
     /// Like [`Client::query_opt`].
@@ -185,13 +185,13 @@ impl<'a> Transaction<'a> {
         self.client.query_opt_as(sql, params).await
     }
 
-    /// Like [`Client::query_scalar_opt`]
-    pub async fn query_scalar_opt<S: FromSqlOwned>(
+    /// Like [`Client::query_opt_scalar`]
+    pub async fn query_opt_scalar<S: FromSqlOwned>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<S>, Error> {
-        self.client.query_scalar_opt(sql, params).await
+        self.client.query_opt_scalar(sql, params).await
     }
 
     /// Like [`Client::query_raw`]

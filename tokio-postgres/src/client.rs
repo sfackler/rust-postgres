@@ -320,8 +320,8 @@ impl Client {
         FromRow::from_row(&row)
     }
 
-    /// Like [`Client::query_scalar_one`] but returns one scalar
-    pub async fn query_scalar_one<T: FromSqlOwned>(
+    /// Like [`Client::query_one_scalar`] but returns one scalar
+    pub async fn query_one_scalar<T: FromSqlOwned>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
@@ -374,7 +374,7 @@ impl Client {
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar
-    pub async fn query_scalar_opt<S: FromSqlOwned>(
+    pub async fn query_opt_scalar<S: FromSqlOwned>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
