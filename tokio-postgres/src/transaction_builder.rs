@@ -63,51 +63,12 @@ impl<'a> TransactionBuilder<'a> {
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
     pub async fn start(self) -> Result<Transaction<'a>, Error> {
-        let mut query = "START TRANSACTION".to_string();
-        let mut first = true;
-
-        if let Some(level) = self.isolation_level {
-            first = false;
-
-            query.push_str(" ISOLATION LEVEL ");
-            let level = match level {
-                IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
-                IsolationLevel::ReadCommitted => "READ COMMITTED",
-                IsolationLevel::RepeatableRead => "REPEATABLE READ",
-                IsolationLevel::Serializable => "SERIALIZABLE",
-            };
-            query.push_str(level);
-        }
-
-        if let Some(read_only) = self.read_only {
-            if !first {
-                query.push(',');
-            }
-            first = false;
-
-            let s = if read_only {
-                " READ ONLY"
-            } else {
-                " READ WRITE"
-            };
-            query.push_str(s);
-        }
-
-        if let Some(deferrable) = self.deferrable {
-            if !first {
-                query.push(',');
-            }
-
-            let s = if deferrable {
-                " DEFERRABLE"
-            } else {
-                " NOT DEFERRABLE"
-            };
-            query.push_str(s);
-        }
-
-        self.client.batch_execute(&query).await?;
-
-        Ok(Transaction::new(self.client))
+        Transaction::start(
+            self.client,
+            self.isolation_level,
+            self.read_only,
+            self.deferrable,
+        )
+        .await
     }
 }

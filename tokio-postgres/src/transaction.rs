@@ -9,7 +9,7 @@ use crate::types::{BorrowToSql, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
+    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, IsolationLevel, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
@@ -56,12 +56,76 @@ impl<'a> Drop for Transaction<'a> {
 }
 
 impl<'a> Transaction<'a> {
-    pub(crate) fn new(client: &'a mut Client) -> Transaction<'a> {
+    fn new(client: &'a mut Client) -> Transaction<'a> {
         Transaction {
             client,
             savepoint: None,
             done: false,
         }
+    }
+
+    pub(crate) async fn begin(client: &'a mut Client) -> Result<Transaction<'a>, Error> {
+        let transaction = Transaction::new(client);
+
+        transaction.client.batch_execute("BEGIN").await?;
+
+        Ok(transaction)
+    }
+
+    pub(crate) async fn start(
+        client: &'a mut Client,
+        isolation_level: Option<IsolationLevel>,
+        read_only: Option<bool>,
+        deferrable: Option<bool>,
+    ) -> Result<Transaction<'a>, Error> {
+        let transaction = Transaction::new(client);
+
+        let mut query = "START TRANSACTION".to_string();
+        let mut first = true;
+
+        if let Some(level) = isolation_level {
+            first = false;
+
+            query.push_str(" ISOLATION LEVEL ");
+            let level = match level {
+                IsolationLevel::ReadUncommitted => "READ UNCOMMITTED",
+                IsolationLevel::ReadCommitted => "READ COMMITTED",
+                IsolationLevel::RepeatableRead => "REPEATABLE READ",
+                IsolationLevel::Serializable => "SERIALIZABLE",
+            };
+            query.push_str(level);
+        }
+
+        if let Some(read_only) = read_only {
+            if !first {
+                query.push(',');
+            }
+            first = false;
+
+            let s = if read_only {
+                " READ ONLY"
+            } else {
+                " READ WRITE"
+            };
+            query.push_str(s);
+        }
+
+        if let Some(deferrable) = deferrable {
+            if !first {
+                query.push(',');
+            }
+
+            let s = if deferrable {
+                " DEFERRABLE"
+            } else {
+                " NOT DEFERRABLE"
+            };
+            query.push_str(s);
+        }
+
+        transaction.client.batch_execute(&query).await?;
+
+        Ok(transaction)
     }
 
     /// Consumes the transaction, committing all changes made within it.
