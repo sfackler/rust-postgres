@@ -15,6 +15,7 @@ use crate::{
 use bytes::Buf;
 use futures_util::TryStreamExt;
 use postgres_protocol::message::frontend;
+use postgres_types::FromSqlOwned;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
@@ -114,7 +115,16 @@ impl<'a> Transaction<'a> {
         self.client.query(statement, params).await
     }
 
-    /// Like `Client::query_one`.
+    /// Like [`Client::query_scalar`].
+    pub async fn query_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        self.client.query_scalar(sql, params).await
+    }
+
+    /// Like [`Client::query_one`].
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -126,7 +136,16 @@ impl<'a> Transaction<'a> {
         self.client.query_one(statement, params).await
     }
 
-    /// Like `Client::query_opt`.
+    /// Like [`Client::query_one_scalar`].
+    pub async fn query_one_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        self.client.query_one_scalar(sql, params).await
+    }
+
+    /// Like [`Client::query_opt`].
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -138,7 +157,16 @@ impl<'a> Transaction<'a> {
         self.client.query_opt(statement, params).await
     }
 
-    /// Like `Client::query_raw`.
+    /// Like [`Client::query_opt_scalar`].
+    pub async fn query_opt_scalar<S: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<S>, Error> {
+        self.client.query_opt_scalar(sql, params).await
+    }
+
+    /// Like [`Client::query_raw`]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,

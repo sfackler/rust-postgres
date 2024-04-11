@@ -22,7 +22,7 @@ use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
-use postgres_types::BorrowToSql;
+use postgres_types::{BorrowToSql, FromSqlOwned};
 use std::collections::HashMap;
 use std::fmt;
 #[cfg(feature = "runtime")]
@@ -256,6 +256,16 @@ impl Client {
             .await
     }
 
+    /// Like [`Client::query`] but returns a vector of scalars.
+    pub async fn query_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error> {
+        let rows = self.query(sql, params).await?;
+        rows.into_iter().map(|r| r.try_get(0)).collect()
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.
@@ -277,6 +287,16 @@ impl Client {
         self.query_opt(statement, params)
             .await
             .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Like [`Client::query_one`] but returns one scalar.
+    pub async fn query_one_scalar<T: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error> {
+        let row = self.query_one(sql, params).await?;
+        row.try_get(0)
     }
 
     /// Executes a statements which returns zero or one rows, returning it.
@@ -316,6 +336,16 @@ impl Client {
         }
 
         Ok(first)
+    }
+
+    /// Like [`Client::query_opt`] but returns an optional scalar.
+    pub async fn query_opt_scalar<S: FromSqlOwned>(
+        &self,
+        sql: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<S>, Error> {
+        let row = self.query_opt(sql, params).await?;
+        row.map(|x| (x.try_get::<_, S>(0))).transpose()
     }
 
     /// The maximally flexible version of [`query`].
