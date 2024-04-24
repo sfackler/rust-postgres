@@ -6,7 +6,6 @@ use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
-use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -14,6 +13,7 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tracing::debug;
 
 /// Information about a column of a single query row.
 #[derive(Debug)]

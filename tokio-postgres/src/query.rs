@@ -5,7 +5,6 @@ use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
-use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
@@ -13,6 +12,7 @@ use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tracing::{debug, Level};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
@@ -37,7 +37,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log_enabled!(Level::Debug) {
+    let buf = if tracing::enabled!(Level::DEBUG) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
             "executing statement {} with parameters: {:?}",
@@ -101,7 +101,7 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if log_enabled!(Level::Debug) {
+    let buf = if tracing::enabled!(Level::DEBUG) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
             "executing statement {} with parameters: {:?}",

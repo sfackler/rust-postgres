@@ -7,7 +7,6 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{ready, stream::FusedStream, Sink, Stream, StreamExt};
-use log::{info, trace};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
@@ -16,6 +15,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
+use tracing::{info, trace};
 
 pub enum RequestMessages {
     Single(FrontendMessage),
