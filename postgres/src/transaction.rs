@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::connection::ConnectionRef;
 use crate::{CancelToken, CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
@@ -64,7 +66,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::execute`.
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().execute(query, params))
@@ -73,7 +75,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::query`.
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().query(query, params))
@@ -82,7 +84,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::query_one`.
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().query_one(query, params))
@@ -95,7 +97,7 @@ impl<'a> Transaction<'a> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().query_opt(query, params))
@@ -104,7 +106,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::query_raw`.
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -164,7 +166,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::copy_in`.
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let sink = self
             .connection
@@ -175,7 +177,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::copy_out`.
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self
             .connection

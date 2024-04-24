@@ -219,6 +219,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
+    #[tracing::instrument]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(query, &[]).await
     }
@@ -227,6 +228,7 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
+    #[tracing::instrument]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -243,13 +245,14 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[tracing::instrument(skip(params))]
     pub async fn query<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_raw(statement, slice_iter(params))
             .await?
@@ -258,6 +261,7 @@ impl Client {
     }
 
     /// Returns a vector of `T`s
+    #[tracing::instrument]
     pub async fn query_as<T: FromRow>(
         &self,
         sql: &str,
@@ -268,6 +272,7 @@ impl Client {
     }
 
     /// Returns a vector of scalars
+    #[tracing::instrument]
     pub async fn query_scalar<T: FromSqlOwned>(
         &self,
         sql: &str,
@@ -287,13 +292,14 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[tracing::instrument]
     pub async fn query_one<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
@@ -311,6 +317,7 @@ impl Client {
     }
 
     /// Like [`Client::query_one`] but converts row to `T`.
+    #[tracing::instrument]
     pub async fn query_one_as<T: FromRow>(
         &self,
         sql: &str,
@@ -321,6 +328,7 @@ impl Client {
     }
 
     /// Like [`Client::query_one_scalar`] but returns one scalar
+    #[tracing::instrument]
     pub async fn query_one_scalar<T: FromSqlOwned>(
         &self,
         sql: &str,
@@ -340,13 +348,14 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[tracing::instrument]
     pub async fn query_opt<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
@@ -364,7 +373,8 @@ impl Client {
     }
 
     /// Like [`Client::query_opt`] but converts row into `T`
-    pub async fn query_opt_as<T: FromRow>(
+    #[tracing::instrument]
+    pub async fn query_opt_as<T: FromRow + fmt::Debug>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
@@ -374,6 +384,7 @@ impl Client {
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar
+    #[tracing::instrument]
     pub async fn query_opt_scalar<S: FromSqlOwned>(
         &self,
         sql: &str,
@@ -418,9 +429,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[tracing::instrument(skip(params))]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -430,6 +442,7 @@ impl Client {
     }
 
     /// Returns a stream of rows
+    #[tracing::instrument]
     pub async fn stream(
         &self,
         sql: &str,
@@ -440,6 +453,7 @@ impl Client {
     }
 
     /// Returns a stream of `T`s
+    #[tracing::instrument]
     pub async fn stream_as<T: FromRow>(
         &self,
         sql: &str,
@@ -461,13 +475,14 @@ impl Client {
     /// with the `prepare` method.
     ///
     /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    #[tracing::instrument]
     pub async fn execute<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.execute_raw(statement, slice_iter(params)).await
     }
@@ -482,9 +497,10 @@ impl Client {
     /// with the `prepare` method.
     ///
     /// [`execute`]: #method.execute
+    #[tracing::instrument(skip(params))]
     pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -497,9 +513,10 @@ impl Client {
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
     /// be explicitly completed via the `Sink::close` or `finish` methods. If it is not, the copy will be aborted.
+    #[tracing::instrument]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         U: Buf + 'static + Send,
     {
         let statement = statement.__convert().into_statement(self).await?;
@@ -509,9 +526,10 @@ impl Client {
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
+    #[tracing::instrument]
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let statement = statement.__convert().into_statement(self).await?;
         copy_out::copy_out(self.inner(), statement).await
@@ -530,10 +548,12 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
+    #[tracing::instrument]
     pub async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.simple_query_raw(query).await?.try_collect().await
     }
 
+    #[tracing::instrument]
     pub(crate) async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
         simple_query::simple_query(self.inner(), query).await
     }
@@ -548,6 +568,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
+    #[tracing::instrument]
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         simple_query::batch_execute(self.inner(), query).await
     }

@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{
     Client, CopyInWriter, CopyOutReader, Error, Row, RowIter, SimpleQueryMessage, Statement,
@@ -15,17 +17,17 @@ pub trait GenericClient: private::Sealed {
     /// Like `Client::execute`.
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::query`.
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::query_one`.
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::query_opt`.
     fn query_opt<T>(
@@ -34,12 +36,12 @@ pub trait GenericClient: private::Sealed {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::query_raw`.
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator;
@@ -53,12 +55,12 @@ pub trait GenericClient: private::Sealed {
     /// Like `Client::copy_in`.
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::copy_out`.
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement;
+        T: ?Sized + ToStatement + fmt::Debug;
 
     /// Like `Client::simple_query`.
     fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error>;
@@ -75,21 +77,21 @@ impl private::Sealed for Client {}
 impl GenericClient for Client {
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.execute(query, params)
     }
 
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query(query, params)
     }
 
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_one(query, params)
     }
@@ -100,14 +102,14 @@ impl GenericClient for Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_opt(query, params)
     }
 
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -125,14 +127,14 @@ impl GenericClient for Client {
 
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.copy_in(query)
     }
 
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.copy_out(query)
     }
@@ -155,21 +157,21 @@ impl private::Sealed for Transaction<'_> {}
 impl GenericClient for Transaction<'_> {
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.execute(query, params)
     }
 
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query(query, params)
     }
 
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_one(query, params)
     }
@@ -180,14 +182,14 @@ impl GenericClient for Transaction<'_> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_opt(query, params)
     }
 
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -205,14 +207,14 @@ impl GenericClient for Transaction<'_> {
 
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.copy_in(query)
     }
 
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.copy_out(query)
     }

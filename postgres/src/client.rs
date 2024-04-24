@@ -3,6 +3,7 @@ use crate::{
     CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
     ToStatement, Transaction, TransactionBuilder,
 };
+use core::fmt;
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -78,7 +79,7 @@ impl Client {
     /// ```
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection.block_on(self.client.execute(query, params))
     }
@@ -110,7 +111,7 @@ impl Client {
     /// ```
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection.block_on(self.client.query(query, params))
     }
@@ -143,7 +144,7 @@ impl Client {
     /// ```
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.client.query_one(query, params))
@@ -186,7 +187,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.client.query_opt(query, params))
@@ -244,9 +245,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[tracing::instrument(skip(self, params))]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -341,7 +343,7 @@ impl Client {
     /// ```
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let sink = self.connection.block_on(self.client.copy_in(query))?;
         Ok(CopyInWriter::new(self.connection.as_ref(), sink))
@@ -369,7 +371,7 @@ impl Client {
     /// ```
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.connection.block_on(self.client.copy_out(query))?;
         Ok(CopyOutReader::new(self.connection.as_ref(), stream))

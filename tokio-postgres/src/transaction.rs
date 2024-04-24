@@ -13,6 +13,7 @@ use crate::{
     SimpleQueryMessage, Statement, ToStatement,
 };
 use bytes::Buf;
+use core::fmt;
 use futures_util::{stream::BoxStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use postgres_types::FromSqlOwned;
@@ -111,7 +112,7 @@ impl<'a> Transaction<'a> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query(statement, params).await
     }
@@ -141,7 +142,7 @@ impl<'a> Transaction<'a> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query_one(statement, params).await
     }
@@ -171,13 +172,13 @@ impl<'a> Transaction<'a> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query_opt(statement, params).await
     }
 
     /// Like [`Client::query_opt_as`]
-    pub async fn query_opt_as<T: FromRow>(
+    pub async fn query_opt_as<T: FromRow + fmt::Debug>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
@@ -197,7 +198,7 @@ impl<'a> Transaction<'a> {
     /// Like [`Client::query_raw`]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -215,7 +216,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::stream_as`]
-    pub async fn stream_as<T: FromRow>(
+    pub async fn stream_as<T: FromRow + fmt::Debug>(
         &self,
         sql: &str,
         params: &[&(dyn ToSql + Sync)],
@@ -230,7 +231,7 @@ impl<'a> Transaction<'a> {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.execute(statement, params).await
     }
@@ -238,9 +239,9 @@ impl<'a> Transaction<'a> {
     /// Like [`Client::execute_raw`]
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
-        I: IntoIterator<Item = P>,
+        I: IntoIterator<Item = P> + fmt::Debug,
         I::IntoIter: ExactSizeIterator,
     {
         self.client.execute_raw(statement, params).await
@@ -304,7 +305,7 @@ impl<'a> Transaction<'a> {
     /// Like [`Client::copy_in`]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         U: Buf + 'static + Send,
     {
         self.client.copy_in(statement).await
@@ -313,7 +314,7 @@ impl<'a> Transaction<'a> {
     /// Like `Client::copy_out`.
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.copy_out(statement).await
     }

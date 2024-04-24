@@ -5,6 +5,7 @@ use crate::types::Type;
 use postgres_protocol::message::frontend;
 use std::sync::{Arc, Weak};
 
+#[derive(Debug)]
 struct StatementInner {
     client: Weak<InnerClient>,
     name: String,
@@ -28,7 +29,7 @@ impl Drop for StatementInner {
 /// A prepared statement.
 ///
 /// Prepared statements can only be used with the connection that created them.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
