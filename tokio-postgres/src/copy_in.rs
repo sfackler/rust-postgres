@@ -6,6 +6,8 @@ use crate::{query, slice_iter, Error, Statement};
 use bytes::{Buf, BufMut, BytesMut};
 use futures_channel::mpsc;
 use futures_util::{future, ready, Sink, SinkExt, Stream, StreamExt};
+#[cfg(feature = "log")]
+use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -13,6 +15,7 @@ use postgres_protocol::message::frontend::CopyData;
 use std::marker::{PhantomData, PhantomPinned};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(feature = "tracing")]
 use tracing::debug;
 
 enum CopyInMessage {
@@ -192,6 +195,7 @@ pub async fn copy_in<T>(client: &InnerClient, statement: Statement) -> Result<Co
 where
     T: Buf + 'static + Send,
 {
+    #[cfg(any(feature = "log", feature = "tracing"))]
     debug!("executing copy in statement {}", statement.name());
 
     let buf = query::encode(client, &statement, slice_iter(&[]))?;

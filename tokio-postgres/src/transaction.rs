@@ -19,7 +19,6 @@ use postgres_types::FromSqlOwned;
 use std::fmt;
 use std::ops::Deref;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::instrument;
 
 /// A representation of a PostgreSQL database transaction.
 ///
@@ -79,7 +78,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Consumes the transaction, committing all changes made within it.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
         let query = if let Some(sp) = self.savepoint.as_ref() {
@@ -93,7 +92,7 @@ impl<'a> Transaction<'a> {
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn rollback(mut self) -> Result<(), Error> {
         self.done = true;
         let query = if let Some(sp) = self.savepoint.as_ref() {
@@ -105,13 +104,13 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::prepare`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.client.prepare(query).await
     }
 
     /// Like [`Client::prepare_typed`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -121,7 +120,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -134,7 +133,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_as`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_as<T, R: FromRow>(
         &self,
         statement: &T,
@@ -147,7 +146,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_scalar`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_scalar<T, R: FromSqlOwned>(
         &self,
         statement: &T,
@@ -160,7 +159,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_one`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -173,7 +172,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_one_as`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_one_as<T, R: FromRow>(
         &self,
         statement: &T,
@@ -186,7 +185,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_one_scalar`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_one_scalar<T, R: FromSqlOwned>(
         &self,
         statement: &T,
@@ -199,7 +198,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_opt`].
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -212,7 +211,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_opt_as`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_opt_as<T, R: FromRow>(
         &self,
         statement: &T,
@@ -225,7 +224,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_opt_scalar`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_opt_scalar<T, R: FromSqlOwned>(
         &self,
         statement: &T,
@@ -238,7 +237,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query_raw`]
-    #[instrument(skip(params))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -250,7 +249,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::stream`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn stream<T>(
         &self,
         statement: &T,
@@ -263,7 +262,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::stream_as`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn stream_as<T, R: FromRow>(
         &self,
         statement: &T,
@@ -276,7 +275,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::execute`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -289,7 +288,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::execute_raw`]
-    #[instrument(skip(params))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -308,7 +307,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn bind<T>(
         &self,
         statement: &T,
@@ -323,7 +322,7 @@ impl<'a> Transaction<'a> {
     /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
-    #[instrument(skip(params))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -339,7 +338,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_portal(&self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
         self.query_portal_raw(portal, max_rows)
             .await?
@@ -350,7 +349,7 @@ impl<'a> Transaction<'a> {
     /// The maximally flexible version of [`query_portal`].
     ///
     /// [`query_portal`]: #method.query_portal
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_portal_raw(
         &self,
         portal: &Portal,
@@ -360,7 +359,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::copy_in`]
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -370,7 +369,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -379,19 +378,19 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::simple_query`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.client.simple_query(query).await
     }
 
     /// Like `Client::batch_execute`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.client.batch_execute(query).await
     }
 
     /// Like `Client::cancel_token`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn cancel_token(&self) -> CancelToken {
         self.client.cancel_token()
     }
@@ -424,7 +423,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::transaction`, but creates a nested transaction via a savepoint with the specified name.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
     where
         I: Into<String> + fmt::Debug,

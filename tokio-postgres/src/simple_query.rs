@@ -6,6 +6,8 @@ use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
+#[cfg(feature = "log")]
+use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -13,6 +15,7 @@ use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+#[cfg(feature = "tracing")]
 use tracing::debug;
 
 /// Information about a column of a single query row.
@@ -33,6 +36,7 @@ impl SimpleColumn {
 }
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
+    #[cfg(any(feature = "log", feature = "tracing"))]
     debug!("executing simple query: {}", query);
 
     let buf = encode(client, query)?;
@@ -46,6 +50,7 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
 }
 
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
+    #[cfg(any(feature = "log", feature = "tracing"))]
     debug!("executing statement batch: {}", query);
 
     let buf = encode(client, query)?;

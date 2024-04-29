@@ -35,7 +35,6 @@ use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::instrument;
 
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
@@ -220,7 +219,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(query, &[]).await
     }
@@ -229,7 +228,7 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -246,7 +245,7 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -262,7 +261,7 @@ impl Client {
     }
 
     /// Returns a vector of `T`s
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn query_as<T, R: FromRow>(
         &self,
         statement: &T,

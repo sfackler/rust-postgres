@@ -7,6 +7,8 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{ready, stream::FusedStream, Sink, Stream, StreamExt};
+#[cfg(feature = "log")]
+use log::{info, trace};
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::collections::{HashMap, VecDeque};
@@ -15,6 +17,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
+#[cfg(feature = "tracing")]
 use tracing::{info, trace};
 
 pub enum RequestMessages {
@@ -83,6 +86,7 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<BackendMessage, Error>>> {
         if let Some(message) = self.pending_responses.pop_front() {
+            #[cfg(any(feature = "log", feature = "tracing"))]
             trace!("retrying pending response");
             return Poll::Ready(Some(Ok(message)));
         }
@@ -94,6 +98,7 @@ where
 
     fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<Option<AsyncMessage>, Error> {
         if self.state != State::Active {
+            #[cfg(any(feature = "log", feature = "tracing"))]
             trace!("poll_read: done");
             return Ok(None);
         }
@@ -103,6 +108,7 @@ where
                 Poll::Ready(Some(message)) => message,
                 Poll::Ready(None) => return Err(Error::closed()),
                 Poll::Pending => {
+                    #[cfg(any(feature = "log", feature = "tracing"))]
                     trace!("poll_read: waiting on response");
                     return Ok(None);
                 }
@@ -162,6 +168,7 @@ where
                         messages,
                         request_complete,
                     });
+                    #[cfg(any(feature = "log", feature = "tracing"))]
                     trace!("poll_read: waiting on sender");
                     return Ok(None);
                 }
@@ -171,6 +178,7 @@ where
 
     fn poll_request(&mut self, cx: &mut Context<'_>) -> Poll<Option<RequestMessages>> {
         if let Some(messages) = self.pending_request.take() {
+            #[cfg(any(feature = "log", feature = "tracing"))]
             trace!("retrying pending request");
             return Poll::Ready(Some(messages));
         }
@@ -181,6 +189,7 @@ where
 
         match self.receiver.poll_next_unpin(cx) {
             Poll::Ready(Some(request)) => {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 trace!("polled new request");
                 self.responses.push_back(Response {
                     sender: request.sender,
@@ -195,6 +204,7 @@ where
     fn poll_write(&mut self, cx: &mut Context<'_>) -> Result<bool, Error> {
         loop {
             if self.state == State::Closing {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 trace!("poll_write: done");
                 return Ok(false);
             }
@@ -204,6 +214,7 @@ where
                 .map_err(Error::io)?
                 .is_pending()
             {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 trace!("poll_write: waiting on socket");
                 return Ok(false);
             }
@@ -211,6 +222,7 @@ where
             let request = match self.poll_request(cx) {
                 Poll::Ready(Some(request)) => request,
                 Poll::Ready(None) if self.responses.is_empty() && self.state == State::Active => {
+                    #[cfg(any(feature = "log", feature = "tracing"))]
                     trace!("poll_write: at eof, terminating");
                     self.state = State::Terminating;
                     let mut request = BytesMut::new();
@@ -218,6 +230,7 @@ where
                     RequestMessages::Single(FrontendMessage::Raw(request.freeze()))
                 }
                 Poll::Ready(None) => {
+                    #[cfg(any(feature = "log", feature = "tracing"))]
                     trace!(
                         "poll_write: at eof, pending responses {}",
                         self.responses.len()
@@ -225,6 +238,7 @@ where
                     return Ok(true);
                 }
                 Poll::Pending => {
+                    #[cfg(any(feature = "log", feature = "tracing"))]
                     trace!("poll_write: waiting on request");
                     return Ok(true);
                 }
@@ -236,6 +250,7 @@ where
                         .start_send(request)
                         .map_err(Error::io)?;
                     if self.state == State::Terminating {
+                        #[cfg(any(feature = "log", feature = "tracing"))]
                         trace!("poll_write: sent eof, closing");
                         self.state = State::Closing;
                     }
@@ -244,10 +259,12 @@ where
                     let message = match receiver.poll_next_unpin(cx) {
                         Poll::Ready(Some(message)) => message,
                         Poll::Ready(None) => {
+                            #[cfg(any(feature = "log", feature = "tracing"))]
                             trace!("poll_write: finished copy_in request");
                             continue;
                         }
                         Poll::Pending => {
+                            #[cfg(any(feature = "log", feature = "tracing"))]
                             trace!("poll_write: waiting on copy_in stream");
                             self.pending_request = Some(RequestMessages::CopyIn(receiver));
                             return Ok(true);
@@ -267,8 +284,14 @@ where
             .poll_flush(cx)
             .map_err(Error::io)?
         {
-            Poll::Ready(()) => trace!("poll_flush: flushed"),
-            Poll::Pending => trace!("poll_flush: waiting on socket"),
+            Poll::Ready(()) => {
+                #[cfg(any(feature = "log", feature = "tracing"))]
+                trace!("poll_flush: flushed")
+            }
+            Poll::Pending => {
+                #[cfg(any(feature = "log", feature = "tracing"))]
+                trace!("poll_flush: waiting on socket")
+            }
         }
         Ok(())
     }
@@ -283,10 +306,12 @@ where
             .map_err(Error::io)?
         {
             Poll::Ready(()) => {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 trace!("poll_shutdown: complete");
                 Poll::Ready(Ok(()))
             }
             Poll::Pending => {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 trace!("poll_shutdown: waiting on socket");
                 Poll::Pending
             }
@@ -335,7 +360,9 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         while let Some(message) = ready!(self.poll_message(cx)?) {
             if let AsyncMessage::Notice(notice) = message {
+                #[cfg(any(feature = "log", feature = "tracing"))]
                 info!("{}: {}", notice.severity(), notice.message());
+                let _ = notice;
             }
         }
         Poll::Ready(Ok(()))

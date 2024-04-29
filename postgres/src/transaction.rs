@@ -4,7 +4,6 @@ use crate::connection::ConnectionRef;
 use crate::{CancelToken, CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
-use tracing::instrument;
 
 /// A representation of a PostgreSQL database transaction.
 ///
@@ -41,7 +40,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Consumes the transaction, committing all changes made within it.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn commit(mut self) -> Result<(), Error> {
         self.connection
             .block_on(self.transaction.take().unwrap().commit())
@@ -50,21 +49,21 @@ impl<'a> Transaction<'a> {
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn rollback(mut self) -> Result<(), Error> {
         self.connection
             .block_on(self.transaction.take().unwrap().rollback())
     }
 
     /// Like `Client::prepare`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().prepare(query))
     }
 
     /// Like `Client::prepare_typed`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.connection.block_on(
             self.transaction
@@ -75,7 +74,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -85,7 +84,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -95,7 +94,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_one`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -105,7 +104,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_opt`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_opt<T>(
         &mut self,
         query: &T,
@@ -119,7 +118,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
-    #[instrument(skip(params))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(params)))]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -143,7 +142,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn bind<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -156,7 +155,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all remaining rows will be returned.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
         self.connection.block_on(
             self.transaction
@@ -167,7 +166,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// The maximally flexible version of `query_portal`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_portal_raw(
         &mut self,
         portal: &Portal,
@@ -183,7 +182,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -195,7 +194,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -207,14 +206,14 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::simple_query`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().simple_query(query))
     }
 
     /// Like `Client::batch_execute`.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().batch_execute(query))
@@ -234,7 +233,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::transaction`, but creates a nested transaction via a savepoint with the specified name.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
     where
         I: Into<String> + fmt::Debug,

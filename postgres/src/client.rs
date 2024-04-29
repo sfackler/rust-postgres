@@ -9,7 +9,6 @@ use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
-use tracing::instrument;
 
 /// A synchronous PostgreSQL client.
 pub struct Client {
@@ -84,7 +83,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -117,7 +116,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -151,7 +150,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -191,7 +190,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn query_opt<T>(
         &mut self,
         query: &T,
@@ -256,7 +255,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument(skip(params))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(params)))]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -293,7 +292,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.connection.block_on(self.client.prepare(query))
     }
@@ -325,7 +324,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.connection
             .block_on(self.client.prepare_typed(query, types))
@@ -354,7 +353,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -383,7 +382,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement + fmt::Debug,
@@ -407,7 +406,7 @@ impl Client {
     /// Prepared statements should be used for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.connection.block_on(self.client.simple_query(query))
     }
@@ -436,7 +435,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
-    #[instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.connection.block_on(self.client.batch_execute(query))
     }

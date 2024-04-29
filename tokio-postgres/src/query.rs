@@ -5,6 +5,8 @@ use crate::types::{BorrowToSql, IsNull};
 use crate::{Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use futures_util::{ready, Stream};
+#[cfg(feature = "log")]
+use log::{log, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
@@ -12,6 +14,7 @@ use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(feature = "tracing")]
 use tracing::{debug, Level};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
@@ -37,8 +40,15 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if tracing::enabled!(Level::DEBUG) {
+    let is_debug = false;
+    #[cfg(feature = "tracing")]
+    let is_debug = tracing::enabled!(Level::DEBUG);
+    #[cfg(feature = "log")]
+    let is_debug = log::log_enabled!(Level::Debug);
+
+    let buf = if is_debug {
         let params = params.into_iter().collect::<Vec<_>>();
+        #[cfg(any(feature = "log", feature = "tracing"))]
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),
@@ -101,8 +111,15 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let buf = if tracing::enabled!(Level::DEBUG) {
+    let is_debug = false;
+    #[cfg(feature = "tracing")]
+    let is_debug = tracing::enabled!(Level::DEBUG);
+    #[cfg(feature = "log")]
+    let is_debug = log::log_enabled!(Level::Debug);
+
+    let buf = if is_debug {
         let params = params.into_iter().collect::<Vec<_>>();
+        #[cfg(any(feature = "log", feature = "tracing"))]
         debug!(
             "executing statement {} with parameters: {:?}",
             statement.name(),

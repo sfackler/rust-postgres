@@ -4,14 +4,18 @@ use crate::connection::RequestMessages;
 use crate::{query, slice_iter, Error, Statement};
 use bytes::Bytes;
 use futures_util::{ready, Stream};
+#[cfg(feature = "log")]
+use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(feature = "tracing")]
 use tracing::debug;
 
 pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
+    #[cfg(any(feature = "log", feature = "tracing"))]
     debug!("executing copy out statement {}", statement.name());
 
     let buf = query::encode(client, &statement, slice_iter(&[]))?;

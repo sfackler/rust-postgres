@@ -8,12 +8,15 @@ use crate::{Column, Error, Statement};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures_util::{pin_mut, TryStreamExt};
+#[cfg(feature = "log")]
+use log::debug;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+#[cfg(feature = "tracing")]
 use tracing::debug;
 
 const TYPEINFO_QUERY: &str = "\
@@ -118,8 +121,10 @@ fn prepare_rec<'a>(
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
+        #[cfg(any(feature = "log", feature = "tracing"))]
         debug!("preparing query {}: {}", name, query);
     } else {
+        #[cfg(any(feature = "log", feature = "tracing"))]
         debug!("preparing query {} with types {:?}: {}", name, types, query);
     }
 
