@@ -11,7 +11,7 @@ async fn connect(s: &str) -> Client {
     client
 }
 
-async fn query_row<T: FromRow>() -> Result<Vec<T>, tokio_postgres::Error> {
+async fn query_row<R: FromRow>() -> Result<Vec<R>, tokio_postgres::Error> {
     let client = connect("user=postgres host=localhost port=5433").await;
     client
         .batch_execute(
@@ -27,7 +27,7 @@ async fn query_row<T: FromRow>() -> Result<Vec<T>, tokio_postgres::Error> {
         .unwrap();
 
     client
-        .query_as::<T>("SELECT name, age FROM person", &[])
+        .query_as::<_, R>("SELECT name, age FROM person", &[])
         .await
 }
 

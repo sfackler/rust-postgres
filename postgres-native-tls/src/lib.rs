@@ -70,7 +70,7 @@ mod test;
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
 #[cfg(feature = "runtime")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MakeTlsConnector(native_tls::TlsConnector);
 
 #[cfg(feature = "runtime")]

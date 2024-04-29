@@ -35,6 +35,7 @@ use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::instrument;
 
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
@@ -219,6 +220,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
+    #[instrument]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(query, &[]).await
     }
@@ -227,6 +229,7 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
+    #[instrument]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -243,13 +246,14 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[instrument]
     pub async fn query<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.query_raw(statement, slice_iter(params))
             .await?
@@ -258,22 +262,29 @@ impl Client {
     }
 
     /// Returns a vector of `T`s
-    pub async fn query_as<T: FromRow>(
+    #[instrument]
+    pub async fn query_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        let rows = self.query(sql, params).await?;
+    ) -> Result<Vec<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let rows = self.query(statement, params).await?;
         rows.iter().map(|x| FromRow::from_row(x)).collect()
     }
 
     /// Returns a vector of scalars
-    pub async fn query_scalar<T: FromSqlOwned>(
+    pub async fn query_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        let rows = self.query(sql, params).await?;
+    ) -> Result<Vec<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let rows = self.query(statement, params).await?;
         rows.into_iter().map(|r| r.try_get(0)).collect()
     }
 
@@ -293,7 +304,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
@@ -311,22 +322,28 @@ impl Client {
     }
 
     /// Like [`Client::query_one`] but converts row to `T`.
-    pub async fn query_one_as<T: FromRow>(
+    pub async fn query_one_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<T, Error> {
-        let row = self.query_one(sql, params).await?;
+    ) -> Result<R, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_one(statement, params).await?;
         FromRow::from_row(&row)
     }
 
     /// Like [`Client::query_one_scalar`] but returns one scalar
-    pub async fn query_one_scalar<T: FromSqlOwned>(
+    pub async fn query_one_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<T, Error> {
-        let row = self.query_one(sql, params).await?;
+    ) -> Result<R, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_one(statement, params).await?;
         row.try_get(0)
     }
 
@@ -346,7 +363,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
@@ -364,23 +381,29 @@ impl Client {
     }
 
     /// Like [`Client::query_opt`] but converts row into `T`
-    pub async fn query_opt_as<T: FromRow>(
+    pub async fn query_opt_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<T>, Error> {
-        let row = self.query_opt(sql, params).await?;
+    ) -> Result<Option<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_opt(statement, params).await?;
         row.map(|x| FromRow::from_row(&x)).transpose()
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar
-    pub async fn query_opt_scalar<S: FromSqlOwned>(
+    pub async fn query_opt_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<S>, Error> {
-        let row = self.query_opt(sql, params).await?;
-        row.map(|x| (x.try_get::<_, S>(0))).transpose()
+    ) -> Result<Option<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_opt(statement, params).await?;
+        row.map(|x| (x.try_get::<_, R>(0))).transpose()
     }
 
     /// The maximally flexible version of [`query`].
@@ -420,7 +443,7 @@ impl Client {
     /// ```
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -430,22 +453,28 @@ impl Client {
     }
 
     /// Returns a stream of rows
-    pub async fn stream(
+    pub async fn stream<T>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<RowStream, Error> {
-        let stream = self.query_raw(sql, slice_iter(params)).await?;
+    ) -> Result<RowStream, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let stream = self.query_raw(statement, slice_iter(params)).await?;
         Ok(stream)
     }
 
     /// Returns a stream of `T`s
-    pub async fn stream_as<T: FromRow>(
+    pub async fn stream_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<BoxStream<'static, Result<T, Error>>, Error> {
-        let stream = self.stream(sql, params).await?;
+    ) -> Result<BoxStream<'static, Result<R, Error>>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let stream = self.stream(statement, params).await?;
         Ok(stream
             .map(move |x| x.and_then(|x| FromRow::from_row(&x)))
             .boxed())
@@ -467,7 +496,7 @@ impl Client {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.execute_raw(statement, slice_iter(params)).await
     }
@@ -484,7 +513,7 @@ impl Client {
     /// [`execute`]: #method.execute
     pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -499,7 +528,7 @@ impl Client {
     /// be explicitly completed via the `Sink::close` or `finish` methods. If it is not, the copy will be aborted.
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         U: Buf + 'static + Send,
     {
         let statement = statement.__convert().into_statement(self).await?;
@@ -511,7 +540,7 @@ impl Client {
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let statement = statement.__convert().into_statement(self).await?;
         copy_out::copy_out(self.inner(), statement).await
@@ -625,7 +654,7 @@ impl Client {
     #[deprecated(since = "0.6.0", note = "use Client::cancel_token() instead")]
     pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
-        T: MakeTlsConnect<Socket>,
+        T: MakeTlsConnect<Socket> + fmt::Debug,
     {
         self.cancel_token().cancel_query(tls).await
     }
@@ -636,7 +665,7 @@ impl Client {
     pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
-        T: TlsConnect<S>,
+        T: TlsConnect<S> + fmt::Debug,
     {
         self.cancel_token().cancel_query_raw(stream, tls).await
     }

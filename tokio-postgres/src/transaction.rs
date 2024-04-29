@@ -16,8 +16,10 @@ use bytes::Buf;
 use futures_util::{stream::BoxStream, TryStreamExt};
 use postgres_protocol::message::frontend;
 use postgres_types::FromSqlOwned;
+use std::fmt;
 use std::ops::Deref;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::instrument;
 
 /// A representation of a PostgreSQL database transaction.
 ///
@@ -29,7 +31,17 @@ pub struct Transaction<'a> {
     done: bool,
 }
 
+impl<'a> fmt::Debug for Transaction<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transaction")
+            .field("savepoint", &self.savepoint)
+            .field("done", &self.done)
+            .finish()
+    }
+}
+
 /// A representation of a PostgreSQL database savepoint.
+#[derive(Debug)]
 struct Savepoint {
     name: String,
     depth: u32,
@@ -67,6 +79,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Consumes the transaction, committing all changes made within it.
+    #[instrument]
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
         let query = if let Some(sp) = self.savepoint.as_ref() {
@@ -80,6 +93,7 @@ impl<'a> Transaction<'a> {
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
+    #[instrument]
     pub async fn rollback(mut self) -> Result<(), Error> {
         self.done = true;
         let query = if let Some(sp) = self.savepoint.as_ref() {
@@ -91,11 +105,13 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::prepare`]
+    #[instrument]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.client.prepare(query).await
     }
 
     /// Like [`Client::prepare_typed`]
+    #[instrument]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -105,99 +121,127 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::query`]
+    #[instrument]
     pub async fn query<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query(statement, params).await
     }
 
     /// Like [`Client::query_as`]
-    pub async fn query_as<T: FromRow>(
+    #[instrument]
+    pub async fn query_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        self.client.query_as(sql, params).await
+    ) -> Result<Vec<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_as(statement, params).await
     }
 
     /// Like [`Client::query_scalar`]
-    pub async fn query_scalar<T: FromSqlOwned>(
+    #[instrument]
+    pub async fn query_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<T>, Error> {
-        self.client.query_scalar(sql, params).await
+    ) -> Result<Vec<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_scalar(statement, params).await
     }
 
     /// Like [`Client::query_one`]
+    #[instrument]
     pub async fn query_one<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query_one(statement, params).await
     }
 
     /// Like [`Client::query_one_as`]
-    pub async fn query_one_as<T: FromRow>(
+    #[instrument]
+    pub async fn query_one_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<T, Error> {
-        self.client.query_one_as(sql, params).await
+    ) -> Result<R, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_one_as(statement, params).await
     }
 
     /// Like [`Client::query_one_scalar`]
-    pub async fn query_one_scalar<T: FromSqlOwned>(
+    #[instrument]
+    pub async fn query_one_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<T, Error> {
-        self.client.query_one_scalar(sql, params).await
+    ) -> Result<R, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_one_scalar(statement, params).await
     }
 
     /// Like [`Client::query_opt`].
+    #[instrument]
     pub async fn query_opt<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.query_opt(statement, params).await
     }
 
     /// Like [`Client::query_opt_as`]
-    pub async fn query_opt_as<T: FromRow>(
+    #[instrument]
+    pub async fn query_opt_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<T>, Error> {
-        self.client.query_opt_as(sql, params).await
+    ) -> Result<Option<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_opt_as(statement, params).await
     }
 
     /// Like [`Client::query_opt_scalar`]
-    pub async fn query_opt_scalar<S: FromSqlOwned>(
+    #[instrument]
+    pub async fn query_opt_scalar<T, R: FromSqlOwned>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<S>, Error> {
-        self.client.query_opt_scalar(sql, params).await
+    ) -> Result<Option<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.query_opt_scalar(statement, params).await
     }
 
     /// Like [`Client::query_raw`]
+    #[instrument(skip(params))]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -206,39 +250,49 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::stream`]
-    pub async fn stream(
+    #[instrument]
+    pub async fn stream<T>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<RowStream, Error> {
-        self.client.stream(sql, params).await
+    ) -> Result<RowStream, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.stream(statement, params).await
     }
 
     /// Like [`Client::stream_as`]
-    pub async fn stream_as<T: FromRow>(
+    #[instrument]
+    pub async fn stream_as<T, R: FromRow>(
         &self,
-        sql: &str,
+        statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<BoxStream<'static, Result<T, Error>>, Error> {
-        self.client.stream_as(sql, params).await
+    ) -> Result<BoxStream<'static, Result<R, Error>>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        self.client.stream_as(statement, params).await
     }
 
     /// Like [`Client::execute`]
+    #[instrument]
     pub async fn execute<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.execute(statement, params).await
     }
 
     /// Like [`Client::execute_raw`]
+    #[instrument(skip(params))]
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -254,13 +308,14 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
+    #[instrument]
     pub async fn bind<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Portal, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.bind_raw(statement, slice_iter(params)).await
     }
@@ -268,9 +323,10 @@ impl<'a> Transaction<'a> {
     /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
+    #[instrument(skip(params))]
     pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -283,6 +339,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
+    #[instrument]
     pub async fn query_portal(&self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
         self.query_portal_raw(portal, max_rows)
             .await?
@@ -293,6 +350,7 @@ impl<'a> Transaction<'a> {
     /// The maximally flexible version of [`query_portal`].
     ///
     /// [`query_portal`]: #method.query_portal
+    #[instrument]
     pub async fn query_portal_raw(
         &self,
         portal: &Portal,
@@ -302,33 +360,38 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like [`Client::copy_in`]
+    #[instrument]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         U: Buf + 'static + Send,
     {
         self.client.copy_in(statement).await
     }
 
     /// Like `Client::copy_out`.
+    #[instrument]
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.client.copy_out(statement).await
     }
 
     /// Like `Client::simple_query`.
+    #[instrument]
     pub async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.client.simple_query(query).await
     }
 
     /// Like `Client::batch_execute`.
+    #[instrument]
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.client.batch_execute(query).await
     }
 
     /// Like `Client::cancel_token`.
+    #[instrument]
     pub fn cancel_token(&self) -> CancelToken {
         self.client.cancel_token()
     }
@@ -338,7 +401,7 @@ impl<'a> Transaction<'a> {
     #[deprecated(since = "0.6.0", note = "use Transaction::cancel_token() instead")]
     pub async fn cancel_query<T>(&self, tls: T) -> Result<(), Error>
     where
-        T: MakeTlsConnect<Socket>,
+        T: MakeTlsConnect<Socket> + fmt::Debug,
     {
         #[allow(deprecated)]
         self.client.cancel_query(tls).await
@@ -349,7 +412,7 @@ impl<'a> Transaction<'a> {
     pub async fn cancel_query_raw<S, T>(&self, stream: S, tls: T) -> Result<(), Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
-        T: TlsConnect<S>,
+        T: TlsConnect<S> + fmt::Debug,
     {
         #[allow(deprecated)]
         self.client.cancel_query_raw(stream, tls).await
@@ -361,9 +424,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::transaction`, but creates a nested transaction via a savepoint with the specified name.
+    #[instrument]
     pub async fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
     where
-        I: Into<String>,
+        I: Into<String> + fmt::Debug,
     {
         self._savepoint(Some(name.into())).await
     }

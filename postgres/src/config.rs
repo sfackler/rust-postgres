@@ -2,7 +2,6 @@
 
 use crate::connection::Connection;
 use crate::Client;
-use log::info;
 use std::fmt;
 use std::net::IpAddr;
 use std::path::Path;
@@ -17,6 +16,7 @@ pub use tokio_postgres::config::{
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::{Error, Socket};
+use tracing::info;
 
 /// Connection configuration.
 ///

@@ -6,7 +6,6 @@ use crate::{query, slice_iter, Error, Statement};
 use bytes::{Buf, BufMut, BytesMut};
 use futures_channel::mpsc;
 use futures_util::{future, ready, Sink, SinkExt, Stream, StreamExt};
-use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -14,6 +13,7 @@ use postgres_protocol::message::frontend::CopyData;
 use std::marker::{PhantomData, PhantomPinned};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tracing::debug;
 
 enum CopyInMessage {
     Message(FrontendMessage),

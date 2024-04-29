@@ -189,12 +189,13 @@ pub mod types;
 ///
 /// [`Config`]: config/struct.Config.html
 #[cfg(feature = "runtime")]
+#[tracing::instrument]
 pub async fn connect<T>(
     config: &str,
     tls: T,
 ) -> Result<(Client, Connection<Socket, T::Stream>), Error>
 where
-    T: MakeTlsConnect<Socket>,
+    T: MakeTlsConnect<Socket> + std::fmt::Debug,
 {
     let config = config.parse::<Config>()?;
     config.connect(tls).await

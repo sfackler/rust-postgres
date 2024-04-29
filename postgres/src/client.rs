@@ -3,16 +3,24 @@ use crate::{
     CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
     ToStatement, Transaction, TransactionBuilder,
 };
+use std::fmt;
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
+use tracing::instrument;
 
 /// A synchronous PostgreSQL client.
 pub struct Client {
     connection: Connection,
     client: tokio_postgres::Client,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.client, f)
+    }
 }
 
 impl Drop for Client {
@@ -33,7 +41,7 @@ impl Client {
     /// [`Config`]: config/struct.Config.html
     pub fn connect<T>(params: &str, tls_mode: T) -> Result<Client, Error>
     where
-        T: MakeTlsConnect<Socket> + 'static + Send,
+        T: MakeTlsConnect<Socket> + 'static + Send + fmt::Debug,
         T::TlsConnect: Send,
         T::Stream: Send,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
@@ -76,9 +84,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection.block_on(self.client.execute(query, params))
     }
@@ -108,9 +117,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection.block_on(self.client.query(query, params))
     }
@@ -141,9 +151,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.client.query_one(query, params))
@@ -180,13 +191,14 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn query_opt<T>(
         &mut self,
         query: &T,
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Option<Row>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         self.connection
             .block_on(self.client.query_opt(query, params))
@@ -244,9 +256,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument(skip(params))]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
         P: BorrowToSql,
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
@@ -280,6 +293,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.connection.block_on(self.client.prepare(query))
     }
@@ -311,6 +325,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.connection
             .block_on(self.client.prepare_typed(query, types))
@@ -339,9 +354,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let sink = self.connection.block_on(self.client.copy_in(query))?;
         Ok(CopyInWriter::new(self.connection.as_ref(), sink))
@@ -367,9 +383,10 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument]
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
-        T: ?Sized + ToStatement,
+        T: ?Sized + ToStatement + fmt::Debug,
     {
         let stream = self.connection.block_on(self.client.copy_out(query))?;
         Ok(CopyOutReader::new(self.connection.as_ref(), stream))
@@ -390,6 +407,7 @@ impl Client {
     /// Prepared statements should be used for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
+    #[instrument]
     pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
         self.connection.block_on(self.client.simple_query(query))
     }
@@ -418,6 +436,7 @@ impl Client {
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
+    #[instrument]
     pub fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
         self.connection.block_on(self.client.batch_execute(query))
     }
