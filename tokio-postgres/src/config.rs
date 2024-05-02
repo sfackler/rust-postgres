@@ -248,8 +248,8 @@ impl Config {
     /// Sets the user to authenticate with.
     ///
     /// Defaults to the user executing this process.
-    pub fn user(&mut self, user: &str) -> &mut Config {
-        self.user = Some(user.to_string());
+    pub fn user(&mut self, user: impl Into<String>) -> &mut Config {
+        self.user = Some(user.into());
         self
     }
 
@@ -277,8 +277,8 @@ impl Config {
     /// Sets the name of the database to connect to.
     ///
     /// Defaults to the user.
-    pub fn dbname(&mut self, dbname: &str) -> &mut Config {
-        self.dbname = Some(dbname.to_string());
+    pub fn dbname(&mut self, dbname: impl Into<String>) -> &mut Config {
+        self.dbname = Some(dbname.into());
         self
     }
 
@@ -289,8 +289,8 @@ impl Config {
     }
 
     /// Sets command line options used to configure the server.
-    pub fn options(&mut self, options: &str) -> &mut Config {
-        self.options = Some(options.to_string());
+    pub fn options(&mut self, options: impl Into<String>) -> &mut Config {
+        self.options = Some(options.into());
         self
     }
 
@@ -301,8 +301,8 @@ impl Config {
     }
 
     /// Sets the value of the `application_name` runtime parameter.
-    pub fn application_name(&mut self, application_name: &str) -> &mut Config {
-        self.application_name = Some(application_name.to_string());
+    pub fn application_name(&mut self, application_name: impl Into<String>) -> &mut Config {
+        self.application_name = Some(application_name.into());
         self
     }
 
@@ -330,7 +330,9 @@ impl Config {
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
     /// There must be either no hosts, or the same number of hosts as hostaddrs.
-    pub fn host(&mut self, host: &str) -> &mut Config {
+    pub fn host(&mut self, host: impl Into<String>) -> &mut Config {
+        let host = host.into();
+
         #[cfg(unix)]
         {
             if host.starts_with('/') {
@@ -338,7 +340,7 @@ impl Config {
             }
         }
 
-        self.host.push(Host::Tcp(host.to_string()));
+        self.host.push(Host::Tcp(host));
         self
     }
 
@@ -990,7 +992,7 @@ impl<'a> UrlParser<'a> {
 
         let mut it = creds.splitn(2, ':');
         let user = self.decode(it.next().unwrap())?;
-        self.config.user(&user);
+        self.config.user(user);
 
         if let Some(password) = it.next() {
             let password = Cow::from(percent_encoding::percent_decode(password.as_bytes()));
@@ -1053,7 +1055,7 @@ impl<'a> UrlParser<'a> {
         };
 
         if !dbname.is_empty() {
-            self.config.dbname(&self.decode(dbname)?);
+            self.config.dbname(self.decode(dbname)?);
         }
 
         Ok(())
