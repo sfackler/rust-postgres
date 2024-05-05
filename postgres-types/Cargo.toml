@@ -22,6 +22,7 @@ with-geo-types-0_6 = ["geo-types-06"]
 with-geo-types-0_7 = ["geo-types-0_7"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 with-smol_str-01 = ["smol_str-01"]
+with-smol_str-02 = ["smol_str-02"]
 with-uuid-0_8 = ["uuid-08"]
 with-uuid-1 = ["uuid-1"]
 with-time-0_2 = ["time-02"]
@@ -52,3 +53,4 @@ uuid-1 = { version = "1.0", package = "uuid", optional = true }
 time-02 = { version = "0.2", package = "time", optional = true }
 time-03 = { version = "0.3", package = "time", default-features = false, optional = true }
 smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }
+smol_str-02 = { version = "0.2", package = "smol_str", default-features = false, optional = true }
