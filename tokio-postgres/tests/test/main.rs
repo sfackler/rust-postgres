@@ -949,7 +949,7 @@ async fn empty_query_one() {
     assert!(res.is_err());
     assert_eq!(
         res.err().unwrap().kind(),
-        &tokio_postgres::error::Kind::RowCount
+        tokio_postgres::error::Kind::RowCount
     );
 }
 

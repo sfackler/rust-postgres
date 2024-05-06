@@ -337,7 +337,7 @@ pub enum ErrorPosition {
 }
 
 /// The kind of error that occurred.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Kind {
     /// An I/O error occurred.
     Io,
@@ -437,8 +437,8 @@ impl Error {
     }
 
     /// Returns the kind of this error.
-    pub fn kind(&self) -> &Kind {
-        &self.0.kind
+    pub fn kind(&self) -> Kind {
+        self.0.kind.clone()
     }
 
     /// Returns the source of this error if it was a `DbError`.
