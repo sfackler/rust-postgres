@@ -125,7 +125,7 @@ pub use crate::connection::Connection;
 pub use crate::copy_in::CopyInSink;
 pub use crate::copy_out::CopyOutStream;
 use crate::error::DbError;
-pub use crate::error::Error;
+pub use crate::error::{Error, Kind};
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
