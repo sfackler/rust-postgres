@@ -67,6 +67,7 @@ pub struct Column {
     pub(crate) name: String,
     pub(crate) table_oid: Option<u32>,
     pub(crate) column_id: Option<i16>,
+    pub(crate) type_modifier: i32,
     pub(crate) r#type: Type,
 }
 
@@ -84,6 +85,11 @@ impl Column {
     /// Return the column ID within the underlying database table.
     pub fn column_id(&self) -> Option<i16> {
         self.column_id
+    }
+
+    /// Return the type modifier
+    pub fn type_modifier(&self) -> i32 {
+        self.type_modifier
     }
 
     /// Returns the type of the column.
