@@ -161,7 +161,23 @@ async fn pipelined_prepare() {
 
     assert_eq!(statement2.params()[0], Type::INT8);
     assert_eq!(statement2.columns()[0].type_(), &Type::INT8);
-    assert_eq!(statement2.columns()[0].type_modifier(), -1);
+}
+
+#[tokio::test]
+async fn prepare_type_modifier() {
+    let client = connect("user=postgres").await;
+
+    let statement = client
+        .prepare("SELECT $1::BIGINT, $2::VARCHAR(7), $3::VARCHAR(101)")
+        .await
+        .unwrap();
+
+    assert_eq!(statement.columns()[0].type_(), &Type::INT8);
+    assert_eq!(statement.columns()[0].type_modifier(), -1);
+    assert_eq!(statement.columns()[1].type_(), &Type::VARCHAR);
+    assert_eq!(statement.columns()[1].type_modifier(), 7);
+    assert_eq!(statement.columns()[2].type_(), &Type::VARCHAR);
+    assert_eq!(statement.columns()[2].type_modifier(), 101);
 }
 
 #[tokio::test]
