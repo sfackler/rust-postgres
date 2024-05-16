@@ -161,6 +161,7 @@ async fn pipelined_prepare() {
 
     assert_eq!(statement2.params()[0], Type::INT8);
     assert_eq!(statement2.columns()[0].type_(), &Type::INT8);
+    assert_eq!(statement2.columns()[0].type_modifier(), -1);
 }
 
 #[tokio::test]
