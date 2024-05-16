@@ -172,12 +172,19 @@ async fn prepare_type_modifier() {
         .await
         .unwrap();
 
+    let varlena_header_length = 4;
     assert_eq!(statement.columns()[0].type_(), &Type::INT8);
     assert_eq!(statement.columns()[0].type_modifier(), -1);
     assert_eq!(statement.columns()[1].type_(), &Type::VARCHAR);
-    assert_eq!(statement.columns()[1].type_modifier(), 7);
+    assert_eq!(
+        statement.columns()[1].type_modifier(),
+        7 + varlena_header_length
+    );
     assert_eq!(statement.columns()[2].type_(), &Type::VARCHAR);
-    assert_eq!(statement.columns()[2].type_modifier(), 101);
+    assert_eq!(
+        statement.columns()[2].type_modifier(),
+        101 + varlena_header_length
+    );
 }
 
 #[tokio::test]
