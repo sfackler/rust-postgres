@@ -227,6 +227,33 @@ impl<'a> Transaction<'a> {
         query::query_portal(self.client.inner(), portal, max_rows).await
     }
 
+    /// Like `Client::query_with_param_types`.
+    pub async fn query_with_param_types(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.query_raw_with_param_types(statement, params)
+            .await?
+            .try_collect()
+            .await
+    }
+
+    /// Like `Client::query_raw_with_param_types`.
+    pub async fn query_raw_with_param_types(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<RowStream, Error> {
+        fn slice_iter<'a>(
+            s: &'a [(&'a (dyn ToSql + Sync), Type)],
+        ) -> impl ExactSizeIterator<Item = (&'a dyn ToSql, Type)> + 'a {
+            s.iter()
+                .map(|(param, param_type)| (*param as _, param_type.clone()))
+        }
+        query::query_with_param_types(self.client.inner(), statement, slice_iter(params)).await
+    }
+
     /// Like `Client::copy_in`.
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
