@@ -118,6 +118,10 @@
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+use std::sync::Arc;
+
+use simple_query::SimpleColumn;
+
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
@@ -248,6 +252,8 @@ pub enum SimpleQueryMessage {
     ///
     /// The number of rows modified or selected is returned.
     CommandComplete(u64),
+    /// Column values of the proceeding row values
+    RowDescription(Arc<[SimpleColumn]>)
 }
 
 fn slice_iter<'a>(

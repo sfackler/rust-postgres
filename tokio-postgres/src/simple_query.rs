@@ -95,14 +95,15 @@ impl Stream for SimpleQueryStream {
                     return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))));
                 }
                 Message::RowDescription(body) => {
-                    let columns = body
+                    let columns: Arc<[SimpleColumn]> = body
                         .fields()
                         .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
                         .collect::<Vec<_>>()
                         .map_err(Error::parse)?
                         .into();
 
-                    *this.columns = Some(columns);
+                    *this.columns = Some(columns.clone());
+                    return Poll::Ready(Some(Ok(SimpleQueryMessage::RowDescription(columns.clone()))));
                 }
                 Message::DataRow(body) => {
                     let row = match &this.columns {
