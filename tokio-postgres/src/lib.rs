@@ -130,7 +130,7 @@ pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
 pub use crate::row::{Row, SimpleQueryRow};
-pub use crate::simple_query::SimpleQueryStream;
+pub use crate::simple_query::{SimpleColumn, SimpleQueryStream};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
@@ -141,6 +141,7 @@ pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 use crate::types::ToSql;
+use std::sync::Arc;
 
 pub mod binary_copy;
 mod bind;
@@ -248,6 +249,8 @@ pub enum SimpleQueryMessage {
     ///
     /// The number of rows modified or selected is returned.
     CommandComplete(u64),
+    /// Column values of the proceeding row values
+    RowDescription(Arc<[SimpleColumn]>),
 }
 
 fn slice_iter<'a>(

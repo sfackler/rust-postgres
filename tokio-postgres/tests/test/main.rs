@@ -328,6 +328,13 @@ async fn simple_query() {
         _ => panic!("unexpected message"),
     }
     match &messages[2] {
+        SimpleQueryMessage::RowDescription(columns) => {
+            assert_eq!(columns.get(0).map(|c| c.name()), Some("id"));
+            assert_eq!(columns.get(1).map(|c| c.name()), Some("name"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[3] {
         SimpleQueryMessage::Row(row) => {
             assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
             assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
@@ -336,7 +343,7 @@ async fn simple_query() {
         }
         _ => panic!("unexpected message"),
     }
-    match &messages[3] {
+    match &messages[4] {
         SimpleQueryMessage::Row(row) => {
             assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
             assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
@@ -345,11 +352,11 @@ async fn simple_query() {
         }
         _ => panic!("unexpected message"),
     }
-    match messages[4] {
+    match messages[5] {
         SimpleQueryMessage::CommandComplete(2) => {}
         _ => panic!("unexpected message"),
     }
-    assert_eq!(messages.len(), 5);
+    assert_eq!(messages.len(), 6);
 }
 
 #[tokio::test]
