@@ -330,9 +330,9 @@ async fn simple_query() {
     match &messages[2] {
         SimpleQueryMessage::RowDescription(columns) => {
             assert_eq!(columns.get(0).map(|c| c.name()), Some("id"));
-            assert_eq!(columns.get(1).map(|c| c.name()), Some("name"));        
+            assert_eq!(columns.get(1).map(|c| c.name()), Some("name"));
         }
-        _ => panic!("unexpected message")
+        _ => panic!("unexpected message"),
     }
     match &messages[3] {
         SimpleQueryMessage::Row(row) => {

@@ -102,7 +102,9 @@ impl Stream for SimpleQueryStream {
                     .into();
 
                 *this.columns = Some(columns.clone());
-                Poll::Ready(Some(Ok(SimpleQueryMessage::RowDescription(columns.clone()))))
+                Poll::Ready(Some(Ok(SimpleQueryMessage::RowDescription(
+                    columns.clone(),
+                ))))
             }
             Message::DataRow(body) => {
                 let row = match &this.columns {

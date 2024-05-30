@@ -130,7 +130,7 @@ pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
 pub use crate::row::{Row, SimpleQueryRow};
-pub use crate::simple_query::{SimpleQueryStream, SimpleColumn};
+pub use crate::simple_query::{SimpleColumn, SimpleQueryStream};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
@@ -250,7 +250,7 @@ pub enum SimpleQueryMessage {
     /// The number of rows modified or selected is returned.
     CommandComplete(u64),
     /// Column values of the proceeding row values
-    RowDescription(Arc<[SimpleColumn]>)
+    RowDescription(Arc<[SimpleColumn]>),
 }
 
 fn slice_iter<'a>(
