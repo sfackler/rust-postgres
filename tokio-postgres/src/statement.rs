@@ -14,6 +14,10 @@ struct StatementInner {
 
 impl Drop for StatementInner {
     fn drop(&mut self) {
+        if self.name.is_empty() {
+            // Unnamed statements don't need to be closed
+            return;
+        }
         if let Some(client) = self.client.upgrade() {
             let buf = client.with_buf(|buf| {
                 frontend::close(b'S', &self.name, buf).unwrap();
@@ -41,6 +45,15 @@ impl Statement {
         Statement(Arc::new(StatementInner {
             client: Arc::downgrade(inner),
             name,
+            params,
+            columns,
+        }))
+    }
+
+    pub(crate) fn unnamed(params: Vec<Type>, columns: Vec<Column>) -> Statement {
+        Statement(Arc::new(StatementInner {
+            client: Weak::new(),
+            name: String::new(),
             params,
             columns,
         }))
