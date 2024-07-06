@@ -1,7 +1,6 @@
 use bytes::BytesMut;
 use postgres_protocol::types;
 use std::error::Error;
-use std::{i32, i64};
 
 use crate::{FromSql, IsNull, ToSql, Type};
 
