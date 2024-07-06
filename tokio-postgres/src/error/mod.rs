@@ -107,14 +107,15 @@ impl DbError {
         let mut routine = None;
 
         while let Some(field) = fields.next()? {
+            let value = String::from_utf8_lossy(field.value_bytes());
             match field.type_() {
-                b'S' => severity = Some(field.value().to_owned()),
-                b'C' => code = Some(SqlState::from_code(field.value())),
-                b'M' => message = Some(field.value().to_owned()),
-                b'D' => detail = Some(field.value().to_owned()),
-                b'H' => hint = Some(field.value().to_owned()),
+                b'S' => severity = Some(value.into_owned()),
+                b'C' => code = Some(SqlState::from_code(&value)),
+                b'M' => message = Some(value.into_owned()),
+                b'D' => detail = Some(value.into_owned()),
+                b'H' => hint = Some(value.into_owned()),
                 b'P' => {
-                    normal_position = Some(field.value().parse::<u32>().map_err(|_| {
+                    normal_position = Some(value.parse::<u32>().map_err(|_| {
                         io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "`P` field did not contain an integer",
@@ -122,32 +123,32 @@ impl DbError {
                     })?);
                 }
                 b'p' => {
-                    internal_position = Some(field.value().parse::<u32>().map_err(|_| {
+                    internal_position = Some(value.parse::<u32>().map_err(|_| {
                         io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "`p` field did not contain an integer",
                         )
                     })?);
                 }
-                b'q' => internal_query = Some(field.value().to_owned()),
-                b'W' => where_ = Some(field.value().to_owned()),
-                b's' => schema = Some(field.value().to_owned()),
-                b't' => table = Some(field.value().to_owned()),
-                b'c' => column = Some(field.value().to_owned()),
-                b'd' => datatype = Some(field.value().to_owned()),
-                b'n' => constraint = Some(field.value().to_owned()),
-                b'F' => file = Some(field.value().to_owned()),
+                b'q' => internal_query = Some(value.into_owned()),
+                b'W' => where_ = Some(value.into_owned()),
+                b's' => schema = Some(value.into_owned()),
+                b't' => table = Some(value.into_owned()),
+                b'c' => column = Some(value.into_owned()),
+                b'd' => datatype = Some(value.into_owned()),
+                b'n' => constraint = Some(value.into_owned()),
+                b'F' => file = Some(value.into_owned()),
                 b'L' => {
-                    line = Some(field.value().parse::<u32>().map_err(|_| {
+                    line = Some(value.parse::<u32>().map_err(|_| {
                         io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "`L` field did not contain an integer",
                         )
                     })?);
                 }
-                b'R' => routine = Some(field.value().to_owned()),
+                b'R' => routine = Some(value.into_owned()),
                 b'V' => {
-                    parsed_severity = Some(Severity::from_str(field.value()).ok_or_else(|| {
+                    parsed_severity = Some(Severity::from_str(&value).ok_or_else(|| {
                         io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "`V` field contained an invalid value",
