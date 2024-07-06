@@ -41,7 +41,7 @@ async fn require() {
 async fn direct() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_ca_file("../test/server.crt").unwrap();
-    builder.set_alpn_protos(b"\x0apostgresql").unwrap();
+    set_postgresql_alpn(&mut builder).unwrap();
     let ctx = builder.build();
     smoke_test(
         "user=ssl_user dbname=postgres sslmode=require sslnegotiation=direct",
