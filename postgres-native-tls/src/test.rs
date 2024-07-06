@@ -43,6 +43,22 @@ async fn require() {
 }
 
 #[tokio::test]
+async fn direct() {
+    let connector = native_tls::TlsConnector::builder()
+        .add_root_certificate(
+            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+        )
+        .request_alpns(&["postgresql"])
+        .build()
+        .unwrap();
+    smoke_test(
+        "user=ssl_user dbname=postgres sslmode=require sslnegotiation=direct",
+        TlsConnector::new(connector, "localhost"),
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn prefer() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
