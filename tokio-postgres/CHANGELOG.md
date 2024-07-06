@@ -5,6 +5,7 @@
 * Disable `rustc-serialize` compatibility of `eui48-1` dependency
 * Remove tests for `eui48-04`
 * Add `table_oid` and `field_id` fields to `Columns` struct of prepared statements.
+* Add `GenericClient::simple_query`.
 
 ## v0.7.10 - 2023-08-25
 
