@@ -10,10 +10,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
-use tokio_postgres::config::SslNegotiation;
 #[doc(inline)]
 pub use tokio_postgres::config::{
-    ChannelBinding, Host, LoadBalanceHosts, SslMode, TargetSessionAttrs,
+    ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
 };
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
