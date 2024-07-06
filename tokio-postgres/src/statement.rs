@@ -61,6 +61,16 @@ impl Statement {
     }
 }
 
+impl std::fmt::Debug for Statement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.debug_struct("Statement")
+            .field("name", &self.0.name)
+            .field("params", &self.0.params)
+            .field("columns", &self.0.columns)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Information about a column of a query.
 #[derive(Debug)]
 pub struct Column {
