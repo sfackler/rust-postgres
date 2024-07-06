@@ -53,6 +53,7 @@
 //! ```
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+use native_tls::TlsConnectorBuilder;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -179,4 +180,11 @@ where
             None => ChannelBinding::none(),
         }
     }
+}
+
+/// Set ALPN for `TlsConnectorBuilder`
+///
+/// This is required when using `sslnegotiation=direct`
+pub fn set_postgresql_alpn(builder: &mut TlsConnectorBuilder) -> &mut TlsConnectorBuilder {
+    builder.request_alpns(&["postgresql"])
 }
