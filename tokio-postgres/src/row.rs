@@ -95,6 +95,7 @@ where
 }
 
 /// A row of data returned from the database by a query.
+#[derive(Clone)]
 pub struct Row {
     statement: Statement,
     body: DataRowBody,
