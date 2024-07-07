@@ -101,9 +101,9 @@ impl Stream for SimpleQueryStream {
                     .map_err(Error::parse)?
                     .into();
 
-                *this.columns = Some(columns.clone());
+                *this.columns = Some(columns);
                 Poll::Ready(Some(Ok(SimpleQueryMessage::RowDescription(
-                    columns.clone(),
+                    this.columns.as_ref().unwrap().clone(),
                 ))))
             }
             Message::DataRow(body) => {
