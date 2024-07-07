@@ -117,6 +117,7 @@ pub enum Host {
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
 /// * `sslnegotiation` - TLS negotiation method. If set to `direct`, the client will perform direct TLS handshake, this only works for PostgreSQL 17 and newer.
+///     Note that you will need to setup ALPN of TLS client configuration to `postgresql` when using direct TLS.
 ///     If set to `postgres`, the default value, it follows original postgres wire protocol to perform the negotiation.
 /// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
 ///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
