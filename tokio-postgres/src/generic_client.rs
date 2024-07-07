@@ -63,13 +63,6 @@ pub trait GenericClient: private::Sealed {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
 
-    /// Like `Client::query_raw_with_param_types`.
-    async fn query_raw_with_param_types(
-        &self,
-        statement: &str,
-        params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<RowStream, Error>;
-
     /// Like `Client::prepare`.
     async fn prepare(&self, query: &str) -> Result<Statement, Error>;
 
@@ -156,14 +149,6 @@ impl GenericClient for Client {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
         self.query_with_param_types(statement, params).await
-    }
-
-    async fn query_raw_with_param_types(
-        &self,
-        statement: &str,
-        params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<RowStream, Error> {
-        self.query_raw_with_param_types(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
@@ -258,14 +243,6 @@ impl GenericClient for Transaction<'_> {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
         self.query_with_param_types(statement, params).await
-    }
-
-    async fn query_raw_with_param_types(
-        &self,
-        statement: &str,
-        params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<RowStream, Error> {
-        self.query_raw_with_param_types(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
