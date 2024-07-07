@@ -9,7 +9,7 @@ use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::{CommandCompleteBody, Message, RowDescriptionBody};
+use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
 use postgres_types::Type;
 use std::fmt;
@@ -61,66 +61,6 @@ where
     })
 }
 
-enum QueryProcessingState {
-    Empty,
-    ParseCompleted,
-    BindCompleted,
-    ParameterDescribed,
-    Final(Vec<Column>),
-}
-
-/// State machine for processing messages for `query_with_param_types`.
-impl QueryProcessingState {
-    pub async fn process_message(
-        self,
-        client: &Arc<InnerClient>,
-        message: Message,
-    ) -> Result<Self, Error> {
-        match (self, message) {
-            (QueryProcessingState::Empty, Message::ParseComplete) => {
-                Ok(QueryProcessingState::ParseCompleted)
-            }
-            (QueryProcessingState::ParseCompleted, Message::BindComplete) => {
-                Ok(QueryProcessingState::BindCompleted)
-            }
-            (QueryProcessingState::BindCompleted, Message::ParameterDescription(_)) => {
-                Ok(QueryProcessingState::ParameterDescribed)
-            }
-            (
-                QueryProcessingState::ParameterDescribed,
-                Message::RowDescription(row_description),
-            ) => Self::form_final(client, Some(row_description)).await,
-            (QueryProcessingState::ParameterDescribed, Message::NoData) => {
-                Self::form_final(client, None).await
-            }
-            (_, Message::ErrorResponse(body)) => Err(Error::db(body)),
-            _ => Err(Error::unexpected_message()),
-        }
-    }
-
-    async fn form_final(
-        client: &Arc<InnerClient>,
-        row_description: Option<RowDescriptionBody>,
-    ) -> Result<Self, Error> {
-        let mut columns = vec![];
-        if let Some(row_description) = row_description {
-            let mut it = row_description.fields();
-            while let Some(field) = it.next().map_err(Error::parse)? {
-                let type_ = get_type(client, field.type_oid()).await?;
-                let column = Column {
-                    name: field.name().to_string(),
-                    table_oid: Some(field.table_oid()).filter(|n| *n != 0),
-                    column_id: Some(field.column_id()).filter(|n| *n != 0),
-                    r#type: type_,
-                };
-                columns.push(column);
-            }
-        }
-
-        Ok(Self::Final(columns))
-    }
-}
-
 pub async fn query_with_param_types<'a, P, I>(
     client: &Arc<InnerClient>,
     query: &str,
@@ -155,20 +95,33 @@ where
 
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-    let mut state = QueryProcessingState::Empty;
-
     loop {
-        let message = responses.next().await?;
-
-        state = state.process_message(client, message).await?;
-
-        if let QueryProcessingState::Final(columns) = state {
-            return Ok(RowStream {
-                statement: Statement::unnamed(vec![], columns),
-                responses,
-                rows_affected: None,
-                _p: PhantomPinned,
-            });
+        match responses.next().await? {
+            Message::ParseComplete
+            | Message::BindComplete
+            | Message::ParameterDescription(_)
+            | Message::NoData => {}
+            Message::RowDescription(row_description) => {
+                let mut columns: Vec<Column> = vec![];
+                let mut it = row_description.fields();
+                while let Some(field) = it.next().map_err(Error::parse)? {
+                    let type_ = get_type(client, field.type_oid()).await?;
+                    let column = Column {
+                        name: field.name().to_string(),
+                        table_oid: Some(field.table_oid()).filter(|n| *n != 0),
+                        column_id: Some(field.column_id()).filter(|n| *n != 0),
+                        r#type: type_,
+                    };
+                    columns.push(column);
+                }
+                return Ok(RowStream {
+                    statement: Statement::unnamed(vec![], columns),
+                    responses,
+                    rows_affected: None,
+                    _p: PhantomPinned,
+                });
+            }
+            _ => return Err(Error::unexpected_message()),
         }
     }
 }
