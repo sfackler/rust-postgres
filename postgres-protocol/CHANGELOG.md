@@ -1,4 +1,9 @@
 # Change Log
+## v0.6.7 -2024-07-07
+
+### Added
+
+* Added the `sm3` mod feature for SM3 support.
 
 ## v0.6.6 -2023-08-19
 

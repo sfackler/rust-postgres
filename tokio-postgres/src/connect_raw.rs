@@ -178,6 +178,17 @@ where
             let output = authentication::md5_hash(user.as_bytes(), pass, body.salt());
             authenticate_password(stream, output.as_bytes()).await?;
         }
+        Some(Message::AuthenticationSm3Password(body)) => {
+            can_skip_channel_binding(config)?;
+
+            let pass = config
+                .password
+                .as_ref()
+                .ok_or_else(|| Error::config("password missing".into()))?;
+
+            let output = authentication::sm3_hash(user.as_bytes(), pass, body.salt());
+            authenticate_password(stream, output.as_bytes()).await?;
+        }
         Some(Message::AuthenticationSasl(body)) => {
             authenticate_sasl(stream, body, config).await?;
         }

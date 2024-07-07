@@ -11,6 +11,7 @@ use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
 use md5::Md5;
+use sm3::Sm3;
 use rand::RngCore;
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
@@ -103,4 +104,18 @@ pub fn md5(password: &[u8], username: &str) -> String {
     hash.update(&salted_password);
     let digest = hash.finalize();
     format!("md5{:x}", digest)
+}
+/// Hash password using SM3 with the username as the salt.
+///
+/// The client may assume the returned string doesn't contain any
+/// special characters that would require escaping.
+pub fn sm3(password: &[u8], username: &str) -> String {
+    // salt password with username
+    let mut salted_password = Vec::from(password);
+    salted_password.extend_from_slice(username.as_bytes());
+
+    let mut hash = Sm3::new();
+    hash.update(&salted_password);
+    let digest = hash.finalize();
+    format!("sm3{:x}", digest)
 }

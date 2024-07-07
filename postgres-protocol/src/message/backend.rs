@@ -78,6 +78,7 @@ pub enum Message {
     AuthenticationGss,
     AuthenticationKerberosV5,
     AuthenticationMd5Password(AuthenticationMd5PasswordBody),
+    AuthenticationSm3Password(AuthenticationSm3PasswordBody),
     AuthenticationOk,
     AuthenticationScmCredential,
     AuthenticationSspi,
@@ -232,6 +233,11 @@ impl Message {
                     let storage = buf.read_all();
                     Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
                 }
+                13 => {
+                    let mut salt = [0; 4];
+                    buf.read_exact(&mut salt)?;
+                    Message::AuthenticationSm3Password(AuthenticationSm3PasswordBody { salt })
+                }
                 tag => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -338,6 +344,17 @@ pub struct AuthenticationMd5PasswordBody {
 }
 
 impl AuthenticationMd5PasswordBody {
+    #[inline]
+    pub fn salt(&self) -> [u8; 4] {
+        self.salt
+    }
+}
+
+pub struct AuthenticationSm3PasswordBody {
+    salt: [u8; 4],
+}
+
+impl AuthenticationSm3PasswordBody {
     #[inline]
     pub fn salt(&self) -> [u8; 4] {
         self.salt

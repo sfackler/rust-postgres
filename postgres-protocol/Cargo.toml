@@ -1,11 +1,11 @@
 [package]
-name = "postgres-protocol"
+name = "postgres-protocol-sm3"
 version = "0.6.6"
-authors = ["Steven Fackler <sfackler@gmail.com>"]
+authors = ["RogerQiu <rogerqiu@163.com>"]
 edition = "2018"
-description = "Low level Postgres protocol APIs"
+description = "Low level Postgres protocol APIs with sm3"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/roger-qcj/rust-postgres"
 readme = "../README.md"
 
 [features]
@@ -19,6 +19,7 @@ bytes = "1.0"
 fallible-iterator = "0.2"
 hmac = "0.12"
 md-5 = "0.10"
+sm3 = "0.4"
 memchr = "2.0"
 rand = "0.8"
 sha2 = "0.10"
