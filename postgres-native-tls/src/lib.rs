@@ -185,6 +185,6 @@ where
 /// Set ALPN for `TlsConnectorBuilder`
 ///
 /// This is required when using `sslnegotiation=direct`
-pub fn set_postgresql_alpn(builder: &mut TlsConnectorBuilder) -> &mut TlsConnectorBuilder {
-    builder.request_alpns(&["postgresql"])
+pub fn set_postgresql_alpn(builder: &mut TlsConnectorBuilder) {
+    builder.request_alpns(&["postgresql"]);
 }
