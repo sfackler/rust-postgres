@@ -1,6 +1,6 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{Client, Error, Row, Statement, ToStatement, Transaction};
+use crate::{Client, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
 mod private {
@@ -12,12 +12,12 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 #[async_trait]
 pub trait GenericClient: private::Sealed {
-    /// Like `Client::execute`.
+    /// Like [`Client::execute`].
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
-    /// Like `Client::execute_raw`.
+    /// Like [`Client::execute_raw`].
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -25,12 +25,12 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator;
 
-    /// Like `Client::query`.
+    /// Like [`Client::query`].
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
-    /// Like `Client::query_one`.
+    /// Like [`Client::query_one`].
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -39,7 +39,7 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
-    /// Like `Client::query_opt`.
+    /// Like [`Client::query_opt`].
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -48,7 +48,7 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
-    /// Like `Client::query_raw`.
+    /// Like [`Client::query_raw`].
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -56,30 +56,33 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator;
 
-    /// Like `Client::query_with_param_types`
+    /// Like [`Client::query_with_param_types`]
     async fn query_with_param_types(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
 
-    /// Like `Client::prepare`.
+    /// Like [`Client::prepare`].
     async fn prepare(&self, query: &str) -> Result<Statement, Error>;
 
-    /// Like `Client::prepare_typed`.
+    /// Like [`Client::prepare_typed`].
     async fn prepare_typed(
         &self,
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error>;
 
-    /// Like `Client::transaction`.
+    /// Like [`Client::transaction`].
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error>;
 
-    /// Like `Client::batch_execute`.
+    /// Like [`Client::batch_execute`].
     async fn batch_execute(&self, query: &str) -> Result<(), Error>;
 
-    /// Returns a reference to the underlying `Client`.
+    /// Like [`Client::simple_query`].
+    async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error>;
+
+    /// Returns a reference to the underlying [`Client`].
     fn client(&self) -> &Client;
 }
 
@@ -169,6 +172,10 @@ impl GenericClient for Client {
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.batch_execute(query).await
+    }
+
+    async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
+        self.simple_query(query).await
     }
 
     fn client(&self) -> &Client {
@@ -264,6 +271,10 @@ impl GenericClient for Transaction<'_> {
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.batch_execute(query).await
+    }
+
+    async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error> {
+        self.simple_query(query).await
     }
 
     fn client(&self) -> &Client {

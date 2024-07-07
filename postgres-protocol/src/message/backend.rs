@@ -524,7 +524,7 @@ impl CopyOutResponseBody {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataRowBody {
     storage: Bytes,
     len: u16,
@@ -633,7 +633,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
         }
 
         let value_end = find_null(self.buf, 0)?;
-        let value = get_str(&self.buf[..value_end])?;
+        let value = &self.buf[..value_end];
         self.buf = &self.buf[value_end + 1..];
 
         Ok(Some(ErrorField { type_, value }))
@@ -642,7 +642,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
 
 pub struct ErrorField<'a> {
     type_: u8,
-    value: &'a str,
+    value: &'a [u8],
 }
 
 impl<'a> ErrorField<'a> {
@@ -652,7 +652,13 @@ impl<'a> ErrorField<'a> {
     }
 
     #[inline]
+    #[deprecated(note = "use value_bytes instead", since = "0.6.7")]
     pub fn value(&self) -> &str {
+        str::from_utf8(self.value).expect("error field value contained non-UTF8 bytes")
+    }
+
+    #[inline]
+    pub fn value_bytes(&self) -> &[u8] {
         self.value
     }
 }
