@@ -227,13 +227,13 @@ impl<'a> Transaction<'a> {
         query::query_portal(self.client.inner(), portal, max_rows).await
     }
 
-    /// Like `Client::query_with_param_types`.
-    pub async fn query_with_param_types(
+    /// Like `Client::query_typed`.
+    pub async fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
-        self.client.query_with_param_types(statement, params).await
+        self.client.query_typed(statement, params).await
     }
 
     /// Like `Client::copy_in`.

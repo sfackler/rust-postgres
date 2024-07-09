@@ -56,8 +56,8 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator;
 
-    /// Like [`Client::query_with_param_types`]
-    async fn query_with_param_types(
+    /// Like [`Client::query_typed`]
+    async fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
@@ -146,12 +146,12 @@ impl GenericClient for Client {
         self.query_raw(statement, params).await
     }
 
-    async fn query_with_param_types(
+    async fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
-        self.query_with_param_types(statement, params).await
+        self.query_typed(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
@@ -244,12 +244,12 @@ impl GenericClient for Transaction<'_> {
         self.query_raw(statement, params).await
     }
 
-    async fn query_with_param_types(
+    async fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
-        self.query_with_param_types(statement, params).await
+        self.query_typed(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {

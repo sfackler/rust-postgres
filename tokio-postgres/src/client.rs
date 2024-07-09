@@ -382,7 +382,7 @@ impl Client {
     /// use tokio_postgres::types::Type;
     /// use futures_util::{pin_mut, TryStreamExt};
     ///
-    /// let rows = client.query_with_param_types(
+    /// let rows = client.query_typed(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
     ///     &[(&"first param", Type::TEXT), (&2i32, Type::INT4)],
     /// ).await?;
@@ -394,7 +394,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query_with_param_types(
+    pub async fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
@@ -406,7 +406,7 @@ impl Client {
                 .map(|(param, param_type)| (*param as _, param_type.clone()))
         }
 
-        query::query_with_param_types(&self.inner, statement, slice_iter(params))
+        query::query_typed(&self.inner, statement, slice_iter(params))
             .await?
             .try_collect()
             .await

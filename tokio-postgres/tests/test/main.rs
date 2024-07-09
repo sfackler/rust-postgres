@@ -954,7 +954,7 @@ async fn deferred_constraint() {
 }
 
 #[tokio::test]
-async fn query_with_param_types_no_transaction() {
+async fn query_typed_no_transaction() {
     let client = connect("user=postgres").await;
 
     client
@@ -971,7 +971,7 @@ async fn query_with_param_types_no_transaction() {
         .unwrap();
 
     let rows: Vec<tokio_postgres::Row> = client
-        .query_with_param_types(
+        .query_typed(
             "SELECT name, age, 'literal', 5 FROM foo WHERE name <> $1 AND age < $2 ORDER BY age",
             &[(&"alice", Type::TEXT), (&50i32, Type::INT4)],
         )
@@ -993,7 +993,7 @@ async fn query_with_param_types_no_transaction() {
 }
 
 #[tokio::test]
-async fn query_with_param_types_with_transaction() {
+async fn query_typed_with_transaction() {
     let mut client = connect("user=postgres").await;
 
     client
@@ -1011,7 +1011,7 @@ async fn query_with_param_types_with_transaction() {
     let transaction = client.transaction().await.unwrap();
 
     let rows: Vec<tokio_postgres::Row> = transaction
-        .query_with_param_types(
+        .query_typed(
             "INSERT INTO foo (name, age) VALUES ($1, $2), ($3, $4), ($5, $6) returning name, age",
             &[
                 (&"alice", Type::TEXT),
@@ -1038,7 +1038,7 @@ async fn query_with_param_types_with_transaction() {
     );
 
     let rows: Vec<tokio_postgres::Row> = transaction
-        .query_with_param_types(
+        .query_typed(
             "SELECT name, age, 'literal', 5 FROM foo WHERE name <> $1 AND age < $2 ORDER BY age",
             &[(&"alice", Type::TEXT), (&50i32, Type::INT4)],
         )
