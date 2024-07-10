@@ -54,7 +54,7 @@ where
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
-        statement: statement,
+        statement,
         responses,
         rows_affected: None,
         _p: PhantomPinned,
