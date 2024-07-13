@@ -227,6 +227,15 @@ impl<'a> Transaction<'a> {
         query::query_portal(self.client.inner(), portal, max_rows).await
     }
 
+    /// Like `Client::query_typed`.
+    pub async fn query_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.client.query_typed(statement, params).await
+    }
+
     /// Like `Client::copy_in`.
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where

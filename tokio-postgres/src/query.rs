@@ -1,17 +1,21 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::prepare::get_type;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement};
+use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
+use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
+use postgres_types::Type;
 use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
@@ -55,6 +59,71 @@ where
         rows_affected: None,
         _p: PhantomPinned,
     })
+}
+
+pub async fn query_typed<'a, P, I>(
+    client: &Arc<InnerClient>,
+    query: &str,
+    params: I,
+) -> Result<RowStream, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = (P, Type)>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let (params, param_types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
+
+    let params = params.into_iter();
+
+    let param_oids = param_types.iter().map(|t| t.oid()).collect::<Vec<_>>();
+
+    let params = params.into_iter();
+
+    let buf = client.with_buf(|buf| {
+        frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
+
+        encode_bind_with_statement_name_and_param_types("", &param_types, params, "", buf)?;
+
+        frontend::describe(b'S', "", buf).map_err(Error::encode)?;
+
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+
+        frontend::sync(buf);
+
+        Ok(buf.split().freeze())
+    })?;
+
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    loop {
+        match responses.next().await? {
+            Message::ParseComplete
+            | Message::BindComplete
+            | Message::ParameterDescription(_)
+            | Message::NoData => {}
+            Message::RowDescription(row_description) => {
+                let mut columns: Vec<Column> = vec![];
+                let mut it = row_description.fields();
+                while let Some(field) = it.next().map_err(Error::parse)? {
+                    let type_ = get_type(client, field.type_oid()).await?;
+                    let column = Column {
+                        name: field.name().to_string(),
+                        table_oid: Some(field.table_oid()).filter(|n| *n != 0),
+                        column_id: Some(field.column_id()).filter(|n| *n != 0),
+                        r#type: type_,
+                    };
+                    columns.push(column);
+                }
+                return Ok(RowStream {
+                    statement: Statement::unnamed(vec![], columns),
+                    responses,
+                    rows_affected: None,
+                    _p: PhantomPinned,
+                });
+            }
+            _ => return Err(Error::unexpected_message()),
+        }
+    }
 }
 
 pub async fn query_portal(
@@ -164,7 +233,27 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    let param_types = statement.params();
+    encode_bind_with_statement_name_and_param_types(
+        statement.name(),
+        statement.params(),
+        params,
+        portal,
+        buf,
+    )
+}
+
+fn encode_bind_with_statement_name_and_param_types<P, I>(
+    statement_name: &str,
+    param_types: &[Type],
+    params: I,
+    portal: &str,
+    buf: &mut BytesMut,
+) -> Result<(), Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
     let params = params.into_iter();
 
     if param_types.len() != params.len() {
@@ -181,7 +270,7 @@ where
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
-        statement.name(),
+        statement_name,
         param_formats,
         params.zip(param_types).enumerate(),
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {

@@ -364,6 +364,54 @@ impl Client {
         query::query(&self.inner, statement, params).await
     }
 
+    /// Like `query`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the
+    /// parameter of the list provided, 1-indexed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
+    /// use tokio_postgres::types::ToSql;
+    /// use tokio_postgres::types::Type;
+    /// use futures_util::{pin_mut, TryStreamExt};
+    ///
+    /// let rows = client.query_typed(
+    ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
+    ///     &[(&"first param", Type::TEXT), (&2i32, Type::INT4)],
+    /// ).await?;
+    ///
+    /// for row in rows {
+    ///    let foo: i32 = row.get("foo");
+    ///    println!("foo: {}", foo);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn query_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        fn slice_iter<'a>(
+            s: &'a [(&'a (dyn ToSql + Sync), Type)],
+        ) -> impl ExactSizeIterator<Item = (&'a dyn ToSql, Type)> + 'a {
+            s.iter()
+                .map(|(param, param_type)| (*param as _, param_type.clone()))
+        }
+
+        query::query_typed(&self.inner, statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await
+    }
+
     /// Executes a statement, returning the number of rows modified.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
