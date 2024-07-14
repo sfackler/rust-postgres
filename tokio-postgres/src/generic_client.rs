@@ -63,6 +63,12 @@ pub trait GenericClient: private::Sealed {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
 
+    /// Like [`Client::query_typed_raw`]
+    async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send;
+
     /// Like [`Client::prepare`].
     async fn prepare(&self, query: &str) -> Result<Statement, Error>;
 
@@ -152,6 +158,14 @@ impl GenericClient for Client {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
         self.query_typed(statement, params).await
+    }
+
+    async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send,
+    {
+        self.query_typed_raw(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
@@ -250,6 +264,14 @@ impl GenericClient for Transaction<'_> {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
         self.query_typed(statement, params).await
+    }
+
+    async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send,
+    {
+        self.query_typed_raw(statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {

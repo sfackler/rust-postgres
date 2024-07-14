@@ -69,29 +69,21 @@ pub async fn query_typed<'a, P, I>(
 where
     P: BorrowToSql,
     I: IntoIterator<Item = (P, Type)>,
-    I::IntoIter: ExactSizeIterator,
 {
-    let (params, param_types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
+    let buf = {
+        let params = params.into_iter().collect::<Vec<_>>();
+        let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
 
-    let params = params.into_iter();
+        client.with_buf(|buf| {
+            frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
+            encode_bind_raw("", params, "", buf)?;
+            frontend::describe(b'S', "", buf).map_err(Error::encode)?;
+            frontend::execute("", 0, buf).map_err(Error::encode)?;
+            frontend::sync(buf);
 
-    let param_oids = param_types.iter().map(|t| t.oid()).collect::<Vec<_>>();
-
-    let params = params.into_iter();
-
-    let buf = client.with_buf(|buf| {
-        frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
-
-        encode_bind_with_statement_name_and_param_types("", &param_types, params, "", buf)?;
-
-        frontend::describe(b'S', "", buf).map_err(Error::encode)?;
-
-        frontend::execute("", 0, buf).map_err(Error::encode)?;
-
-        frontend::sync(buf);
-
-        Ok(buf.split().freeze())
-    })?;
+            Ok(buf.split().freeze())
+        })?
+    };
 
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
@@ -233,47 +225,42 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
-    encode_bind_with_statement_name_and_param_types(
+    let params = params.into_iter();
+    if params.len() != statement.params().len() {
+        return Err(Error::parameters(params.len(), statement.params().len()));
+    }
+
+    encode_bind_raw(
         statement.name(),
-        statement.params(),
-        params,
+        params.zip(statement.params().iter().cloned()),
         portal,
         buf,
     )
 }
 
-fn encode_bind_with_statement_name_and_param_types<P, I>(
+fn encode_bind_raw<P, I>(
     statement_name: &str,
-    param_types: &[Type],
     params: I,
     portal: &str,
     buf: &mut BytesMut,
 ) -> Result<(), Error>
 where
     P: BorrowToSql,
-    I: IntoIterator<Item = P>,
+    I: IntoIterator<Item = (P, Type)>,
     I::IntoIter: ExactSizeIterator,
 {
-    let params = params.into_iter();
-
-    if param_types.len() != params.len() {
-        return Err(Error::parameters(params.len(), param_types.len()));
-    }
-
     let (param_formats, params): (Vec<_>, Vec<_>) = params
-        .zip(param_types.iter())
-        .map(|(p, ty)| (p.borrow_to_sql().encode_format(ty) as i16, p))
+        .into_iter()
+        .map(|(p, ty)| (p.borrow_to_sql().encode_format(&ty) as i16, (p, ty)))
         .unzip();
-
-    let params = params.into_iter();
 
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
         statement_name,
         param_formats,
-        params.zip(param_types).enumerate(),
-        |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {
+        params.into_iter().enumerate(),
+        |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(&ty, buf) {
             Ok(IsNull::No) => Ok(postgres_protocol::IsNull::No),
             Ok(IsNull::Yes) => Ok(postgres_protocol::IsNull::Yes),
             Err(e) => {
