@@ -115,6 +115,35 @@ impl<'a> Transaction<'a> {
         Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 
+    /// Like `Client::query_typed`.
+    pub fn query_typed(
+        &mut self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed(statement, params),
+        )
+    }
+
+    /// Like `Client::query_typed_raw`.
+    pub fn query_typed_raw<P, I>(&mut self, query: &str, params: I) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        let stream = self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_raw(query, params),
+        )?;
+        Ok(RowIter::new(self.connection.as_ref(), stream))
+    }
+
     /// Binds parameters to a statement, creating a "portal".
     ///
     /// Portals can be used with the `query_portal` method to page through the results of a query without being forced

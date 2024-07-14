@@ -149,6 +149,24 @@ impl<'a> Transaction<'a> {
         self.client.query_raw(statement, params).await
     }
 
+    /// Like `Client::query_typed`.
+    pub async fn query_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.client.query_typed(statement, params).await
+    }
+
+    /// Like `Client::query_typed_raw`.
+    pub async fn query_typed_raw<P, I>(&self, query: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        self.client.query_typed_raw(query, params).await
+    }
+
     /// Like `Client::execute`.
     pub async fn execute<T>(
         &self,
@@ -225,15 +243,6 @@ impl<'a> Transaction<'a> {
         max_rows: i32,
     ) -> Result<RowStream, Error> {
         query::query_portal(self.client.inner(), portal, max_rows).await
-    }
-
-    /// Like `Client::query_typed`.
-    pub async fn query_typed(
-        &self,
-        statement: &str,
-        params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<Vec<Row>, Error> {
-        self.client.query_typed(statement, params).await
     }
 
     /// Like `Client::copy_in`.

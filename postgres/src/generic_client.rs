@@ -44,6 +44,19 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator;
 
+    /// Like [`Client::query_typed`]
+    fn query_typed(
+        &mut self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error>;
+
+    /// Like [`Client::query_typed_raw`]
+    fn query_typed_raw<P, I>(&mut self, statement: &str, params: I) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send;
+
     /// Like `Client::prepare`.
     fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
 
@@ -113,6 +126,22 @@ impl GenericClient for Client {
         I::IntoIter: ExactSizeIterator,
     {
         self.query_raw(query, params)
+    }
+
+    fn query_typed(
+        &mut self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.query_typed(statement, params)
+    }
+
+    fn query_typed_raw<P, I>(&mut self, statement: &str, params: I) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send,
+    {
+        self.query_typed_raw(statement, params)
     }
 
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
@@ -193,6 +222,22 @@ impl GenericClient for Transaction<'_> {
         I::IntoIter: ExactSizeIterator,
     {
         self.query_raw(query, params)
+    }
+
+    fn query_typed(
+        &mut self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.query_typed(statement, params)
+    }
+
+    fn query_typed_raw<P, I>(&mut self, statement: &str, params: I) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)> + Sync + Send,
+    {
+        self.query_typed_raw(statement, params)
     }
 
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
