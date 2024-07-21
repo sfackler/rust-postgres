@@ -642,6 +642,62 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
     }
 }
 
+macro_rules! impl_from_sql_tuple {
+    ($n:expr; $($ty_ident:ident),*; $($var_ident:ident),*) => {
+        impl<'a, $($ty_ident),*> FromSql<'a> for ($($ty_ident,)*)
+        where
+            $($ty_ident: FromSql<'a>),*
+        {
+            fn from_sql(
+                _: &Type,
+                mut raw: &'a [u8],
+            ) -> Result<($($ty_ident,)*), Box<dyn Error + Sync + Send>> {
+                let num_fields = private::read_be_i32(&mut raw)?;
+                if num_fields as usize != $n {
+                    return Err(format!(
+                        "Postgres record field count does not match Rust tuple length: {} vs {}",
+                        num_fields,
+                        $n,
+                    ).into());
+                }
+
+                $(
+                    let oid = private::read_be_i32(&mut raw)? as u32;
+                    let ty = match Type::from_oid(oid) {
+                        None => {
+                            return Err(format!(
+                                "cannot decode OID {} inside of anonymous record",
+                                oid,
+                            ).into());
+                        }
+                        Some(ty) if !$ty_ident::accepts(&ty) => {
+                            return Err(Box::new(WrongType::new::<$ty_ident>(ty.clone())));
+                        }
+                        Some(ty) => ty,
+                    };
+                    let $var_ident = private::read_value(&ty, &mut raw)?;
+                )*
+
+                Ok(($($var_ident,)*))
+            }
+
+            fn accepts(ty: &Type) -> bool {
+                match ty.kind() {
+                    Kind::Pseudo => *ty == Type::RECORD,
+                    Kind::Composite(fields) => fields.len() == $n,
+                    _ => false,
+                }
+            }
+        }
+    };
+}
+
+impl_from_sql_tuple!(0; ; );
+impl_from_sql_tuple!(1; T0; v0);
+impl_from_sql_tuple!(2; T0, T1; v0, v1);
+impl_from_sql_tuple!(3; T0, T1, T2; v0, v1, v2);
+impl_from_sql_tuple!(4; T0, T1, T2, T3; v0, v1, v2, v3);
+
 impl<'a, T: FromSql<'a>> FromSql<'a> for Box<[T]> {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Vec::<T>::from_sql(ty, raw).map(Vec::into_boxed_slice)
