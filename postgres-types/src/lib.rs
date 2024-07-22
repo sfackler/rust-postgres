@@ -276,6 +276,8 @@ mod eui48_1;
 mod geo_types_06;
 #[cfg(feature = "with-geo-types-0_7")]
 mod geo_types_07;
+#[cfg(feature = "with-jiff-0_1")]
+mod jiff_01;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
@@ -491,6 +493,11 @@ impl WrongType {
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
+/// | `jiff::civil::DateTime`         | TIMESTAMP                           |
+/// | `jiff::Timestamp`               | TIMESTAMP WITH TIME ZONE            |
+/// | `jiff::Zoned`                   | TIMESTAMP WITH TIME ZONE            |
+/// | `jiff::civil::Date`             | DATE                                |
+/// | `jiff::civil::Time`             | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
