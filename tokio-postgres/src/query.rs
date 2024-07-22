@@ -89,10 +89,15 @@ where
 
     loop {
         match responses.next().await? {
-            Message::ParseComplete
-            | Message::BindComplete
-            | Message::ParameterDescription(_)
-            | Message::NoData => {}
+            Message::ParseComplete | Message::BindComplete | Message::ParameterDescription(_) => {}
+            Message::NoData => {
+                return Ok(RowStream {
+                    statement: Statement::unnamed(vec![], vec![]),
+                    responses,
+                    rows_affected: None,
+                    _p: PhantomPinned,
+                });
+            }
             Message::RowDescription(row_description) => {
                 let mut columns: Vec<Column> = vec![];
                 let mut it = row_description.fields();
