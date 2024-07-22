@@ -2,10 +2,28 @@
 
 ## Unreleased
 
+## v0.7.11 - 2024-07-21
+
+### Fixed
+
+* Fixed handling of non-UTF8 error fields which can be sent after failed handshakes.
+* Fixed cancellation handling of `TransactionBuilder::start` futures.
+
+### Added
+
+* Added `table_oid` and `field_id` fields to `Columns` struct of prepared statements.
+* Added `GenericClient::simple_query`.
+* Added `#[track_caller]` to `Row::get` and `SimpleQueryRow::get`.
+* Added `TargetSessionAttrs::ReadOnly`.
+* Added `Debug` implementation for `Statement`.
+* Added `Clone` implementation for `Row`.
+* Added `SimpleQueryMessage::RowDescription`.
+* Added `{Client, Transaction, GenericClient}::query_typed`.
+
+### Changed
+
 * Disable `rustc-serialize` compatibility of `eui48-1` dependency
-* Remove tests for `eui48-04`
-* Add `table_oid` and `field_id` fields to `Columns` struct of prepared statements.
-* Add `GenericClient::simple_query`.
+* Config setters now take `impl Into<String>`.
 
 ## v0.7.10 - 2023-08-25
 

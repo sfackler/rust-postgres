@@ -19,7 +19,7 @@ runtime = ["tokio-postgres/runtime"]
 native-tls = "0.2"
 tokio = "1.0"
 tokio-native-tls = "0.3"
-tokio-postgres = { version = "0.7.0", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "0.7.11", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
 futures-util = "0.3"
