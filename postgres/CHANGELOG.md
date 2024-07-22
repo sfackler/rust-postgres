@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.19.8 - 2024-07-21
+
+### Added
+
+* Added `{Client, Transaction, GenericClient}::query_typed`.
+
 ## v0.19.7 - 2023-08-25
 
 ## Fixed
