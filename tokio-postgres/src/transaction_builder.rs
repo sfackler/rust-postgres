@@ -1,4 +1,6 @@
-use crate::{Client, Error, Transaction};
+use postgres_protocol::message::frontend;
+
+use crate::{codec::FrontendMessage, connection::RequestMessages, Client, Error, Transaction};
 
 /// The isolation level of a database transaction.
 #[derive(Debug, Copy, Clone)]
@@ -106,7 +108,41 @@ impl<'a> TransactionBuilder<'a> {
             query.push_str(s);
         }
 
-        self.client.batch_execute(&query).await?;
+        struct RollbackIfNotDone<'me> {
+            client: &'me Client,
+            done: bool,
+        }
+
+        impl<'a> Drop for RollbackIfNotDone<'a> {
+            fn drop(&mut self) {
+                if self.done {
+                    return;
+                }
+
+                let buf = self.client.inner().with_buf(|buf| {
+                    frontend::query("ROLLBACK", buf).unwrap();
+                    buf.split().freeze()
+                });
+                let _ = self
+                    .client
+                    .inner()
+                    .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+            }
+        }
+
+        // This is done as `Future` created by this method can be dropped after
+        // `RequestMessages` is synchronously send to the `Connection` by
+        // `batch_execute()`, but before `Responses` is asynchronously polled to
+        // completion. In that case `Transaction` won't be created and thus
+        // won't be rolled back.
+        {
+            let mut cleaner = RollbackIfNotDone {
+                client: self.client,
+                done: false,
+            };
+            self.client.batch_execute(&query).await?;
+            cleaner.done = true;
+        }
 
         Ok(Transaction::new(self.client))
     }
