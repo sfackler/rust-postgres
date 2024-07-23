@@ -12,12 +12,18 @@ impl From<&KeepaliveConfig> for TcpKeepalive {
     fn from(keepalive_config: &KeepaliveConfig) -> Self {
         let mut tcp_keepalive = Self::new().with_time(keepalive_config.idle);
 
-        #[cfg(not(any(target_os = "redox", target_os = "solaris", target_os = "openbsd")))]
+        #[cfg(not(any(
+            target_os = "aix",
+            target_os = "redox",
+            target_os = "solaris",
+            target_os = "openbsd"
+        )))]
         if let Some(interval) = keepalive_config.interval {
             tcp_keepalive = tcp_keepalive.with_interval(interval);
         }
 
         #[cfg(not(any(
+            target_os = "aix",
             target_os = "redox",
             target_os = "solaris",
             target_os = "windows",
