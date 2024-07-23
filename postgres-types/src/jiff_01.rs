@@ -58,27 +58,6 @@ impl ToSql for Timestamp {
     to_sql_checked!();
 }
 
-impl<'a> FromSql<'a> for Zoned {
-    fn from_sql(type_: &Type, raw: &[u8]) -> Result<Zoned, Box<dyn Error + Sync + Send>> {
-        Ok(Timestamp::from_sql(type_, raw)?.to_zoned(TimeZone::UTC))
-    }
-
-    accepts!(TIMESTAMPTZ);
-}
-
-impl ToSql for Zoned {
-    fn to_sql(
-        &self,
-        type_: &Type,
-        w: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        self.timestamp().to_sql(type_, w)
-    }
-
-    accepts!(TIMESTAMPTZ);
-    to_sql_checked!();
-}
-
 impl<'a> FromSql<'a> for Date {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Date, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
