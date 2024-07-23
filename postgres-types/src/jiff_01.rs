@@ -2,7 +2,7 @@ use bytes::BytesMut;
 use jiff_01::{
     civil::{Date, DateTime, Time},
     tz::TimeZone,
-    Span, Timestamp as JiffTimestamp, Zoned,
+    Span, Timestamp, Zoned,
 };
 use postgres_protocol::types;
 use std::error::Error;
@@ -32,8 +32,8 @@ impl ToSql for DateTime {
     to_sql_checked!();
 }
 
-impl<'a> FromSql<'a> for JiffTimestamp {
-    fn from_sql(type_: &Type, raw: &[u8]) -> Result<JiffTimestamp, Box<dyn Error + Sync + Send>> {
+impl<'a> FromSql<'a> for Timestamp {
+    fn from_sql(type_: &Type, raw: &[u8]) -> Result<Timestamp, Box<dyn Error + Sync + Send>> {
         Ok(DateTime::from_sql(type_, raw)?
             .to_zoned(TimeZone::UTC)?
             .timestamp())
@@ -42,7 +42,7 @@ impl<'a> FromSql<'a> for JiffTimestamp {
     accepts!(TIMESTAMPTZ);
 }
 
-impl ToSql for JiffTimestamp {
+impl ToSql for Timestamp {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::timestamp_to_sql(
             self.since(base().to_zoned(TimeZone::UTC)?)?
@@ -58,7 +58,7 @@ impl ToSql for JiffTimestamp {
 
 impl<'a> FromSql<'a> for Zoned {
     fn from_sql(type_: &Type, raw: &[u8]) -> Result<Zoned, Box<dyn Error + Sync + Send>> {
-        Ok(JiffTimestamp::from_sql(type_, raw)?.to_zoned(TimeZone::UTC))
+        Ok(Timestamp::from_sql(type_, raw)?.to_zoned(TimeZone::UTC))
     }
 
     accepts!(TIMESTAMPTZ);
