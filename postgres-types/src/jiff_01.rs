@@ -13,6 +13,13 @@ const fn base() -> DateTime {
     DateTime::constant(2000, 1, 1, 0, 0, 0, 0)
 }
 
+/// The number of seconds from 2000-01-01 00:00:00 UTC to the Unix epoch.
+const Y2K_EPOCH: i64 = 946684800;
+
+fn base_ts() -> Timestamp {
+    Timestamp::new(Y2K_EPOCH, 0).unwrap()
+}
+
 impl<'a> FromSql<'a> for DateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<DateTime, Box<dyn Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
@@ -33,10 +40,9 @@ impl ToSql for DateTime {
 }
 
 impl<'a> FromSql<'a> for Timestamp {
-    fn from_sql(type_: &Type, raw: &[u8]) -> Result<Timestamp, Box<dyn Error + Sync + Send>> {
-        Ok(DateTime::from_sql(type_, raw)?
-            .to_zoned(TimeZone::UTC)?
-            .timestamp())
+    fn from_sql(_: &Type, raw: &[u8]) -> Result<Timestamp, Box<dyn Error + Sync + Send>> {
+        let t = types::timestamp_from_sql(raw)?;
+        Ok(base_ts().checked_add(Span::new().microseconds(t))?)
     }
 
     accepts!(TIMESTAMPTZ);
@@ -44,11 +50,7 @@ impl<'a> FromSql<'a> for Timestamp {
 
 impl ToSql for Timestamp {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        types::timestamp_to_sql(
-            self.since(base().to_zoned(TimeZone::UTC)?)?
-                .get_microseconds(),
-            w,
-        );
+        types::timestamp_to_sql(self.since(base_ts())?.get_microseconds(), w);
         Ok(IsNull::No)
     }
 
