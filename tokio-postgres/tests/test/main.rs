@@ -997,6 +997,13 @@ async fn query_typed_no_transaction() {
     assert_eq!(second_row.get::<_, i32>(1), 40);
     assert_eq!(second_row.get::<_, &str>(2), "literal");
     assert_eq!(second_row.get::<_, i32>(3), 5);
+
+    // Test for UPDATE that returns no data
+    let updated_rows = client
+        .query_typed("UPDATE foo set age = 33", &[])
+        .await
+        .unwrap();
+    assert_eq!(updated_rows.len(), 0);
 }
 
 #[tokio::test]
@@ -1064,4 +1071,11 @@ async fn query_typed_with_transaction() {
     assert_eq!(second_row.get::<_, i32>(1), 40);
     assert_eq!(second_row.get::<_, &str>(2), "literal");
     assert_eq!(second_row.get::<_, i32>(3), 5);
+
+    // Test for UPDATE that returns no data
+    let updated_rows = transaction
+        .query_typed("UPDATE foo set age = 33", &[])
+        .await
+        .unwrap();
+    assert_eq!(updated_rows.len(), 0);
 }
