@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added support for `jiff` 0.1 via the `with-jiff-01` feature.
+
 ## v0.19.8 - 2024-07-21
 
 ### Added
