@@ -337,25 +337,43 @@ pub enum ErrorPosition {
     },
 }
 
-#[derive(Debug, PartialEq)]
-enum Kind {
+/// The kind of error that occurred.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Kind {
+    /// An I/O error occurred.
     Io,
+    /// An unexpected message from the server.
     UnexpectedMessage,
+    /// An error occurred during TLS handshake.
     Tls,
+    /// An error occurred while serializing a parameter.
     ToSql(usize),
+    /// An error occurred while deserializing a parameter.
     FromSql(usize),
+    /// An error occurred with a specific column.
     Column(String),
+    /// An error occurred with the parameters.
     Parameters(usize, usize),
+    /// The connection is closed.
     Closed,
+    /// A generic database error occurred.
     Db,
+    /// An error occurred while parsing.
     Parse,
+    /// An error occurred while encoding.
     Encode,
+    /// An authentication error occurred.
     Authentication,
+    /// An error occurred while parsing the configuration.
     ConfigParse,
+    /// An error occurred with the configuration.
     Config,
+    /// An error occurred while counting rows.
     RowCount,
     #[cfg(feature = "runtime")]
+    /// An error occurred while connecting.
     Connect,
+    /// A timeout occurred.
     Timeout,
 }
 
@@ -417,6 +435,11 @@ impl Error {
     /// Consumes the error, returning its cause.
     pub fn into_source(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause
+    }
+
+    /// Returns the kind of this error.
+    pub fn kind(&self) -> Kind {
+        self.0.kind.clone()
     }
 
     /// Returns the source of this error if it was a `DbError`.

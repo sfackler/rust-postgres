@@ -935,6 +935,32 @@ async fn query_opt() {
 }
 
 #[tokio::test]
+async fn empty_query_one() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT
+                );
+                INSERT INTO foo (name) VALUES ('alice'), ('bob'), ('carol');
+            ",
+        )
+        .await
+        .unwrap();
+
+    let res = client
+        .query_one("SELECT * FROM foo WHERE name = $1", &[&"not there"])
+        .await;
+    assert!(res.is_err());
+    assert_eq!(
+        res.err().unwrap().kind(),
+        tokio_postgres::error::Kind::RowCount
+    );
+}
+
+#[tokio::test]
 async fn deferred_constraint() {
     let client = connect("user=postgres").await;
 
