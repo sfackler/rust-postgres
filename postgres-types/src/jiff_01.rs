@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use jiff_01::{
     civil::{Date, DateTime, Time},
-    Span, Timestamp,
+    Span, SpanRound, Timestamp, Unit,
 };
 use postgres_protocol::types;
 use std::error::Error;
@@ -12,11 +12,15 @@ const fn base() -> DateTime {
     DateTime::constant(2000, 1, 1, 0, 0, 0, 0)
 }
 
-/// The number of seconds from the Unix epoch to 2000-01-01 00:00:00 UTC. 
+/// The number of seconds from the Unix epoch to 2000-01-01 00:00:00 UTC.
 const PG_EPOCH: i64 = 946684800;
 
 fn base_ts() -> Timestamp {
     Timestamp::new(PG_EPOCH, 0).unwrap()
+}
+
+fn round_us<'a>() -> SpanRound<'a> {
+    SpanRound::new().largest(Unit::Microsecond)
 }
 
 impl<'a> FromSql<'a> for DateTime {
@@ -30,7 +34,8 @@ impl<'a> FromSql<'a> for DateTime {
 
 impl ToSql for DateTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        types::timestamp_to_sql(self.since(base())?.get_microseconds(), w);
+        let span = self.since(base())?.round(round_us())?;
+        types::timestamp_to_sql(span.get_microseconds(), w);
         Ok(IsNull::No)
     }
 
@@ -49,7 +54,8 @@ impl<'a> FromSql<'a> for Timestamp {
 
 impl ToSql for Timestamp {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        types::timestamp_to_sql(self.since(base_ts())?.get_microseconds(), w);
+        let span = self.since(base_ts())?.round(round_us())?;
+        types::timestamp_to_sql(span.get_microseconds(), w);
         Ok(IsNull::No)
     }
 
@@ -88,8 +94,8 @@ impl<'a> FromSql<'a> for Time {
 
 impl ToSql for Time {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let delta = self.since(Time::midnight())?;
-        types::time_to_sql(delta.get_microseconds(), w);
+        let span = self.since(Time::midnight())?.round(round_us())?;
+        types::time_to_sql(span.get_microseconds(), w);
         Ok(IsNull::No)
     }
 
