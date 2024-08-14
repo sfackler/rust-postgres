@@ -1,8 +1,7 @@
 use bytes::BytesMut;
 use jiff_01::{
     civil::{Date, DateTime, Time},
-    tz::TimeZone,
-    Span, Timestamp, Zoned,
+    Span, Timestamp,
 };
 use postgres_protocol::types;
 use std::error::Error;
@@ -13,11 +12,11 @@ const fn base() -> DateTime {
     DateTime::constant(2000, 1, 1, 0, 0, 0, 0)
 }
 
-/// The number of seconds from 2000-01-01 00:00:00 UTC to the Unix epoch.
-const Y2K_EPOCH: i64 = 946684800;
+/// The number of seconds from the Unix epoch to 2000-01-01 00:00:00 UTC. 
+const PG_EPOCH: i64 = 946684800;
 
 fn base_ts() -> Timestamp {
-    Timestamp::new(Y2K_EPOCH, 0).unwrap()
+    Timestamp::new(PG_EPOCH, 0).unwrap()
 }
 
 impl<'a> FromSql<'a> for DateTime {
