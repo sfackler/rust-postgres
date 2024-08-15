@@ -493,11 +493,10 @@ impl WrongType {
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
-/// | `jiff::civil::DateTime`         | TIMESTAMP                           |
-/// | `jiff::Timestamp`               | TIMESTAMP WITH TIME ZONE            |
-/// | `jiff::Zoned`                   | TIMESTAMP WITH TIME ZONE            |
 /// | `jiff::civil::Date`             | DATE                                |
+/// | `jiff::civil::DateTime`         | TIMESTAMP                           |
 /// | `jiff::civil::Time`             | TIME                                |
+/// | `jiff::Timestamp`               | TIMESTAMP WITH TIME ZONE            |
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
