@@ -23,10 +23,27 @@ fn round_us<'a>() -> SpanRound<'a> {
     SpanRound::new().largest(Unit::Microsecond)
 }
 
+fn decode_err<E>(_e: E) -> Box<dyn Error + Sync + Send>
+where
+    E: Error,
+{
+    "value too large to decode".into()
+}
+
+fn transmit_err<E>(_e: E) -> Box<dyn Error + Sync + Send>
+where
+    E: Error,
+{
+    "value too large to transmit".into()
+}
+
 impl<'a> FromSql<'a> for DateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<DateTime, Box<dyn Error + Sync + Send>> {
-        let t = types::timestamp_from_sql(raw)?;
-        Ok(base().checked_add(Span::new().microseconds(t))?)
+        let v = types::timestamp_from_sql(raw)?;
+        Span::new()
+            .try_microseconds(v)
+            .and_then(|s| base().checked_add(s))
+            .map_err(decode_err)
     }
 
     accepts!(TIMESTAMP);
@@ -34,8 +51,12 @@ impl<'a> FromSql<'a> for DateTime {
 
 impl ToSql for DateTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let span = self.since(base())?.round(round_us())?;
-        types::timestamp_to_sql(span.get_microseconds(), w);
+        let v = self
+            .since(base())
+            .and_then(|s| s.round(round_us()))
+            .map_err(transmit_err)?
+            .get_microseconds();
+        types::timestamp_to_sql(v, w);
         Ok(IsNull::No)
     }
 
@@ -45,8 +66,11 @@ impl ToSql for DateTime {
 
 impl<'a> FromSql<'a> for Timestamp {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Timestamp, Box<dyn Error + Sync + Send>> {
-        let t = types::timestamp_from_sql(raw)?;
-        Ok(base_ts().checked_add(Span::new().microseconds(t))?)
+        let v = types::timestamp_from_sql(raw)?;
+        Span::new()
+            .try_microseconds(v)
+            .and_then(|s| base_ts().checked_add(s))
+            .map_err(decode_err)
     }
 
     accepts!(TIMESTAMPTZ);
@@ -54,8 +78,12 @@ impl<'a> FromSql<'a> for Timestamp {
 
 impl ToSql for Timestamp {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let span = self.since(base_ts())?.round(round_us())?;
-        types::timestamp_to_sql(span.get_microseconds(), w);
+        let v = self
+            .since(base_ts())
+            .and_then(|s| s.round(round_us()))
+            .map_err(transmit_err)?
+            .get_microseconds();
+        types::timestamp_to_sql(v, w);
         Ok(IsNull::No)
     }
 
@@ -65,17 +93,19 @@ impl ToSql for Timestamp {
 
 impl<'a> FromSql<'a> for Date {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Date, Box<dyn Error + Sync + Send>> {
-        let jd = types::date_from_sql(raw)?;
-        Ok(base().date().checked_add(Span::new().days(jd))?)
+        let v = types::date_from_sql(raw)?;
+        Span::new()
+            .try_days(v)
+            .and_then(|s| base().date().checked_add(s))
+            .map_err(decode_err)
     }
-
     accepts!(DATE);
 }
 
 impl ToSql for Date {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let jd = self.since(base().date())?.get_days();
-        types::date_to_sql(jd, w);
+        let v = self.since(base().date()).map_err(transmit_err)?.get_days();
+        types::date_to_sql(v, w);
         Ok(IsNull::No)
     }
 
@@ -85,8 +115,11 @@ impl ToSql for Date {
 
 impl<'a> FromSql<'a> for Time {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Time, Box<dyn Error + Sync + Send>> {
-        let usec = types::time_from_sql(raw)?;
-        Ok(Time::midnight() + Span::new().microseconds(usec))
+        let v = types::time_from_sql(raw)?;
+        Span::new()
+            .try_microseconds(v)
+            .and_then(|s| Time::midnight().checked_add(s))
+            .map_err(decode_err)
     }
 
     accepts!(TIME);
@@ -94,8 +127,12 @@ impl<'a> FromSql<'a> for Time {
 
 impl ToSql for Time {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let span = self.since(Time::midnight())?.round(round_us())?;
-        types::time_to_sql(span.get_microseconds(), w);
+        let v = self
+            .since(Time::midnight())
+            .and_then(|s| s.round(round_us()))
+            .map_err(transmit_err)?
+            .get_microseconds();
+        types::time_to_sql(v, w);
         Ok(IsNull::No)
     }
 
