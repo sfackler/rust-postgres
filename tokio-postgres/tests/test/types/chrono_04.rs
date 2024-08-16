@@ -1,4 +1,4 @@
-use chrono_04::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono_04::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use std::fmt;
 use tokio_postgres::types::{Date, FromSqlOwned, Timestamp};
 use tokio_postgres::Client;
@@ -53,18 +53,20 @@ async fn test_with_special_naive_date_time_params() {
 async fn test_date_time_params() {
     fn make_check(time: &str) -> (Option<DateTime<Utc>>, &str) {
         (
-            Some(Utc.from_utc_datetime(
-                &NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap(),
-            )),
+            Some(
+                DateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f%#z'")
+                    .unwrap()
+                    .to_utc(),
+            ),
             time,
         )
     }
     test_type(
         "TIMESTAMP WITH TIME ZONE",
         &[
-            make_check("'1970-01-01 00:00:00.010000000'"),
-            make_check("'1965-09-25 11:19:33.100314000'"),
-            make_check("'2010-02-09 23:11:45.120200000'"),
+            make_check("'1970-01-01 00:00:00.010000000Z'"),
+            make_check("'1965-09-25 11:19:33.100314000Z'"),
+            make_check("'2010-02-09 23:11:45.120200000Z'"),
             (None, "NULL"),
         ],
     )
@@ -75,18 +77,20 @@ async fn test_date_time_params() {
 async fn test_with_special_date_time_params() {
     fn make_check(time: &str) -> (Timestamp<DateTime<Utc>>, &str) {
         (
-            Timestamp::Value(Utc.from_utc_datetime(
-                &NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap(),
-            )),
+            Timestamp::Value(
+                DateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f%#z'")
+                    .unwrap()
+                    .to_utc(),
+            ),
             time,
         )
     }
     test_type(
         "TIMESTAMP WITH TIME ZONE",
         &[
-            make_check("'1970-01-01 00:00:00.010000000'"),
-            make_check("'1965-09-25 11:19:33.100314000'"),
-            make_check("'2010-02-09 23:11:45.120200000'"),
+            make_check("'1970-01-01 00:00:00.010000000Z'"),
+            make_check("'1965-09-25 11:19:33.100314000Z'"),
+            make_check("'2010-02-09 23:11:45.120200000Z'"),
             (Timestamp::PosInfinity, "'infinity'"),
             (Timestamp::NegInfinity, "'-infinity'"),
         ],
