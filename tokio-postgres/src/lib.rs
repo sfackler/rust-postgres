@@ -15,7 +15,7 @@
 //!
 //!     // The connection object performs the actual communication with the database,
 //!     // so spawn it off to run on its own.
-//!     tokio::spawn(async move {
+//!     let connection_handle = tokio::spawn(async move {
 //!         if let Err(e) = connection.await {
 //!             eprintln!("connection error: {}", e);
 //!         }
@@ -29,6 +29,9 @@
 //!     // And then check that we got back the same string we sent over.
 //!     let value: &str = rows[0].get(0);
 //!     assert_eq!(value, "hello world");
+//!
+//!     // Handle the connection or panic to avoid irrecoverable state
+//!     connection_handle.await.expect("tokio join");
 //!
 //!     Ok(())
 //! }
