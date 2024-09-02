@@ -278,6 +278,10 @@ mod geo_types_06;
 mod geo_types_07;
 #[cfg(feature = "with-jiff-0_1")]
 mod jiff_01;
+#[cfg(feature = "with-rend-0_5")]
+mod rend_05;
+#[cfg(feature = "with-rkyv-0_8")]
+mod rkyv_08;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
