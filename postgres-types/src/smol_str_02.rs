@@ -15,7 +15,11 @@ impl<'a> FromSql<'a> for SmolStr {
 }
 
 impl ToSql for SmolStr {
-    fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&self.as_str(), ty, out)
     }
 
