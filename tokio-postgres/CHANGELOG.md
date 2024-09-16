@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+## v0.7.12 - 2024-09-15
+
+### Fixed
+
+* Fixed `query_typed` queries that return no rows.
+
 ### Added
 
 * Added support for `jiff` 0.1 via the `with-jiff-01` feature.
+* Added support for TCP keepalive on AIX.
 
 ## v0.7.11 - 2024-07-21
 
