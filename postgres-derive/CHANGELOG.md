@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.6 - 2024-09-15
+
+### Changed
+
+* Upgraded `heck`.
+
 ## v0.4.5 - 2023-08-19
 
 ### Added
