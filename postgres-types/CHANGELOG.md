@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.8 - 2024-09-15
+
 ### Added
 
 * Added support for `jiff` 0.1 via the `with-jiff-01` feature.
