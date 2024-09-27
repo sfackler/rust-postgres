@@ -53,7 +53,7 @@ use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 #[cfg(feature = "runtime")]
 use openssl::ssl::SslConnector;
-use openssl::ssl::{self, ConnectConfiguration, SslRef};
+use openssl::ssl::{self, ConnectConfiguration, SslConnectorBuilder, SslRef};
 use openssl::x509::X509VerifyResult;
 use std::error::Error;
 use std::fmt::{self, Debug};
@@ -249,4 +249,11 @@ fn tls_server_end_point(ssl: &SslRef) -> Option<Vec<u8>> {
         nid => MessageDigest::from_nid(nid)?,
     };
     cert.digest(md).ok().map(|b| b.to_vec())
+}
+
+/// Set ALPN for `SslConnectorBuilder`
+///
+/// This is required when using `sslnegotiation=direct`
+pub fn set_postgresql_alpn(builder: &mut SslConnectorBuilder) -> Result<(), ErrorStack> {
+    builder.set_alpn_protos(b"\x0apostgresql")
 }
