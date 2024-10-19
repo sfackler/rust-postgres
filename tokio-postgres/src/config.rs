@@ -84,6 +84,15 @@ pub enum Host {
     Unix(PathBuf),
 }
 
+/// Connection replication mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReplicationMode {
+    /// Logical replication.
+    Logical,
+    /// Physical replication.
+    Physical,
+}
+
 /// Connection configuration.
 ///
 /// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
@@ -209,6 +218,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) replication_mode: Option<ReplicationMode>,
 }
 
 impl Default for Config {
@@ -242,6 +252,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            replication_mode: None,
         }
     }
 
@@ -524,6 +535,17 @@ impl Config {
         self.load_balance_hosts
     }
 
+    /// Sets connection replication mode.
+    pub fn replication_mode(&mut self, replication_mode: ReplicationMode) -> &mut Config {
+        self.replication_mode = Some(replication_mode);
+        self
+    }
+
+    /// Gets connection replication mode.
+    pub fn get_replication_mode(&self) -> Option<&ReplicationMode> {
+        self.replication_mode.as_ref()
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -660,6 +682,21 @@ impl Config {
                 };
                 self.load_balance_hosts(load_balance_hosts);
             }
+            "replication" => {
+                let replication_mode = match value {
+                    "database" => Some(ReplicationMode::Logical),
+                    "true" => Some(ReplicationMode::Physical),
+                    "off" => None,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "replication_mode",
+                        ))))
+                    }
+                };
+                if let Some(replication_mode) = replication_mode {
+                    self.replication_mode(replication_mode);
+                }
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -744,6 +781,7 @@ impl fmt::Debug for Config {
         config_dbg
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
+            .field("replication", &self.replication_mode)
             .finish()
     }
 }

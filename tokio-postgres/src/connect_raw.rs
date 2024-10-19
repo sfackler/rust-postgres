@@ -133,6 +133,11 @@ where
     if let Some(application_name) = &config.application_name {
         params.push(("application_name", &**application_name));
     }
+    match config.replication_mode {
+        Some(config::ReplicationMode::Logical) => params.push(("replication", "database")),
+        Some(config::ReplicationMode::Physical) => params.push(("replication", "true")),
+        _ => {}
+    }
 
     let mut buf = BytesMut::new();
     frontend::startup_message(params, &mut buf).map_err(Error::encode)?;

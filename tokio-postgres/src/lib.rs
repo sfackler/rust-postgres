@@ -160,6 +160,7 @@ mod connect_raw;
 mod connect_socket;
 mod connect_tls;
 mod connection;
+mod copy_both;
 mod copy_in;
 mod copy_out;
 pub mod error;

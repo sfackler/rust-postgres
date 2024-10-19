@@ -1,6 +1,7 @@
 use crate::codec::BackendMessages;
 use crate::config::SslMode;
 use crate::connection::{Request, RequestMessages};
+use crate::copy_both::CopyBothStream;
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
@@ -13,8 +14,9 @@ use crate::types::{Oid, ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    copy_both, copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken,
+    CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -491,6 +493,11 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         copy_out::copy_out(self.inner(), statement).await
+    }
+
+    /// Executes a copy both query, returning a stream of the resulting data.
+    pub async fn copy_both(&self, query: &str) -> Result<CopyBothStream, Error> {
+        copy_both::copy_both(self.inner(), query).await
     }
 
     /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows.
