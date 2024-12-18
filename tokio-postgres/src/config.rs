@@ -744,6 +744,7 @@ impl fmt::Debug for Config {
         config_dbg
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
+            .field("load_balance_hosts", &self.load_balance_hosts)
             .finish()
     }
 }
