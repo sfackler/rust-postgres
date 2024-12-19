@@ -16,7 +16,7 @@ default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
-native-tls = "0.2"
+native-tls = { version = "0.2", features = ["alpn"] }
 tokio = "1.0"
 tokio-native-tls = "0.3"
 tokio-postgres = { version = "0.7.11", path = "../tokio-postgres", default-features = false }
