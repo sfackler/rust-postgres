@@ -61,7 +61,7 @@ where
     })
 }
 
-pub async fn query_typed<'a, P, I>(
+pub async fn query_typed<P, I>(
     client: &Arc<InnerClient>,
     query: &str,
     params: I,
