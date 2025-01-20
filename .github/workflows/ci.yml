@@ -78,7 +78,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: docker compose up -d
       - uses: sfackler/actions/rustup@master
         with:
