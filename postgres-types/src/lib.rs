@@ -955,7 +955,7 @@ impl<T: ToSql> ToSql for Option<T> {
 
     fn encode_format(&self, ty: &Type) -> Format {
         match self {
-            Some(ref val) => val.encode_format(ty),
+            &Some(ref val) => val.encode_format(ty),
             None => Format::Binary,
         }
     }
