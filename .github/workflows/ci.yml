@@ -78,11 +78,11 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: docker compose up -d
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.74.0
+          version: 1.75.0
       - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
       - uses: actions/cache@v3
