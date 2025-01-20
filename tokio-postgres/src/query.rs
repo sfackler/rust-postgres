@@ -20,7 +20,7 @@ use std::task::{Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
-impl<'a, T> fmt::Debug for BorrowToSqlParamsDebug<'a, T>
+impl<T> fmt::Debug for BorrowToSqlParamsDebug<'_, T>
 where
     T: BorrowToSql,
 {
