@@ -23,6 +23,9 @@ where
         SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
             return Ok(MaybeTlsStream::Raw(stream))
         }
+        SslMode::Prefer if negotiation == SslNegotiation::Direct => {
+            return Err(Error::tls("weak sslmode \"prefer\" may not be used with sslnegotiation=direct (use \"require\", \"verify-ca\", or \"verify-full\")".into()))
+        }
         SslMode::Prefer | SslMode::Require => {}
     }
 
