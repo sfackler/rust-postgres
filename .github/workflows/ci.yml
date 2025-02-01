@@ -50,6 +50,8 @@ jobs:
   check-wasm32:
     name: check-wasm32
     runs-on: ubuntu-latest
+    env:
+        RUSTFLAGS: ${env.RUSTFLAGS} --cfg getrandom_backend="wasm_js"
     steps:
       - uses: actions/checkout@v3
       - uses: sfackler/actions/rustup@master

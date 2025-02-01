@@ -10,7 +10,7 @@ readme = "../README.md"
 
 [features]
 default = []
-js = ["getrandom/js"]
+js = ["getrandom/wasm_js"]
 
 [dependencies]
 base64 = "0.22"
@@ -23,4 +23,4 @@ memchr = "2.0"
 rand = "0.9"
 sha2 = "0.10"
 stringprep = "0.1"
-getrandom = { version = "0.2", optional = true }
+getrandom = { version = "0.3.1", optional = true }
