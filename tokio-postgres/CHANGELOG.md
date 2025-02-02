@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v0.7.13 - 2025-02-02
+
+### Added
+
+* Added support for direct TLS negotiation.
+* Added support for `cidr` 0.3 via the `with-cidr-0_3` feature.
+
+### Fixes
+
+* Added `load_balance_hosts` to `Config`'s `Debug` implementation.
+
+### Changes
+
+* Upgraded `rand`.
+
 ## v0.7.12 - 2024-09-15
 
 ### Fixed
