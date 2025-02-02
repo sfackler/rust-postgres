@@ -16,6 +16,7 @@ array-impls = ["array-init"]
 js = ["postgres-protocol/js"]
 with-bit-vec-0_6 = ["bit-vec-06"]
 with-cidr-0_2 = ["cidr-02"]
+with-cidr-0_3 = ["cidr-03"]
 with-chrono-0_4 = ["chrono-04"]
 with-eui48-0_4 = ["eui48-04"]
 with-eui48-1 = ["eui48-1"]
@@ -41,6 +42,7 @@ chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, 
     "clock",
 ], optional = true }
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
+cidr-03 = { version = "0.3", package = "cidr", optional = true }
 # eui48-04 will stop compiling and support will be removed
 # See https://github.com/sfackler/rust-postgres/issues/1073
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
