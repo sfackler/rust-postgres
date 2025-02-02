@@ -12,7 +12,7 @@ pub struct Transaction<'a> {
     transaction: Option<tokio_postgres::Transaction<'a>>,
 }
 
-impl<'a> Drop for Transaction<'a> {
+impl Drop for Transaction<'_> {
     fn drop(&mut self) {
         if let Some(transaction) = self.transaction.take() {
             let _ = self.connection.block_on(transaction.rollback());

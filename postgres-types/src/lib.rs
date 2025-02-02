@@ -914,7 +914,7 @@ pub enum Format {
     Binary,
 }
 
-impl<'a, T> ToSql for &'a T
+impl<T> ToSql for &T
 where
     T: ToSql,
 {
@@ -963,7 +963,7 @@ impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 }
 
-impl<'a, T: ToSql> ToSql for &'a [T] {
+impl<T: ToSql> ToSql for &[T] {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
@@ -1004,7 +1004,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for &'a [u8] {
+impl ToSql for &[u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::bytea_to_sql(self, w);
         Ok(IsNull::No)
@@ -1064,7 +1064,7 @@ impl<T: ToSql> ToSql for Box<[T]> {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for Cow<'a, [u8]> {
+impl ToSql for Cow<'_, [u8]> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[u8] as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
@@ -1088,7 +1088,7 @@ impl ToSql for Vec<u8> {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for &'a str {
+impl ToSql for &str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         match ty.name() {
             "ltree" => types::ltree_to_sql(self, w),
@@ -1109,7 +1109,7 @@ impl<'a> ToSql for &'a str {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for Cow<'a, str> {
+impl ToSql for Cow<'_, str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
@@ -1256,17 +1256,17 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
-impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + 'a> {}
+impl sealed::Sealed for Box<dyn ToSql + Sync + '_> {}
 
-impl<'a> BorrowToSql for Box<dyn ToSql + Sync + 'a> {
+impl BorrowToSql for Box<dyn ToSql + Sync + '_> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
     }
 }
 
-impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + Send + 'a> {}
-impl<'a> BorrowToSql for Box<dyn ToSql + Sync + Send + 'a> {
+impl sealed::Sealed for Box<dyn ToSql + Sync + Send + '_> {}
+impl BorrowToSql for Box<dyn ToSql + Sync + Send + '_> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
