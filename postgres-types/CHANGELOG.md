@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.2.9 - 2025-02-02
+
+### Added
+
+* Added support for `cidr` 0.3 via the `with-cidr-0_3` feature.
+
+### Fixed
+
+* Fixed deserialization of out of bounds inputs to `time` 0.3 types to return an error rather than panic.
+
 ## v0.2.8 - 2024-09-15
 
 ### Added
