@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.19.01 - 2025-02-02
+
+### Added
+
+* Added support for direct TLS negotiation.
+* Added support for `cidr` 0.3 via the `with-cidr-0_3` feature.
+
 ## v0.19.9 - 2024-09-15
 
 ### Added
