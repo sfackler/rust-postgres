@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.6.8 - 2025-02-02
+
+### Changed
+
+* Upgraded `getrandom`.
+
 ## v0.6.7 - 2024-07-21
 
 ### Deprecated
