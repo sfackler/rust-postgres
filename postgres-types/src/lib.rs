@@ -491,6 +491,8 @@ impl WrongType {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `cidr::IpCidr`                  | CIDR                                |
+/// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
@@ -842,6 +844,8 @@ pub enum IsNull {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `cidr::IpCidr`                  | CIDR                                |
+/// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
