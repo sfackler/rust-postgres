@@ -113,7 +113,7 @@ impl<'a> TransactionBuilder<'a> {
             done: bool,
         }
 
-        impl<'a> Drop for RollbackIfNotDone<'a> {
+        impl Drop for RollbackIfNotDone<'_> {
             fn drop(&mut self) {
                 if self.done {
                     return;

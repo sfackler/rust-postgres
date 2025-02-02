@@ -1,4 +1,4 @@
-use crate::config::SslMode;
+use crate::config::{SslMode, SslNegotiation};
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::private::ForcePrivateApi;
 use crate::tls::TlsConnect;
@@ -10,6 +10,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 pub async fn connect_tls<S, T>(
     mut stream: S,
     mode: SslMode,
+    negotiation: SslNegotiation,
     tls: T,
     has_hostname: bool,
 ) -> Result<MaybeTlsStream<S, T::Stream>, Error>
@@ -22,21 +23,26 @@ where
         SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
             return Ok(MaybeTlsStream::Raw(stream))
         }
+        SslMode::Prefer if negotiation == SslNegotiation::Direct => {
+            return Err(Error::tls("weak sslmode \"prefer\" may not be used with sslnegotiation=direct (use \"require\", \"verify-ca\", or \"verify-full\")".into()))
+        }
         SslMode::Prefer | SslMode::Require => {}
     }
 
-    let mut buf = BytesMut::new();
-    frontend::ssl_request(&mut buf);
-    stream.write_all(&buf).await.map_err(Error::io)?;
+    if negotiation == SslNegotiation::Postgres {
+        let mut buf = BytesMut::new();
+        frontend::ssl_request(&mut buf);
+        stream.write_all(&buf).await.map_err(Error::io)?;
 
-    let mut buf = [0];
-    stream.read_exact(&mut buf).await.map_err(Error::io)?;
+        let mut buf = [0];
+        stream.read_exact(&mut buf).await.map_err(Error::io)?;
 
-    if buf[0] != b'S' {
-        if SslMode::Require == mode {
-            return Err(Error::tls("server does not support TLS".into()));
-        } else {
-            return Ok(MaybeTlsStream::Raw(stream));
+        if buf[0] != b'S' {
+            if SslMode::Require == mode {
+                return Err(Error::tls("server does not support TLS".into()));
+            } else {
+                return Ok(MaybeTlsStream::Raw(stream));
+            }
         }
     }
 
