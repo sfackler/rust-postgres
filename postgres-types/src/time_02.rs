@@ -14,9 +14,7 @@ const fn base() -> PrimitiveDateTime {
 impl<'a> FromSql<'a> for PrimitiveDateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<PrimitiveDateTime, Box<dyn Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
-        Ok(base()
-            .checked_add(Duration::microseconds(t))
-            .ok_or("value too large to decode")?)
+        Ok(base() + Duration::microseconds(t))
     }
 
     accepts!(TIMESTAMP);
