@@ -5,7 +5,7 @@ use tokio_postgres::tls::TlsConnect;
 
 #[cfg(feature = "runtime")]
 use crate::MakeTlsConnector;
-use crate::TlsConnector;
+use crate::{set_postgresql_alpn, TlsConnector};
 
 async fn smoke_test<T>(s: &str, tls: T)
 where
@@ -37,6 +37,21 @@ async fn require() {
         .unwrap();
     smoke_test(
         "user=ssl_user dbname=postgres sslmode=require",
+        TlsConnector::new(connector, "localhost"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn direct() {
+    let mut builder = native_tls::TlsConnector::builder();
+    builder.add_root_certificate(
+        Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+    );
+    set_postgresql_alpn(&mut builder);
+    let connector = builder.build().unwrap();
+    smoke_test(
+        "user=ssl_user dbname=postgres sslmode=require sslnegotiation=direct",
         TlsConnector::new(connector, "localhost"),
     )
     .await;

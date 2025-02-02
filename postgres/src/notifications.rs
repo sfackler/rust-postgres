@@ -77,7 +77,7 @@ pub struct Iter<'a> {
     connection: ConnectionRef<'a>,
 }
 
-impl<'a> FallibleIterator for Iter<'a> {
+impl FallibleIterator for Iter<'_> {
     type Item = Notification;
     type Error = Error;
 
@@ -100,7 +100,7 @@ pub struct BlockingIter<'a> {
     connection: ConnectionRef<'a>,
 }
 
-impl<'a> FallibleIterator for BlockingIter<'a> {
+impl FallibleIterator for BlockingIter<'_> {
     type Item = Notification;
     type Error = Error;
 
@@ -129,7 +129,7 @@ pub struct TimeoutIter<'a> {
     timeout: Duration,
 }
 
-impl<'a> FallibleIterator for TimeoutIter<'a> {
+impl FallibleIterator for TimeoutIter<'_> {
     type Item = Notification;
     type Error = Error;
 

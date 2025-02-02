@@ -475,7 +475,7 @@ pub struct ColumnFormats<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for ColumnFormats<'a> {
+impl FallibleIterator for ColumnFormats<'_> {
     type Item = u16;
     type Error = io::Error;
 
@@ -557,7 +557,7 @@ pub struct DataRowRanges<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for DataRowRanges<'a> {
+impl FallibleIterator for DataRowRanges<'_> {
     type Item = Option<Range<usize>>;
     type Error = io::Error;
 
@@ -645,7 +645,7 @@ pub struct ErrorField<'a> {
     value: &'a [u8],
 }
 
-impl<'a> ErrorField<'a> {
+impl ErrorField<'_> {
     #[inline]
     pub fn type_(&self) -> u8 {
         self.type_
@@ -717,7 +717,7 @@ pub struct Parameters<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for Parameters<'a> {
+impl FallibleIterator for Parameters<'_> {
     type Item = Oid;
     type Error = io::Error;
 
