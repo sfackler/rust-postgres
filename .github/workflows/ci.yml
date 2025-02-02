@@ -73,16 +73,18 @@ jobs:
           path: target
           key: check-wasm32-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
+        env:
+          RUSTFLAGS: --cfg getrandom_backend="wasm_js"
 
   test:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: docker compose up -d
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.74.0
+          version: 1.75.0
       - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
       - uses: actions/cache@v3

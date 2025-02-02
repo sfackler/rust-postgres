@@ -582,7 +582,7 @@ impl<'a> Array<'a> {
 /// An iterator over the dimensions of an array.
 pub struct ArrayDimensions<'a>(&'a [u8]);
 
-impl<'a> FallibleIterator for ArrayDimensions<'a> {
+impl FallibleIterator for ArrayDimensions<'_> {
     type Item = ArrayDimension;
     type Error = StdBox<dyn Error + Sync + Send>;
 
@@ -950,7 +950,7 @@ pub struct PathPoints<'a> {
     buf: &'a [u8],
 }
 
-impl<'a> FallibleIterator for PathPoints<'a> {
+impl FallibleIterator for PathPoints<'_> {
     type Item = Point;
     type Error = StdBox<dyn Error + Sync + Send>;
 

@@ -136,10 +136,10 @@ impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
     pub fn new(password: &[u8], channel_binding: ChannelBinding) -> ScramSha256 {
         // rand 0.5's ThreadRng is cryptographically secure
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
-                let mut v = rng.gen_range(0x21u8..0x7e);
+                let mut v = rng.random_range(0x21u8..0x7e);
                 if v == 0x2c {
                     v = 0x7e
                 }
