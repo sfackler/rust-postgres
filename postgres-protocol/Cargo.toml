@@ -10,7 +10,7 @@ readme = "../README.md"
 
 [features]
 default = []
-js = ["getrandom/js"]
+js = ["getrandom/wasm_js"]
 
 [dependencies]
 base64 = "0.22"
