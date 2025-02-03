@@ -146,6 +146,7 @@ where
         port,
         config.connect_timeout,
         config.tcp_user_timeout,
+        #[cfg(not(target_arch = "wasm32"))]
         if config.keepalives {
             Some(&config.keepalive_config)
         } else {
@@ -216,6 +217,7 @@ where
         port,
         connect_timeout: config.connect_timeout,
         tcp_user_timeout: config.tcp_user_timeout,
+        #[cfg(not(target_arch = "wasm32"))]
         keepalive: if config.keepalives {
             Some(config.keepalive_config.clone())
         } else {
