@@ -27,10 +27,11 @@ pub(crate) async fn connect_socket(
             stream.set_nodelay(true).map_err(Error::connect)?;
 
             let sock_ref = SockRef::from(&stream);
+
             #[cfg(target_os = "linux")]
-            {
+            if let Some(tcp_user_timeout) = tcp_user_timeout {
                 sock_ref
-                    .set_tcp_user_timeout(tcp_user_timeout)
+                    .set_tcp_user_timeout(Some(tcp_user_timeout))
                     .map_err(Error::connect)?;
             }
 
