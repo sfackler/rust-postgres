@@ -160,7 +160,7 @@ where
     let has_hostname = hostname.is_some();
     let (mut client, mut connection) = connect_raw(socket, tls, has_hostname, config).await?;
 
-    if config.target_session_attrs != TargetSessionAttrs::Any {
+    if config.target_session_attrs == TargetSessionAttrs::ReadOnly || config.target_session_attrs == TargetSessionAttrs::ReadWrite {
         let rows = client.simple_query_raw("SHOW transaction_read_only");
         pin_mut!(rows);
 
@@ -199,6 +199,54 @@ where
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
                             "database is not read only",
+                        )));
+                    } else {
+                        break;
+                    }
+                }
+                Some(_) => {}
+                None => return Err(Error::unexpected_message()),
+            }
+        }
+    } else if config.target_session_attrs == TargetSessionAttrs::Primary || config.target_session_attrs == TargetSessionAttrs::Standby{ 
+        let rows = client.simple_query_raw("SELECT pg_catalog.pg_is_in_recovery()");
+        pin_mut!(rows);
+
+        let rows = future::poll_fn(|cx| {
+            if connection.poll_unpin(cx)?.is_ready() {
+                return Poll::Ready(Err(Error::closed()));
+            }
+
+            rows.as_mut().poll(cx)
+        })
+        .await?;
+        pin_mut!(rows);
+
+        loop {
+            let next = future::poll_fn(|cx| {
+                if connection.poll_unpin(cx)?.is_ready() {
+                    return Poll::Ready(Some(Err(Error::closed())));
+                }
+
+                rows.as_mut().poll_next(cx)
+            });
+
+            match next.await.transpose()? {
+                Some(SimpleQueryMessage::Row(row)) => {
+                    let primary_result = row.try_get(0)?;
+                    if primary_result == Some("f")
+                        && config.target_session_attrs == TargetSessionAttrs::Primary
+                    {
+                        return Err(Error::connect(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "database is not primary",
+                        )));
+                    } else if primary_result == Some("t")
+                        && config.target_session_attrs == TargetSessionAttrs::Standby
+                    {
+                        return Err(Error::connect(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "database is not standby",
                         )));
                     } else {
                         break;

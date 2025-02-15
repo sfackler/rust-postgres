@@ -50,8 +50,25 @@ async fn wrong_port_count() {
 }
 
 #[tokio::test]
+async fn target_session_attrs_primary_ok() {
+    smoke_test("host=localhost port=5433 user=postgres target_session_attrs=primary").await;
+}
+
+#[tokio::test]
 async fn target_session_attrs_ok() {
     smoke_test("host=localhost port=5433 user=postgres target_session_attrs=read-write").await;
+}
+
+#[tokio::test]
+async fn target_session_attrs_primary_err() {
+    tokio_postgres::connect(
+        "host=localhost port=5433 user=postgres target_session_attrs=primary
+         options='-c default_transaction_read_only=on'",
+        NoTls,
+    )
+    .await
+    .err()
+    .unwrap();
 }
 
 #[tokio::test]
