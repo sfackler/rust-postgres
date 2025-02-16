@@ -55,11 +55,6 @@ where
         let result = rows[0].get(0);
         assert_eq!(val, &result);
 
-        eprintln!(
-            "val: {:?}, result: {:?}, sql_type: {}, repr: {}",
-            val, result, sql_type, repr
-        );
-
         let rows = client
             .query(&*format!("SELECT $1::{}", sql_type), &[&val])
             .await
