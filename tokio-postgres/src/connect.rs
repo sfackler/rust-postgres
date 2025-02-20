@@ -105,8 +105,8 @@ where
             }
 
             let mut last_err = None;
-            for addr in addrs {
-                match connect_once(Addr::Tcp(addr.ip()), hostname.as_deref(), port, tls, config)
+            for addr in &addrs {
+                match connect_once(Addr::Tcp(addr.ip()), hostname.as_deref(), port, tls, config, config.target_session_attrs)
                     .await
                 {
                     Ok(stream) => return Ok(stream),
@@ -115,6 +115,21 @@ where
                         continue;
                     }
                 };
+            }
+
+            // If initial pass wtih prefer standby failed then consider write hosts
+            if config.target_session_attrs == TargetSessionAttrs::PreferStandby {
+                for addr in &addrs {
+                    match connect_once(Addr::Tcp(addr.ip()), hostname.as_deref(), port, tls, config, TargetSessionAttrs::Any)
+                        .await
+                    {
+                        Ok(stream) => return Ok(stream),
+                        Err(e) => {
+                            last_err = Some(e);
+                            continue;
+                        }
+                    };
+                }
             }
 
             Err(last_err.unwrap_or_else(|| {
@@ -126,7 +141,7 @@ where
         }
         #[cfg(unix)]
         Host::Unix(path) => {
-            connect_once(Addr::Unix(path), hostname.as_deref(), port, tls, config).await
+            connect_once(Addr::Unix(path), hostname.as_deref(), port, tls, config, config.target_session_attrs).await
         }
     }
 }
@@ -137,6 +152,7 @@ async fn connect_once<T>(
     port: u16,
     tls: &mut T,
     config: &Config,
+    target_session_attrs: TargetSessionAttrs,
 ) -> Result<(Client, Connection<Socket, T::Stream>), Error>
 where
     T: MakeTlsConnect<Socket>,
@@ -160,7 +176,7 @@ where
     let has_hostname = hostname.is_some();
     let (mut client, mut connection) = connect_raw(socket, tls, has_hostname, config).await?;
 
-    if config.target_session_attrs == TargetSessionAttrs::ReadOnly || config.target_session_attrs == TargetSessionAttrs::ReadWrite {
+    if target_session_attrs == TargetSessionAttrs::ReadOnly || target_session_attrs  == TargetSessionAttrs::ReadWrite {
         let rows = client.simple_query_raw("SHOW transaction_read_only");
         pin_mut!(rows);
 
@@ -187,14 +203,14 @@ where
                 Some(SimpleQueryMessage::Row(row)) => {
                     let read_only_result = row.try_get(0)?;
                     if read_only_result == Some("on")
-                        && config.target_session_attrs == TargetSessionAttrs::ReadWrite
+                        && target_session_attrs == TargetSessionAttrs::ReadWrite
                     {
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
                             "database does not allow writes",
                         )));
                     } else if read_only_result == Some("off")
-                        && config.target_session_attrs == TargetSessionAttrs::ReadOnly
+                        && target_session_attrs == TargetSessionAttrs::ReadOnly
                     {
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
@@ -208,7 +224,7 @@ where
                 None => return Err(Error::unexpected_message()),
             }
         }
-    } else if config.target_session_attrs == TargetSessionAttrs::Primary || config.target_session_attrs == TargetSessionAttrs::Standby{ 
+    } else if target_session_attrs == TargetSessionAttrs::Primary || target_session_attrs == TargetSessionAttrs::Standby{ 
         let rows = client.simple_query_raw("SELECT pg_catalog.pg_is_in_recovery()");
         pin_mut!(rows);
 
@@ -235,14 +251,14 @@ where
                 Some(SimpleQueryMessage::Row(row)) => {
                     let primary_result = row.try_get(0)?;
                     if primary_result == Some("f")
-                        && config.target_session_attrs == TargetSessionAttrs::Primary
+                        && target_session_attrs == TargetSessionAttrs::Primary
                     {
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
                             "database is not primary",
                         )));
                     } else if primary_result == Some("t")
-                        && config.target_session_attrs == TargetSessionAttrs::Standby
+                        && target_session_attrs == TargetSessionAttrs::Standby
                     {
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
