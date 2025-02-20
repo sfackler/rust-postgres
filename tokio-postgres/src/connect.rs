@@ -250,14 +250,15 @@ where
             match next.await.transpose()? {
                 Some(SimpleQueryMessage::Row(row)) => {
                     let primary_result = row.try_get(0)?;
-                    if primary_result == Some("f")
+                    println!("{:?}", primary_result);
+                    if primary_result == Some("t")
                         && target_session_attrs == TargetSessionAttrs::Primary
                     {
                         return Err(Error::connect(io::Error::new(
                             io::ErrorKind::PermissionDenied,
                             "database is not primary",
                         )));
-                    } else if primary_result == Some("t")
+                    } else if primary_result == Some("f")
                         && target_session_attrs == TargetSessionAttrs::Standby
                     {
                         return Err(Error::connect(io::Error::new(
