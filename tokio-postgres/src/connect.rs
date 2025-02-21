@@ -224,7 +224,7 @@ where
                 None => return Err(Error::unexpected_message()),
             }
         }
-    } else if target_session_attrs == TargetSessionAttrs::Primary || target_session_attrs == TargetSessionAttrs::Standby{ 
+    } else if target_session_attrs == TargetSessionAttrs::Primary || target_session_attrs == TargetSessionAttrs::Standby || target_session_attrs == TargetSessionAttrs::PreferStandby { 
         let rows = client.simple_query_raw("SELECT pg_catalog.pg_is_in_recovery()");
         pin_mut!(rows);
 
