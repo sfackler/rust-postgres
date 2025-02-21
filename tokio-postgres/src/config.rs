@@ -36,6 +36,12 @@ pub enum TargetSessionAttrs {
     ReadWrite,
     /// The session allow only reads.
     ReadOnly,
+    /// The session allow primary node.
+    Primary,
+    /// The session allow standby node.
+    Standby,
+    /// The session prefers the standby node.
+    PreferStandby,
 }
 
 /// TLS configuration.
@@ -677,6 +683,9 @@ impl Config {
                     "any" => TargetSessionAttrs::Any,
                     "read-write" => TargetSessionAttrs::ReadWrite,
                     "read-only" => TargetSessionAttrs::ReadOnly,
+                    "primary" => TargetSessionAttrs::Primary,
+                    "standby" => TargetSessionAttrs::Standby,
+                    "prefer-standby" => TargetSessionAttrs::PreferStandby,
                     _ => {
                         return Err(Error::config_parse(Box::new(InvalidValue(
                             "target_session_attrs",
