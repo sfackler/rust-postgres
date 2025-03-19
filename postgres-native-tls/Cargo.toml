@@ -1,9 +1,9 @@
 [package]
 name = "postgres-native-tls"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 description = "TLS support for tokio-postgres via native-tls"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
@@ -16,12 +16,12 @@ default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]
 
 [dependencies]
-native-tls = "0.2"
+native-tls = { version = "0.2", features = ["alpn"] }
 tokio = "1.0"
 tokio-native-tls = "0.3"
-tokio-postgres = { version = "0.7.0", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "0.7.11", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
 futures-util = "0.3"
 tokio = { version = "1.0", features = ["macros", "net", "rt"] }
-postgres = { version = "0.19.0", path = "../postgres" }
+postgres = { version = "0.19.8", path = "../postgres" }

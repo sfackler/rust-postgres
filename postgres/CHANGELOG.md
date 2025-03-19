@@ -1,5 +1,26 @@
 # Change Log
 
+## Unreleased
+
+## v0.19.10 - 2025-02-02
+
+### Added
+
+* Added support for direct TLS negotiation.
+* Added support for `cidr` 0.3 via the `with-cidr-0_3` feature.
+
+## v0.19.9 - 2024-09-15
+
+### Added
+
+* Added support for `jiff` 0.1 via the `with-jiff-01` feature.
+
+## v0.19.8 - 2024-07-21
+
+### Added
+
+* Added `{Client, Transaction, GenericClient}::query_typed`.
+
 ## v0.19.7 - 2023-08-25
 
 ## Fixed

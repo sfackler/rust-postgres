@@ -328,6 +328,13 @@ async fn simple_query() {
         _ => panic!("unexpected message"),
     }
     match &messages[2] {
+        SimpleQueryMessage::RowDescription(columns) => {
+            assert_eq!(columns.get(0).map(|c| c.name()), Some("id"));
+            assert_eq!(columns.get(1).map(|c| c.name()), Some("name"));
+        }
+        _ => panic!("unexpected message"),
+    }
+    match &messages[3] {
         SimpleQueryMessage::Row(row) => {
             assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
             assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
@@ -336,7 +343,7 @@ async fn simple_query() {
         }
         _ => panic!("unexpected message"),
     }
-    match &messages[3] {
+    match &messages[4] {
         SimpleQueryMessage::Row(row) => {
             assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
             assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
@@ -345,11 +352,11 @@ async fn simple_query() {
         }
         _ => panic!("unexpected message"),
     }
-    match messages[4] {
+    match messages[5] {
         SimpleQueryMessage::CommandComplete(2) => {}
         _ => panic!("unexpected message"),
     }
-    assert_eq!(messages.len(), 5);
+    assert_eq!(messages.len(), 6);
 }
 
 #[tokio::test]
@@ -951,4 +958,124 @@ async fn deferred_constraint() {
         .execute("INSERT INTO t (i) VALUES (1)", &[])
         .await
         .unwrap_err();
+}
+
+#[tokio::test]
+async fn query_typed_no_transaction() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE foo (
+                name TEXT,
+                age INT
+            );
+            INSERT INTO foo (name, age) VALUES ('alice', 20), ('bob', 30), ('carol', 40);
+        ",
+        )
+        .await
+        .unwrap();
+
+    let rows: Vec<tokio_postgres::Row> = client
+        .query_typed(
+            "SELECT name, age, 'literal', 5 FROM foo WHERE name <> $1 AND age < $2 ORDER BY age",
+            &[(&"alice", Type::TEXT), (&50i32, Type::INT4)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(rows.len(), 2);
+    let first_row = &rows[0];
+    assert_eq!(first_row.get::<_, &str>(0), "bob");
+    assert_eq!(first_row.get::<_, i32>(1), 30);
+    assert_eq!(first_row.get::<_, &str>(2), "literal");
+    assert_eq!(first_row.get::<_, i32>(3), 5);
+
+    let second_row = &rows[1];
+    assert_eq!(second_row.get::<_, &str>(0), "carol");
+    assert_eq!(second_row.get::<_, i32>(1), 40);
+    assert_eq!(second_row.get::<_, &str>(2), "literal");
+    assert_eq!(second_row.get::<_, i32>(3), 5);
+
+    // Test for UPDATE that returns no data
+    let updated_rows = client
+        .query_typed("UPDATE foo set age = 33", &[])
+        .await
+        .unwrap();
+    assert_eq!(updated_rows.len(), 0);
+}
+
+#[tokio::test]
+async fn query_typed_with_transaction() {
+    let mut client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE foo (
+                name TEXT,
+                age INT
+            );
+        ",
+        )
+        .await
+        .unwrap();
+
+    let transaction = client.transaction().await.unwrap();
+
+    let rows: Vec<tokio_postgres::Row> = transaction
+        .query_typed(
+            "INSERT INTO foo (name, age) VALUES ($1, $2), ($3, $4), ($5, $6) returning name, age",
+            &[
+                (&"alice", Type::TEXT),
+                (&20i32, Type::INT4),
+                (&"bob", Type::TEXT),
+                (&30i32, Type::INT4),
+                (&"carol", Type::TEXT),
+                (&40i32, Type::INT4),
+            ],
+        )
+        .await
+        .unwrap();
+    let inserted_values: Vec<(String, i32)> = rows
+        .iter()
+        .map(|row| (row.get::<_, String>(0), row.get::<_, i32>(1)))
+        .collect();
+    assert_eq!(
+        inserted_values,
+        [
+            ("alice".to_string(), 20),
+            ("bob".to_string(), 30),
+            ("carol".to_string(), 40)
+        ]
+    );
+
+    let rows: Vec<tokio_postgres::Row> = transaction
+        .query_typed(
+            "SELECT name, age, 'literal', 5 FROM foo WHERE name <> $1 AND age < $2 ORDER BY age",
+            &[(&"alice", Type::TEXT), (&50i32, Type::INT4)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(rows.len(), 2);
+    let first_row = &rows[0];
+    assert_eq!(first_row.get::<_, &str>(0), "bob");
+    assert_eq!(first_row.get::<_, i32>(1), 30);
+    assert_eq!(first_row.get::<_, &str>(2), "literal");
+    assert_eq!(first_row.get::<_, i32>(3), 5);
+
+    let second_row = &rows[1];
+    assert_eq!(second_row.get::<_, &str>(0), "carol");
+    assert_eq!(second_row.get::<_, i32>(1), 40);
+    assert_eq!(second_row.get::<_, &str>(2), "literal");
+    assert_eq!(second_row.get::<_, i32>(3), 5);
+
+    // Test for UPDATE that returns no data
+    let updated_rows = transaction
+        .query_typed("UPDATE foo set age = 33", &[])
+        .await
+        .unwrap();
+    assert_eq!(updated_rows.len(), 0);
 }

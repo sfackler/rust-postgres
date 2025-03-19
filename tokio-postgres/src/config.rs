@@ -50,6 +50,20 @@ pub enum SslMode {
     Require,
 }
 
+/// TLS negotiation configuration
+///
+/// See more information at
+/// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-SSLNEGOTIATION
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum SslNegotiation {
+    /// Use PostgreSQL SslRequest for Ssl negotiation
+    #[default]
+    Postgres,
+    /// Start Ssl handshake without negotiation, only works for PostgreSQL 17+
+    Direct,
+}
+
 /// Channel binding configuration.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -106,6 +120,15 @@ pub enum Host {
 ///     path to the directory containing Unix domain sockets. Otherwise, it is treated as a hostname. Multiple hosts
 ///     can be specified, separated by commas. Each host will be tried in turn when connecting. Required if connecting
 ///     with the `connect` method.
+/// * `sslnegotiation` - TLS negotiation method. If set to `direct`, the client
+///     will perform direct TLS handshake, this only works for PostgreSQL 17 and
+///     newer.
+///     Note that you will need to setup ALPN of TLS client configuration to
+///     `postgresql` when using direct TLS. If you are using postgres_openssl
+///     as TLS backend, a `postgres_openssl::set_postgresql_alpn` helper is
+///     provided for that.
+///     If set to `postgres`, the default value, it follows original postgres
+///     wire protocol to perform the negotiation.
 /// * `hostaddr` - Numeric IP address of host to connect to. This should be in the standard IPv4 address format,
 ///     e.g., 172.28.40.9. If your machine supports IPv6, you can also use those addresses.
 ///     If this parameter is not specified, the value of `host` will be looked up to find the corresponding IP address,
@@ -198,6 +221,7 @@ pub struct Config {
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
     pub(crate) ssl_mode: SslMode,
+    pub(crate) ssl_negotiation: SslNegotiation,
     pub(crate) host: Vec<Host>,
     pub(crate) hostaddr: Vec<IpAddr>,
     pub(crate) port: Vec<u16>,
@@ -227,6 +251,7 @@ impl Config {
             options: None,
             application_name: None,
             ssl_mode: SslMode::Prefer,
+            ssl_negotiation: SslNegotiation::Postgres,
             host: vec![],
             hostaddr: vec![],
             port: vec![],
@@ -248,8 +273,8 @@ impl Config {
     /// Sets the user to authenticate with.
     ///
     /// Defaults to the user executing this process.
-    pub fn user(&mut self, user: &str) -> &mut Config {
-        self.user = Some(user.to_string());
+    pub fn user(&mut self, user: impl Into<String>) -> &mut Config {
+        self.user = Some(user.into());
         self
     }
 
@@ -277,8 +302,8 @@ impl Config {
     /// Sets the name of the database to connect to.
     ///
     /// Defaults to the user.
-    pub fn dbname(&mut self, dbname: &str) -> &mut Config {
-        self.dbname = Some(dbname.to_string());
+    pub fn dbname(&mut self, dbname: impl Into<String>) -> &mut Config {
+        self.dbname = Some(dbname.into());
         self
     }
 
@@ -289,8 +314,8 @@ impl Config {
     }
 
     /// Sets command line options used to configure the server.
-    pub fn options(&mut self, options: &str) -> &mut Config {
-        self.options = Some(options.to_string());
+    pub fn options(&mut self, options: impl Into<String>) -> &mut Config {
+        self.options = Some(options.into());
         self
     }
 
@@ -301,8 +326,8 @@ impl Config {
     }
 
     /// Sets the value of the `application_name` runtime parameter.
-    pub fn application_name(&mut self, application_name: &str) -> &mut Config {
-        self.application_name = Some(application_name.to_string());
+    pub fn application_name(&mut self, application_name: impl Into<String>) -> &mut Config {
+        self.application_name = Some(application_name.into());
         self
     }
 
@@ -325,12 +350,27 @@ impl Config {
         self.ssl_mode
     }
 
+    /// Sets the SSL negotiation method.
+    ///
+    /// Defaults to `postgres`.
+    pub fn ssl_negotiation(&mut self, ssl_negotiation: SslNegotiation) -> &mut Config {
+        self.ssl_negotiation = ssl_negotiation;
+        self
+    }
+
+    /// Gets the SSL negotiation method.
+    pub fn get_ssl_negotiation(&self) -> SslNegotiation {
+        self.ssl_negotiation
+    }
+
     /// Adds a host to the configuration.
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
     /// There must be either no hosts, or the same number of hosts as hostaddrs.
-    pub fn host(&mut self, host: &str) -> &mut Config {
+    pub fn host(&mut self, host: impl Into<String>) -> &mut Config {
+        let host = host.into();
+
         #[cfg(unix)]
         {
             if host.starts_with('/') {
@@ -338,7 +378,7 @@ impl Config {
             }
         }
 
-        self.host.push(Host::Tcp(host.to_string()));
+        self.host.push(Host::Tcp(host));
         self
     }
 
@@ -548,6 +588,18 @@ impl Config {
                 };
                 self.ssl_mode(mode);
             }
+            "sslnegotiation" => {
+                let mode = match value {
+                    "postgres" => SslNegotiation::Postgres,
+                    "direct" => SslNegotiation::Direct,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "sslnegotiation",
+                        ))))
+                    }
+                };
+                self.ssl_negotiation(mode);
+            }
             "host" => {
                 for host in value.split(',') {
                     self.host(host);
@@ -742,6 +794,7 @@ impl fmt::Debug for Config {
         config_dbg
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
+            .field("load_balance_hosts", &self.load_balance_hosts)
             .finish()
     }
 }
@@ -990,7 +1043,7 @@ impl<'a> UrlParser<'a> {
 
         let mut it = creds.splitn(2, ':');
         let user = self.decode(it.next().unwrap())?;
-        self.config.user(&user);
+        self.config.user(user);
 
         if let Some(password) = it.next() {
             let password = Cow::from(percent_encoding::percent_decode(password.as_bytes()));
@@ -1053,7 +1106,7 @@ impl<'a> UrlParser<'a> {
         };
 
         if !dbname.is_empty() {
-            self.config.dbname(&self.decode(dbname)?);
+            self.config.dbname(self.decode(dbname)?);
         }
 
         Ok(())

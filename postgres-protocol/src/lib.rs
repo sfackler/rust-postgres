@@ -60,7 +60,7 @@ macro_rules! from_usize {
         impl FromUsize for $t {
             #[inline]
             fn from_usize(x: usize) -> io::Result<$t> {
-                if x > <$t>::max_value() as usize {
+                if x > <$t>::MAX as usize {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "value too large to transmit",

@@ -13,7 +13,9 @@ fn base() -> PrimitiveDateTime {
 impl<'a> FromSql<'a> for PrimitiveDateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<PrimitiveDateTime, Box<dyn Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
-        Ok(base() + Duration::microseconds(t))
+        Ok(base()
+            .checked_add(Duration::microseconds(t))
+            .ok_or("value too large to decode")?)
     }
 
     accepts!(TIMESTAMP);
@@ -62,7 +64,10 @@ impl ToSql for OffsetDateTime {
 impl<'a> FromSql<'a> for Date {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Date, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
-        Ok(base().date() + Duration::days(i64::from(jd)))
+        Ok(base()
+            .date()
+            .checked_add(Duration::days(i64::from(jd)))
+            .ok_or("value too large to decode")?)
     }
 
     accepts!(DATE);

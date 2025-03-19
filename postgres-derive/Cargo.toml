@@ -1,8 +1,8 @@
 [package]
 name = "postgres-derive"
-version = "0.4.5"
+version = "0.4.6"
 authors = ["Steven Fackler <sfackler@palantir.com>"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 description = "An internal crate used by postgres-types"
 repository = "https://github.com/sfackler/rust-postgres"
@@ -15,4 +15,4 @@ test = false
 syn = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
-heck = "0.4"
+heck = "0.5"

@@ -1,16 +1,16 @@
 [package]
 name = "postgres-protocol"
-version = "0.6.6"
+version = "0.6.8"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
 description = "Low level Postgres protocol APIs"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
 
 [features]
 default = []
-js = ["getrandom/js"]
+js = ["getrandom/wasm_js"]
 
 [dependencies]
 base64 = "0.22"
@@ -20,7 +20,7 @@ fallible-iterator = "0.2"
 hmac = "0.12"
 md-5 = "0.10"
 memchr = "2.0"
-rand = "0.8"
+rand = "0.9"
 sha2 = "0.10"
 stringprep = "0.1"
-getrandom = { version = "0.2", optional = true }
+getrandom = { version = "0.3", optional = true }

@@ -268,6 +268,8 @@ mod bit_vec_06;
 mod chrono_04;
 #[cfg(feature = "with-cidr-0_2")]
 mod cidr_02;
+#[cfg(feature = "with-cidr-0_3")]
+mod cidr_03;
 #[cfg(feature = "with-eui48-0_4")]
 mod eui48_04;
 #[cfg(feature = "with-eui48-1")]
@@ -276,6 +278,10 @@ mod eui48_1;
 mod geo_types_06;
 #[cfg(feature = "with-geo-types-0_7")]
 mod geo_types_07;
+#[cfg(feature = "with-jiff-0_1")]
+mod jiff_01;
+#[cfg(feature = "with-jiff-0_2")]
+mod jiff_02;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
@@ -487,10 +493,16 @@ impl WrongType {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `cidr::IpCidr`                  | CIDR                                |
+/// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
+/// | `jiff::civil::Date`             | DATE                                |
+/// | `jiff::civil::DateTime`         | TIMESTAMP                           |
+/// | `jiff::civil::Time`             | TIME                                |
+/// | `jiff::Timestamp`               | TIMESTAMP WITH TIME ZONE            |
 /// | `eui48::MacAddress`             | MACADDR                             |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
@@ -834,6 +846,8 @@ pub enum IsNull {
 /// | `chrono::DateTime<FixedOffset>` | TIMESTAMP WITH TIME ZONE            |
 /// | `chrono::NaiveDate`             | DATE                                |
 /// | `chrono::NaiveTime`             | TIME                                |
+/// | `cidr::IpCidr`                  | CIDR                                |
+/// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
@@ -908,7 +922,7 @@ pub enum Format {
     Binary,
 }
 
-impl<'a, T> ToSql for &'a T
+impl<T> ToSql for &T
 where
     T: ToSql,
 {
@@ -949,7 +963,7 @@ impl<T: ToSql> ToSql for Option<T> {
 
     fn encode_format(&self, ty: &Type) -> Format {
         match self {
-            Some(ref val) => val.encode_format(ty),
+            Some(val) => val.encode_format(ty),
             None => Format::Binary,
         }
     }
@@ -957,7 +971,7 @@ impl<T: ToSql> ToSql for Option<T> {
     to_sql_checked!();
 }
 
-impl<'a, T: ToSql> ToSql for &'a [T] {
+impl<T: ToSql> ToSql for &[T] {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
@@ -998,7 +1012,7 @@ impl<'a, T: ToSql> ToSql for &'a [T] {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for &'a [u8] {
+impl ToSql for &[u8] {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         types::bytea_to_sql(self, w);
         Ok(IsNull::No)
@@ -1058,7 +1072,7 @@ impl<T: ToSql> ToSql for Box<[T]> {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for Cow<'a, [u8]> {
+impl ToSql for Cow<'_, [u8]> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&[u8] as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
@@ -1082,7 +1096,7 @@ impl ToSql for Vec<u8> {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for &'a str {
+impl ToSql for &str {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         match ty.name() {
             "ltree" => types::ltree_to_sql(self, w),
@@ -1103,7 +1117,7 @@ impl<'a> ToSql for &'a str {
     to_sql_checked!();
 }
 
-impl<'a> ToSql for Cow<'a, str> {
+impl ToSql for Cow<'_, str> {
     fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         <&str as ToSql>::to_sql(&self.as_ref(), ty, w)
     }
@@ -1222,7 +1236,7 @@ impl ToSql for IpAddr {
 }
 
 fn downcast(len: usize) -> Result<i32, Box<dyn Error + Sync + Send>> {
-    if len > i32::max_value() as usize {
+    if len > i32::MAX as usize {
         Err("value too large to transmit".into())
     } else {
         Ok(len as i32)
@@ -1250,17 +1264,17 @@ impl BorrowToSql for &dyn ToSql {
     }
 }
 
-impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + 'a> {}
+impl sealed::Sealed for Box<dyn ToSql + Sync + '_> {}
 
-impl<'a> BorrowToSql for Box<dyn ToSql + Sync + 'a> {
+impl BorrowToSql for Box<dyn ToSql + Sync + '_> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()
     }
 }
 
-impl<'a> sealed::Sealed for Box<dyn ToSql + Sync + Send + 'a> {}
-impl<'a> BorrowToSql for Box<dyn ToSql + Sync + Send + 'a> {
+impl sealed::Sealed for Box<dyn ToSql + Sync + Send + '_> {}
+impl BorrowToSql for Box<dyn ToSql + Sync + Send + '_> {
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self.as_ref()

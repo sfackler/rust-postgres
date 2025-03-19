@@ -44,7 +44,7 @@ where
 
     let mut indices = (0..num_hosts).collect::<Vec<_>>();
     if config.load_balance_hosts == LoadBalanceHosts::Random {
-        indices.shuffle(&mut rand::thread_rng());
+        indices.shuffle(&mut rand::rng());
     }
 
     let mut error = None;
@@ -101,7 +101,7 @@ where
                 .collect::<Vec<_>>();
 
             if config.load_balance_hosts == LoadBalanceHosts::Random {
-                addrs.shuffle(&mut rand::thread_rng());
+                addrs.shuffle(&mut rand::rng());
             }
 
             let mut last_err = None;

@@ -12,7 +12,7 @@ pub struct Transaction<'a> {
     transaction: Option<tokio_postgres::Transaction<'a>>,
 }
 
-impl<'a> Drop for Transaction<'a> {
+impl Drop for Transaction<'_> {
     fn drop(&mut self) {
         if let Some(transaction) = self.transaction.take() {
             let _ = self.connection.block_on(transaction.rollback());
@@ -112,6 +112,35 @@ impl<'a> Transaction<'a> {
         let stream = self
             .connection
             .block_on(self.transaction.as_ref().unwrap().query_raw(query, params))?;
+        Ok(RowIter::new(self.connection.as_ref(), stream))
+    }
+
+    /// Like `Client::query_typed`.
+    pub fn query_typed(
+        &mut self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed(statement, params),
+        )
+    }
+
+    /// Like `Client::query_typed_raw`.
+    pub fn query_typed_raw<P, I>(&mut self, query: &str, params: I) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        let stream = self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_raw(query, params),
+        )?;
         Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 

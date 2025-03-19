@@ -1,9 +1,9 @@
 [package]
 name = "postgres-openssl"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 description = "TLS support for tokio-postgres via openssl"
 repository = "https://github.com/sfackler/rust-postgres"
 readme = "../README.md"
@@ -19,9 +19,9 @@ runtime = ["tokio-postgres/runtime"]
 openssl = "0.10"
 tokio = "1.0"
 tokio-openssl = "0.6"
-tokio-postgres = { version = "0.7.0", path = "../tokio-postgres", default-features = false }
+tokio-postgres = { version = "0.7.11", path = "../tokio-postgres", default-features = false }
 
 [dev-dependencies]
 futures-util = "0.3"
 tokio = { version = "1.0", features = ["macros", "net", "rt"] }
-postgres = { version = "0.19.0", path = "../postgres" }
+postgres = { version = "0.19.8", path = "../postgres" }

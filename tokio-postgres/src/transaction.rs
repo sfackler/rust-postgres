@@ -33,7 +33,7 @@ struct Savepoint {
     depth: u32,
 }
 
-impl<'a> Drop for Transaction<'a> {
+impl Drop for Transaction<'_> {
     fn drop(&mut self) {
         if self.done {
             return;
@@ -147,6 +147,24 @@ impl<'a> Transaction<'a> {
         I::IntoIter: ExactSizeIterator,
     {
         self.client.query_raw(statement, params).await
+    }
+
+    /// Like `Client::query_typed`.
+    pub async fn query_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.client.query_typed(statement, params).await
+    }
+
+    /// Like `Client::query_typed_raw`.
+    pub async fn query_typed_raw<P, I>(&self, query: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        self.client.query_typed_raw(query, params).await
     }
 
     /// Like `Client::execute`.

@@ -475,7 +475,7 @@ pub struct ColumnFormats<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for ColumnFormats<'a> {
+impl FallibleIterator for ColumnFormats<'_> {
     type Item = u16;
     type Error = io::Error;
 
@@ -524,7 +524,7 @@ impl CopyOutResponseBody {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataRowBody {
     storage: Bytes,
     len: u16,
@@ -557,7 +557,7 @@ pub struct DataRowRanges<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for DataRowRanges<'a> {
+impl FallibleIterator for DataRowRanges<'_> {
     type Item = Option<Range<usize>>;
     type Error = io::Error;
 
@@ -633,7 +633,7 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
         }
 
         let value_end = find_null(self.buf, 0)?;
-        let value = get_str(&self.buf[..value_end])?;
+        let value = &self.buf[..value_end];
         self.buf = &self.buf[value_end + 1..];
 
         Ok(Some(ErrorField { type_, value }))
@@ -642,17 +642,23 @@ impl<'a> FallibleIterator for ErrorFields<'a> {
 
 pub struct ErrorField<'a> {
     type_: u8,
-    value: &'a str,
+    value: &'a [u8],
 }
 
-impl<'a> ErrorField<'a> {
+impl ErrorField<'_> {
     #[inline]
     pub fn type_(&self) -> u8 {
         self.type_
     }
 
     #[inline]
+    #[deprecated(note = "use value_bytes instead", since = "0.6.7")]
     pub fn value(&self) -> &str {
+        str::from_utf8(self.value).expect("error field value contained non-UTF8 bytes")
+    }
+
+    #[inline]
+    pub fn value_bytes(&self) -> &[u8] {
         self.value
     }
 }
@@ -711,7 +717,7 @@ pub struct Parameters<'a> {
     remaining: u16,
 }
 
-impl<'a> FallibleIterator for Parameters<'a> {
+impl FallibleIterator for Parameters<'_> {
     type Item = Oid;
     type Error = io::Error;
 

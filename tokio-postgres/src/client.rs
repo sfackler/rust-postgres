@@ -1,5 +1,5 @@
-use crate::codec::{BackendMessages, FrontendMessage};
-use crate::config::SslMode;
+use crate::codec::BackendMessages;
+use crate::config::{SslMode, SslNegotiation};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
@@ -21,7 +21,7 @@ use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
-use postgres_protocol::message::{backend::Message, frontend};
+use postgres_protocol::message::backend::Message;
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
@@ -180,6 +180,7 @@ pub struct Client {
     #[cfg(feature = "runtime")]
     socket_config: Option<SocketConfig>,
     ssl_mode: SslMode,
+    ssl_negotiation: SslNegotiation,
     process_id: i32,
     secret_key: i32,
 }
@@ -188,6 +189,7 @@ impl Client {
     pub(crate) fn new(
         sender: mpsc::UnboundedSender<Request>,
         ssl_mode: SslMode,
+        ssl_negotiation: SslNegotiation,
         process_id: i32,
         secret_key: i32,
     ) -> Client {
@@ -200,6 +202,7 @@ impl Client {
             #[cfg(feature = "runtime")]
             socket_config: None,
             ssl_mode,
+            ssl_negotiation,
             process_id,
             secret_key,
         }
@@ -274,19 +277,9 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
-        pin_mut!(stream);
-
-        let row = match stream.try_next().await? {
-            Some(row) => row,
-            None => return Err(Error::row_count()),
-        };
-
-        if stream.try_next().await?.is_some() {
-            return Err(Error::row_count());
-        }
-
-        Ok(row)
+        self.query_opt(statement, params)
+            .await
+            .and_then(|res| res.ok_or_else(Error::row_count))
     }
 
     /// Executes a statements which returns zero or one rows, returning it.
@@ -310,16 +303,22 @@ impl Client {
         let stream = self.query_raw(statement, slice_iter(params)).await?;
         pin_mut!(stream);
 
-        let row = match stream.try_next().await? {
-            Some(row) => row,
-            None => return Ok(None),
-        };
+        let mut first = None;
 
-        if stream.try_next().await?.is_some() {
-            return Err(Error::row_count());
+        // Originally this was two calls to `try_next().await?`,
+        // once for the first element, and second to error if more than one.
+        //
+        // However, this new form with only one .await in a loop generates
+        // slightly smaller codegen/stack usage for the resulting future.
+        while let Some(row) = stream.try_next().await? {
+            if first.is_some() {
+                return Err(Error::row_count());
+            }
+
+            first = Some(row);
         }
 
-        Ok(Some(row))
+        Ok(first)
     }
 
     /// The maximally flexible version of [`query`].
@@ -337,7 +336,6 @@ impl Client {
     ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
-    /// use tokio_postgres::types::ToSql;
     /// use futures_util::{pin_mut, TryStreamExt};
     ///
     /// let params: Vec<String> = vec![
@@ -366,6 +364,70 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(self).await?;
         query::query(&self.inner, statement, params).await
+    }
+
+    /// Like `query`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the
+    /// parameter of the list provided, 1-indexed.
+    pub async fn query_typed(
+        &self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Vec<Row>, Error> {
+        self.query_typed_raw(query, params.iter().map(|(v, t)| (*v, t.clone())))
+            .await?
+            .try_collect()
+            .await
+    }
+
+    /// The maximally flexible version of [`query_typed`].
+    ///
+    /// Compared to `query`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the
+    /// parameter of the list provided, 1-indexed.
+    ///
+    /// [`query_typed`]: #method.query_typed
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
+    /// use futures_util::{pin_mut, TryStreamExt};
+    /// use tokio_postgres::types::Type;
+    ///
+    /// let params: Vec<(String, Type)> = vec![
+    ///     ("first param".into(), Type::TEXT),
+    ///     ("second param".into(), Type::TEXT),
+    /// ];
+    /// let mut it = client.query_typed_raw(
+    ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
+    ///     params,
+    /// ).await?;
+    ///
+    /// pin_mut!(it);
+    /// while let Some(row) = it.try_next().await? {
+    ///     let foo: i32 = row.get("foo");
+    ///     println!("foo: {}", foo);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn query_typed_raw<P, I>(&self, query: &str, params: I) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        query::query_typed(&self.inner, query, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -473,43 +535,7 @@ impl Client {
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
-        struct RollbackIfNotDone<'me> {
-            client: &'me Client,
-            done: bool,
-        }
-
-        impl<'a> Drop for RollbackIfNotDone<'a> {
-            fn drop(&mut self) {
-                if self.done {
-                    return;
-                }
-
-                let buf = self.client.inner().with_buf(|buf| {
-                    frontend::query("ROLLBACK", buf).unwrap();
-                    buf.split().freeze()
-                });
-                let _ = self
-                    .client
-                    .inner()
-                    .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
-            }
-        }
-
-        // This is done, as `Future` created by this method can be dropped after
-        // `RequestMessages` is synchronously send to the `Connection` by
-        // `batch_execute()`, but before `Responses` is asynchronously polled to
-        // completion. In that case `Transaction` won't be created and thus
-        // won't be rolled back.
-        {
-            let mut cleaner = RollbackIfNotDone {
-                client: self,
-                done: false,
-            };
-            self.batch_execute("BEGIN").await?;
-            cleaner.done = true;
-        }
-
-        Ok(Transaction::new(self))
+        self.build_transaction().start().await
     }
 
     /// Returns a builder for a transaction with custom settings.
@@ -527,6 +553,7 @@ impl Client {
             #[cfg(feature = "runtime")]
             socket_config: self.socket_config.clone(),
             ssl_mode: self.ssl_mode,
+            ssl_negotiation: self.ssl_negotiation,
             process_id: self.process_id,
             secret_key: self.secret_key,
         }

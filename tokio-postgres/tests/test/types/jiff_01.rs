@@ -1,18 +1,20 @@
-use chrono_04::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use jiff_01::{
+    civil::{Date as JiffDate, DateTime, Time},
+    Timestamp as JiffTimestamp,
+};
 use std::fmt;
-use tokio_postgres::types::{Date, FromSqlOwned, Timestamp};
-use tokio_postgres::Client;
+use tokio_postgres::{
+    types::{Date, FromSqlOwned, Timestamp},
+    Client,
+};
 
 use crate::connect;
 use crate::types::test_type;
 
 #[tokio::test]
-async fn test_naive_date_time_params() {
-    fn make_check(time: &str) -> (Option<NaiveDateTime>, &str) {
-        (
-            Some(NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap()),
-            time,
-        )
+async fn test_datetime_params() {
+    fn make_check(s: &str) -> (Option<DateTime>, &str) {
+        (Some(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "TIMESTAMP",
@@ -27,14 +29,9 @@ async fn test_naive_date_time_params() {
 }
 
 #[tokio::test]
-async fn test_with_special_naive_date_time_params() {
-    fn make_check(time: &str) -> (Timestamp<NaiveDateTime>, &str) {
-        (
-            Timestamp::Value(
-                NaiveDateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f'").unwrap(),
-            ),
-            time,
-        )
+async fn test_with_special_datetime_params() {
+    fn make_check(s: &str) -> (Timestamp<DateTime>, &str) {
+        (Timestamp::Value(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "TIMESTAMP",
@@ -50,16 +47,9 @@ async fn test_with_special_naive_date_time_params() {
 }
 
 #[tokio::test]
-async fn test_date_time_params() {
-    fn make_check(time: &str) -> (Option<DateTime<Utc>>, &str) {
-        (
-            Some(
-                DateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f%#z'")
-                    .unwrap()
-                    .to_utc(),
-            ),
-            time,
-        )
+async fn test_timestamp_params() {
+    fn make_check(s: &str) -> (Option<JiffTimestamp>, &str) {
+        (Some(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "TIMESTAMP WITH TIME ZONE",
@@ -74,16 +64,9 @@ async fn test_date_time_params() {
 }
 
 #[tokio::test]
-async fn test_with_special_date_time_params() {
-    fn make_check(time: &str) -> (Timestamp<DateTime<Utc>>, &str) {
-        (
-            Timestamp::Value(
-                DateTime::parse_from_str(time, "'%Y-%m-%d %H:%M:%S.%f%#z'")
-                    .unwrap()
-                    .to_utc(),
-            ),
-            time,
-        )
+async fn test_with_special_timestamp_params() {
+    fn make_check(s: &str) -> (Timestamp<JiffTimestamp>, &str) {
+        (Timestamp::Value(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "TIMESTAMP WITH TIME ZONE",
@@ -100,11 +83,8 @@ async fn test_with_special_date_time_params() {
 
 #[tokio::test]
 async fn test_date_params() {
-    fn make_check(time: &str) -> (Option<NaiveDate>, &str) {
-        (
-            Some(NaiveDate::parse_from_str(time, "'%Y-%m-%d'").unwrap()),
-            time,
-        )
+    fn make_check(s: &str) -> (Option<JiffDate>, &str) {
+        (Some(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "DATE",
@@ -120,11 +100,8 @@ async fn test_date_params() {
 
 #[tokio::test]
 async fn test_with_special_date_params() {
-    fn make_check(date: &str) -> (Date<NaiveDate>, &str) {
-        (
-            Date::Value(NaiveDate::parse_from_str(date, "'%Y-%m-%d'").unwrap()),
-            date,
-        )
+    fn make_check(s: &str) -> (Date<JiffDate>, &str) {
+        (Date::Value(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "DATE",
@@ -141,11 +118,8 @@ async fn test_with_special_date_params() {
 
 #[tokio::test]
 async fn test_time_params() {
-    fn make_check(time: &str) -> (Option<NaiveTime>, &str) {
-        (
-            Some(NaiveTime::parse_from_str(time, "'%H:%M:%S.%f'").unwrap()),
-            time,
-        )
+    fn make_check(s: &str) -> (Option<Time>, &str) {
+        (Some(s.trim_matches('\'').parse().unwrap()), s)
     }
     test_type(
         "TIME",
@@ -171,6 +145,19 @@ async fn test_special_params_without_wrapper() {
             .unwrap()
             .try_get::<_, T>(0)
             .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "error deserializing column 0: value too large to decode"
+        );
+
+        let err = client
+            .query_one(&*format!("SELECT {}::{}", val, sql_type), &[])
+            .await
+            .unwrap()
+            .try_get::<_, T>(0)
+            .unwrap_err();
+
         assert_eq!(
             err.to_string(),
             "error deserializing column 0: value too large to decode"
@@ -179,12 +166,10 @@ async fn test_special_params_without_wrapper() {
 
     let mut client = connect("user=postgres").await;
 
-    assert_overflows::<DateTime<Utc>>(&mut client, "'-infinity'", "timestamptz").await;
-    assert_overflows::<DateTime<Utc>>(&mut client, "'infinity'", "timestamptz").await;
-
-    assert_overflows::<NaiveDateTime>(&mut client, "'-infinity'", "timestamp").await;
-    assert_overflows::<NaiveDateTime>(&mut client, "'infinity'", "timestamp").await;
-
-    assert_overflows::<NaiveDate>(&mut client, "'-infinity'", "date").await;
-    assert_overflows::<NaiveDate>(&mut client, "'infinity'", "date").await;
+    assert_overflows::<DateTime>(&mut client, "'-infinity'", "timestamp").await;
+    assert_overflows::<DateTime>(&mut client, "'infinity'", "timestamp").await;
+    assert_overflows::<JiffTimestamp>(&mut client, "'-infinity'", "timestamptz").await;
+    assert_overflows::<JiffTimestamp>(&mut client, "'infinity'", "timestamptz").await;
+    assert_overflows::<JiffDate>(&mut client, "'-infinity'", "date").await;
+    assert_overflows::<JiffDate>(&mut client, "'infinity'", "date").await;
 }

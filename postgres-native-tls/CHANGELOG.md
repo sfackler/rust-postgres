@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.5.1 - 2025-02-02
+
+### Added
+
+* Added `set_postgresql_alpn`.
+
 ## v0.5.0 - 2020-12-25
 
 ### Changed

@@ -85,35 +85,34 @@ impl Stream for SimpleQueryStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        loop {
-            match ready!(this.responses.poll_next(cx)?) {
-                Message::CommandComplete(body) => {
-                    let rows = extract_row_affected(&body)?;
-                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))));
-                }
-                Message::EmptyQueryResponse => {
-                    return Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))));
-                }
-                Message::RowDescription(body) => {
-                    let columns = body
-                        .fields()
-                        .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
-                        .collect::<Vec<_>>()
-                        .map_err(Error::parse)?
-                        .into();
-
-                    *this.columns = Some(columns);
-                }
-                Message::DataRow(body) => {
-                    let row = match &this.columns {
-                        Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
-                        None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
-                    };
-                    return Poll::Ready(Some(Ok(SimpleQueryMessage::Row(row))));
-                }
-                Message::ReadyForQuery(_) => return Poll::Ready(None),
-                _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+        match ready!(this.responses.poll_next(cx)?) {
+            Message::CommandComplete(body) => {
+                let rows = extract_row_affected(&body)?;
+                Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(rows))))
             }
+            Message::EmptyQueryResponse => {
+                Poll::Ready(Some(Ok(SimpleQueryMessage::CommandComplete(0))))
+            }
+            Message::RowDescription(body) => {
+                let columns: Arc<[SimpleColumn]> = body
+                    .fields()
+                    .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
+                    .collect::<Vec<_>>()
+                    .map_err(Error::parse)?
+                    .into();
+
+                *this.columns = Some(columns.clone());
+                Poll::Ready(Some(Ok(SimpleQueryMessage::RowDescription(columns))))
+            }
+            Message::DataRow(body) => {
+                let row = match &this.columns {
+                    Some(columns) => SimpleQueryRow::new(columns.clone(), body)?,
+                    None => return Poll::Ready(Some(Err(Error::unexpected_message()))),
+                };
+                Poll::Ready(Some(Ok(SimpleQueryMessage::Row(row))))
+            }
+            Message::ReadyForQuery(_) => Poll::Ready(None),
+            _ => Poll::Ready(Some(Err(Error::unexpected_message()))),
         }
     }
 }
