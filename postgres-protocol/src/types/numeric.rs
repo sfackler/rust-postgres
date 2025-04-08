@@ -76,6 +76,33 @@ impl Numeric {
     pub fn sign(&self) -> NumericSign {
         self.sign
     }
+
+    fn nan() -> Self {
+        Self {
+            sign: NumericSign::NaN,
+            scale: 0,
+            weight: 0,
+            digits: vec![],
+        }
+    }
+
+    fn infinity() -> Self {
+        Self {
+            sign: NumericSign::PositiveInfinity,
+            scale: 0,
+            weight: 0,
+            digits: vec![],
+        }
+    }
+
+    fn negative_infinity() -> Self {
+        Self {
+            sign: NumericSign::NegativeInfinity,
+            scale: 0,
+            weight: 0,
+            digits: vec![],
+        }
+    }
 }
 
 impl std::fmt::Display for Numeric {
@@ -161,33 +188,15 @@ impl FromStr for Numeric {
         let mut scale = 0;
         let mut sign = NumericSign::Positive;
 
-        match value {
-            "NaN" | "nan" => {
-                return Ok(Numeric {
-                    sign: NumericSign::NaN,
-                    scale: 0,
-                    weight: 0,
-                    digits: vec![],
-                })
-            }
-            "Infinity" | "infinity" | "inf" => {
-                return Ok(Numeric {
-                    sign: NumericSign::PositiveInfinity,
-                    scale: 0,
-                    weight: 0,
-                    digits: vec![],
-                })
-            }
-            "-Infinity" | "-infinity" | "-inf" => {
-                return Ok(Numeric {
-                    sign: NumericSign::NegativeInfinity,
-                    scale: 0,
-                    weight: 0,
-                    digits: vec![],
-                })
-            }
-            _ => {}
-        };
+        if value.eq_ignore_ascii_case("NaN") {
+            return Ok(Numeric::nan());
+        }
+        if value.eq_ignore_ascii_case("Infinity") || value.eq_ignore_ascii_case("Inf") {
+            return Ok(Numeric::infinity());
+        }
+        if value.eq_ignore_ascii_case("-Infinity") || value.eq_ignore_ascii_case("-Inf") {
+            return Ok(Numeric::negative_infinity());
+        }
 
         let mut s = value.as_bytes();
         if let Some(&b'-') = s.first() {
@@ -206,7 +215,7 @@ impl FromStr for Numeric {
 
         if let Some(mut e) = e {
             if e.is_empty() {
-                return Err("empty sientific notation string".into());
+                return Err("empty scientific notation string".into());
             }
 
             let mut positive = true;
@@ -221,7 +230,7 @@ impl FromStr for Numeric {
 
             for &b in e {
                 if !b.is_ascii_digit() {
-                    return Err("sientific notation string contain non-digit character".into());
+                    return Err("scientific notation string contain non-digit character".into());
                 }
                 exp = exp * 10 + (b - b'0') as u16;
             }
@@ -591,7 +600,7 @@ mod test {
     }
 
     #[test]
-    fn test_from_sientific_notation() {
+    fn test_from_scientific_notation() {
         let cases = &[
             (
                 "2e4",
