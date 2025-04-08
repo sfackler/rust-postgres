@@ -261,7 +261,7 @@ impl FromStr for Numeric {
             integer.pop_front();
         }
 
-        let mut weight = if integer.is_empty() || integer == b"0" {
+        let mut weight = if integer.is_empty() {
             -1
         } else {
             integer.len().div_ceil(4) as i16 - 1
@@ -365,6 +365,15 @@ mod test {
     #[test]
     fn test_string_deserialization_and_serialization() {
         let cases = &[
+            (
+                "0",
+                Numeric {
+                    sign: NumericSign::Positive,
+                    scale: 0,
+                    weight: 0,
+                    digits: vec![],
+                },
+            ),
             (
                 "1",
                 Numeric {
@@ -808,6 +817,24 @@ mod test {
             let num = e.parse::<Numeric>().expect("parse numeric");
             assert_eq!(num, *n, "{e} to numeric");
             assert_eq!(num.to_string(), *str, "{e} back to string");
+        }
+    }
+
+    use proptest::prelude::*;
+    proptest! {
+        #[test]
+        fn test_arbitrary_f64_from_string_and_back(value in any::<f64>()) {
+            let prop_val = value.to_string();
+            let numeric = Numeric::from_str(&prop_val).expect("parse numeric");
+            let str_val = numeric.to_string();
+            assert_eq!(prop_val, str_val, "proprty test value {value}");
+        }
+        #[test]
+        fn test_arbitrary_i64_from_string_and_back(value in any::<i64>()) {
+            let prop_val = value.to_string();
+            let numeric = Numeric::from_str(&prop_val).expect("parse numeric");
+            let str_val = numeric.to_string();
+            assert_eq!(prop_val, str_val, "proprty test value {value}");
         }
     }
 }
