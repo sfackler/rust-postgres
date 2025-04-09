@@ -213,6 +213,7 @@ impl FromStr for Numeric {
         let mut decimal: VecDeque<u8> = decimal.unwrap_or(b"").to_vec().into();
         let mut integer: VecDeque<u8> = s.to_vec().into();
 
+        // parse scientific notation
         if let Some(mut e) = e {
             if e.is_empty() {
                 return Err("empty scientific notation string".into());
@@ -267,6 +268,7 @@ impl FromStr for Numeric {
             integer.len().div_ceil(4) as i16 - 1
         };
 
+        // parse the integer part
         if weight >= 0 {
             let integer: Vec<u8> = integer.into();
             for chunk in integer.rchunks(4) {
