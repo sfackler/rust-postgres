@@ -1,5 +1,7 @@
 //! Connection configuration.
 
+#![allow(clippy::doc_overindented_list_items)]
+
 use crate::connection::Connection;
 use crate::Client;
 use log::info;

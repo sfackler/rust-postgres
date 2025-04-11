@@ -1,5 +1,7 @@
 //! Connection configuration.
 
+#![allow(clippy::doc_overindented_list_items)]
+
 #[cfg(feature = "runtime")]
 use crate::connect::connect;
 use crate::connect_raw::connect_raw;

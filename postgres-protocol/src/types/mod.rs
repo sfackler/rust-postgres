@@ -324,7 +324,7 @@ pub fn varbit_from_sql(mut buf: &[u8]) -> Result<Varbit<'_>, StdBox<dyn Error + 
     if len < 0 {
         return Err("invalid varbit length: varbit < 0".into());
     }
-    let bytes = (len as usize + 7) / 8;
+    let bytes = (len as usize).div_ceil(8);
     if buf.len() != bytes {
         return Err("invalid message length: varbit mismatch".into());
     }

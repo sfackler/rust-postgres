@@ -180,7 +180,7 @@ impl ScramSha256 {
                     password,
                     channel_binding,
                 } => (nonce, password, channel_binding),
-                _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
+                _ => return Err(io::Error::other("invalid SCRAM state")),
             };
 
         let message =
@@ -252,7 +252,7 @@ impl ScramSha256 {
                 salted_password,
                 auth_message,
             } => (salted_password, auth_message),
-            _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid SCRAM state")),
+            _ => return Err(io::Error::other("invalid SCRAM state")),
         };
 
         let message =
@@ -262,10 +262,7 @@ impl ScramSha256 {
 
         let verifier = match parsed {
             ServerFinalMessage::Error(e) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("SCRAM error: {}", e),
-                ));
+                return Err(io::Error::other(format!("SCRAM error: {}", e)));
             }
             ServerFinalMessage::Verifier(verifier) => verifier,
         };
