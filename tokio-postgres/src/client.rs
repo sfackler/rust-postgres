@@ -1,4 +1,4 @@
-use crate::codec::BackendMessages;
+use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::{SslMode, SslNegotiation};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
@@ -22,6 +22,7 @@ use futures_channel::mpsc;
 use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
+use postgres_protocol::message::frontend;
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
@@ -604,6 +605,21 @@ impl Client {
     #[doc(hidden)]
     pub fn __private_api_close(&mut self) {
         self.inner.sender.close_channel()
+    }
+
+    #[doc(hidden)]
+    pub fn __private_api_rollback(&self, name: Option<&str>) {
+        let buf = self.inner().with_buf(|buf| {
+            if let Some(name) = name {
+                frontend::query(&format!("ROLLBACK TO {}", name), buf).unwrap();
+            } else {
+                frontend::query("ROLLBACK", buf).unwrap();
+            }
+            buf.split().freeze()
+        });
+        let _ = self
+            .inner()
+            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
     }
 }
 
