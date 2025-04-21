@@ -89,15 +89,3 @@ host    all             postgres        ::0/0                trust
 # Unix socket connections:
 local   all             postgres                             trust
 EOCONF
-
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-    CREATE ROLE pass_user PASSWORD 'password' LOGIN;
-    CREATE ROLE md5_user PASSWORD 'password' LOGIN;
-    CREATE ROLE replicator WITH REPLICATION PASSWORD 'password' LOGIN;
-    SET password_encryption TO 'scram-sha-256';
-    CREATE ROLE scram_user PASSWORD 'password' LOGIN;
-    CREATE ROLE ssl_user LOGIN;
-    CREATE EXTENSION hstore;
-    CREATE EXTENSION citext;
-    CREATE EXTENSION ltree;
-EOSQL
