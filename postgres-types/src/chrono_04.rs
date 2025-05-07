@@ -1,6 +1,7 @@
 use bytes::BytesMut;
 use chrono_04::{
-    DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc,
+    DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta,
+    TimeZone, Utc,
 };
 use postgres_protocol::types;
 use std::error::Error;
@@ -156,5 +157,31 @@ impl ToSql for NaiveTime {
     }
 
     accepts!(TIME);
+    to_sql_checked!();
+}
+
+impl<'a> FromSql<'a> for TimeDelta {
+    fn from_sql(_: &Type, raw: &[u8]) -> Result<TimeDelta, Box<dyn Error + Sync + Send>> {
+        let usec = types::interval_from_sql(raw)?;
+        if usec > i128::from(i64::max_value()) || jd < i128::from(i64::min_value()) {
+            return Err("value too large to transmit".into());
+        }
+        Ok(TimeDelta::microseconds(usec as i64))
+    }
+
+    accepts!(INTERVAL);
+}
+
+impl ToSql for TimeDelta {
+    fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        let usec = match self.num_microseconds() {
+            Some(usec) => usec,
+            None => return Err("value too large to transmit".into()),
+        };
+        types::interval_to_sql(i128::from(usec), w);
+        Ok(IsNull::No)
+    }
+
+    accepts!(INTERVAL);
     to_sql_checked!();
 }
