@@ -421,6 +421,27 @@ pub fn time_from_sql(mut buf: &[u8]) -> Result<i64, StdBox<dyn Error + Sync + Se
     Ok(v)
 }
 
+/// Serializes an `INTERVAL` value.
+///
+/// The value should represent the number of microseconds.
+#[inline]
+pub fn interval_to_sql(v: i128, buf: &mut BytesMut) {
+    buf.put_i128(v);
+}
+
+/// Deserializes an `INTERVAL` value.
+///
+/// The value represents the number of microseconds.
+#[inline]
+pub fn interval_from_sql(mut buf: &[u8]) -> Result<i128, StdBox<dyn Error + Sync + Send>> {
+    let v = buf.read_i128::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid message length: interval not drained".into());
+    }
+    Ok(v)
+}
+
+
 /// Serializes a `MACADDR` value.
 #[inline]
 pub fn macaddr_to_sql(v: [u8; 6], buf: &mut BytesMut) {
