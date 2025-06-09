@@ -2,13 +2,86 @@
 #![allow(missing_docs)]
 
 use byteorder::{BigEndian, ByteOrder};
+use bytes::{Bytes, BytesMut, BufMut, Buf};
 use bytes::{Buf, BufMut, BytesMut};
+use std::io::{self, Read};
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io;
 use std::marker;
 
-use crate::{write_nullable, FromUsize, IsNull, Oid};
+use crate::{write_nullable, FromUsize, IsNull, Oid, Buffer};
+
+pub const BIND_TAG: u8 = b'B';
+pub const CLOSE_TAG: u8 = b'C';
+pub const COPY_FAIL_TAG: u8 = b'f';
+pub const DESCRIBE_TAG: u8 = b'D';
+pub const EXECUTE_TAG: u8 = b'E';
+pub const FLUSH_TAG: u8 = b'H';
+pub const FUNCTION_CALL_TAG: u8 = b'F';
+pub const GSSENCREQUEST_TAG: u8 = b'8';
+pub const GSSENCRESPONSE_TAG: u8 = b'p';
+pub const PARSE_TAG: u8 = b'P';
+pub const PASSWORD_MESSAGE_TAG: u8 = b'p';
+pub const QUERY_TAG: u8 = b'Q';
+pub const SASL_INITIAL_RESPONSE_TAG: u8 = b'p';
+pub const SASL_RESPONSE_TAG: u8 = b'p';
+pub const SASL_REQUEST_TAG: u8 = b'8';
+pub const SYNC_TAG_TAG: u8 = b'S';
+pub const TERMINATE_TAG: u8 = b'X';
+
+#[non_exaustive]
+pub enum Message {
+    Bind(BindBody),
+    Close(CloseBody),
+    CopyFail(CopyFailBody),
+    Descibe(DescribeBody),
+    Execute(ExecuteBody),
+    Flush(FlushBody),
+    FunctionCall(FunctionCall),
+    GSSENCRequest(GSSENCRequestBody),
+    GSSResponse(GSSResponseBody),
+    Parse(ParseBody),
+    PasswordMessage(PasswordMessageBody),
+    Query(QueryBody),
+    SASLInitialResponse(SASLInitialResponseBody),
+    SASLResponse(SASLResponseBody),
+    SSLRequest(SSLRequestBody),
+    StartupMessage(StartupMessageBody),
+    Sync(SyncBody),
+    Terminate(TerminateBody),
+}
+
+pub struct BindBody<'a> {
+    len: i32,
+    dest: &'a str,
+    src: &'a str,
+    c: i16,
+    param_codes: Vec<u16>,
+    num_of_param_values: i16,
+    param_value_len: i32,
+    param_value: u8,
+    num_of_result_column: i16,
+    result_column: Vec<u16>,
+}
+
+impl<'a> BindBody<'a> {
+    pub fn identifier(&self) -> u8 {
+        BIND_TAG
+    }
+}
+
+impl<'a> TryFrom<&Bytes> for BindBody<'a> {
+    type Error = io::Error;
+
+    fn try_from(buf: &Bytes) -> Result<Self, Self::Error> {
+        let len = (buf.len() + 1) as i32;
+        let buf = Buffer::new(buf.clone(), 5);
+        let dest = buf.read_cstr()?;
+        let src = buf.read_cstr()?;
+        let c = buf.re
+    }
+}
 
 #[inline]
 fn write_body<F, E>(buf: &mut BytesMut, f: F) -> Result<(), E>
